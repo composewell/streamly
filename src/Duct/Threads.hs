@@ -68,6 +68,12 @@ waitForOneChild chan pendingRef = do
     tid <- liftIO $ atomically $ readTChan chan
     liftIO $ modifyIORef pendingRef $ filter (\x -> threadId x /= tid)
 
+-- | kill all the child threads associated with the continuation context
+killChildren :: EventF -> IO ()
+killChildren ctx  = do
+    ths <- readIORef (pendingThreads ctx)
+    mapM_ (killThread . threadId) ths
+
 -- XXX this is not a real semaphore as it does not really block on wait,
 -- instead it returns whether the value is zero or non-zero.
 --
@@ -120,8 +126,8 @@ forkIt current proc = do
 
     updatePendingThreads :: MonadIO m => EventF -> EventF -> m ()
     updatePendingThreads cur child = do
-        -- update the new thread first so that if it exited already reclaim finds
-        -- it in the list and does not panic.
+        -- update the new thread first so that if it exited already reclaim
+        -- finds it in the list and does not panic.
         liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> child:ts)
         tryReclaimZombies (zombieChannel cur) (pendingThreads cur)
 
@@ -142,9 +148,8 @@ forkIt current proc = do
 
     beforeExit cur res = do
         case res of
-            Left _exc -> -- kill all child threads
+            Left _exc -> liftIO $ killChildren cur
                         -- propagate the exception to the parent
-                        return ()
             Right _ -> -- collect the results?
                         return ()
 
@@ -320,13 +325,6 @@ react setHandler iob = AsyncT $ do
           j@(Just _) -> do
             put cont{event=Nothing}
             return $ unsafeCoerce j
-
--- Need to propagate the exception via kill exception handler
--- | kill all the child threads associated with the continuation context
-killChildren :: IORef [EventF] -> IO ()
-killChildren pendingRef  = do
-    ths <- readIORef pendingRef
-    mapM_ (killThread . threadId) ths
 
 ------------------------------------------------------------------------------
 -- Controlling thread quota
