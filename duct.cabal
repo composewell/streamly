@@ -1,0 +1,46 @@
+name:                duct
+version:             0.5.5
+synopsis:            A duct consists of many parallel (multithreaded) data pipes
+description:         An experimental package based on the transient package. Provides a
+                     simple interface to integrate with other libraries and monad transformers.
+                     See <http://github.com/agocorona/transient>
+homepage:            http://github.com/harendra-kumar/duct
+bug-reports:         https://github.com/harendra-kumar/duct/issues
+license:             MIT
+license-file:        LICENSE
+author:              Alberto G. Corona, Harendra Kumar
+maintainer:          harendra.kumar@gmail.com
+copyright:           2017 Harendra Kumar,
+                     2014–2017 Alberto G. Corona
+category:            Parallel, Distributed
+stability:           Experimental
+build-type:          Simple
+cabal-version:       >= 1.10
+
+library
+    hs-source-dirs:    src
+    exposed-modules:   Duct
+                     , Duct.Event
+                     , Duct.Log
+                     , Duct.AsyncT
+                     , Duct.Threads
+
+    default-language: Haskell2010
+    ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates
+                      -fwarn-incomplete-uni-patterns -fwarn-tabs
+
+    build-depends:     base          >= 4.8.1  &&  < 5
+                     , containers    >= 0.5.6
+                     , time          >= 1.5
+                     , transformers  >= 0.4.2
+
+                     -- libraries not bundled with GHC
+                     , lifted-base
+                     , monad-control
+                     , mtl
+                     , stm
+                     , transformers-base
+
+source-repository head
+    type: git
+    location: https://github.com/harendra-kumar/duct
