@@ -40,7 +40,6 @@ data EventF = forall m a b. EventF
     -- ^ State data accessed with get or put operations
 
   , mfSequence  :: Int
-  , threadId    :: ThreadId -- Do we need this?
 
   , parent      :: Maybe EventF -- We need the channel of the parent, but do we
   -- need the parent itself?
@@ -87,18 +86,16 @@ data EventF = forall m a b. EventF
 
 initEventF
     :: m a
-    -> ThreadId
     -> TChan ThreadId
     -> IORef [ThreadId]
     -> IORef Int
     -> EventF
-initEventF x th zombieChan pending credit =
+initEventF x zombieChan pending credit =
   EventF { event           = mempty
          , xcomp           = x
          , fcomp           = []
          , mfData          = mempty
          , mfSequence      = 0
-         , threadId        = th
          , parent          = Nothing
          , zombieChannel   = zombieChan
          , pendingThreads  = pending

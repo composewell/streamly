@@ -119,10 +119,7 @@ forkFinally1 action and_then =
 forkIt :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m t) -> m ()
 forkIt current proc = do
     child <- newChildCont current
-    tid <- forkFinally1 (runInChild proc child)
-                        $ \res -> do
-                            thId <- myThreadId
-                            beforeExit child{threadId = thId} res
+    tid <- forkFinally1 (proc child) (beforeExit child)
     updatePendingThreads current tid
 
     where
@@ -144,11 +141,6 @@ forkIt current proc = do
             , zombieChannel = chan
             }
 
-    runInChild m child = do
-        th <- liftIO $ myThreadId
-        dbg $ "Forked: child " ++ show th
-        m child{threadId = th}
-
     beforeExit cur res = do
         case res of
             Left _exc -> liftIO $ killChildren cur
@@ -161,7 +153,8 @@ forkIt current proc = do
         -- We are guaranteed to have a parent because we have been explicitly
         -- forked by some parent.
         let p = fromJust (parent cur)
-        liftIO $ atomically $ writeTChan (zombieChannel p) (threadId cur)
+        tid <- myThreadId
+        liftIO $ atomically $ writeTChan (zombieChannel p) tid
 
 forkMaybe :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m ()) -> m ()
 forkMaybe current toRun = do
@@ -179,9 +172,7 @@ forkMaybe current toRun = do
                         waitForOneChild (zombieChannel current)
                                         (pendingThreads current)
                         forkMaybe current toRun
-        True -> do
-            dbg $ "Forking: parent " ++ show (threadId current)
-            forkIt current toRun
+        True -> forkIt current toRun
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =

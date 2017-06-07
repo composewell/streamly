@@ -23,7 +23,7 @@ module Duct.AsyncT
 where
 
 import           Control.Applicative         (Alternative (..))
-import           Control.Concurrent          (ThreadId, myThreadId)
+import           Control.Concurrent          (ThreadId)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
                                               readTChan)
 import           Control.Exception           (SomeException, catch)
@@ -365,10 +365,9 @@ runTransient t = do
   zombieChan <- liftIO $ atomically newTChan
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
-  th         <- liftIO $ myThreadId
 
   r <- runStateT (runAsyncT t) $ initEventF
-    (empty :: AsyncT m a) th zombieChan pendingRef credit
+        (empty :: AsyncT m a) zombieChan pendingRef credit
 
   waitForChildren zombieChan pendingRef
   return r
