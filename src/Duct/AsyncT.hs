@@ -362,14 +362,14 @@ waitForChildren chan pendingRef = do
 -- | Run a transient computation with a default initial state
 runTransient :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, EventF)
 runTransient t = do
-  zombieChan <- liftIO $ atomically newTChan
+  childChan  <- liftIO $ atomically newTChan
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
 
   r <- runStateT (runAsyncT t) $ initEventF
-        (empty :: AsyncT m a) zombieChan pendingRef credit
+        (empty :: AsyncT m a) childChan pendingRef credit
 
-  waitForChildren zombieChan pendingRef
+  waitForChildren childChan pendingRef
   return r
 
 -- | Run an 'AsyncT m' computation. Returns the result of the computation or

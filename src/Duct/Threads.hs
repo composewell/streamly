@@ -129,16 +129,16 @@ forkIt current proc = do
         -- update the new thread before reclaiming zombies so that if it exited
         -- already reclaim finds it in the list and does not panic.
         liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> tid:ts)
-        tryReclaimZombies (zombieChannel cur) (pendingThreads cur)
+        tryReclaimZombies (childChannel cur) (pendingThreads cur)
 
     newChildCont cur = do
         pendingRef <- liftIO $ newIORef []
         chan <- liftIO $ atomically newTChan
         -- shares the threadCredit of the parent by default
         return $ cur
-            { parent   = Just cur
+            { parentChannel  = Just (childChannel cur)
             , pendingThreads = pendingRef
-            , zombieChannel = chan
+            , childChannel = chan
             }
 
     beforeExit cur res = do
@@ -148,13 +148,13 @@ forkIt current proc = do
             Right _ -> -- collect the results?
                         return ()
 
-        waitForChildren (zombieChannel cur) (pendingThreads cur)
+        waitForChildren (childChannel cur) (pendingThreads cur)
         signalQSemB (threadCredit cur)
         -- We are guaranteed to have a parent because we have been explicitly
         -- forked by some parent.
-        let p = fromJust (parent cur)
+        let p = fromJust (parentChannel cur)
         tid <- myThreadId
-        liftIO $ atomically $ writeTChan (zombieChannel p) tid
+        liftIO $ atomically $ writeTChan p tid
 
 forkMaybe :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m ()) -> m ()
 forkMaybe current toRun = do
@@ -169,7 +169,7 @@ forkMaybe current toRun = do
                         -- special handling for those cases. Add those to
                         -- unreclaimable list? And always execute them in an
                         -- async thread, cannot use sync for those.
-                        waitForOneChild (zombieChannel current)
+                        waitForOneChild (childChannel current)
                                         (pendingThreads current)
                         forkMaybe current toRun
         True -> forkIt current toRun

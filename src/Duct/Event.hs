@@ -41,9 +41,8 @@ data EventF = forall m a b. EventF
 
   , mfSequence  :: Int
 
-  , parent      :: Maybe EventF -- We need the channel of the parent, but do we
-  -- need the parent itself?
-    -- ^ The parent of this thread
+  , parentChannel  :: Maybe (TChan ThreadId)
+    -- ^ Our parent thread's channel to communicate to when we die
 
     -- Thread creation and cleanup handling. When a new thread is created the
     -- parent records it in the 'children' field and 'threadCredit' is
@@ -55,8 +54,8 @@ data EventF = forall m a b. EventF
     -- parent thread waits on the channel until all its children are cleaned
     -- up.
 
-  , zombieChannel    :: TChan ThreadId
-    -- ^ A channel for the immediate children to communicate to when they die.
+  , childChannel    :: TChan ThreadId
+    -- ^ A channel for the immediate children to communicate to us when they die.
     -- Each thread has its own dedicated channel for its children
 
     -- We always track the child threads, otherwise the programmer needs to
@@ -90,14 +89,14 @@ initEventF
     -> IORef [ThreadId]
     -> IORef Int
     -> EventF
-initEventF x zombieChan pending credit =
+initEventF x childChan pending credit =
   EventF { event           = mempty
          , xcomp           = x
          , fcomp           = []
          , mfData          = mempty
          , mfSequence      = 0
-         , parent          = Nothing
-         , zombieChannel   = zombieChan
+         , parentChannel   = Nothing
+         , childChannel    = childChan
          , pendingThreads  = pending
          , threadCredit    = credit }
 
