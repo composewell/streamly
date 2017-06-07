@@ -25,9 +25,11 @@ import           Unsafe.Coerce          (unsafeCoerce)
 
 type SData = ()
 
+-- XXX rename to Context
 -- | EventF describes the context of a TransientIO computation.
 data EventF = forall m a b. EventF
-  { event       :: Maybe SData  -- untyped
+  { event       :: Maybe SData  -- untyped, XXX rename to mailbox - can we do
+  -- away with this?
   -- ^ event data to use in a continuation in a new thread
 
   , xcomp       :: m a
@@ -38,9 +40,10 @@ data EventF = forall m a b. EventF
     -- ^ State data accessed with get or put operations
 
   , mfSequence  :: Int
-  , threadId    :: ThreadId
+  , threadId    :: ThreadId -- Do we need this?
 
-  , parent      :: Maybe EventF
+  , parent      :: Maybe EventF -- We need the channel of the parent, but do we
+  -- need the parent itself?
     -- ^ The parent of this thread
 
     -- Thread creation and cleanup handling. When a new thread is created the
@@ -57,23 +60,24 @@ data EventF = forall m a b. EventF
     -- ^ A channel for the immediate children to communicate to when they die.
     -- Each thread has its own dedicated channel for its children
 
-    -- We always track the child threds otherwise the programmer needs to worry
-    -- about if some threads may remain hanging due because they are stuck in
-    -- an infinite loop or a forever blocked IO. Also, it is not clear whether
-    -- there is a significant gain by disabling tracking. Instead of using the
-    -- threadIds we can also keep a count instead, that will allow us to wait
-    -- for all children to drain but we cannot kill them.
+    -- We always track the child threads, otherwise the programmer needs to
+    -- worry about if some threads may remain hanging due because they are
+    -- stuck in an infinite loop or a forever blocked IO. Also, it is not clear
+    -- whether there is a significant gain by disabling tracking. Instead of
+    -- using the threadIds we can also keep a count instead, that will allow us
+    -- to wait for all children to drain but we cannot kill them.
     --
     -- We need these as IORefs since we need any changes to these to be
     -- reflected back in the calling code that waits for the children.
 
-  , pendingThreads :: IORef [EventF]
+  , pendingThreads :: IORef [ThreadId]
     -- ^ Active immediate child threads of this thread, modified only by this
     -- thread, therefore atomic modification is not needed.
 
     -- By default this limit is shared by the current tree of threads. But at
     -- any point the 'threads' primitive can be used to start a new limit for
-    -- the subtree under that primitive.
+    -- the computation under that primitive.
+    --
     -- Shared across many threads, therefore atomic access is required.
     -- This is incremented by the child thread itelf before it exits.
     --
@@ -85,7 +89,7 @@ initEventF
     :: m a
     -> ThreadId
     -> TChan ThreadId
-    -> IORef [EventF]
+    -> IORef [ThreadId]
     -> IORef Int
     -> EventF
 initEventF x th zombieChan pending credit =

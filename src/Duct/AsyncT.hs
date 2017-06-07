@@ -39,6 +39,7 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
 import           Data.Dynamic                (Typeable)
 import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
+import           Data.List                   (delete)
 import           Data.Maybe                  (isJust, isNothing)
 import           Unsafe.Coerce               (unsafeCoerce)
 
@@ -339,22 +340,19 @@ instance (MonadBaseControl b m, MonadIO m) => MonadBaseControl b (AsyncT m) wher
 -- Thread management
 ------------------------------------------------------------------------------
 
-drainChildren :: MonadIO m => TChan ThreadId -> [EventF] -> m ()
+drainChildren :: MonadIO m => TChan ThreadId -> [ThreadId] -> m ()
 drainChildren chan pending =
     if length pending == 0
         then return ()
         else do
             tid <- liftIO $ atomically $ readTChan chan
             dbg $ "Reaping child: " ++ show tid
-            drainChildren chan $ filter (\x -> threadId x /= tid) pending
+            drainChildren chan $ delete tid pending
 
-waitForChildren :: MonadIO m => TChan ThreadId -> IORef [EventF] -> m ()
+waitForChildren :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
 waitForChildren chan pendingRef = do
     pending <- liftIO $ readIORef pendingRef
-    tid <- liftIO myThreadId
-    dbg $ "Waiting for children: " ++ show tid
     drainChildren chan pending
-    dbg $ "Done: " ++ show tid
     liftIO $ writeIORef pendingRef []
 
 ------------------------------------------------------------------------------

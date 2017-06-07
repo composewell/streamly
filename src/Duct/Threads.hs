@@ -23,6 +23,7 @@ import Data.Dynamic (Typeable)
 import Data.IORef
        (IORef, atomicModifyIORef, readIORef, writeIORef, modifyIORef,
         newIORef)
+import Data.List (delete)
 import Data.Maybe (fromJust)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State
@@ -48,31 +49,31 @@ runCont EventF { xcomp = x, fcomp = fs } = runAsyncT $ do
 -- Thread Management (creation, reaping and killing)
 ------------------------------------------------------------------------------
 
-tryReclaimZombies :: MonadIO m => TChan ThreadId -> IORef [EventF] -> m ()
+tryReclaimZombies :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
 tryReclaimZombies chan pendingRef = do
     pending <- liftIO $ readIORef pendingRef
-    if length pending == 0
-        then return ()
-        else do
+    case pending of
+        [] -> return ()
+        _ ->  do
             mtid <- liftIO $ atomically $ tryReadTChan chan
             case mtid of
                 Nothing -> return ()
                 Just tid -> do
-                    liftIO $ writeIORef pendingRef $ filter (\x -> threadId x /= tid) pending
+                    liftIO $ writeIORef pendingRef $ delete tid pending
                     tryReclaimZombies chan pendingRef
 
-waitForOneChild :: MonadIO m => TChan ThreadId -> IORef [EventF] -> m ()
+waitForOneChild :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
 waitForOneChild chan pendingRef = do
     -- XXX assert pending must have at least one element
     -- assert that the tid is found in our list
     tid <- liftIO $ atomically $ readTChan chan
-    liftIO $ modifyIORef pendingRef $ filter (\x -> threadId x /= tid)
+    liftIO $ modifyIORef pendingRef $ delete tid
 
 -- | kill all the child threads associated with the continuation context
 killChildren :: EventF -> IO ()
 killChildren ctx  = do
     ths <- readIORef (pendingThreads ctx)
-    mapM_ (killThread . threadId) ths
+    mapM_ killThread ths
 
 -- XXX this is not a real semaphore as it does not really block on wait,
 -- instead it returns whether the value is zero or non-zero.
@@ -120,15 +121,15 @@ forkIt current proc = do
                         $ \res -> do
                             thId <- myThreadId
                             beforeExit child{threadId = thId} res
-    updatePendingThreads current child{threadId = tid}
+    updatePendingThreads current tid
 
     where
 
-    updatePendingThreads :: MonadIO m => EventF -> EventF -> m ()
-    updatePendingThreads cur child = do
-        -- update the new thread first so that if it exited already reclaim
-        -- finds it in the list and does not panic.
-        liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> child:ts)
+    updatePendingThreads :: MonadIO m => EventF -> ThreadId -> m ()
+    updatePendingThreads cur tid = do
+        -- update the new thread before reclaiming zombies so that if it exited
+        -- already reclaim finds it in the list and does not panic.
+        liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> tid:ts)
         tryReclaimZombies (zombieChannel cur) (pendingThreads cur)
 
     newChildCont cur = do
