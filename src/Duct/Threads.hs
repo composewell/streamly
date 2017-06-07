@@ -18,7 +18,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
        (TChan, atomically, newTChan, readTChan, tryReadTChan, writeTChan)
 import Control.Exception (SomeException(..), ErrorCall(..), catch)
-import qualified Control.Exception.Lifted as E
+import qualified Control.Exception.Lifted as EL
 import Data.Dynamic (Typeable)
 import Data.IORef
        (IORef, atomicModifyIORef, readIORef, writeIORef, modifyIORef,
@@ -102,20 +102,19 @@ instance Read SomeException where
 forkFinally1 :: (MonadIO m, MonadBaseControl IO m) =>
     m a -> (Either SomeException a -> IO ()) -> m ThreadId
 forkFinally1 action and_then =
-    E.mask $ \restore ->
+    EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            runInIO $ E.try (restore action) >>= liftIO . and_then
+            _ <- runInIO $ EL.try (restore action) >>= liftIO . and_then
             return ()
 
 forkIt :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m t) -> m ()
 forkIt current proc = do
     child <- newChildCont current
     tid <- forkFinally1 (runInChild proc child)
-         $ \res -> do
-            thId <- myThreadId
-            beforeExit child{threadId = thId} res
+                        $ \res -> do
+                            thId <- myThreadId
+                            beforeExit child{threadId = thId} res
     updatePendingThreads current child{threadId = tid}
-    return ()
 
     where
 
@@ -151,6 +150,8 @@ forkIt current proc = do
 
         waitForChildren (zombieChannel cur) (pendingThreads cur)
         signalQSemB (threadCredit cur)
+        -- We are guaranteed to have a parent because we have been explicitly
+        -- forked by some parent.
         let p = fromJust (parent cur)
         liftIO $ atomically $ writeTChan (zombieChannel p) (threadId cur)
 
@@ -182,10 +183,14 @@ data StreamData a =
     | SError SomeException  -- ^ An error occurred
     deriving (Typeable, Show,Read)
 
+-- XXX instead of starting a new thread every time, reuse the existing child
+-- threads and send them work via a shared channel. When there is no more work
+-- available we need a way to close the channel and wakeup all waiters so that
+-- they can go away.
+--
 -- | Execute the IO action and the continuation
 genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => EventF -> IO (StreamData t) -> m ()
-genAsyncEvents parentc rec =
-    forkMaybe parentc $ \childcont -> loop childcont >> return ()
+genAsyncEvents parentc rec = forkMaybe parentc loop
 
     where
 
