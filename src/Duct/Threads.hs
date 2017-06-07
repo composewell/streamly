@@ -12,28 +12,30 @@ module Duct.Threads
     )
 where
 
-import Control.Applicative ((<|>))
-import Control.Concurrent
-       (ThreadId, forkIO, myThreadId, threadDelay, killThread)
-import Control.Concurrent.STM
-       (TChan, atomically, newTChan, readTChan, tryReadTChan, writeTChan)
-import Control.Exception (SomeException(..), ErrorCall(..), catch)
-import qualified Control.Exception.Lifted as EL
-import Data.Dynamic (Typeable)
-import Data.IORef
-       (IORef, atomicModifyIORef, readIORef, writeIORef, modifyIORef,
-        newIORef)
-import Data.List (delete)
-import Data.Maybe (fromJust)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.State
-       (StateT, get, gets, modify, put, runStateT, when)
-import Control.Monad.Trans.Class (MonadTrans(lift))
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
-import Unsafe.Coerce (unsafeCoerce)
+import           Control.Applicative         ((<|>))
+import           Control.Concurrent          (ThreadId, forkIO, killThread,
+                                              myThreadId, threadDelay)
+import           Control.Concurrent.STM      (TChan, atomically, newTChan,
+                                              readTChan, tryReadTChan,
+                                              writeTChan)
+import           Control.Exception           (ErrorCall (..),
+                                              SomeException (..), catch)
+import qualified Control.Exception.Lifted    as EL
+import           Control.Monad.IO.Class      (MonadIO (..))
+import           Control.Monad.State         (StateT, get, gets, modify, put,
+                                              runStateT, when)
+import           Control.Monad.Trans.Class   (MonadTrans (lift))
+import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
+import           Data.Dynamic                (Typeable)
+import           Data.IORef                  (IORef, atomicModifyIORef,
+                                              modifyIORef, newIORef, readIORef,
+                                              writeIORef)
+import           Data.List                   (delete)
+import           Data.Maybe                  (fromJust)
+import           Unsafe.Coerce               (unsafeCoerce)
 
-import Duct.AsyncT
-import Duct.Event
+import           Duct.AsyncT
+import           Duct.Event
 
 ------------------------------------------------------------------------------
 -- Utilities
