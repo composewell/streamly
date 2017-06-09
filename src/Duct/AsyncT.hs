@@ -109,75 +109,15 @@ restoreStack :: MonadState EventF m => t -> m ()
 restoreStack fs = modify $ \EventF {..} ->
     EventF { event = Nothing, fcomp = (unsafeCoerce fs), .. }
 
-instance MonadIO m => Applicative (AsyncT m) where
+instance Monad m => Applicative (AsyncT m) where
   pure a  = AsyncT . return $ Just a
-
-  f <*> g = AsyncT $ do
-         rf <- liftIO $ newIORef (Nothing,[])
-         rg <- liftIO $ newIORef (Nothing,[])
-         fs <- getContinuations
-
-         let hasWait (_:Wait:_) = True
-             hasWait _          = False
-
-             appf k = AsyncT $  do
-                   Log rec _ full <- getData `onNothing` return (Log False [] [])
-                   (liftIO $ writeIORef rf  (Just k,full))
-                   (x, full2)<- liftIO $ readIORef rg
-                   when (hasWait  full ) $
-                        let full'= head full: full2
-                        in (setData $ Log rec full' full')
-                   return $ Just (unsafeCoerce k) <*> x
-
-             appg x = AsyncT $  do
-                   Log rec _ full <- getData `onNothing` return (Log False [] [])
-                   liftIO $ writeIORef rg (Just x, full)
-                   (k,full1) <- liftIO $ readIORef rf
-                   when (hasWait  full) $
-                        let full'= head full: full1
-                        in (setData $ Log rec full' full')
-                   return $ unsafeCoerce k <*> Just x
-
-         setContinuation f appf fs
-
-         k <- runAsyncT f
-         was <- getData `onNothing` return NoRemote
-         when (was == WasParallel) $  setData NoRemote
-
-         Log recovery _ full <- getData `onNothing` return (Log False [] [])
-
-
-
-         if was== WasRemote  || (not recovery && was == NoRemote  && isNothing k )
-         -- if the first operand was a remote request
-         -- (so this node is not master and hasn't to execute the whole expression)
-         -- or it was not an asyncronous term (a normal term without async or parallel
-         -- like primitives) and is nothing
-           then  do
-             restoreStack fs
-             return Nothing
-           else do
-             when (isJust k) $ liftIO $ writeIORef rf  (k,full)
-                -- when necessary since it maybe WasParallel and Nothing
-
-             setContinuation g appg fs
-
-             x <- runAsyncT g
-             Log _ _ full' <- getData `onNothing` return (Log False [] [])
-             liftIO $ writeIORef rg  (x,full')
-             restoreStack fs
-             k'' <- if was== WasParallel
-                      then do
-                        (k',_) <- liftIO $ readIORef rf -- since k may have been updated by a parallel f
-                        return k'
-                      else return k
-             return $ k'' <*> x
+  m1 <*> m2 = do { x1 <- m1; x2 <- m2; return (x1 x2) }
 
 ------------------------------------------------------------------------------
 -- Alternative
 ------------------------------------------------------------------------------
 
-instance MonadIO m => Alternative (AsyncT m) where
+instance Monad m => Alternative (AsyncT m) where
     empty = AsyncT $ return  Nothing
     (<|>) x y = AsyncT $ do
         mx <- runAsyncT x
@@ -203,41 +143,30 @@ tailsafe :: [a] -> [a]
 tailsafe []     = []
 tailsafe (_:xs) = xs
 
--- | Set the current closure and continuation for the current statement
-setEventCont :: Monad m => AsyncT m a -> (a -> AsyncT m b) -> StateM m EventF
-setEventCont x f  = do
-  EventF { fcomp = fs, .. } <- get
-  let cont = EventF { xcomp = x
-                    , fcomp = unsafeCoerce f : unsafeCoerce fs
-                    , .. }
-  put cont
-  return cont
-
--- | Reset the closure and continuation. Remove inner binds that the previous
--- computations may have stacked in the list of continuations.
-resetEventCont :: forall m a b. MonadIO m
-    => Maybe a -> EventF -> StateM m (AsyncT m b -> AsyncT m b)
-resetEventCont mx _ = do
-  EventF { fcomp = fs, .. } <- get
-  let f my = case my of
-        Nothing -> (empty :: AsyncT m a)
-        Just x  -> unsafeCoerce (head fs) x
-  put $ EventF { xcomp = f mx
-               , fcomp = tailsafe (unsafeCoerce fs)
-               , .. }
-  return  id
-
-instance MonadIO m => Monad (AsyncT m) where
+instance Monad m => Monad (AsyncT m) where
   return   = pure
-  x >>= f  = AsyncT $ do
-    c  <- setEventCont x f
-    mk <- runAsyncT x
-    _ <- resetEventCont mk c
-    case mk of
-      Just k  -> runAsyncT (f k)
-      Nothing -> return Nothing
+  m >>= f  = AsyncT $ do
+    -- save m in xcomp and add f to the head of fcomp
+    -- _  <- setEventCont m f
+    modify $ \EventF { fcomp = fs, .. } ->
+        EventF { xcomp = unsafeCoerce m, fcomp = unsafeCoerce f : fs, .. }
 
-instance MonadIO m => MonadPlus (AsyncT m) where
+    -- run m under this modified environment
+    mres <- runAsyncT m
+    -- remove the head of fcomp apply it to mres and that becomes the new xcomp.
+    -- is head of fcomp always the same as f?
+    let res = case mres of
+            Nothing -> empty
+            Just x -> f x
+
+    -- XXX why would we have more than one continuation? Can we have just one
+    -- instead of a list and remove it after every bind?
+    modify $ \EventF { fcomp = fs, .. } ->
+        EventF { xcomp = unsafeCoerce res, fcomp = tailsafe fs, .. }
+
+    runAsyncT res
+
+instance Monad m => MonadPlus (AsyncT m) where
   mzero = empty
   mplus = (<|>)
 
