@@ -20,7 +20,7 @@ cabal-version:       >= 1.10
 library
     hs-source-dirs:    src
     exposed-modules:   Duct
-                     , Duct.Event
+                     , Duct.Context
                      , Duct.Log
                      , Duct.AsyncT
                      , Duct.Threads
@@ -33,6 +33,7 @@ library
                      , containers    >= 0.5.6
                      , time          >= 1.5
                      , transformers  >= 0.4.2
+                     , ghc-prim
 
                      -- libraries not bundled with GHC
                      , lifted-base

@@ -6,23 +6,22 @@ import Control.Concurrent.STM
 import Control.Monad.State
 import Data.IORef
 
-import Duct.Event
+import Duct.Context
 
-f :: StateT EventF IO String
+f :: StateT Context IO String
 f = do
     setData "x"
     Just x <- getData
     return x
 
-runEvent :: forall m a. (Alternative m, MonadIO m) => StateT EventF m a -> m a
+runEvent :: forall m a. (Alternative m, MonadIO m) => StateT Context m a -> m a
 runEvent t = do
   zombieChan <- liftIO $ atomically newTChan
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
-  th         <- liftIO $ myThreadId
 
-  (r, _) <- runStateT t $ initEventF
-    (empty :: m a) th zombieChan pendingRef credit
+  (r, _) <- runStateT t $ initContext
+    (empty :: m a) zombieChan pendingRef credit
   return r
 
 main = do

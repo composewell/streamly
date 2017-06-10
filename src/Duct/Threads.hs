@@ -12,7 +12,7 @@ module Duct.Threads
     )
 where
 
-import           Control.Applicative         ((<|>), empty)
+import           Control.Applicative         ((<|>))
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
@@ -35,7 +35,7 @@ import           Data.Maybe                  (fromJust)
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Duct.AsyncT
-import           Duct.Event
+import           Duct.Context
 
 ------------------------------------------------------------------------------
 -- Pick up from where we left in the previous thread
@@ -45,15 +45,8 @@ import           Duct.Event
 -- to a new thread. Run the stack of pending functions in fstack. The types
 -- don't match. We just coerce the types here, we know that they actually match.
 
-continue :: (MonadIO m, Monad (AsyncT m)) => Context -> StateT Context m (Maybe a)
-continue Context { currentm = x, fstack = fs } =
-    runAsyncT $ unsafeCoerce x >>= runfStack (unsafeCoerce fs)
-
-    where
-
-    runfStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
-    runfStack [] _     = empty
-    runfStack (f:fs) x = f x >>= runfStack fs
+continue :: Monad m => Context -> StateT Context m (Maybe a)
+continue = runAsyncT . continueContext
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -244,8 +237,8 @@ parallel ioaction = AsyncT $ do
     -- in this thread or a new thread.
     Nothing    -> do
       lift $ genAsyncEvents cont ioaction
-      was <- getData `onNothing` return NoRemote
-      when (was /= WasRemote) $ setData WasParallel
+      loc <- getLocation
+      when (loc /= RemoteNode) $ setLocation ForkedThread
       return Nothing
 
 -- | An task stream generator that produces an infinite stream of tasks by
@@ -273,10 +266,10 @@ async io = do
 -- computation.  Note that in Applicatives it might result in an undesired
 -- serialization.
 sync :: MonadIO m => AsyncT m a -> AsyncT m a
-sync x = do
-  setData WasRemote
-  r <- x
-  delData WasRemote
+sync x = AsyncT $ do
+  setLocation RemoteNode
+  r <- runAsyncT x
+  setLocation Local
   return r
 
 -- | An task stream generator that produces an infinite stream of tasks by
@@ -320,8 +313,8 @@ react setHandler iob = AsyncT $ do
             lift $ setHandler $ \dat ->do
               runStateT (continue cont) cont{event= Just $ unsafeCoerce dat}
               liftIO iob
-            was <- getData `onNothing` return NoRemote
-            when (was /= WasRemote) $ setData WasParallel
+            loc <- getLocation
+            when (loc /= RemoteNode) $ setLocation ForkedThread
             return Nothing
 
           j@(Just _) -> do

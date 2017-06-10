@@ -1,9 +1,16 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE RecordWildCards           #-}
 
-module Duct.Event
+module Duct.Context
     ( Context(..)
     , initContext
+    , saveContext
+    , restoreContext
+    , continueContext
+    , Location(..)
+    , getLocation
+    , setLocation
     , getData
     , setData
     , modifyData
@@ -11,33 +18,39 @@ module Duct.Event
     )
 where
 
+import Control.Applicative (Alternative(..))
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
-import           Control.Monad.State    (MonadState, gets, modify)
+import           Control.Monad.State    (MonadState, gets, modify, StateT, MonadPlus)
+import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (TypeRep, Typeable, typeOf)
 import           Data.IORef             (IORef)
 import qualified Data.Map               as M
 import           Unsafe.Coerce          (unsafeCoerce)
+import GHC.Prim (Any)
 
 ------------------------------------------------------------------------------
 -- State of a continuation
 ------------------------------------------------------------------------------
 
-type SData = ()
-
 -- | Describes the context of a computation.
-data Context = forall m a b. Context
-  { event       :: Maybe SData  -- untyped, XXX rename to mailbox - can we do
+data Context = Context
+  { event       :: Maybe ()  -- untyped, XXX rename to mailbox - can we do
   -- away with this?
   -- ^ event data to use in a continuation in a new thread
 
   -- the 'm' and 'f' in an 'm >>= f' operation of the monad
   -- In nested binds we store the current m only, but the whole stack of fs
-  , currentm     :: m a
-  , fstack       :: [a -> m b]
+  , currentm     :: Any   -- untyped, the real type is: m a
+  , fstack       :: [Any] -- untyped, the real type is: [a -> m b]
     -- ^ List of continuations
 
-  , mfData      :: M.Map TypeRep SData
+  -- log only when there is a restore or if we are teleporting
+  -- We can use a HasLog constraint to statically enable/disable logging
+  -- , journal :: Maybe Log
+  , location :: Location
+
+  , mfData      :: M.Map TypeRep Any -- untyped, type coerced
     -- ^ State data accessed with get or put operations
 
     -- XXX All of the following can be removed
@@ -92,14 +105,67 @@ initContext
     -> IORef Int
     -> Context
 initContext x childChan pending credit =
-  Context { event           = mempty
-         , currentm        = x
+  Context { event          = mempty
+         , currentm        = unsafeCoerce x
          , fstack          = []
+         , location        = Local
          , mfData          = mempty
          , parentChannel   = Nothing
          , childChannel    = childChan
          , pendingThreads  = pending
          , threadCredit    = credit }
+
+------------------------------------------------------------------------------
+-- Where is the computation running?
+------------------------------------------------------------------------------
+
+data Location = Local | ForkedThread | RemoteNode
+  deriving (Typeable, Eq, Show)
+
+getLocation :: Monad m => StateT Context m Location
+getLocation = Lazy.gets location
+
+setLocation :: Monad m => Location -> StateT Context m ()
+setLocation loc = Lazy.modify $ \Context { .. } -> Context { location = loc, .. }
+
+------------------------------------------------------------------------------
+-- Saving and restoring the context of a computation
+------------------------------------------------------------------------------
+
+-- Save the 'm' and 'f', in case we migrate to a new thread before the current
+-- bind operation completes, we run the operation manually in the new thread
+-- using this context.
+saveContext :: Monad m => f a -> (a -> f b) -> StateT Context m ()
+saveContext m f =
+    Lazy.modify $ \Context { fstack = fs, .. } ->
+        Context { currentm = unsafeCoerce m
+                , fstack   = unsafeCoerce f : fs
+                , .. }
+
+-- pop the top function from the continuation stack, create the next closure,
+-- set it as the current closure and return it.
+restoreContext :: (Alternative f, Monad m) => Maybe a -> StateT Context m (f b)
+restoreContext x = do
+    -- XXX fstack must be non-empty when this is called.
+    ctx@Context { fstack = f:fs } <- Lazy.get
+
+    let mres = case x of
+            Nothing -> empty
+            Just y -> (unsafeCoerce f) y
+
+    Lazy.put ctx { currentm = unsafeCoerce mres, fstack = fs }
+
+    return mres
+
+continueContext :: MonadPlus m => Context -> m a
+continueContext Context { currentm = m, fstack = fs } =
+    unsafeCoerce m >>= runfStack (unsafeCoerce fs)
+
+    where
+
+    -- runfStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
+    runfStack [] _     = empty
+    runfStack (f:ff) x = f x >>= runfStack ff
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

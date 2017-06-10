@@ -14,7 +14,6 @@ module Duct.AsyncT
     , waitAsync
     , (<**)
     , onNothing
-    , RemoteStatus (..)
     , waitForChildren
     , dbg
     )
@@ -39,20 +38,12 @@ import           Data.IORef                  (IORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (delete)
 import           Data.Maybe                  (isJust, isNothing)
-import           Unsafe.Coerce               (unsafeCoerce)
 
-import           Duct.Event
+import           Duct.Context
 
 -- import           Debug.Trace
 
 newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
-
-------------------------------------------------------------------------------
--- Remote data types
-------------------------------------------------------------------------------
-
-data RemoteStatus   = WasRemote | WasParallel | NoRemote
-  deriving (Typeable, Eq, Show)
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -96,12 +87,10 @@ instance Monad m => Alternative (AsyncT m) where
     empty = AsyncT $ return  Nothing
     (<|>) x y = AsyncT $ do
         mx <- runAsyncT x
-        was <- getData `onNothing` return NoRemote
-        if was == WasRemote
-          then return Nothing
-          else case mx of
-                Nothing -> runAsyncT y
-                justx -> return justx
+        loc <- getLocation
+        case loc of
+            RemoteNode -> return Nothing
+            _          ->  maybe (runAsyncT y) (return . Just) mx
 
 -- | A synonym of 'empty' that can be used in a monadic expression. It stops
 -- the computation, which allows the next computation in an 'Alternative'
@@ -113,38 +102,15 @@ stop = empty
 -- Monad
 ------------------------------------------------------------------------------
 
--- | Total variant of `tail` that returns an empty list when given an empty list.
-tailsafe :: [a] -> [a]
-tailsafe []     = []
-tailsafe (_:xs) = xs
-
 instance Monad m => Monad (AsyncT m) where
-  return   = pure
-
-  m >>= f  = AsyncT $ do
-    -- Save the 'm' and 'f', in case we migrate to a new thread before this
-    -- bind operation completes, we run the operation manually in the new
-    -- thread.
-    modify $ \Context { fstack = fs, .. } ->
-        Context { currentm = unsafeCoerce m
-                , fstack   = unsafeCoerce f : fs
-                , .. }
+    return = pure
 
     -- Inner bind operations in 'm' add their 'f' to fstack.  If we migrate to
     -- a new thread somewhere in the middle we unwind the fstack and run these
     -- functions manually after migration.
-    mres <- runAsyncT m
-
-    let res = case mres of
-            Nothing -> empty
-            Just x -> f x
-
-    modify $ \Context { fstack = fs, .. } ->
-        Context { currentm = unsafeCoerce res
-                , fstack   = tailsafe fs
-                , .. }
-
-    runAsyncT res
+    m >>= f = AsyncT $ do
+        saveContext m f
+        runAsyncT m >>= restoreContext >>= runAsyncT
 
 instance Monad m => MonadPlus (AsyncT m) where
   mzero = empty
