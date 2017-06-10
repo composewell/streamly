@@ -2,8 +2,8 @@
 {-# LANGUAGE FlexibleContexts          #-}
 
 module Duct.Event
-    ( EventF(..)
-    , initEventF
+    ( Context(..)
+    , initContext
     , getData
     , setData
     , modifyData
@@ -25,9 +25,8 @@ import           Unsafe.Coerce          (unsafeCoerce)
 
 type SData = ()
 
--- XXX rename to Context
--- | EventF describes the context of a TransientIO computation.
-data EventF = forall m a b. EventF
+-- | Describes the context of a computation.
+data Context = forall m a b. Context
   { event       :: Maybe SData  -- untyped, XXX rename to mailbox - can we do
   -- away with this?
   -- ^ event data to use in a continuation in a new thread
@@ -88,14 +87,14 @@ data EventF = forall m a b. EventF
     -- ^ How many more threads are allowed to be created?
   } deriving Typeable
 
-initEventF
+initContext
     :: m a
     -> TChan ThreadId
     -> IORef [ThreadId]
     -> IORef Int
-    -> EventF
-initEventF x childChan pending credit =
-  EventF { event           = mempty
+    -> Context
+initContext x childChan pending credit =
+  Context { event           = mempty
          , currentm        = x
          , fstack          = []
          , mfData          = mempty
@@ -111,7 +110,7 @@ initEventF x childChan pending credit =
 
 -- | Same as 'getSData' but with a more general type. If the data is found, a
 -- 'Just' value is returned. Otherwise, a 'Nothing' value is returned.
-getData :: (MonadState EventF m, Typeable a) => m (Maybe a)
+getData :: (MonadState Context m, Typeable a) => m (Maybe a)
 getData = resp
   where resp = do
           list <- gets mfData
@@ -122,11 +121,11 @@ getData = resp
         typeResp = undefined
 
 -- | Same as 'setSData' but with a more general type.
-setData :: (MonadState EventF m, Typeable a) => a -> m ()
+setData :: (MonadState Context m, Typeable a) => a -> m ()
 setData x = modify $ \st -> st { mfData = M.insert t (unsafeCoerce x) (mfData st) }
   where t = typeOf x
 
-modifyData :: (MonadState EventF m, Typeable a) => (Maybe a -> Maybe a) -> m ()
+modifyData :: (MonadState Context m, Typeable a) => (Maybe a -> Maybe a) -> m ()
 modifyData f = modify $ \st -> st { mfData = M.alter alterf t (mfData st) }
   where typeResp :: (Maybe a -> b) -> a
         typeResp   = undefined
@@ -136,7 +135,7 @@ modifyData f = modify $ \st -> st { mfData = M.alter alterf t (mfData st) }
                        Just x  -> Just $ unsafeCoerce x
                        Nothing -> Nothing
 
-delData :: (MonadState EventF m, Typeable a) => a -> m ()
+delData :: (MonadState Context m, Typeable a) => a -> m ()
 delData x = modify $ \st -> st { mfData = M.delete (typeOf x) (mfData st) }
 
 {-

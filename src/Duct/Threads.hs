@@ -45,8 +45,8 @@ import           Duct.Event
 -- to a new thread. Run the stack of pending functions in fstack. The types
 -- don't match. We just coerce the types here, we know that they actually match.
 
-continue :: (MonadIO m, Monad (AsyncT m)) => EventF -> StateT EventF m (Maybe a)
-continue EventF { currentm = x, fstack = fs } =
+continue :: (MonadIO m, Monad (AsyncT m)) => Context -> StateT Context m (Maybe a)
+continue Context { currentm = x, fstack = fs } =
     runAsyncT $ unsafeCoerce x >>= runfStack (unsafeCoerce fs)
 
     where
@@ -80,7 +80,7 @@ waitForOneChild chan pendingRef = do
     liftIO $ modifyIORef pendingRef $ delete tid
 
 -- | kill all the child threads associated with the continuation context
-killChildren :: EventF -> IO ()
+killChildren :: Context -> IO ()
 killChildren ctx  = do
     ths <- readIORef (pendingThreads ctx)
     mapM_ killThread ths
@@ -124,7 +124,7 @@ forkFinally1 action and_then =
             _ <- runInIO $ EL.try (restore action) >>= liftIO . and_then
             return ()
 
-forkIt :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m t) -> m ()
+forkIt :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m t) -> m ()
 forkIt current proc = do
     child <- newChildCont current
     tid <- forkFinally1 (proc child) (beforeExit child)
@@ -132,7 +132,7 @@ forkIt current proc = do
 
     where
 
-    updatePendingThreads :: MonadIO m => EventF -> ThreadId -> m ()
+    updatePendingThreads :: MonadIO m => Context -> ThreadId -> m ()
     updatePendingThreads cur tid = do
         -- update the new thread before reclaiming zombies so that if it exited
         -- already reclaim finds it in the list and does not panic.
@@ -164,7 +164,7 @@ forkIt current proc = do
         tid <- myThreadId
         liftIO $ atomically $ writeTChan p tid
 
-forkMaybe :: (MonadBaseControl IO m, MonadIO m) => EventF -> (EventF -> m ()) -> m ()
+forkMaybe :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m ()) -> m ()
 forkMaybe current toRun = do
     gotCredit <- liftIO $ waitQSemB (threadCredit current)
     pending <- liftIO $ readIORef $ pendingThreads current
@@ -196,7 +196,7 @@ data StreamData a =
 -- they can go away.
 --
 -- | Execute the IO action and the continuation
-genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => EventF -> IO (StreamData t) -> m ()
+genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => Context -> IO (StreamData t) -> m ()
 genAsyncEvents parentc rec = forkMaybe parentc loop
 
     where

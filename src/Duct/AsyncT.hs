@@ -45,7 +45,7 @@ import           Duct.Event
 
 -- import           Debug.Trace
 
-newtype AsyncT m a = AsyncT { runAsyncT :: StateT EventF m (Maybe a) }
+newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
 
 ------------------------------------------------------------------------------
 -- Remote data types
@@ -148,10 +148,10 @@ instance Monad m => Monad (AsyncT m) where
     -- Save the 'm' and 'f', in case we migrate to a new thread before this
     -- bind operation completes, we run the operation manually in the new
     -- thread.
-    modify $ \EventF { fstack = fs, .. } ->
-        EventF { currentm = unsafeCoerce m
-               , fstack   = unsafeCoerce f : fs
-               , .. }
+    modify $ \Context { fstack = fs, .. } ->
+        Context { currentm = unsafeCoerce m
+                , fstack   = unsafeCoerce f : fs
+                , .. }
 
     -- Inner bind operations in 'm' add their 'f' to fstack.  If we migrate to
     -- a new thread somewhere in the middle we unwind the fstack and run these
@@ -162,10 +162,10 @@ instance Monad m => Monad (AsyncT m) where
             Nothing -> empty
             Just x -> f x
 
-    modify $ \EventF { fstack = fs, .. } ->
-        EventF { currentm = unsafeCoerce res
-               , fstack   = tailsafe fs
-               , .. }
+    modify $ \Context { fstack = fs, .. } ->
+        Context { currentm = unsafeCoerce res
+                , fstack   = tailsafe fs
+                , .. }
 
     runAsyncT res
 
@@ -242,7 +242,7 @@ instance MonadTrans AsyncT where
   lift mx = AsyncT $ lift mx >>= return . Just
 
 instance MonadTransControl AsyncT where
-    type StT AsyncT a = (Maybe a, EventF)
+    type StT AsyncT a = (Maybe a, Context)
     liftWith f = AsyncT $ StateT $ \s ->
                    liftM (\x -> (Just x, s))
                          (f $ \t -> runStateT (runAsyncT t) s)
@@ -284,13 +284,13 @@ waitForChildren chan pendingRef = do
 ------------------------------------------------------------------------------
 
 -- | Run a transient computation with a default initial state
-runTransient :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, EventF)
+runTransient :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, Context)
 runTransient t = do
   childChan  <- liftIO $ atomically newTChan
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
 
-  r <- runStateT (runAsyncT t) $ initEventF
+  r <- runStateT (runAsyncT t) $ initContext
         (empty :: AsyncT m a) childChan pendingRef credit
 
   waitForChildren childChan pendingRef
@@ -362,7 +362,7 @@ delSData x = AsyncT $ delData x >> return (Just ())
 -- MonadState for AsyncT m
 ------------------------------------------------------------------------------
 
-instance (Monad m, Monad (AsyncT m)) => MonadState EventF (AsyncT m) where
+instance (Monad m, Monad (AsyncT m)) => MonadState Context (AsyncT m) where
   get     = AsyncT $ get   >>= return . Just
   put x   = AsyncT $ put x >>  return (Just ())
   state f = AsyncT $ do
