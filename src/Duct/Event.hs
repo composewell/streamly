@@ -43,8 +43,6 @@ data Context = forall m a b. Context
     -- XXX All of the following can be removed
     -- Even the remote status can be removed by the same logic
 
-  , mfSequence  :: Int
-
   , parentChannel  :: Maybe (TChan ThreadId)
     -- ^ Our parent thread's channel to communicate to when we die
 
@@ -98,7 +96,6 @@ initContext x childChan pending credit =
          , currentm        = x
          , fstack          = []
          , mfData          = mempty
-         , mfSequence      = 0
          , parentChannel   = Nothing
          , childChannel    = childChan
          , pendingThreads  = pending
@@ -137,18 +134,3 @@ modifyData f = modify $ \st -> st { mfData = M.alter alterf t (mfData st) }
 
 delData :: (MonadState Context m, Typeable a) => a -> m ()
 delData x = modify $ \st -> st { mfData = M.delete (typeOf x) (mfData st) }
-
-{-
-getPrevId :: MonadState EventF m => m Int
-getPrevId = gets mfSequence
-
--- | Generator of identifiers that are unique within the current monadic
--- sequence They are not unique in the whole program.
-genId :: MonadState EventF m => m Int
-genId = do
-  st <- get
-  let n = mfSequence st
-  put st { mfSequence = n + 1 }
-  return n
-
--}
