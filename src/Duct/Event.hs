@@ -34,7 +34,7 @@ data Context = forall m a b. Context
   -- the 'm' and 'f' in an 'm >>= f' operation of the monad
   -- In nested binds we store the current m only, but the whole stack of fs
   , currentm     :: m a
-  , fstack       :: [b -> m b]
+  , fstack       :: [a -> m b]
     -- ^ List of continuations
 
   , mfData      :: M.Map TypeRep SData
