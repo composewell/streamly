@@ -12,11 +12,9 @@
 module Duct.AsyncT
     ( AsyncT (..)
     , waitAsync
-    , compose
     , (<**)
     , onNothing
     , RemoteStatus (..)
-    , back
     , waitForChildren
     , dbg
     )
@@ -44,13 +42,10 @@ import           Data.Maybe                  (isJust, isNothing)
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Duct.Event
-import           Duct.Log
 
 -- import           Debug.Trace
 
-type StateM m = StateT EventF m
-
-newtype AsyncT m a = AsyncT { runAsyncT :: StateM m (Maybe a) }
+newtype AsyncT m a = AsyncT { runAsyncT :: StateT EventF m (Maybe a) }
 
 ------------------------------------------------------------------------------
 -- Remote data types
@@ -89,6 +84,7 @@ instance Monad (AsyncT m) => Functor (AsyncT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
+{-
 -- | Warning: Radically untyped stuff. handle with care
 getContinuations :: Monad m => StateM m [a -> AsyncT m b]
 getContinuations = do
@@ -108,6 +104,8 @@ setContinuation  b c fs = do
 restoreStack :: MonadState EventF m => t -> m ()
 restoreStack fs = modify $ \EventF {..} ->
     EventF { event = Nothing, fcomp = (unsafeCoerce fs), .. }
+
+-}
 
 instance Monad m => Applicative (AsyncT m) where
   pure a  = AsyncT . return $ Just a
@@ -145,24 +143,29 @@ tailsafe (_:xs) = xs
 
 instance Monad m => Monad (AsyncT m) where
   return   = pure
-  m >>= f  = AsyncT $ do
-    -- save m in xcomp and add f to the head of fcomp
-    -- _  <- setEventCont m f
-    modify $ \EventF { fcomp = fs, .. } ->
-        EventF { xcomp = unsafeCoerce m, fcomp = unsafeCoerce f : fs, .. }
 
-    -- run m under this modified environment
+  m >>= f  = AsyncT $ do
+    -- Save the 'm' and 'f', in case we migrate to a new thread before this
+    -- bind operation completes, we run the operation manually in the new
+    -- thread.
+    modify $ \EventF { fstack = fs, .. } ->
+        EventF { currentm = unsafeCoerce m
+               , fstack   = unsafeCoerce f : fs
+               , .. }
+
+    -- Inner bind operations in 'm' add their 'f' to fstack.  If we migrate to
+    -- a new thread somewhere in the middle we unwind the fstack and run these
+    -- functions manually after migration.
     mres <- runAsyncT m
-    -- remove the head of fcomp apply it to mres and that becomes the new xcomp.
-    -- is head of fcomp always the same as f?
+
     let res = case mres of
             Nothing -> empty
             Just x -> f x
 
-    -- XXX why would we have more than one continuation? Can we have just one
-    -- instead of a list and remove it after every bind?
-    modify $ \EventF { fcomp = fs, .. } ->
-        EventF { xcomp = unsafeCoerce res, fcomp = tailsafe fs, .. }
+    modify $ \EventF { fstack = fs, .. } ->
+        EventF { currentm = unsafeCoerce res
+               , fstack   = tailsafe fs
+               , .. }
 
     runAsyncT res
 
@@ -178,14 +181,10 @@ instance (Monoid a, Monad (AsyncT m)) => Monoid (AsyncT m a) where
 -- Backtracking
 ------------------------------------------------------------------------------
 
+{-
 -- | Run the closure  (the 'x' in 'x >>= f') of the current bind operation.
 runClosure :: EventF -> StateM m (Maybe a)
 runClosure EventF { xcomp = x } = runAsyncT (unsafeCoerce x)
-
--- | Compose a list of continuations.
-compose :: MonadIO m => [a -> AsyncT m a] -> (a -> AsyncT m b)
-compose []     = const empty
-compose (f:fs) = \x -> f x >>= compose fs
 
 -- | Run the continuation (the 'f' in 'x >>= f') of the current bind operation with the current state.
 runContinuation :: MonadIO m => EventF -> a -> StateM m (Maybe b)
@@ -226,18 +225,14 @@ back reason = AsyncT $ do
                  Nothing -> runContinuation first x
                  justreason -> goBackt $ Backtrack justreason bs
 
+-}
+
 ------------------------------------------------------------------------------
 -- MonadIO
 ------------------------------------------------------------------------------
 
 instance MonadIO m => MonadIO (AsyncT m) where
-  liftIO mx = do
-    ex <- liftIO' $ (mx >>= return . Right) `catch`
-                    (\(e :: SomeException) -> return $ Left e)
-    case ex of
-      Left  e -> back e
-      Right x -> return x
-    where liftIO' x = AsyncT $ liftIO x >>= return . Just
+  liftIO mx = AsyncT $ liftIO mx >>= return . Just
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer
@@ -403,6 +398,7 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
   abs f       = f >>= return . abs
   signum f    = f >>= return . signum
 
+{-
 class AdditionalOperators m where
 
   -- | Run @m a@ discarding its result before running @m b@.
@@ -469,3 +465,12 @@ infixr 1 <***, <**, **>
                     runAsyncT mb
                     return $ Just x
 
+-}
+
+(<**) :: Monad m => AsyncT m a -> AsyncT m b -> AsyncT m a
+(<**) ma mb = AsyncT $ do
+      a <- runAsyncT ma
+      runAsyncT  mb
+      return a
+
+infixr 1 <**

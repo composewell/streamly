@@ -32,12 +32,17 @@ data EventF = forall m a b. EventF
   -- away with this?
   -- ^ event data to use in a continuation in a new thread
 
-  , xcomp       :: m a
-  , fcomp       :: [b -> m b]
+  -- the 'm' and 'f' in an 'm >>= f' operation of the monad
+  -- In nested binds we store the current m only, but the whole stack of fs
+  , currentm     :: m a
+  , fstack       :: [b -> m b]
     -- ^ List of continuations
 
   , mfData      :: M.Map TypeRep SData
     -- ^ State data accessed with get or put operations
+
+    -- XXX All of the following can be removed
+    -- Even the remote status can be removed by the same logic
 
   , mfSequence  :: Int
 
@@ -91,8 +96,8 @@ initEventF
     -> EventF
 initEventF x childChan pending credit =
   EventF { event           = mempty
-         , xcomp           = x
-         , fcomp           = []
+         , currentm        = x
+         , fstack          = []
          , mfData          = mempty
          , mfSequence      = 0
          , parentChannel   = Nothing

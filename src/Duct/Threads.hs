@@ -12,7 +12,7 @@ module Duct.Threads
     )
 where
 
-import           Control.Applicative         ((<|>))
+import           Control.Applicative         ((<|>), empty)
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
@@ -38,14 +38,22 @@ import           Duct.AsyncT
 import           Duct.Event
 
 ------------------------------------------------------------------------------
--- Utilities
+-- Pick up from where we left in the previous thread
 ------------------------------------------------------------------------------
 
--- | Run the closure and the continuation using the state data of the calling thread
-runCont :: (MonadIO m, Monad (AsyncT m)) => EventF -> StateT EventF m (Maybe a)
-runCont EventF { xcomp = x, fcomp = fs } = runAsyncT $ do
-  r <- unsafeCoerce x
-  compose (unsafeCoerce fs) r
+-- | Continue execution of the closure that we were executing when we migrated
+-- to a new thread. Run the stack of pending functions in fstack. The types
+-- don't match. We just coerce the types here, we know that they actually match.
+
+continue :: (MonadIO m, Monad (AsyncT m)) => EventF -> StateT EventF m (Maybe a)
+continue EventF { currentm = x, fstack = fs } =
+    runAsyncT $ unsafeCoerce x >>= runfStack (unsafeCoerce fs)
+
+    where
+
+    runfStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
+    runfStack [] _     = empty
+    runfStack (f:fs) x = f x >>= runfStack fs
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -210,7 +218,7 @@ genAsyncEvents parentc rec = forkMaybe parentc loop
         -- pass on the io result and then run the continuation
          runContWith dat cont = do
               let cont' = cont { event = Just $ unsafeCoerce dat }
-              _ <- runStateT (runCont cont')  cont'
+              _ <- runStateT (continue cont')  cont'
               return ()
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
@@ -248,7 +256,7 @@ waitEvents io = do
   mr <- parallel (SMore <$> io)
   case mr of
     SMore  x -> return x
-    SError e -> back e
+ --   SError e -> back e
 
 -- | Run an IO computation asynchronously and generate a single task carrying
 -- the result of the computation when it completes. See 'parallel' for notes on
@@ -258,7 +266,7 @@ async io = do
   mr <- parallel (SLast <$> io)
   case mr of
     SLast  x -> return x
-    SError e -> back   e
+  --  SError e -> back   e
 
 -- | Force an async computation to run synchronously. It can be useful in an
 -- 'Alternative' composition to run the alternative only after finishing a
@@ -310,7 +318,7 @@ react setHandler iob = AsyncT $ do
         case event cont of
           Nothing -> do
             lift $ setHandler $ \dat ->do
-              runStateT (runCont cont) cont{event= Just $ unsafeCoerce dat}
+              runStateT (continue cont) cont{event= Just $ unsafeCoerce dat}
               liftIO iob
             was <- getData `onNothing` return NoRemote
             when (was /= WasRemote) $ setData WasParallel
