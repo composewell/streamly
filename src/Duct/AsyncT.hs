@@ -84,29 +84,6 @@ instance Monad (AsyncT m) => Functor (AsyncT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
-{-
--- | Warning: Radically untyped stuff. handle with care
-getContinuations :: Monad m => StateM m [a -> AsyncT m b]
-getContinuations = do
-  EventF { fcomp = fs } <- get
-  return $ unsafeCoerce fs
-
--- | Save a closure and a continuation ('x' and 'f' in 'x >>= f').
-setContinuation :: Monad m
-    => AsyncT m a -> (a -> AsyncT m b) -> [c -> AsyncT m c] -> StateM m ()
-setContinuation  b c fs = do
-  modify $ \EventF{..} -> EventF { xcomp = b
-                                  , fcomp = unsafeCoerce c : fs
-                                  , .. }
-
--- | Restore the continuations to the provided ones.
--- | NOTE: Events are also cleared out.
-restoreStack :: MonadState EventF m => t -> m ()
-restoreStack fs = modify $ \EventF {..} ->
-    EventF { event = Nothing, fcomp = (unsafeCoerce fs), .. }
-
--}
-
 instance Monad m => Applicative (AsyncT m) where
   pure a  = AsyncT . return $ Just a
   m1 <*> m2 = do { x1 <- m1; x2 <- m2; return (x1 x2) }
@@ -178,56 +155,6 @@ instance (Monoid a, Monad (AsyncT m)) => Monoid (AsyncT m a) where
   mempty      = return mempty
 
 ------------------------------------------------------------------------------
--- Backtracking
-------------------------------------------------------------------------------
-
-{-
--- | Run the closure  (the 'x' in 'x >>= f') of the current bind operation.
-runClosure :: EventF -> StateM m (Maybe a)
-runClosure EventF { xcomp = x } = runAsyncT (unsafeCoerce x)
-
--- | Run the continuation (the 'f' in 'x >>= f') of the current bind operation with the current state.
-runContinuation :: MonadIO m => EventF -> a -> StateM m (Maybe b)
-runContinuation EventF { fcomp = fs } =
-  runAsyncT . (compose $  (unsafeCoerce fs))
-
-data Backtrack b = Show b => Backtrack
-    { backtracking :: Maybe b
-    , backStack :: [EventF]
-    } deriving Typeable
-
-backStateOf :: (Monad m, Show a) => a -> m (Backtrack a)
-backStateOf reason = return $ Backtrack (Nothing `asTypeOf` (Just reason)) []
-
--- | Start the undo process for the given undo track id. Performs all the undo
--- actions registered till now in reverse order. An undo action can use
--- 'forward' to stop the undo process and resume forward execution. If there
--- are no more undo actions registered execution stops and a 'stop' action is
--- returned.
---
-back :: (MonadIO m, Typeable b, Show b) => b -> AsyncT m a
-back reason = AsyncT $ do
-  bs <- getData  `onNothing`  backStateOf  reason
-  goBackt  bs
-
-  where
-
-  goBackt (Backtrack _ [] )= return Nothing
-  goBackt (Backtrack _ (stack@(first : bs)) )= do
-        (setData $ Backtrack (Just reason) stack)
-
-        mr <-  runClosure first
-
-        Backtrack b _ <- getData `onNothing`  backStateOf  reason
-        case mr of
-           Nothing -> return empty
-           Just x -> case b of
-                 Nothing -> runContinuation first x
-                 justreason -> goBackt $ Backtrack justreason bs
-
--}
-
-------------------------------------------------------------------------------
 -- MonadIO
 ------------------------------------------------------------------------------
 
@@ -284,8 +211,8 @@ waitForChildren chan pendingRef = do
 ------------------------------------------------------------------------------
 
 -- | Run a transient computation with a default initial state
-runTransient :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, Context)
-runTransient t = do
+runContext :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, Context)
+runContext t = do
   childChan  <- liftIO $ atomically newTChan
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
@@ -304,7 +231,7 @@ runTransient t = do
 --waitAsync :: MonadIO m => AsyncT m a -> m [a]
 waitAsync :: MonadIO m => AsyncT m a -> m (Maybe a)
 waitAsync m  = do
-    (r, _) <- runTransient m
+    (r, _) <- runContext m
     return r
 
 ------------------------------------------------------------------------------
@@ -387,6 +314,56 @@ sandbox mx = do
     -}
 
 ------------------------------------------------------------------------------
+-- Backtracking
+------------------------------------------------------------------------------
+
+{-
+-- | Run the closure  (the 'x' in 'x >>= f') of the current bind operation.
+runClosure :: EventF -> StateM m (Maybe a)
+runClosure EventF { xcomp = x } = runAsyncT (unsafeCoerce x)
+
+-- | Run the continuation (the 'f' in 'x >>= f') of the current bind operation with the current state.
+runContinuation :: MonadIO m => EventF -> a -> StateM m (Maybe b)
+runContinuation EventF { fcomp = fs } =
+  runAsyncT . (compose $  (unsafeCoerce fs))
+
+data Backtrack b = Show b => Backtrack
+    { backtracking :: Maybe b
+    , backStack :: [EventF]
+    } deriving Typeable
+
+backStateOf :: (Monad m, Show a) => a -> m (Backtrack a)
+backStateOf reason = return $ Backtrack (Nothing `asTypeOf` (Just reason)) []
+
+-- | Start the undo process for the given undo track id. Performs all the undo
+-- actions registered till now in reverse order. An undo action can use
+-- 'forward' to stop the undo process and resume forward execution. If there
+-- are no more undo actions registered execution stops and a 'stop' action is
+-- returned.
+--
+back :: (MonadIO m, Typeable b, Show b) => b -> AsyncT m a
+back reason = AsyncT $ do
+  bs <- getData  `onNothing`  backStateOf  reason
+  goBackt  bs
+
+  where
+
+  goBackt (Backtrack _ [] )= return Nothing
+  goBackt (Backtrack _ (stack@(first : bs)) )= do
+        (setData $ Backtrack (Just reason) stack)
+
+        mr <-  runClosure first
+
+        Backtrack b _ <- getData `onNothing`  backStateOf  reason
+        case mr of
+           Nothing -> return empty
+           Just x -> case b of
+                 Nothing -> runContinuation first x
+                 justreason -> goBackt $ Backtrack justreason bs
+
+-}
+
+------------------------------------------------------------------------------
 -- More operators, instances
 ------------------------------------------------------------------------------
 
@@ -399,33 +376,29 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
   signum f    = f >>= return . signum
 
 {-
-class AdditionalOperators m where
+-- | Warning: Radically untyped stuff. handle with care
+getContinuations :: Monad m => StateM m [a -> AsyncT m b]
+getContinuations = do
+  EventF { fcomp = fs } <- get
+  return $ unsafeCoerce fs
 
-  -- | Run @m a@ discarding its result before running @m b@.
-  (**>)  :: m a -> m b -> m b
+-- | Save a closure and a continuation ('x' and 'f' in 'x >>= f').
+setContinuation :: Monad m
+    => AsyncT m a -> (a -> AsyncT m b) -> [c -> AsyncT m c] -> StateM m ()
+setContinuation  b c fs = do
+  modify $ \EventF{..} -> EventF { xcomp = b
+                                  , fcomp = unsafeCoerce c : fs
+                                  , .. }
 
-  -- | Run @m b@ discarding its result, after the whole task set @m a@ is
-  -- done.
-  (<**)  :: m a -> m b -> m a
+-- | Restore the continuations to the provided ones.
+-- | NOTE: Events are also cleared out.
+restoreStack :: MonadState EventF m => t -> m ()
+restoreStack fs = modify $ \EventF {..} ->
+    EventF { event = Nothing, fcomp = (unsafeCoerce fs), .. }
 
-  atEnd' :: m a -> m b -> m a
-  atEnd' = (<**)
+-}
 
-  -- | Run @m b@ discarding its result, once after each task in @m a@, and
-  -- once again after the whole task set is done.
-  (<***) :: m a -> m b -> m a
-
-  atEnd  :: m a -> m b -> m a
-  atEnd  = (<***)
-
-instance (Monad m, Monad (AsyncT m)) => AdditionalOperators (AsyncT m) where
-
-  (**>) :: AsyncT m a -> AsyncT m b -> AsyncT m b
-  (**>) x y =
-    AsyncT $ do
-      runAsyncT x
-      runAsyncT y
-
+{-
   (<***) :: AsyncT m a -> AsyncT m b -> AsyncT m a
   (<***) ma mb =
     AsyncT $ do
@@ -435,14 +408,6 @@ instance (Monad m, Monad (AsyncT m)) => AdditionalOperators (AsyncT m) where
       runAsyncT mb
       restoreStack fs
       return  a
-
-  (<**) :: AsyncT m a -> AsyncT m b -> AsyncT m a
-  (<**) ma mb =
-    AsyncT $ do
-      a <- runAsyncT ma
-
-      runAsyncT  mb
-      return a
 
 infixr 1 <***, <**, **>
 
@@ -467,10 +432,17 @@ infixr 1 <***, <**, **>
 
 -}
 
+infixr 1 <**, **>
+
+-- | Run @m a@ discarding its result before running @m b@.
+(**>) :: Monad m => AsyncT m a -> AsyncT m b -> AsyncT m b
+(**>) x y = AsyncT $ do
+      runAsyncT x
+      runAsyncT y
+
+-- | Run @m b@ discarding its result, after the whole task set @m a@ is done.
 (<**) :: Monad m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (<**) ma mb = AsyncT $ do
       a <- runAsyncT ma
       runAsyncT  mb
       return a
-
-infixr 1 <**
