@@ -60,8 +60,14 @@ import           Duct.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-resume :: Monad m => Context -> StateT Context m (Maybe a)
-resume = runAsyncT . resumeContext
+resume :: Monad m => Context -> m ()
+resume ctx = do
+        let s = runAsyncT (resumeContext ctx)
+        _ <- runStateT s ctx
+        return ()
+
+updateContextEvent :: Context -> a -> Context
+updateContextEvent ctx evdata = ctx { event = Just $ unsafeCoerce evdata }
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -132,8 +138,9 @@ forkFinally1 action and_then =
             _ <- runInIO $ EL.try (restore action) >>= liftIO . and_then
             return ()
 
-forkIt :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m t) -> m ()
-forkIt context runCtx = do
+forkContext :: (MonadBaseControl IO m, MonadIO m)
+    => Context -> (Context -> m ()) -> m ()
+forkContext context runCtx = do
     child <- childContext context
     tid <- forkFinally1 (runCtx child) (beforeExit child)
     updatePendingThreads context tid
@@ -188,7 +195,7 @@ forkMaybe context runCtx = do
                         waitForOneChild (childChannel context)
                                         (pendingThreads context)
                         forkMaybe context runCtx
-        True -> forkIt context runCtx
+        True -> forkContext context runCtx
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =
@@ -212,29 +219,22 @@ data StreamData a =
 -- available we need a way to close the channel and wakeup all waiters so that
 -- they can go away rather than waiting indefinitely.
 --
--- | Execute the IO action and the continuation
+-- | Execute the IO action resume the saved context
 genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => Context -> IO (StreamData t) -> m ()
 genAsyncEvents context rec = forkMaybe context loop
 
     where
 
-    -- Execute the IO computation and then the closure-continuation
     loop ctx = do
         streamData <- liftIO $ rec `catch`
                 \(e :: SomeException) -> return $ SError e
 
-        let run = runContWith streamData
+        let ctx' = updateContextEvent ctx streamData
         case streamData of
             SMore _ -> do
-                forkMaybe ctx run
+                forkMaybe ctx' resume
                 loop ctx
-            _ -> run ctx
-
-    -- resume the context with the result of the IO computation
-    runContWith dat ctx = do
-        let newCtx = ctx { event = Just $ unsafeCoerce dat }
-        _ <- runStateT (resume newCtx) newCtx
-        return ()
+            _ -> resume ctx'
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
 -- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
