@@ -332,18 +332,18 @@ react
   -> IO  response
   -> AsyncT m eventdata
 react setHandler iob = AsyncT $ do
-        cont    <- get
-        case event cont of
+        context <- get
+        case event context of
           Nothing -> do
             lift $ setHandler $ \dat ->do
-              runStateT (resume cont) cont{event= Just $ unsafeCoerce dat}
+              resume (updateContextEvent context dat)
               liftIO iob
             loc <- getLocation
             when (loc /= RemoteNode) $ setLocation WaitingParent
             return Nothing
 
           j@(Just _) -> do
-            put cont{event=Nothing}
+            put context{event=Nothing}
             return $ unsafeCoerce j
 
 ------------------------------------------------------------------------------
