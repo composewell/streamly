@@ -7,7 +7,7 @@ module Duct.Context
     , initContext
     , saveContext
     , restoreContext
-    , continueContext
+    , resumeContext
     , Location(..)
     , getLocation
     , setLocation
@@ -108,7 +108,7 @@ initContext x childChan pending credit =
   Context { event          = mempty
          , currentm        = unsafeCoerce x
          , fstack          = []
-         , location        = Local
+         , location        = Worker
          , mfData          = mempty
          , parentChannel   = Nothing
          , childChannel    = childChan
@@ -119,7 +119,13 @@ initContext x childChan pending credit =
 -- Where is the computation running?
 ------------------------------------------------------------------------------
 
-data Location = Local | ForkedThread | RemoteNode
+-- RemoteNode is used in the Alternative instance. We stop the computation when
+-- the location is RemoteNode, we do not execute any alternatives.
+--
+-- WaitingParent is used in logging. When a parent forks a child and waits for
+-- it, it is marked as WaitingParent and we log a "Wait" entry in the log.
+--
+data Location = Worker | WaitingParent | RemoteNode
   deriving (Typeable, Eq, Show)
 
 getLocation :: Monad m => StateT Context m Location
@@ -157,8 +163,16 @@ restoreContext x = do
 
     return mres
 
-continueContext :: MonadPlus m => Context -> m a
-continueContext Context { currentm = m, fstack = fs } =
+-- | Resume execution of the computation from a given context. We can retrieve
+-- a context at any point and resume that context at some later point, which
+-- means start executing again from the same point where the context was
+-- retrieved.
+--
+-- Run the stack of pending functions in fstack. The types don't match. We just
+-- coerce the types here, we know that they actually match.
+
+resumeContext :: MonadPlus m => Context -> m a
+resumeContext Context { currentm = m, fstack = fs } =
     unsafeCoerce m >>= runfStack (unsafeCoerce fs)
 
     where

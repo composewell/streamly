@@ -42,11 +42,10 @@ import           Duct.Context
 ------------------------------------------------------------------------------
 
 -- | Continue execution of the closure that we were executing when we migrated
--- to a new thread. Run the stack of pending functions in fstack. The types
--- don't match. We just coerce the types here, we know that they actually match.
+-- to a new thread.
 
-continue :: Monad m => Context -> StateT Context m (Maybe a)
-continue = runAsyncT . continueContext
+resume :: Monad m => Context -> StateT Context m (Maybe a)
+resume = runAsyncT . resumeContext
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -211,7 +210,7 @@ genAsyncEvents parentc rec = forkMaybe parentc loop
         -- pass on the io result and then run the continuation
          runContWith dat cont = do
               let cont' = cont { event = Just $ unsafeCoerce dat }
-              _ <- runStateT (continue cont')  cont'
+              _ <- runStateT (resume cont')  cont'
               return ()
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
@@ -226,6 +225,7 @@ genAsyncEvents parentc rec = forkMaybe parentc loop
 parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m)
     => IO (StreamData a) -> AsyncT m (StreamData a)
 parallel ioaction = AsyncT $ do
+    -- receive the events via a channel instead
   cont <- get
   case event cont of
     -- we have already exceuted the ioaction and now we are continuing in a new
@@ -238,7 +238,7 @@ parallel ioaction = AsyncT $ do
     Nothing    -> do
       lift $ genAsyncEvents cont ioaction
       loc <- getLocation
-      when (loc /= RemoteNode) $ setLocation ForkedThread
+      when (loc /= RemoteNode) $ setLocation WaitingParent
       return Nothing
 
 -- | An task stream generator that produces an infinite stream of tasks by
@@ -269,7 +269,7 @@ sync :: MonadIO m => AsyncT m a -> AsyncT m a
 sync x = AsyncT $ do
   setLocation RemoteNode
   r <- runAsyncT x
-  setLocation Local
+  setLocation Worker
   return r
 
 -- | An task stream generator that produces an infinite stream of tasks by
@@ -311,10 +311,10 @@ react setHandler iob = AsyncT $ do
         case event cont of
           Nothing -> do
             lift $ setHandler $ \dat ->do
-              runStateT (continue cont) cont{event= Just $ unsafeCoerce dat}
+              runStateT (resume cont) cont{event= Just $ unsafeCoerce dat}
               liftIO iob
             loc <- getLocation
-            when (loc /= RemoteNode) $ setLocation ForkedThread
+            when (loc /= RemoteNode) $ setLocation WaitingParent
             return Nothing
 
           j@(Just _) -> do
