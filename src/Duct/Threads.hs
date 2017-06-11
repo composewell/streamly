@@ -38,6 +38,22 @@ import           Duct.AsyncT
 import           Duct.Context
 
 ------------------------------------------------------------------------------
+-- Model of computation
+------------------------------------------------------------------------------
+
+-- A computation starts in a top level thread. A thread can either finish the
+-- computation or it can wait for events to occur before it proceeds further. A
+-- thread can spawn more threads to process an event. It is a way to compose
+-- asynchronous events in a concurrent manner. Since it is a transformer we can
+-- use things like pipe, conduit or any other transformer monads inside the
+-- computations to utilize single threaded composition or data flow techniques.
+--
+-- Usually none of the computations in this monad need to return a result as
+-- the computation can be handed over to the next one until the final effect is
+-- produced. However, if needed to be embedded in a different programming model
+-- the monad can return values in a stream like a ListT.
+
+------------------------------------------------------------------------------
 -- Pick up from where we left in the previous thread
 ------------------------------------------------------------------------------
 
@@ -117,10 +133,10 @@ forkFinally1 action and_then =
             return ()
 
 forkIt :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m t) -> m ()
-forkIt current proc = do
-    child <- newChildCont current
-    tid <- forkFinally1 (proc child) (beforeExit child)
-    updatePendingThreads current tid
+forkIt context runCtx = do
+    child <- childContext context
+    tid <- forkFinally1 (runCtx child) (beforeExit child)
+    updatePendingThreads context tid
 
     where
 
@@ -131,12 +147,12 @@ forkIt current proc = do
         liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> tid:ts)
         tryReclaimZombies (childChannel cur) (pendingThreads cur)
 
-    newChildCont cur = do
+    childContext ctx = do
         pendingRef <- liftIO $ newIORef []
         chan <- liftIO $ atomically newTChan
         -- shares the threadCredit of the parent by default
-        return $ cur
-            { parentChannel  = Just (childChannel cur)
+        return $ ctx
+            { parentChannel  = Just (childChannel ctx)
             , pendingThreads = pendingRef
             , childChannel = chan
             }
@@ -157,22 +173,22 @@ forkIt current proc = do
         liftIO $ atomically $ writeTChan p tid
 
 forkMaybe :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m ()) -> m ()
-forkMaybe current toRun = do
-    gotCredit <- liftIO $ waitQSemB (threadCredit current)
-    pending <- liftIO $ readIORef $ pendingThreads current
+forkMaybe context runCtx = do
+    gotCredit <- liftIO $ waitQSemB (threadCredit context)
+    pending <- liftIO $ readIORef $ pendingThreads context
     case gotCredit of
         False -> case pending of
-                [] -> toRun current -- run synchronously
+                [] -> runCtx context -- run synchronously
                 _ -> do
                         -- XXX If we have unreclaimable child threads e.g.
                         -- infinite loop, this is going to deadlock us. We need
                         -- special handling for those cases. Add those to
                         -- unreclaimable list? And always execute them in an
                         -- async thread, cannot use sync for those.
-                        waitForOneChild (childChannel current)
-                                        (pendingThreads current)
-                        forkMaybe current toRun
-        True -> forkIt current toRun
+                        waitForOneChild (childChannel context)
+                                        (pendingThreads context)
+                        forkMaybe context runCtx
+        True -> forkIt context runCtx
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =
@@ -182,36 +198,43 @@ data StreamData a =
     | SError SomeException  -- ^ An error occurred
     deriving (Typeable, Show,Read)
 
+-- The current model is to start a new thread for every task. The input is
+-- provided at the time of the creation and therefore no synchronization is
+-- needed compared to a pool of threads contending to get the input from a
+-- channel. However the thread creation overhead may be more than that?
+--
+-- When the task is over the outputs need to be collected and that requires
+-- synchronization irrespective of a thread pool model or per task new thread
+-- model.
+--
 -- XXX instead of starting a new thread every time, reuse the existing child
 -- threads and send them work via a shared channel. When there is no more work
 -- available we need a way to close the channel and wakeup all waiters so that
--- they can go away.
+-- they can go away rather than waiting indefinitely.
 --
 -- | Execute the IO action and the continuation
 genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => Context -> IO (StreamData t) -> m ()
-genAsyncEvents parentc rec = forkMaybe parentc loop
+genAsyncEvents context rec = forkMaybe context loop
 
     where
 
     -- Execute the IO computation and then the closure-continuation
-    loop curcont = do
+    loop ctx = do
         streamData <- liftIO $ rec `catch`
                 \(e :: SomeException) -> return $ SError e
 
         let run = runContWith streamData
         case streamData of
             SMore _ -> do
-                forkMaybe curcont run
-                loop curcont
-            _ -> run curcont
+                forkMaybe ctx run
+                loop ctx
+            _ -> run ctx
 
-         where
-
-        -- pass on the io result and then run the continuation
-         runContWith dat cont = do
-              let cont' = cont { event = Just $ unsafeCoerce dat }
-              _ <- runStateT (resume cont')  cont'
-              return ()
+    -- resume the context with the result of the IO computation
+    runContWith dat ctx = do
+        let newCtx = ctx { event = Just $ unsafeCoerce dat }
+        _ <- runStateT (resume newCtx) newCtx
+        return ()
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
 -- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
@@ -225,18 +248,20 @@ genAsyncEvents parentc rec = forkMaybe parentc loop
 parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m)
     => IO (StreamData a) -> AsyncT m (StreamData a)
 parallel ioaction = AsyncT $ do
-    -- receive the events via a channel instead
-  cont <- get
-  case event cont of
-    -- we have already exceuted the ioaction and now we are continuing in a new
+  -- We retrieve the context here and pass it on so that we can resume it
+  -- later. Control resumes at this place when we resume this context after
+  -- generating the event data from the ioaction.
+  context <- get
+  case event context of
+    -- we have already executed the ioaction and now we are continuing in a new
     -- thread. Just return the result of the ioaction stored in 'event' field.
     j@(Just _) -> do
-      put cont { event = Nothing }
+      put context { event = Nothing }
       return $ unsafeCoerce j
     -- we have to execute the io action and generate an event and then continue
     -- in this thread or a new thread.
     Nothing    -> do
-      lift $ genAsyncEvents cont ioaction
+      lift $ genAsyncEvents context ioaction
       loc <- getLocation
       when (loc /= RemoteNode) $ setLocation WaitingParent
       return Nothing
