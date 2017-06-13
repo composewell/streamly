@@ -138,9 +138,9 @@ forkFinally1 action and_then =
             _ <- runInIO $ EL.try (restore action) >>= liftIO . and_then
             return ()
 
-forkContext :: (MonadBaseControl IO m, MonadIO m)
-    => Context -> (Context -> m ()) -> m ()
-forkContext context runCtx = do
+forkContextWith :: (MonadBaseControl IO m, MonadIO m)
+    => (Context -> m ()) -> Context -> m ()
+forkContextWith runCtx context = do
     child <- childContext context
     tid <- forkFinally1 (runCtx child) (beforeExit child)
     updatePendingThreads context tid
@@ -179,8 +179,9 @@ forkContext context runCtx = do
         tid <- myThreadId
         liftIO $ atomically $ writeTChan p tid
 
-forkMaybe :: (MonadBaseControl IO m, MonadIO m) => Context -> (Context -> m ()) -> m ()
-forkMaybe context runCtx = do
+forkMaybe :: (MonadBaseControl IO m, MonadIO m)
+    => (Context -> m ()) -> Context -> m ()
+forkMaybe runCtx context = do
     gotCredit <- liftIO $ waitQSemB (threadCredit context)
     pending <- liftIO $ readIORef $ pendingThreads context
     case gotCredit of
@@ -194,8 +195,8 @@ forkMaybe context runCtx = do
                         -- async thread, cannot use sync for those.
                         waitForOneChild (childChannel context)
                                         (pendingThreads context)
-                        forkMaybe context runCtx
-        True -> forkContext context runCtx
+                        forkMaybe runCtx context
+        True -> forkContextWith runCtx context
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =
@@ -220,21 +221,18 @@ data StreamData a =
 -- they can go away rather than waiting indefinitely.
 --
 -- | Execute the IO action resume the saved context
-genAsyncEvents ::  (MonadIO m, MonadBaseControl IO m) => Context -> IO (StreamData t) -> m ()
-genAsyncEvents context rec = forkMaybe context loop
+runContextWith ::  (MonadIO m, MonadBaseControl IO m)
+    => IO (StreamData t) -> Context -> m ()
+runContextWith ioaction ctx = do
+    streamData <- liftIO $ ioaction `catch`
+            \(e :: SomeException) -> return $ SError e
 
-    where
-
-    loop ctx = do
-        streamData <- liftIO $ rec `catch`
-                \(e :: SomeException) -> return $ SError e
-
-        let ctx' = updateContextEvent ctx streamData
-        case streamData of
-            SMore _ -> do
-                forkMaybe ctx' resume
-                loop ctx
-            _ -> resume ctx'
+    let ctx' = updateContextEvent ctx streamData
+    case streamData of
+        SMore _ -> do
+            forkMaybe resume ctx'
+            runContextWith ioaction ctx
+        _ -> resume ctx'
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
 -- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
@@ -261,7 +259,7 @@ parallel ioaction = AsyncT $ do
     -- we have to execute the io action and generate an event and then continue
     -- in this thread or a new thread.
     Nothing    -> do
-      lift $ genAsyncEvents context ioaction
+      lift $ forkMaybe (runContextWith ioaction) context
       loc <- getLocation
       when (loc /= RemoteNode) $ setLocation WaitingParent
       return Nothing
