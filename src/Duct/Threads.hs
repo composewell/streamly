@@ -221,9 +221,9 @@ data StreamData a =
 -- they can go away rather than waiting indefinitely.
 --
 -- | Execute the IO action resume the saved context
-runContextWith ::  (MonadIO m, MonadBaseControl IO m)
+loopContextWith ::  (MonadIO m, MonadBaseControl IO m)
     => IO (StreamData t) -> Context -> m ()
-runContextWith ioaction ctx = do
+loopContextWith ioaction ctx = do
     streamData <- liftIO $ ioaction `catch`
             \(e :: SomeException) -> return $ SError e
 
@@ -231,7 +231,7 @@ runContextWith ioaction ctx = do
     case streamData of
         SMore _ -> do
             forkMaybe resume ctx'
-            runContextWith ioaction ctx
+            loopContextWith ioaction ctx
         _ -> resume ctx'
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
@@ -259,7 +259,7 @@ parallel ioaction = AsyncT $ do
     -- we have to execute the io action and generate an event and then continue
     -- in this thread or a new thread.
     Nothing    -> do
-      lift $ forkMaybe (runContextWith ioaction) context
+      lift $ forkMaybe (loopContextWith ioaction) context
       loc <- getLocation
       when (loc /= RemoteNode) $ setLocation WaitingParent
       return Nothing
