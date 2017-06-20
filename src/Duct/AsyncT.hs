@@ -105,9 +105,9 @@ stop = empty
 instance Monad m => Monad (AsyncT m) where
     return = pure
 
-    -- Inner bind operations in 'm' add their 'f' to fstack.  If we migrate to
-    -- a new thread somewhere in the middle we unwind the fstack and run these
-    -- functions manually after migration.
+    -- Inner bind-operations in 'm' add their 'f' to fstack.  If we migrate the
+    -- context to a new thread, somewhere in the middle, we unwind the fstack
+    -- and run these functions when we resume the context after migration.
     m >>= f = AsyncT $ do
         saveContext m f
         runAsyncT m >>= restoreContext >>= runAsyncT
@@ -183,6 +183,8 @@ runContext t = do
   pendingRef <- liftIO $ newIORef []
   credit     <- liftIO $ newIORef maxBound
 
+  -- XXX this should be moved to Context.hs and then we can make m existential
+  -- and remove the unsafeCoerces
   r <- runStateT (runAsyncT t) $ initContext
         (empty :: AsyncT m a) childChan pendingRef credit
 
