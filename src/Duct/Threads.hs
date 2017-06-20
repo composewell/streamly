@@ -22,7 +22,7 @@ import           Control.Exception           (ErrorCall (..),
                                               SomeException (..), catch)
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad.IO.Class      (MonadIO (..))
-import           Control.Monad.State         (StateT, get, gets, modify, put,
+import           Control.Monad.State         (get, gets, modify, put,
                                               runStateT, when)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
@@ -179,9 +179,12 @@ forkContextWith runCtx context = do
         tid <- myThreadId
         liftIO $ atomically $ writeTChan p tid
 
-forkMaybe :: (MonadBaseControl IO m, MonadIO m)
+-- | A wrapper to first decide whether to run the context in the same thread or
+-- a new thread and then run the context in that thread.
+--
+runContext :: (MonadBaseControl IO m, MonadIO m)
     => (Context -> m ()) -> Context -> m ()
-forkMaybe runCtx context = do
+runContext runCtx context = do
     gotCredit <- liftIO $ waitQSemB (threadCredit context)
     pending <- liftIO $ readIORef $ pendingThreads context
     case gotCredit of
@@ -195,7 +198,7 @@ forkMaybe runCtx context = do
                         -- async thread, cannot use sync for those.
                         waitForOneChild (childChannel context)
                                         (pendingThreads context)
-                        forkMaybe runCtx context
+                        runContext runCtx context
         True -> forkContextWith runCtx context
 
 -- | 'StreamData' represents a task in a task stream being generated.
@@ -209,7 +212,8 @@ data StreamData a =
 -- The current model is to start a new thread for every task. The input is
 -- provided at the time of the creation and therefore no synchronization is
 -- needed compared to a pool of threads contending to get the input from a
--- channel. However the thread creation overhead may be more than that?
+-- channel. However the thread creation overhead may be more than the
+-- synchronization cost?
 --
 -- When the task is over the outputs need to be collected and that requires
 -- synchronization irrespective of a thread pool model or per task new thread
@@ -230,7 +234,7 @@ loopContextWith ioaction ctx = do
     let ctx' = updateContextEvent ctx streamData
     case streamData of
         SMore _ -> do
-            forkMaybe resume ctx'
+            runContext resume ctx'
             loopContextWith ioaction ctx
         _ -> resume ctx'
 
@@ -259,7 +263,7 @@ parallel ioaction = AsyncT $ do
     -- we have to execute the io action and generate an event and then continue
     -- in this thread or a new thread.
     Nothing    -> do
-      lift $ forkMaybe (loopContextWith ioaction) context
+      lift $ runContext (loopContextWith ioaction) context
       loc <- getLocation
       when (loc /= RemoteNode) $ setLocation WaitingParent
       return Nothing
