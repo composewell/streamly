@@ -14,17 +14,17 @@ module Duct.AsyncT
     , waitAsync
     , (<**)
     , onNothing
-    , waitForChildren
     , dbg
     )
 where
 
 import           Control.Applicative         (Alternative (..))
-import           Control.Concurrent          (ThreadId)
+import           Control.Concurrent          (ThreadId, killThread)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
                                               readTChan)
-import           Control.Exception           (SomeException, catch)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
+import           Control.Monad.Catch         (MonadCatch, MonadThrow, try,
+                                              throwM, SomeException)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
                                               MonadState (..), StateT (..),
                                               liftM, modify, runStateT, when)
@@ -157,50 +157,62 @@ instance (MonadBaseControl b m, MonadIO m) => MonadBaseControl b (AsyncT m) wher
 -- Thread management
 ------------------------------------------------------------------------------
 
-drainChildren :: MonadIO m => TChan ThreadId -> [ThreadId] -> m ()
-drainChildren chan pending =
-    if length pending == 0
-        then return ()
+drainChildren :: (MonadIO m, MonadThrow m)
+    => TChan (ChildEvent a) -> [ThreadId] -> [a] -> m [a]
+drainChildren chan pending res =
+    if pending == []
+        then return res
         else do
-            tid <- liftIO $ atomically $ readTChan chan
-            dbg $ "Reaping child: " ++ show tid
-            drainChildren chan $ delete tid pending
+            ev <- liftIO $ atomically $ readTChan chan
+            case ev of
+                ChildDone tid er -> do
+                    dbg $ "Reaping child: " ++ show tid
+                    case er of
+                        Left e -> throwM e
+                        Right r -> do
+                            let newres = case r of
+                                    Nothing -> res
+                                    Just x  -> x:res
+                            drainChildren chan (delete tid pending) newres
+                PassOnResult er ->
+                    case er of
+                        Left e -> throwM e
+                        Right x -> drainChildren chan pending (x:res)
 
-waitForChildren :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
+waitForChildren :: (MonadIO m, MonadThrow m)
+    => TChan (ChildEvent a) -> IORef [ThreadId] -> m [a]
 waitForChildren chan pendingRef = do
     pending <- liftIO $ readIORef pendingRef
-    drainChildren chan pending
+    r <- drainChildren chan pending []
     liftIO $ writeIORef pendingRef []
+    return r
 
 ------------------------------------------------------------------------------
 -- Running the monad
 ------------------------------------------------------------------------------
 
--- | Run a transient computation with a default initial state
-runContext :: forall m a. MonadIO m => AsyncT m a -> m (Maybe a, Context)
-runContext t = do
-  childChan  <- liftIO $ atomically newTChan
-  pendingRef <- liftIO $ newIORef []
-  credit     <- liftIO $ newIORef maxBound
-
-  -- XXX this should be moved to Context.hs and then we can make m existential
-  -- and remove the unsafeCoerces
-  r <- runStateT (runAsyncT t) $ initContext
-        (empty :: AsyncT m a) childChan pendingRef credit
-
-  waitForChildren childChan pendingRef
-  return r
-
--- | Run an 'AsyncT m' computation. Returns the result of the computation or
--- may throw an exception. The computation finishes with a 'Nothing' result
--- when the input sources are exhausted.
 -- XXX pass a collector function and return a Traversable.
--- Ideally it should be a non-empty list instead.
---waitAsync :: MonadIO m => AsyncT m a -> m [a]
-waitAsync :: MonadIO m => AsyncT m a -> m (Maybe a)
-waitAsync m  = do
-    (r, _) <- runContext m
-    return r
+-- XXX Ideally it should be a non-empty list instead.
+-- | Run an 'AsyncT m' computation. Returns a list of results of the
+-- computation or may throw an exception.
+waitAsync :: forall m a. (MonadIO m, MonadThrow m, MonadCatch m)
+    => AsyncT m a -> m [a]
+waitAsync m = do
+    childChan  <- liftIO $ atomically newTChan
+    pendingRef <- liftIO $ newIORef []
+    credit     <- liftIO $ newIORef maxBound
+
+    -- XXX this should be moved to Context.hs and then we can make m
+    -- existential and remove the unsafeCoerces
+    r <- try $ runStateT (runAsyncT m) $ initContext
+               (empty :: AsyncT m a) childChan pendingRef credit
+
+    case r of
+        Left (exc :: SomeException) -> do
+            liftIO $ readIORef pendingRef >>= mapM_ killThread
+            throwM exc
+        Right (Nothing, _) -> waitForChildren childChan pendingRef
+        Right ((Just x), _) -> return [x]
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

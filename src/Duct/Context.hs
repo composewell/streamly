@@ -3,7 +3,8 @@
 {-# LANGUAGE RecordWildCards           #-}
 
 module Duct.Context
-    ( Context(..)
+    ( ChildEvent(..)
+    , Context(..)
     , initContext
     , saveContext
     , restoreContext
@@ -18,9 +19,10 @@ module Duct.Context
     )
 where
 
-import Control.Applicative (Alternative(..))
+import           Control.Applicative    (Alternative(..))
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
+import           Control.Exception      (SomeException)
 import           Control.Monad.State    (MonadState, gets, modify, StateT, MonadPlus)
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (TypeRep, Typeable, typeOf)
@@ -32,6 +34,10 @@ import GHC.Prim (Any)
 ------------------------------------------------------------------------------
 -- State of a continuation
 ------------------------------------------------------------------------------
+
+data ChildEvent a =
+      ChildDone ThreadId (Either SomeException (Maybe a)) -- A child is finished
+    | PassOnResult (Either SomeException a)       -- Pass on the result of a child
 
 -- | Describes the context of a computation.
 data Context = Context
@@ -53,10 +59,8 @@ data Context = Context
   , mfData      :: M.Map TypeRep Any -- untyped, type coerced
     -- ^ State data accessed with get or put operations
 
-    -- XXX All of the following can be removed
-    -- Even the remote status can be removed by the same logic
-
-  , parentChannel  :: Maybe (TChan ThreadId)
+    -- XXX we can pass this at the time of fork rather than keeping it here.
+  , parentChannel  :: Maybe (TChan (ChildEvent Any))
     -- ^ Our parent thread's channel to communicate to when we die
 
     -- Thread creation and cleanup handling. When a new thread is created the
@@ -69,7 +73,7 @@ data Context = Context
     -- parent thread waits on the channel until all its children are cleaned
     -- up.
 
-  , childChannel    :: TChan ThreadId
+  , childChannel    :: TChan (ChildEvent Any)
     -- ^ A channel for the immediate children to communicate to us when they die.
     -- Each thread has its own dedicated channel for its children
 
@@ -100,7 +104,7 @@ data Context = Context
 
 initContext
     :: m a
-    -> TChan ThreadId
+    -> TChan (ChildEvent a)
     -> IORef [ThreadId]
     -> IORef Int
     -> Context
@@ -111,7 +115,7 @@ initContext x childChan pending credit =
          , location        = Worker
          , mfData          = mempty
          , parentChannel   = Nothing
-         , childChannel    = childChan
+         , childChannel    = unsafeCoerce childChan
          , pendingThreads  = pending
          , threadCredit    = credit }
 

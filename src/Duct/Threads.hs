@@ -21,6 +21,7 @@ import           Control.Concurrent.STM      (TChan, atomically, newTChan,
 import           Control.Exception           (ErrorCall (..),
                                               SomeException (..), catch)
 import qualified Control.Exception.Lifted    as EL
+import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Control.Monad.State         (get, gets, modify, put,
                                               runStateT, when)
@@ -71,7 +72,7 @@ import           Duct.Context
 resume :: Monad m => Context -> m (Maybe a)
 resume ctx = do
         let s = runAsyncT (resumeContext ctx)
-        (a, s) <- runStateT s ctx
+        (a, _) <- runStateT s ctx
         return a
 
 updateContextEvent :: Context -> a -> Context
@@ -81,25 +82,114 @@ updateContextEvent ctx evdata = ctx { event = Just $ unsafeCoerce evdata }
 -- Thread Management (creation, reaping and killing)
 ------------------------------------------------------------------------------
 
-tryReclaimZombies :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
-tryReclaimZombies chan pendingRef = do
+-- XXX We are using unbounded channels so this will not block on writing to
+-- pchan. We can use bounded channels to throttle the creation of threads based
+-- on consumption rate.
+processOneEvent :: MonadIO m
+    => ChildEvent a
+    -> TChan (ChildEvent a)
+    -> [ThreadId]
+    -> Maybe SomeException
+    -> m ([ThreadId], Maybe SomeException)
+processOneEvent ev pchan pending exc = do
+    e <- case exc of
+        Nothing ->
+            case ev of
+                ChildDone tid res -> do
+                    dbg $ "Reaping child: " ++ show tid
+                    handleDone res
+                PassOnResult res -> handlePass res
+        Just _ -> return exc
+    let p = case ev of
+                ChildDone tid _ -> delete tid pending
+                _ -> pending
+    return (p, e)
+
+    where
+
+    handleDone :: MonadIO m
+        => Either SomeException (Maybe a) -> m (Maybe SomeException)
+    handleDone res =
+        case res of
+            Left e -> do
+                    liftIO $ mapM_ killThread pending
+                    return (Just e)
+            Right r -> do
+                case r of
+                    Nothing -> return ()
+                    Just x  -> liftIO $ atomically
+                                      $ writeTChan pchan
+                                        (PassOnResult (Right (unsafeCoerce x)))
+                return Nothing
+
+    handlePass :: MonadIO m
+        => Either SomeException a -> m (Maybe SomeException)
+    handlePass res =
+        case res of
+            Left e -> do
+                    liftIO $ mapM_ killThread pending
+                    return (Just e)
+            Right _  -> do
+                liftIO $ atomically $ writeTChan pchan
+                    (PassOnResult (unsafeCoerce res))
+                return Nothing
+
+tryReclaimZombies :: (MonadIO m, MonadThrow m) => Context -> m ()
+tryReclaimZombies ctx = do
+    let pchan = fromJust (parentChannel ctx)
+        cchan = childChannel ctx
+        pendingRef = pendingThreads ctx
+
     pending <- liftIO $ readIORef pendingRef
     case pending of
         [] -> return ()
         _ ->  do
-            mtid <- liftIO $ atomically $ tryReadTChan chan
-            case mtid of
+            mev <- liftIO $ atomically $ tryReadTChan cchan
+            case mev of
                 Nothing -> return ()
-                Just tid -> do
-                    liftIO $ writeIORef pendingRef $ delete tid pending
-                    tryReclaimZombies chan pendingRef
+                Just ev -> do
+                    (p, e) <- processOneEvent ev pchan pending Nothing
+                    liftIO $ writeIORef pendingRef p
+                    maybe (return ()) throwM e
+                    tryReclaimZombies ctx
 
-waitForOneChild :: MonadIO m => TChan ThreadId -> IORef [ThreadId] -> m ()
-waitForOneChild chan pendingRef = do
+waitForOneEvent :: (MonadIO m, MonadThrow m) => Context -> m ()
+waitForOneEvent ctx = do
     -- XXX assert pending must have at least one element
     -- assert that the tid is found in our list
-    tid <- liftIO $ atomically $ readTChan chan
-    liftIO $ modifyIORef pendingRef $ delete tid
+    let pchan = fromJust (parentChannel ctx)
+        cchan = childChannel ctx
+        pendingRef = pendingThreads ctx
+
+    ev <- liftIO $ atomically $ readTChan cchan
+    pending <- liftIO $ readIORef pendingRef
+    (p, e) <- processOneEvent ev pchan pending Nothing
+    liftIO $ writeIORef pendingRef p
+    maybe (return ()) throwM e
+
+drainChildren :: MonadIO m
+    => TChan (ChildEvent a)
+    -> TChan (ChildEvent a)
+    -> [ThreadId]
+    -> Maybe SomeException
+    -> m (Maybe SomeException)
+drainChildren pchan cchan pending exc =
+    if pending == []
+        then return exc
+        else do
+            ev <- liftIO $ atomically $ readTChan cchan
+            (p, e) <- processOneEvent ev pchan pending exc
+            drainChildren pchan cchan p e
+
+waitForChildren :: MonadIO m
+    => Context -> Maybe SomeException -> m (Maybe SomeException)
+waitForChildren ctx exc = do
+    let pendingRef = pendingThreads ctx
+        pchan = fromJust (parentChannel ctx)
+    pending <- liftIO $ readIORef pendingRef
+    e <- drainChildren pchan (childChannel ctx) pending exc
+    liftIO $ writeIORef pendingRef []
+    return e
 
 -- | kill all the child threads associated with the continuation context
 killChildren :: Context -> IO ()
@@ -148,7 +238,7 @@ forkFinally1 action and_then =
 
 -- | Run a given context in a new thread.
 --
-forkContextWith :: (MonadBaseControl IO m, MonadIO m)
+forkContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
     => (Context -> m (Maybe a)) -> Context -> m ()
 forkContextWith runCtx context = do
     child <- childContext context
@@ -157,12 +247,13 @@ forkContextWith runCtx context = do
 
     where
 
-    updatePendingThreads :: MonadIO m => Context -> ThreadId -> m ()
-    updatePendingThreads cur tid = do
+    updatePendingThreads :: (MonadIO m, MonadThrow m)
+        => Context -> ThreadId -> m ()
+    updatePendingThreads ctx tid = do
         -- update the new thread before reclaiming zombies so that if it exited
         -- already reclaim finds it in the list and does not panic.
-        liftIO $ modifyIORef (pendingThreads cur) $ (\ts -> tid:ts)
-        tryReclaimZombies (childChannel cur) (pendingThreads cur)
+        liftIO $ modifyIORef (pendingThreads ctx) $ (\ts -> tid:ts)
+        tryReclaimZombies ctx
 
     childContext ctx = do
         pendingRef <- liftIO $ newIORef []
@@ -174,25 +265,27 @@ forkContextWith runCtx context = do
             , childChannel = chan
             }
 
-    beforeExit cur res = do
-        case res of
-            Left _exc -> liftIO $ killChildren cur
-                        -- propagate the exception to the parent
-            Right _ -> -- collect the results?
-                        return ()
+    beforeExit ctx res = do
+        exc <- case res of
+            Left e  -> do
+                liftIO $ killChildren ctx
+                return (Just e)
+            Right _ -> return Nothing
 
-        waitForChildren (childChannel cur) (pendingThreads cur)
-        signalQSemB (threadCredit cur)
+        e <- waitForChildren ctx exc
+
+        tid <- myThreadId
         -- We are guaranteed to have a parent because we have been explicitly
         -- forked by some parent.
-        let p = fromJust (parentChannel cur)
-        tid <- myThreadId
-        liftIO $ atomically $ writeTChan p tid
+        let p = fromJust (parentChannel ctx)
+        signalQSemB (threadCredit ctx)
+        liftIO $ atomically $ writeTChan p
+            (ChildDone tid (maybe (unsafeCoerce res) Left e))
 
 -- | A wrapper to first decide whether to run the context in the same thread or
 -- a new thread and then run the context in that thread.
 --
-resumeContextWith :: (MonadBaseControl IO m, MonadIO m)
+resumeContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
     => (Context -> m (Maybe a)) -> Context -> m ()
 resumeContextWith runCtx context = do
     gotCredit <- liftIO $ waitQSemB (threadCredit context)
@@ -208,8 +301,7 @@ resumeContextWith runCtx context = do
                         -- special handling for those cases. Add those to
                         -- unreclaimable list? And always execute them in an
                         -- async thread, cannot use sync for those.
-                        waitForOneChild (childChannel context)
-                                        (pendingThreads context)
+                        waitForOneEvent context
                         resumeContextWith runCtx context
         True -> forkContextWith runCtx context
 
@@ -238,7 +330,7 @@ data StreamData a =
 --
 -- | Execute the IO action, resume the saved context with the output of the io
 -- action.
-loopContextWith ::  (MonadIO m, MonadBaseControl IO m)
+loopContextWith ::  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => IO (StreamData t) -> Context -> m (Maybe a)
 loopContextWith ioaction ctx = do
     streamData <- liftIO $ ioaction `catch`
@@ -260,7 +352,7 @@ loopContextWith ioaction ctx = do
 -- Unless the maximum number of threads (set with 'threads') has been reached,
 -- the task is generated in a new thread and the current thread returns a void
 -- task.
-parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m)
+parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => IO (StreamData a) -> AsyncT m (StreamData a)
 parallel ioaction = AsyncT $ do
   -- We retrieve the context here and pass it on so that we can resume it
@@ -291,7 +383,8 @@ parallel ioaction = AsyncT $ do
 -- | An task stream generator that produces an infinite stream of tasks by
 -- running an IO computation in a loop. A task is triggered carrying the output
 -- of the computation. See 'parallel' for notes on the return value.
-waitEvents :: (MonadIO m, MonadBaseControl IO m) => IO a -> AsyncT m a
+waitEvents :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => IO a -> AsyncT m a
 waitEvents io = do
   mr <- parallel (SMore <$> io)
   case mr of
@@ -301,7 +394,8 @@ waitEvents io = do
 -- | Run an IO computation asynchronously and generate a single task carrying
 -- the result of the computation when it completes. See 'parallel' for notes on
 -- the return value.
-async  :: (MonadIO m, MonadBaseControl IO m) => IO a -> AsyncT m a
+async  :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => IO a -> AsyncT m a
 async io = do
   mr <- parallel (SLast <$> io)
   case mr of
@@ -324,7 +418,8 @@ sync x = AsyncT $ do
 -- task carries the result of the computation.  A new task is generated only if
 -- the output of the computation is different from the previous one.  See
 -- 'parallel' for notes on the return value.
-sample :: (Eq a, MonadIO m, MonadBaseControl IO m) => IO a -> Int -> AsyncT m a
+sample :: (Eq a, MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => IO a -> Int -> AsyncT m a
 sample action interval = do
   v    <- liftIO action
   prev <- liftIO $ newIORef v

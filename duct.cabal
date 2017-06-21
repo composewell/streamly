@@ -36,6 +36,7 @@ library
                      , ghc-prim
 
                      -- libraries not bundled with GHC
+                     , exceptions
                      , lifted-base
                      , monad-control
                      , mtl
