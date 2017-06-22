@@ -23,21 +23,22 @@ import           Control.Applicative    (Alternative(..))
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
 import           Control.Exception      (SomeException)
-import           Control.Monad.State    (MonadState, gets, modify, StateT, MonadPlus)
+import           Control.Monad.State    (MonadState, gets, modify, StateT,
+                                         MonadPlus(..), MonadIO(..))
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (TypeRep, Typeable, typeOf)
-import           Data.IORef             (IORef)
+import           Data.IORef             (IORef, modifyIORef)
 import qualified Data.Map               as M
 import           Unsafe.Coerce          (unsafeCoerce)
-import GHC.Prim (Any)
+import           GHC.Prim               (Any)
 
 ------------------------------------------------------------------------------
 -- State of a continuation
 ------------------------------------------------------------------------------
 
 data ChildEvent a =
-      ChildDone ThreadId (Either SomeException (Maybe a)) -- A child is finished
-    | PassOnResult (Either SomeException a)       -- Pass on the result of a child
+      ChildDone ThreadId (Either SomeException [a]) -- A child is finished
+    | PassOnResult (Either SomeException [a])       -- Pass on the result of a child
 
 -- | Describes the context of a computation.
 data Context = Context
@@ -100,6 +101,8 @@ data Context = Context
     --
   , threadCredit   :: IORef Int
     -- ^ How many more threads are allowed to be created?
+  , accumResults :: IORef [Any]
+    -- ^ Accumulated results when running synchronously
   } deriving Typeable
 
 initContext
@@ -107,8 +110,9 @@ initContext
     -> TChan (ChildEvent a)
     -> IORef [ThreadId]
     -> IORef Int
+    -> IORef [a]
     -> Context
-initContext x childChan pending credit =
+initContext x childChan pending credit results =
   Context { event          = mempty
          , currentm        = unsafeCoerce x
          , fstack          = []
@@ -117,7 +121,8 @@ initContext x childChan pending credit =
          , parentChannel   = Nothing
          , childChannel    = unsafeCoerce childChan
          , pendingThreads  = pending
-         , threadCredit    = credit }
+         , threadCredit    = credit
+         , accumResults    = unsafeCoerce results }
 
 ------------------------------------------------------------------------------
 -- Where is the computation running?
@@ -168,22 +173,32 @@ restoreContext x = do
     return mres
 
 -- | Resume execution of the computation from a given context. We can retrieve
--- a context at any point and resume that context at some later point, which
--- means start executing again from the same point where the context was
--- retrieved.
+-- a context at any point and resume that context at some later point, upon
+-- resumption we start executing again from the same point where the context
+-- was retrieved.
 --
--- Run the stack of pending functions in fstack. The types don't match. We just
--- coerce the types here, we know that they actually match.
-
-resumeContext :: MonadPlus m => Context -> m a
-resumeContext Context { currentm = m, fstack = fs } =
-    unsafeCoerce m >>= runfStack (unsafeCoerce fs)
+resumeContext :: (MonadIO m, MonadPlus m) => Context -> m a
+resumeContext Context { currentm     = m
+                      , fstack       = fs
+                      , accumResults = resultsRef
+                      } =
+    unsafeCoerce m >>= composefStack (unsafeCoerce fs)
 
     where
 
-    -- runfStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
-    runfStack [] _     = empty
-    runfStack (f:ff) x = f x >>= runfStack ff
+    -- Compose the stack of pending functions in fstack using the bind
+    -- operation of the monad. The types don't match. We just coerce the types
+    -- here, we know that they actually match.
+
+    -- The last computation is always 'mzero' to stop the whole computation.
+    -- Before returning we save the result of the computation in the context.
+
+    -- composefStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
+    composefStack [] x     = do
+        -- remove this, return use the modified context
+        liftIO $ modifyIORef resultsRef $ \r -> x : r
+        mzero
+    composefStack (f:ff) x = f x >>= composefStack ff
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

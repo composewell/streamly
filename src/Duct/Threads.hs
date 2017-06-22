@@ -69,11 +69,12 @@ import           Duct.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-resume :: Monad m => Context -> m (Maybe a)
+resume :: MonadIO m => Context -> m Context
 resume ctx = do
         let s = runAsyncT (resumeContext ctx)
-        (a, _) <- runStateT s ctx
-        return a
+        -- The returned value is always 'Nothing', we just discard it
+        (_, c) <- runStateT s ctx
+        return c
 
 updateContextEvent :: Context -> a -> Context
 updateContextEvent ctx evdata = ctx { event = Just $ unsafeCoerce evdata }
@@ -96,9 +97,11 @@ processOneEvent ev pchan pending exc = do
         Nothing ->
             case ev of
                 ChildDone tid res -> do
-                    dbg $ "Reaping child: " ++ show tid
-                    handleDone res
-                PassOnResult res -> handlePass res
+                    dbg $ "processOneEvent ChildDone: " ++ show tid
+                    handlePass res
+                PassOnResult res -> do
+                    dbg $ "processOneEvent PassOnResult"
+                    handlePass res
         Just _ -> return exc
     let p = case ev of
                 ChildDone tid _ -> delete tid pending
@@ -107,29 +110,16 @@ processOneEvent ev pchan pending exc = do
 
     where
 
-    handleDone :: MonadIO m
-        => Either SomeException (Maybe a) -> m (Maybe SomeException)
-    handleDone res =
-        case res of
-            Left e -> do
-                    liftIO $ mapM_ killThread pending
-                    return (Just e)
-            Right r -> do
-                case r of
-                    Nothing -> return ()
-                    Just x  -> liftIO $ atomically
-                                      $ writeTChan pchan
-                                        (PassOnResult (Right (unsafeCoerce x)))
-                return Nothing
-
     handlePass :: MonadIO m
-        => Either SomeException a -> m (Maybe SomeException)
+        => Either SomeException [a] -> m (Maybe SomeException)
     handlePass res =
         case res of
             Left e -> do
+                    dbg $ "handlePass: caught exception"
                     liftIO $ mapM_ killThread pending
                     return (Just e)
-            Right _  -> do
+            Right [] -> return Nothing
+            Right _ -> do
                 liftIO $ atomically $ writeTChan pchan
                     (PassOnResult (unsafeCoerce res))
                 return Nothing
@@ -230,10 +220,10 @@ instance Read SomeException where
 
 forkFinally1 :: (MonadIO m, MonadBaseControl IO m) =>
     m a -> (Either SomeException a -> IO ()) -> m ThreadId
-forkFinally1 action and_then =
+forkFinally1 action preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            _ <- runInIO $ EL.try (restore action) >>= liftIO . and_then
+            _ <- runInIO $ EL.try (restore action) >>= liftIO . preExit
             return ()
 
 -- | Run a given context in a new thread.
@@ -258,33 +248,38 @@ forkContextWith runCtx context = do
     childContext ctx = do
         pendingRef <- liftIO $ newIORef []
         chan <- liftIO $ atomically newTChan
+        resultsRef <- liftIO $ newIORef []
         -- shares the threadCredit of the parent by default
         return $ ctx
             { parentChannel  = Just (childChannel ctx)
             , pendingThreads = pendingRef
             , childChannel = chan
+            , accumResults = resultsRef
             }
 
     beforeExit ctx res = do
+        tid <- myThreadId
         exc <- case res of
             Left e  -> do
+                dbg $ "beforeExit: " ++ show tid ++ " caught exception"
                 liftIO $ killChildren ctx
                 return (Just e)
             Right _ -> return Nothing
 
         e <- waitForChildren ctx exc
 
-        tid <- myThreadId
         -- We are guaranteed to have a parent because we have been explicitly
         -- forked by some parent.
         let p = fromJust (parentChannel ctx)
+        results <- liftIO $ readIORef (accumResults ctx)
         signalQSemB (threadCredit ctx)
         liftIO $ atomically $ writeTChan p
-            (ChildDone tid (maybe (unsafeCoerce res) Left e))
+            (ChildDone tid (maybe (unsafeCoerce (Right results)) Left e))
 
 -- | A wrapper to first decide whether to run the context in the same thread or
 -- a new thread and then run the context in that thread.
 --
+-- XXX create a canFork function
 resumeContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
     => (Context -> m (Maybe a)) -> Context -> m ()
 resumeContextWith runCtx context = do
@@ -339,9 +334,11 @@ loopContextWith ioaction ctx = do
     let ctx' = updateContextEvent ctx streamData
     case streamData of
         SMore _ -> do
-            resumeContextWith resume ctx'
+            resumeContextWith (\x -> resume x >> return Nothing) ctx'
             loopContextWith ioaction ctx
-        _ -> resume ctx' -- run synchronously
+        _ -> do
+            _ <- resume ctx' -- run synchronously
+            return Nothing -- we are done with the loop
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
 -- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
@@ -360,7 +357,7 @@ parallel ioaction = AsyncT $ do
   -- generating the event data from the ioaction.
   context <- get
   case event context of
-    -- We have already executed the ioaction in the parent thread and put the
+    -- We have already executed the ioaction in the parent thread and put its
     -- result in the context and now we are continuing the context in a new
     -- thread. Just return the result of the ioaction stored in the 'event'
     -- field.

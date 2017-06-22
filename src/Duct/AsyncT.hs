@@ -41,7 +41,7 @@ import           Data.Maybe                  (isJust, isNothing)
 
 import           Duct.Context
 
--- import           Debug.Trace
+-- import           Debug.Trace (traceM)
 
 newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
 
@@ -49,7 +49,9 @@ newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
 -- Utilities
 ------------------------------------------------------------------------------
 
--- dbg x = trace x (return ())
+-- Toggle the dbg definition for debug traces
+--dbg :: Monad m => String -> m ()
+--dbg = traceM
 dbg :: Monad m => a -> m ()
 dbg _ = return ()
 
@@ -92,6 +94,7 @@ instance Monad m => Alternative (AsyncT m) where
             RemoteNode -> return Nothing
             _          ->  maybe (runAsyncT y) (return . Just) mx
 
+-- XXX remove this, use mzero instead
 -- | A synonym of 'empty' that can be used in a monadic expression. It stops
 -- the computation, which allows the next computation in an 'Alternative'
 -- ('<|>') composition to run.
@@ -166,24 +169,22 @@ drainChildren chan pending res =
             ev <- liftIO $ atomically $ readTChan chan
             case ev of
                 ChildDone tid er -> do
-                    dbg $ "Reaping child: " ++ show tid
+                    dbg $ "drainChildrenTop ChildDone, tid: " ++ show tid
                     case er of
                         Left e -> throwM e
-                        Right r -> do
-                            let newres = case r of
-                                    Nothing -> res
-                                    Just x  -> x:res
-                            drainChildren chan (delete tid pending) newres
-                PassOnResult er ->
+                        Right r ->
+                            drainChildren chan (delete tid pending) (r ++ res)
+                PassOnResult er -> do
+                    dbg $ "drainChildrenTop PassOnResult"
                     case er of
                         Left e -> throwM e
-                        Right x -> drainChildren chan pending (x:res)
+                        Right r -> drainChildren chan pending (r ++ res)
 
 waitForChildren :: (MonadIO m, MonadThrow m)
-    => TChan (ChildEvent a) -> IORef [ThreadId] -> m [a]
-waitForChildren chan pendingRef = do
+    => TChan (ChildEvent a) -> IORef [ThreadId] -> [a] -> m [a]
+waitForChildren chan pendingRef results = do
     pending <- liftIO $ readIORef pendingRef
-    r <- drainChildren chan pending []
+    r <- drainChildren chan pending results
     liftIO $ writeIORef pendingRef []
     return r
 
@@ -195,24 +196,27 @@ waitForChildren chan pendingRef = do
 -- XXX Ideally it should be a non-empty list instead.
 -- | Run an 'AsyncT m' computation. Returns a list of results of the
 -- computation or may throw an exception.
-waitAsync :: forall m a. (MonadIO m, MonadThrow m, MonadCatch m)
+waitAsync :: forall m a. (MonadIO m, MonadCatch m)
     => AsyncT m a -> m [a]
 waitAsync m = do
     childChan  <- liftIO $ atomically newTChan
     pendingRef <- liftIO $ newIORef []
     credit     <- liftIO $ newIORef maxBound
+    resultsRef <- liftIO $ newIORef []
 
     -- XXX this should be moved to Context.hs and then we can make m
     -- existential and remove the unsafeCoerces
     r <- try $ runStateT (runAsyncT m) $ initContext
-               (empty :: AsyncT m a) childChan pendingRef credit
+               (empty :: AsyncT m a) childChan pendingRef credit resultsRef
 
-    case r of
+    results <- liftIO $ readIORef resultsRef
+    xs <- case r of
         Left (exc :: SomeException) -> do
             liftIO $ readIORef pendingRef >>= mapM_ killThread
             throwM exc
-        Right (Nothing, _) -> waitForChildren childChan pendingRef
-        Right ((Just x), _) -> return [x]
+        Right (Nothing, _) -> return results
+        Right ((Just x), _) -> return $ x:results
+    waitForChildren childChan pendingRef xs
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management
