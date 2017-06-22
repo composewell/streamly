@@ -21,7 +21,6 @@ module Duct.Context
     )
 where
 
-import           Control.Applicative    (Alternative(..))
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
 import           Control.Exception      (SomeException)
@@ -29,7 +28,7 @@ import           Control.Monad.State    (MonadState, gets, modify, StateT,
                                          MonadPlus(..), MonadIO(..))
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (TypeRep, Typeable, typeOf)
-import           Data.IORef             (IORef, modifyIORef)
+import           Data.IORef             (IORef)
 import qualified Data.Map               as M
 import           Unsafe.Coerce          (unsafeCoerce)
 import           GHC.Prim               (Any)
@@ -162,14 +161,13 @@ saveContext m f =
 
 -- pop the top function from the continuation stack, create the next closure,
 -- set it as the current closure and return it.
-restoreContext :: (Alternative f, Monad m) => Maybe a -> StateT Context m (f b)
+restoreContext :: (MonadPlus m1, Monad m) => Maybe a -> StateT Context m (m1 b)
 restoreContext x = do
     -- XXX fstack must be non-empty when this is called.
     ctx@Context { fstack = f:fs } <- Lazy.get
 
     let mres = case x of
-            -- XXX use mzero instead
-            Nothing -> empty
+            Nothing -> mzero
             Just y -> (unsafeCoerce f) y
 
     Lazy.put ctx { currentm = unsafeCoerce mres, fstack = fs }
