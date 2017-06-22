@@ -185,6 +185,13 @@ waitForChildren chan pendingRef results = do
 -- Running the monad
 ------------------------------------------------------------------------------
 
+-- | Invoked to store the result of the computation in the context and finish
+-- the computation when the computation is done
+finishComputation :: Monad m => a -> AsyncT m b
+finishComputation x = AsyncT $ do
+    contextSaveResult x
+    return Nothing
+
 -- XXX pass a collector function and return a Traversable.
 -- XXX Ideally it should be a non-empty list instead.
 -- | Run an 'AsyncT m' computation. Returns a list of results of the
@@ -195,20 +202,19 @@ waitAsync m = do
     childChan  <- liftIO $ atomically newTChan
     pendingRef <- liftIO $ newIORef []
     credit     <- liftIO $ newIORef maxBound
-    resultsRef <- liftIO $ newIORef []
 
     -- XXX this should be moved to Context.hs and then we can make m
     -- existential and remove the unsafeCoerces
     r <- try $ runStateT (runAsyncT m) $ initContext
-               (empty :: AsyncT m a) childChan pendingRef credit resultsRef
+               (empty :: AsyncT m a) childChan pendingRef credit
+               finishComputation
 
-    results <- liftIO $ readIORef resultsRef
     xs <- case r of
         Left (exc :: SomeException) -> do
             liftIO $ readIORef pendingRef >>= mapM_ killThread
             throwM exc
-        Right (Nothing, _) -> return results
-        Right ((Just x), _) -> return $ x:results
+        Right (Nothing, ctx) -> return $ contextGetResult ctx
+        Right ((Just x), ctx) -> return $ x : contextGetResult ctx
     waitForChildren childChan pendingRef xs
 
 ------------------------------------------------------------------------------

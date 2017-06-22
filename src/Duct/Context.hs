@@ -9,6 +9,8 @@ module Duct.Context
     , saveContext
     , restoreContext
     , resumeContext
+    , contextSaveResult
+    , contextGetResult
     , Location(..)
     , getLocation
     , setLocation
@@ -50,6 +52,7 @@ data Context = Context
   -- In nested binds we store the current m only, but the whole stack of fs
   , currentm     :: Any   -- untyped, the real type is: m a
   , fstack       :: [Any] -- untyped, the real type is: [a -> m b]
+  -- XXX keep a composed computation instead
     -- ^ List of continuations
 
   -- log only when there is a restore or if we are teleporting
@@ -101,7 +104,7 @@ data Context = Context
     --
   , threadCredit   :: IORef Int
     -- ^ How many more threads are allowed to be created?
-  , accumResults :: IORef [Any]
+  , accumResults :: [Any]
     -- ^ Accumulated results when running synchronously
   } deriving Typeable
 
@@ -110,19 +113,19 @@ initContext
     -> TChan (ChildEvent a)
     -> IORef [ThreadId]
     -> IORef Int
-    -> IORef [a]
+    -> (b -> m a)
     -> Context
-initContext x childChan pending credit results =
-  Context { event          = mempty
+initContext x childChan pending credit finalizer =
+  Context { event          = mempty -- XXX Nothing
          , currentm        = unsafeCoerce x
-         , fstack          = []
+         , fstack          = [unsafeCoerce finalizer]
          , location        = Worker
          , mfData          = mempty
          , parentChannel   = Nothing
          , childChannel    = unsafeCoerce childChan
          , pendingThreads  = pending
          , threadCredit    = credit
-         , accumResults    = unsafeCoerce results }
+         , accumResults    = [] }
 
 ------------------------------------------------------------------------------
 -- Where is the computation running?
@@ -165,6 +168,7 @@ restoreContext x = do
     ctx@Context { fstack = f:fs } <- Lazy.get
 
     let mres = case x of
+            -- XXX use mzero instead
             Nothing -> empty
             Just y -> (unsafeCoerce f) y
 
@@ -180,7 +184,6 @@ restoreContext x = do
 resumeContext :: (MonadIO m, MonadPlus m) => Context -> m a
 resumeContext Context { currentm     = m
                       , fstack       = fs
-                      , accumResults = resultsRef
                       } =
     unsafeCoerce m >>= composefStack (unsafeCoerce fs)
 
@@ -194,11 +197,16 @@ resumeContext Context { currentm     = m
     -- Before returning we save the result of the computation in the context.
 
     -- composefStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
-    composefStack [] x     = do
-        -- remove this, return use the modified context
-        liftIO $ modifyIORef resultsRef $ \r -> x : r
-        mzero
+    composefStack [] _     = error "Bug: this should never be reached"
     composefStack (f:ff) x = f x >>= composefStack ff
+
+contextSaveResult :: Monad m => a -> StateT Context m ()
+contextSaveResult r =
+    modify $ \ Context {accumResults = rs, ..} ->
+        Context {accumResults = unsafeCoerce r : rs, ..}
+
+contextGetResult :: Context -> [a]
+contextGetResult ctx = unsafeCoerce $ accumResults ctx
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

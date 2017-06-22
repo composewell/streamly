@@ -69,12 +69,24 @@ import           Duct.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-resume :: MonadIO m => Context -> m Context
+resume :: MonadIO m => Context -> m ()
 resume ctx = do
+        -- XXX rename to buildContext or buildState?
         let s = runAsyncT (resumeContext ctx)
         -- The returned value is always 'Nothing', we just discard it
         (_, c) <- runStateT s ctx
-        return c
+
+        -- XXX can we pass the result directly to the root thread instead of
+        -- passing through all the parents? We can let the parent go away and
+        -- handle the ChildDone events as well in the root thread.
+        case parentChannel c of
+            Nothing -> return () -- TODO: yield the value for streaming here
+            Just chan ->  do
+                let r = accumResults c
+                when (length r /= 0) $
+                    -- there is only one result in case of a non-root thread
+                    -- XXX change the return type to 'a' instead of '[a]'
+                    liftIO $ atomically $ writeTChan chan (PassOnResult (Right r))
 
 updateContextEvent :: Context -> a -> Context
 updateContextEvent ctx evdata = ctx { event = Just $ unsafeCoerce evdata }
@@ -248,13 +260,12 @@ forkContextWith runCtx context = do
     childContext ctx = do
         pendingRef <- liftIO $ newIORef []
         chan <- liftIO $ atomically newTChan
-        resultsRef <- liftIO $ newIORef []
         -- shares the threadCredit of the parent by default
         return $ ctx
             { parentChannel  = Just (childChannel ctx)
             , pendingThreads = pendingRef
             , childChannel = chan
-            , accumResults = resultsRef
+            , accumResults = []
             }
 
     beforeExit ctx res = do
@@ -264,17 +275,18 @@ forkContextWith runCtx context = do
                 dbg $ "beforeExit: " ++ show tid ++ " caught exception"
                 liftIO $ killChildren ctx
                 return (Just e)
-            Right _ -> return Nothing
+            Right Nothing -> return Nothing
+            Right (Just _) -> error "Bug: should never happen"
 
         e <- waitForChildren ctx exc
 
         -- We are guaranteed to have a parent because we have been explicitly
         -- forked by some parent.
         let p = fromJust (parentChannel ctx)
-        results <- liftIO $ readIORef (accumResults ctx)
         signalQSemB (threadCredit ctx)
+        -- XXX change the return value type to Maybe SomeException
         liftIO $ atomically $ writeTChan p
-            (ChildDone tid (maybe (unsafeCoerce (Right results)) Left e))
+            (ChildDone tid (maybe (Right []) Left e))
 
 -- | A wrapper to first decide whether to run the context in the same thread or
 -- a new thread and then run the context in that thread.
@@ -337,7 +349,7 @@ loopContextWith ioaction ctx = do
             resumeContextWith (\x -> resume x >> return Nothing) ctx'
             loopContextWith ioaction ctx
         _ -> do
-            _ <- resume ctx' -- run synchronously
+            resume ctx' -- run synchronously
             return Nothing -- we are done with the loop
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
