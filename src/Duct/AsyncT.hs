@@ -94,13 +94,6 @@ instance Monad m => Alternative (AsyncT m) where
             RemoteNode -> return Nothing
             _          ->  maybe (runAsyncT y) (return . Just) mx
 
--- XXX remove this, use mzero instead
--- | A synonym of 'empty' that can be used in a monadic expression. It stops
--- the computation, which allows the next computation in an 'Alternative'
--- ('<|>') composition to run.
-stop :: Alternative m => m stopped
-stop = empty
-
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
