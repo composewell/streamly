@@ -11,6 +11,8 @@ module Duct.Context
     , resumeContext
     , contextSaveResult
     , contextGetResult
+    , setContextMailBox
+    , takeContextMailBox
     , Location(..)
     , getLocation
     , setLocation
@@ -43,9 +45,8 @@ data ChildEvent a =
 
 -- | Describes the context of a computation.
 data Context = Context
-  { event       :: Maybe ()  -- untyped, XXX rename to mailbox - can we do
-  -- away with this?
-  -- ^ event data to use in a continuation in a new thread
+  { mailBox       :: Maybe Any  -- untyped,
+  -- ^ mailBox to send event data to the child thread
 
   -- the 'm' and 'f' in an 'm >>= f' operation of the monad
   -- In nested binds we store the current m only, but the whole stack of fs
@@ -115,16 +116,16 @@ initContext
     -> (b -> m a)
     -> Context
 initContext x childChan pending credit finalizer =
-  Context { event          = mempty -- XXX Nothing
-         , currentm        = unsafeCoerce x
-         , fstack          = [unsafeCoerce finalizer]
-         , location        = Worker
-         , mfData          = mempty
-         , parentChannel   = Nothing
-         , childChannel    = unsafeCoerce childChan
-         , pendingThreads  = pending
-         , threadCredit    = credit
-         , accumResults    = [] }
+  Context { mailBox         = Nothing
+          , currentm        = unsafeCoerce x
+          , fstack          = [unsafeCoerce finalizer]
+          , location        = Worker
+          , mfData          = mempty
+          , parentChannel   = Nothing
+          , childChannel    = unsafeCoerce childChan
+          , pendingThreads  = pending
+          , threadCredit    = credit
+          , accumResults    = [] }
 
 ------------------------------------------------------------------------------
 -- Where is the computation running?
@@ -205,6 +206,18 @@ contextSaveResult r =
 
 contextGetResult :: Context -> [a]
 contextGetResult ctx = unsafeCoerce $ accumResults ctx
+
+setContextMailBox :: Context -> a -> Context
+setContextMailBox ctx mbdata = ctx { mailBox = Just $ unsafeCoerce mbdata }
+
+takeContextMailBox :: Monad m => StateT Context m (Either Context a)
+takeContextMailBox = do
+      ctx <- Lazy.get
+      case mailBox ctx of
+        Nothing -> return $ Left ctx
+        Just x -> do
+            Lazy.put ctx { mailBox = Nothing }
+            return $ Right (unsafeCoerce x)
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

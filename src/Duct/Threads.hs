@@ -7,7 +7,7 @@ module Duct.Threads
     , async
     , sample
     , sync
-    , react
+    --, react
     , threads
     )
 where
@@ -87,9 +87,6 @@ resume ctx = do
                     -- there is only one result in case of a non-root thread
                     -- XXX change the return type to 'a' instead of '[a]'
                     liftIO $ atomically $ writeTChan chan (PassOnResult (Right r))
-
-updateContextEvent :: Context -> a -> Context
-updateContextEvent ctx evdata = ctx { event = Just $ unsafeCoerce evdata }
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -343,7 +340,7 @@ loopContextWith ioaction ctx = do
     streamData <- liftIO $ ioaction `catch`
             \(e :: SomeException) -> return $ SError e
 
-    let ctx' = updateContextEvent ctx streamData
+    let ctx' = setContextMailBox ctx streamData
     case streamData of
         SMore _ -> do
             resumeContextWith (\x -> resume x >> return Nothing) ctx'
@@ -364,30 +361,30 @@ loopContextWith ioaction ctx = do
 parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => IO (StreamData a) -> AsyncT m (StreamData a)
 parallel ioaction = AsyncT $ do
-  -- We retrieve the context here and pass it on so that we can resume it
-  -- later. Control resumes at this place when we resume this context after
-  -- generating the event data from the ioaction.
-  context <- get
-  case event context of
-    -- We have already executed the ioaction in the parent thread and put its
-    -- result in the context and now we are continuing the context in a new
-    -- thread. Just return the result of the ioaction stored in the 'event'
-    -- field.
-    j@(Just _) -> do
-      put context { event = Nothing }
-      return $ unsafeCoerce j
+    -- We retrieve the context here and pass it on so that we can resume it
+    -- later. Control resumes at this place when we resume this context in a
+    -- new thread or in the same thread after generating the event data from
+    -- the ioaction.
+    mb <- takeContextMailBox
+    case mb of
+        -- We have already executed the ioaction in the parent thread and put
+        -- its result in the context and now we are continuing the context in a
+        -- new thread. Just return the result of the ioaction stored in the
+        -- 'event' field.
+        Right x -> return (Just x)
 
-    -- We have to execute the io action and generate an event and then continue
-    -- in this thread or a new thread.
-    Nothing    -> do
-      lift $ resumeContextWith (loopContextWith ioaction) context
+        -- We have to execute the io action, generate event data, put it in the
+        -- context mailbox and then continue from the point where this context
+        -- was retreieved, in this thread or a new thread.
+        Left ctx -> do
+            lift $ resumeContextWith (loopContextWith ioaction) ctx
 
-      -- We will never reach here if we continued the context in the same
-      -- thread. If we started a new thread then the parent thread reaches
-      -- here.
-      loc <- getLocation
-      when (loc /= RemoteNode) $ setLocation WaitingParent
-      return Nothing
+            -- We will never reach here if we continued the context in the same
+            -- thread. If we started a new thread then the parent thread
+            -- reaches here.
+            loc <- getLocation
+            when (loc /= RemoteNode) $ setLocation WaitingParent
+            return Nothing
 
 -- | An task stream generator that produces an infinite stream of tasks by
 -- running an IO computation in a loop. A task is triggered carrying the output
@@ -452,6 +449,7 @@ sample action interval = do
 -- into the transient monad using 'react'. Every time the callback is called it
 -- generates a new task for the transient monad.
 --
+{-
 react
   :: (Monad m, MonadIO m)
   => ((eventdata ->  m response) -> m ())
@@ -471,6 +469,8 @@ react setHandler iob = AsyncT $ do
           j@(Just _) -> do
             put context{event=Nothing}
             return $ unsafeCoerce j
+
+-}
 
 ------------------------------------------------------------------------------
 -- Controlling thread quota
