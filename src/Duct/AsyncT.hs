@@ -149,6 +149,9 @@ instance (MonadBaseControl b m, MonadIO m) => MonadBaseControl b (AsyncT m) wher
     {-# INLINABLE liftBaseWith #-}
     {-# INLINABLE restoreM #-}
 
+instance MonadThrow m => MonadThrow (AsyncT m) where
+  throwM e = lift $ throwM e
+
 ------------------------------------------------------------------------------
 -- Thread management
 ------------------------------------------------------------------------------

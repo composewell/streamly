@@ -23,8 +23,8 @@ import           Control.Exception           (ErrorCall (..),
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.IO.Class      (MonadIO (..))
-import           Control.Monad.State         (get, gets, modify, put,
-                                              runStateT, when)
+import           Control.Monad.State         (gets, modify,
+                                              runStateT, when, StateT)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Dynamic                (Typeable)
@@ -69,7 +69,7 @@ import           Duct.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-resume :: MonadIO m => Context -> m ()
+resume :: MonadIO m => Context -> m Context
 resume ctx = do
         -- XXX rename to buildContext or buildState?
         let s = runAsyncT (resumeContext ctx)
@@ -80,13 +80,14 @@ resume ctx = do
         -- passing through all the parents? We can let the parent go away and
         -- handle the ChildDone events as well in the root thread.
         case parentChannel c of
-            Nothing -> return () -- TODO: yield the value for streaming here
+            Nothing -> return ()
             Just chan ->  do
                 let r = accumResults c
                 when (length r /= 0) $
                     -- there is only one result in case of a non-root thread
                     -- XXX change the return type to 'a' instead of '[a]'
                     liftIO $ atomically $ writeTChan chan (PassOnResult (Right r))
+        return c
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -227,21 +228,21 @@ instance Read SomeException where
 -- high.
 --
 
-forkFinally1 :: (MonadIO m, MonadBaseControl IO m) =>
-    m a -> (Either SomeException a -> IO ()) -> m ThreadId
-forkFinally1 action preExit =
+forkFinally1 :: (MonadIO m, MonadBaseControl IO m)
+    => Context -> (Either SomeException Context -> IO ()) -> m ThreadId
+forkFinally1 ctx preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            _ <- runInIO $ EL.try (restore action) >>= liftIO . preExit
+            _ <- runInIO $ EL.try (restore (resume ctx)) >>= liftIO . preExit
             return ()
 
 -- | Run a given context in a new thread.
 --
-forkContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
-    => (Context -> m (Maybe a)) -> Context -> m ()
-forkContextWith runCtx context = do
+forkContext :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
+    => Context -> m ()
+forkContext context = do
     child <- childContext context
-    tid <- forkFinally1 (runCtx child) (beforeExit child)
+    tid <- forkFinally1 child (beforeExit child)
     updatePendingThreads context tid
 
     where
@@ -272,8 +273,7 @@ forkContextWith runCtx context = do
                 dbg $ "beforeExit: " ++ show tid ++ " caught exception"
                 liftIO $ killChildren ctx
                 return (Just e)
-            Right Nothing -> return Nothing
-            Right (Just _) -> error "Bug: should never happen"
+            Right _ -> return Nothing
 
         e <- waitForChildren ctx exc
 
@@ -285,20 +285,16 @@ forkContextWith runCtx context = do
         liftIO $ atomically $ writeTChan p
             (ChildDone tid (maybe (Right []) Left e))
 
--- | A wrapper to first decide whether to run the context in the same thread or
--- a new thread and then run the context in that thread.
+-- | Decide whether to resume the context in the same thread or a new thread
 --
--- XXX create a canFork function
-resumeContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
-    => (Context -> m (Maybe a)) -> Context -> m ()
-resumeContextWith runCtx context = do
+canFork :: Context -> IO Bool
+canFork context = do
     gotCredit <- liftIO $ waitQSemB (threadCredit context)
-    pending <- liftIO $ readIORef $ pendingThreads context
     case gotCredit of
-        False -> case pending of
-                [] -> do
-                    _ <- runCtx context -- run synchronously
-                    return ()
+        False -> do
+            pending <- liftIO $ readIORef $ pendingThreads context
+            case pending of
+                [] -> return False
                 _ -> do
                         -- XXX If we have unreclaimable child threads e.g.
                         -- infinite loop, this is going to deadlock us. We need
@@ -306,8 +302,38 @@ resumeContextWith runCtx context = do
                         -- unreclaimable list? And always execute them in an
                         -- async thread, cannot use sync for those.
                         waitForOneEvent context
-                        resumeContextWith runCtx context
-        True -> forkContextWith runCtx context
+                        canFork context
+        True -> return True
+
+-- | resume a captured context with a given action. The context may be resumed
+-- in the same thread or in a new thread depending on the synch parameter and
+-- the current thread quota.
+--
+resumeContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
+    => Context          -- the context to resume
+    -> Maybe Context    -- context to copy the results from
+    -> Bool             -- force synchronous
+    -> (Context -> AsyncT m (StreamData a)) -- the action to execute in the resumed context
+    -> m (Maybe Context)
+resumeContextWith context prevCtx synch action = do
+    let ctx = setContextMailBox context (action context)
+    can <- liftIO $ canFork context
+    case can && (not synch) of
+        False -> do
+            -- transfer the results from the previous iteration to the next
+            -- Only for top level thread, for others we would have already
+            -- transferred the result to the parent via a channel
+            let ctx' = case prevCtx of
+                    Nothing -> ctx
+                    Just x ->
+                        case parentChannel ctx of
+                            Nothing -> ctx { accumResults = accumResults x }
+                            Just _  -> ctx
+            c <- resume ctx' -- run synchronously
+            return (Just c)
+        True -> do
+            forkContext ctx
+            return Nothing
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =
@@ -332,22 +358,73 @@ data StreamData a =
 -- available we need a way to close the channel and wakeup all waiters so that
 -- they can go away rather than waiting indefinitely.
 --
--- | Execute the IO action, resume the saved context with the output of the io
--- action.
-loopContextWith ::  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO (StreamData t) -> Context -> m (Maybe a)
-loopContextWith ioaction ctx = do
-    streamData <- liftIO $ ioaction `catch`
-            \(e :: SomeException) -> return $ SError e
 
-    let ctx' = setContextMailBox ctx streamData
-    case streamData of
-        SMore _ -> do
-            resumeContextWith (\x -> resume x >> return Nothing) ctx'
-            loopContextWith ioaction ctx
-        _ -> do
-            resume ctx' -- run synchronously
-            return Nothing -- we are done with the loop
+-- Housekeeping, invoked after spawning of all child tasks is done and the
+-- parent task needs to terminate. Either the task is fully done or we handed
+-- it over to another thread, in any case the current thread is done.
+
+spawningParentDone :: Monad m
+    => (Maybe Context) -> StateT Context m (Maybe (StreamData a))
+spawningParentDone ctx = do
+    -- when running synchronously copy over the results from the returned
+    -- context
+    maybe (return ())
+          (\x -> modify (\c -> c {accumResults = accumResults x}))
+          ctx
+
+    loc <- getLocation
+    when (loc /= RemoteNode) $ setLocation WaitingParent
+    return Nothing
+
+-- | Captures the state of the current computation at this point, starts a new
+-- thread, passing the captured state, runs the argument computation in the new
+-- thread, returns its value and continues the computation from the capture
+-- point. The end result is as if this function just returned the value
+-- generated by the argument computation albeit in a new thread.
+--
+-- If a new thread cannot be created then the computation is run in the same
+-- thread, but the functional behavior remains the same.
+
+spawnAsyncT :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => (Context -> AsyncT m (StreamData a))
+    -> AsyncT m (StreamData a)
+spawnAsyncT func = AsyncT $ do
+    val <- takeContextMailBox
+    case val of
+        -- Child task
+        Right x -> runAsyncT x
+
+        -- Spawning parent
+        Left ctx -> do
+            r <- lift $ resumeContextWith ctx Nothing False func
+
+            -- If we started the task asynchronously in a new thread then the
+            -- parent thread reaches here, immediately after spawning the task.
+            --
+            -- Howver, if the task was executed synchronously then we will
+            -- reach after it is completely done.
+            spawningParentDone r
+
+-- | Execute the specified IO action, resume the saved context returning the
+-- output of the io action, continue this in a loop until the ioaction
+-- indicates that its done.
+
+loopContextWith ::  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => IO (StreamData a) -> Context -> AsyncT m (StreamData a)
+loopContextWith ioaction ctx = AsyncT $ loop Nothing
+    where
+
+    loop prevCtx = do
+        streamData <- liftIO $ ioaction `catch`
+                \(e :: SomeException) -> return $ SError e
+
+        let resumeCtx synch =
+                lift $ resumeContextWith ctx prevCtx synch $ \_ ->
+                        return streamData
+
+        case streamData of
+            SMore _ -> resumeCtx False >>= loop
+            _       -> resumeCtx True  >>= spawningParentDone
 
 -- | Run an IO action one or more times to generate a stream of tasks. The IO
 -- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
@@ -358,33 +435,9 @@ loopContextWith ioaction ctx = do
 -- Unless the maximum number of threads (set with 'threads') has been reached,
 -- the task is generated in a new thread and the current thread returns a void
 -- task.
-parallel  :: (Monad m, MonadIO m, MonadBaseControl IO m, MonadThrow m)
+parallel  :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => IO (StreamData a) -> AsyncT m (StreamData a)
-parallel ioaction = AsyncT $ do
-    -- We retrieve the context here and pass it on so that we can resume it
-    -- later. Control resumes at this place when we resume this context in a
-    -- new thread or in the same thread after generating the event data from
-    -- the ioaction.
-    mb <- takeContextMailBox
-    case mb of
-        -- We have already executed the ioaction in the parent thread and put
-        -- its result in the context and now we are continuing the context in a
-        -- new thread. Just return the result of the ioaction stored in the
-        -- 'event' field.
-        Right x -> return (Just x)
-
-        -- We have to execute the io action, generate event data, put it in the
-        -- context mailbox and then continue from the point where this context
-        -- was retreieved, in this thread or a new thread.
-        Left ctx -> do
-            lift $ resumeContextWith (loopContextWith ioaction) ctx
-
-            -- We will never reach here if we continued the context in the same
-            -- thread. If we started a new thread then the parent thread
-            -- reaches here.
-            loc <- getLocation
-            when (loc /= RemoteNode) $ setLocation WaitingParent
-            return Nothing
+parallel ioaction = spawnAsyncT (loopContextWith ioaction)
 
 -- | An task stream generator that produces an infinite stream of tasks by
 -- running an IO computation in a loop. A task is triggered carrying the output
