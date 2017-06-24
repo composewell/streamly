@@ -3,11 +3,11 @@ import Control.Monad.IO.Class (liftIO)
 import System.Random (randomIO)
 import System.IO
 
-import Duct
+import Strands
 
 main = do
     hSetBuffering stdout LineBuffering
-    xs <- waitAsync $ threads 100 $ do
+    xs <- waitAsync $ threads 4 $ do
         liftIO $ hSetBuffering stdout LineBuffering
         mainThread <- liftIO myThreadId
         liftIO $ putStrLn $ "Main thread: " ++ show mainThread

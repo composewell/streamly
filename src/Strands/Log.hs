@@ -2,7 +2,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
-module Duct.Log
+module Strands.Log
     ( Log(..)
     , LogElem(..)
     )

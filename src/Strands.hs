@@ -1,5 +1,5 @@
 -- |
--- Module      : Duct
+-- Module      : Strands
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : MIT-style
@@ -8,7 +8,7 @@
 -- Portability : GHC
 --
 
-module Duct
+module Strands
     ( waitAsync
     , async
     , sample
@@ -16,5 +16,5 @@ module Duct
     )
 where
 
-import Duct.AsyncT
-import Duct.Threads
+import Strands.AsyncT
+import Strands.Threads

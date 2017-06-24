@@ -6,7 +6,7 @@ import Control.Concurrent.STM
 import Control.Monad.State
 import Data.IORef
 
-import Duct.Context
+import Strands.Context
 
 f :: StateT Context IO String
 f = do

@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RecordWildCards           #-}
 
-module Duct.Context
+module Strands.Context
     ( ChildEvent(..)
     , Context(..)
     , initContext

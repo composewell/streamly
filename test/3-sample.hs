@@ -3,7 +3,7 @@ import Control.Monad.IO.Class (liftIO)
 import System.Random (randomIO)
 import System.IO
 
-import Duct
+import Strands
 
 main = waitAsync $ threads 3 $ do
     liftIO $ hSetBuffering stdout LineBuffering

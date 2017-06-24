@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
-module Duct.Threads
+module Strands.Threads
     ( parallel
     , waitEvents
     , async
@@ -35,8 +35,8 @@ import           Data.List                   (delete)
 import           Data.Maybe                  (fromJust)
 import           Unsafe.Coerce               (unsafeCoerce)
 
-import           Duct.AsyncT
-import           Duct.Context
+import           Strands.AsyncT
+import           Strands.Context
 
 ------------------------------------------------------------------------------
 -- Model of computation

@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-}
 
-module Duct.AsyncT
+module Strands.AsyncT
     ( AsyncT (..)
     , waitAsync
     , (<**)
@@ -39,7 +39,7 @@ import           Data.IORef                  (IORef, newIORef, readIORef,
 import           Data.List                   (delete)
 import           Data.Maybe                  (isJust, isNothing)
 
-import           Duct.Context
+import           Strands.Context
 
 -- import           Debug.Trace (traceM)
 

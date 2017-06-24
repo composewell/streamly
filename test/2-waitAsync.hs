@@ -1,4 +1,4 @@
-import Duct
+import Strands
 import Control.Monad.IO.Class (liftIO)
 
 main = waitAsync $ do

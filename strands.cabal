@@ -1,11 +1,11 @@
-name:                duct
+name:                strands
 version:             0.5.5
-synopsis:            A duct consists of many parallel (multithreaded) data pipes
+synopsis:            Compose multithreaded or event driven programs in a convenient and scalable manner.
 description:         An experimental package based on the transient package. Provides a
                      simple interface to integrate with other libraries and monad transformers.
                      See <http://github.com/agocorona/transient>
-homepage:            http://github.com/harendra-kumar/duct
-bug-reports:         https://github.com/harendra-kumar/duct/issues
+homepage:            http://github.com/harendra-kumar/strands
+bug-reports:         https://github.com/harendra-kumar/strands/issues
 license:             MIT
 license-file:        LICENSE
 author:              Alberto G. Corona, Harendra Kumar
@@ -19,11 +19,11 @@ cabal-version:       >= 1.10
 
 library
     hs-source-dirs:    src
-    exposed-modules:   Duct
-                     , Duct.Context
-                     , Duct.Log
-                     , Duct.AsyncT
-                     , Duct.Threads
+    exposed-modules:   Strands
+                     , Strands.Context
+                     , Strands.Log
+                     , Strands.AsyncT
+                     , Strands.Threads
 
     default-language: Haskell2010
     ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates
@@ -45,4 +45,4 @@ library
 
 source-repository head
     type: git
-    location: https://github.com/harendra-kumar/duct
+    location: https://github.com/harendra-kumar/strands
