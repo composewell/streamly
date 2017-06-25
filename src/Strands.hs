@@ -9,7 +9,7 @@
 --
 
 module Strands
-    ( waitAsync
+    ( gather
     , async
     , sample
     , threads

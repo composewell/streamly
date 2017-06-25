@@ -7,7 +7,7 @@ import Strands
 
 main = do
     hSetBuffering stdout LineBuffering
-    xs <- waitAsync $ threads 4 $ do
+    xs <- gather $ threads 4 $ do
         liftIO $ hSetBuffering stdout LineBuffering
         mainThread <- liftIO myThreadId
         liftIO $ putStrLn $ "Main thread: " ++ show mainThread
