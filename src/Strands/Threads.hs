@@ -490,12 +490,15 @@ react setHandler iob = AsyncT $ do
 -- tasks start synchronously in the current thread.  New threads are created by
 -- 'parallel', and APIs that use parallel.
 threads :: MonadIO m => Int -> AsyncT m a -> AsyncT m a
-threads n process = do
+threads n process = AsyncT $ do
    oldCr <- gets threadCredit
    newCr <- liftIO $ newIORef n
    modify $ \s -> s { threadCredit = newCr }
-   r <- process
-        <** (modify $ \s -> s { threadCredit = oldCr }) -- restore old credit
+   r <- runAsyncT $ process
+        <** (AsyncT $ do
+            modify $ \s -> s { threadCredit = oldCr }
+            return (Just ())
+            ) -- restore old credit
    return r
 
 {-

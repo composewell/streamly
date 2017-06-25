@@ -12,7 +12,7 @@
 module Strands.AsyncT
     ( AsyncT (..)
     , (<**)
-    , onNothing
+    , (**>)
     , dbg
     )
 where
@@ -21,14 +21,12 @@ import           Control.Applicative         (Alternative (..))
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
-                                              MonadState (..), StateT (..),
-                                              liftM, modify, runStateT, when)
+                                              StateT (..), liftM, runStateT)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM)
-import           Data.Dynamic                (Typeable)
 
 import           Strands.Context
 
@@ -45,15 +43,6 @@ newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
 --dbg = traceM
 dbg :: Monad m => a -> m ()
 dbg _ = return ()
-
--- | If the first parameter is 'Nothing' return the second parameter otherwise
--- return the first parameter..
-onNothing :: Monad m => m (Maybe b) -> m b -> m b
-onNothing iox iox'= do
-       mx <- iox
-       case mx of
-           Just x -> return x
-           Nothing -> iox'
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -144,135 +133,6 @@ instance MonadThrow m => MonadThrow (AsyncT m) where
   throwM e = lift $ throwM e
 
 ------------------------------------------------------------------------------
--- * Extensible State: Session Data Management
-------------------------------------------------------------------------------
-
--- | Retrieve a previously stored data item of the given data type from the
--- monad state. The data type to retrieve is implicitly determined from the
--- requested type context.
--- If the data item is not found, an 'empty' value (a void event) is returned.
--- Remember that an empty value stops the monad computation. If you want to
--- print an error message or a default value in that case, you can use an
--- 'Alternative' composition. For example:
---
--- > getSData <|> error "no data"
--- > getInt = getSData <|> return (0 :: Int)
-getSData ::  (Monad m, Typeable a) => AsyncT m a
-getSData = AsyncT getData
-
--- | 'setSData' stores a data item in the monad state which can be retrieved
--- later using 'getData' or 'getSData'. Stored data items are keyed by their
--- data type, and therefore the data type must be 'Typeable' and only one item
--- of a given type can be stored. A newtype wrapper can be used to distinguish
--- two data items of the same type when required.
---
--- @
--- import Control.Monad.IO.Class (liftIO)
--- import Transient.Base
--- import Data.Typeable
---
--- data Person = Person
---    { name :: String
---    , age :: Int
---    } deriving Typeable
---
--- main = keep $ do
---      setSData $ Person "Alberto"  55
---      Person name age <- getSData
---      liftIO $ print (name, age)
--- @
-setSData ::  (Monad m, Typeable a) => a -> AsyncT m ()
-setSData x = AsyncT $ setData x >> return (Just ())
-
--- | Accepts a function that takes the current value of the stored data type
--- and returns the modified value. If the function returns 'Nothing' the value
--- is deleted otherwise updated.
-modifySData :: (Monad m, Typeable a) => (Maybe a -> Maybe a) -> AsyncT m ()
-modifySData x = AsyncT $ modifyData x >> return (Just ())
-
--- | Delete the data item of the given type from the monad state.
-delSData :: (Monad m, Typeable a) => a -> AsyncT m ()
-delSData x = AsyncT $ delData x >> return (Just ())
-
-------------------------------------------------------------------------------
--- MonadState for AsyncT m
-------------------------------------------------------------------------------
-
-instance (Monad m, Monad (AsyncT m)) => MonadState Context (AsyncT m) where
-  get     = AsyncT $ get   >>= return . Just
-  put x   = AsyncT $ put x >>  return (Just ())
-  state f = AsyncT $ do
-    s <- get
-    let ~(a, s') = f s
-    put s'
-    return $ Just a
-
-{-
--- | Run an action, if the result is a void action undo any state changes
--- that it might have caused.
-try :: MonadIO m => AsyncT m a -> AsyncT m a
-try mx = do
-  sd <- gets mfData
-  mx <|> (modify (\s -> s { mfData = sd }) >> empty)
-
--- | Executes the computation and reset the state either if it fails or not
-sandbox :: MonadIO m => AsyncT m a -> AsyncT m a
-sandbox mx = do
-  sd <- gets mfData
-  mx <*** modify (\s ->s { mfData = sd})
-    -}
-
-------------------------------------------------------------------------------
--- Backtracking
-------------------------------------------------------------------------------
-
-{-
--- | Run the closure  (the 'x' in 'x >>= f') of the current bind operation.
-runClosure :: EventF -> StateM m (Maybe a)
-runClosure EventF { xcomp = x } = runAsyncT (unsafeCoerce x)
-
--- | Run the continuation (the 'f' in 'x >>= f') of the current bind operation with the current state.
-runContinuation :: MonadIO m => EventF -> a -> StateM m (Maybe b)
-runContinuation EventF { fcomp = fs } =
-  runAsyncT . (compose $  (unsafeCoerce fs))
-
-data Backtrack b = Show b => Backtrack
-    { backtracking :: Maybe b
-    , backStack :: [EventF]
-    } deriving Typeable
-
-backStateOf :: (Monad m, Show a) => a -> m (Backtrack a)
-backStateOf reason = return $ Backtrack (Nothing `asTypeOf` (Just reason)) []
-
--- | Start the undo process for the given undo track id. Performs all the undo
--- actions registered till now in reverse order. An undo action can use
--- 'forward' to stop the undo process and resume forward execution. If there
--- are no more undo actions registered execution stops and a 'stop' action is
--- returned.
---
-back :: (MonadIO m, Typeable b, Show b) => b -> AsyncT m a
-back reason = AsyncT $ do
-  bs <- getData  `onNothing`  backStateOf  reason
-  goBackt  bs
-
-  where
-
-  goBackt (Backtrack _ [] )= return Nothing
-  goBackt (Backtrack _ (stack@(first : bs)) )= do
-        (setData $ Backtrack (Just reason) stack)
-
-        mr <-  runClosure first
-
-        Backtrack b _ <- getData `onNothing`  backStateOf  reason
-        case mr of
-           Nothing -> return empty
-           Just x -> case b of
-                 Nothing -> runContinuation first x
-                 justreason -> goBackt $ Backtrack justreason bs
-
--}
-
-------------------------------------------------------------------------------
 -- More operators, instances
 ------------------------------------------------------------------------------
 
@@ -346,12 +206,12 @@ infixr 1 <**, **>
 -- | Run @m a@ discarding its result before running @m b@.
 (**>) :: Monad m => AsyncT m a -> AsyncT m b -> AsyncT m b
 (**>) x y = AsyncT $ do
-      runAsyncT x
+      _ <- runAsyncT x
       runAsyncT y
 
 -- | Run @m b@ discarding its result, after the whole task set @m a@ is done.
 (<**) :: Monad m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (<**) ma mb = AsyncT $ do
       a <- runAsyncT ma
-      runAsyncT  mb
+      _ <- runAsyncT  mb
       return a
