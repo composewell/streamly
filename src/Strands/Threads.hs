@@ -73,8 +73,7 @@ import           Strands.Context
 
 runContext :: MonadIO m => Context -> StateT Context m ()
 runContext ctx = do
-        -- XXX rename to buildContext or buildState?
-        let s = runAsyncT (resumeContext ctx)
+        let s = runAsyncT (composeContext ctx)
         _ <- lift $ runStateT s ctx
         return ()
 

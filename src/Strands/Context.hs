@@ -8,7 +8,7 @@ module Strands.Context
     , initContext
     , saveContext
     , restoreContext
-    , resumeContext
+    , composeContext
     , setContextMailBox
     , takeContextMailBox
     , getCtxResultDest
@@ -151,7 +151,10 @@ setLocation :: Monad m => Location -> StateT Context m ()
 setLocation loc = Lazy.modify $ \Context { .. } -> Context { location = loc, .. }
 
 ------------------------------------------------------------------------------
--- Saving and restoring the context of a computation
+-- Saving and restoring the context of a computation. We perform the monadic
+-- computation one step at a time storing the context of where we are in the
+-- computation. At any point the remaining computation can be fully recovered
+-- from this context.
 ------------------------------------------------------------------------------
 
 -- Save the 'm' and 'f', in case we migrate to a new thread before the current
@@ -179,13 +182,14 @@ restoreContext x = do
 
     return mres
 
--- | Resume execution of the computation from a given context. We can retrieve
--- a context at any point and resume that context at some later point, upon
--- resumption we start executing again from the same point where the context
--- was retrieved.
+-- | We can retrieve a context at any point and resume that context at some
+-- later point, upon resumption we start executing again from the same point
+-- where the context was retrieved from.
 --
-resumeContext :: (MonadIO m, MonadPlus m) => Context -> m a
-resumeContext Context { currentm     = m
+-- This function composes the stored context to recover the computation.
+--
+composeContext :: (MonadIO m, MonadPlus m) => Context -> m a
+composeContext Context { currentm     = m
                       , fstack       = fs
                       } =
     unsafeCoerce m >>= composefStack (unsafeCoerce fs)
