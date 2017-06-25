@@ -45,60 +45,75 @@ data ChildEvent a =
 
 -- | Describes the context of a computation.
 data Context = Context
-  { mailBox       :: Maybe Any  -- untyped,
-  -- ^ mailBox to send event data to the child thread
+  {
+    ---------------------------------------------------------------------------
+    -- Execution state
+    ---------------------------------------------------------------------------
 
-  -- the 'm' and 'f' in an 'm >>= f' operation of the monad
-  -- In nested binds we store the current m only, but the whole stack of fs
+    mailBox       :: Maybe Any  -- untyped,
+    -- ^ mailBox to send event data to the child thread
+
   , currentm     :: Any   -- untyped, the real type is: m a
+    -- ^ The 'm' in an 'm >>= f' operation of the monad. This tells us where we
+    -- are in the monadic computation at this point.
+
   , fstack       :: [Any] -- untyped, the real type is: [a -> m b]
-  -- XXX keep a composed computation instead
-    -- ^ List of continuations
+    -- ^ The head of the list stores the 'f' corresponding to 'currentm' in an
+    -- 'm >>= f' operation of the monad. This is stack because when a
+    -- computation has nested binds we need to store the next 'f' for each
+    -- layer of nesting.
 
   -- log only when there is a restore or if we are teleporting
   -- We can use a HasLog constraint to statically enable/disable logging
   -- , journal :: Maybe Log
   , location :: Location
 
+    ---------------------------------------------------------------------------
+    -- User state
+    ---------------------------------------------------------------------------
+
   , mfData      :: M.Map TypeRep Any -- untyped, type coerced
     -- ^ State data accessed with get or put operations
+
+    ---------------------------------------------------------------------------
+    -- Thread creation, communication and cleanup
+    ---------------------------------------------------------------------------
+    -- When a new thread is created the parent records it in the
+    -- 'pendingThreads' field and 'threadCredit' is decremented.  When a child
+    -- thread is done it sends a done event to the parent on an unbounded
+    -- channel and goes away.  Before starting a new thread the parent always
+    -- processes the unbounded channel to clear up the pending zombies. This
+    -- strategy ensures that the zombie queue will never grow more than the
+    -- number of running threads.  Before exiting, the parent thread waits on
+    -- the channel until all its children are cleaned up.
+    ---------------------------------------------------------------------------
 
     -- XXX use Either parentChannel accumResults
   , accumResults :: Maybe (IORef [Any])
     -- ^ Accumulated results, only the top level thread context accumulates.
     -- Child threads just pass on results via the parent channels.
-    -- XXX we can pass this at the time of fork rather than keeping it here.
 
   , parentChannel  :: Maybe (TChan (ChildEvent Any))
-    -- ^ Our parent thread's channel to communicate to when we die
-
-    -- Thread creation and cleanup handling. When a new thread is created the
-    -- parent records it in the 'children' field and 'threadCredit' is
-    -- decremented.  When a child thread is done it sends a done event to the
-    -- parent on an unbounded channel and goes away. Before starting a new
-    -- thread the parent always processes the unbounded channel to clear up the
-    -- pending zombies. This strategy ensures that the zombie queue will never
-    -- grow more than the number of running threads.  Before exiting, the
-    -- parent thread waits on the channel until all its children are cleaned
-    -- up.
+    -- ^ Parent thread's channel to communicate to when a child thread dies or
+    -- yields a result value
 
   , childChannel    :: TChan (ChildEvent Any)
-    -- ^ A channel for the immediate children to communicate to us when they die.
-    -- Each thread has its own dedicated channel for its children
+    -- ^ A channel for the immediate children to communicate to us when they
+    -- die.  Each thread has its own dedicated channel for its children
 
     -- We always track the child threads, otherwise the programmer needs to
-    -- worry about if some threads may remain hanging due because they are
-    -- stuck in an infinite loop or a forever blocked IO. Also, it is not clear
-    -- whether there is a significant gain by disabling tracking. Instead of
-    -- using the threadIds we can also keep a count instead, that will allow us
-    -- to wait for all children to drain but we cannot kill them.
+    -- worry about if some threads may remain hanging because they are stuck in
+    -- an infinite loop or a forever blocked IO. Also, it is not clear whether
+    -- there is a significant gain by disabling tracking. Instead of using
+    -- threadIds we can also keep a count instead, that will allow us to wait
+    -- for all children to drain but we cannot kill them.
     --
     -- We need these as IORefs since we need any changes to these to be
     -- reflected back in the calling code that waits for the children.
 
   , pendingThreads :: IORef [ThreadId]
-    -- ^ Active immediate child threads of this thread, modified only by this
-    -- thread, therefore atomic modification is not needed.
+    -- ^ Active immediate child threads spawned by this thread, modified only
+    -- by this thread, therefore atomic modification is not needed.
 
     -- By default this limit is shared by the current tree of threads. But at
     -- any point the 'threads' primitive can be used to start a new limit for
