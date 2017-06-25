@@ -162,12 +162,6 @@ waitForOneEvent ctx = do
     liftIO $ writeIORef pendingRef p
     maybe (return ()) throwM e
 
--- | kill all the child threads associated with the continuation context
-killChildren :: Context -> IO ()
-killChildren ctx  = do
-    ths <- readIORef (pendingThreads ctx)
-    mapM_ killThread ths
-
 -- XXX this is not a real semaphore as it does not really block on wait,
 -- instead it returns whether the value is zero or non-zero.
 --
@@ -179,10 +173,6 @@ waitQSemB   sem = atomicModifyIORef sem $ \n ->
 
 signalQSemB :: IORef Int -> IO ()
 signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
-
-instance Read SomeException where
-  readsPrec _n str = [(SomeException $ ErrorCall s, r)]
-    where [(s , r)] = read str
 
 -- Allocation of threads
 --
@@ -243,7 +233,7 @@ forkContext context = do
         r <- case res of
             Left e -> do
                 dbg $ "beforeExit: " ++ show tid ++ " caught exception"
-                liftIO $ killChildren ctx
+                liftIO $ readIORef (pendingThreads ctx) >>= mapM_ killThread
                 return (Just e)
             Right _ -> waitForChildren ctx
 
@@ -287,6 +277,10 @@ resumeContextWith context synch action = do
     case can && (not synch) of
         False -> runContext ctx -- run synchronously
         True -> forkContext ctx
+
+instance Read SomeException where
+  readsPrec _n str = [(SomeException $ ErrorCall s, r)]
+    where [(s , r)] = read str
 
 -- | 'StreamData' represents a task in a task stream being generated.
 data StreamData a =
