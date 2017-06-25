@@ -12,6 +12,10 @@
 module Strands.AsyncT
     ( AsyncT (..)
     , waitAsync
+    , processOneEvent
+    , drainChildren
+    , waitForChildren
+    , getCtxResultDest
     , (<**)
     , onNothing
     , dbg
@@ -21,7 +25,7 @@ where
 import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent          (ThreadId, killThread)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
-                                              readTChan)
+                                              readTChan, writeTChan)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadCatch, MonadThrow, try,
                                               throwM, SomeException)
@@ -34,14 +38,15 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM)
 import           Data.Dynamic                (Typeable)
-import           Data.IORef                  (IORef, newIORef, readIORef,
+import           Data.IORef                  (IORef, modifyIORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (delete)
-import           Data.Maybe                  (isJust, isNothing)
+import           Data.Maybe                  (fromJust, isJust, isNothing)
+import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Strands.Context
 
--- import           Debug.Trace (traceM)
+--import           Debug.Trace (traceM)
 
 newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
 
@@ -156,43 +161,82 @@ instance MonadThrow m => MonadThrow (AsyncT m) where
 -- Thread management
 ------------------------------------------------------------------------------
 
-drainChildren :: (MonadIO m, MonadThrow m)
-    => TChan (ChildEvent a) -> [ThreadId] -> [a] -> m [a]
-drainChildren chan pending res =
-    if pending == []
-        then return res
-        else do
-            ev <- liftIO $ atomically $ readTChan chan
-            case ev of
-                ChildDone tid er -> do
-                    dbg $ "drainChildrenTop ChildDone, tid: " ++ show tid
-                    case er of
-                        Left e -> throwM e
-                        Right r ->
-                            drainChildren chan (delete tid pending) (r ++ res)
-                PassOnResult er -> do
-                    dbg $ "drainChildrenTop PassOnResult"
-                    case er of
-                        Left e -> throwM e
-                        Right r -> drainChildren chan pending (r ++ res)
+-- XXX We are using unbounded channels so this will not block on writing to
+-- pchan. We can use bounded channels to throttle the creation of threads based
+-- on consumption rate.
+processOneEvent :: MonadIO m
+    => ChildEvent a
+    -> Either (TChan (ChildEvent a)) (IORef [a])
+    -> [ThreadId]
+    -> m ([ThreadId], Maybe SomeException)
+processOneEvent ev dest pending = do
+    -- Collect results unless we have already encountered an exception.
+    case ev of
+        ChildDone _ (Just e)  -> handleException e
+        ChildResult (Left e)  -> handleException e
+        ChildDone tid Nothing -> return (delete tid pending, Nothing)
+        ChildResult (Right r) -> do
+            case dest of
+                Left chan -> liftIO $ atomically $ writeTChan chan ev
+                Right ref ->
+                    liftIO $ modifyIORef ref $ \rs -> unsafeCoerce r : rs
+            return (pending, Nothing)
+    where
 
-waitForChildren :: (MonadIO m, MonadThrow m)
-    => TChan (ChildEvent a) -> IORef [ThreadId] -> [a] -> m [a]
-waitForChildren chan pendingRef results = do
+    handleException e = do
+        liftIO $ mapM_ killThread pending
+        return (pending, Just e)
+
+drainChildren :: MonadIO m
+    => Either (TChan (ChildEvent a)) (IORef [a])
+    -> TChan (ChildEvent a)
+    -> [ThreadId]
+    -> m ([ThreadId], Maybe SomeException)
+drainChildren dest cchan pending =
+    case pending of
+        [] -> return (pending, Nothing)
+        _  ->  do
+            ev <- liftIO $ atomically $ readTChan cchan
+            (p, e) <- processOneEvent ev dest pending
+            maybe (drainChildren dest cchan p) (const $ return (p, e)) e
+
+waitForChildren :: MonadIO m => Context -> m (Maybe SomeException)
+waitForChildren ctx = do
+    let pendingRef = pendingThreads ctx
     pending <- liftIO $ readIORef pendingRef
-    r <- drainChildren chan pending results
-    liftIO $ writeIORef pendingRef []
-    return r
+    (p, e) <- drainChildren (getCtxResultDest ctx) (childChannel ctx) pending
+    liftIO $ writeIORef pendingRef p
+    return e
+
+getCtxResultDest :: Context -> Either (TChan (ChildEvent a)) (IORef [a])
+getCtxResultDest ctx =
+    maybe (Right $ unsafeCoerce $ fromJust $ accumResults ctx)
+          (Left . unsafeCoerce) (parentChannel ctx)
 
 ------------------------------------------------------------------------------
 -- Running the monad
 ------------------------------------------------------------------------------
 
+collectResult :: MonadIO m => a -> StateT Context m ()
+collectResult r = do
+        ctx <- get
+        case parentChannel ctx of
+            Nothing -> do
+                let ref = fromJust $ accumResults ctx
+                liftIO $ modifyIORef ref $ \rs -> unsafeCoerce r : rs
+            Just chan ->  do
+                -- XXX can we pass the result directly to the root thread
+                -- instead of passing through all the parents? We can let the
+                -- parent go away and handle the ChildDone events as well in
+                -- the root thread.
+                liftIO $ atomically $ writeTChan chan
+                                        (ChildResult (Right (unsafeCoerce r)))
+
 -- | Invoked to store the result of the computation in the context and finish
 -- the computation when the computation is done
-finishComputation :: Monad m => a -> AsyncT m b
+finishComputation :: MonadIO m => a -> AsyncT m b
 finishComputation x = AsyncT $ do
-    contextSaveResult x
+    collectResult x
     return Nothing
 
 -- XXX pass a collector function and return a Traversable.
@@ -204,21 +248,23 @@ waitAsync :: forall m a. (MonadIO m, MonadCatch m)
 waitAsync m = do
     childChan  <- liftIO $ atomically newTChan
     pendingRef <- liftIO $ newIORef []
+    resultsRef <- liftIO $ newIORef []
     credit     <- liftIO $ newIORef maxBound
 
-    -- XXX this should be moved to Context.hs and then we can make m
-    -- existential and remove the unsafeCoerces
-    r <- try $ runStateT (runAsyncT m) $ initContext
-               (empty :: AsyncT m a) childChan pendingRef credit
-               finishComputation
+    let ctx = initContext (empty :: AsyncT m a) childChan pendingRef credit
+                  finishComputation resultsRef
 
-    xs <- case r of
+    r <- try $ runStateT (runAsyncT $ m >>= finishComputation) ctx
+
+    case r of
         Left (exc :: SomeException) -> do
             liftIO $ readIORef pendingRef >>= mapM_ killThread
             throwM exc
-        Right (Nothing, ctx) -> return $ contextGetResult ctx
-        Right ((Just x), ctx) -> return $ x : contextGetResult ctx
-    waitForChildren childChan pendingRef xs
+        Right _ -> do
+            e <- waitForChildren ctx
+            case e of
+                Just (exc :: SomeException) -> throwM exc
+                Nothing -> liftIO $ readIORef resultsRef
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

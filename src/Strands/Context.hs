@@ -9,8 +9,6 @@ module Strands.Context
     , saveContext
     , restoreContext
     , resumeContext
-    , contextSaveResult
-    , contextGetResult
     , setContextMailBox
     , takeContextMailBox
     , Location(..)
@@ -40,8 +38,8 @@ import           GHC.Prim               (Any)
 ------------------------------------------------------------------------------
 
 data ChildEvent a =
-      ChildDone ThreadId (Either SomeException [a]) -- A child is finished
-    | PassOnResult (Either SomeException [a])       -- Pass on the result of a child
+      ChildDone ThreadId (Maybe SomeException) -- A child is finished
+    | ChildResult (Either SomeException a)       -- Pass on the result of a child
 
 -- | Describes the context of a computation.
 data Context = Context
@@ -63,7 +61,12 @@ data Context = Context
   , mfData      :: M.Map TypeRep Any -- untyped, type coerced
     -- ^ State data accessed with get or put operations
 
+    -- XXX use Either parentChannel accumResults
+  , accumResults :: Maybe (IORef [Any])
+    -- ^ Accumulated results, only the top level thread context accumulates.
+    -- Child threads just pass on results via the parent channels.
     -- XXX we can pass this at the time of fork rather than keeping it here.
+
   , parentChannel  :: Maybe (TChan (ChildEvent Any))
     -- ^ Our parent thread's channel to communicate to when we die
 
@@ -104,8 +107,6 @@ data Context = Context
     --
   , threadCredit   :: IORef Int
     -- ^ How many more threads are allowed to be created?
-  , accumResults :: [Any]
-    -- ^ Accumulated results when running synchronously
   } deriving Typeable
 
 initContext
@@ -114,8 +115,9 @@ initContext
     -> IORef [ThreadId]
     -> IORef Int
     -> (b -> m a)
+    -> IORef [a]
     -> Context
-initContext x childChan pending credit finalizer =
+initContext x childChan pending credit finalizer results =
   Context { mailBox         = Nothing
           , currentm        = unsafeCoerce x
           , fstack          = [unsafeCoerce finalizer]
@@ -125,7 +127,7 @@ initContext x childChan pending credit finalizer =
           , childChannel    = unsafeCoerce childChan
           , pendingThreads  = pending
           , threadCredit    = credit
-          , accumResults    = [] }
+          , accumResults    = Just (unsafeCoerce results) }
 
 ------------------------------------------------------------------------------
 -- Where is the computation running?
@@ -198,14 +200,6 @@ resumeContext Context { currentm     = m
     -- composefStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
     composefStack [] _     = error "Bug: this should never be reached"
     composefStack (f:ff) x = f x >>= composefStack ff
-
-contextSaveResult :: Monad m => a -> StateT Context m ()
-contextSaveResult r =
-    modify $ \ Context {accumResults = rs, ..} ->
-        Context {accumResults = unsafeCoerce r : rs, ..}
-
-contextGetResult :: Context -> [a]
-contextGetResult ctx = unsafeCoerce $ accumResults ctx
 
 setContextMailBox :: Context -> a -> Context
 setContextMailBox ctx mbdata = ctx { mailBox = Just $ unsafeCoerce mbdata }

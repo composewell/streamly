@@ -69,74 +69,20 @@ import           Strands.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-resume :: MonadIO m => Context -> StateT Context m ()
-resume ctx = do
+runContext :: MonadIO m => Context -> StateT Context m ()
+runContext ctx = do
         -- XXX rename to buildContext or buildState?
         let s = runAsyncT (resumeContext ctx)
-        -- The returned value is always 'Nothing', we just discard it
-        (_, c) <- lift $ runStateT s ctx
-
-        -- XXX can we pass the result directly to the root thread instead of
-        -- passing through all the parents? We can let the parent go away and
-        -- handle the ChildDone events as well in the root thread.
-        case parentChannel c of
-            Nothing -> modify $ \x ->
-                x { accumResults = accumResults c ++ accumResults x }
-            Just chan ->  do
-                let r = accumResults c
-                when (length r /= 0) $
-                    -- there is only one result in case of a non-root thread
-                    -- XXX change the return type to 'a' instead of '[a]'
-                    liftIO $ atomically $ writeTChan chan (PassOnResult (Right r))
+        _ <- lift $ runStateT s ctx
+        return ()
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
 ------------------------------------------------------------------------------
 
--- XXX We are using unbounded channels so this will not block on writing to
--- pchan. We can use bounded channels to throttle the creation of threads based
--- on consumption rate.
-processOneEvent :: MonadIO m
-    => ChildEvent a
-    -> TChan (ChildEvent a)
-    -> [ThreadId]
-    -> Maybe SomeException
-    -> m ([ThreadId], Maybe SomeException)
-processOneEvent ev pchan pending exc = do
-    e <- case exc of
-        Nothing ->
-            case ev of
-                ChildDone tid res -> do
-                    dbg $ "processOneEvent ChildDone: " ++ show tid
-                    handlePass res
-                PassOnResult res -> do
-                    dbg $ "processOneEvent PassOnResult"
-                    handlePass res
-        Just _ -> return exc
-    let p = case ev of
-                ChildDone tid _ -> delete tid pending
-                _ -> pending
-    return (p, e)
-
-    where
-
-    handlePass :: MonadIO m
-        => Either SomeException [a] -> m (Maybe SomeException)
-    handlePass res =
-        case res of
-            Left e -> do
-                    dbg $ "handlePass: caught exception"
-                    liftIO $ mapM_ killThread pending
-                    return (Just e)
-            Right [] -> return Nothing
-            Right _ -> do
-                liftIO $ atomically $ writeTChan pchan
-                    (PassOnResult (unsafeCoerce res))
-                return Nothing
-
 tryReclaimZombies :: (MonadIO m, MonadThrow m) => Context -> m ()
 tryReclaimZombies ctx = do
-    let pchan = fromJust (parentChannel ctx)
+    let dest = getCtxResultDest ctx
         cchan = childChannel ctx
         pendingRef = pendingThreads ctx
 
@@ -148,7 +94,7 @@ tryReclaimZombies ctx = do
             case mev of
                 Nothing -> return ()
                 Just ev -> do
-                    (p, e) <- processOneEvent ev pchan pending Nothing
+                    (p, e) <- processOneEvent ev dest pending
                     liftIO $ writeIORef pendingRef p
                     maybe (return ()) throwM e
                     tryReclaimZombies ctx
@@ -157,39 +103,15 @@ waitForOneEvent :: (MonadIO m, MonadThrow m) => Context -> m ()
 waitForOneEvent ctx = do
     -- XXX assert pending must have at least one element
     -- assert that the tid is found in our list
-    let pchan = fromJust (parentChannel ctx)
+    let dest = getCtxResultDest ctx
         cchan = childChannel ctx
         pendingRef = pendingThreads ctx
 
     ev <- liftIO $ atomically $ readTChan cchan
     pending <- liftIO $ readIORef pendingRef
-    (p, e) <- processOneEvent ev pchan pending Nothing
+    (p, e) <- processOneEvent ev dest pending
     liftIO $ writeIORef pendingRef p
     maybe (return ()) throwM e
-
-drainChildren :: MonadIO m
-    => TChan (ChildEvent a)
-    -> TChan (ChildEvent a)
-    -> [ThreadId]
-    -> Maybe SomeException
-    -> m (Maybe SomeException)
-drainChildren pchan cchan pending exc =
-    if pending == []
-        then return exc
-        else do
-            ev <- liftIO $ atomically $ readTChan cchan
-            (p, e) <- processOneEvent ev pchan pending exc
-            drainChildren pchan cchan p e
-
-waitForChildren :: MonadIO m
-    => Context -> Maybe SomeException -> m (Maybe SomeException)
-waitForChildren ctx exc = do
-    let pendingRef = pendingThreads ctx
-        pchan = fromJust (parentChannel ctx)
-    pending <- liftIO $ readIORef pendingRef
-    e <- drainChildren pchan (childChannel ctx) pending exc
-    liftIO $ writeIORef pendingRef []
-    return e
 
 -- | kill all the child threads associated with the continuation context
 killChildren :: Context -> IO ()
@@ -233,7 +155,8 @@ forkFinally1 :: (MonadIO m, MonadBaseControl IO m)
 forkFinally1 ctx preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            _ <- runInIO $ EL.try (restore (resume ctx)) >>= liftIO . preExit
+            _ <- runInIO $ EL.try (restore (runContext ctx))
+                           >>= liftIO . preExit
             return ()
 
 -- | Run a given context in a new thread.
@@ -263,27 +186,22 @@ forkContext context = do
             { parentChannel  = Just (childChannel ctx)
             , pendingThreads = pendingRef
             , childChannel = chan
-            , accumResults = []
+            , accumResults = Nothing
             }
 
     beforeExit ctx res = do
         tid <- myThreadId
-        exc <- case res of
-            Left e  -> do
+        r <- case res of
+            Left e -> do
                 dbg $ "beforeExit: " ++ show tid ++ " caught exception"
                 liftIO $ killChildren ctx
                 return (Just e)
-            Right _ -> return Nothing
+            Right _ -> waitForChildren ctx
 
-        e <- waitForChildren ctx exc
-
-        -- We are guaranteed to have a parent because we have been explicitly
-        -- forked by some parent.
+        -- We are guaranteed to have a parent because we are forked.
         let p = fromJust (parentChannel ctx)
         signalQSemB (threadCredit ctx)
-        -- XXX change the return value type to Maybe SomeException
-        liftIO $ atomically $ writeTChan p
-            (ChildDone tid (maybe (Right []) Left e))
+        liftIO $ atomically $ writeTChan p (ChildDone tid r)
 
 -- | Decide whether to resume the context in the same thread or a new thread
 --
@@ -318,7 +236,7 @@ resumeContextWith context synch action = do
     let ctx = setContextMailBox context (action context)
     can <- liftIO $ canFork context
     case can && (not synch) of
-        False -> resume ctx -- run synchronously
+        False -> runContext ctx -- run synchronously
         True -> forkContext ctx
 
 -- | 'StreamData' represents a task in a task stream being generated.
