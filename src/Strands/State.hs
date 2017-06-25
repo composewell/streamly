@@ -11,6 +11,10 @@
 
 module Strands.State
     (
+      getData
+    , setData
+    , modifyData
+    , delData
     )
 where
 
@@ -19,15 +23,50 @@ import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
                                               MonadState (..), StateT (..),
-                                              liftM, modify, runStateT, when)
+                                              liftM, gets, modify, runStateT, when)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM)
-import           Data.Dynamic                (Typeable)
+import           Data.Dynamic           (TypeRep, Typeable, typeOf)
+import qualified Data.Map               as M
 
 import           Strands.Context
+
+------------------------------------------------------------------------------
+-- * Extensible State: Session Data Management
+------------------------------------------------------------------------------
+
+-- | Same as 'getSData' but with a more general type. If the data is found, a
+-- 'Just' value is returned. Otherwise, a 'Nothing' value is returned.
+getData :: (MonadState Context m, Typeable a) => m (Maybe a)
+getData = resp
+  where resp = do
+          list <- gets mfData
+          case M.lookup (typeOf $ typeResp resp) list of
+            Just x  -> return . Just $ unsafeCoerce x
+            Nothing -> return Nothing
+        typeResp :: m (Maybe x) -> x
+        typeResp = undefined
+
+-- | Same as 'setSData' but with a more general type.
+setData :: (MonadState Context m, Typeable a) => a -> m ()
+setData x = modify $ \st -> st { mfData = M.insert t (unsafeCoerce x) (mfData st) }
+  where t = typeOf x
+
+modifyData :: (MonadState Context m, Typeable a) => (Maybe a -> Maybe a) -> m ()
+modifyData f = modify $ \st -> st { mfData = M.alter alterf t (mfData st) }
+  where typeResp :: (Maybe a -> b) -> a
+        typeResp   = undefined
+        t          = typeOf (typeResp f)
+        alterf mx  = unsafeCoerce $ f x'
+          where x' = case mx of
+                       Just x  -> Just $ unsafeCoerce x
+                       Nothing -> Nothing
+
+delData :: (MonadState Context m, Typeable a) => a -> m ()
+delData x = modify $ \st -> st { mfData = M.delete (typeOf x) (mfData st) }
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management

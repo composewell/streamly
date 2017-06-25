@@ -15,22 +15,16 @@ module Strands.Context
     , Location(..)
     , getLocation
     , setLocation
-    , getData
-    , setData
-    , modifyData
-    , delData
     )
 where
 
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
 import           Control.Exception      (SomeException)
-import           Control.Monad.State    (MonadState, gets, modify, StateT,
-                                         MonadPlus(..), MonadIO(..))
+import           Control.Monad.State    (StateT, MonadPlus(..), MonadIO(..))
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
-import           Data.Dynamic           (TypeRep, Typeable, typeOf)
+import           Data.Dynamic           (Typeable)
 import           Data.IORef             (IORef)
-import qualified Data.Map               as M
 import           Data.Maybe             (fromJust)
 import           Unsafe.Coerce          (unsafeCoerce)
 import           GHC.Prim               (Any)
@@ -72,7 +66,7 @@ data Context = Context
     -- User state
     ---------------------------------------------------------------------------
 
-  , mfData      :: M.Map TypeRep Any -- untyped, type coerced
+    -- , mfData      :: M.Map TypeRep Any -- untyped, type coerced
     -- ^ State data accessed with get or put operations
 
     ---------------------------------------------------------------------------
@@ -141,7 +135,7 @@ initContext x childChan pending credit finalizer results =
           , currentm        = unsafeCoerce x
           , fstack          = [unsafeCoerce finalizer]
           , location        = Worker
-          , mfData          = mempty
+          -- , mfData          = mempty
           , parentChannel   = Nothing
           , childChannel    = unsafeCoerce childChan
           , pendingThreads  = pending
@@ -240,37 +234,3 @@ getCtxResultDest :: Context -> Either (TChan (ChildEvent a)) (IORef [a])
 getCtxResultDest ctx =
     maybe (Right $ unsafeCoerce $ fromJust $ accumResults ctx)
           (Left . unsafeCoerce) (parentChannel ctx)
-
-------------------------------------------------------------------------------
--- * Extensible State: Session Data Management
-------------------------------------------------------------------------------
-
--- | Same as 'getSData' but with a more general type. If the data is found, a
--- 'Just' value is returned. Otherwise, a 'Nothing' value is returned.
-getData :: (MonadState Context m, Typeable a) => m (Maybe a)
-getData = resp
-  where resp = do
-          list <- gets mfData
-          case M.lookup (typeOf $ typeResp resp) list of
-            Just x  -> return . Just $ unsafeCoerce x
-            Nothing -> return Nothing
-        typeResp :: m (Maybe x) -> x
-        typeResp = undefined
-
--- | Same as 'setSData' but with a more general type.
-setData :: (MonadState Context m, Typeable a) => a -> m ()
-setData x = modify $ \st -> st { mfData = M.insert t (unsafeCoerce x) (mfData st) }
-  where t = typeOf x
-
-modifyData :: (MonadState Context m, Typeable a) => (Maybe a -> Maybe a) -> m ()
-modifyData f = modify $ \st -> st { mfData = M.alter alterf t (mfData st) }
-  where typeResp :: (Maybe a -> b) -> a
-        typeResp   = undefined
-        t          = typeOf (typeResp f)
-        alterf mx  = unsafeCoerce $ f x'
-          where x' = case mx of
-                       Just x  -> Just $ unsafeCoerce x
-                       Nothing -> Nothing
-
-delData :: (MonadState Context m, Typeable a) => a -> m ()
-delData x = modify $ \st -> st { mfData = M.delete (typeOf x) (mfData st) }
