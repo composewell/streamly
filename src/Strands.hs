@@ -16,5 +16,4 @@ module Strands
     )
 where
 
-import Strands.AsyncT
 import Strands.Threads

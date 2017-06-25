@@ -11,6 +11,7 @@ module Strands.Context
     , resumeContext
     , setContextMailBox
     , takeContextMailBox
+    , getCtxResultDest
     , Location(..)
     , getLocation
     , setLocation
@@ -30,6 +31,7 @@ import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (TypeRep, Typeable, typeOf)
 import           Data.IORef             (IORef)
 import qualified Data.Map               as M
+import           Data.Maybe             (fromJust)
 import           Unsafe.Coerce          (unsafeCoerce)
 import           GHC.Prim               (Any)
 
@@ -212,6 +214,11 @@ takeContextMailBox = do
         Just x -> do
             Lazy.put ctx { mailBox = Nothing }
             return $ Right (unsafeCoerce x)
+
+getCtxResultDest :: Context -> Either (TChan (ChildEvent a)) (IORef [a])
+getCtxResultDest ctx =
+    maybe (Right $ unsafeCoerce $ fromJust $ accumResults ctx)
+          (Left . unsafeCoerce) (parentChannel ctx)
 
 ------------------------------------------------------------------------------
 -- * Extensible State: Session Data Management
