@@ -5,7 +5,7 @@ import System.IO
 
 import Strands
 
-main = waitAsync $ threads 3 $ do
+main = wait $ threads 3 $ do
     liftIO $ hSetBuffering stdout LineBuffering
     mainThread <- liftIO myThreadId
     liftIO $ putStrLn $ "Main thread: " ++ show mainThread

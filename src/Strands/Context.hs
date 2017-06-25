@@ -88,6 +88,8 @@ data Context = Context
     -- the channel until all its children are cleaned up.
     ---------------------------------------------------------------------------
 
+    -- XXX setup a cleanup computation to run rather than passing all these
+    -- params.
     -- XXX use Either parentChannel accumResults
   , accumResults :: Maybe (IORef [Any])
     -- ^ Accumulated results, only the top level thread context accumulates.

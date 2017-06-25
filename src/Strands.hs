@@ -9,7 +9,8 @@
 --
 
 module Strands
-    ( gather
+    ( wait
+    , gather
     , async
     , sample
     , threads
