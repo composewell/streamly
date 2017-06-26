@@ -188,7 +188,7 @@ composeContext :: (MonadIO m, MonadPlus m) => Context -> m a
 composeContext Context { currentm     = m
                       , fstack       = fs
                       } =
-    unsafeCoerce m >>= composefStack (unsafeCoerce fs)
+    unsafeCoerce m >>= composefStack fs
 
     where
 
@@ -201,7 +201,7 @@ composeContext Context { currentm     = m
 
     -- composefStack :: Monad m => [a -> AsyncT m a] -> a -> AsyncT m b
     composefStack [] _     = error "Bug: this should never be reached"
-    composefStack (f:ff) x = f x >>= composefStack ff
+    composefStack (f:ff) x = (unsafeCoerce f) x >>= composefStack ff
 
 setContextMailBox :: Context -> a -> Context
 setContextMailBox ctx mbdata = ctx { mailBox = Just $ unsafeCoerce mbdata }
