@@ -36,7 +36,7 @@ import           Data.IORef                  (IORef, atomicModifyIORef,
                                               modifyIORef, newIORef, readIORef,
                                               writeIORef)
 import           Data.List                   (delete)
-import           Data.Maybe                  (fromJust)
+import           Data.Maybe                  (fromJust, isJust)
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Strands.AsyncT
@@ -88,52 +88,35 @@ runContext ctx = do
 -- on consumption rate.
 processOneEvent :: MonadIO m
     => ChildEvent a
-    -> Either (TChan (ChildEvent a)) (IORef [a])
     -> [ThreadId]
     -> m ([ThreadId], Maybe SomeException)
-processOneEvent ev dest pending = do
-    -- Collect results unless we have already encountered an exception.
-    case ev of
-        ChildDone _ (Just e)  -> handleException e
-        ChildResult (Left e)  -> handleException e
-        ChildDone tid Nothing -> return (delete tid pending, Nothing)
-        ChildResult (Right r) -> do
-            case dest of
-                Left chan -> liftIO $ atomically $ writeTChan chan ev
-                Right ref ->
-                    liftIO $ modifyIORef ref $ \rs -> unsafeCoerce r : rs
-            return (pending, Nothing)
-    where
-
-    handleException e = do
-        liftIO $ mapM_ killThread pending
-        return (pending, Just e)
+processOneEvent (ChildDone tid e) pending = do
+    when (isJust e) $ liftIO $ mapM_ killThread pending
+    return (delete tid pending, Nothing)
 
 drainChildren :: MonadIO m
-    => Either (TChan (ChildEvent a)) (IORef [a])
-    -> TChan (ChildEvent a)
+    => TChan (ChildEvent a)
     -> [ThreadId]
     -> m ([ThreadId], Maybe SomeException)
-drainChildren dest cchan pending =
+drainChildren cchan pending =
     case pending of
         [] -> return (pending, Nothing)
         _  ->  do
             ev <- liftIO $ atomically $ readTChan cchan
-            (p, e) <- processOneEvent ev dest pending
-            maybe (drainChildren dest cchan p) (const $ return (p, e)) e
+            (p, e) <- processOneEvent ev pending
+            maybe (drainChildren cchan p) (const $ return (p, e)) e
 
 waitForChildren :: MonadIO m => Context -> m (Maybe SomeException)
 waitForChildren ctx = do
     let pendingRef = pendingThreads ctx
     pending <- liftIO $ readIORef pendingRef
-    (p, e) <- drainChildren (getCtxResultDest ctx) (childChannel ctx) pending
+    (p, e) <- drainChildren (childChannel ctx) pending
     liftIO $ writeIORef pendingRef p
     return e
 
 tryReclaimZombies :: (MonadIO m, MonadThrow m) => Context -> m ()
 tryReclaimZombies ctx = do
-    let dest = getCtxResultDest ctx
-        cchan = childChannel ctx
+    let cchan = childChannel ctx
         pendingRef = pendingThreads ctx
 
     pending <- liftIO $ readIORef pendingRef
@@ -144,7 +127,7 @@ tryReclaimZombies ctx = do
             case mev of
                 Nothing -> return ()
                 Just ev -> do
-                    (p, e) <- processOneEvent ev dest pending
+                    (p, e) <- processOneEvent ev pending
                     liftIO $ writeIORef pendingRef p
                     maybe (return ()) throwM e
                     tryReclaimZombies ctx
@@ -153,13 +136,12 @@ waitForOneEvent :: (MonadIO m, MonadThrow m) => Context -> m ()
 waitForOneEvent ctx = do
     -- XXX assert pending must have at least one element
     -- assert that the tid is found in our list
-    let dest = getCtxResultDest ctx
-        cchan = childChannel ctx
+    let cchan = childChannel ctx
         pendingRef = pendingThreads ctx
 
     ev <- liftIO $ atomically $ readTChan cchan
     pending <- liftIO $ readIORef pendingRef
-    (p, e) <- processOneEvent ev dest pending
+    (p, e) <- processOneEvent ev pending
     liftIO $ writeIORef pendingRef p
     maybe (return ()) throwM e
 
@@ -226,7 +208,6 @@ forkContext context = do
             { parentChannel  = Just (childChannel ctx)
             , pendingThreads = pendingRef
             , childChannel = chan
-            , accumResults = Nothing
             }
 
     beforeExit ctx res = do
@@ -361,7 +342,6 @@ loopContextWith ioaction context = AsyncT $ do
         { parentChannel  = parentChannel curCtx
         , pendingThreads = pendingThreads curCtx
         , childChannel   = childChannel curCtx
-        , accumResults   = accumResults curCtx
         }
 
     where
@@ -518,36 +498,17 @@ noTrans x = AsyncT $ x >>= return . Just
 -- Running the monad
 ------------------------------------------------------------------------------
 
-collectResult :: MonadIO m => a -> StateT Context m ()
-collectResult r = do
-        ctx <- get
-        case parentChannel ctx of
-            Nothing -> do
-                let ref = fromJust $ accumResults ctx
-                liftIO $ modifyIORef ref $ \rs -> unsafeCoerce r : rs
-            Just chan ->  do
-                -- XXX can we pass the result directly to the root thread
-                -- instead of passing through all the parents? We can let the
-                -- parent go away and handle the ChildDone events as well in
-                -- the root thread.
-                liftIO $ atomically $ writeTChan chan
-                                        (ChildResult (Right (unsafeCoerce r)))
-
--- XXX pass a collector function and return a Traversable?
--- XXX Ideally it should be a non-empty list.
-
 -- | Run an 'AsyncT m' computation and collect the results generated by each
 -- thread of the computation in a list.
 waitAsync :: forall m a b. (MonadIO m, MonadCatch m)
-    => (a -> AsyncT m a) -> AsyncT m a -> m [a]
+    => (a -> AsyncT m a) -> AsyncT m a -> m ()
 waitAsync finalizer m = do
     childChan  <- liftIO $ atomically newTChan
     pendingRef <- liftIO $ newIORef []
-    resultsRef <- liftIO $ newIORef []
     credit     <- liftIO $ newIORef maxBound
 
     let ctx = initContext (empty :: AsyncT m a) childChan pendingRef credit
-                  finalizer resultsRef
+                  finalizer
 
     r <- try $ runStateT (runAsyncT $ m >>= finalizer) ctx
 
@@ -559,25 +520,28 @@ waitAsync finalizer m = do
             e <- waitForChildren ctx
             case e of
                 Just (exc :: SomeException) -> throwM exc
-                Nothing -> liftIO $ readIORef resultsRef
+                Nothing -> return ()
+
+-- TBD throttling of producer based on conumption rate.
 
 -- | Invoked to store the result of the computation in the context and finish
 -- the computation when the computation is done
-gatherResult :: MonadIO m => a -> AsyncT m a
-gatherResult x = AsyncT $ do
-    collectResult x
-    return Nothing
+gatherResult :: MonadIO m => IORef [a] -> a -> AsyncT m a
+gatherResult ref r = do
+    liftIO $ atomicModifyIORef ref $ \rs -> (r : rs, rs)
+    mzero
 
 -- | Run an 'AsyncT m' computation and collect the results generated by each
 -- thread of the computation in a list.
 gather :: forall m a. (MonadIO m, MonadCatch m)
     => AsyncT m a -> m [a]
-gather m = waitAsync gatherResult m
+gather m = do
+    resultsRef <- liftIO $ newIORef []
+    waitAsync (gatherResult resultsRef) m
+    liftIO $ readIORef resultsRef
 
 -- | Run an 'AsyncT m' computation, wait for it to finish and discard the
 -- results.
 wait :: forall m a. (MonadIO m, MonadCatch m)
     => AsyncT m a -> m ()
-wait m = do
-    _ <- waitAsync (const mzero) m
-    return ()
+wait m = waitAsync (const mzero) m

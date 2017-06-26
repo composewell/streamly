@@ -11,7 +11,6 @@ module Strands.Context
     , composeContext
     , setContextMailBox
     , takeContextMailBox
-    , getCtxResultDest
     , Location(..)
     , getLocation
     , setLocation
@@ -25,7 +24,6 @@ import           Control.Monad.State    (StateT, MonadPlus(..), MonadIO(..))
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (Typeable)
 import           Data.IORef             (IORef)
-import           Data.Maybe             (fromJust)
 import           Unsafe.Coerce          (unsafeCoerce)
 import           GHC.Prim               (Any)
 
@@ -33,9 +31,7 @@ import           GHC.Prim               (Any)
 -- State of a continuation
 ------------------------------------------------------------------------------
 
-data ChildEvent a =
-      ChildDone ThreadId (Maybe SomeException) -- A child is finished
-    | ChildResult (Either SomeException a)       -- Pass on the result of a child
+data ChildEvent a = ChildDone ThreadId (Maybe SomeException)
 
 -- | Describes the context of a computation.
 data Context = Context
@@ -84,14 +80,9 @@ data Context = Context
 
     -- XXX setup a cleanup computation to run rather than passing all these
     -- params.
-    -- XXX use Either parentChannel accumResults
-  , accumResults :: Maybe (IORef [Any])
-    -- ^ Accumulated results, only the top level thread context accumulates.
-    -- Child threads just pass on results via the parent channels.
 
   , parentChannel  :: Maybe (TChan (ChildEvent Any))
-    -- ^ Parent thread's channel to communicate to when a child thread dies or
-    -- yields a result value
+    -- ^ Parent thread's channel to communicate to when a child thread dies
 
   , childChannel    :: TChan (ChildEvent Any)
     -- ^ A channel for the immediate children to communicate to us when they
@@ -128,9 +119,8 @@ initContext
     -> IORef [ThreadId]
     -> IORef Int
     -> (b -> m a)
-    -> IORef [a]
     -> Context
-initContext x childChan pending credit finalizer results =
+initContext x childChan pending credit finalizer =
   Context { mailBox         = Nothing
           , currentm        = unsafeCoerce x
           , fstack          = [unsafeCoerce finalizer]
@@ -139,8 +129,7 @@ initContext x childChan pending credit finalizer results =
           , parentChannel   = Nothing
           , childChannel    = unsafeCoerce childChan
           , pendingThreads  = pending
-          , threadCredit    = credit
-          , accumResults    = Just (unsafeCoerce results) }
+          , threadCredit    = credit }
 
 ------------------------------------------------------------------------------
 -- Where is the computation running?
@@ -229,8 +218,3 @@ takeContextMailBox = do
         Just x -> do
             Lazy.put ctx { mailBox = Nothing }
             return $ Right (unsafeCoerce x)
-
-getCtxResultDest :: Context -> Either (TChan (ChildEvent a)) (IORef [a])
-getCtxResultDest ctx =
-    maybe (Right $ unsafeCoerce $ fromJust $ accumResults ctx)
-          (Left . unsafeCoerce) (parentChannel ctx)
