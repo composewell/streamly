@@ -203,6 +203,10 @@ composeContext Context { currentm     = m
     composefStack [] _     = error "Bug: this should never be reached"
     composefStack (f:ff) x = (unsafeCoerce f) x >>= composefStack ff
 
+------------------------------------------------------------------------------
+-- Mailbox
+------------------------------------------------------------------------------
+
 setContextMailBox :: Context -> a -> Context
 setContextMailBox ctx mbdata = ctx { mailBox = Just $ unsafeCoerce mbdata }
 
