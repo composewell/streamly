@@ -81,9 +81,6 @@ data Context = Context
     -- XXX setup a cleanup computation to run rather than passing all these
     -- params.
 
-  , parentChannel  :: Maybe (TChan (ChildEvent Any))
-    -- ^ Parent thread's channel to communicate to when a child thread dies
-
   , childChannel    :: TChan (ChildEvent Any)
     -- ^ A channel for the immediate children to communicate to us when they
     -- die.  Each thread has its own dedicated channel for its children
@@ -126,7 +123,6 @@ initContext x childChan pending credit finalizer =
           , fstack          = [unsafeCoerce finalizer]
           , location        = Worker
           -- , mfData          = mempty
-          , parentChannel   = Nothing
           , childChannel    = unsafeCoerce childChan
           , pendingThreads  = pending
           , threadCredit    = credit }
