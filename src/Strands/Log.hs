@@ -3,21 +3,28 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 module Strands.Log
-    ( Log(..)
-    , LogElem(..)
+    ( Loggable
+    , Replaying
+    , LogEntry (..)
+    , Log (..)
+    , IDynamic (..)
+    , fromIDyn
+    , toIDyn
     )
 where
 
-import           Control.Exception (SomeException, catch)
-import           Data.Dynamic      (Typeable, typeOf)
-import           System.IO.Unsafe  (unsafePerformIO)
+import           Unsafe.Coerce          (unsafeCoerce)
 
 ------------------------------------------------------------------------------
 -- Log types
 ------------------------------------------------------------------------------
 
 -- | Constraint type synonym for a value that can be logged.
-type Loggable a = (Show a, Read a, Typeable a)
+type Loggable a = (Show a, Read a)
+
+------------------------------------------------------------------------------
+-- Serialization
+------------------------------------------------------------------------------
 
 -- | Dynamic serializable data for logging.
 data IDynamic =
@@ -28,27 +35,29 @@ instance Show IDynamic where
   show (IDynamic x) = show (show x)
   show (IDyns    s) = show s
 
-readWithErr :: (Typeable a, Read a) => String -> IO [(a, String)]
-readWithErr line =
-  (v `seq` return [(v, left)])
-     `catch` (\(_ :: SomeException) ->
-                error $ "read error trying to read type: \"" ++ show (typeOf v)
-                     ++ "\" in:  " ++ " <" ++ show line ++ "> ")
-  where [(v, left)] = readsPrec 0 line
-
-readsPrec' :: (Typeable a, Read a) => t -> String -> [(a, String)]
-readsPrec' _ = unsafePerformIO . readWithErr
-
 instance Read IDynamic where
-  readsPrec n str = map (\(x,s) -> (IDyns x,s)) $ readsPrec' n str
+  readsPrec _ str = map (\(x,s) -> (IDyns x,s)) $ readsPrec 0 str
 
-data LogElem        =  Wait | Exec | Var IDynamic
+fromIDyn :: Loggable a => IDynamic -> a
+fromIDyn (IDynamic x) = r
+    where r = unsafeCoerce x
+
+fromIDyn (IDyns s) = r `seq` r
+    where r = read s
+
+toIDyn :: Loggable a => a -> IDynamic
+toIDyn x = IDynamic x
+
+------------------------------------------------------------------------------
+-- Log
+------------------------------------------------------------------------------
+
+data LogEntry        =
+      Executing        -- we are inside this computation, not yet done
+    | Waiting          -- the computation is done and it returned mzero
+    | Result IDynamic  -- computation is done and we have the result to replay
   deriving (Read, Show)
 
-type Recover        = Bool
-type CurrentPointer = [LogElem]
-type LogEntries     = [LogElem]
+type Replaying = Bool
 
-data Log            = Log Recover CurrentPointer LogEntries
-  deriving (Typeable, Show)
-
+data Log = Log Replaying [LogEntry] deriving (Show)
