@@ -14,11 +14,15 @@ module Strands
     , gather
     , gatherLogged
     , async
+    , each
     , sample
     , threads
     , logged
     , suspend
+    , withLog
+    , eachWithLog
     , Log
+    , Loggable
     )
 where
 

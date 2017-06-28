@@ -47,6 +47,7 @@ import           GHC.Prim               (Any)
 -- | Constraint type synonym for a value that can be logged.
 type Loggable a = (Show a, Read a)
 
+-- XXX remove the Maybe as we never log Nothing
 data LogEntry =
       Executing             -- we are inside this computation, not yet done
     | Result (Maybe String) -- computation done, we have the result to replay
