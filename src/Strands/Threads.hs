@@ -36,7 +36,6 @@ import           Control.Monad.State         (get, gets, modify, mzero, put,
                                               runStateT, when, StateT)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
-import           Data.Dynamic                (Typeable)
 import           Data.IORef                  (IORef, atomicModifyIORef,
                                               modifyIORef, newIORef, readIORef,
                                               writeIORef)
@@ -271,7 +270,7 @@ data StreamData a =
     | SLast a               -- ^ This is the last task
     | SDone                 -- ^ No more tasks, we are done
     | SError SomeException  -- ^ An error occurred
-    deriving (Typeable, Show,Read)
+    deriving (Show, Read)
 
 -- The current model is to start a new thread for every task. The input is
 -- provided at the time of the creation and therefore no synchronization is
