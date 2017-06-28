@@ -1,9 +1,14 @@
+{-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RecordWildCards           #-}
 
 module Strands.Context
     ( ChildEvent(..)
+    , Loggable
+    , Log (..)
+    , CtxLog (..)
+    , LogEntry (..)
     , Context(..)
     , initContext
     , saveContext
@@ -28,10 +33,39 @@ import           Unsafe.Coerce          (unsafeCoerce)
 import           GHC.Prim               (Any)
 
 ------------------------------------------------------------------------------
--- State of a continuation
+-- Log types
+------------------------------------------------------------------------------
+
+-- Logging is done using the 'logged' combinator. It remembers the last value
+-- returned by a given computation and replays it the next time the computation
+-- is resumed. However this could be problematic if we do not annotate all
+-- impure computations. The program can take a different path due to a
+-- non-logged computation returning a different value. In that case we may
+-- replay a wrong value. To detect this we can use a unique id for each logging
+-- site and abort if the id does not match on replay.
+
+-- | Constraint type synonym for a value that can be logged.
+type Loggable a = (Show a, Read a)
+
+data LogEntry =
+      Executing             -- we are inside this computation, not yet done
+    | Result (Maybe String) -- computation done, we have the result to replay
+  deriving (Read, Show)
+
+data Log = Log [LogEntry] deriving Show
+
+-- log entries and replay entries
+data CtxLog = CtxLog [LogEntry] [LogEntry] deriving (Read, Show)
+
+------------------------------------------------------------------------------
+-- Parent child thread communication types
 ------------------------------------------------------------------------------
 
 data ChildEvent a = ChildDone ThreadId (Maybe SomeException)
+
+------------------------------------------------------------------------------
+-- State threaded around the monad
+------------------------------------------------------------------------------
 
 -- | Describes the context of a computation.
 data Context = Context
@@ -53,9 +87,12 @@ data Context = Context
     -- computation has nested binds we need to store the next 'f' for each
     -- layer of nesting.
 
-  -- log only when there is a restore or if we are teleporting
-  -- We can use a HasLog constraint to statically enable/disable logging
-  -- , journal :: Maybe Log
+  -- Logging is done by the 'logged' primitive in this journal only if logsRef
+  -- exists.
+  , journal :: CtxLog
+
+  -- When we suspend we save the logs in this IORef and exit.
+  , logsRef :: Maybe (IORef [Log])
   , location :: Location
 
     ---------------------------------------------------------------------------
@@ -116,11 +153,14 @@ initContext
     -> IORef [ThreadId]
     -> IORef Int
     -> (b -> m a)
+    -> Maybe (IORef [Log])
     -> Context
-initContext x childChan pending credit finalizer =
+initContext x childChan pending credit finalizer lref =
   Context { mailBox         = Nothing
           , currentm        = unsafeCoerce x
           , fstack          = [unsafeCoerce finalizer]
+          , journal         = CtxLog [] []
+          , logsRef         = lref
           , location        = Worker
           -- , mfData          = mempty
           , childChannel    = unsafeCoerce childChan
@@ -169,14 +209,10 @@ restoreContext :: (MonadPlus m1, Monad m) => Maybe a -> StateT Context m (m1 b)
 restoreContext x = do
     -- XXX fstack must be non-empty when this is called.
     ctx@Context { fstack = f:fs } <- Lazy.get
+    let mnext = maybe mzero (unsafeCoerce f) x
+    Lazy.put ctx { currentm = unsafeCoerce mnext, fstack = fs }
+    return mnext
 
-    let mres = case x of
-            Nothing -> mzero
-            Just y -> (unsafeCoerce f) y
-
-    Lazy.put ctx { currentm = unsafeCoerce mres, fstack = fs }
-
-    return mres
 
 -- | We can retrieve a context at any point and resume that context at some
 -- later point, upon resumption we start executing again from the same point

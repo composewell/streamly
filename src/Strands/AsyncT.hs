@@ -81,12 +81,8 @@ instance Monad m => Alternative (AsyncT m) where
 instance Monad m => Monad (AsyncT m) where
     return = pure
 
-    -- Inner bind-operations in 'm' add their 'f' to fstack.  If we migrate the
-    -- context to a new thread, somewhere in the middle, we unwind the fstack
-    -- and run these functions when we resume the context after migration.
     m >>= f = AsyncT $ do
-        saveContext m f
-        runAsyncT m >>= restoreContext >>= runAsyncT
+        saveContext m f >> runAsyncT m >>= restoreContext >>= runAsyncT
 
 instance Monad m => MonadPlus (AsyncT m) where
   mzero = empty

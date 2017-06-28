@@ -10,11 +10,17 @@
 
 module Strands
     ( wait
+    , waitLogged
     , gather
+    , gatherLogged
     , async
     , sample
     , threads
+    , logged
+    , suspend
+    , Log
     )
 where
 
+import Strands.Context (Log, Loggable)
 import Strands.Threads

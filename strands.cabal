@@ -21,7 +21,6 @@ library
     hs-source-dirs:    src
     exposed-modules:   Strands
                      , Strands.Context
-                     , Strands.Log
                      , Strands.AsyncT
                      , Strands.Threads
 
