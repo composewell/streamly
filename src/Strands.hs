@@ -11,9 +11,10 @@
 module Strands
     ( wait
     , waitLogged
-    , gather
-    , gatherLogged
+    , wait_
+    , waitLogged_
     , async
+    , waitEvents
     , each
     , sample
     , threads

@@ -7,7 +7,7 @@ import Strands
 
 main = do
     hSetBuffering stdout LineBuffering
-    xs <- gather $ threads 5 $ do
+    xs <- wait $ threads 5 $ do
         x <- (,) <$> (event 1 <|> event 2) <*> (event 3 <|> event 4)
         --x <- (,) <$> choose [1,2] <*> choose [3,4]
         liftIO $ putStrLn $ show x
