@@ -3,11 +3,18 @@ import Control.Monad.IO.Class (liftIO)
 
 main = do
     logs <- waitLogged comp
-    -- XXX even if we use wait replay should still work, though new logs will
-    -- not be generated.
+
+    putStrLn $ "\nResuming with logs:"
     logs1 <- waitLogged $ eachWithLog comp logs
+
+    putStrLn $ "\nResuming with logs:"
     logs2 <- waitLogged $ eachWithLog comp logs1
+
+    putStrLn $ "\nLogs at the end must be empty:"
     putStrLn $ show logs2
+
+    putStrLn $ "\nRunning the last log again using wait:"
+    wait $ eachWithLog comp logs1
 
     where
     comp = logged $ threads 5 $ do

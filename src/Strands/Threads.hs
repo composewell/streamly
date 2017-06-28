@@ -559,30 +559,28 @@ wait m = waitAsync (const mzero) Nothing m
 logged :: (Loggable a, MonadIO m) => AsyncT m a -> AsyncT m a
 logged m = AsyncT $ do
     ctx <- get
-    case logsRef ctx of
-        Nothing -> runAsyncT m
-        Just _ -> runLogged ctx (runAndLogResult m)
+    case journal ctx of
+        -- no replay
+        CtxLog ls [] ->
+            case logsRef ctx of
+                Nothing -> runAsyncT m
+                Just _ -> do
+                    put $ ctx {journal = CtxLog (Executing : ls) []}
+                    runAndLogResult m
+
+        -- replaying the log
+        CtxLog ls (r:rs) -> do
+        --    dbg $ "Replay: j: " ++ show j
+            case r of
+                Executing -> do
+                    put $ ctx {journal = CtxLog (r : ls) rs}
+                    runAndLogResult m
+                Result val -> do
+                    let x = fmap read val
+                    put $ ctx {journal = CtxLog (r : ls) rs}
+                    return x
 
     where
-
-    runLogged ctx action =
-        case journal ctx of
-            -- no replay
-            CtxLog ls [] -> do
-                put $ ctx {journal = CtxLog (Executing : ls) []}
-                action
-
-            -- replaying the log
-            CtxLog ls (r:rs) -> do
-            --    dbg $ "Replay: j: " ++ show j
-                case r of
-                    Executing -> do
-                        put $ ctx {journal = CtxLog (r : ls) rs}
-                        action
-                    Result val -> do
-                        let x = fmap read val
-                        put $ ctx {journal = CtxLog (r : ls) rs}
-                        return x
 
     runAndLogResult action = runAsyncT $ do
         x <- action
