@@ -16,6 +16,7 @@ module Strands
     , async
     , waitEvents
     , each
+    , gather
     , sample
     , threads
     , logged
