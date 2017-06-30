@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-}
 
-module Strands.AsyncT
+module Asyncly.AsyncT
     ( AsyncT (..)
     , (<**)
     , (**>)
@@ -28,7 +28,7 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM)
 
-import           Strands.Context
+import           Asyncly.Context
 
 --import           Debug.Trace (traceM)
 

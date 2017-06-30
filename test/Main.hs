@@ -4,7 +4,7 @@ import Test.Hspec
 
 import Control.Applicative ((<|>))
 --import Control.Monad.IO.Class (liftIO)
-import Strands
+import Asyncly
 import Data.List (sort)
 
 default (Int)

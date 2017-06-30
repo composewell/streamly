@@ -3,7 +3,7 @@ import Control.Monad.IO.Class (liftIO)
 import System.Random (randomIO)
 import System.IO
 
-import Strands
+import Asyncly
 
 --- Check space leaks
 

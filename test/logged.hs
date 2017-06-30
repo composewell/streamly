@@ -3,7 +3,7 @@
 import Control.Applicative ((<$>), (<*>), (<|>))
 import Control.Monad.IO.Class (liftIO)
 import System.IO
-import Strands
+import Asyncly
 
 main = do
     hSetBuffering stdout LineBuffering

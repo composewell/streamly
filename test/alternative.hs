@@ -4,7 +4,7 @@ import System.Random (randomIO)
 import System.IO
 import Control.Applicative
 
-import Strands
+import Asyncly
 
 main = wait_ $ threads 3 $ do
     liftIO $ hSetBuffering stdout LineBuffering

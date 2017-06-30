@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
-module Strands.Threads
+module Asyncly.Threads
     ( MonadAsync
     , wait
     , wait_
@@ -42,8 +42,8 @@ import           Data.IORef                  (IORef, atomicModifyIORef,
 import           Data.List                   (delete)
 import           Data.Maybe                  (isJust)
 
-import           Strands.AsyncT
-import           Strands.Context
+import           Asyncly.AsyncT
+import           Asyncly.Context
 
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 

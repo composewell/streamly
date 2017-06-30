@@ -1,11 +1,15 @@
-name:                strands
+name:                asyncly
 version:             0.5.5
-synopsis:            Compose multithreaded or event driven programs in a convenient and scalable manner.
-description:         An experimental package based on the transient package. Provides a
-                     simple interface to integrate with other libraries and monad transformers.
-                     See <http://github.com/agocorona/transient>
-homepage:            http://github.com/harendra-kumar/strands
-bug-reports:         https://github.com/harendra-kumar/strands/issues
+synopsis:            Compose asynchronous and multithreaded tasks
+description:         Asyncly allows you to compose asynchronous, concurrent
+                     and parallel tasks in a convenient manner without
+                     requiring the programmer to know the gory details
+                     of concurrent and multithreaded programming.
+                     This library is based on the wonderful work of
+                     Alberto G. Corona, see
+                     <http://github.com/agocorona/transient>
+homepage:            http://github.com/harendra-kumar/asyncly
+bug-reports:         https://github.com/harendra-kumar/asyncly/issues
 license:             MIT
 license-file:        LICENSE
 author:              Alberto G. Corona, Harendra Kumar
@@ -19,10 +23,10 @@ cabal-version:       >= 1.10
 
 library
     hs-source-dirs:    src
-    exposed-modules:   Strands
-                     , Strands.Context
-                     , Strands.AsyncT
-                     , Strands.Threads
+    exposed-modules:   Asyncly
+                     , Asyncly.Context
+                     , Asyncly.AsyncT
+                     , Asyncly.Threads
 
     default-language: Haskell2010
     ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates
@@ -51,9 +55,9 @@ test-suite test
       base       >= 4.7 && < 5
     , hspec      >= 2.0 && < 3
     , containers
-    , strands
+    , asyncly
   default-language: Haskell2010
 
 source-repository head
     type: git
-    location: https://github.com/harendra-kumar/strands
+    location: https://github.com/harendra-kumar/asyncly

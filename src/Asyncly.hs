@@ -1,5 +1,5 @@
 -- |
--- Module      : Strands
+-- Module      : Asyncly
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : MIT-style
@@ -8,7 +8,7 @@
 -- Portability : GHC
 --
 
-module Strands
+module Asyncly
     ( AsyncT
     , MonadAsync
     , wait
@@ -30,6 +30,6 @@ module Strands
     )
 where
 
-import Strands.AsyncT (AsyncT)
-import Strands.Context (Log, Loggable)
-import Strands.Threads
+import Asyncly.AsyncT (AsyncT)
+import Asyncly.Context (Log, Loggable)
+import Asyncly.Threads

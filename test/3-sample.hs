@@ -9,7 +9,7 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.IORef
 import Control.Monad.Catch (MonadThrow)
 
-import Strands
+import Asyncly
 
 main = wait_ $ threads 3 $ do
     liftIO $ hSetBuffering stdout LineBuffering

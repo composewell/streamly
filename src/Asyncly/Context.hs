@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RecordWildCards           #-}
 
-module Strands.Context
+module Asyncly.Context
     ( ChildEvent(..)
     , Loggable
     , Log (..)
