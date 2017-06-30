@@ -42,6 +42,18 @@ library
                      , stm
                      , transformers-base
 
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Main.hs
+  hs-source-dirs: test
+  ghc-options: -O0 -Wall -fwarn-identities -fwarn-incomplete-record-updates -fwarn-incomplete-uni-patterns -fwarn-tabs
+  build-depends:
+      base       >= 4.7 && < 5
+    , hspec      >= 2.0 && < 3
+    , containers
+    , strands
+  default-language: Haskell2010
+
 source-repository head
     type: git
     location: https://github.com/harendra-kumar/strands

@@ -1,24 +1,21 @@
+{-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 module Strands.Threads
-    ( parallel
-    , waitEvents
-    , async
-    , each
-    , sample
-    , sync
-    , gather
-    --, react
-    , threads
-
+    ( MonadAsync
     , wait
     , wait_
+    , threads
 
-    , logged
-    , suspend
+    , async
+    , each
+    , gather
+
     , waitLogged
     , waitLogged_
+    , logged
+    , suspend
     , withLog
     , eachWithLog
     )
@@ -26,12 +23,11 @@ where
 
 import           Control.Applicative         ((<|>), empty)
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
-                                              myThreadId, threadDelay)
+                                              myThreadId)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
                                               readTChan, tryReadTChan,
                                               writeTChan)
-import           Control.Exception           (ErrorCall (..),
-                                              SomeException (..), catch)
+import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad.Catch         (MonadCatch, MonadThrow, throwM,
                                               try)
@@ -48,6 +44,8 @@ import           Data.Maybe                  (isJust)
 
 import           Strands.AsyncT
 import           Strands.Context
+
+type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 ------------------------------------------------------------------------------
 -- Model of computation
@@ -80,11 +78,11 @@ import           Strands.Context
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-runContext :: MonadIO m => Context -> StateT Context m ()
+runContext :: Monad m => Context -> StateT Context m ()
 runContext ctx = do
-        let s = runAsyncT (composeContext ctx)
-        _ <- lift $ runStateT s ctx
-        return ()
+    let s = runAsyncT (composeContext ctx)
+    _ <- lift $ runStateT s ctx
+    return ()
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
@@ -180,7 +178,9 @@ signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
 --
 
 forkFinally1 :: (MonadIO m, MonadBaseControl IO m)
-    => Context -> (Either SomeException () -> IO ()) -> StateT Context m ThreadId
+    => Context
+    -> (Either SomeException () -> IO ())
+    -> StateT Context m ThreadId
 forkFinally1 ctx preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
@@ -252,29 +252,17 @@ canFork context = do
 -- in the same thread or in a new thread depending on the synch parameter and
 -- the current thread quota.
 --
-resumeContextWith :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
+resumeContextWith :: MonadAsync m
     => Context          -- the context to resume
     -> Bool             -- force synchronous
-    -> (Context -> AsyncT m (StreamData a)) -- the action to execute in the resumed context
+    -> AsyncT m a       -- the action to execute in the resumed context
     -> StateT Context m ()
 resumeContextWith context synch action = do
-    let ctx = setContextMailBox context (action context)
+    let ctx = setContextMailBox context action
     can <- liftIO $ canFork context
     case can && (not synch) of
         False -> runContext ctx -- run synchronously
         True -> forkContext ctx
-
-instance Read SomeException where
-  readsPrec _n str = [(SomeException $ ErrorCall s, r)]
-    where [(s , r)] = read str
-
--- | 'StreamData' represents a task in a task stream being generated.
-data StreamData a =
-      SMore a               -- ^ More tasks to come
-    | SLast a               -- ^ This is the last task
-    | SDone                 -- ^ No more tasks, we are done
-    | SError SomeException  -- ^ An error occurred
-    deriving (Show, Read)
 
 -- The current model is to start a new thread for every task. The input is
 -- provided at the time of the creation and therefore no synchronization is
@@ -296,172 +284,43 @@ data StreamData a =
 -- parent task needs to terminate. Either the task is fully done or we handed
 -- it over to another thread, in any case the current thread is done.
 
-spawningParentDone :: MonadIO m => StateT Context m (Maybe (StreamData a))
+spawningParentDone :: MonadIO m => StateT Context m (Maybe a)
 spawningParentDone = do
     loc <- getLocation
     when (loc /= RemoteNode) $ setLocation WaitingParent
     return Nothing
 
 -- | Captures the state of the current computation at this point, starts a new
--- thread, passing the captured state, runs the argument computation in the new
--- thread, returns its value and continues the computation from the capture
--- point. The end result is as if this function just returned the value
--- generated by the argument computation albeit in a new thread.
+-- thread, using the argument passed as the return value of the computation and
+-- continues the computation from the capture point. The end result is as if
+-- this function just returned the value passed as argument albeit in a new
+-- thread.
 --
 -- If a new thread cannot be created then the computation is run in the same
 -- thread, but the functional behavior remains the same.
 
-spawnAsyncT :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => (Context -> AsyncT m (StreamData a))
-    -> AsyncT m (StreamData a)
-spawnAsyncT func = AsyncT $ do
+async :: MonadAsync m => AsyncT m a -> AsyncT m a
+async action = AsyncT $ do
     val <- takeContextMailBox
     case val of
         -- Child task
-        Right x -> runAsyncT x
+        Right m -> runAsyncT m
 
         -- Spawning parent
         Left ctx -> do
-            resumeContextWith ctx False func
+            resumeContextWith ctx False action
 
             -- If we started the task asynchronously in a new thread then the
             -- parent thread reaches here, immediately after spawning the task.
             --
-            -- However, if the task was executed synchronously then we will
-            -- reach after it is completely done.
+            -- However, if the task was executed synchronously then we reach
+            -- here after it is completely done.
             spawningParentDone
 
--- | Execute the specified IO action, resume the saved context returning the
--- output of the io action, continue this in a loop until the ioaction
--- indicates that its done.
-
-loopContextWith ::  (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO (StreamData a) -> Context -> AsyncT m (StreamData a)
-loopContextWith ioaction context = AsyncT $ do
-    -- Note that the context that we are resuming may have been passed from
-    -- another thread, therefore we must inherit thread control related
-    -- parameters from the current context.
-    curCtx <- get
-    loop context
-        { pendingThreads = pendingThreads curCtx
-        , childChannel   = childChannel curCtx
-        }
-
-    where
-
-    loop ctx = do
-        streamData <- liftIO $ ioaction `catch`
-                \(e :: SomeException) -> return $ SError e
-
-        let resumeCtx synch = resumeContextWith ctx synch $ \_ ->
-                return streamData
-
-        case streamData of
-            SMore _ -> resumeCtx False >> loop ctx
-            _       -> resumeCtx True  >> spawningParentDone
-
--- | Run an IO action one or more times to generate a stream of tasks. The IO
--- action returns a 'StreamData'. When it returns an 'SMore' or 'SLast' a new
--- task is triggered with the result value. If the return value is 'SMore', the
--- action is run again to generate the next task, otherwise task creation
--- stops.
---
--- Unless the maximum number of threads (set with 'threads') has been reached,
--- the task is generated in a new thread and the current thread returns a void
--- task.
-parallel  :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO (StreamData a) -> AsyncT m (StreamData a)
-parallel ioaction = spawnAsyncT (loopContextWith ioaction)
-
--- | An task stream generator that produces an infinite stream of tasks by
--- running an IO computation in a loop. A task is triggered carrying the output
--- of the computation. See 'parallel' for notes on the return value.
-waitEvents :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO a -> AsyncT m a
-waitEvents io = do
-  mr <- parallel (SMore <$> io)
-  case mr of
-    SMore  x -> return x
- --   SError e -> back e
-
--- | Run an IO computation asynchronously and generate a single task carrying
--- the result of the computation when it completes. See 'parallel' for notes on
--- the return value.
-async  :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO a -> AsyncT m a
-async io = do
-  mr <- parallel (SLast <$> io)
-  case mr of
-    SLast  x -> return x
-  --  SError e -> back   e
-
+-- scatter
 each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => [a] -> AsyncT m a
 each xs = foldl (<|>) empty $ map (async . return) xs
-
--- | Force an async computation to run synchronously. It can be useful in an
--- 'Alternative' composition to run the alternative only after finishing a
--- computation.  Note that in Applicatives it might result in an undesired
--- serialization.
-sync :: MonadIO m => AsyncT m a -> AsyncT m a
-sync x = AsyncT $ do
-  setLocation RemoteNode
-  r <- runAsyncT x
-  setLocation Worker
-  return r
-
--- | An task stream generator that produces an infinite stream of tasks by
--- running an IO computation periodically at the specified time interval. The
--- task carries the result of the computation.  A new task is generated only if
--- the output of the computation is different from the previous one.  See
--- 'parallel' for notes on the return value.
-sample :: (Eq a, MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => IO a -> Int -> AsyncT m a
-sample action interval = do
-  v    <- liftIO action
-  prev <- liftIO $ newIORef v
-  waitEvents (loop action prev) <|> async (return v)
-  where loop act prev = loop'
-          where loop' = do
-                  threadDelay interval
-                  v  <- act
-                  v' <- readIORef prev
-                  if v /= v' then writeIORef prev v >> return v else loop'
-
--- | Make a transient task generator from an asynchronous callback handler.
---
--- The first parameter is a callback. The second parameter is a value to be
--- returned to the callback; if the callback expects no return value it
--- can just be a @return ()@. The callback expects a setter function taking the
--- @eventdata@ as an argument and returning a value to the callback; this
--- function is supplied by 'react'.
---
--- Callbacks from foreign code can be wrapped into such a handler and hooked
--- into the transient monad using 'react'. Every time the callback is called it
--- generates a new task for the transient monad.
---
-{-
-react
-  :: (Monad m, MonadIO m)
-  => ((eventdata ->  m response) -> m ())
-  -> IO  response
-  -> AsyncT m eventdata
-react setHandler iob = AsyncT $ do
-        context <- get
-        case event context of
-          Nothing -> do
-            lift $ setHandler $ \dat ->do
-              resume (updateContextEvent context dat)
-              liftIO iob
-            loc <- getLocation
-            when (loc /= RemoteNode) $ setLocation WaitingParent
-            return Nothing
-
-          j@(Just _) -> do
-            put context{event=Nothing}
-            return $ unsafeCoerce j
-
--}
 
 ------------------------------------------------------------------------------
 -- Controlling thread quota
@@ -484,12 +343,6 @@ threads n process = AsyncT $ do
    return r
 
 {-
--- | Run a "non transient" computation within the underlying state monad, so it
--- is guaranteed that the computation neither can stop nor can trigger
--- additional events/threads.
-noTrans :: Monad m => StateM m x -> AsyncT m x
-noTrans x = AsyncT $ x >>= return . Just
-
 -- This can be used to set, increase or decrease the existing limit. The limit
 -- is shared by multiple threads and therefore needs to modified atomically.
 -- Note that when there is no limit the limit is set to maxBound it can

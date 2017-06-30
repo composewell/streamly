@@ -14,14 +14,14 @@ main = wait_ $ threads 3 $ do
     eventA <|> eventB
 
 eventA = do
-    x <- sample (randomIO :: IO Int) 1000000
+    x <- async $ liftIO (randomIO :: IO Int)
     evThread <- liftIO myThreadId
     liftIO $ putStrLn $ "X Event thread: " ++ show evThread
     liftIO $ putStrLn $ "x = " ++ (show x)
     return x
 
 eventB = do
-    y <- sample (randomIO :: IO Int) 1000000
+    y <- async $ liftIO (randomIO :: IO Int)
 
     -- liftIO $ threadDelay 10000000
     evThread <- liftIO myThreadId

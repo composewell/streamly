@@ -25,7 +25,7 @@ where
 import           Control.Concurrent     (ThreadId)
 import           Control.Concurrent.STM (TChan)
 import           Control.Exception      (SomeException)
-import           Control.Monad.State    (StateT, MonadPlus(..), MonadIO(..))
+import           Control.Monad.State    (StateT, MonadPlus(..))
 import qualified Control.Monad.Trans.State.Lazy as Lazy (get, gets, modify, put)
 import           Data.Dynamic           (Typeable)
 import           Data.IORef             (IORef)
@@ -214,14 +214,13 @@ restoreContext x = do
     Lazy.put ctx { currentm = unsafeCoerce mnext, fstack = fs }
     return mnext
 
-
 -- | We can retrieve a context at any point and resume that context at some
 -- later point, upon resumption we start executing again from the same point
 -- where the context was retrieved from.
 --
 -- This function composes the stored context to recover the computation.
 --
-composeContext :: (MonadIO m, MonadPlus m) => Context -> m a
+composeContext :: Monad m => Context -> m a
 composeContext Context { currentm     = m
                       , fstack       = fs
                       } =

@@ -49,24 +49,24 @@ dbg _ = return ()
 ------------------------------------------------------------------------------
 
 instance Monad (AsyncT m) => Functor (AsyncT m) where
-  fmap f mx = do
-    x <- mx
-    return $ f x
+    fmap f mx = do
+        x <- mx
+        return $ f x
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (AsyncT m) where
-  pure a  = AsyncT . return $ Just a
-  m1 <*> m2 = do { x1 <- m1; x2 <- m2; return (x1 x2) }
+    pure a  = AsyncT . return $ Just a
+    m1 <*> m2 = do { x1 <- m1; x2 <- m2; return (x1 x2) }
 
 ------------------------------------------------------------------------------
 -- Alternative
 ------------------------------------------------------------------------------
 
 instance Monad m => Alternative (AsyncT m) where
-    empty = AsyncT $ return  Nothing
+    empty = AsyncT $ return Nothing
     (<|>) x y = AsyncT $ do
         mx <- runAsyncT x
         loc <- getLocation
@@ -80,31 +80,30 @@ instance Monad m => Alternative (AsyncT m) where
 
 instance Monad m => Monad (AsyncT m) where
     return = pure
-
     m >>= f = AsyncT $ do
         saveContext m f >> runAsyncT m >>= restoreContext >>= runAsyncT
 
 instance Monad m => MonadPlus (AsyncT m) where
-  mzero = empty
-  mplus = (<|>)
+    mzero = empty
+    mplus = (<|>)
 
-instance (Monoid a, Monad (AsyncT m)) => Monoid (AsyncT m a) where
-  mappend x y = mappend <$> x <*> y
-  mempty      = return mempty
+instance (Monoid a, Monad m) => Monoid (AsyncT m a) where
+    mappend x y = mappend <$> x <*> y
+    mempty      = return mempty
 
 ------------------------------------------------------------------------------
 -- MonadIO
 ------------------------------------------------------------------------------
 
 instance MonadIO m => MonadIO (AsyncT m) where
-  liftIO mx = AsyncT $ liftIO mx >>= return . Just
+    liftIO mx = AsyncT $ liftIO mx >>= return . Just
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
-  lift mx = AsyncT $ lift mx >>= return . Just
+    lift mx = AsyncT $ lift mx >>= return . Just
 
 instance MonadTransControl AsyncT where
     type StT AsyncT a = (Maybe a, Context)
@@ -126,7 +125,7 @@ instance (MonadBaseControl b m, MonadIO m) => MonadBaseControl b (AsyncT m) wher
     {-# INLINABLE restoreM #-}
 
 instance MonadThrow m => MonadThrow (AsyncT m) where
-  throwM e = lift $ throwM e
+    throwM e = lift $ throwM e
 
 ------------------------------------------------------------------------------
 -- More operators, instances

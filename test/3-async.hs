@@ -11,10 +11,10 @@ main = do
         liftIO $ hSetBuffering stdout LineBuffering
         mainThread <- liftIO myThreadId
         liftIO $ putStrLn $ "Main thread: " ++ show mainThread
-        x <- async (randomIO :: IO Int)
+        x <- async $ liftIO (randomIO :: IO Int)
         liftIO $ putStrLn $ show x
 
-        y <- async (randomIO :: IO Int)
+        y <- async $ liftIO (randomIO :: IO Int)
 
         liftIO $ threadDelay 1000000
         evThread <- liftIO myThreadId

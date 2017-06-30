@@ -32,4 +32,4 @@ main = do
          suspend
          liftIO $ print ("C", r, x)
 
-    event n = async (do putStrLn ("event" ++ show n); return n :: IO Int)
+    event n = async $ liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)

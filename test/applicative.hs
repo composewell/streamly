@@ -14,4 +14,4 @@ main = do
         return x
     putStrLn $ show xs
     where
-        event n = async (do putStrLn ("event" ++ show n); return n :: IO Int)
+        event n = async $ liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)

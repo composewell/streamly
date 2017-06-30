@@ -9,24 +9,27 @@
 --
 
 module Strands
-    ( wait
-    , waitLogged
+    ( AsyncT
+    , MonadAsync
+    , wait
     , wait_
-    , waitLogged_
+    , threads
+
     , async
-    , waitEvents
     , each
     , gather
-    , sample
-    , threads
+
+    , Log
+    , Loggable
+    , waitLogged
+    , waitLogged_
     , logged
     , suspend
     , withLog
     , eachWithLog
-    , Log
-    , Loggable
     )
 where
 
+import Strands.AsyncT (AsyncT)
 import Strands.Context (Log, Loggable)
 import Strands.Threads
