@@ -9,6 +9,7 @@ module Asyncly.Threads
     , threads
 
     , async
+    , makeAsync
     , each
     , gather
 
@@ -315,6 +316,25 @@ async action = AsyncT $ do
             --
             -- However, if the task was executed synchronously then we reach
             -- here after it is completely done.
+            spawningParentDone
+
+-- | Makes an asyncly action from a callback setter function; can be used to
+-- convert existing callback style code into asyncly style code.  The first
+-- parameter is a callback setter function.  When we are called back,
+-- 'makeAsync' behaves as if it was an async computation that just returned a
+-- value of type 'a'.  After the computation is done the result of the action
+-- in second parameter is returned to the callback.
+--
+makeAsync :: (MonadAsync m) => ((a -> m b) -> m ()) -> m b -> AsyncT m a
+makeAsync cbsetter cbret = AsyncT $ do
+    val <- takeContextMailBox
+    case val of
+        Right m -> runAsyncT m  -- child
+        Left ctx -> do          -- parent
+            lift $ cbsetter $ \a -> do
+                let s = resumeContextWith ctx False (return a)
+                _ <- runStateT s ctx
+                cbret
             spawningParentDone
 
 -- scatter

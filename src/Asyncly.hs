@@ -16,6 +16,7 @@ module Asyncly
     , threads
 
     , async
+    , makeAsync
     , each
     , gather
 
