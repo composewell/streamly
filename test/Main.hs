@@ -31,8 +31,6 @@ main = hspec $ do
     it "Nested async tasks ignoring return values" $
         (wait $ (async $ async $ return 0 :: AsyncT IO Int) >> return 1)
             `shouldReturn` ([1] :: [Int])
-    -- XXX we should run the alternative purely based on the highest level
-    -- computation, the nested ones should not affect it.
     it "Nested async tasks with Alternative" $
         (wait (async (async $ return 0) <|> return 1) >>= return . sort)
-            `shouldReturn` ([0,1,1] :: [Int])
+            `shouldReturn` ([0,1] :: [Int])

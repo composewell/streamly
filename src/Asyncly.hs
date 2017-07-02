@@ -31,6 +31,5 @@ module Asyncly
     )
 where
 
-import Asyncly.AsyncT (AsyncT)
-import Asyncly.Context (Log, Loggable)
+import Asyncly.AsyncT (AsyncT, Log, Loggable)
 import Asyncly.Threads

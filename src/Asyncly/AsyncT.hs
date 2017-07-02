@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -11,6 +12,16 @@
 
 module Asyncly.AsyncT
     ( AsyncT (..)
+    , ChildEvent(..)
+    , Loggable
+    , Log (..)
+    , CtxLog (..)
+    , LogEntry (..)
+    , Context(..)
+    , initContext
+    , Location(..)
+    , getLocation
+    , setLocation
     , (<**)
     , (**>)
     , dbg
@@ -18,21 +29,155 @@ module Asyncly.AsyncT
 where
 
 import           Control.Applicative         (Alternative (..))
+import           Control.Concurrent          (ThreadId)
+import           Control.Concurrent.STM      (TChan)
+import           Control.Exception           (SomeException)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
-                                              StateT (..), liftM, runStateT)
+                                              StateT (..), liftM, runStateT,
+                                              get, gets, modify)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM)
-
-import           Asyncly.Context
+import           Data.IORef                  (IORef)
+import           GHC.Prim                    (Any)
+import           Unsafe.Coerce               (unsafeCoerce)
 
 --import           Debug.Trace (traceM)
 
 newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
+
+------------------------------------------------------------------------------
+-- Log types
+------------------------------------------------------------------------------
+
+-- Logging is done using the 'logged' combinator. It remembers the last value
+-- returned by a given computation and replays it the next time the computation
+-- is resumed. However this could be problematic if we do not annotate all
+-- impure computations. The program can take a different path due to a
+-- non-logged computation returning a different value. In that case we may
+-- replay a wrong value. To detect this we can use a unique id for each logging
+-- site and abort if the id does not match on replay.
+
+-- | Constraint type synonym for a value that can be logged.
+type Loggable a = (Show a, Read a)
+
+-- XXX remove the Maybe as we never log Nothing
+data LogEntry =
+      Executing             -- we are inside this computation, not yet done
+    | Result (Maybe String) -- computation done, we have the result to replay
+  deriving (Read, Show)
+
+data Log = Log [LogEntry] deriving Show
+
+-- log entries and replay entries
+data CtxLog = CtxLog [LogEntry] [LogEntry] deriving (Read, Show)
+
+------------------------------------------------------------------------------
+-- Parent child thread communication types
+------------------------------------------------------------------------------
+
+data ChildEvent = ChildDone ThreadId (Maybe SomeException)
+
+------------------------------------------------------------------------------
+-- State threaded around the monad
+------------------------------------------------------------------------------
+
+data Context = Context
+  {
+    ---------------------------------------------------------------------------
+    -- Execution state
+    ---------------------------------------------------------------------------
+
+    -- a -> AsyncT m b
+    continuation   :: Any
+  -- Logging is done by the 'logged' primitive in this journal only if logsRef
+  -- exists.
+  , journal :: CtxLog
+
+  -- When we suspend we save the logs in this IORef and exit.
+  , logsRef :: Maybe (IORef [Log])
+  , location :: Location
+
+    ---------------------------------------------------------------------------
+    -- Thread creation, communication and cleanup
+    ---------------------------------------------------------------------------
+    -- When a new thread is created the parent records it in the
+    -- 'pendingThreads' field and 'threadCredit' is decremented.  When a child
+    -- thread is done it sends a done event to the parent on an unbounded
+    -- channel and goes away.  Before starting a new thread the parent always
+    -- processes the unbounded channel to clear up the pending zombies. This
+    -- strategy ensures that the zombie queue will never grow more than the
+    -- number of running threads.  Before exiting, the parent thread waits on
+    -- the channel until all its children are cleaned up.
+    ---------------------------------------------------------------------------
+
+    -- XXX setup a cleanup computation to run rather than passing all these
+    -- params.
+
+  , childChannel    :: TChan ChildEvent
+    -- ^ A channel for the immediate children to communicate to us when they
+    -- die.  Each thread has its own dedicated channel for its children
+
+    -- We always track the child threads, otherwise the programmer needs to
+    -- worry about if some threads may remain hanging because they are stuck in
+    -- an infinite loop or a forever blocked IO. Also, it is not clear whether
+    -- there is a significant gain by disabling tracking. Instead of using
+    -- threadIds we can also keep a count instead, that will allow us to wait
+    -- for all children to drain but we cannot kill them.
+    --
+    -- We need these as IORefs since we need any changes to these to be
+    -- reflected back in the calling code that waits for the children.
+
+  , pendingThreads :: IORef [ThreadId]
+    -- ^ Active immediate child threads spawned by this thread, modified only
+    -- by this thread, therefore atomic modification is not needed.
+
+    -- By default this limit is shared by the current tree of threads. But at
+    -- any point the 'threads' primitive can be used to start a new limit for
+    -- the computation under that primitive.
+    --
+    -- Shared across many threads, therefore atomic access is required.
+    -- This is incremented by the child thread itelf before it exits.
+    --
+  , threadCredit   :: IORef Int
+    -- ^ How many more threads are allowed to be created?
+  }
+
+initContext
+    :: TChan ChildEvent
+    -> IORef [ThreadId]
+    -> IORef Int
+    -> (a -> AsyncT m a)
+    -> Maybe (IORef [Log])
+    -> Context
+initContext childChan pending credit finalizer lref =
+  Context { continuation    = unsafeCoerce finalizer
+          , journal         = CtxLog [] []
+          , logsRef         = lref
+          , location        = Worker
+          , childChannel    = unsafeCoerce childChan
+          , pendingThreads  = pending
+          , threadCredit    = credit }
+
+------------------------------------------------------------------------------
+-- Where is the computation running?
+------------------------------------------------------------------------------
+
+-- RemoteNode is used in the Alternative instance. We stop the computation when
+-- the location is RemoteNode, we do not execute any alternatives.
+--
+data Location = Worker | WaitingParent | RemoteNode
+  deriving (Eq, Show)
+
+getLocation :: Monad m => StateT Context m Location
+getLocation = gets location
+
+setLocation :: Monad m => Location -> StateT Context m ()
+setLocation loc = modify $ \Context { .. } -> Context { location = loc, .. }
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -81,7 +226,13 @@ instance Monad m => Alternative (AsyncT m) where
 instance Monad m => Monad (AsyncT m) where
     return = pure
     m >>= f = AsyncT $ do
-        saveContext m f >> runAsyncT m >>= restoreContext >>= runAsyncT
+        modify $ \Context { continuation = g, .. } ->
+            let k x = f x >>= unsafeCoerce g
+            in Context { continuation = unsafeCoerce k, .. }
+
+        x <- runAsyncT m
+        Context { continuation = g } <- get
+        runAsyncT $ maybe mzero (unsafeCoerce g) x
 
 instance Monad m => MonadPlus (AsyncT m) where
     mzero = empty

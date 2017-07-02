@@ -42,9 +42,9 @@ import           Data.IORef                  (IORef, atomicModifyIORef,
                                               writeIORef)
 import           Data.List                   (delete)
 import           Data.Maybe                  (isJust)
+import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Asyncly.AsyncT
-import           Asyncly.Context
 
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
@@ -79,9 +79,9 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 -- | Continue execution of the closure that we were executing when we migrated
 -- to a new thread.
 
-runContext :: Monad m => Context -> StateT Context m ()
-runContext ctx = do
-    let s = runAsyncT (composeContext ctx)
+runContext :: Monad m => Context -> AsyncT m a -> StateT Context m ()
+runContext ctx action = do
+    let s = runAsyncT $ action >>= unsafeCoerce (continuation ctx)
     _ <- lift $ runStateT s ctx
     return ()
 
@@ -93,7 +93,7 @@ runContext ctx = do
 -- pchan. We can use bounded channels to throttle the creation of threads based
 -- on consumption rate.
 processOneEvent :: MonadIO m
-    => ChildEvent a
+    => ChildEvent
     -> [ThreadId]
     -> m ([ThreadId], Maybe SomeException)
 processOneEvent (ChildDone tid e) pending = do
@@ -101,7 +101,7 @@ processOneEvent (ChildDone tid e) pending = do
     return (delete tid pending, Nothing)
 
 drainChildren :: MonadIO m
-    => TChan (ChildEvent a)
+    => TChan ChildEvent
     -> [ThreadId]
     -> m ([ThreadId], Maybe SomeException)
 drainChildren cchan pending =
@@ -180,23 +180,27 @@ signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
 
 forkFinally1 :: (MonadIO m, MonadBaseControl IO m)
     => Context
+    -> AsyncT m a
     -> (Either SomeException () -> IO ())
     -> StateT Context m ThreadId
-forkFinally1 ctx preExit =
+forkFinally1 ctx action preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            _ <- runInIO $ EL.try (restore (runContext ctx))
+            _ <- runInIO $ EL.try (restore (runContext ctx action))
                            >>= liftIO . preExit
+            -- XXX restore state here
             return ()
 
 -- | Run a given context in a new thread.
 --
 forkContext :: (MonadBaseControl IO m, MonadIO m, MonadThrow m)
-    => Context -> StateT Context m ()
-forkContext context = do
-    child <- childContext context
-    tid <- forkFinally1 child (beforeExit child (childChannel context))
-    updatePendingThreads context tid
+    => AsyncT m a -> StateT Context m ()
+forkContext action = do
+    parentCtx <- get
+    childCtx <- childContext parentCtx
+    tid <- forkFinally1 childCtx action
+                (beforeExit childCtx (childChannel parentCtx))
+    updatePendingThreads parentCtx tid
 
     where
 
@@ -245,6 +249,7 @@ canFork context = do
                         -- special handling for those cases. Add those to
                         -- unreclaimable list? And always execute them in an
                         -- async thread, cannot use sync for those.
+                        --
                         waitForOneEvent context
                         canFork context
         True -> return True
@@ -254,16 +259,15 @@ canFork context = do
 -- the current thread quota.
 --
 resumeContextWith :: MonadAsync m
-    => Context          -- the context to resume
-    -> Bool             -- force synchronous
-    -> AsyncT m a       -- the action to execute in the resumed context
+    => Bool             -- force synchronous
+    -> AsyncT m a
     -> StateT Context m ()
-resumeContextWith context synch action = do
-    let ctx = setContextMailBox context action
+resumeContextWith synch action = do
+    context <- get
     can <- liftIO $ canFork context
     case can && (not synch) of
-        False -> runContext ctx -- run synchronously
-        True -> forkContext ctx
+        False -> runContext context action
+        True -> forkContext action
 
 -- The current model is to start a new thread for every task. The input is
 -- provided at the time of the creation and therefore no synchronization is
@@ -291,32 +295,13 @@ spawningParentDone = do
     when (loc /= RemoteNode) $ setLocation WaitingParent
     return Nothing
 
--- | Captures the state of the current computation at this point, starts a new
--- thread, using the argument passed as the return value of the computation and
--- continues the computation from the capture point. The end result is as if
--- this function just returned the value passed as argument albeit in a new
--- thread.
---
 -- If a new thread cannot be created then the computation is run in the same
 -- thread, but the functional behavior remains the same.
 
 async :: MonadAsync m => AsyncT m a -> AsyncT m a
 async action = AsyncT $ do
-    val <- takeContextMailBox
-    case val of
-        -- Child task
-        Right m -> runAsyncT m
-
-        -- Spawning parent
-        Left ctx -> do
-            resumeContextWith ctx False action
-
-            -- If we started the task asynchronously in a new thread then the
-            -- parent thread reaches here, immediately after spawning the task.
-            --
-            -- However, if the task was executed synchronously then we reach
-            -- here after it is completely done.
-            spawningParentDone
+    resumeContextWith False action
+    spawningParentDone
 
 -- | Makes an asyncly action from a callback setter function; can be used to
 -- convert existing callback style code into asyncly style code.  The first
@@ -325,17 +310,16 @@ async action = AsyncT $ do
 -- value of type 'a'.  After the computation is done the result of the action
 -- in second parameter is returned to the callback.
 --
-makeAsync :: (MonadAsync m) => ((a -> m b) -> m ()) -> m b -> AsyncT m a
-makeAsync cbsetter cbret = AsyncT $ do
-    val <- takeContextMailBox
-    case val of
-        Right m -> runAsyncT m  -- child
-        Left ctx -> do          -- parent
-            lift $ cbsetter $ \a -> do
-                let s = resumeContextWith ctx False (return a)
-                _ <- runStateT s ctx
-                cbret
-            spawningParentDone
+makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
+makeAsync cbsetter = AsyncT $ do
+    -- XXX should we force fork a thread or keep running the context of the
+    -- callback?
+    ctx <- get
+    lift $ cbsetter $ \a -> do
+            let s = resumeContextWith False (return a)
+            _ <- runStateT s ctx
+            return ()
+    spawningParentDone
 
 -- scatter
 each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
@@ -380,15 +364,14 @@ threads n process = AsyncT $ do
 
 -- | Run an 'AsyncT m' computation and collect the results generated by each
 -- thread of the computation in a list.
-waitAsync :: forall m a. (MonadIO m, MonadCatch m)
+waitAsync :: (MonadIO m, MonadCatch m)
     => (a -> AsyncT m a) -> Maybe (IORef [Log]) -> AsyncT m a -> m ()
 waitAsync finalizer lref m = do
     childChan  <- liftIO $ atomically newTChan
     pendingRef <- liftIO $ newIORef []
     credit     <- liftIO $ newIORef maxBound
 
-    let ctx = initContext (empty :: AsyncT m a) childChan pendingRef credit
-                  finalizer lref
+    let ctx = initContext childChan pendingRef credit finalizer lref
 
     r <- try $ runStateT (runAsyncT $ m >>= finalizer) ctx
 
