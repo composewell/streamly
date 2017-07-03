@@ -11,7 +11,7 @@ import Control.Monad.Catch (MonadThrow)
 
 import Asyncly
 
-main = wait_ $ threads 3 $ do
+main = wait_ $ threads 0 $ do
     liftIO $ hSetBuffering stdout LineBuffering
     mainThread <- liftIO myThreadId
     liftIO $ putStrLn $ "Main thread: " ++ show mainThread
