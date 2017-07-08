@@ -101,6 +101,16 @@ main = hspec $ do
         )
         `shouldReturn` ([2] :: [Int])
 
+    -- 2 and 3 should be printed once and only once
+    it ">>| works as expected" $
+        ((wait $ ((async (liftIO (putStrLn "0") >> return 0)
+                    <|> (liftIO (putStrLn "1") >> return 1))
+                 >>| (async (liftIO (putStrLn "2") >> return 2)
+                        <|> (liftIO (putStrLn "3") >> return 3))
+                )
+        ) >>= return . sort)
+        `shouldReturn` ([0, 1] :: [Int])
+
 generalExample :: AsyncT IO Int
 generalExample = do
     liftIO $ return ()

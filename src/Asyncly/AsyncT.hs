@@ -34,6 +34,8 @@ module Asyncly.AsyncT
     , (*>>)
     , thenDiscard
     , (>>*)
+    , afterFirst
+    , (>>|)
 
     -- internal
     , dbg
@@ -603,31 +605,22 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 -- Special compositions
 ------------------------------------------------------------------------------
 
-infixr 1 >>*, *>>
+infixr 1 >>*, *>>, >>|
 
-{-
+-- XXX This can be moved to utility functions as it is purely app level
 -- | Run @b@ once, discarding its result when the first task in task set @a@
 -- has finished. Useful to start a singleton task after the first task has been
 -- setup.
-afterFirst :: MonadIO m => AsyncT m a -> AsyncT m b -> AsyncT m a
-afterFirst ma mb = AsyncT $ do
-  fs  <- getContinuations
-  ref <- liftIO $ newIORef False
-  setContinuation ma (cont ref)  fs
-  r   <- runAsyncT ma
-  restoreStack fs
-  return  r
-  where cont ref x = AsyncT $ do
-          n <- liftIO $ readIORef ref
-          if n == True
-            then return $ Just x
-            else do liftIO $ writeIORef ref True
-                    runAsyncT mb
-                    return $ Just x
+afterFirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+afterFirst ma mb = do
+    ref <- liftIO $ newIORef False
+    x <- ma
+    done <- liftIO $ readIORef ref
+    when (not done) $ (liftIO $ writeIORef ref True) >>* mb
+    return x
 
-(<|) :: MonadIO m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(<|) = afterFirst
-                    -}
+(>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+(>>|) = afterFirst
 
 -- | Run 'm a' in "isolation" and discard its result, and then run 'm b' and
 -- return its result.  Isolation means that any alternative actions inside 'm

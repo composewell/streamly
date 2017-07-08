@@ -36,6 +36,8 @@ module Asyncly
     , (*>>)
     , thenDiscard
     , (>>*)
+    , afterFirst
+    , (>>|)
 
     , Log
     , Loggable
