@@ -558,40 +558,8 @@ instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
     mempty      = return mempty
 
 ------------------------------------------------------------------------------
--- MonadIO
+-- Num
 ------------------------------------------------------------------------------
-
-instance MonadAsync m => MonadIO (AsyncT m) where
-    liftIO mx = AsyncT $ liftIO mx >>= return . Just
-
--------------------------------------------------------------------------------
--- AsyncT transformer
--------------------------------------------------------------------------------
-
-instance MonadTrans AsyncT where
-    lift mx = AsyncT $ lift mx >>= return . Just
-
-instance MonadTransControl AsyncT where
-    type StT AsyncT a = (Maybe a, Context)
-    liftWith f = AsyncT $ StateT $ \s ->
-                   liftM (\x -> (Just x, s))
-                         (f $ \t -> runStateT (runAsyncT t) s)
-    restoreT = AsyncT . StateT . const
-    {-# INLINABLE liftWith #-}
-    {-# INLINABLE restoreT #-}
-
-instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
-    liftBase = liftBaseDefault
-
-instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) where
-    type StM (AsyncT m) a = ComposeSt AsyncT m a
-    liftBaseWith = defaultLiftBaseWith
-    restoreM     = defaultRestoreM
-    {-# INLINABLE liftBaseWith #-}
-    {-# INLINABLE restoreM #-}
-
-instance MonadAsync m => MonadThrow (AsyncT m) where
-    throwM e = lift $ throwM e
 
 instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
   fromInteger = return . fromInteger
@@ -646,3 +614,39 @@ thenDiscard ma mb = AsyncT $ do
 -- | Same as 'thenDiscard'.
 (>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (>>*) = thenDiscard
+
+------------------------------------------------------------------------------
+-- MonadIO
+------------------------------------------------------------------------------
+
+instance MonadAsync m => MonadIO (AsyncT m) where
+    liftIO mx = AsyncT $ liftIO mx >>= return . Just
+
+-------------------------------------------------------------------------------
+-- AsyncT transformer
+-------------------------------------------------------------------------------
+
+instance MonadTrans AsyncT where
+    lift mx = AsyncT $ lift mx >>= return . Just
+
+instance MonadTransControl AsyncT where
+    type StT AsyncT a = (Maybe a, Context)
+    liftWith f = AsyncT $ StateT $ \s ->
+                   liftM (\x -> (Just x, s))
+                         (f $ \t -> runStateT (runAsyncT t) s)
+    restoreT = AsyncT . StateT . const
+    {-# INLINABLE liftWith #-}
+    {-# INLINABLE restoreT #-}
+
+instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
+    liftBase = liftBaseDefault
+
+instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) where
+    type StM (AsyncT m) a = ComposeSt AsyncT m a
+    liftBaseWith = defaultLiftBaseWith
+    restoreM     = defaultRestoreM
+    {-# INLINABLE liftBaseWith #-}
+    {-# INLINABLE restoreM #-}
+
+instance MonadAsync m => MonadThrow (AsyncT m) where
+    throwM e = lift $ throwM e
