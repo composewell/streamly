@@ -6,7 +6,7 @@ import Control.Applicative
 
 import Asyncly
 
-main = wait_ $ threads 3 $ do
+main = wait_ $ threads 1 $ do
     liftIO $ hSetBuffering stdout LineBuffering
     mainThread <- liftIO myThreadId
     liftIO $ putStrLn $ "Main thread: " ++ show mainThread
@@ -14,14 +14,14 @@ main = wait_ $ threads 3 $ do
     eventA <|> eventB
 
 eventA = do
-    x <- async $ liftIO (randomIO :: IO Int)
+    x <- liftIO (randomIO :: IO Int)
     evThread <- liftIO myThreadId
     liftIO $ putStrLn $ "X Event thread: " ++ show evThread
     liftIO $ putStrLn $ "x = " ++ (show x)
     return x
 
 eventB = do
-    y <- async $ liftIO (randomIO :: IO Int)
+    y <- liftIO (randomIO :: IO Int)
 
     -- liftIO $ threadDelay 10000000
     evThread <- liftIO myThreadId

@@ -33,7 +33,7 @@ main = wait_ $ threads 0 $ do
 sample :: (Eq a, MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => IO a -> Int -> AsyncT m a
 sample action interval = do
-  v    <- async $ liftIO action
+  v    <- liftIO action
   prev <- liftIO $ newIORef v
   async (return v) <|> loop action prev
   where loop act prev = loop'
