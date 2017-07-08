@@ -84,6 +84,23 @@ main = hspec $ do
           >>= return . \x -> (length x, length (nub x)))
         `shouldReturn` ((3, 3) :: (Int, Int))
 
+    -- Both 0 and 1 must be printed on console
+    it "*>> works as expected" $
+        (wait $ (async (liftIO (putStrLn "0") >> return 0)
+                   <|> (liftIO (putStrLn "1") >> return 1))
+                *>> (liftIO (putStrLn "2") >> return 2))
+        `shouldReturn` ([2] :: [Int])
+
+    -- Both 0 and 1 must be printed on console
+    it ">>* works as expected" $
+        (wait $ (return 2
+                 >>* (async (liftIO (putStrLn "0") >> return 0)
+                        <|> (liftIO (putStrLn "1") >> return 1))
+                )
+                >>* return 2
+        )
+        `shouldReturn` ([2] :: [Int])
+
 generalExample :: AsyncT IO Int
 generalExample = do
     liftIO $ return ()

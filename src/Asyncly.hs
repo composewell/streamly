@@ -32,6 +32,11 @@ module Asyncly
     , each
     , gather
 
+    , discardAndThen
+    , (*>>)
+    , thenDiscard
+    , (>>*)
+
     , Log
     , Loggable
     , waitLogged
