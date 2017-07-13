@@ -39,14 +39,9 @@ module Asyncly
     , afterFirst
     , (>>|)
 
-    , Log
-    , Loggable
-    , waitLogged
-    , waitLogged_
-    , logged
-    , suspend
-    , withLog
-    , eachWithLog
+    , waitRecord
+    , waitRecord_
+    , playRecordings
     )
 where
 

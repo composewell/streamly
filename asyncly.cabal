@@ -41,6 +41,7 @@ library
                      , exceptions
                      , lifted-base
                      , monad-control
+                     , monad-recorder
                      , mtl
                      , stm
                      , transformers-base
@@ -55,6 +56,7 @@ test-suite test
     , hspec      >= 2.0 && < 3
     , containers
     , asyncly
+    , monad-recorder
   default-language: Haskell2010
 
 source-repository head

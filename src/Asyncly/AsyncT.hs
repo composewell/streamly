@@ -14,10 +14,6 @@ module Asyncly.AsyncT
     ( AsyncT (..)
     , MonadAsync
     , ChildEvent(..)
-    , Loggable
-    , Log (..)
-    , CtxLog (..)
-    , LogEntry (..)
     , Context(..)
     , initContext
     , Location(..)
@@ -25,6 +21,7 @@ module Asyncly.AsyncT
     , setLocation
     , threads
     , waitForChildren
+    , handleResult
 
     , async
     , makeAsync
@@ -48,7 +45,8 @@ import           Control.Concurrent          (ThreadId, forkIO, killThread,
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
                                               readTChan, tryReadTChan,
                                               writeTChan)
-import           Control.Exception           (SomeException (..))
+import           Control.Exception           (fromException,
+                                              SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (ap, mzero, when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
@@ -69,35 +67,11 @@ import           Data.Maybe                  (isJust)
 import           GHC.Prim                    (Any)
 import           Unsafe.Coerce               (unsafeCoerce)
 
+import           Control.Monad.Trans.Recorder (MonadRecorder(..), Paused(..),
+                                               Recording)
 --import           Debug.Trace (traceM)
 
 newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
-
-------------------------------------------------------------------------------
--- Log types
-------------------------------------------------------------------------------
-
--- Logging is done using the 'logged' combinator. It remembers the last value
--- returned by a given computation and replays it the next time the computation
--- is resumed. However this could be problematic if we do not annotate all
--- impure computations. The program can take a different path due to a
--- non-logged computation returning a different value. In that case we may
--- replay a wrong value. To detect this we can use a unique id for each logging
--- site and abort if the id does not match on replay.
-
--- | Constraint type synonym for a value that can be logged.
-type Loggable a = (Show a, Read a)
-
--- XXX remove the Maybe as we never log Nothing
-data LogEntry =
-      Executing             -- we are inside this computation, not yet done
-    | Result (Maybe String) -- computation done, we have the result to replay
-  deriving (Read, Show)
-
-data Log = Log [LogEntry] deriving Show
-
--- log entries and replay entries
-data CtxLog = CtxLog [LogEntry] [LogEntry] deriving (Read, Show)
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication types
@@ -117,12 +91,10 @@ data Context = Context
 
     -- a -> AsyncT m b
     continuation   :: Any
-  -- Logging is done by the 'logged' primitive in this journal only if logsRef
-  -- exists.
-  , journal :: CtxLog
 
   -- When we suspend we save the logs in this IORef and exit.
-  , logsRef :: Maybe (IORef [Log])
+  , logsRef :: Maybe (IORef [Recording])
+    -- XXX this functionality can be in a separate layer?
   , location :: Location
 
     ---------------------------------------------------------------------------
@@ -175,11 +147,10 @@ initContext
     -> IORef [ThreadId]
     -> IORef Int
     -> (a -> AsyncT m a)
-    -> Maybe (IORef [Log])
+    -> Maybe (IORef [Recording])
     -> Context
 initContext childChan pending credit finalizer lref =
   Context { continuation    = unsafeCoerce finalizer
-          , journal         = CtxLog [] []
           , logsRef         = lref
           , location        = Worker
           , childChannel    = unsafeCoerce childChan
@@ -318,6 +289,28 @@ signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
 -- high.
 --
 
+handleResult :: MonadIO m
+    => Context -> Either SomeException a -> m (Maybe SomeException)
+handleResult ctx res =
+    case res of
+        Left e -> do
+            case fromException e of
+                Just (Paused recording) ->
+                    maybe (passException e)
+                          (handleRecording recording) (logsRef ctx)
+                Nothing -> passException e
+        Right _ -> waitForChildren ctx
+
+    where
+
+    handleRecording recording ref = do
+        liftIO $ atomicModifyIORef ref $ \logs -> (recording : logs, ())
+        waitForChildren ctx
+
+    passException e = do
+        liftIO $ readIORef (pendingThreads ctx) >>= mapM_ killThread
+        return (Just e)
+
 forkFinally1 :: MonadAsync m
     => Context
     -> AsyncT m a
@@ -362,15 +355,9 @@ forkContext action = do
             }
 
     beforeExit ctx pchan res = do
-        tid <- myThreadId
-        r <- case res of
-            Left e -> do
-                dbg $ "beforeExit: " ++ show tid ++ " caught exception"
-                liftIO $ readIORef (pendingThreads ctx) >>= mapM_ killThread
-                return (Just e)
-            Right _ -> waitForChildren ctx
-
+        r <- handleResult ctx res
         signalQSemB (threadCredit ctx)
+        tid <- myThreadId
         liftIO $ atomically $ writeTChan pchan (ChildDone tid r)
 
 -- | Decide whether to resume the context in the same thread or a new thread
@@ -615,19 +602,16 @@ thenDiscard ma mb = AsyncT $ do
 (>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (>>*) = thenDiscard
 
-------------------------------------------------------------------------------
--- MonadIO
-------------------------------------------------------------------------------
-
-instance MonadAsync m => MonadIO (AsyncT m) where
-    liftIO mx = AsyncT $ liftIO mx >>= return . Just
-
 -------------------------------------------------------------------------------
 -- AsyncT transformer
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
     lift mx = AsyncT $ lift mx >>= return . Just
+
+-------------------------------------------------------------------------------
+-- monad-control
+-------------------------------------------------------------------------------
 
 instance MonadTransControl AsyncT where
     type StT AsyncT a = (Maybe a, Context)
@@ -648,5 +632,21 @@ instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) w
     {-# INLINABLE liftBaseWith #-}
     {-# INLINABLE restoreM #-}
 
+------------------------------------------------------------------------------
+-- Standard transformer instances
+------------------------------------------------------------------------------
+
+instance MonadAsync m => MonadIO (AsyncT m) where
+    liftIO = lift . liftIO
+
 instance MonadAsync m => MonadThrow (AsyncT m) where
-    throwM e = lift $ throwM e
+    throwM = lift . throwM
+
+------------------------------------------------------------------------------
+-- MonadRecorder
+------------------------------------------------------------------------------
+
+instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
+    getJournal = lift getJournal
+    putJournal = lift . putJournal
+    play = lift . play

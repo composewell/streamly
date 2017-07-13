@@ -1,6 +1,8 @@
 resolver: lts-7.7
 packages:
 - '.'
+- location: ../monad-recorder
+  extra-dep: true
 extra-deps: []
 flags: {}
 extra-package-dbs: []
