@@ -10,6 +10,16 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-}
 
+-- |
+-- Module      : Asyncly.AsyncT
+-- Copyright   : (c) 2017 Harendra Kumar
+--
+-- License     : MIT-style
+-- Maintainer  : harendra.kumar@gmail.com
+-- Stability   : experimental
+-- Portability : GHC
+--
+--
 module Asyncly.AsyncT
     ( AsyncT (..)
     , MonadAsync
@@ -27,11 +37,11 @@ module Asyncly.AsyncT
     , makeAsync
     , each
 
-    , discardAndThen
+    , before
     , (*>>)
-    , thenDiscard
+    , thereafter
     , (>>*)
-    , afterFirst
+    , afterfirst
     , (>>|)
 
     -- internal
@@ -438,10 +448,11 @@ runAsyncTask forceAsync action = do
 -- action was an infinite loop for example.
 --
 -- | In an 'Alternative' composition, force the action to run asynchronously.
--- The <|> operator implies "can be parallel", whereas async implies "must be
--- parallel". Note that async is not useful and should never be used outside an
--- 'Alternative' composition. Even in an 'Alternative' composition 'async' is
--- not useful in the last action.
+-- The @\<|\>@ operator implies "can be parallel", whereas 'async' implies
+-- "must be parallel". Note that outside an 'Alternative' composition 'async'
+-- is not useful and should not be used.  Even in an 'Alternative' composition
+-- 'async' is not useful as the last action as the last action always runs in
+-- the current thread.
 async :: MonadAsync m => AsyncT m a -> AsyncT m a
 async action = AsyncT $ runAsyncTask True action
 
@@ -477,9 +488,9 @@ each xs = foldl (<|>) empty $ map return xs
 ------------------------------------------------------------------------------
 
 -- XXX Should n be Word32 instead?
--- | Runs a computation under a given thread limit.  A limit of 0 means new
--- tasks start synchronously in the current thread.  New threads are created by
--- 'parallel', and APIs that use parallel.
+-- | Runs a computation under a given thread limit.  A limit of 0 means all new
+-- tasks start synchronously in the current thread unless overridden by
+-- 'async'.
 threads :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
 threads n process = AsyncT $ do
    oldCr <- gets threadCredit
@@ -563,44 +574,40 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 infixr 1 >>*, *>>, >>|
 
 -- XXX This can be moved to utility functions as it is purely app level
--- | Run @b@ once, discarding its result when the first task in task set @a@
--- has finished. Useful to start a singleton task after the first task has been
--- setup.
-afterFirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-afterFirst ma mb = do
+-- | Run @m b@ right after the first event in @m a@ is generated but before it
+-- is yielded. The result of @m b@ is discarded.
+afterfirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+afterfirst ma mb = do
     ref <- liftIO $ newIORef False
     x <- ma
     done <- liftIO $ readIORef ref
     when (not done) $ (liftIO $ writeIORef ref True) >>* mb
     return x
 
+-- | Same as 'afterfirst'.
 (>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>|) = afterFirst
+(>>|) = afterfirst
 
--- | Run 'm a' in "isolation" and discard its result, and then run 'm b' and
--- return its result.  Isolation means that any alternative actions inside 'm
--- a' are not continued to 'm b'.
-discardAndThen :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-discardAndThen ma mb = AsyncT $ do
+-- | Run @m a@ before running @m b@. The result of @m a@ is discarded.
+before :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
+before ma mb = AsyncT $ do
     _ <- runAsyncT (ma >> mzero)
     runAsyncT mb
 
--- | Same as 'discardAndThen'.
+-- | Same as 'before'.
 (*>>) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-(*>>) = discardAndThen
+(*>>) = before
 
--- | Run 'm a' and then run 'm b' in "isolation" and return the result of 'm
--- a'. Isolation means that any alternative actions inside 'm a' are not
--- continued to 'm b' and the results of 'm b' are discarded.
-thenDiscard :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-thenDiscard ma mb = AsyncT $ do
+-- | Run @m b@ after running @m a@. The result of @m b@ is discarded.
+thereafter :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+thereafter ma mb = AsyncT $ do
     a <- runAsyncT ma
     _ <- runAsyncT (mb >> mzero)
     return a
 
--- | Same as 'thenDiscard'.
+-- | Same as 'thereafter'.
 (>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>*) = thenDiscard
+(>>*) = thereafter
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer
