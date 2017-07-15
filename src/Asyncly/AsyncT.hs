@@ -163,7 +163,7 @@ initContext childChan pending credit finalizer lref =
   Context { continuation    = unsafeCoerce finalizer
           , logsRef         = lref
           , location        = Worker
-          , childChannel    = unsafeCoerce childChan
+          , childChannel    = childChan
           , pendingThreads  = pending
           , threadCredit    = credit }
 
