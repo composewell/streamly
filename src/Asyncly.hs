@@ -16,7 +16,7 @@
 --
 -- The 'Alternative' composition @(\<|\>)@ is used to express asynchronous or
 -- parallel tasks. The following example demonstrates generation and printing
--- of random numbers in parallel:
+-- of random numbers happening in parallel:
 --
 -- @
 -- import Control.Applicative ((\<|\>))
