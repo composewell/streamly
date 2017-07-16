@@ -29,6 +29,7 @@ module Asyncly.AsyncT
     , Location(..)
     , getLocation
     , setLocation
+
     , threads
     , waitForChildren
     , handleResult
@@ -194,6 +195,36 @@ dbg :: Monad m => a -> m ()
 dbg _ = return ()
 
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Monad (AsyncT m) where
+    return a = AsyncT . return $ Just a
+    m >>= f = AsyncT $ do
+        modify $ \Context { continuation = g, .. } ->
+            let k x = f x >>= unsafeCoerce g
+            in Context { continuation = unsafeCoerce k, .. }
+
+        x <- runAsyncT m
+        Context { continuation = g } <- get
+        runAsyncT $ maybe mzero (unsafeCoerce g) x
+
+------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Functor (AsyncT m) where
+    fmap = liftM
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Applicative (AsyncT m) where
+    pure  = return
+    (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Pick up from where we left in the previous thread
@@ -478,47 +509,6 @@ makeAsync cbsetter = AsyncT $ do
             return ()
     spawningParentDone
 
--- scatter
-each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => [a] -> AsyncT m a
-each xs = foldl (<|>) empty $ map return xs
-
-------------------------------------------------------------------------------
--- Controlling thread quota
-------------------------------------------------------------------------------
-
--- XXX Should n be Word32 instead?
--- | Runs a computation under a given thread limit.  A limit of 0 means all new
--- tasks start synchronously in the current thread unless overridden by
--- 'async'.
-threads :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
-threads n process = AsyncT $ do
-   oldCr <- gets threadCredit
-   newCr <- liftIO $ newIORef n
-   modify $ \s -> s { threadCredit = newCr }
-   r <- runAsyncT $ process
-        >>* (AsyncT $ do
-            modify $ \s -> s { threadCredit = oldCr }
-            return (Just ())
-            ) -- restore old credit
-   return r
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance MonadAsync m => Functor (AsyncT m) where
-    fmap = liftM
-
-------------------------------------------------------------------------------
--- Applicative
-------------------------------------------------------------------------------
-
-
-instance MonadAsync m => Applicative (AsyncT m) where
-    pure a  = AsyncT . return $ Just a
-    (<*>) = ap
-
 ------------------------------------------------------------------------------
 -- Alternative
 ------------------------------------------------------------------------------
@@ -532,21 +522,6 @@ instance MonadAsync m => Alternative (AsyncT m) where
             RemoteNode -> return Nothing
             _          -> maybe (runAsyncT m2) (return . Just) r
 
-------------------------------------------------------------------------------
--- Monad
-------------------------------------------------------------------------------
-
-instance MonadAsync m => Monad (AsyncT m) where
-    return = pure
-    m >>= f = AsyncT $ do
-        modify $ \Context { continuation = g, .. } ->
-            let k x = f x >>= unsafeCoerce g
-            in Context { continuation = unsafeCoerce k, .. }
-
-        x <- runAsyncT m
-        Context { continuation = g } <- get
-        runAsyncT $ maybe mzero (unsafeCoerce g) x
-
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
@@ -554,6 +529,11 @@ instance MonadAsync m => MonadPlus (AsyncT m) where
 instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
     mappend x y = mappend <$> x <*> y
     mempty      = return mempty
+
+-- scatter
+each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => [a] -> AsyncT m a
+each xs = foldl (<|>) empty $ map return xs
 
 ------------------------------------------------------------------------------
 -- Num
@@ -567,54 +547,15 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
   abs f       = f >>= return . abs
   signum f    = f >>= return . signum
 
-------------------------------------------------------------------------------
--- Special compositions
-------------------------------------------------------------------------------
-
-infixr 1 >>*, *>>, >>|
-
--- XXX This can be moved to utility functions as it is purely app level
--- | Run @m b@ right after the first event in @m a@ is generated but before it
--- is yielded. The result of @m b@ is discarded.
-afterfirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-afterfirst ma mb = do
-    ref <- liftIO $ newIORef False
-    x <- ma
-    done <- liftIO $ readIORef ref
-    when (not done) $ (liftIO $ writeIORef ref True) >>* mb
-    return x
-
--- | Same as 'afterfirst'.
-(>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>|) = afterfirst
-
--- | Run @m a@ before running @m b@. The result of @m a@ is discarded.
-before :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-before ma mb = AsyncT $ do
-    _ <- runAsyncT (ma >> mzero)
-    runAsyncT mb
-
--- | Same as 'before'.
-(*>>) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-(*>>) = before
-
--- | Run @m b@ after running @m a@. The result of @m b@ is discarded.
-thereafter :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-thereafter ma mb = AsyncT $ do
-    a <- runAsyncT ma
-    _ <- runAsyncT (mb >> mzero)
-    return a
-
--- | Same as 'thereafter'.
-(>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>*) = thereafter
-
 -------------------------------------------------------------------------------
 -- AsyncT transformer
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
     lift mx = AsyncT $ lift mx >>= return . Just
+
+instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
+    liftBase = liftBaseDefault
 
 -------------------------------------------------------------------------------
 -- monad-control
@@ -628,9 +569,6 @@ instance MonadTransControl AsyncT where
     restoreT = AsyncT . StateT . const
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
-
-instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
-    liftBase = liftBaseDefault
 
 instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) where
     type StM (AsyncT m) a = ComposeSt AsyncT m a
@@ -657,3 +595,66 @@ instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
     getJournal = lift getJournal
     putJournal = lift . putJournal
     play = lift . play
+
+------------------------------------------------------------------------------
+-- Special compositions
+------------------------------------------------------------------------------
+
+-- | Run @m a@ before running @m b@. The result of @m a@ is discarded.
+before :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
+before ma mb = AsyncT $ do
+    _ <- runAsyncT (ma >> mzero)
+    runAsyncT mb
+
+infixr 1 *>>
+-- | Same as 'before'.
+(*>>) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
+(*>>) = before
+
+-- | Run @m b@ after running @m a@. The result of @m b@ is discarded.
+thereafter :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+thereafter ma mb = AsyncT $ do
+    a <- runAsyncT ma
+    _ <- runAsyncT (mb >> mzero)
+    return a
+
+infixr 1 >>*
+-- | Same as 'thereafter'.
+(>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+(>>*) = thereafter
+
+-- XXX This can be moved to utility functions as it is purely app level
+-- | Run @m b@ right after the first event in @m a@ is generated but before it
+-- is yielded. The result of @m b@ is discarded.
+afterfirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+afterfirst ma mb = do
+    ref <- liftIO $ newIORef False
+    x <- ma
+    done <- liftIO $ readIORef ref
+    when (not done) $ (liftIO $ writeIORef ref True) >>* mb
+    return x
+
+infixr 1 >>|
+-- | Same as 'afterfirst'.
+(>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
+(>>|) = afterfirst
+
+------------------------------------------------------------------------------
+-- Controlling thread quota
+------------------------------------------------------------------------------
+
+-- XXX Should n be Word32 instead?
+-- | Runs a computation under a given thread limit.  A limit of 0 means all new
+-- tasks start synchronously in the current thread unless overridden by
+-- 'async'.
+threads :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
+threads n process = AsyncT $ do
+   oldCr <- gets threadCredit
+   newCr <- liftIO $ newIORef n
+   modify $ \s -> s { threadCredit = newCr }
+   r <- runAsyncT $ process
+        >>* (AsyncT $ do
+            modify $ \s -> s { threadCredit = oldCr }
+            return (Just ())
+            ) -- restore old credit
+   return r
