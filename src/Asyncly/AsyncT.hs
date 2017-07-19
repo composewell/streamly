@@ -201,6 +201,7 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monad (AsyncT m) where
+    {-# SPECIALIZE instance Monad (AsyncT IO) #-}
     return a = AsyncT . return $ Just a
     m >>= f = bind
 
@@ -544,6 +545,7 @@ makeAsync cbsetter = AsyncT $ do
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Alternative (AsyncT m) where
+    {-# SPECIALIZE instance Alternative (AsyncT IO) #-}
     empty = AsyncT $ return Nothing
     (<|>) m1 m2 = AsyncT $ do
         r <- runAsyncTask False m1
@@ -561,6 +563,7 @@ instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
     mempty      = return mempty
 
 -- scatter
+{-# SPECIALIZE each :: [a] -> AsyncT IO a #-}
 each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => [a] -> AsyncT m a
 each xs = foldr (<|>) empty $ map return xs
