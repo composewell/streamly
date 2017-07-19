@@ -101,7 +101,7 @@ data Context = Context
     ---------------------------------------------------------------------------
 
     -- a -> AsyncT m b
-    continuation   :: Any
+    continuations :: [Any]
 
   -- When we suspend we save the logs in this IORef and exit.
   , logsRef :: Maybe (IORef [Recording])
@@ -161,7 +161,7 @@ initContext
     -> Maybe (IORef [Recording])
     -> Context
 initContext childChan pending credit finalizer lref =
-  Context { continuation    = unsafeCoerce finalizer
+  Context { continuations   = [unsafeCoerce finalizer]
           , logsRef         = lref
           , location        = Worker
           , childChannel    = childChan
@@ -203,13 +203,14 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 instance MonadAsync m => Monad (AsyncT m) where
     return a = AsyncT . return $ Just a
     m >>= f = AsyncT $ do
-        modify $ \Context { continuation = g, .. } ->
-            let k x = f x >>= unsafeCoerce g
-            in Context { continuation = unsafeCoerce k, .. }
-
+        modify $ \Context {continuations = fs, ..} ->
+             Context {continuations = (unsafeCoerce f) : fs, ..}
         x <- runAsyncT m
-        Context { continuation = g } <- get
-        runAsyncT $ maybe mzero (unsafeCoerce g) x
+        modify $ \Context {continuations = (_ : fs), ..} ->
+            Context {continuations = fs, ..}
+        case x of
+            Just y -> runAsyncT $ f y
+            Nothing -> return Nothing
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -230,12 +231,36 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- Pick up from where we left in the previous thread
 ------------------------------------------------------------------------------
 
--- | Run the continuation of an action
+-- {-# INLINE continue #-}
+continue :: Monad m => [Any] -> a -> StateT Context m (Maybe a)
+continue [] x = do
+    return (Just x)
+
+continue [f] x = do
+    modify $ \ctx -> ctx {continuations = []}
+    runAsyncT $ (unsafeCoerce f) x
+
+continue (f:fs) x = do
+    modify $ \ctx -> ctx {continuations = fs}
+    y <- runAsyncT $ (unsafeCoerce f) x
+    case y of
+        Nothing -> return y
+        Just z -> continue fs z
+
+-- {-# INLINE runContext #-}
 runContext :: MonadAsync m => Context -> AsyncT m a -> StateT Context m ()
 runContext ctx action = do
-    let s = runAsyncT $ action >>= unsafeCoerce (continuation ctx)
-    _ <- lift $ runStateT s ctx
+    _ <- lift $ runStateT m ctx
     return ()
+
+    where
+
+    m = do
+        let conts = continuations ctx
+        x <- runAsyncT action
+        case x of
+            Just y -> continue conts y >> return ()
+            Nothing -> return ()
 
 ------------------------------------------------------------------------------
 -- Thread Management (creation, reaping and killing)
