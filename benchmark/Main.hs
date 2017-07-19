@@ -17,16 +17,20 @@ import           Conduit.Simple as S
 
 -- Transient
 import           Control.Monad (guard)
+import           Control.Applicative (Alternative)
 import           Data.IORef (IORef, newIORef, writeIORef)
 import           Data.Atomics (atomicModifyIORefCAS)
 import           System.IO.Unsafe (unsafePerformIO)
 import           Transient.Internals as T
 import           Transient.Indeterminism as T
 
+import           Asyncly as A
+
 main :: IO ()
 main = do
     defaultMain [
-        bgroup "basic"  [ bench "transient"      $ nfIO transient_basic
+        bgroup "basic"  [ bench "asyncly"        $ nfIO asyncly_basic
+                        , bench "transient"      $ nfIO transient_basic
                         , bench "stream"         $ nfIO stream_basic
                         , bench "iostreams"      $ nfIO iostreams_basic
                         , bench "pipes"          $ nfIO pipes_basic
@@ -38,18 +42,18 @@ main = do
         ]
 
 {-# INLINABLE map #-}
-map :: (a -> Int) -> a -> TransIO Int
+map :: Monad m => (a -> Int) -> a -> m Int
 map f x = return $ f x
 
 {-# INLINABLE filter #-}
-filter :: (a -> Bool) -> a -> TransIO a
+filter :: (Monad m, Alternative m) => (a -> Bool) -> a -> m a
 filter cond x = guard (cond x) >> return x
 
 {-# NOINLINE count #-}
 count :: IORef Int
 count = unsafePerformIO $ newIORef 0
 
-drop :: Int -> Int -> TransIO Int
+drop :: (MonadIO m, Alternative m) => Int -> Int -> m Int
 drop num x =  do
 
     mn <- liftIO $ atomicModifyIORefCAS count $ \n ->
@@ -58,19 +62,51 @@ drop num x =  do
     guard mn
     return x
 
+tmap :: (a -> Int) -> a -> TransIO Int
+tmap = Main.map
+
+tfilter :: (a -> Bool) -> a -> TransIO a
+tfilter = Main.filter
+
+tdrop :: Int -> Int -> TransIO Int
+tdrop = Main.drop
+
 transient_basic :: IO Int
 transient_basic = T.keep' $ T.threads 0 $ do
     xs <- T.group 499000  $  do
              liftIO $ writeIORef count 0
-             T.choose  [1..1000000::Int]
-             >>= Main.filter even
-             >>= Main.map (+1)
-             >>= Main.drop 1000
-             >>= Main.map  (+1)
-             >>= Main.filter (\x -> x `mod` 2 == 0)
+             T.choose  [1..1000000 :: Int]
+             >>= tfilter even
+             >>= tmap (+1)
+             >>= tdrop 1000
+             >>= tmap  (+1)
+             >>= tfilter (\x -> x `mod` 2 == 0)
 
     assert (Prelude.length xs == 499000) $
         T.exit (Prelude.length xs)
+
+amap :: (a -> Int) -> a -> AsyncT IO Int
+amap = Main.map
+
+afilter :: (a -> Bool) -> a -> AsyncT IO a
+afilter = Main.filter
+
+adrop :: Int -> Int -> AsyncT IO Int
+adrop = Main.drop
+
+asyncly_basic :: IO Int
+asyncly_basic = do
+    writeIORef count 0
+    xs <- wait $ A.threads 0 $ do
+             A.each [1..1000000 :: Int]
+             >>= afilter even
+             >>= amap (+1)
+             >>= adrop 1000
+             >>= amap (+1)
+             >>= afilter (\x -> x `mod` 2 == 0)
+
+    assert (Prelude.length xs == 499000) $
+        return (Prelude.length xs)
 
 pipes_basic :: IO Int
 pipes_basic = do
