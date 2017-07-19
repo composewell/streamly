@@ -202,15 +202,20 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 instance MonadAsync m => Monad (AsyncT m) where
     return a = AsyncT . return $ Just a
-    m >>= f = AsyncT $ do
-        modify $ \Context {continuations = fs, ..} ->
-             Context {continuations = (unsafeCoerce f) : fs, ..}
-        x <- runAsyncT m
-        modify $ \Context {continuations = (_ : fs), ..} ->
-            Context {continuations = fs, ..}
-        case x of
-            Just y -> runAsyncT $ f y
-            Nothing -> return Nothing
+    m >>= f = bind
+
+        where
+
+        {-# NOINLINE[1] bind #-}
+        bind = AsyncT $ do
+            modify $ \Context {continuations = fs, ..} ->
+                 Context {continuations = (unsafeCoerce f) : fs, ..}
+            x <- runAsyncT m
+            modify $ \Context {continuations = (_ : fs), ..} ->
+                Context {continuations = fs, ..}
+            case x of
+                Just y -> runAsyncT $ f y
+                Nothing -> return Nothing
 
 ------------------------------------------------------------------------------
 -- Functor
