@@ -533,7 +533,7 @@ instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
 -- scatter
 each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => [a] -> AsyncT m a
-each xs = foldl (<|>) empty $ map return xs
+each xs = foldr (<|>) empty $ map return xs
 
 ------------------------------------------------------------------------------
 -- Num
