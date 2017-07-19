@@ -70,9 +70,9 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM, liftBaseWith)
-import           Data.IORef                  (IORef, atomicModifyIORef,
-                                              modifyIORef, newIORef, readIORef,
-                                              writeIORef)
+import           Data.Atomics                (atomicModifyIORefCAS)
+import           Data.IORef                  (IORef, modifyIORef, newIORef,
+                                              readIORef, writeIORef)
 import           Data.List                   (delete)
 import           Data.Maybe                  (isJust)
 import           GHC.Prim                    (Any)
@@ -338,13 +338,13 @@ waitForOneEvent ctx = do
 -- instead it returns whether the value is zero or non-zero.
 --
 waitQSemB :: IORef Int -> IO Bool
-waitQSemB   sem = atomicModifyIORef sem $ \n ->
+waitQSemB   sem = atomicModifyIORefCAS sem $ \n ->
                     if n > 0
                     then (n - 1, True)
                     else (n, False)
 
 signalQSemB :: IORef Int -> IO ()
-signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
+signalQSemB sem = atomicModifyIORefCAS sem $ \n -> (n + 1, ())
 
 -- Allocation of threads
 --
@@ -361,6 +361,7 @@ signalQSemB sem = atomicModifyIORef sem $ \n -> (n + 1, ())
 -- high.
 --
 
+{-# INLINE handleResult #-}
 handleResult :: MonadIO m
     => Context -> Either SomeException a -> m (Maybe SomeException)
 handleResult ctx res =
@@ -376,7 +377,7 @@ handleResult ctx res =
     where
 
     handleRecording recording ref = do
-        liftIO $ atomicModifyIORef ref $ \logs -> (recording : logs, ())
+        liftIO $ atomicModifyIORefCAS ref $ \logs -> (recording : logs, ())
         waitForChildren ctx
 
     passException e = do

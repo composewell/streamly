@@ -38,6 +38,7 @@ library
                      , ghc-prim
 
                      -- libraries not bundled with GHC
+                     , atomic-primops
                      , exceptions
                      , lifted-base
                      , monad-control
