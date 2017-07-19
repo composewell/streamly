@@ -237,7 +237,7 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- Pick up from where we left in the previous thread
 ------------------------------------------------------------------------------
 
--- {-# INLINE continue #-}
+{-# SPECIALIZE continue :: [Any] -> a -> StateT Context IO (Maybe a) #-}
 continue :: Monad m => [Any] -> a -> StateT Context m (Maybe a)
 continue [] x = do
     return (Just x)
@@ -253,7 +253,7 @@ continue (f:fs) x = do
         Nothing -> return y
         Just z -> continue fs z
 
--- {-# INLINE runContext #-}
+{-# SPECIALIZE runContext :: Context -> AsyncT IO a -> StateT Context IO () #-}
 runContext :: MonadAsync m => Context -> AsyncT m a -> StateT Context m ()
 runContext ctx action = do
     _ <- lift $ runStateT m ctx
@@ -321,6 +321,7 @@ tryReclaimZombies ctx = do
                     maybe (return ()) throwM e
                     tryReclaimZombies ctx
 
+{-# NOINLINE waitForOneEvent #-}
 waitForOneEvent :: (MonadIO m, MonadThrow m) => Context -> m ()
 waitForOneEvent ctx = do
     -- XXX assert pending must have at least one element
@@ -337,6 +338,7 @@ waitForOneEvent ctx = do
 -- XXX this is not a real semaphore as it does not really block on wait,
 -- instead it returns whether the value is zero or non-zero.
 --
+{-# INLINE waitQSemB #-}
 waitQSemB :: IORef Int -> IO Bool
 waitQSemB   sem = atomicModifyIORefCAS sem $ \n ->
                     if n > 0
@@ -437,10 +439,10 @@ forkContext action = do
 --
 canFork :: Context -> IO Bool
 canFork context = do
-    gotCredit <- liftIO $ waitQSemB (threadCredit context)
+    gotCredit <- waitQSemB (threadCredit context)
     case gotCredit of
         False -> do
-            pending <- liftIO $ readIORef $ pendingThreads context
+            pending <- readIORef $ pendingThreads context
             case pending of
                 [] -> return False
                 _ -> do
@@ -467,6 +469,8 @@ spawningParentDone = do
 -- | The task may be run in the same thread or in a new thread depending on the
 -- forceAsync parameter and the current thread quota.
 --
+{-# SPECIALIZE runAsyncTask :: Bool -> AsyncT IO a -> StateT Context IO (Maybe a) #-}
+{-# INLINE runAsyncTask #-}
 runAsyncTask :: MonadAsync m
     => Bool
     -> AsyncT m a
@@ -480,7 +484,7 @@ runAsyncTask forceAsync action = do
         case can of
             False -> runContext context action
             True -> forkContext action
-    spawningParentDone
+    return Nothing
 
 -- The current model is to start a new thread for every task. The input is
 -- provided at the time of the creation and therefore no synchronization is
@@ -550,10 +554,7 @@ instance MonadAsync m => Alternative (AsyncT m) where
     empty = AsyncT $ return Nothing
     (<|>) m1 m2 = AsyncT $ do
         r <- runAsyncTask False m1
-        loc <- getLocation
-        case loc of
-            RemoteNode -> return Nothing
-            _          -> maybe (runAsyncT m2) (return . Just) r
+        maybe (runAsyncT m2) (return . Just) r
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
