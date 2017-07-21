@@ -145,12 +145,6 @@ instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
     mappend x y = mappend <$> x <*> y
     mempty      = return mempty
 
--- scatter
-{-# SPECIALIZE each :: [a] -> AsyncT IO a #-}
-each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-    => [a] -> AsyncT m a
-each xs = foldr (<|>) empty $ map return xs
-
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
@@ -282,6 +276,12 @@ async action = AsyncT $ runAsyncTask True (runAsyncT action)
 
 makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
 makeAsync = AsyncT . makeCont
+
+-- scatter
+{-# SPECIALIZE each :: [a] -> AsyncT IO a #-}
+each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => [a] -> AsyncT m a
+each xs = foldr (<|>) empty $ map return xs
 
 ------------------------------------------------------------------------------
 -- Controlling thread quota
