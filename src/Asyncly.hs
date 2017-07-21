@@ -149,5 +149,6 @@ module Asyncly
     )
 where
 
+import Asyncly.Threads
 import Asyncly.AsyncT
 import Asyncly.RunAsync
