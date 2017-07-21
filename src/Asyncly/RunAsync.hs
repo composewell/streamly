@@ -10,7 +10,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Asyncly.Threads
+module Asyncly.RunAsync
     ( wait
     , wait_
     , gather

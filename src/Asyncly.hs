@@ -150,4 +150,4 @@ module Asyncly
 where
 
 import Asyncly.AsyncT
-import Asyncly.Threads
+import Asyncly.RunAsync
