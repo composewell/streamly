@@ -109,13 +109,19 @@ instance MonadAsync m => Applicative (AsyncT m) where
     pure  = return
     (<*>) = ap
 
--- The current model is to start a new thread for every task. The input is
--- provided at the time of the creation and therefore no synchronization is
--- needed compared to a pool of threads contending to get the input from a
--- channel. However the thread creation overhead may be more than the
--- synchronization cost?
+------------------------------------------------------------------------------
+-- Alternative
+------------------------------------------------------------------------------
+
+-- Thread pool vs transient threads
 --
--- When the task is over the outputs need to be collected and that requires
+-- The current model is to start a new thread for every task. The computation
+-- input is provided at the time of the creation and therefore no
+-- synchronization is needed compared to a pool of threads contending to get
+-- the input from a channel. However the thread creation overhead may be more
+-- than the synchronization cost needed in the case of pool?
+--
+-- When the task is over, the outputs need to be collected and that requires
 -- synchronization irrespective of a thread pool model or per task new thread
 -- model.
 --
@@ -123,35 +129,6 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- threads and send them work via a shared channel. When there is no more work
 -- available we need a way to close the channel and wakeup all waiters so that
 -- they can go away rather than waiting indefinitely.
---
-
--- Only those actions that are marked with 'async' are guaranteed to be
--- asynchronous. Asyncly is free to run other actions synchronously or
--- asynchronously and it should not matter to the semantics of the program, if
--- it does then use async to force.
---
--- Why not make async as default and ask the programmer to use a 'sync'
--- primitive to force an action to run synchronously? But then we would not
--- have the freedom to convert the async actions to sync dynamically. Note that
--- it is safe to convert a sync action to async but vice-versa is not true.
--- Converting an async to sync can cause change in semantics if the async
--- action was an infinite loop for example.
---
--- | In an 'Alternative' composition, force the action to run asynchronously.
--- The @\<|\>@ operator implies "can be parallel", whereas 'async' implies
--- "must be parallel". Note that outside an 'Alternative' composition 'async'
--- is not useful and should not be used.  Even in an 'Alternative' composition
--- 'async' is not useful as the last action as the last action always runs in
--- the current thread.
-async :: MonadAsync m => AsyncT m a -> AsyncT m a
-async action = AsyncT $ runAsyncTask True (runAsyncT action)
-
-makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
-makeAsync = AsyncT . makeCont
-
-------------------------------------------------------------------------------
--- Alternative
-------------------------------------------------------------------------------
 
 instance MonadAsync m => Alternative (AsyncT m) where
     {-# SPECIALIZE instance Alternative (AsyncT IO) #-}
@@ -277,6 +254,34 @@ infixr 1 >>|
 -- | Same as 'afterfirst'.
 (>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (>>|) = afterfirst
+
+------------------------------------------------------------------------------
+-- Async primitives
+------------------------------------------------------------------------------
+--
+-- Only those actions that are marked with 'async' are guaranteed to be
+-- asynchronous. Asyncly is free to run other actions synchronously or
+-- asynchronously and it should not matter to the semantics of the program, if
+-- it does then use async to force.
+--
+-- Why not make async as default and ask the programmer to use a 'sync'
+-- primitive to force an action to run synchronously? But then we would not
+-- have the freedom to convert the async actions to sync dynamically. Note that
+-- it is safe to convert a sync action to async but vice-versa is not true.
+-- Converting an async to sync can cause change in semantics if the async
+-- action was an infinite loop for example.
+--
+-- | In an 'Alternative' composition, force the action to run asynchronously.
+-- The @\<|\>@ operator implies "can be parallel", whereas 'async' implies
+-- "must be parallel". Note that outside an 'Alternative' composition 'async'
+-- is not useful and should not be used.  Even in an 'Alternative' composition
+-- 'async' is not useful as the last action as the last action always runs in
+-- the current thread.
+async :: MonadAsync m => AsyncT m a -> AsyncT m a
+async action = AsyncT $ runAsyncTask True (runAsyncT action)
+
+makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
+makeAsync = AsyncT . makeCont
 
 ------------------------------------------------------------------------------
 -- Controlling thread quota
