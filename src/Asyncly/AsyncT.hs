@@ -46,16 +46,16 @@ import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
                                               StateT (..), liftM, runStateT,
-                                              gets, modify)
+                                              modify)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM, liftBaseWith)
+import           Data.IORef                  (newIORef, readIORef, writeIORef)
 import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..))
-import           Data.IORef                  (newIORef, readIORef, writeIORef)
 --import           Debug.Trace (traceM)
 
 import Asyncly.Threads
@@ -287,18 +287,8 @@ makeAsync = AsyncT . makeCont
 -- Controlling thread quota
 ------------------------------------------------------------------------------
 
--- XXX Should n be Word32 instead?
 -- | Runs a computation under a given thread limit.  A limit of 0 means all new
 -- tasks start synchronously in the current thread unless overridden by
 -- 'async'.
 threads :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
-threads n process = AsyncT $ do
-   oldCr <- gets threadCredit
-   newCr <- liftIO $ newIORef n
-   modify $ \s -> s { threadCredit = newCr }
-   r <- runAsyncT $ process
-        >>* (AsyncT $ do
-            modify $ \s -> s { threadCredit = oldCr }
-            return (Just ())
-            ) -- restore old credit
-   return r
+threads n action = AsyncT $ threadCtl n (runAsyncT action)

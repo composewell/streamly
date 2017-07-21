@@ -18,6 +18,7 @@ module Asyncly.Threads
     , initContext
     , runAsyncTask
     , makeCont
+    , threadCtl
     -- , Location(..)
     -- , getLocation
     -- , setLocation
@@ -429,3 +430,23 @@ makeCont cbsetter = do
             _ <- runStateT s ctx
             return ()
     spawningParentDone
+
+------------------------------------------------------------------------------
+-- Controlling thread quota
+------------------------------------------------------------------------------
+
+-- XXX Should n be Word32 instead?
+-- | Runs a computation under a given thread limit.  A limit of 0 means all new
+-- tasks start synchronously in the current thread unless overridden by
+-- 'async'.
+threadCtl :: MonadAsync m
+    => Int
+    -> StateT Context m (Maybe a)
+    -> StateT Context m (Maybe a)
+threadCtl n action = do
+   oldCr <- gets threadCredit
+   newCr <- liftIO $ newIORef n
+   modify $ \s -> s { threadCredit = newCr }
+   r <- action
+   modify $ \s -> s { threadCredit = oldCr }
+   return r
