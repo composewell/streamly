@@ -68,6 +68,7 @@ benchmark bench
   ghc-options: -Wall -fwarn-identities -fwarn-incomplete-record-updates
                -fwarn-incomplete-uni-patterns -fwarn-tabs
                -O2 -funbox-strict-fields
+               -fno-ignore-asserts
   build-depends:
       asyncly
     , atomic-primops
@@ -76,6 +77,7 @@ benchmark bench
     , conduit-combinators
     , criterion
     , io-streams
+    , machines
     , mtl
     , pipes
     , simple-conduit

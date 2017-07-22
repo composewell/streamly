@@ -24,6 +24,7 @@ import           System.IO.Unsafe (unsafePerformIO)
 import           Transient.Internals as T
 import           Transient.Indeterminism as T
 
+import           Data.Machine as M
 import           Asyncly as A
 
 main :: IO ()
@@ -31,11 +32,12 @@ main = do
     defaultMain [
         bgroup "basic"  [ bench "asyncly"        $ nfIO asyncly_basic
                         , bench "transient"      $ nfIO transient_basic
+                        , bench "machines"       $ nfIO machines_basic
                         , bench "stream"         $ nfIO stream_basic
-                        , bench "iostreams"      $ nfIO iostreams_basic
-                        , bench "pipes"          $ nfIO pipes_basic
                         , bench "conduit"        $ nfIO conduit_basic
-                    --    , bench "simple-conduit" $ nfIO simple_conduit_basic
+                        , bench "pipes"          $ nfIO pipes_basic
+                        , bench "simple-conduit" $ nfIO simple_conduit_basic
+                        , bench "iostreams"      $ nfIO iostreams_basic
                      --  , bench "fusion"         $ nfIO fusion_basic
 
                        ]
@@ -47,7 +49,7 @@ map f x = return $ f x
 
 {-# INLINABLE filter #-}
 filter :: (Monad m, Alternative m) => (a -> Bool) -> a -> m a
-filter cond x = guard (cond x) >> return x
+filter cond x = guard (not $ cond x) >> return x
 
 {-# NOINLINE count #-}
 count :: IORef Int
@@ -57,8 +59,7 @@ drop :: (MonadIO m, Alternative m) => Int -> Int -> m Int
 drop num x =  do
 
     mn <- liftIO $ atomicModifyIORefCAS count $ \n ->
-            let n' = n + 1
-            in if n' < num then (n + 1, False) else (n + 1, True)
+            if n < num then (n + 1, False) else (n, True)
     guard mn
     return x
 
@@ -73,13 +74,13 @@ tdrop = Main.drop
 
 transient_basic :: IO Int
 transient_basic = T.keep' $ T.threads 0 $ do
-    xs <- T.group 499000  $  do
-             liftIO $ writeIORef count 0
-             T.choose  [1..1000000 :: Int]
+    liftIO $ writeIORef count 0
+    xs <- T.group 499001  $  do
+             T.choose  [1..1000001 :: Int]
              >>= tfilter even
              >>= tmap (+1)
              >>= tdrop 1000
-             >>= tmap  (+1)
+             >>= tmap (+1)
              >>= tfilter (\x -> x `mod` 2 == 0)
 
     assert (Prelude.length xs == 499000) $
@@ -104,9 +105,19 @@ asyncly_basic = do
              >>= adrop 1000
              >>= amap (+1)
              >>= afilter (\x -> x `mod` 2 == 0)
-
     assert (Prelude.length xs == 499000) $
         return (Prelude.length xs)
+
+machines_basic :: IO Int
+machines_basic = do
+    xs <- M.runT $ M.source [1..1000000]
+      M.~> M.filtered even
+      M.~> M.mapping (+1)
+      M.~> M.dropping 1000
+      M.~> M.mapping (+1)
+      M.~> M.filtered (\x -> x `mod` 2 == 0)
+    assert (Prelude.length xs == 499000) $
+        return (Prelude.length (xs ::[Int]))
 
 pipes_basic :: IO Int
 pipes_basic = do
@@ -159,7 +170,7 @@ simple_conduit_basic = do
 stream_basic :: IO Int
 stream_basic = do
     let ns = [1..1000000] :: [Int]
-    xs <- Str.toList $ Str.each ns
+    xs Str.:> _ <- Str.toList $ Str.each ns
       & Str.filter even
       & Str.map (+1)
       & Str.drop 1000
