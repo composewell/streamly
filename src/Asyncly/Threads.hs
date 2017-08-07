@@ -15,8 +15,6 @@ module Asyncly.Threads
     ( -- ChildEvent(..)
       MonadAsync
     , Context(..)
-    , Step (..)
-    , AsyncT (..)
     , initContext
     --, runAsyncTask
     --, makeCont
@@ -57,9 +55,6 @@ import           Control.Monad.Trans.Recorder (Paused (..), Recording)
 
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
-data Step a m = Stop | Yield a (AsyncT m a)
-newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Step a m) }
-
 ------------------------------------------------------------------------------
 -- Parent child thread communication types
 ------------------------------------------------------------------------------
@@ -76,11 +71,8 @@ data Context = Context
     -- Execution state
     ---------------------------------------------------------------------------
 
-    -- a -> AsyncT m b
-    continuations :: [Any]
-
   -- When we suspend we save the logs in this IORef and exit.
-  , logsRef :: Maybe (IORef [Recording])
+    logsRef :: Maybe (IORef [Recording])
     -- XXX this functionality can be in a separate layer?
   , location :: Location
 
@@ -133,12 +125,10 @@ initContext
     :: TChan ChildEvent
     -> IORef [ThreadId]
     -> IORef Int
-    -> (a -> AsyncT m b)
     -> Maybe (IORef [Recording])
     -> Context
-initContext childChan pending credit finalizer lref =
-  Context { continuations   = [unsafeCoerce finalizer]
-          , logsRef         = lref
+initContext childChan pending credit lref =
+  Context { logsRef         = lref
           , location        = Worker
           , childChannel    = childChan
           , pendingThreads  = pending

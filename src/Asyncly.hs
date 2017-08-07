@@ -120,13 +120,16 @@
 -- of the state machine. It is an immutable state machine!
 
 module Asyncly
-    ( AsyncT
+    ( AsynclyT
     , MonadAsync
+    , AsyncT
 
     -- * Run
     , wait
     , wait_
     , threads
+    , waitA_
+    , eachA
 
     -- * Fork and Gather
     --, async

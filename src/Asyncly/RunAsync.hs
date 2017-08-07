@@ -1,5 +1,8 @@
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module      : Asyncly.Threads
@@ -13,6 +16,9 @@
 module Asyncly.RunAsync
     ( wait
     , wait_
+    , AsynclyT
+    , threads
+    , each
     {-
     , gather
 
@@ -23,10 +29,13 @@ module Asyncly.RunAsync
     )
 where
 
+import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent.STM      (atomically, newTChan)
 import           Control.Monad               (liftM)
-import           Control.Monad.Catch         (MonadCatch, throwM, try)
+import           Control.Monad.Catch         (MonadCatch, MonadThrow, throwM, try)
 import           Control.Monad.IO.Class      (MonadIO (..))
+import           Control.Monad.Trans.Class   (MonadTrans (lift))
+import           Control.Monad.Trans.Control (MonadBaseControl)
 import           Control.Monad.State         (StateT, runStateT)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Atomics                (atomicModifyIORefCAS)
@@ -34,21 +43,34 @@ import           Data.IORef                  (IORef, newIORef, readIORef)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..), RecorderT,
                                                Recording, blank, runRecorderT)
+import           GHC.Prim                    (Any)
+
 import           Asyncly.Threads
 import           Asyncly.AsyncT
 
-getContext :: Monad m => (a -> AsyncT m a) -> Maybe (IORef [Recording]) -> IO Context
-getContext f lref = do
+newtype AsynclyT m a = AsynclyT { runAsynclyT :: AsyncT (StateT Context m) a }
+
+deriving instance MonadAsync m => Functor (AsynclyT m)
+deriving instance MonadAsync m => Applicative (AsynclyT m)
+deriving instance MonadAsync m => Alternative (AsynclyT m)
+deriving instance MonadAsync m => Monad (AsynclyT m)
+deriving instance MonadAsync m => MonadIO (AsynclyT m)
+instance MonadTrans (AsynclyT) where
+    lift mx = AsynclyT $ AsyncT $ lift mx >>= return . (\a -> (Yield a stop))
+
+getContext :: Maybe (IORef [Recording]) -> IO Context
+getContext lref = do
     childChan  <- atomically newTChan
     pendingRef <- newIORef []
     credit     <- newIORef maxBound
-    return $ initContext childChan pendingRef credit f lref
+    return $ initContext childChan pendingRef credit lref
 
 -- | Run an 'AsyncT m' computation, wait for it to finish and discard the
 -- results.
-wait_ :: forall m a. (MonadAsync m, MonadCatch m) => AsyncT m a -> m ()
-wait_ m =  do
-    ctx <- liftIO $ getContext (return :: a -> AsyncT m a) Nothing
+{-# SPECIALIZE wait_ :: AsynclyT IO a -> IO () #-}
+wait_ :: forall m a. (MonadAsync m, MonadCatch m) => AsynclyT m a -> m ()
+wait_ (AsynclyT m) =  do
+    ctx <- liftIO $ getContext Nothing
     _ <- runStateT (run m) ctx
     return ()
 
@@ -59,6 +81,35 @@ wait_ m =  do
             Yield _ r -> run r
             -- XXX pull from children here
             _ -> return ()
+
+wait :: forall m a. (MonadAsync m, MonadCatch m) => AsynclyT m a -> m [a]
+wait (AsynclyT m) = liftIO (getContext Nothing) >>= run m
+
+    where
+
+    run ma ctx = do
+        (a, ctx') <- runStateT (runAsyncT ma) ctx
+        case a of
+            Yield x mb -> liftM (x :) (run mb ctx')
+            -- XXX pull from children here
+            Stop -> return []
+
+
+-- scatter
+{-# SPECIALIZE each :: [a] -> AsynclyT IO a #-}
+each :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+    => [a] -> AsynclyT m a
+each xs = foldr (<|>) empty $ map return xs
+
+------------------------------------------------------------------------------
+-- Controlling thread quota
+------------------------------------------------------------------------------
+
+-- | Runs a computation under a given thread limit.  A limit of 0 means all new
+-- tasks start synchronously in the current thread unless overridden by
+-- 'async'.
+threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
+threads n action = AsynclyT $ AsyncT $ threadCtl n (runAsyncT $ runAsynclyT action)
 
 {-
 wait_ :: AsyncT IO a -> IO ()
@@ -74,7 +125,6 @@ wait_ m =  do
             Yield _ r -> run r
             -- XXX pull from children here
             _ -> return ()
--}
 
 wait :: forall m a. (MonadAsync m, MonadCatch m) => AsyncT m a -> m [a]
 wait m = liftIO (getContext (return :: a -> AsyncT m a) Nothing) >>= run m
@@ -87,6 +137,7 @@ wait m = liftIO (getContext (return :: a -> AsyncT m a) Nothing) >>= run m
             Yield x mb -> liftM (x :) (run mb ctx')
             -- XXX pull from children here
             Stop -> return []
+-}
 
 {-
 ------------------------------------------------------------------------------
