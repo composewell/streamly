@@ -15,16 +15,18 @@ module Asyncly.Threads
     ( -- ChildEvent(..)
       MonadAsync
     , Context(..)
+    , Step (..)
+    , AsyncT (..)
     , initContext
-    , runAsyncTask
-    , makeCont
+    --, runAsyncTask
+    --, makeCont
     , threadCtl
     -- , Location(..)
     -- , getLocation
     -- , setLocation
 
     -- , waitForChildren
-    , handleResult
+    --, handleResult
     )
 where
 
@@ -54,6 +56,9 @@ import           Unsafe.Coerce               (unsafeCoerce)
 import           Control.Monad.Trans.Recorder (Paused (..), Recording)
 
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+
+data Step a m = Stop | Yield a (AsyncT m a)
+newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Step a m) }
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication types
@@ -128,7 +133,7 @@ initContext
     :: TChan ChildEvent
     -> IORef [ThreadId]
     -> IORef Int
-    -> (a -> StateT Context m (Maybe a))
+    -> (a -> AsyncT m b)
     -> Maybe (IORef [Recording])
     -> Context
 initContext childChan pending credit finalizer lref =
@@ -155,6 +160,7 @@ getLocation = gets location
 setLocation :: Monad m => Location -> StateT Context m ()
 setLocation loc = modify $ \Context { .. } -> Context { location = loc, .. }
 
+{-
 ------------------------------------------------------------------------------
 -- Pick up from where we left in the previous thread
 ------------------------------------------------------------------------------
@@ -431,6 +437,7 @@ makeCont cbsetter = do
             return ()
     spawningParentDone
 
+-}
 ------------------------------------------------------------------------------
 -- Controlling thread quota
 ------------------------------------------------------------------------------
@@ -441,8 +448,8 @@ makeCont cbsetter = do
 -- 'async'.
 threadCtl :: MonadAsync m
     => Int
-    -> StateT Context m (Maybe a)
-    -> StateT Context m (Maybe a)
+    -> StateT Context m a
+    -> StateT Context m a
 threadCtl n action = do
    oldCr <- gets threadCredit
    newCr <- liftIO $ newIORef n

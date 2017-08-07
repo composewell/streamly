@@ -13,15 +13,18 @@
 module Asyncly.RunAsync
     ( wait
     , wait_
+    {-
     , gather
 
     , waitRecord_
     , waitRecord
     , playRecordings
+    -}
     )
 where
 
 import           Control.Concurrent.STM      (atomically, newTChan)
+import           Control.Monad               (liftM)
 import           Control.Monad.Catch         (MonadCatch, throwM, try)
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Control.Monad.State         (StateT, runStateT)
@@ -34,6 +37,58 @@ import           Control.Monad.Trans.Recorder (MonadRecorder(..), RecorderT,
 import           Asyncly.Threads
 import           Asyncly.AsyncT
 
+getContext :: Monad m => (a -> AsyncT m a) -> Maybe (IORef [Recording]) -> IO Context
+getContext f lref = do
+    childChan  <- atomically newTChan
+    pendingRef <- newIORef []
+    credit     <- newIORef maxBound
+    return $ initContext childChan pendingRef credit f lref
+
+-- | Run an 'AsyncT m' computation, wait for it to finish and discard the
+-- results.
+wait_ :: forall m a. (MonadAsync m, MonadCatch m) => AsyncT m a -> m ()
+wait_ m =  do
+    ctx <- liftIO $ getContext (return :: a -> AsyncT m a) Nothing
+    _ <- runStateT (run m) ctx
+    return ()
+
+    where
+
+    run m = runAsyncT m >>= \x ->
+        case x of
+            Yield _ r -> run r
+            -- XXX pull from children here
+            _ -> return ()
+
+{-
+wait_ :: AsyncT IO a -> IO ()
+wait_ m =  do
+    ctx <- liftIO $ getContext (return :: a -> AsyncT IO a) Nothing
+    _ <- runStateT (run m) ctx
+    return ()
+
+    where
+
+    run m = runAsyncT m >>= \x ->
+        case x of
+            Yield _ r -> run r
+            -- XXX pull from children here
+            _ -> return ()
+-}
+
+wait :: forall m a. (MonadAsync m, MonadCatch m) => AsyncT m a -> m [a]
+wait m = liftIO (getContext (return :: a -> AsyncT m a) Nothing) >>= run m
+
+    where
+
+    run ma ctx = do
+        (a, ctx') <- runStateT (runAsyncT ma) ctx
+        case a of
+            Yield x mb -> liftM (x :) (run mb ctx')
+            -- XXX pull from children here
+            Stop -> return []
+
+{-
 ------------------------------------------------------------------------------
 -- Running the monad
 ------------------------------------------------------------------------------
@@ -133,3 +188,5 @@ waitRecord_ m = do
     runRecorderT blank (waitAsync (const (return Nothing)) (Just lref) m)
     logs <- liftIO $ readIORef lref
     return logs
+
+-}

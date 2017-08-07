@@ -24,8 +24,8 @@ module Asyncly.AsyncT
     ( AsyncT (..)
 
     , threads
-    , async
-    , makeAsync
+--    , async
+--    , makeAsync
     , each
 
     , before
@@ -46,7 +46,7 @@ import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
                                               StateT (..), liftM, runStateT,
-                                              modify)
+                                              get, gets, put, modify)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
@@ -60,7 +60,8 @@ import           Control.Monad.Trans.Recorder (MonadRecorder(..))
 
 import Asyncly.Threads
 
-newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Maybe a) }
+--data Step a m = Stop | Yield a (AsyncT m a)
+--newtype AsyncT m a = AsyncT { runAsyncT :: StateT Context m (Step a m) }
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -76,23 +77,38 @@ dbg _ = return ()
 -- Monad
 ------------------------------------------------------------------------------
 
+stop :: Monad m => AsyncT m a
+stop = AsyncT . return $ Stop
+
+{-# SPECIALIZE runAction :: AsyncT IO a -> StateT Context IO (Step a IO) #-}
+runAction :: Monad m => AsyncT m a -> StateT Context m (Step a m)
+runAction m = do
+    ctx <- get
+    (step, ctx') <- lift $ runStateT (runAsyncT m) ctx
+    put ctx'
+    return step
+
+-- TBD real parallel
+{-# SPECIALIZE parallel :: AsyncT IO a -> AsyncT IO a -> StateT Context IO (Step a IO) #-}
+parallel :: Monad m
+    => AsyncT m a
+    -> AsyncT m a
+    -> StateT Context m (Step a m)
+parallel ma mb = do
+    step <- runAction ma
+    case step of
+        Stop -> runAsyncT mb
+        Yield a mx -> return (Yield a (AsyncT (parallel mx mb)))
+
 instance MonadAsync m => Monad (AsyncT m) where
     {-# SPECIALIZE instance Monad (AsyncT IO) #-}
-    return a = AsyncT . return $ Just a
-    m >>= f = bind
+    return a = AsyncT . return $ Yield a stop
 
-        where
-
-        {-# NOINLINE[1] bind #-}
-        bind = AsyncT $ do
-            modify $ \Context {continuations = fs, ..} ->
-                 Context {continuations = (unsafeCoerce f) : fs, ..}
-            x <- runAsyncT m
-            modify $ \Context {continuations = (_ : fs), ..} ->
-                Context {continuations = fs, ..}
-            case x of
-                Just y -> runAsyncT $ f y
-                Nothing -> return Nothing
+    m >>= f = AsyncT $ do
+            step <- runAction m
+            case step of
+                Stop -> return Stop -- XXX need to wait for the child threads
+                Yield a ma -> runAsyncT $ (f a) <|> (ma >>= f)
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -132,10 +148,8 @@ instance MonadAsync m => Applicative (AsyncT m) where
 
 instance MonadAsync m => Alternative (AsyncT m) where
     {-# SPECIALIZE instance Alternative (AsyncT IO) #-}
-    empty = AsyncT $ return Nothing
-    (<|>) m1 m2 = AsyncT $ do
-        r <- runAsyncTask False (runAsyncT m1)
-        maybe (runAsyncT m2) (return . Just) r
+    empty = stop
+    (<|>) m1 m2 = AsyncT $ parallel m1 m2
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
@@ -162,7 +176,7 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
-    lift mx = AsyncT $ lift mx >>= return . Just
+    lift mx = AsyncT $ lift mx >>= return . (\a -> (Yield a stop))
 
 instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
     liftBase = liftBaseDefault
@@ -171,6 +185,7 @@ instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
 -- monad-control
 -------------------------------------------------------------------------------
 
+{-
 instance MonadTransControl AsyncT where
     type StT AsyncT a = (Maybe a, Context)
     liftWith f = AsyncT $ StateT $ \s ->
@@ -186,6 +201,7 @@ instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) w
     restoreM     = defaultRestoreM
     {-# INLINABLE liftBaseWith #-}
     {-# INLINABLE restoreM #-}
+-}
 
 ------------------------------------------------------------------------------
 -- Standard transformer instances
@@ -271,11 +287,13 @@ infixr 1 >>|
 -- is not useful and should not be used.  Even in an 'Alternative' composition
 -- 'async' is not useful as the last action as the last action always runs in
 -- the current thread.
+{-
 async :: MonadAsync m => AsyncT m a -> AsyncT m a
 async action = AsyncT $ runAsyncTask True (runAsyncT action)
 
 makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
 makeAsync = AsyncT . makeCont
+-}
 
 -- scatter
 {-# SPECIALIZE each :: [a] -> AsyncT IO a #-}

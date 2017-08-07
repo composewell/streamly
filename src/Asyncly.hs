@@ -129,10 +129,10 @@ module Asyncly
     , threads
 
     -- * Fork and Gather
-    , async
-    , makeAsync
+    --, async
+    --, makeAsync
     , each
-    , gather
+    --, gather
 
     -- * Compose
     , before
@@ -143,9 +143,9 @@ module Asyncly
     , (>>|)
 
     -- * Record and Play
-    , waitRecord
-    , waitRecord_
-    , playRecordings
+    --, waitRecord
+    --, waitRecord_
+    --, playRecordings
     )
 where
 
