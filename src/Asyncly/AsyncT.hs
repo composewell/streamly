@@ -22,19 +22,21 @@
 --
 module Asyncly.AsyncT
     ( AsyncT (..)
-    , Step (..)
-    , stop
+  --  , Step (..)
+  --  , stop
     , waitA_
     , eachA
 --    , async
 --    , makeAsync
 
+{-
     , before
     , (*>>)
     , thereafter
     , (>>*)
     , afterfirst
     , (>>|)
+    -}
 
     -- internal
     , dbg
@@ -42,6 +44,7 @@ module Asyncly.AsyncT
 where
 
 import           Control.Applicative         (Alternative (..))
+import Data.Maybe (maybe)
 import           Control.Monad               (ap, mzero, when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -61,8 +64,15 @@ import           Control.Monad.Trans.Recorder (MonadRecorder(..))
 
 import Asyncly.Threads (MonadAsync, Context)
 
-data Step a m = Stop | Yield a (AsyncT m a)
-newtype AsyncT m a = AsyncT { runAsyncT :: m (Step a m) }
+-- data Step a m = Stop | Yield a (AsyncT m a)
+-- newtype AsyncT m a = AsyncT { runAsyncT :: m (Step a m) }
+-- stop value is needed for Alternative instance
+newtype AsyncT m a = AsyncT {
+    runAsyncT :: forall r.
+           m r
+        -> (a -> Maybe (AsyncT m a) -> m r)
+        -> m r
+    }
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -78,36 +88,33 @@ dbg _ = return ()
 -- Monad
 ------------------------------------------------------------------------------
 
-stop :: Monad m => AsyncT m a
-stop = AsyncT . return $ Stop
-
--- TBD real parallel
-{-# SPECIALIZE parallel
-    :: AsyncT (StateT Context IO) a
-    -> AsyncT (StateT Context IO) a
-    -> StateT Context IO (Step a (StateT Context IO)) #-}
+-- XXX need to wait for the async threads in case of a stop is returned due to
+-- async thread spawning.
 {-# SPECIALIZE parallel
     :: AsyncT IO a
     -> AsyncT IO a
-    -> IO (Step a IO) #-}
-parallel :: Monad m => AsyncT m a -> AsyncT m a -> m (Step a m)
-parallel ma mb = do
-    runAsyncT ma >>= \step ->
-        case step of
-            Stop -> runAsyncT mb
-            Yield a mx -> return (Yield a (AsyncT (parallel mx mb)))
+    -> AsyncT IO a #-}
+{-# INLINE parallel #-}
+parallel :: Monad m => AsyncT m a -> AsyncT m a -> AsyncT m a
+parallel (AsyncT m1) m2 = AsyncT $ \stp yld ->
+    m1 ((runAsyncT m2) stp yld) (\a ax ->
+            case ax of
+                Just mx -> yld a (Just (parallel mx m2))
+                Nothing -> yld a (Just m2)
+        )
 
 instance MonadAsync m => Monad (AsyncT m) where
-    {-# SPECIALIZE instance Monad (AsyncT (StateT Context IO)) #-}
+    -- {-# SPECIALIZE instance Monad (AsyncT (StateT Context IO)) #-}
     {-# SPECIALIZE instance Monad (AsyncT IO) #-}
-    return a = AsyncT . return $ Yield a stop
+    return a = AsyncT $ \_ yld -> yld a Nothing
 
-    -- {-# INLINE (>>=) #-}
-    m >>= f = AsyncT $ do
-            runAsyncT m >>= \step ->
-                case step of
-                    Stop -> return Stop -- XXX need to wait for the child threads
-                    Yield a ma -> runAsyncT $ (f a) <|> (ma >>= f)
+    {-# INLINE (>>=) #-}
+    AsyncT m >>= f = AsyncT $ \stp yld ->
+        m stp (\a ma ->
+                case ma of
+                    Just mx -> (runAsyncT (parallel (f a) (mx >>= f))) stp yld
+                    Nothing -> (runAsyncT (f a)) stp yld
+              )
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -146,15 +153,16 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- they can go away rather than waiting indefinitely.
 
 instance MonadAsync m => Alternative (AsyncT m) where
-    {-# SPECIALIZE instance Alternative (AsyncT (StateT Context IO)) #-}
+    -- {-# SPECIALIZE instance Alternative (AsyncT (StateT Context IO)) #-}
     {-# SPECIALIZE instance Alternative (AsyncT IO) #-}
-    empty = stop
-    (<|>) m1 m2 = AsyncT $ parallel m1 m2
+    empty = AsyncT $ \stp _ -> stp
+    (<|>) m1 m2 = parallel m1 m2
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
 
+{-
 instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
     mappend x y = mappend <$> x <*> y
     mempty      = return mempty
@@ -171,12 +179,13 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
   abs f       = f >>= return . abs
   signum f    = f >>= return . signum
 
+-}
 -------------------------------------------------------------------------------
 -- AsyncT transformer
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
-    lift mx = AsyncT $ mx >>= return . (\a -> (Yield a stop))
+    lift mx = AsyncT $ \_ yld -> mx >>= (\a -> (yld a Nothing))
 
 instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
     liftBase = liftBaseDefault
@@ -226,6 +235,7 @@ instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
 -- Special compositions
 ------------------------------------------------------------------------------
 
+{-
 -- | Run @m a@ before running @m b@. The result of @m a@ is discarded.
 before :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
 before ma mb = AsyncT $ do
@@ -264,6 +274,7 @@ infixr 1 >>|
 -- | Same as 'afterfirst'.
 (>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
 (>>|) = afterfirst
+-}
 
 ------------------------------------------------------------------------------
 -- Async primitives
@@ -295,17 +306,9 @@ makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
 makeAsync = AsyncT . makeCont
 -}
 
-{-# SPECIALIZE waitA_ :: AsyncT IO a -> IO () #-}
+-- {-# SPECIALIZE waitA_ :: AsyncT IO a -> IO () #-}
 waitA_ :: (MonadAsync m) => AsyncT m a -> m ()
-waitA_ (AsyncT m) =  run m
-
-    where
-
-    run m = m >>= \x ->
-        case x of
-            Yield _ r -> run (runAsyncT r)
-            -- XXX pull from children here
-            _ -> return ()
+waitA_ (AsyncT m) = m (return ()) (\_ r -> maybe (return ()) waitA_ r)
 
 {-
 waitA :: forall m a. (MonadAsync m, MonadCatch m) => AsyncT m a -> m [a]
@@ -321,6 +324,8 @@ waitA (AsyncT m) = run m
 -}
 
 -- scatter
+-- XXX unthreaded case can be more efficient by yielding continuously rather
+-- than folding a yield followed by Nothing in the parallel case.
 {-# SPECIALIZE eachA :: [a] -> AsyncT IO a #-}
 eachA :: (MonadIO m, MonadBaseControl IO m, MonadThrow m)
     => [a] -> AsyncT m a

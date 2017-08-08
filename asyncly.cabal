@@ -26,7 +26,7 @@ library
     exposed-modules:   Asyncly
                      , Asyncly.Threads
                      , Asyncly.AsyncT
-                     , Asyncly.RunAsync
+     --                , Asyncly.RunAsync
 
     default-language: Haskell2010
     ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates
