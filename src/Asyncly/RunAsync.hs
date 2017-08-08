@@ -17,7 +17,7 @@ module Asyncly.RunAsync
     ( wait
     , wait_
     , AsynclyT
-    , threads
+--    , threads
     , each
     {-
     , gather
@@ -56,7 +56,7 @@ deriving instance MonadAsync m => Alternative (AsynclyT m)
 deriving instance MonadAsync m => Monad (AsynclyT m)
 deriving instance MonadAsync m => MonadIO (AsynclyT m)
 instance MonadTrans (AsynclyT) where
-    lift mx = AsynclyT $ AsyncT $ lift mx >>= return . (\a -> (Yield a stop))
+    lift mx = AsynclyT $ AsyncT $ \s k -> lift mx >>= (\a -> (k a Nothing))
 
 getContext :: Maybe (IORef [Recording]) -> IO Context
 getContext lref = do
@@ -69,31 +69,33 @@ getContext lref = do
 -- results.
 {-# SPECIALIZE wait_ :: AsynclyT IO a -> IO () #-}
 wait_ :: forall m a. (MonadAsync m, MonadCatch m) => AsynclyT m a -> m ()
-wait_ (AsynclyT m) =  do
+wait_ (AsynclyT m) = do
     ctx <- liftIO $ getContext Nothing
     _ <- runStateT (run m) ctx
     return ()
 
     where
 
-    run m = runAsyncT m >>= \x ->
-        case x of
-            Yield _ r -> run r
-            -- XXX pull from children here
-            _ -> return ()
+    run m = (runAsyncT m) (return ())
+        (\a r -> maybe (return ()) (\x -> run x) r)
 
+data Step a r = Stop | Done a | Yield a r
+
+{-# SPECIALIZE wait :: AsynclyT IO a -> IO [a] #-}
+{-# INLINE wait #-}
 wait :: forall m a. (MonadAsync m, MonadCatch m) => AsynclyT m a -> m [a]
 wait (AsynclyT m) = liftIO (getContext Nothing) >>= run m
 
     where
 
     run ma ctx = do
-        (a, ctx') <- runStateT (runAsyncT ma) ctx
-        case a of
+        (res, ctx') <- runStateT ((runAsyncT ma) (return Stop)
+            (\a r -> maybe (return (Done a)) (\x -> return $ Yield a x) r)) ctx
+        case res of
             Yield x mb -> liftM (x :) (run mb ctx')
             -- XXX pull from children here
             Stop -> return []
-
+            Done x -> return (x : [])
 
 -- scatter
 {-# SPECIALIZE each :: [a] -> AsynclyT IO a #-}
@@ -108,8 +110,8 @@ each xs = foldr (<|>) empty $ map return xs
 -- | Runs a computation under a given thread limit.  A limit of 0 means all new
 -- tasks start synchronously in the current thread unless overridden by
 -- 'async'.
-threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
-threads n action = AsynclyT $ AsyncT $ threadCtl n (runAsyncT $ runAsynclyT action)
+-- threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
+-- threads n action = AsynclyT $ AsyncT $ threadCtl n (runAsyncT $ runAsynclyT action)
 
 {-
 wait_ :: AsyncT IO a -> IO ()

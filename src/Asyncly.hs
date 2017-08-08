@@ -120,16 +120,17 @@
 -- of the state machine. It is an immutable state machine!
 
 module Asyncly
-    ( -- AsynclyT
-      MonadAsync
+    ( AsynclyT
+    , MonadAsync
     , AsyncT
 
     -- * Run
---    , wait
---    , wait_
+    , wait
+    , wait_
 --    , threads
     , waitA_
     , eachA
+    , each
 
 {-
     -- * Fork and Gather
@@ -156,4 +157,4 @@ where
 
 import Asyncly.Threads
 import Asyncly.AsyncT
--- import Asyncly.RunAsync
+import Asyncly.RunAsync
