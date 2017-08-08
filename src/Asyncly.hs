@@ -128,8 +128,6 @@ module Asyncly
     , wait
     , wait_
 --    , threads
-    , waitA_
-    , eachA
     , each
 
 {-
