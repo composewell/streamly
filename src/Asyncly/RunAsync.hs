@@ -82,6 +82,7 @@ wait_ (AsynclyT m) =  do
             -- XXX pull from children here
             _ -> return ()
 
+{-# SPECIALIZE wait :: AsynclyT IO a -> IO [a] #-}
 wait :: forall m a. (MonadAsync m, MonadCatch m) => AsynclyT m a -> m [a]
 wait (AsynclyT m) = liftIO (getContext Nothing) >>= run m
 
