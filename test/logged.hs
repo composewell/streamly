@@ -8,13 +8,13 @@ import Control.Monad.Trans.Recorder (pause, record)
 
 main = do
     hSetBuffering stdout LineBuffering
-    logs <- waitRecord_ comp
+    logs <- runAsynclyRecorded comp
 
     putStrLn $ "\nResuming with logs:"
-    logs1 <- waitRecord_ $ playRecordings comp logs
+    logs1 <- runAsynclyRecorded $ playRecordings comp logs
 
     putStrLn $ "\nResuming with logs:"
-    logs2 <- waitRecord_ $ playRecordings comp logs1
+    logs2 <- runAsynclyRecorded $ playRecordings comp logs1
 
     putStrLn $ "\nLogs at the end must be empty:"
     putStrLn $ show logs2
@@ -30,4 +30,5 @@ main = do
          record pause
          liftIO $ print ("C", r, x)
 
-    event n = async $ liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)
+    -- event n = async $ liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)
+    event n = liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)

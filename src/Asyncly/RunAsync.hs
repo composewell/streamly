@@ -1,8 +1,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 -- |
 -- Module      : Asyncly.Threads
@@ -19,11 +18,12 @@ module Asyncly.RunAsync
     , toList
     , each
     , threads
+
     {-
-    , waitRecord_
+    , runAsyclyRecorded
     , waitRecord
-    , playRecordings
     -}
+    , playRecordings
     )
 where
 
@@ -34,7 +34,7 @@ import           Control.Monad.Catch         (MonadCatch, MonadThrow, throwM, tr
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl)
-import           Control.Monad.State         (StateT, runStateT)
+import           Control.Monad.State         (StateT(..), runStateT)
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Atomics                (atomicModifyIORefCAS)
 import           Data.IORef                  (IORef, newIORef, readIORef)
@@ -53,13 +53,22 @@ import           Asyncly.AsyncT
 
 newtype AsynclyT m a = AsynclyT { runAsynclyT :: AsyncT (StateT Context m) a }
 
-deriving instance MonadAsync m => Functor (AsynclyT m)
-deriving instance MonadAsync m => Applicative (AsynclyT m)
-deriving instance MonadAsync m => Alternative (AsynclyT m)
-deriving instance MonadAsync m => Monad (AsynclyT m)
-deriving instance MonadAsync m => MonadIO (AsynclyT m)
+deriving instance Monad m => Functor (AsynclyT m)
+deriving instance Monad m => Applicative (AsynclyT m)
+deriving instance Monad m => Alternative (AsynclyT m)
+deriving instance Monad m => Monad (AsynclyT m)
+deriving instance MonadIO m => MonadIO (AsynclyT m)
 instance MonadTrans (AsynclyT) where
     lift mx = AsynclyT $ AsyncT $ \s k -> lift mx >>= (\a -> (k a Nothing))
+
+instance (Monad m, MonadRecorder m)
+    => MonadRecorder (StateT Context m) where
+    getJournal = lift getJournal
+    putJournal = lift . putJournal
+    play = lift . play
+
+deriving instance (Monad m, MonadRecorder m)
+    => MonadRecorder (AsynclyT m)
 
 ------------------------------------------------------------------------------
 -- Running the monad
@@ -124,23 +133,23 @@ threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
 threads n action = AsynclyT $ AsyncT $ \stp yld ->
     threadCtl n ((runAsyncT $ runAsynclyT action) stp yld)
 
-{-
 ------------------------------------------------------------------------------
 -- Logging
 ------------------------------------------------------------------------------
 
 -- | Compose a computation using previously captured logs
 playRecording :: (MonadAsync m, MonadRecorder m)
-    => AsyncT m a -> Recording -> AsyncT m a
+    => AsynclyT m a -> Recording -> AsynclyT m a
 playRecording m recording = play recording >> m
 
 -- | Resume an 'AsyncT' computation using previously recorded logs. The
 -- recording consists of a list of journals one for each thread in the
 -- computation.
 playRecordings :: (MonadAsync m, MonadRecorder m)
-    => AsyncT m a -> [Recording] -> AsyncT m a
+    => AsynclyT m a -> [Recording] -> AsynclyT m a
 playRecordings m logs = each logs >>= playRecording m
 
+{-
 -- | Run an 'AsyncT' computation with recording enabled, wait for it to finish
 -- returning results for completed threads and recordings for paused threads.
 waitRecord :: (MonadAsync m, MonadCatch m)
@@ -156,12 +165,11 @@ waitRecord m = do
 -- | Run an 'AsyncT' computation with recording enabled, wait for it to finish
 -- and discard the results and return the recordings for paused threads, if
 -- any.
-waitRecord_ :: (MonadAsync m, MonadCatch m)
-    => AsyncT (RecorderT m) a -> m [Recording]
-waitRecord_ m = do
+runAsynclyRecorded :: (MonadAsync m, MonadCatch m)
+    => AsynclyT (RecorderT m) a -> m [Recording]
+runAsynclyRecorded m = do
     lref <- liftIO $ newIORef []
     runRecorderT blank (waitAsync (const (return Nothing)) (Just lref) m)
     logs <- liftIO $ readIORef lref
     return logs
-
 -}
