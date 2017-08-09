@@ -1,14 +1,7 @@
-{-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE Rank2Types                #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeFamilies              #-}
-{-# LANGUAGE UndecidableInstances      #-}
+{-# LANGUAGE RankNTypes                #-}
 
 -- |
 -- Module      : Asyncly.AsyncT
@@ -24,34 +17,27 @@ module Asyncly.AsyncT
     ( AsyncT (..)
 --    , async
 --    , makeAsync
-
-    -- internal
-    , dbg
     )
 where
 
 import           Control.Applicative         (Alternative (..))
-import           Control.Monad               (ap, mzero, when)
-import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
+import           Control.Monad               (ap, liftM, MonadPlus(..), mzero)
+--import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
-import           Control.Monad.State         (MonadIO (..), MonadPlus (..),
-                                              StateT (..), liftM, runStateT,
-                                              get, gets, put, modify)
+import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
+{-
 import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM, liftBaseWith)
+                                              -}
 import           Data.Maybe                  (maybe)
-import           Data.IORef                  (newIORef, readIORef, writeIORef)
-import           Unsafe.Coerce               (unsafeCoerce)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..))
---import           Debug.Trace (traceM)
+--import           Asyncly.Threads              (MonadAsync)
 
-import Asyncly.Threads (MonadAsync, Context)
-
--- The 'Maybe' is redundant as we can use 'stop' value in place of Nothing,
+-- The 'Maybe' is redundant as we can use 'stop' value in the Nothing case,
 -- but it makes the fold using '<|>' 25% faster.
 newtype AsyncT m a =
     AsyncT {
@@ -62,41 +48,29 @@ newtype AsyncT m a =
     }
 
 ------------------------------------------------------------------------------
--- Utilities
-------------------------------------------------------------------------------
-
--- Toggle the dbg definition for debug traces
---dbg :: Monad m => String -> m ()
---dbg = traceM
-dbg :: Monad m => a -> m ()
-dbg _ = return ()
-
-------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Monad (AsyncT m) where
+instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \_ yld -> yld a Nothing
 
     AsyncT m >>= f = AsyncT $ \stp yld ->
-        m stp (\a r ->
-                case r of
-                    Nothing -> (runAsyncT (f a)) stp yld
-                    Just rx -> (runAsyncT ((f a) <|> (rx >>= f))) stp yld
-              )
+        let run x = (runAsyncT x) stp yld
+        in m stp $ \a r ->
+            maybe (run $ f a) (\rx -> run $ f a <|> (rx >>= f)) r
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Functor (AsyncT m) where
+instance Monad m => Functor (AsyncT m) where
     fmap = liftM
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Applicative (AsyncT m) where
+instance Monad m => Applicative (AsyncT m) where
     pure  = return
     (<*>) = ap
 
@@ -104,40 +78,21 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- Alternative
 ------------------------------------------------------------------------------
 
--- Thread pool vs transient threads
---
--- The current model is to start a new thread for every task. The computation
--- input is provided at the time of the creation and therefore no
--- synchronization is needed compared to a pool of threads contending to get
--- the input from a channel. However the thread creation overhead may be more
--- than the synchronization cost needed in the case of pool?
---
--- When the task is over, the outputs need to be collected and that requires
--- synchronization irrespective of a thread pool model or per task new thread
--- model.
---
--- XXX instead of starting a new thread every time, reuse the existing child
--- threads and send them work via a shared channel. When there is no more work
--- available we need a way to close the channel and wakeup all waiters so that
--- they can go away rather than waiting indefinitely.
-
-instance MonadAsync m => Alternative (AsyncT m) where
+instance Monad m => Alternative (AsyncT m) where
     empty = AsyncT $ \stp _ -> stp
 
     -- XXX need to wait for the async threads in case of a stop is returned due
     -- to async thread spawning.
     AsyncT m1 <|> m2 = AsyncT $ \stp yld ->
-        m1 ((runAsyncT m2) stp yld) (\a r ->
-                case r of
-                    Nothing -> yld a (Just m2)
-                    Just rx -> yld a (Just (rx <|> m2))
-            )
+        m1 ((runAsyncT m2) stp yld) $ \a r ->
+            let yield x = yld a (Just x)
+            in maybe (yield m2) (\rx -> yield $ rx <|> m2) r
 
-instance MonadAsync m => MonadPlus (AsyncT m) where
+instance Monad m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
 
-instance (Monoid a, MonadAsync m) => Monoid (AsyncT m a) where
+instance (Monoid a, Monad m) => Monoid (AsyncT m a) where
     mappend x y = mappend <$> x <*> y
     mempty      = return mempty
 
@@ -160,14 +115,14 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 instance MonadTrans AsyncT where
     lift mx = AsyncT $ \_ yld -> mx >>= (\a -> (yld a Nothing))
 
-instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m) where
+{-
+instance (MonadBase b m, Monad m) => MonadBase b (AsyncT m) where
     liftBase = liftBaseDefault
 
 -------------------------------------------------------------------------------
 -- monad-control
 -------------------------------------------------------------------------------
 
-{-
 instance MonadTransControl AsyncT where
     type StT AsyncT a = (Maybe a, Context)
     liftWith f = AsyncT $ StateT $ \s ->
@@ -177,7 +132,7 @@ instance MonadTransControl AsyncT where
     {-# INLINABLE liftWith #-}
     {-# INLINABLE restoreT #-}
 
-instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) where
+instance (MonadBaseControl b m, Monad m) => MonadBaseControl b (AsyncT m) where
     type StM (AsyncT m) a = ComposeSt AsyncT m a
     liftBaseWith = defaultLiftBaseWith
     restoreM     = defaultRestoreM
@@ -189,17 +144,17 @@ instance (MonadBaseControl b m, MonadAsync m) => MonadBaseControl b (AsyncT m) w
 -- Standard transformer instances
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => MonadIO (AsyncT m) where
+instance MonadIO m => MonadIO (AsyncT m) where
     liftIO = lift . liftIO
 
-instance MonadAsync m => MonadThrow (AsyncT m) where
+instance MonadThrow m => MonadThrow (AsyncT m) where
     throwM = lift . throwM
 
 ------------------------------------------------------------------------------
 -- MonadRecorder
 ------------------------------------------------------------------------------
 
-instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
+instance (Monad m, MonadRecorder m) => MonadRecorder (AsyncT m) where
     getJournal = lift getJournal
     putJournal = lift . putJournal
     play = lift . play
@@ -227,9 +182,9 @@ instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
 -- 'async' is not useful as the last action as the last action always runs in
 -- the current thread.
 {-
-async :: MonadAsync m => AsyncT m a -> AsyncT m a
+async :: Monad m => AsyncT m a -> AsyncT m a
 async action = AsyncT $ runAsyncTask True (runAsyncT action)
 
-makeAsync :: MonadAsync m => ((a -> m ()) -> m ()) -> AsyncT m a
+makeAsync :: Monad m => ((a -> m ()) -> m ()) -> AsyncT m a
 makeAsync = AsyncT . makeCont
 -}
