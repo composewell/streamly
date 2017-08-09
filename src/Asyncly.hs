@@ -135,10 +135,10 @@ module Asyncly
     --, makeAsync
 
     -- * Record and Play
-    --, waitRecord
-    --, waitRecord_
-    --, playRecordings
+    --, toListRecorded
 -}
+    , runAsynclyRecorded
+    , playRecordings
     )
 where
 
