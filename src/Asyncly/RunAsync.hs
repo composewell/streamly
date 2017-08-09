@@ -14,14 +14,12 @@
 -- Portability : GHC
 --
 module Asyncly.RunAsync
-    ( runAsyncly
+    ( AsynclyT
+    , runAsyncly
     , toList
-    , AsynclyT
---    , threads
     , each
+    , threads
     {-
-    , gather
-
     , waitRecord_
     , waitRecord
     , playRecordings
@@ -122,8 +120,9 @@ each xs = foldr (<|>) empty $ map return xs
 -- | Runs a computation under a given thread limit.  A limit of 0 means all new
 -- tasks start synchronously in the current thread unless overridden by
 -- 'async'.
--- threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
--- threads n action = AsynclyT $ AsyncT $ threadCtl n (runAsyncT $ runAsynclyT action)
+threads :: MonadAsync m => Int -> AsynclyT m a -> AsynclyT m a
+threads n action = AsynclyT $ AsyncT $ \stp yld ->
+    threadCtl n ((runAsyncT $ runAsynclyT action) stp yld)
 
 {-
 ------------------------------------------------------------------------------

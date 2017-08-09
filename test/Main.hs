@@ -11,20 +11,20 @@ default (Int)
 
 main :: IO ()
 main = hspec $ do
-    it "simple wait_" $
-        wait_ (return 0) `shouldReturn` ()
-    it "simple wait_ with IO" $
-        wait_ (liftIO $ putStrLn "hello") `shouldReturn` ()
-    it "Captures a return value using wait" $
-        wait (return 0) `shouldReturn` ([0] :: [Int])
-    it "simple wait_ and 'then' with IO" $
-        wait_ (liftIO (putStrLn "hello") >> liftIO (putStrLn "world")) `shouldReturn` ()
-    it "Then and wait" $
-        wait (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
-    it "Bind and wait" $
-        wait (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
+    it "simple runAsyncly" $
+        runAsyncly (return 0) `shouldReturn` ()
+    it "simple runAsyncly with IO" $
+        runAsyncly (liftIO $ putStrLn "hello") `shouldReturn` ()
+    it "Captures a return value using toList" $
+        toList (return 0) `shouldReturn` ([0] :: [Int])
+    it "simple runAsyncly and 'then' with IO" $
+        runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world")) `shouldReturn` ()
+    it "Then and toList" $
+        toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
+    it "Bind and toList" $
+        toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
     it "Alternative composition of sync tasks" $
-        ((wait $ threads 0 $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
+        ((toList $ threads 0 $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
     {-
     it "Alternative composition of async and sync tasks" $
         ((wait (threads 0 ((async (return 0) <|> return 1)))) >>= return .  sort)

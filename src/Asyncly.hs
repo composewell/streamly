@@ -122,20 +122,17 @@
 module Asyncly
     ( AsynclyT
     , MonadAsync
-    , AsyncT
 
     -- * Run
     , runAsyncly
     , toList
---    , threads
+    , threads
     , each
 
 {-
     -- * Fork and Gather
     --, async
     --, makeAsync
-    , each
-    --, gather
 
     -- * Record and Play
     --, waitRecord
