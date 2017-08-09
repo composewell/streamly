@@ -125,8 +125,8 @@ module Asyncly
     , AsyncT
 
     -- * Run
-    , wait
-    , wait_
+    , runAsyncly
+    , toList
 --    , threads
     , each
 
