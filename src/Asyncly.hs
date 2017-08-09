@@ -137,19 +137,11 @@ module Asyncly
     , each
     --, gather
 
-    -- * Compose
-    , before
-    , (*>>)
-    , thereafter
-    , (>>*)
-    , afterfirst
-    , (>>|)
-    -}
-
     -- * Record and Play
     --, waitRecord
     --, waitRecord_
     --, playRecordings
+-}
     )
 where
 

@@ -25,22 +25,12 @@ module Asyncly.AsyncT
 --    , async
 --    , makeAsync
 
-{-
-    , before
-    , (*>>)
-    , thereafter
-    , (>>*)
-    , afterfirst
-    , (>>|)
-    -}
-
     -- internal
     , dbg
     )
 where
 
 import           Control.Applicative         (Alternative (..))
-import Data.Maybe (maybe)
 import           Control.Monad               (ap, mzero, when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -52,6 +42,7 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               MonadTransControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM, liftBaseWith)
+import           Data.Maybe                  (maybe)
 import           Data.IORef                  (newIORef, readIORef, writeIORef)
 import           Unsafe.Coerce               (unsafeCoerce)
 
@@ -212,50 +203,6 @@ instance (MonadAsync m, MonadRecorder m) => MonadRecorder (AsyncT m) where
     getJournal = lift getJournal
     putJournal = lift . putJournal
     play = lift . play
-
-------------------------------------------------------------------------------
--- Special compositions
-------------------------------------------------------------------------------
-
-{-
--- | Run @m a@ before running @m b@. The result of @m a@ is discarded.
-before :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-before ma mb = AsyncT $ \stp yld ->
-    (runAsyncT ma) ((runAsyncT mb) stp yld) yld
-
-infixr 1 *>>
--- | Same as 'before'.
-(*>>) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m b
-(*>>) = before
-
--- | Run @m b@ after running @m a@. The result of @m b@ is discarded.
-thereafter :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-thereafter ma mb = AsyncT $ do
-    a <- runAsyncT ma
-    _ <- runAsyncT (mb >> mzero)
-    return a
-
-infixr 1 >>*
--- | Same as 'thereafter'.
-(>>*) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>*) = thereafter
-
--- XXX This can be moved to utility functions as it is purely app level
--- | Run @m b@ right after the first event in @m a@ is generated but before it
--- is yielded. The result of @m b@ is discarded.
-afterfirst :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-afterfirst ma mb = do
-    ref <- liftIO $ newIORef False
-    x <- ma
-    done <- liftIO $ readIORef ref
-    when (not done) $ (liftIO $ writeIORef ref True) >>* mb
-    return x
-
-infixr 1 >>|
--- | Same as 'afterfirst'.
-(>>|) :: MonadAsync m => AsyncT m a -> AsyncT m b -> AsyncT m a
-(>>|) = afterfirst
--}
 
 ------------------------------------------------------------------------------
 -- Async primitives
