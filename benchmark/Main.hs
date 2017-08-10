@@ -26,12 +26,14 @@ import qualified Transient.Internals as T
 import qualified Transient.Indeterminism as T
 
 import qualified Data.Machine as M
+import qualified ListT        as LT
 import qualified Asyncly as A
 
 main :: IO ()
 main = do
     defaultMain [
         bgroup "basic"  [ bench "asyncly"        $ nfIO asyncly_basic
+                        , bench "list-t"         $ nfIO list_t_basic
                         , bench "transient"      $ nfIO transient_basic
                         , bench "machines"       $ nfIO machines_basic
                         , bench "stream"         $ nfIO stream_basic
@@ -87,10 +89,10 @@ transient_basic = T.keep' $ T.threads 0 $ do
     assert (Prelude.length xs == 499000) $
         T.exit (Prelude.length xs)
 
-amap :: (a -> Int) -> a -> A.AsynclyT IO Int
+amap :: (Int -> Int) -> Int -> A.AsynclyT IO Int
 amap = Main.map
 
-afilter :: (a -> Bool) -> a -> A.AsynclyT IO a
+afilter :: (Int -> Bool) -> Int -> A.AsynclyT IO Int
 afilter = Main.filter
 
 adrop :: Int -> Int -> A.AsynclyT IO Int
@@ -106,6 +108,28 @@ asyncly_basic = do
              >>= adrop 1000
              >>= amap (+1)
              >>= afilter (\x -> x `mod` 2 == 0)
+    assert (Prelude.length xs == 499000) $
+        return (Prelude.length xs)
+
+lfilter :: (Int -> Bool) -> Int -> LT.ListT IO Int
+lfilter = Main.filter
+
+lmap :: (Int -> Int) -> Int -> LT.ListT IO Int
+lmap = Main.map
+
+ldrop :: Int -> Int -> LT.ListT IO Int
+ldrop = Main.drop
+
+list_t_basic :: IO Int
+list_t_basic = do
+    writeIORef count 0
+    xs <- LT.toList $ do
+             LT.fromFoldable [1..1000000 :: Int]
+             >>= lfilter even
+             >>= lmap (+1)
+             >>= ldrop 1000
+             >>= lmap (+1)
+             >>= lfilter (\x -> x `mod` 2 == 0)
     assert (Prelude.length xs == 499000) $
         return (Prelude.length xs)
 
