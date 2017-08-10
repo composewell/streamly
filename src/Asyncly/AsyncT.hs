@@ -51,13 +51,29 @@ newtype AsyncT m a =
 -- Monad
 ------------------------------------------------------------------------------
 
+-- We do not use bind for parallelism. That is, we do not start each iteration
+-- of the list in parallel. That will introduce too much uncontrolled
+-- parallelism. Instead we control parallelsim using <|>, it is used for
+-- actions that 'may' be run in parallel. The library decides whether they will
+-- be started in parallel. This puts the parallel semantics in the hands of the
+-- user and operational semantics in the hands of the library. Ideally we would
+-- want parallelism to be completely hidden from the user, for example we can
+-- automatically decide where to start an action in parallel so that it is most
+-- efficient. Maybe sometime we shall be able to do that?
+
+serially :: AsyncT m a -> AsyncT m a -> AsyncT m a
+serially (AsyncT m1) m2 = AsyncT $ \stp yld ->
+    m1 ((runAsyncT m2) stp yld) $ \a r ->
+        let yield x = yld a (Just x)
+        in maybe (yield m2) (\rx -> yield $ serially rx m2) r
+
 instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \_ yld -> yld a Nothing
 
     AsyncT m >>= f = AsyncT $ \stp yld ->
         let run x = (runAsyncT x) stp yld
         in m stp $ \a r ->
-            maybe (run $ f a) (\rx -> run $ f a <|> (rx >>= f)) r
+            maybe (run $ f a) (\rx -> run $ serially (f a) (rx >>= f)) r
 
 ------------------------------------------------------------------------------
 -- Functor
