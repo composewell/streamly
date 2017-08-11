@@ -92,8 +92,9 @@ runAsynclyLogged lref m = do
     where
 
     stop = return ()
-    run ct mx = (runAsyncT mx) ct stop (\_ ct r ->
-                                            maybe stop (\x -> (run ct x)) r)
+    {-# INLINE yield #-}
+    yield _ c r = maybe stop (\x -> (run c x)) r
+    run ct mx = (runAsyncT mx) ct stop yield
 
 runAsyncly :: MonadAsync m => AsynclyT m a -> m ()
 runAsyncly m = runAsynclyLogged Nothing m
@@ -110,17 +111,13 @@ toList m = do
 
     where
 
-    stop = return Stop
-    done a = return (Done a)
-    yield a c x = return $ Yield a c x
+    stop = return []
+    done a = return [a]
+    {-# INLINE yield #-}
+    yield a c r = maybe (done a) (\x -> liftM (a :) (run c x)) r
 
-    run ctx ma = do
-        res <- (runAsyncT ma) ctx stop (\a c r ->
-                    maybe (done a) (\x -> yield a c x) r)
-        case res of
-            Yield x c mb -> liftM (x :) (run c mb)
-            Stop -> return []
-            Done x -> return (x : [])
+    {-# INLINE run #-}
+    run ctx mx = (runAsyncT mx) ctx stop yield
 
 {-# INLINABLE each #-}
 each :: MonadAsync m => [a] -> AsynclyT m a
