@@ -35,15 +35,16 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
 import           Data.Maybe                  (maybe)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..))
---import           Asyncly.Threads              (MonadAsync)
+import           Asyncly.Threads              (Context)
 
 -- The 'Maybe' is redundant as we can use 'stop' value in the Nothing case,
 -- but it makes the fold using '<|>' 25% faster.
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
-               m r                                  -- stop
-            -> (a -> Maybe (AsyncT m a) -> m r)     -- yield
+               Context                                      -- state
+            -> m r                                          -- stop
+            -> (a -> Context -> Maybe (AsyncT m a) -> m r)  -- yield
             -> m r
     }
 
@@ -62,18 +63,18 @@ newtype AsyncT m a =
 -- efficient. Maybe sometime we shall be able to do that?
 
 serially :: AsyncT m a -> AsyncT m a -> AsyncT m a
-serially (AsyncT m1) m2 = AsyncT $ \stp yld ->
-    m1 ((runAsyncT m2) stp yld) $ \a r ->
-        let yield x = yld a (Just x)
+serially (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
+    m1 ctx ((runAsyncT m2) ctx stp yld) $ \a c r ->
+        let yield x = yld a c (Just x)
         in maybe (yield m2) (\rx -> yield $ serially rx m2) r
 
 instance Monad m => Monad (AsyncT m) where
-    return a = AsyncT $ \_ yld -> yld a Nothing
+    return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
 
-    AsyncT m >>= f = AsyncT $ \stp yld ->
-        let run x = (runAsyncT x) stp yld
-        in m stp $ \a r ->
-            maybe (run $ f a) (\rx -> run $ serially (f a) (rx >>= f)) r
+    AsyncT m >>= f = AsyncT $ \ctx stp yld ->
+        m ctx stp $ \a c r ->
+            let run x = (runAsyncT x) c stp yld
+            in maybe (run $ f a) (\rx -> run $ serially (f a) (rx >>= f)) r
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -95,13 +96,13 @@ instance Monad m => Applicative (AsyncT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Alternative (AsyncT m) where
-    empty = AsyncT $ \stp _ -> stp
+    empty = AsyncT $ \_ stp _ -> stp
 
     -- XXX need to wait for the async threads in case of a stop is returned due
     -- to async thread spawning.
-    AsyncT m1 <|> m2 = AsyncT $ \stp yld ->
-        m1 ((runAsyncT m2) stp yld) $ \a r ->
-            let yield x = yld a (Just x)
+    AsyncT m1 <|> m2 = AsyncT $ \ctx stp yld ->
+        m1 ctx ((runAsyncT m2) ctx stp yld) $ \a c r ->
+            let yield x = yld a c (Just x)
             in maybe (yield m2) (\rx -> yield $ rx <|> m2) r
 
 instance Monad m => MonadPlus (AsyncT m) where
@@ -129,7 +130,7 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 -------------------------------------------------------------------------------
 
 instance MonadTrans AsyncT where
-    lift mx = AsyncT $ \_ yld -> mx >>= (\a -> (yld a Nothing))
+    lift mx = AsyncT $ \ctx _ yld -> mx >>= (\a -> (yld a ctx Nothing))
 
 {-
 instance (MonadBase b m, Monad m) => MonadBase b (AsyncT m) where
