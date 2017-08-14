@@ -281,9 +281,10 @@ instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
 
-instance (Monoid a, Monad m) => Monoid (AsyncT m a) where
-    mappend x y = mappend <$> x <*> y
-    mempty      = return mempty
+-- | Appends the results of two AsyncT computations in order.
+instance MonadAsync m => Monoid (AsyncT m a) where
+    mempty      = empty
+    mappend x y = serially x y
 
 ------------------------------------------------------------------------------
 -- Num

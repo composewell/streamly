@@ -3,6 +3,7 @@ module Main (main) where
 import Asyncly
 import Control.Applicative ((<|>))
 import Control.Concurrent (myThreadId, threadDelay)
+import Data.Monoid ((<>))
 import Control.Monad.IO.Class (liftIO)
 import Data.List (nub, sort)
 import Test.Hspec
@@ -23,6 +24,8 @@ main = hspec $ do
         toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
     it "Bind and toList" $
         toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
+    it "Monoid composition" $
+        toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "Alternative composition" $
         ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
     {-
