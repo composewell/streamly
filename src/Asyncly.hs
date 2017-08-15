@@ -126,7 +126,6 @@ module Asyncly
     -- * Run
     , runAsyncly
     , toList
-    , threads
     , each
 
 {-
@@ -142,6 +141,5 @@ module Asyncly
     )
 where
 
-import Asyncly.Threads
 import Asyncly.AsyncT
 import Asyncly.RunAsync

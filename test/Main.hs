@@ -23,8 +23,8 @@ main = hspec $ do
         toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
     it "Bind and toList" $
         toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
-    it "Alternative composition of sync tasks" $
-        ((toList $ threads 0 $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
+    it "Alternative composition" $
+        ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
     {-
     it "Alternative composition of async and sync tasks" $
         ((wait (threads 0 ((async (return 0) <|> return 1)))) >>= return .  sort)
