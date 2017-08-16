@@ -127,6 +127,7 @@ module Asyncly
     , runAsyncly
     , toList
     , each
+    , for
 
 {-
     -- * Fork and Gather

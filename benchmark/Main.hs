@@ -18,7 +18,7 @@ import qualified Conduit.Simple as S
 
 -- Transient
 import           Control.Monad (guard)
-import           Control.Applicative (Alternative)
+import           Control.Applicative (Alternative(..))
 import           Data.IORef (IORef, newIORef, writeIORef)
 import           Data.Atomics (atomicModifyIORefCAS)
 import           System.IO.Unsafe (unsafePerformIO)
@@ -102,12 +102,14 @@ asyncly_basic :: IO Int
 asyncly_basic = do
     writeIORef count 0
     xs <- A.toList $ do
-             A.each [1..1000000 :: Int]
-             >>= afilter even
-             >>= amap (+1)
-             >>= adrop 1000
-             >>= amap (+1)
-             >>= afilter (\x -> x `mod` 2 == 0)
+             -- A.each [1..1000000 :: Int]
+             (A.for [1..1000000 :: Int] $ \x ->
+                return x
+                >>= afilter even
+                >>= amap (+1)
+                >>= adrop 1000
+                >>= amap (+1)
+                >>= afilter (\x -> x `mod` 2 == 0))
     assert (Prelude.length xs == 499000) $
         return (Prelude.length xs)
 

@@ -187,9 +187,6 @@ push ctx m = go (Just ctx) m
         channelYield pchan a
         channelDone pchan
 
-    -- XXX If other threads are running, we should yield to the channel only
-    -- when the channel becomes empty so that we do not start more threads
-    -- unnecessarily.
     {-# INLINE continue #-}
     continue a c mx = do
         channelYield pchan a
@@ -288,7 +285,7 @@ fork m1 m2 = AsyncT $ \ctx stp yld -> do
         Just c -> (runAsyncT (pushFork c m1 m2)) ctx stp yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
-    empty = AsyncT $ \_ stp _ -> stp
+    empty = mempty
 
     m1 <|> m2 = AsyncT $ \ctx stp yld -> do
         doAsync <- liftIO $ canFork

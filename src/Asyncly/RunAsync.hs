@@ -17,6 +17,7 @@ module Asyncly.RunAsync
     , runAsyncly
     , toList
     , each
+    , for
     , runAsynclyRecorded
 --    , toListRecorded
     , playRecordings
@@ -30,6 +31,7 @@ import           Control.Monad.Catch         (MonadThrow)
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.State         (StateT(..), runStateT)
+import           Data.Monoid                 ((<>))
 import           Data.IORef                  (IORef, newIORef, readIORef)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..), RecorderT,
@@ -104,9 +106,15 @@ toList m = run Nothing m
     {-# INLINE run #-}
     run ctx mx = (runAsyncT mx) ctx stop yield
 
+-- | Run a given function concurrently on the list and collect the results.
+{-# INLINABLE for #-}
+for :: MonadAsync m => [a] -> (a -> AsyncT m b) -> AsynclyT m b
+for xs f = foldr (<|>) empty $ map f xs
+
+-- XXX rename to fromList?
 {-# INLINABLE each #-}
 each :: MonadAsync m => [a] -> AsynclyT m a
-each xs = foldr (<|>) empty $ map return xs
+each xs = foldr (<>) empty $ map return xs
 
 ------------------------------------------------------------------------------
 -- Logging
