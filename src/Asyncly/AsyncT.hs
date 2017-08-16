@@ -78,9 +78,11 @@ data ChildEvent a = ChildYield a | ChildDone ThreadId (Maybe SomeException)
 
 newtype Context a = Context { childChannel :: TChan (ChildEvent a) }
 
--- The 'Maybe' is redundant as we can use 'stop' value in the Nothing case,
--- but it makes the fold using '<|>' 25% faster. Need to try again as the code
--- has gone through many changes after this was tested.
+-- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
+-- Nothing case, but it makes the fold using '<|>' 25% faster. Need to try
+-- again as the code has gone through many changes after this was tested.
+-- With the Maybe, 'stop' is required only to represent 'empty' in an
+-- Alternative composition.
 --
 -- Currently the only state we need is the thread context, For generality we
 -- can parameterize the type with a state type 's'.
@@ -214,15 +216,27 @@ handlePushException pchan res = do
 canFork :: IO Bool
 canFork = return True
 
--- XXX do not fork if the channel is never empty
--- We can fork if the channel goes empty sometimes
+{-# NOINLINE fork #-}
 fork :: (MonadIO m, MonadBaseControl IO m) => AsyncT m a -> AsyncT m a
 fork m = AsyncT $ \ctx stp yld -> do
-    doAsync <- liftIO $ canFork
     let c = fromJust ctx -- XXX partial
+    _ <- doFork (push c m) (handlePushException (childChannel c))
+    stp
+
+fork1 :: (MonadIO m, MonadBaseControl IO m) => AsyncT m a -> AsyncT m a -> AsyncT m a
+fork1 m m1 = AsyncT $ \ctx stp yld -> do
+    let c = fromJust ctx -- XXX partial
+    _ <- doFork (push c m) (handlePushException (childChannel c))
+    (runAsyncT m1) ctx stp yld
+
+-- XXX do not fork if the channel is never empty
+-- We can fork if the channel goes empty sometimes
+{-# INLINE tryFork #-}
+tryFork :: (MonadIO m, MonadBaseControl IO m) => AsyncT m a -> AsyncT m a
+tryFork m = AsyncT $ \ctx stp yld -> do
+    doAsync <- liftIO $ canFork
     if doAsync then do
-        _ <- doFork (push c m) (handlePushException (childChannel c))
-        stp
+        (runAsyncT $ fork m) ctx stp yld
     else (runAsyncT m) ctx stp yld
 
 -- We re-raise any exceptions received from the child threads, that way
@@ -244,15 +258,23 @@ pull ctx = AsyncT $ \_ stp yld -> do
                     let continue = (runAsyncT (pull ctx)) (Just ctx) stp yld
                     maybe continue throwM e
 
-pushpull :: MonadAsync m => AsyncT m a -> AsyncT m a
-pushpull m = AsyncT $ \ctx stp yld ->
+{-# INLINE pushpull #-}
+pushpull :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+pushpull m1 m2 = AsyncT $ \ctx stp yld ->
     case ctx of
         Nothing -> do
+            -- liftIO $ putStrLn "creating context"
             c <- liftIO $ newContext
+
+            -- Not sure why the following show a quadratic complexity
+            -- 1) let comp = m1 <> (m2 <> empty)
+            -- 2) let comp = (m1 <> m2) <> empty
+            -- (runAsyncT comp) (Just c) stp yld
+
             -- XXX m must be a push type computation
-            let comp = serially (fork m) (pull c)
-            (runAsyncT comp) (Just c) stp yld
-        Just _ -> (runAsyncT m) ctx stp yld
+            -- XXX Create context only if we are really forking
+            (runAsyncT (fork1 (serially m1 m2) (pull c))) (Just c) stp yld
+        Just _ -> (runAsyncT (serially m1 m2)) ctx stp yld
 
 -- Child threads yield values to the parent's channel. The parent reads them
 -- from there and yields to its consumer.
@@ -273,9 +295,7 @@ instance MonadAsync m => Alternative (AsyncT m) where
     -- a serially running computation. For that we can use a state flag to fork
     -- the rest of the computation at any point of time inside the Monad bind
     -- operation if the consumer is running at a faster speed.
-    m1 <|> m2 = AsyncT $ \ctx stp yld ->
-        let comp = pushpull $ serially (fork m1) m2
-        in (runAsyncT comp) ctx stp yld
+    m1 <|> m2 = pushpull (tryFork m1) m2
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
