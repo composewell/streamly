@@ -18,14 +18,14 @@ main = hspec $ do
         runAsyncly (liftIO $ putStrLn "hello") `shouldReturn` ()
     it "Captures a return value using toList" $
         toList (return 0) `shouldReturn` ([0] :: [Int])
+    it "Monoid composition" $
+        toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "simple runAsyncly and 'then' with IO" $
         runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world")) `shouldReturn` ()
     it "Then and toList" $
         toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
     it "Bind and toList" $
         toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
-    it "Monoid composition" $
-        toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "Alternative composition" $
         ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
     it "Alternative composition - each" $

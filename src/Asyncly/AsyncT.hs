@@ -102,6 +102,14 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 -- Monad
 ------------------------------------------------------------------------------
 
+-- | Appends the results of two AsyncT computations in order.
+instance Monad m => Monoid (AsyncT m a) where
+    mempty = AsyncT $ \_ stp _ -> stp
+    mappend (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
+        m1 ctx ((runAsyncT m2) ctx stp yld) $ \a c r ->
+            let yield x = yld a c (Just x)
+            in maybe (yield m2) (\rx -> yield $ mappend rx m2) r
+
 -- We do not use bind for parallelism. That is, we do not start each iteration
 -- of the list in parallel. That will introduce too much uncontrolled
 -- parallelism. Instead we control parallelism using <|>, it is used for
@@ -114,13 +122,6 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 -- thread or not based on the level of the bind in the tree. Maybe at some
 -- point we shall be able to do that?
 
--- XXX make this (<>)
-serially :: AsyncT m a -> AsyncT m a -> AsyncT m a
-serially (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
-    m1 ctx ((runAsyncT m2) ctx stp yld) $ \a c r ->
-        let yield x = yld a c (Just x)
-        in maybe (yield m2) (\rx -> yield $ serially rx m2) r
-
 instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
 
@@ -130,7 +131,7 @@ instance Monad m => Monad (AsyncT m) where
         m Nothing stp $ \a _ r ->
             let run x = (runAsyncT x) Nothing stp yld
                 next = f a
-            in maybe (run next) (\rx -> run $ serially next (rx >>= f)) r
+            in maybe (run next) (\rx -> run $ next <> (rx >>= f)) r
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -299,12 +300,6 @@ instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
 
--- XXX Move it in the beginning
--- | Appends the results of two AsyncT computations in order.
-instance MonadAsync m => Monoid (AsyncT m a) where
-    mempty      = empty
-    mappend x y = serially x y
-
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
@@ -363,7 +358,7 @@ instance MonadThrow m => MonadThrow (AsyncT m) where
 -- MonadRecorder
 ------------------------------------------------------------------------------
 
-instance (Monad m, MonadRecorder m) => MonadRecorder (AsyncT m) where
+instance MonadRecorder m => MonadRecorder (AsyncT m) where
     getJournal = lift getJournal
     putJournal = lift . putJournal
     play = lift . play
