@@ -28,6 +28,8 @@ main = hspec $ do
         toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "Alternative composition" $
         ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
+    it "Alternative composition - each" $
+        ((toList $ each [1..100]) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
     {-
     it "Alternative composition of async and sync tasks" $
         ((wait (threads 0 ((async (return 0) <|> return 1)))) >>= return .  sort)
