@@ -125,8 +125,8 @@ instance Monad m => Monoid (AsyncT m a) where
 instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
 
-    -- | On bind the new computation does not inherit the parent thread
-    -- context, it starts a new node in the tree.
+    -- | A thread context is valid only until the next bind. Upon a bind we
+    -- reset the context to Nothing.
     AsyncT m >>= f = AsyncT $ \_ stp yld ->
         m Nothing stp $ \a _ r ->
             let run x = (runAsyncT x) Nothing stp yld
@@ -166,34 +166,23 @@ doFork action preExit =
 
 {-# NOINLINE push #-}
 push :: MonadIO m => Context a -> AsyncT m a -> m ()
-push ctx m = go (Just ctx) m
+push context action = run (Just context) action
 
     where
 
+    run ctx m = (runAsyncT m) ctx channelDone yield
+
     -- XXX make this a bounded channel so that we block if the previous value
     -- is not consumed yet.
-    {-# INLINE channelDone #-}
-    channelDone chan = do
+    chan           = childChannel context
+    channelYield a = liftIO $ atomically $ writeTChan chan (ChildYield a)
+    channelDone    = do
         tid <- liftIO myThreadId
         liftIO $ atomically $ writeTChan chan (ChildDone tid Nothing)
 
-    {-# INLINE channelYield #-}
-    channelYield chan a = liftIO $ atomically $ writeTChan chan (ChildYield a)
-
-    go c mx = (runAsyncT mx) c (channelDone pchan) yield
-    pchan = childChannel ctx
-
-    done a = do
-        channelYield pchan a
-        channelDone pchan
-
-    {-# INLINE continue #-}
-    continue a c mx = do
-        channelYield pchan a
-        go c mx
-
-    {-# INLINE yield #-}
-    yield a c r = maybe (done a) (\x -> continue a c x) r
+    done a           = channelYield a >> channelDone
+    continue a ctx m = channelYield a >> run ctx m
+    yield a ctx r    = maybe (done a) (\rx -> continue a ctx rx) r
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
@@ -255,10 +244,6 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
         -- XXX push from m2 only when the channel becomes empty
         push c mb
 
--- If threads suspend due to IO we can start more of them to utilize concurrent
--- IO, but only if we have more IO bandwidth. If we have more parallel CPU
--- bandwidth we can start more threads appropriately, but we have to see that
--- the thread creation overhead is less than the actual work to be done.
 canFork :: IO Bool
 canFork = return True
 
