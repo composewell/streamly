@@ -212,7 +212,6 @@ pushFork c m1 m2 = AsyncT $ \ctx stp yld -> do
 {-# NOINLINE pull #-}
 pull :: (MonadIO m, MonadThrow m) => Context a -> AsyncT m a
 pull ctx = AsyncT $ \_ stp yld -> do
-    -- XXX push the try out of the pull loop
     res <- liftIO $ try (atomically $ readTChan (childChannel ctx))
     case res of
         Left e ->
@@ -232,7 +231,6 @@ pull ctx = AsyncT $ \_ stp yld -> do
 {-# INLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
-    -- XXX assert ctx is Nothing
     c <- liftIO $ newContext
     _ <- doFork (pushBoth c m1 m2) (handlePushException (childChannel c))
     (runAsyncT (pull c)) (Just c) stp yld
