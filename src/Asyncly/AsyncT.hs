@@ -68,10 +68,10 @@ import           Control.Monad.Trans.Recorder (MonadRecorder(..))
 -- Parent child thread communication types
 ------------------------------------------------------------------------------
 
--- XXX for threads that yield a single value we can pack yield and done in
--- ChildDone (Either exception value) so that we do not use two messages over
--- the channel where we can use just one.
-data ChildEvent a = ChildYield a | ChildDone ThreadId (Maybe SomeException)
+data ChildEvent a =
+      ChildYield a
+    | ChildDone ThreadId a
+    | ChildStop ThreadId (Maybe SomeException)
 
 ------------------------------------------------------------------------------
 -- State threaded around the monad for thread management
@@ -170,17 +170,20 @@ push context action = run (Just context) action
 
     where
 
-    run ctx m = (runAsyncT m) ctx channelDone yield
+    run ctx m = (runAsyncT m) ctx channelStop yield
 
     -- XXX make this a bounded channel so that we block if the previous value
     -- is not consumed yet.
     chan           = childChannel context
     channelYield a = liftIO $ atomically $ writeTChan chan (ChildYield a)
-    channelDone    = do
+    channelDone a  = do
         tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTChan chan (ChildDone tid Nothing)
+        liftIO $ atomically $ writeTChan chan (ChildDone tid a)
+    channelStop = do
+        tid <- liftIO myThreadId
+        liftIO $ atomically $ writeTChan chan (ChildStop tid Nothing)
 
-    done a           = channelYield a >> channelDone
+    done a           = channelDone a
     continue a ctx m = channelYield a >> run ctx m
     yield a ctx r    = maybe (done a) (\rx -> continue a ctx rx) r
 
@@ -191,7 +194,7 @@ push context action = run (Just context) action
 handlePushException :: TChan (ChildEvent a) -> SomeException -> IO ()
 handlePushException pchan e = do
     tid <- myThreadId
-    atomically $ writeTChan pchan (ChildDone tid (Just e))
+    atomically $ writeTChan pchan (ChildStop tid (Just e))
 
 -- | run m1 in a new thread, pushing its results to a pull channel and then run
 -- m2 in the parent thread. Any exceptions are also pushed to the channel.
@@ -219,7 +222,8 @@ pull ctx = AsyncT $ \_ stp yld -> do
         Right ev ->
             case ev of
                 ChildYield a -> yld a Nothing (Just (pull ctx))
-                ChildDone _ e -> do
+                ChildDone _ a -> yld a Nothing (Just (pull ctx))
+                ChildStop _ e -> do
                     let continue = (runAsyncT (pull ctx)) (Just ctx) stp yld
                     maybe continue throwM e
 
