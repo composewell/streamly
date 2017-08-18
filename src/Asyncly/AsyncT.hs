@@ -106,8 +106,8 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 instance Monad m => Monoid (AsyncT m a) where
     mempty = AsyncT $ \_ stp _ -> stp
     mappend (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
-        m1 ctx ((runAsyncT m2) ctx stp yld) $ \a c r ->
-            let yield x = yld a c (Just x)
+        m1 ctx ((runAsyncT m2) ctx stp yld) $ \a _ r ->
+            let yield x = yld a ctx (Just x)
             in maybe (yield m2) (\rx -> yield $ mappend rx m2) r
 
 -- We do not use bind for parallelism. That is, we do not start each iteration
@@ -152,7 +152,7 @@ instance Monad m => Applicative (AsyncT m) where
 -- Alternative
 ------------------------------------------------------------------------------
 
-{-# NOINLINE doFork #-}
+{-# INLINE doFork #-}
 doFork :: (MonadIO m, MonadBaseControl IO m)
     => m ()
     -> (SomeException -> IO ())
@@ -160,6 +160,7 @@ doFork :: (MonadIO m, MonadBaseControl IO m)
 doFork action preExit =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
+            -- XXX test the exception handling
             _ <- runInIO $ EL.catch (restore action) (liftIO . preExit)
             -- XXX restore state here?
             return ()
@@ -219,20 +220,21 @@ pull ctx = AsyncT $ \_ stp yld -> do
                 Just BlockedIndefinitelyOnSTM -> stp
                 Nothing -> throwM e
         Right ev ->
-            case ev of
-                ChildYield a -> yld a Nothing (Just (pull ctx))
-                ChildDone _ a -> yld a Nothing (Just (pull ctx))
+            let yield a = yld a Nothing (Just (pull ctx))
+             in case ev of
+                ChildYield a -> yield a
+                ChildDone _ a -> yield a
                 ChildStop _ e -> do
                     let continue = (runAsyncT (pull ctx)) (Just ctx) stp yld
-                    maybe continue throwM e
+                     in maybe continue throwM e
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
-{-# INLINE pullFork #-}
+{-# NOINLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
     c <- liftIO $ newContext
-    _ <- doFork (pushBoth c m1 m2) (handlePushException (childChannel c))
+    _ <- doFork (push c (m1 <|> m2)) (handlePushException (childChannel c))
     (runAsyncT (pull c)) (Just c) stp yld
 
     where
@@ -241,13 +243,8 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
         childChan  <- atomically newTChan
         return $ Context { childChannel  = childChan }
 
-    pushBoth c ma mb = do
-        _ <- doFork (push c ma) (handlePushException (childChannel c))
-        -- XXX push from m2 only when the channel becomes empty
-        push c mb
-
 canFork :: IO Bool
-canFork = return True
+canFork = return False
 
 -- Concurrency rate control. Our objective is to create more threads on
 -- demand if the consumer is running faster than us. As soon as we
@@ -264,21 +261,20 @@ canFork = return True
 -- the rest of the computation at any point of time inside the Monad bind
 -- operation if the consumer is running at a faster speed.
 --
-{-# NOINLINE fork #-}
-fork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-fork m1 m2 = AsyncT $ \ctx stp yld -> do
-    case ctx of
-        Nothing -> (runAsyncT (pullFork m1 m2)) ctx stp yld
-        Just c -> (runAsyncT (pushFork c m1 m2)) ctx stp yld
-
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
 
+    -- XXX pullFork can have more than 2x penalty for smallish tasks. Can we
+    -- avoid this automatically if the task is small?
+    {-# INLINE (<|>) #-}
     m1 <|> m2 = AsyncT $ \ctx stp yld -> do
-        doAsync <- liftIO $ canFork
-        if doAsync then
-            (runAsyncT $ fork m1 m2) ctx stp yld
-        else (runAsyncT (m1 <> m2)) ctx stp yld
+        case ctx of
+            Nothing -> (runAsyncT (pullFork m1 m2)) ctx stp yld
+            Just c -> do
+                doAsync <- liftIO $ canFork
+                if doAsync then
+                    (runAsyncT (pushFork c m1 m2)) ctx stp yld
+                else (runAsyncT (m1 <> m2)) ctx stp yld
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty

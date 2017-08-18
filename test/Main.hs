@@ -20,6 +20,8 @@ main = hspec $ do
         toList (return 0) `shouldReturn` ([0] :: [Int])
     it "Monoid composition" $
         toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
+    it "Monoid composition - each" $
+        ((toList $ each [1..100]) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
     it "simple runAsyncly and 'then' with IO" $
         runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world")) `shouldReturn` ()
     it "Then and toList" $
@@ -28,8 +30,8 @@ main = hspec $ do
         toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
     it "Alternative composition" $
         ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
-    it "Alternative composition - each" $
-        ((toList $ each [1..100]) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
+    it "Alternative composition with bind" $
+        (toList (for [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])
     {-
     it "Alternative composition of async and sync tasks" $
         ((wait (threads 0 ((async (return 0) <|> return 1)))) >>= return .  sort)
