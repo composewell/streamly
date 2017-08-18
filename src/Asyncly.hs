@@ -122,6 +122,7 @@
 module Asyncly
     ( AsynclyT
     , MonadAsync
+    , yield
 
     -- * Run
     , runAsyncly

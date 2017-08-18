@@ -18,6 +18,7 @@
 module Asyncly.AsyncT
     ( AsyncT (..)
     , MonadAsync
+    , yield
 --    , async
 --    , makeAsync
     )
@@ -107,8 +108,8 @@ instance Monad m => Monoid (AsyncT m a) where
     mempty = AsyncT $ \_ stp _ -> stp
     mappend (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
         m1 ctx ((runAsyncT m2) ctx stp yld) $ \a _ r ->
-            let yield x = yld a ctx (Just x)
-            in maybe (yield m2) (\rx -> yield $ mappend rx m2) r
+            let yielder x = yld a ctx (Just x)
+            in maybe (yielder m2) (\rx -> yielder $ mappend rx m2) r
 
 -- We do not use bind for parallelism. That is, we do not start each iteration
 -- of the list in parallel. That will introduce too much uncontrolled
@@ -132,6 +133,9 @@ instance Monad m => Monad (AsyncT m) where
             let run x = (runAsyncT x) Nothing stp yld
                 next = f a
             in maybe (run next) (\rx -> run $ next <> (rx >>= f)) r
+
+yield :: a -> AsyncT m a -> AsyncT m a
+yield a m = AsyncT $ \ctx _ yld -> yld a ctx (Just m)
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -171,7 +175,7 @@ push context action = run (Just context) action
 
     where
 
-    run ctx m = (runAsyncT m) ctx channelStop yield
+    run ctx m = (runAsyncT m) ctx channelStop yielder
 
     -- XXX make this a bounded channel so that we block if the previous value
     -- is not consumed yet.
@@ -186,7 +190,7 @@ push context action = run (Just context) action
 
     done a           = channelDone a
     continue a ctx m = channelYield a >> run ctx m
-    yield a ctx r    = maybe (done a) (\rx -> continue a ctx rx) r
+    yielder a ctx r  = maybe (done a) (\rx -> continue a ctx rx) r
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
@@ -220,10 +224,10 @@ pull ctx = AsyncT $ \_ stp yld -> do
                 Just BlockedIndefinitelyOnSTM -> stp
                 Nothing -> throwM e
         Right ev ->
-            let yield a = yld a Nothing (Just (pull ctx))
+            let yielder a = yld a Nothing (Just (pull ctx))
              in case ev of
-                ChildYield a -> yield a
-                ChildDone _ a -> yield a
+                ChildYield a -> yielder a
+                ChildDone _ a -> yielder a
                 ChildStop _ e -> do
                     let continue = (runAsyncT (pull ctx)) (Just ctx) stp yld
                      in maybe continue throwM e
