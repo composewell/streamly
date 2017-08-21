@@ -209,18 +209,6 @@ handlePushException pchan e = do
     tid <- myThreadId
     atomically $ writeTChan pchan (ChildStop tid (Just e))
 
--- | run m1 in a new thread, pushing its results to a pull channel and then run
--- m2 in the parent thread. Any exceptions are also pushed to the channel.
-{-# INLINE pullSideDispatch #-}
-pullSideDispatch :: MonadAsync m
-    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
-pullSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
-    let chan = childChannel ctx
-    _ <- doFork (push (ctx {pullSide = False}) m1) (handlePushException chan)
-    liftIO $ threadDelay 0
-    liftIO $ writeIORef (pendingWork ctx) m2
-    (runAsyncT (pullDispatch ctx False)) Nothing stp yld
-
 {-# NOINLINE pushSideDispatch #-}
 pushSideDispatch :: MonadAsync m
     => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
@@ -266,6 +254,18 @@ pullDispatch ctx dispatch = AsyncT $ \_ stp yld -> do
             ChildDone _ a -> yld a Nothing (Just (pullDispatch ctx True))
             -- XXX kill threads
             ChildStop _ e -> maybe (continue stp yld) throwM e
+
+-- | run m1 in a new thread, pushing its results to a pull channel and then run
+-- m2 in the parent thread. Any exceptions are also pushed to the channel.
+{-# INLINE pullSideDispatch #-}
+pullSideDispatch :: MonadAsync m
+    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
+pullSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
+    let chan = childChannel ctx
+    _ <- doFork (push (ctx {pullSide = False}) m1) (handlePushException chan)
+    liftIO $ threadDelay 0
+    liftIO $ writeIORef (pendingWork ctx) m2
+    (runAsyncT (pullDispatch ctx False)) Nothing stp yld
 
 {-# NOINLINE pullDrain #-}
 pullDrain :: (MonadIO m, MonadThrow m) => TChan (ChildEvent a) -> AsyncT m a
