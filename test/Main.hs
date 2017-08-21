@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Asyncly
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), empty)
 import Control.Concurrent (myThreadId, threadDelay)
 import Data.Monoid ((<>))
 import Control.Monad.IO.Class (liftIO)
@@ -28,8 +28,22 @@ main = hspec $ do
         toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
     it "Bind and toList" $
         toList (do x <- return 1; y <- return 2; return (x + y)) `shouldReturn` ([3] :: [Int])
+    it "Alternative - empty" $
+        (toList empty) `shouldReturn` ([] :: [Int])
+    it "Alternative composition - empty <|> empty" $
+        (toList (empty <|> empty)) `shouldReturn` ([] :: [Int])
+    it "Alternative composition - empty at the beginning" $
+        (toList $ (empty <|> return 1)) `shouldReturn` ([1] :: [Int])
+    it "Alternative composition - empty at the end" $
+        (toList $ (return 1 <|> empty)) `shouldReturn` ([1] :: [Int])
     it "Alternative composition" $
         ((toList $ (return 0 <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
+    it "Alternative composition - empty in the middle" $
+        ((toList $ (return 0 <|> empty <|> return 1)) >>= return . sort) `shouldReturn` ([0, 1] :: [Int])
+    it "Alternative composition - left associated" $
+        ((toList $ (((return 0 <|> return 1) <|> return 2) <|> return 3)) >>= return . sort) `shouldReturn` ([0, 1, 2, 3] :: [Int])
+    it "Alternative composition - right associated" $
+        ((toList $ (return 0 <|> (return 1 <|> (return 2 <|> return 3)))) >>= return . sort) `shouldReturn` ([0, 1, 2, 3] :: [Int])
     it "Alternative composition with bind" $
         (toList (for [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])
     {-

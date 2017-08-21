@@ -25,9 +25,11 @@ module Asyncly.AsyncT
 where
 
 import           Control.Applicative         (Alternative (..))
-import           Control.Concurrent          (ThreadId, forkIO, myThreadId)
+import           Control.Concurrent          (ThreadId, forkIO,
+                                              myThreadId, threadDelay)
 import           Control.Concurrent.STM      (TChan, atomically, newTChan,
-                                              readTChan, writeTChan)
+                                              readTChan, tryReadTChan,
+                                              writeTChan)
 import           Control.Exception           (fromException, try,
                                               SomeException (..),
                                               BlockedIndefinitelyOnSTM(..))
@@ -44,6 +46,8 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
                                               defaultLiftBaseWith,
                                               defaultRestoreM, liftBaseWith)
                                               -}
+import           Data.IORef                  (IORef, writeIORef, newIORef,
+                                              readIORef)
 import           Data.Maybe                  (maybe)
 import           Data.Monoid                 ((<>))
 
@@ -78,7 +82,11 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
-newtype Context a = Context { childChannel :: TChan (ChildEvent a) }
+data Context m a =
+    Context { childChannel    :: TChan (ChildEvent a)
+            , pullSide        :: Bool
+            , pendingWork     :: IORef (AsyncT m a)
+            }
 
 -- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
 -- Nothing case, but it makes the fold using '<|>' 25% faster. Need to try
@@ -91,9 +99,9 @@ newtype Context a = Context { childChannel :: TChan (ChildEvent a) }
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
-               Maybe (Context a)                            -- state
+               Maybe (Context m a)                          -- state
             -> m r                                          -- stop
-            -> (a -> Maybe (Context a) -> Maybe (AsyncT m a) -> m r)  -- yield
+            -> (a -> Maybe (Context m a) -> Maybe (AsyncT m a) -> m r)  -- yield
             -> m r
     }
 
@@ -170,7 +178,7 @@ doFork action preExit =
             return ()
 
 {-# NOINLINE push #-}
-push :: MonadIO m => Context a -> AsyncT m a -> m ()
+push :: MonadIO m => Context m a -> AsyncT m a -> m ()
 push context action = run (Just context) action
 
     where
@@ -203,52 +211,107 @@ handlePushException pchan e = do
 
 -- | run m1 in a new thread, pushing its results to a pull channel and then run
 -- m2 in the parent thread. Any exceptions are also pushed to the channel.
-{-# INLINE pushFork #-}
-pushFork :: (MonadIO m, MonadBaseControl IO m)
-    => Context a -> AsyncT m a -> AsyncT m a -> AsyncT m a
-pushFork c m1 m2 = AsyncT $ \ctx stp yld -> do
-    _ <- doFork (push c m1) (handlePushException (childChannel c))
-    -- XXX run m2 only when the channel becomes empty
-    (runAsyncT m2) ctx stp yld
+{-# INLINE pullSideDispatch #-}
+pullSideDispatch :: MonadAsync m
+    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
+pullSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
+    let chan = childChannel ctx
+    _ <- doFork (push (ctx {pullSide = False}) m1) (handlePushException chan)
+    liftIO $ threadDelay 0
+    liftIO $ writeIORef (pendingWork ctx) m2
+    (runAsyncT (pullDispatch ctx False)) Nothing stp yld
 
+{-# NOINLINE pushSideDispatch #-}
+pushSideDispatch :: MonadAsync m
+    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
+pushSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
+    let chan = childChannel ctx
+    _ <- doFork (push ctx m1) (handlePushException chan)
+    (runAsyncT m2) (Just ctx) stp yld
+
+-- XXX the TBQueue size should be proportional to the pending threads.
 -- We re-raise any exceptions received from the child threads, that way
 -- exceptions get propagated to the top level computation and can be handled
 -- there.
-{-# NOINLINE pull #-}
-pull :: (MonadIO m, MonadThrow m) => Context a -> AsyncT m a
-pull ctx = AsyncT $ \_ stp yld -> do
-    res <- liftIO $ try (atomically $ readTChan (childChannel ctx))
-    case res of
-        Left e ->
-            case fromException e of
-                Just BlockedIndefinitelyOnSTM -> stp
-                Nothing -> throwM e
-        Right ev ->
-            let yielder a = yld a Nothing (Just (pull ctx))
-             in case ev of
-                ChildYield a -> yielder a
-                ChildDone _ a -> yielder a
-                ChildStop _ e -> do
-                    let continue = (runAsyncT (pull ctx)) (Just ctx) stp yld
-                     in maybe continue throwM e
+{-# NOINLINE pullDispatch #-}
+pullDispatch :: (MonadIO m, MonadThrow m)
+    => Context m a -> Bool -> AsyncT m a
+pullDispatch ctx dispatch = AsyncT $ \_ stp yld -> do
+    let chan = childChannel ctx
+        eHandler e = handleException e stp
+        evHandler ev = handleEvent ev stp yld
+        maybeEvHandler ev = maybe (continue stp yld) evHandler ev
+
+    if dispatch then do
+        m <- liftIO $ readIORef (pendingWork ctx)
+        (runAsyncT m) (Just ctx) stp yld
+    else do
+        res <- liftIO $ try $ atomically $ tryReadTChan chan
+        either eHandler maybeEvHandler res
+
+    where
+
+    handleException e stp =
+        case fromException e of
+            Just BlockedIndefinitelyOnSTM -> stp
+            Nothing -> throwM e
+
+    {-# INLINE continue #-}
+    continue stp yld = (runAsyncT (pullDispatch ctx True)) (Just ctx) stp yld
+
+    {-# INLINE handleEvent #-}
+    handleEvent ev stp yld =
+         case ev of
+            ChildYield  a -> yld a Nothing (Just (pullDispatch ctx False))
+            ChildDone _ a -> yld a Nothing (Just (pullDispatch ctx True))
+            -- XXX kill threads
+            ChildStop _ e -> maybe (continue stp yld) throwM e
+
+{-# NOINLINE pullDrain #-}
+pullDrain :: (MonadIO m, MonadThrow m) => TChan (ChildEvent a) -> AsyncT m a
+pullDrain chan = AsyncT $ \_ stp yld -> do
+    let eHandler e = handleException e stp
+        evHandler ev = handleEvent ev stp yld
+
+    res <- liftIO $ try (atomically $ readTChan chan)
+    either eHandler evHandler res
+
+    where
+
+    handleException e stp =
+        case fromException e of
+            Just BlockedIndefinitelyOnSTM -> stp
+            Nothing -> throwM e
+
+    {-# INLINE continue #-}
+    continue stp yld = (runAsyncT (pullDrain chan)) Nothing stp yld
+
+    {-# INLINE handleEvent #-}
+    handleEvent ev stp yld =
+        let yielder a = yld a Nothing (Just (pullDrain chan))
+         in case ev of
+            ChildYield  a -> yielder a
+            ChildDone _ a -> yielder a
+            -- XXX kill threads
+            ChildStop _ e -> maybe (continue stp yld) throwM e
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 {-# NOINLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
-    c <- liftIO $ newContext
-    _ <- doFork (push c (m1 <|> m2)) (handlePushException (childChannel c))
-    (runAsyncT (pull c)) (Just c) stp yld
+    ctx <- liftIO $ newContext (m1 <|> m2)
+    (runAsyncT (pullDispatch ctx True)) Nothing stp yld
 
     where
 
-    newContext = do
-        childChan  <- atomically newTChan
-        return $ Context { childChannel  = childChan }
-
-canFork :: IO Bool
-canFork = return False
+    newContext m = do
+        channel <- atomically newTChan
+        work <- liftIO $ newIORef (m <|> pullDrain channel)
+        return $ Context { childChannel = channel
+                         , pullSide = True
+                         , pendingWork = work
+                         }
 
 -- Concurrency rate control. Our objective is to create more threads on
 -- demand if the consumer is running faster than us. As soon as we
@@ -260,25 +323,42 @@ canFork = return False
 -- problematic if the initial production latency is high, we may end up
 -- creating too many threads. So we need some way to monitor and use the
 -- latency as well.
+--
 -- TBD For quick response we may have to increase the rate in the middle of
 -- a serially running computation. For that we can use a state flag to fork
 -- the rest of the computation at any point of time inside the Monad bind
 -- operation if the consumer is running at a faster speed.
 --
+-- TBD the alternative composition allows us to dispatch a chunkSize of only 1.
+-- If we have to dispatch in arbitrary chunksizes we will need to compose the
+-- parallel actions using a data constructor instead so that we can divide it
+-- in chunks of arbitrary size before dispatch. When batching we can convert
+-- the structure into Alternative batches of Monoid composition. That will also
+-- allow us to dispatch more work to existing threads rather than creating new
+-- threads always.
+--
+-- TBD for pure work (when we are not in the IO monad) we can divide it into
+-- just the number of CPUs.
+--
+-- XXX to rate control left folded structrues we will have to return the
+-- residual work back to the dispatcher. It will also consume a lot of
+-- memory due to queueing of all the work before execution starts.
+--
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
 
-    -- XXX pullFork can have more than 2x penalty for smallish tasks. Can we
-    -- avoid this automatically if the task is small?
+    -- Note: This is designed to scale for right associated compositions,
+    -- therefore always use a right fold for folding bigger structures.
     {-# INLINE (<|>) #-}
     m1 <|> m2 = AsyncT $ \ctx stp yld -> do
         case ctx of
             Nothing -> (runAsyncT (pullFork m1 m2)) ctx stp yld
             Just c -> do
-                doAsync <- liftIO $ canFork
-                if doAsync then
-                    (runAsyncT (pushFork c m1 m2)) ctx stp yld
-                else (runAsyncT (m1 <> m2)) ctx stp yld
+                if pullSide c then
+                    (runAsyncT (pullSideDispatch c m1 m2)) ctx stp yld
+                else
+                    -- for left associated compositions
+                    (runAsyncT (pushSideDispatch c m1 m2)) ctx stp yld
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
