@@ -263,7 +263,7 @@ pullSideDispatch :: MonadAsync m
 pullSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
     let chan = childChannel ctx
     _ <- doFork (push (ctx {pullSide = False}) m1) (handlePushException chan)
-    liftIO $ threadDelay 0
+    -- liftIO $ threadDelay 0
     liftIO $ writeIORef (pendingWork ctx) m2
     (runAsyncT (pullDispatch ctx False)) Nothing stp yld
 
@@ -307,7 +307,7 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
 
     newContext m = do
         channel <- atomically newTChan
-        work <- liftIO $ newIORef (m <|> pullDrain channel)
+        work <- liftIO $ newIORef (m <> pullDrain channel)
         return $ Context { childChannel = channel
                          , pullSide = True
                          , pendingWork = work
