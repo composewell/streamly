@@ -82,10 +82,9 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
-data Context m a =
+data Context a =
     Context { childChannel    :: TChan (ChildEvent a)
             , pullSide        :: Bool
-            , pendingWork     :: IORef (AsyncT m a)
             }
 
 -- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
@@ -99,9 +98,9 @@ data Context m a =
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
-               Maybe (Context m a)                          -- state
+               Maybe (Context a)                            -- state
             -> m r                                          -- stop
-            -> (a -> Maybe (Context m a) -> Maybe (AsyncT m a) -> m r)  -- yield
+            -> (a -> Maybe (Context a) -> Maybe (AsyncT m a) -> m r)  -- yield
             -> m r
     }
 
@@ -178,7 +177,7 @@ doFork action preExit =
             return ()
 
 {-# NOINLINE push #-}
-push :: MonadIO m => Context m a -> AsyncT m a -> m ()
+push :: MonadIO m => Context a -> AsyncT m a -> m ()
 push context action = run (Just context) action
 
     where
@@ -211,7 +210,7 @@ handlePushException pchan e = do
 
 {-# NOINLINE pushSideDispatch #-}
 pushSideDispatch :: MonadAsync m
-    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
+    => Context a -> AsyncT m a -> AsyncT m a -> AsyncT m a
 pushSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
     let chan = childChannel ctx
     _ <- doFork (push ctx m1) (handlePushException chan)
@@ -223,15 +222,14 @@ pushSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
 -- there.
 {-# NOINLINE pullDispatch #-}
 pullDispatch :: (MonadIO m, MonadThrow m)
-    => Context m a -> Bool -> AsyncT m a
-pullDispatch ctx dispatch = AsyncT $ \_ stp yld -> do
+    => Context a -> AsyncT m a -> Bool -> AsyncT m a
+pullDispatch ctx m dispatch = AsyncT $ \_ stp yld -> do
     let chan = childChannel ctx
         eHandler e = handleException e stp
         evHandler ev = handleEvent ev stp yld
         maybeEvHandler ev = maybe (continue stp yld) evHandler ev
 
     if dispatch then do
-        m <- liftIO $ readIORef (pendingWork ctx)
         (runAsyncT m) (Just ctx) stp yld
     else do
         res <- liftIO $ try $ atomically $ tryReadTChan chan
@@ -245,13 +243,13 @@ pullDispatch ctx dispatch = AsyncT $ \_ stp yld -> do
             Nothing -> throwM e
 
     {-# INLINE continue #-}
-    continue stp yld = (runAsyncT (pullDispatch ctx True)) (Just ctx) stp yld
+    continue stp yld = (runAsyncT (pullDispatch ctx m True)) (Just ctx) stp yld
 
     {-# INLINE handleEvent #-}
     handleEvent ev stp yld =
          case ev of
-            ChildYield  a -> yld a Nothing (Just (pullDispatch ctx False))
-            ChildDone _ a -> yld a Nothing (Just (pullDispatch ctx True))
+            ChildYield  a -> yld a Nothing (Just (pullDispatch ctx m False))
+            ChildDone _ a -> yld a Nothing (Just (pullDispatch ctx m True))
             -- XXX kill threads
             ChildStop _ e -> maybe (continue stp yld) throwM e
 
@@ -259,13 +257,12 @@ pullDispatch ctx dispatch = AsyncT $ \_ stp yld -> do
 -- m2 in the parent thread. Any exceptions are also pushed to the channel.
 {-# INLINE pullSideDispatch #-}
 pullSideDispatch :: MonadAsync m
-    => Context m a -> AsyncT m a -> AsyncT m a -> AsyncT m a
+    => Context a -> AsyncT m a -> AsyncT m a -> AsyncT m a
 pullSideDispatch ctx m1 m2 = AsyncT $ \_ stp yld -> do
     let chan = childChannel ctx
     _ <- doFork (push (ctx {pullSide = False}) m1) (handlePushException chan)
     -- liftIO $ threadDelay 0
-    liftIO $ writeIORef (pendingWork ctx) m2
-    (runAsyncT (pullDispatch ctx False)) Nothing stp yld
+    (runAsyncT (pullDispatch ctx m2 False)) Nothing stp yld
 
 {-# NOINLINE pullDrain #-}
 pullDrain :: (MonadIO m, MonadThrow m) => TChan (ChildEvent a) -> AsyncT m a
@@ -300,17 +297,16 @@ pullDrain chan = AsyncT $ \_ stp yld -> do
 {-# NOINLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
-    ctx <- liftIO $ newContext (m1 <|> m2)
-    (runAsyncT (pullDispatch ctx True)) Nothing stp yld
+    ctx <- liftIO $ newContext
+    let m = pullDispatch ctx ((m1 <|> m2) <> pullDrain (childChannel ctx)) True
+    (runAsyncT m) Nothing stp yld
 
     where
 
-    newContext m = do
+    newContext = do
         channel <- atomically newTChan
-        work <- liftIO $ newIORef (m <> pullDrain channel)
         return $ Context { childChannel = channel
                          , pullSide = True
-                         , pendingWork = work
                          }
 
 -- Concurrency rate control. Our objective is to create more threads on
