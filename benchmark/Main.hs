@@ -109,7 +109,7 @@ asyncly_basic = do
                 >>= amap (+1)
                 >>= adrop 1000
                 >>= amap (+1)
-                >>= afilter (\x -> x `mod` 2 == 0))
+                >>= afilter (\y -> y `mod` 2 == 0))
     assert (Prelude.length xs == 499000) $
         return (Prelude.length xs)
 
