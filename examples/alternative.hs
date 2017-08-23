@@ -6,7 +6,7 @@ import Control.Applicative
 
 import Asyncly
 
-main = wait_ $ threads 1 $ do
+main = runAsyncly $ do
     liftIO $ hSetBuffering stdout LineBuffering
     mainThread <- liftIO myThreadId
     liftIO $ putStrLn $ "Main thread: " ++ show mainThread

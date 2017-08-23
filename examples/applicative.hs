@@ -7,11 +7,11 @@ import Asyncly
 
 main = do
     hSetBuffering stdout LineBuffering
-    xs <- wait $ threads 5 $ do
+    xs <- runAsyncly $ do
         x <- (,) <$> (event 1 <|> event 2) <*> (event 3 <|> event 4)
-        --x <- (,) <$> choose [1,2] <*> choose [3,4]
+        --x <- (,) <$> (for [1,2] return) <*> (for [3,4] return)
         liftIO $ putStrLn $ show x
         return x
     putStrLn $ show xs
     where
-        event n = async $ liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)
+        event n = liftIO $ (do putStrLn ("event" ++ show n); return n :: IO Int)
