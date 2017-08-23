@@ -1,16 +1,79 @@
-import Control.Applicative ((<|>))
-import Control.Concurrent (threadDelay)
+import Control.Applicative ((<|>), empty)
+import Control.Concurrent (threadDelay, myThreadId)
 import Control.Monad.IO.Class (liftIO)
+import Data.Monoid ((<>))
 import System.Random (randomIO)
+import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Asyncly
 
-main = wait_ $ do
-    x <- loop
-    liftIO $ print x
+main = do
+    liftIO $ hSetBuffering stdout LineBuffering
+
+    runAsyncly $ do
+        x <- loopTail (0 :: Int)
+        liftIO $ print x
+
+    runAsyncly $ do
+        x <- loopHead (0 :: Int)
+        liftIO $ print x
+
+    runAsyncly $ do
+        x <- loopTailA (0 :: Int)
+        liftIO $ print x
+
+    runAsyncly $ do
+        x <- loopHeadA (0 :: Int)
+        liftIO $ print x
 
     where
 
-    loop = do
-        liftIO $ threadDelay 1000000
-        x <- liftIO (randomIO :: IO Int)
-        return x <|> loop
+-------------------------------------------------------------------------------
+-- Serial (single-threaded) stream generator loops
+-------------------------------------------------------------------------------
+
+    -- In a <> composition the action on the left is executed and only after it
+    -- finished then the action on the right is executed. In other words the
+    -- actions are run serially.
+
+    -- Generates a value and then loops. Can be used to generate an infinite
+    -- stream. Interleaves the generator and the consumer.
+    loopTail :: Int -> AsynclyT IO Int
+    loopTail x = do
+        liftIO $ putStrLn "LoopTail..."
+        return x <> (if x < 3 then loopTail (x + 1) else empty)
+
+    -- Loops and then generates a value. The consumer can run only after the
+    -- loop has finished.  An infinite generator will not let the consumer run
+    -- at all.
+    loopHead :: Int -> AsynclyT IO Int
+    loopHead x = do
+        liftIO $ putStrLn "LoopHead..."
+        (if x < 3 then loopHead (x + 1) else empty) <> return x
+
+-------------------------------------------------------------------------------
+-- Concurrent (multi-threaded) adaptive demand-based stream generator loops
+-------------------------------------------------------------------------------
+
+    -- In a <|> composition the action on the left is executed first. However,
+    -- if it is not fast enough to generate results at the consumer's speed
+    -- then the action on the right is also spawned concurrently. In other
+    -- words, both actions may run concurrently based on the need.
+
+    loopTailA :: Int -> AsynclyT IO Int
+    loopTailA x = do
+        liftIO $ putStrLn "LoopTailA..."
+        return x <|> (if x < 3 then loopTailA (x + 1) else empty)
+
+    loopHeadA :: Int -> AsynclyT IO Int
+    loopHeadA x = do
+        liftIO $ putStrLn "LoopHeadA..."
+        (if x < 3 then loopHeadA (x + 1) else empty) <|> return x
+
+-------------------------------------------------------------------------------
+-- Parallel (fairly scheduled, multi-threaded) stream generator loops
+-------------------------------------------------------------------------------
+
+    -- In a <||> composition both actions are run concurrently in a fair
+    -- manner, no one action is preferred over another. Both actions are
+    -- spawned right away in their own independent threads. In other words, the
+    -- actions will run concurrently.
