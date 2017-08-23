@@ -13,4 +13,6 @@ output strings = do
     s <- strings
     liftIO $ putStrLn s
 
-main = runAsyncly $ output input
+main = do
+    putStrLn "Type something and press enter, repeat"
+    runAsyncly $ output input

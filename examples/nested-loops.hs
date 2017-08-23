@@ -5,7 +5,7 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Asyncly
 
-main = wait_ $ do
+main = runAsyncly $ do
     liftIO $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
     y <- loop "B " 2

@@ -1,13 +1,13 @@
-import Control.Applicative ((<|>))
+import Control.Applicative ((<|>), empty)
 import Control.Concurrent (myThreadId, threadDelay)
 import Control.Monad.IO.Class (liftIO)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Asyncly
 
-main = wait_ $ do
+main = runAsyncly $ do
     liftIO $ hSetBuffering stdout LineBuffering
-    x <- loop "A" <|> loop "B"
+    x <- loop "A" <|> loop "B" <|> empty
     liftIO $ myThreadId >>= putStr . show
              >> putStr " "
              >> print x
@@ -17,4 +17,4 @@ main = wait_ $ do
     loop name = do
         liftIO $ threadDelay 1000000
         rnd <- liftIO (randomIO :: IO Int)
-        return (name, rnd) <|> loop name
+        return (name, rnd) <|> loop name <|> empty
