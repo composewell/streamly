@@ -320,22 +320,24 @@ pullDrain ctx = AsyncT $ \_ stp yld -> do
             done <- addThread ctx tid
             if done then stp else continue
 
+pullDrainStart :: (MonadIO m, MonadThrow m) => Context a -> AsyncT m a
+pullDrainStart ctx = AsyncT $ \_ stp yld -> do
+    r <- liftIO $ readIORef (runningThreads ctx)
+    d <- liftIO $ readIORef (doneThreads ctx)
+    if (S.null r && S.null d)
+    then stp
+    else (runAsyncT (pullDrain ctx)) Nothing stp yld
+
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 {-# NOINLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
-    let m = pullDispatch ctx ((m1 <|> m2) <> finalizer ctx) True
+    let m = pullDispatch ctx ((m1 <|> m2) <> pullDrainStart ctx) True
     (runAsyncT m) Nothing stp yld
 
     where
-
-    finalizer ctx = AsyncT $ \_ stp yld -> do
-        running <- liftIO $ readIORef (runningThreads ctx)
-        done <- liftIO $ readIORef (runningThreads ctx)
-        if (S.null running && S.null done) then stp
-        else (runAsyncT (pullDrain ctx)) Nothing stp yld
 
     newContext = do
         channel <- atomically newTChan
