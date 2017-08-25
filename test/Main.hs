@@ -44,6 +44,10 @@ main = hspec $ do
         ((toList $ (((return 0 <|> return 1) <|> return 2) <|> return 3)) >>= return . sort) `shouldReturn` ([0, 1, 2, 3] :: [Int])
     it "Alternative composition - right associated" $
         ((toList $ (return 0 <|> (return 1 <|> (return 2 <|> return 3)))) >>= return . sort) `shouldReturn` ([0, 1, 2, 3] :: [Int])
+    it "Alternative composition - hierarchical" $
+        ((toList $ (((return 0 <|> return 1) <|> (return 2 <|> return 3))
+                <|> ((return 4 <|> return 5) <|> (return 6 <|> return 7)))
+            ) >>= return . sort) `shouldReturn` ([0..7] :: [Int])
     it "Alternative composition (right fold) with bind" $
         (toList (for [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])
     it "Alternative composition (left fold) with bind" $
