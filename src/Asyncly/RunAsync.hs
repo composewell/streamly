@@ -25,7 +25,6 @@ module Asyncly.RunAsync
 where
 
 import           Control.Applicative         (Alternative (..))
-import           Control.Concurrent.STM      (atomically, newTChan)
 import           Control.Monad               (liftM)
 import           Control.Monad.Catch         (MonadThrow)
 import           Control.Monad.IO.Class      (MonadIO (..))

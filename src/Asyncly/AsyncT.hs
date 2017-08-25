@@ -28,8 +28,8 @@ import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
                                               myThreadId, newQSem, QSem,
                                               signalQSem, waitQSem)
-import           Control.Concurrent.STM      (TChan, atomically, newTChan,
-                                              tryReadTChan, writeTChan)
+import           Control.Concurrent.STM      (TBQueue, atomically, newTBQueue,
+                                              tryReadTBQueue, writeTBQueue)
 import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (ap, liftM, MonadPlus(..), mzero)
@@ -85,7 +85,7 @@ data ChildEvent a =
 ------------------------------------------------------------------------------
 
 data Context a =
-    Context { childChannel   :: TChan (ChildEvent a)
+    Context { childChannel   :: TBQueue (ChildEvent a)
             , dispatchReq    :: QSem
             , runningThreads :: IORef (Set ThreadId)
             , doneThreads    :: IORef (Set ThreadId)
@@ -193,13 +193,13 @@ push context action = do
     -- XXX make this a bounded channel so that we block if the previous value
     -- is not consumed yet.
     chan           = childChannel context
-    channelYield a = liftIO $ atomically $ writeTChan chan (ChildYield a)
+    channelYield a = liftIO $ atomically $ writeTBQueue chan (ChildYield a)
     channelDone a  = do
         tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTChan chan (ChildDone tid a)
+        liftIO $ atomically $ writeTBQueue chan (ChildDone tid a)
     channelStop = do
         tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTChan chan (ChildStop tid Nothing)
+        liftIO $ atomically $ writeTBQueue chan (ChildStop tid Nothing)
 
     done a           = channelDone a
     continue a ctx m = channelYield a >> run ctx m
@@ -249,14 +249,13 @@ handleException e ctx tid = do
     liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
     throwM e
 
--- XXX the TBQueue size should be proportional to the pending threads.
 -- We re-raise any exceptions received from the child threads, that way
 -- exceptions get propagated to the top level computation and can be handled
 -- there.
 {-# NOINLINE pullDrain #-}
 pullDrain :: (MonadIO m, MonadThrow m) => Context a -> AsyncT m a
 pullDrain ctx = AsyncT $ \_ stp yld -> do
-    res <- liftIO $ atomically $ tryReadTChan (childChannel ctx)
+    res <- liftIO $ atomically $ tryReadTBQueue (childChannel ctx)
     maybe (dispatch >> continue stp yld)
           (\ev -> handleEvent ev stp yld) res
 
@@ -292,10 +291,10 @@ pullDrain ctx = AsyncT $ \_ stp yld -> do
 -- the parent.  'Paused' exceptions are to be collected at the top level.
 -- XXX Paused exceptions should only bubble up to the runRecorder computation
 {-# NOINLINE handleChildException #-}
-handleChildException :: TChan (ChildEvent a) -> SomeException -> IO ()
+handleChildException :: TBQueue (ChildEvent a) -> SomeException -> IO ()
 handleChildException pchan e = do
     tid <- myThreadId
-    atomically $ writeTChan pchan (ChildStop tid (Just e))
+    atomically $ writeTBQueue pchan (ChildStop tid (Just e))
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
@@ -319,10 +318,10 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
         liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
     newContext = do
-        channel <- atomically newTChan
-        running <- liftIO $ newIORef S.empty
-        done    <- liftIO $ newIORef S.empty
-        count   <- liftIO $ newQSem 1
+        channel <- atomically $ newTBQueue 16
+        running <- newIORef S.empty
+        done    <- newIORef S.empty
+        count   <- newQSem 1
         return $ Context { childChannel   = channel
                          , dispatchReq    = count
                          , runningThreads = running
@@ -365,7 +364,7 @@ fork :: MonadAsync m => Context a -> AsyncT m a -> m ()
 fork ctx m = do
     let chan = childChannel ctx
     tid <- doFork (push ctx m) (handleChildException chan)
-    liftIO $ atomically $ writeTChan chan (ChildCreate tid)
+    liftIO $ atomically $ writeTBQueue chan (ChildCreate tid)
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
