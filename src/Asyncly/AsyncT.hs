@@ -26,13 +26,14 @@ where
 
 import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
-                                              myThreadId, newQSem, QSem,
-                                              signalQSem, waitQSem)
+                                              myThreadId)
 import           Control.Concurrent.STM      (TBQueue, atomically, newTBQueue,
-                                              tryReadTBQueue, writeTBQueue)
+                                              readTBQueue, tryReadTBQueue,
+                                              writeTBQueue, isFullTBQueue)
 import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
-import           Control.Monad               (ap, liftM, MonadPlus(..), mzero)
+import           Control.Monad               (ap, liftM, MonadPlus(..), mzero,
+                                              when)
 --import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.IO.Class      (MonadIO(..))
@@ -84,9 +85,9 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
-data Context a =
+data Context m a =
     Context { childChannel   :: TBQueue (ChildEvent a)
-            , dispatchReq    :: QSem
+            , pendingWork    :: TBQueue (AsyncT m a)
             , runningThreads :: IORef (Set ThreadId)
             , doneThreads    :: IORef (Set ThreadId)
             }
@@ -102,9 +103,9 @@ data Context a =
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
-               Maybe (Context a)                          -- state
+               Maybe (Context m a)                          -- state
             -> m r                                          -- stop
-            -> (a -> Maybe (Context a) -> Maybe (AsyncT m a) -> m r)  -- yield
+            -> (a -> Maybe (Context m a) -> Maybe (AsyncT m a) -> m r)  -- yield
             -> m r
     }
 
@@ -181,17 +182,13 @@ doFork action exHandler =
             return ()
 
 {-# NOINLINE push #-}
-push :: MonadIO m => Context a -> AsyncT m a -> m ()
-push context action = do
-    liftIO $ waitQSem (dispatchReq context)
-    run (Just context) action
+push :: MonadAsync m => Context m a -> m ()
+push context = run (Just context) (dequeueLoop context)
 
     where
 
     run ctx m = (runAsyncT m) ctx channelStop yielder
 
-    -- XXX make this a bounded channel so that we block if the previous value
-    -- is not consumed yet.
     chan           = childChannel context
     channelYield a = liftIO $ atomically $ writeTBQueue chan (ChildYield a)
     channelDone a  = do
@@ -235,15 +232,15 @@ accountThread tid ref1 ref2 = liftIO $ do
         return False
 
 {-# NOINLINE addThread #-}
-addThread :: MonadIO m => Context a -> ThreadId -> m Bool
+addThread :: MonadIO m => Context m a -> ThreadId -> m Bool
 addThread ctx tid = accountThread tid (doneThreads ctx) (runningThreads ctx)
 
 {-# INLINE delThread #-}
-delThread :: MonadIO m => Context a -> ThreadId -> m Bool
+delThread :: MonadIO m => Context m a -> ThreadId -> m Bool
 delThread ctx tid = accountThread tid (runningThreads ctx) (doneThreads ctx)
 
 handleException :: (MonadIO m, MonadThrow m)
-    => SomeException -> Context a -> ThreadId -> m r
+    => SomeException -> Context m a -> ThreadId -> m r
 handleException e ctx tid = do
     void (delThread ctx tid)
     liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
@@ -252,34 +249,27 @@ handleException e ctx tid = do
 -- We re-raise any exceptions received from the child threads, that way
 -- exceptions get propagated to the top level computation and can be handled
 -- there.
-{-# NOINLINE pullDrain #-}
-pullDrain :: (MonadIO m, MonadThrow m) => Context a -> AsyncT m a
-pullDrain ctx = AsyncT $ \_ stp yld -> do
-    res <- liftIO $ atomically $ tryReadTBQueue (childChannel ctx)
-    maybe (dispatch >> continue stp yld)
-          (\ev -> handleEvent ev stp yld) res
+{-# NOINLINE pullWorker #-}
+pullWorker :: (MonadIO m, MonadThrow m) => Context m a -> AsyncT m a
+pullWorker ctx = AsyncT $ \_ stp yld -> do
+    ev <- liftIO $ atomically $ readTBQueue (childChannel ctx)
+    handleEvent ev stp yld
 
     where
 
-    {-# INLINE continue #-}
-    continue stp yld = (runAsyncT (pullDrain ctx)) Nothing stp yld
-
-    {-# INLINE dispatch #-}
-    dispatch = liftIO $ signalQSem (dispatchReq ctx)
+    continue stp yld = (runAsyncT (pullWorker ctx)) Nothing stp yld
 
     {-# INLINE handleEvent #-}
     handleEvent ev stp yld = do
-        let yielder a = yld a Nothing (Just (pullDrain ctx))
+        let yielder a = yld a Nothing (Just (pullWorker ctx))
         case ev of
             ChildYield a -> yielder a
             ChildDone tid a -> do
-                dispatch
                 done <- delThread ctx tid
                 if done then (yld a Nothing Nothing) else (yielder a)
             ChildStop tid e -> do
                 case e of
                     Nothing -> do
-                        dispatch
                         done <- delThread ctx tid
                         if done then stp else continue stp yld
                     Just x -> handleException x ctx tid
@@ -302,30 +292,30 @@ handleChildException pchan e = do
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 pullFork m1 m2 = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
-    initialFork ctx m1 >> initialFork ctx m2
-    (runAsyncT (pullDrain ctx)) Nothing stp yld
+    queueWork ctx m1 >> queueWork ctx m2 >> pushWorker ctx
+    (runAsyncT (pullWorker ctx)) Nothing stp yld
 
     where
 
-    -- This function is different than "fork" because we have to directly
+    -- This function is different than "forkWorker" because we have to directly
     -- insert the threadIds here and cannot use the channel to send ChildCreate
     -- unlike on the push side.  If we do that, the first thread's done message
     -- may arrive even before the second thread is forked, in that case
-    -- pullDrain will falsely detect that all threads are over.
-    initialFork ctx m = do
+    -- pullWorker will falsely detect that all threads are over.
+    pushWorker ctx = do
         let chan = childChannel ctx
-        tid <- doFork (push ctx m) (handleChildException chan)
+        tid <- doFork (push ctx) (handleChildException chan)
         liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
     newContext = do
         channel <- atomically $ newTBQueue 16
+        work    <- atomically $ newTBQueue 16
         running <- newIORef S.empty
         done    <- newIORef S.empty
-        count   <- newQSem 1
         return $ Context { childChannel   = channel
-                         , dispatchReq    = count
                          , runningThreads = running
                          , doneThreads    = done
+                         , pendingWork    = work
                          }
 
 -- Concurrency rate control. Our objective is to create more threads on
@@ -359,12 +349,38 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
 -- residual work back to the dispatcher. It will also consume a lot of
 -- memory due to queueing of all the work before execution starts.
 
-{-# INLINE fork #-}
-fork :: MonadAsync m => Context a -> AsyncT m a -> m ()
-fork ctx m = do
+{-# INLINE forkWorker #-}
+forkWorker :: MonadAsync m => Context m a -> m ()
+forkWorker ctx = do
     let chan = childChannel ctx
-    tid <- doFork (push ctx m) (handleChildException chan)
+    tid <- doFork (push ctx) (handleChildException chan)
     liftIO $ atomically $ writeTBQueue chan (ChildCreate tid)
+
+{-# INLINE queueWork #-}
+queueWork :: MonadAsync m => Context m a -> AsyncT m a -> m ()
+queueWork ctx m = do
+    -- To guarantee deadlock avoidance we need to dispatch a worker when the
+    -- workQueue goes full. Otherwise all the worker threads might be waiting
+    -- on the queue and never wakeup.
+    --
+    -- TBD If we run out of threads we can also evaluate the action completely
+    -- right here, disallowing any further child workers and turning the
+    -- parallel composition into interleaved serial composition.
+    workQFull <- liftIO $ atomically $ isFullTBQueue (pendingWork ctx)
+    when (workQFull) $ forkWorker ctx
+    liftIO $ atomically $ writeTBQueue (pendingWork ctx) m
+
+{-# INLINE dequeueLoop #-}
+dequeueLoop :: MonadAsync m => Context m a -> AsyncT m a
+dequeueLoop ctx = AsyncT $ \_ stp yld -> do
+    work <- liftIO $ atomically $ tryReadTBQueue (pendingWork ctx)
+    case work of
+        Nothing -> stp
+        Just m -> do
+            let loop = (runAsyncT (dequeueLoop ctx)) Nothing stp yld
+                yielder a c Nothing = yld a c (Just (dequeueLoop ctx))
+                yielder a c r = yld a c r
+            (runAsyncT m) (Just ctx) loop yielder
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
@@ -374,8 +390,13 @@ instance MonadAsync m => Alternative (AsyncT m) where
     {-# INLINE (<|>) #-}
     m1 <|> m2 = AsyncT $ \ctx stp yld -> do
         case ctx of
-            Nothing -> (runAsyncT (pullFork m1 m2)) ctx stp yld
-            Just  c -> fork c m2 >> (runAsyncT m1) ctx stp yld
+            Nothing -> (runAsyncT (pullFork m1 m2)) Nothing stp yld
+            Just  c -> do
+                -- we open up both the branches fairly but on a given level we
+                -- go left to right. If the left one keeps producing results we
+                -- may or may not run the right one.
+                queueWork c m1 >> queueWork c m2
+                (runAsyncT (dequeueLoop c)) Nothing stp yld
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
