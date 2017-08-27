@@ -241,22 +241,20 @@ pullWorker :: (MonadIO m, MonadThrow m) => Context m a -> AsyncT m a
 pullWorker ctx = AsyncT $ \_ stp yld -> do
     let continue = (runAsyncT (pullWorker ctx)) Nothing stp yld
         yield a  = yld a Nothing (Just (pullWorker ctx))
+        threadOp tid f finish cont = do
+            done <- f ctx tid
+            if done then finish else cont
 
     ev <- liftIO $ atomically $ readTBQueue (childChannel ctx)
     case ev of
         ChildYield a -> yield a
-        ChildDone tid a -> do
-            done <- delThread ctx tid
-            if done then (yld a Nothing Nothing) else (yield a)
-        ChildStop tid e -> do
+        ChildDone tid a ->
+            threadOp tid delThread (yld a Nothing Nothing) (yield a)
+        ChildStop tid e ->
             case e of
-                Nothing -> do
-                    done <- delThread ctx tid
-                    if done then stp else continue
-                Just x -> handleException x ctx tid
-        ChildCreate tid -> do
-            done <- addThread ctx tid
-            if done then stp else continue
+                Nothing -> threadOp tid delThread stp continue
+                Just ex -> handleException ex ctx tid
+        ChildCreate tid -> threadOp tid addThread stp continue
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
