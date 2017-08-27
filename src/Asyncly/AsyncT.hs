@@ -1,4 +1,5 @@
 {-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE EmptyCase                 #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
@@ -184,10 +185,9 @@ push ctx = run (Just ctx) (dequeueLoop ctx)
     where
 
     send msg           = atomically $ writeTBQueue (childChannel ctx) msg
-    stop               = myThreadId >>= \tid -> send (ChildStop tid Nothing)
     yield a _ Nothing  = liftIO $ myThreadId >>= \tid -> send (ChildDone tid a)
     yield a c (Just r) = liftIO (send (ChildYield a)) >> run c r
-    run c m            = (runAsyncT m) c (liftIO stop) yield
+    run c m            = (runAsyncT m) c (push ctx) yield
 
 -- Thread tracking has a significant performance overhead (~20% on empty
 -- threads, it will be lower for heavy threads). It is needed for two reasons:
@@ -238,9 +238,9 @@ handleException e ctx tid = do
 -- there.
 {-# NOINLINE pullWorker #-}
 pullWorker :: (MonadIO m, MonadThrow m) => Context m a -> AsyncT m a
-pullWorker ctx = AsyncT $ \_ stp yld -> do
-    let continue = (runAsyncT (pullWorker ctx)) Nothing stp yld
-        yield a  = yld a Nothing (Just (pullWorker ctx))
+pullWorker ctx = AsyncT $ \pctx stp yld -> do
+    let continue = (runAsyncT (pullWorker ctx)) pctx stp yld
+        yield a  = yld a pctx (Just (pullWorker ctx))
         threadOp tid f finish cont = do
             done <- f ctx tid
             if done then finish else cont
@@ -249,7 +249,7 @@ pullWorker ctx = AsyncT $ \_ stp yld -> do
     case ev of
         ChildYield a -> yield a
         ChildDone tid a ->
-            threadOp tid delThread (yld a Nothing Nothing) (yield a)
+            threadOp tid delThread (yld a pctx Nothing) (yield a)
         ChildStop tid e ->
             case e of
                 Nothing -> threadOp tid delThread stp continue
@@ -354,12 +354,16 @@ dequeueLoop :: MonadAsync m => Context m a -> AsyncT m a
 dequeueLoop ctx = AsyncT $ \_ stp yld -> do
     work <- liftIO $ atomically $ tryReadTBQueue (pendingWork ctx)
     case work of
-        Nothing -> stp
+        Nothing -> do
+            let chan = childChannel ctx
+            tid <- liftIO myThreadId
+            liftIO $ atomically $ writeTBQueue chan (ChildStop tid Nothing)
+            case () of {} -- keep the typechecker happy
         Just m -> do
-            let loop = (runAsyncT (dequeueLoop ctx)) Nothing stp yld
+            let stop = (runAsyncT (dequeueLoop ctx)) Nothing stp yld
                 yield a c Nothing = yld a c (Just (dequeueLoop ctx))
                 yield a c r = yld a c r
-            (runAsyncT m) (Just ctx) loop yield
+            (runAsyncT m) (Just ctx) stop yield
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
