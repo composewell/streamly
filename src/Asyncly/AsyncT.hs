@@ -18,7 +18,6 @@
 module Asyncly.AsyncT
     ( AsyncT (..)
     , MonadAsync
-    , yield
 --    , async
 --    , makeAsync
     )
@@ -48,7 +47,6 @@ import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               writeIORef, readIORef)
-import           Data.Maybe                  (maybe)
 import           Data.Monoid                 ((<>))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
@@ -119,9 +117,10 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 instance Monad m => Monoid (AsyncT m a) where
     mempty = AsyncT $ \_ stp _ -> stp
     mappend (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
-        m1 ctx ((runAsyncT m2) ctx stp yld) $ \a _ r ->
-            let yielder x = yld a ctx (Just x)
-            in maybe (yielder m2) (\rx -> yielder $ mappend rx m2) r
+        let stop = (runAsyncT m2) ctx stp yld
+            yield a c Nothing  = yld a c (Just m2)
+            yield a c (Just r) = yld a c (Just (mappend r m2))
+        in m1 ctx stop yield
 
 -- We do not use bind for parallelism. That is, we do not start each iteration
 -- of the list in parallel. That will introduce too much uncontrolled
@@ -141,13 +140,10 @@ instance Monad m => Monad (AsyncT m) where
     -- | A thread context is valid only until the next bind. Upon a bind we
     -- reset the context to Nothing.
     AsyncT m >>= f = AsyncT $ \_ stp yld ->
-        m Nothing stp $ \a _ r ->
-            let run x = (runAsyncT x) Nothing stp yld
-                next = f a
-            in maybe (run next) (\rx -> run $ next <> (rx >>= f)) r
-
-yield :: a -> AsyncT m a -> AsyncT m a
-yield a m = AsyncT $ \ctx _ yld -> yld a ctx (Just m)
+        let run x = (runAsyncT x) Nothing stp yld
+            yield a _ Nothing  = run $ f a
+            yield a _ (Just r) = run $ f a <> (r >>= f)
+        in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Functor
@@ -187,20 +183,21 @@ push context = run (Just context) (dequeueLoop context)
 
     where
 
-    run ctx m = (runAsyncT m) ctx channelStop yielder
+    run ctx m = (runAsyncT m) ctx stop yield
 
-    chan           = childChannel context
-    channelYield a = liftIO $ atomically $ writeTBQueue chan (ChildYield a)
-    channelDone a  = do
-        tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTBQueue chan (ChildDone tid a)
-    channelStop = do
+    chan = childChannel context
+
+    stop = do
         tid <- liftIO myThreadId
         liftIO $ atomically $ writeTBQueue chan (ChildStop tid Nothing)
 
-    done a           = channelDone a
-    continue a ctx m = channelYield a >> run ctx m
-    yielder a ctx r  = maybe (done a) (\rx -> continue a ctx rx) r
+    yield a _ Nothing = do
+        tid <- liftIO myThreadId
+        liftIO $ atomically $ writeTBQueue chan (ChildDone tid a)
+
+    yield a ctx (Just r) = do
+        liftIO $ atomically $ writeTBQueue chan (ChildYield a)
+        run ctx r
 
 -- Thread tracking has a significant performance overhead (~20% on empty
 -- threads, it will be lower for heavy threads). It is needed for two reasons:
@@ -252,30 +249,24 @@ handleException e ctx tid = do
 {-# NOINLINE pullWorker #-}
 pullWorker :: (MonadIO m, MonadThrow m) => Context m a -> AsyncT m a
 pullWorker ctx = AsyncT $ \_ stp yld -> do
+    let continue = (runAsyncT (pullWorker ctx)) Nothing stp yld
+        yield a  = yld a Nothing (Just (pullWorker ctx))
+
     ev <- liftIO $ atomically $ readTBQueue (childChannel ctx)
-    handleEvent ev stp yld
-
-    where
-
-    continue stp yld = (runAsyncT (pullWorker ctx)) Nothing stp yld
-
-    {-# INLINE handleEvent #-}
-    handleEvent ev stp yld = do
-        let yielder a = yld a Nothing (Just (pullWorker ctx))
-        case ev of
-            ChildYield a -> yielder a
-            ChildDone tid a -> do
-                done <- delThread ctx tid
-                if done then (yld a Nothing Nothing) else (yielder a)
-            ChildStop tid e -> do
-                case e of
-                    Nothing -> do
-                        done <- delThread ctx tid
-                        if done then stp else continue stp yld
-                    Just x -> handleException x ctx tid
-            ChildCreate tid -> do
-                done <- addThread ctx tid
-                if done then stp else continue stp yld
+    case ev of
+        ChildYield a -> yield a
+        ChildDone tid a -> do
+            done <- delThread ctx tid
+            if done then (yld a Nothing Nothing) else (yield a)
+        ChildStop tid e -> do
+            case e of
+                Nothing -> do
+                    done <- delThread ctx tid
+                    if done then stp else continue
+                Just x -> handleException x ctx tid
+        ChildCreate tid -> do
+            done <- addThread ctx tid
+            if done then stp else continue
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
@@ -378,9 +369,9 @@ dequeueLoop ctx = AsyncT $ \_ stp yld -> do
         Nothing -> stp
         Just m -> do
             let loop = (runAsyncT (dequeueLoop ctx)) Nothing stp yld
-                yielder a c Nothing = yld a c (Just (dequeueLoop ctx))
-                yielder a c r = yld a c r
-            (runAsyncT m) (Just ctx) loop yielder
+                yield a c Nothing = yld a c (Just (dequeueLoop ctx))
+                yield a c r = yld a c r
+            (runAsyncT m) (Just ctx) loop yield
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
