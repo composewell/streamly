@@ -53,6 +53,17 @@ main = hspec $ do
         ((toList $ (((return 0 <|> return 1) <|> (return 2 <|> return 3))
                 <|> ((return 4 <|> return 5) <|> (return 6 <|> return 7)))
             ) >>= return . sort) `shouldReturn` ([0..7] :: [Int])
+    it "loopHead" $
+        toList (loopHead (0 :: Int)) `shouldReturn` ([3, 2..0] :: [Int])
+    it "loopHeadA" $
+        (toList (loopHeadA (0 :: Int)) >>= return . sort)
+            `shouldReturn` ([0..3] :: [Int])
+    it "loopTail" $
+        toList (loopTail (0 :: Int)) `shouldReturn` ([0..3] :: [Int])
+    it "loopTailA" $
+        (toList (loopTailA (0 :: Int)) >>= return . sort)
+            `shouldReturn` ([0..3] :: [Int])
+
     {-
     it "Alternative composition of async and sync tasks" $
         ((wait (threads 0 ((async (return 0) <|> return 1)))) >>= return .  sort)
@@ -149,7 +160,29 @@ main = hspec $ do
                 )
         ) >>= return . sort)
         `shouldReturn` ([0, 1] :: [Int])
+        -}
+    where
+        loopHead x = do
+            -- this print line is important for the test (causes a bind)
+            liftIO $ putStrLn "LoopHead..."
+            (if x < 3 then loopHead (x + 1) else empty) <> return x
 
+        loopHeadA x = do
+            -- this print line is important for the test (causes a bind)
+            liftIO $ putStrLn "LoopHeadA..."
+            (if x < 3 then loopHeadA (x + 1) else empty) <|> return x
+
+        loopTailA x = do
+            -- this print line is important for the test (causes a bind)
+            liftIO $ putStrLn "LoopTailA..."
+            return x <|> (if x < 3 then loopTailA (x + 1) else empty)
+
+        loopTail x = do
+            -- this print line is important for the test (causes a bind)
+            liftIO $ putStrLn "LoopTail..."
+            return x <> (if x < 3 then loopTail (x + 1) else empty)
+
+{-
 generalExample :: AsyncT IO Int
 generalExample = do
     liftIO $ return ()
