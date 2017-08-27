@@ -179,25 +179,15 @@ doFork action exHandler =
 
 {-# NOINLINE push #-}
 push :: MonadAsync m => Context m a -> m ()
-push context = run (Just context) (dequeueLoop context)
+push ctx = run (Just ctx) (dequeueLoop ctx)
 
     where
 
-    run ctx m = (runAsyncT m) ctx stop yield
-
-    chan = childChannel context
-
-    stop = do
-        tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTBQueue chan (ChildStop tid Nothing)
-
-    yield a _ Nothing = do
-        tid <- liftIO myThreadId
-        liftIO $ atomically $ writeTBQueue chan (ChildDone tid a)
-
-    yield a ctx (Just r) = do
-        liftIO $ atomically $ writeTBQueue chan (ChildYield a)
-        run ctx r
+    send msg           = atomically $ writeTBQueue (childChannel ctx) msg
+    stop               = myThreadId >>= \tid -> send (ChildStop tid Nothing)
+    yield a _ Nothing  = liftIO $ myThreadId >>= \tid -> send (ChildDone tid a)
+    yield a c (Just r) = liftIO (send (ChildYield a)) >> run c r
+    run c m            = (runAsyncT m) c (liftIO stop) yield
 
 -- Thread tracking has a significant performance overhead (~20% on empty
 -- threads, it will be lower for heavy threads). It is needed for two reasons:
