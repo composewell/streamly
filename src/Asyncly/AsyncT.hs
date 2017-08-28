@@ -511,4 +511,4 @@ for xs f = foldr (<|>) empty $ map f xs
 -- XXX rename to fromList?
 {-# INLINABLE each #-}
 each :: MonadAsync m => [a] -> AsyncT m a
-each xs = foldr (<>) empty $ map return xs
+each xs = foldr (<>) mempty $ map return xs
