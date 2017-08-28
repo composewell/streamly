@@ -76,6 +76,7 @@ benchmark bench
     , criterion
     , io-streams
     , list-t
+    , logict
     , machines
     , mtl
     , pipes

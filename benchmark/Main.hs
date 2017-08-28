@@ -27,12 +27,14 @@ import qualified Transient.Indeterminism as T
 
 import qualified Data.Machine as M
 import qualified ListT        as LT
+import qualified Control.Monad.Logic as LG
 import qualified Asyncly as A
 
 main :: IO ()
 main = do
     defaultMain [
         bgroup "basic"  [ bench "asyncly"        $ nfIO asyncly_basic
+                        , bench "logict"         $ nfIO logict_basic
                         , bench "list-t"         $ nfIO list_t_basic
                         , bench "transient"      $ nfIO transient_basic
                         , bench "machines"       $ nfIO machines_basic
@@ -132,6 +134,29 @@ list_t_basic = do
              >>= ldrop 1000
              >>= lmap (+1)
              >>= lfilter (\x -> x `mod` 2 == 0)
+    assert (Prelude.length xs == 499000) $
+        return (Prelude.length xs)
+
+lgfilter :: (Int -> Bool) -> Int -> LG.LogicT IO Int
+lgfilter = Main.filter
+
+lgmap :: (Int -> Int) -> Int -> LG.LogicT IO Int
+lgmap = Main.map
+
+lgdrop :: Int -> Int -> LG.LogicT IO Int
+lgdrop = Main.drop
+
+logict_basic :: IO Int
+logict_basic = do
+    writeIORef count 0
+    --xs <- LG.observeManyT 2900 $ do
+    xs <- LG.observeAllT $ do
+             LG.msum $ Prelude.map return [1..1000000]
+             >>= lgfilter even
+             >>= lgmap (+1)
+             >>= lgdrop 1000
+             >>= lgmap (+1)
+             >>= lgfilter (\x -> x `mod` 2 == 0)
     assert (Prelude.length xs == 499000) $
         return (Prelude.length xs)
 
