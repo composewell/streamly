@@ -37,7 +37,7 @@ main = do
 
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
-    loopTail :: Int -> AsynclyT IO Int
+    loopTail :: Int -> AsyncT IO Int
     loopTail x = do
         liftIO $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else empty)
@@ -45,7 +45,7 @@ main = do
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
     -- at all.
-    loopHead :: Int -> AsynclyT IO Int
+    loopHead :: Int -> AsyncT IO Int
     loopHead x = do
         liftIO $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else empty) <> return x
@@ -59,12 +59,12 @@ main = do
     -- then the action on the right is also spawned concurrently. In other
     -- words, both actions may run concurrently based on the need.
 
-    loopTailA :: Int -> AsynclyT IO Int
+    loopTailA :: Int -> AsyncT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
         return x <|> (if x < 3 then loopTailA (x + 1) else empty)
 
-    loopHeadA :: Int -> AsynclyT IO Int
+    loopHeadA :: Int -> AsyncT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
         (if x < 3 then loopHeadA (x + 1) else empty) <|> return x

@@ -1,14 +1,14 @@
 import Control.Monad.IO.Class (liftIO)
 import Data.Monoid ((<>))
 
-import Asyncly (AsynclyT, runAsyncly)
+import Asyncly (AsyncT, runAsyncly)
 
-input :: AsynclyT IO String
+input :: AsyncT IO String
 input = do
     string <- liftIO getLine
     return string <> input
 
-output :: AsynclyT IO String -> AsynclyT IO ()
+output :: AsyncT IO String -> AsyncT IO ()
 output strings = do
     s <- strings
     liftIO $ putStrLn s

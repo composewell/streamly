@@ -120,7 +120,7 @@
 -- of the state machine. It is an immutable state machine!
 
 module Asyncly
-    ( AsynclyT
+    ( AsyncT
     , MonadAsync
 
     -- * Run

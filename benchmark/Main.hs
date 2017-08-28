@@ -89,13 +89,13 @@ transient_basic = T.keep' $ T.threads 0 $ do
     assert (Prelude.length xs == 499000) $
         T.exit (Prelude.length xs)
 
-amap :: (Int -> Int) -> Int -> A.AsynclyT IO Int
+amap :: (Int -> Int) -> Int -> A.AsyncT IO Int
 amap = Main.map
 
-afilter :: (Int -> Bool) -> Int -> A.AsynclyT IO Int
+afilter :: (Int -> Bool) -> Int -> A.AsyncT IO Int
 afilter = Main.filter
 
-adrop :: Int -> Int -> A.AsynclyT IO Int
+adrop :: Int -> Int -> A.AsyncT IO Int
 adrop = Main.drop
 
 asyncly_basic :: IO Int
