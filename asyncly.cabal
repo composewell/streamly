@@ -25,7 +25,6 @@ library
     hs-source-dirs:    src
     exposed-modules:   Asyncly
                      , Asyncly.AsyncT
-                     , Asyncly.RunAsync
 
     default-language: Haskell2010
     ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates

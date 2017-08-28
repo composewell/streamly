@@ -128,19 +128,7 @@ module Asyncly
     , toList
     , each
     , for
-
-{-
-    -- * Fork and Gather
-    --, async
-    --, makeAsync
-
-    -- * Record and Play
-    --, toListRecorded
--}
-    , runAsynclyRecorded
-    , playRecordings
     )
 where
 
 import Asyncly.AsyncT
-import Asyncly.RunAsync
