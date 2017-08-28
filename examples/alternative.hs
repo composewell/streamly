@@ -14,10 +14,11 @@ main = runAsyncly $ do
     eventA <|> eventB
 
 eventA = do
+    liftIO $ threadDelay 1000000
     x <- liftIO (randomIO :: IO Int)
     evThread <- liftIO myThreadId
-    liftIO $ putStrLn $ "X Event thread: " ++ show evThread
-    liftIO $ putStrLn $ "x = " ++ (show x)
+    liftIO $ putStrLn $ "A Event thread: " ++ show evThread
+    liftIO $ putStrLn $ "a = " ++ (show x)
     return x
 
 eventB = do
@@ -25,6 +26,6 @@ eventB = do
 
     -- liftIO $ threadDelay 10000000
     evThread <- liftIO myThreadId
-    liftIO $ putStrLn $ "Y Event thread: " ++ show evThread
-    liftIO $ putStrLn $ "y = " ++ (show y)
+    liftIO $ putStrLn $ "B Event thread: " ++ show evThread
+    liftIO $ putStrLn $ "b = " ++ (show y)
     return y
