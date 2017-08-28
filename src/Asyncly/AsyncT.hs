@@ -35,17 +35,11 @@ import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (ap, liftM, MonadPlus(..), mzero,
                                               when)
---import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
+import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
-{-
-import           Control.Monad.Trans.Control (ComposeSt, MonadBaseControl (..),
-                                              MonadTransControl (..),
-                                              defaultLiftBaseWith,
-                                              defaultRestoreM, liftBaseWith)
-                                              -}
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               writeIORef, readIORef)
@@ -417,30 +411,8 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
 instance MonadTrans AsyncT where
     lift mx = AsyncT $ \ctx _ yld -> mx >>= (\a -> (yld a ctx Nothing))
 
-{-
 instance (MonadBase b m, Monad m) => MonadBase b (AsyncT m) where
     liftBase = liftBaseDefault
-
--------------------------------------------------------------------------------
--- monad-control
--------------------------------------------------------------------------------
-
-instance MonadTransControl AsyncT where
-    type StT AsyncT a = (Maybe a, Context)
-    liftWith f = AsyncT $ StateT $ \s ->
-                   liftM (\x -> (Just x, s))
-                         (f $ \t -> runStateT (runAsyncT t) s)
-    restoreT = AsyncT . StateT . const
-    {-# INLINABLE liftWith #-}
-    {-# INLINABLE restoreT #-}
-
-instance (MonadBaseControl b m, Monad m) => MonadBaseControl b (AsyncT m) where
-    type StM (AsyncT m) a = ComposeSt AsyncT m a
-    liftBaseWith = defaultLiftBaseWith
-    restoreM     = defaultRestoreM
-    {-# INLINABLE liftBaseWith #-}
-    {-# INLINABLE restoreM #-}
--}
 
 ------------------------------------------------------------------------------
 -- Standard transformer instances
