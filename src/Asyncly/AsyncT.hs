@@ -47,7 +47,10 @@ import           Control.Monad               (ap, liftM, MonadPlus(..), mzero,
                                               when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
+import           Control.Monad.Error.Class   (MonadError(..))
 import           Control.Monad.IO.Class      (MonadIO(..))
+import           Control.Monad.Reader.Class  (MonadReader(..))
+import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Functor                (void)
@@ -515,6 +518,27 @@ instance MonadIO m => MonadIO (AsyncT m) where
 
 instance MonadThrow m => MonadThrow (AsyncT m) where
     throwM = lift . throwM
+
+-- XXX handle and test cross thread state transfer
+instance MonadError e m => MonadError e (AsyncT m) where
+    throwError     = lift . throwError
+    catchError m h = AsyncT $ \ctx stp yld ->
+        let handle r = r `catchError` \e -> (runAsyncT (h e)) ctx stp yld
+            yield a c Nothing = yld a c Nothing
+            yield a c (Just r) = yld a c (Just (catchError r h))
+        in handle $ (runAsyncT m) ctx stp yield
+
+instance MonadReader r m => MonadReader r (AsyncT m) where
+    ask = lift ask
+    local f m = AsyncT $ \ctx stp yld ->
+        let yield a c Nothing  = local f $ yld a c Nothing
+            yield a c (Just r) = local f $ yld a c (Just (local f r))
+        in (runAsyncT m) ctx (local f stp) yield
+
+instance MonadState s m => MonadState s (AsyncT m) where
+    get     = lift get
+    put x   = lift (put x)
+    state k = lift (state k)
 
 ------------------------------------------------------------------------------
 -- MonadRecorder
