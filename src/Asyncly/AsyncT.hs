@@ -23,13 +23,14 @@ module Asyncly.AsyncT
     , toList
     , interleave
     , (<=>)
+    , parAhead
+    , (<>>)
     , parLeft
     , (|>)
     , foldWith
     , foldMapWith
     , forEachWith
---    , async
---    , makeAsync
+    , fromCallback
     )
 where
 
@@ -491,36 +492,6 @@ instance MonadRecorder m => MonadRecorder (AsyncT m) where
     play = lift . play
 
 ------------------------------------------------------------------------------
--- Async primitives
-------------------------------------------------------------------------------
---
--- Only those actions that are marked with 'async' are guaranteed to be
--- asynchronous. Asyncly is free to run other actions synchronously or
--- asynchronously and it should not matter to the semantics of the program, if
--- it does then use async to force.
---
--- Why not make async as default and ask the programmer to use a 'sync'
--- primitive to force an action to run synchronously? But then we would not
--- have the freedom to convert the async actions to sync dynamically. Note that
--- it is safe to convert a sync action to async but vice-versa is not true.
--- Converting an async to sync can cause change in semantics if the async
--- action was an infinite loop for example.
---
--- | In an 'Alternative' composition, force the action to run asynchronously.
--- The @\<|\>@ operator implies "can be parallel", whereas 'async' implies
--- "must be parallel". Note that outside an 'Alternative' composition 'async'
--- is not useful and should not be used.  Even in an 'Alternative' composition
--- 'async' is not useful as the last action as the last action always runs in
--- the current thread.
-{-
-async :: Monad m => AsyncT m a -> AsyncT m a
-async action = AsyncT $ runAsyncTask True (runAsyncT action)
-
-makeAsync :: Monad m => ((a -> m ()) -> m ()) -> AsyncT m a
-makeAsync = AsyncT . makeCont
--}
-
-------------------------------------------------------------------------------
 -- Running the monad
 ------------------------------------------------------------------------------
 
@@ -570,11 +541,18 @@ foldWith f = foldr f mempty
 {-# INLINABLE foldMapWith #-}
 foldMapWith :: (Monoid b, Foldable t) =>
     (b1 -> b -> b) -> (a -> b1) -> t a -> b
-foldMapWith ff mf = foldr (ff . mf) mempty
+foldMapWith f g = foldr (f . g) mempty
 
 -- | Fold a 'Foldable' container using a function that is a compostioin of the
 -- first and the third argument.
 {-# INLINABLE forEachWith #-}
 forEachWith :: (Monoid b, Foldable t) =>
     (b1 -> b -> b) -> t a -> (a -> b1) -> b
-forEachWith ff xs mf = foldr (ff . mf) mempty xs
+forEachWith f xs g = foldr (f . g) mempty xs
+
+------------------------------------------------------------------------------
+-- Convert a callback into an 'AsyncT' computation
+------------------------------------------------------------------------------
+
+fromCallback :: Monad m => (forall r. (a -> m r) -> m r) -> AsyncT m a
+fromCallback k = AsyncT $ \ctx _ yld -> k (\a -> yld a ctx Nothing)
