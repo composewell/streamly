@@ -156,6 +156,13 @@ instance Monad m => Functor (AsyncT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
+-- Note: We cannot have the applicative instance run the two actions in
+-- parallel. This is because the first action can always return empty and in
+-- case it returns empty we should not be starting the second action. Therefore
+-- we can only start the second action after getting a result from the first.
+-- For running applicative actions in parallel we can use the async package and
+-- lift the result into AsyncT.
+
 instance Monad m => Applicative (AsyncT m) where
     pure  = return
     (<*>) = ap
