@@ -21,7 +21,7 @@ main = hspec $ do
     it "Monoid composition" $
         toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "Monoid composition - each" $
-        ((toList $ each [1..100]) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
+        ((toList $ forEachWith (<>) [1..100] return) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
     it "Interleaved composition" $
         toList (return (0 :: Int) <> return 1 <=> return 100 <> return 101)
             `shouldReturn` ([0, 100, 1, 101])
@@ -48,7 +48,7 @@ main = hspec $ do
     it "Alternative composition - right associated" $
         ((toList $ (return 0 <|> (return 1 <|> (return 2 <|> return 3)))) >>= return . sort) `shouldReturn` ([0, 1, 2, 3] :: [Int])
     it "Alternative composition (right fold) with bind" $
-        (toList (for [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])
+        (toList (forEachWith (<|>) [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])
     it "Alternative composition (left fold) with bind" $
         let forL xs f = foldl (<|>) empty $ map f xs
          in (toList (forL [1..10 :: Int] $ \x -> return x >>= return . id) >>= return . sort) `shouldReturn` ([1..10] :: [Int])

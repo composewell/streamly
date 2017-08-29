@@ -126,10 +126,13 @@ module Asyncly
     -- * Run
     , runAsyncly
     , toList
-    , each
-    , for
     , interleave
     , (<=>)
+    , parLeft
+    , (|>)
+    , foldWith
+    , foldMapWith
+    , forEachWith
     )
 where
 

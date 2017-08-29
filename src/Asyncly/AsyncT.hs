@@ -21,10 +21,13 @@ module Asyncly.AsyncT
     , MonadAsync
     , runAsyncly
     , toList
-    , each
-    , for
     , interleave
     , (<=>)
+    , parLeft
+    , (|>)
+    , foldWith
+    , foldMapWith
+    , forEachWith
 --    , async
 --    , makeAsync
     )
@@ -124,7 +127,7 @@ instance Monad m => Monoid (AsyncT m a) where
             yield a c (Just r) = yld a c (Just (mappend r m2))
         in m1 ctx stop yield
 
--- | interleaves the results of two AsyncT computations
+-- | Interleaves the results of two 'AsyncT' streams
 interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
 interleave m1 m2 = AsyncT $ \ctx stp yld -> do
     let stop = (runAsyncT m2) ctx stp yld
@@ -414,6 +417,34 @@ instance MonadAsync m => Alternative (AsyncT m) where
                 queueWork c m1 >> queueWork c m2
                 (runAsyncT (dequeueLoop c)) Nothing stp yld
 
+-- | Run actions in parallel but return the results in serial order from left
+-- to right.
+parAhead :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+parAhead = undefined
+
+(<>>) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+(<>>) = parAhead
+
+-- | Left biased parallel execution. Actions are run in parallel but the
+-- the actions on the left are likely to be executed before those on
+-- the right. This combinator is useful when fairness is not required.
+{-# INLINE parLeft #-}
+parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+parLeft m1 m2 = AsyncT $ \ctx stp yld -> do
+    case ctx of
+        Nothing -> (runAsyncT (pullFork m1 m2)) Nothing stp yld
+        Just  c -> do
+            -- we open up both the branches fairly but on a given level we
+            -- go left to right. If the left one keeps producing results we
+            -- may or may not run the right one.
+            queueWork c m1 >> queueWork c m2
+            (runAsyncT (dequeueLoop c)) Nothing stp yld
+
+-- | Same as 'parLeft'.
+{-# INLINE (|>) #-}
+(|>) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+(|>) = parLeft
+
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty
     mplus = (<|>)
@@ -525,12 +556,25 @@ toList m = run Nothing m
     {-# INLINE run #-}
     run ctx mx = (runAsyncT mx) ctx stop yield
 
--- | Run a given function concurrently on the list and collect the results.
-{-# INLINABLE for #-}
-for :: MonadAsync m => [a] -> (a -> AsyncT m b) -> AsyncT m b
-for xs f = foldr (<|>) empty $ map f xs
+------------------------------------------------------------------------------
+-- Utilities
+------------------------------------------------------------------------------
 
--- XXX rename to fromList?
-{-# INLINABLE each #-}
-each :: MonadAsync m => [a] -> AsyncT m a
-each xs = foldr (<>) mempty $ map return xs
+-- | Fold a 'Foldable' container using the given function.
+{-# INLINABLE foldWith #-}
+foldWith :: (Monoid b, Foldable t) => (a -> b -> b) -> t a -> b
+foldWith f = foldr f mempty
+
+-- | Fold a 'Foldable' container using a function that is a composition of the
+-- two arguments.
+{-# INLINABLE foldMapWith #-}
+foldMapWith :: (Monoid b, Foldable t) =>
+    (b1 -> b -> b) -> (a -> b1) -> t a -> b
+foldMapWith ff mf = foldr (ff . mf) mempty
+
+-- | Fold a 'Foldable' container using a function that is a compostioin of the
+-- first and the third argument.
+{-# INLINABLE forEachWith #-}
+forEachWith :: (Monoid b, Foldable t) =>
+    (b1 -> b -> b) -> t a -> (a -> b1) -> b
+forEachWith ff xs mf = foldr (ff . mf) mempty xs
