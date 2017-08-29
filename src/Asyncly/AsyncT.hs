@@ -24,9 +24,9 @@ module Asyncly.AsyncT
     , interleave
     , (<=>)
     , parAhead
-    , (<>>)
+    , (<>|)
     , parLeft
-    , (|>)
+    , (<|)
     , foldWith
     , foldMapWith
     , forEachWith
@@ -418,17 +418,19 @@ instance MonadAsync m => Alternative (AsyncT m) where
                 queueWork c m1 >> queueWork c m2
                 (runAsyncT (dequeueLoop c)) Nothing stp yld
 
--- | Run actions in parallel but return the results in serial order from left
--- to right.
+-- | Just like '<>' except that it can execute the action on the right in
+-- parallel ahead of time. Returns the results in serial order like '<>' from
+-- left to right.
 parAhead :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 parAhead = undefined
 
-(<>>) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-(<>>) = parAhead
+(<>|) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+(<>|) = parAhead
 
--- | Left biased parallel execution. Actions are run in parallel but the
--- the actions on the left are likely to be executed before those on
--- the right. This combinator is useful when fairness is not required.
+-- | Left biased parallel execution. Actions may run in parallel but not
+-- necessarily, the action on the left is executed before the one on the right
+-- when parallelism is not needed. This combinator is useful when fairness is
+-- not required.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 parLeft m1 m2 = AsyncT $ \ctx stp yld -> do
@@ -442,9 +444,9 @@ parLeft m1 m2 = AsyncT $ \ctx stp yld -> do
             (runAsyncT (dequeueLoop c)) Nothing stp yld
 
 -- | Same as 'parLeft'.
-{-# INLINE (|>) #-}
-(|>) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-(|>) = parLeft
+{-# INLINE (<|) #-}
+(<|) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+(<|) = parLeft
 
 instance MonadAsync m => MonadPlus (AsyncT m) where
     mzero = empty

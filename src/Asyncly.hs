@@ -129,7 +129,7 @@ module Asyncly
     , interleave
     , (<=>)
     , parLeft
-    , (|>)
+    , (<|)
     , foldWith
     , foldMapWith
     , forEachWith
