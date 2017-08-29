@@ -456,7 +456,7 @@ instance MonadAsync m => MonadPlus (AsyncT m) where
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
+instance (Monad m, Num a) => Num (AsyncT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -466,6 +466,35 @@ instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
     (+) = liftA2 (+)
     (*) = liftA2 (*)
     (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (AsyncT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (AsyncT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer
