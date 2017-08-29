@@ -265,6 +265,17 @@ handleException e ctx tid = do
     liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
     throwM e
 
+{-# NOINLINE sendWorkerWait #-}
+sendWorkerWait :: MonadAsync m => Context m a -> m ()
+sendWorkerWait ctx = do
+    liftIO $ threadDelay 4
+    let workQ = workQueue ctx
+        outQ  = outputQueue ctx
+    workQEmpty <- liftIO $ atomically $ isEmptyTBQueue workQ
+    outQEmpty  <- liftIO $ atomically $ isEmptyTBQueue outQ
+    when (not workQEmpty && outQEmpty) $ pushWorker ctx
+    void $ liftIO $ atomically $ peekTBQueue (outputQueue ctx)
+
 -- We re-raise any exceptions received from the child threads, that way
 -- exceptions get propagated to the top level computation and can be handled
 -- there.
@@ -279,15 +290,7 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
 
     res <- liftIO $ atomically $ tryReadTBQueue (outputQueue ctx)
     case res of
-        Nothing -> do
-            liftIO $ threadDelay 4
-            let workQ = workQueue ctx
-                outQ  = outputQueue ctx
-            workQEmpty <- liftIO $ atomically $ isEmptyTBQueue workQ
-            outQEmpty  <- liftIO $ atomically $ isEmptyTBQueue outQ
-            when (not workQEmpty && outQEmpty) $ pushWorker ctx
-            void $ liftIO $ atomically $ peekTBQueue (outputQueue ctx)
-            continue
+        Nothing -> sendWorkerWait ctx >> continue
         Just ev ->
             case ev of
                 ChildYield a -> yield a

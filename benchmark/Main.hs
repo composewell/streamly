@@ -104,8 +104,7 @@ asyncly_basic :: IO Int
 asyncly_basic = do
     writeIORef count 0
     xs <- A.toList $ do
-             -- A.each [1..1000000 :: Int]
-             (A.for [1..1000000 :: Int] $ \x ->
+             (A.forEachWith (A.<|) [1..1000000 :: Int] $ \x ->
                 return x
                 >>= afilter even
                 >>= amap (+1)
