@@ -208,7 +208,7 @@ doFork action exHandler =
 
 {-# NOINLINE push #-}
 push :: MonadAsync m => Context m a -> m ()
-push ctx = run (Just ctx) (dequeueLoop ctx)
+push ctx = run (Just ctx) (dequeueLoop (Just ctx) (workQueue ctx))
 
     where
 
@@ -397,16 +397,16 @@ queueWork ctx m = do
 
 -- Note: This is performance sensitive code.
 {-# INLINE dequeueLoop #-}
-dequeueLoop :: MonadAsync m => Context m a -> AsyncT m a
-dequeueLoop ctx = AsyncT $ \_ stp yld -> do
-    work <- liftIO $ atomically $ tryReadTBQueue (workQueue ctx)
+dequeueLoop :: MonadAsync m => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a
+dequeueLoop ctx q = AsyncT $ \_ stp yld -> do
+    work <- liftIO $ atomically $ tryReadTBQueue q
     case work of
         Nothing -> stp
         Just m -> do
-            let stop = (runAsyncT (dequeueLoop ctx)) Nothing stp yld
-                yield a c Nothing = yld a c (Just (dequeueLoop ctx))
+            let stop = (runAsyncT (dequeueLoop ctx q)) Nothing stp yld
+                yield a c Nothing = yld a c (Just (dequeueLoop ctx q))
                 yield a c r = yld a c r
-            (runAsyncT m) (Just ctx) stop yield
+            (runAsyncT m) ctx stop yield
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
@@ -422,7 +422,7 @@ instance MonadAsync m => Alternative (AsyncT m) where
                 -- go left to right. If the left one keeps producing results we
                 -- may or may not run the right one.
                 queueWork c m1 >> queueWork c m2
-                (runAsyncT (dequeueLoop c)) Nothing stp yld
+                (runAsyncT (dequeueLoop ctx (workQueue c))) Nothing stp yld
 
 -- | Just like '<>' except that it can execute the action on the right in
 -- parallel ahead of time. Returns the results in serial order like '<>' from
@@ -447,7 +447,7 @@ parLeft m1 m2 = AsyncT $ \ctx stp yld -> do
             -- go left to right. If the left one keeps producing results we
             -- may or may not run the right one.
             queueWork c m1 >> queueWork c m2
-            (runAsyncT (dequeueLoop c)) Nothing stp yld
+            (runAsyncT (dequeueLoop ctx (workQueue c))) Nothing stp yld
 
 -- | Same as 'parLeft'.
 {-# INLINE (<|) #-}
