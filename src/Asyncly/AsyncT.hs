@@ -276,9 +276,7 @@ sendWorkerWait ctx = do
     when (not workQEmpty && outQEmpty) $ pushWorker ctx
     void $ liftIO $ atomically $ peekTBQueue (outputQueue ctx)
 
--- We re-raise any exceptions received from the child threads, that way
--- exceptions get propagated to the top level computation and can be handled
--- there.
+-- Note: This is performance sensitive code.
 {-# NOINLINE pullWorker #-}
 pullWorker :: MonadAsync m => Context m a -> AsyncT m a
 pullWorker ctx = AsyncT $ \pctx stp yld -> do
@@ -375,13 +373,14 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
 -- residual work back to the dispatcher. It will also consume a lot of
 -- memory due to queueing of all the work before execution starts.
 
-{-# INLINE forkWorker #-}
+{-# NOINLINE forkWorker #-}
 forkWorker :: MonadAsync m => Context m a -> m ()
 forkWorker ctx = do
     let q = outputQueue ctx
     tid <- doFork (push ctx) (handleChildException q)
     liftIO $ atomically $ writeTBQueue q (ChildCreate tid)
 
+-- Note: This is performance sensitive code.
 {-# INLINE queueWork #-}
 queueWork :: MonadAsync m => Context m a -> AsyncT m a -> m ()
 queueWork ctx m = do
@@ -396,6 +395,7 @@ queueWork ctx m = do
     when (workQFull) $ forkWorker ctx
     liftIO $ atomically $ writeTBQueue (workQueue ctx) m
 
+-- Note: This is performance sensitive code.
 {-# INLINE dequeueLoop #-}
 dequeueLoop :: MonadAsync m => Context m a -> AsyncT m a
 dequeueLoop ctx = AsyncT $ \_ stp yld -> do
