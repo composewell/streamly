@@ -34,7 +34,7 @@ module Asyncly.AsyncT
     )
 where
 
-import           Control.Applicative         (Alternative (..))
+import           Control.Applicative         (Alternative (..), liftA2)
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.STM      (TBQueue, atomically, newTBQueue,
@@ -457,12 +457,15 @@ instance MonadAsync m => MonadPlus (AsyncT m) where
 ------------------------------------------------------------------------------
 
 instance (Num a, Monad (AsyncT m)) => Num (AsyncT m a) where
-  fromInteger = return . fromInteger
-  mf + mg     = (+) <$> mf <*> mg
-  mf * mg     = (*) <$> mf <*> mg
-  negate f    = f >>= return . negate
-  abs f       = f >>= return . abs
-  signum f    = f >>= return . signum
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer
