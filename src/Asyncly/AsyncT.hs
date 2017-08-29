@@ -23,6 +23,8 @@ module Asyncly.AsyncT
     , toList
     , each
     , for
+    , interleave
+    , (<=>)
 --    , async
 --    , makeAsync
     )
@@ -121,6 +123,19 @@ instance Monad m => Monoid (AsyncT m a) where
             yield a c Nothing  = yld a c (Just m2)
             yield a c (Just r) = yld a c (Just (mappend r m2))
         in m1 ctx stop yield
+
+-- | interleaves the results of two AsyncT computations
+interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
+interleave m1 m2 = AsyncT $ \ctx stp yld -> do
+    let stop = (runAsyncT m2) ctx stp yld
+        yield a c Nothing  = yld a c (Just m2)
+        yield a c (Just r) = yld a c (Just (interleave m2 r))
+    (runAsyncT m1) ctx stop yield
+
+infixr 5 <=>
+
+(<=>) :: AsyncT m a -> AsyncT m a -> AsyncT m a
+(<=>) = interleave
 
 -- We do not use bind for parallelism. That is, we do not start each iteration
 -- of the list in parallel. That will introduce too much uncontrolled

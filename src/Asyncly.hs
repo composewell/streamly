@@ -128,6 +128,8 @@ module Asyncly
     , toList
     , each
     , for
+    , interleave
+    , (<=>)
     )
 where
 

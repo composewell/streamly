@@ -9,20 +9,29 @@ import Asyncly
 main = do
     liftIO $ hSetBuffering stdout LineBuffering
 
+    putStrLn $ "\nloopTail:\n"
     runAsyncly $ do
         x <- loopTail (0 :: Int)
         liftIO $ print x
 
+    putStrLn $ "\nloopHead:\n"
     runAsyncly $ do
         x <- loopHead (0 :: Int)
         liftIO $ print x
 
+    putStrLn $ "\nloopTailA:\n"
     runAsyncly $ do
         x <- loopTailA (0 :: Int)
         liftIO $ print x
 
+    putStrLn $ "\nloopHeadA:\n"
     runAsyncly $ do
         x <- loopHeadA (0 :: Int)
+        liftIO $ print x
+
+    putStrLn $ "\ninterleave:\n"
+    runAsyncly $ do
+        x <- return (0 :: Int) <> return 1 <=> return 100 <> return 101
         liftIO $ print x
 
     where

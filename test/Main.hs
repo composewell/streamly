@@ -22,6 +22,9 @@ main = hspec $ do
         toList (return 0 <> return 1) `shouldReturn` ([0, 1] :: [Int])
     it "Monoid composition - each" $
         ((toList $ each [1..100]) >>= return . sort) `shouldReturn` ([1..100] :: [Int])
+    it "Interleaved composition" $
+        toList (return (0 :: Int) <> return 1 <=> return 100 <> return 101)
+            `shouldReturn` ([0, 100, 1, 101])
     it "simple runAsyncly and 'then' with IO" $
         runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world")) `shouldReturn` ()
     it "Then and toList" $
