@@ -34,6 +34,11 @@ main = do
         x <- return (0 :: Int) <> return 1 <=> return 100 <> return 101
         liftIO $ print x
 
+    putStrLn $ "\nParallel interleave:\n"
+    runAsyncly $ do
+        x <- return (0 :: Int) <> return 1 <|> return 100 <> return 101
+        liftIO $ print x
+
     where
 
 -------------------------------------------------------------------------------
@@ -63,7 +68,7 @@ main = do
 -- Concurrent (multi-threaded) adaptive demand-based stream generator loops
 -------------------------------------------------------------------------------
 
-    -- In a <|> composition the action on the left is executed first. However,
+    -- In a <| composition the action on the left is executed first. However,
     -- if it is not fast enough to generate results at the consumer's speed
     -- then the action on the right is also spawned concurrently. In other
     -- words, both actions may run concurrently based on the need.
@@ -71,18 +76,18 @@ main = do
     loopTailA :: Int -> AsyncT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
-        return x <|> (if x < 3 then loopTailA (x + 1) else empty)
+        return x <| (if x < 3 then loopTailA (x + 1) else empty)
 
     loopHeadA :: Int -> AsyncT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else empty) <|> return x
+        (if x < 3 then loopHeadA (x + 1) else empty) <| return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops
 -------------------------------------------------------------------------------
 
-    -- In a <||> composition both actions are run concurrently in a fair
+    -- In a <|> composition both actions are run concurrently in a fair
     -- manner, no one action is preferred over another. Both actions are
     -- spawned right away in their own independent threads. In other words, the
     -- actions will run concurrently.

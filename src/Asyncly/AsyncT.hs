@@ -56,6 +56,7 @@ import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               writeIORef, readIORef)
+import           Data.Maybe                  (fromJust)
 import           Data.Monoid                 ((<>))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
@@ -97,6 +98,7 @@ data Context m a =
             , workQueue      :: TBQueue (AsyncT m a)
             , runningThreads :: IORef (Set ThreadId)
             , doneThreads    :: IORef (Set ThreadId)
+            , fairSched      :: Bool
             }
 
 -- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
@@ -208,7 +210,8 @@ doFork action exHandler =
 
 {-# NOINLINE push #-}
 push :: MonadAsync m => Context m a -> m ()
-push ctx = run (Just ctx) (dequeueLoop (Just ctx) (workQueue ctx))
+push ctx = run (Just ctx) (dequeueLoop (Just ctx) (workQueue ctx)
+                           (fairSched ctx))
 
     where
 
@@ -323,10 +326,11 @@ pushWorker ctx = do
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 {-# NOINLINE pullFork #-}
-pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-pullFork m1 m2 = AsyncT $ \_ stp yld -> do
+pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
+pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
-    queueWork ctx m1 >> queueWork ctx m2 >> pushWorker ctx
+    let q = workQueue ctx
+    queueWork (Just ctx) q m1 >> queueWork (Just ctx) q m2 >> pushWorker ctx
     (runAsyncT (pullWorker ctx)) Nothing stp yld
 
     where
@@ -336,10 +340,11 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
         workQ   <- atomically $ newTBQueue 32
         running <- newIORef S.empty
         done    <- newIORef S.empty
-        return $ Context { outputQueue   = outQ
+        return $ Context { outputQueue    = outQ
                          , runningThreads = running
                          , doneThreads    = done
                          , workQueue      = workQ
+                         , fairSched      = fair
                          }
 
 -- Concurrency rate control. Our objective is to create more threads on
@@ -374,16 +379,17 @@ pullFork m1 m2 = AsyncT $ \_ stp yld -> do
 -- memory due to queueing of all the work before execution starts.
 
 {-# NOINLINE forkWorker #-}
-forkWorker :: MonadAsync m => Context m a -> m ()
+forkWorker :: MonadAsync m => Maybe (Context m a) -> m ()
 forkWorker ctx = do
-    let q = outputQueue ctx
-    tid <- doFork (push ctx) (handleChildException q)
+    let c = fromJust ctx
+    let q = outputQueue c
+    tid <- doFork (push c) (handleChildException q)
     liftIO $ atomically $ writeTBQueue q (ChildCreate tid)
 
 -- Note: This is performance sensitive code.
 {-# INLINE queueWork #-}
-queueWork :: MonadAsync m => Context m a -> AsyncT m a -> m ()
-queueWork ctx m = do
+queueWork :: MonadAsync m => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a -> m ()
+queueWork ctx q m = do
     -- To guarantee deadlock avoidance we need to dispatch a worker when the
     -- workQueue goes full. Otherwise all the worker threads might be waiting
     -- on the queue and never wakeup.
@@ -391,38 +397,46 @@ queueWork ctx m = do
     -- TBD If we run out of threads we can also evaluate the action completely
     -- right here, disallowing any further child workers and turning the
     -- parallel composition into interleaved serial composition.
-    workQFull <- liftIO $ atomically $ isFullTBQueue (workQueue ctx)
+    workQFull <- liftIO $ atomically $ isFullTBQueue q
     when (workQFull) $ forkWorker ctx
-    liftIO $ atomically $ writeTBQueue (workQueue ctx) m
+    liftIO $ atomically $ writeTBQueue q m
 
 -- Note: This is performance sensitive code.
 {-# INLINE dequeueLoop #-}
-dequeueLoop :: MonadAsync m => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a
-dequeueLoop ctx q = AsyncT $ \_ stp yld -> do
+dequeueLoop :: MonadAsync m
+    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> Bool -> AsyncT m a
+dequeueLoop ctx q fair = AsyncT $ \_ stp yld -> do
     work <- liftIO $ atomically $ tryReadTBQueue q
     case work of
         Nothing -> stp
         Just m -> do
-            let stop = (runAsyncT (dequeueLoop ctx q)) Nothing stp yld
-                yield a c Nothing = yld a c (Just (dequeueLoop ctx q))
-                yield a c r = yld a c r
+            let stop = (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
+                continue a c = yld a c (Just (dequeueLoop ctx q fair))
+                yield a c Nothing = continue a c
+                yield a c r | not fair = yld a c r
+                yield a c (Just r) = queueWork ctx q r >> continue a c
             (runAsyncT m) ctx stop yield
+
+-- Note: This is designed to scale for right associated compositions,
+-- therefore always use a right fold for folding bigger structures.
+{-# INLINE parallel #-}
+parallel :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
+parallel m1 m2 fair = AsyncT $ \ctx stp yld -> do
+    case ctx of
+        Nothing -> (runAsyncT (pullFork m1 m2 fair)) Nothing stp yld
+        Just  c -> do
+            -- we open up both the branches fairly but on a given level we
+            -- go left to right. If the left one keeps producing results we
+            -- may or may not run the right one.
+            let q = workQueue c
+            queueWork ctx q m1 >> queueWork ctx q m2
+            (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
 
-    -- Note: This is designed to scale for right associated compositions,
-    -- therefore always use a right fold for folding bigger structures.
     {-# INLINE (<|>) #-}
-    m1 <|> m2 = AsyncT $ \ctx stp yld -> do
-        case ctx of
-            Nothing -> (runAsyncT (pullFork m1 m2)) Nothing stp yld
-            Just  c -> do
-                -- we open up both the branches fairly but on a given level we
-                -- go left to right. If the left one keeps producing results we
-                -- may or may not run the right one.
-                queueWork c m1 >> queueWork c m2
-                (runAsyncT (dequeueLoop ctx (workQueue c))) Nothing stp yld
+    m1 <|> m2 = parallel m1 m2 True
 
 -- | Just like '<>' except that it can execute the action on the right in
 -- parallel ahead of time. Returns the results in serial order like '<>' from
@@ -439,15 +453,7 @@ parAhead = undefined
 -- not required.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-parLeft m1 m2 = AsyncT $ \ctx stp yld -> do
-    case ctx of
-        Nothing -> (runAsyncT (pullFork m1 m2)) Nothing stp yld
-        Just  c -> do
-            -- we open up both the branches fairly but on a given level we
-            -- go left to right. If the left one keeps producing results we
-            -- may or may not run the right one.
-            queueWork c m1 >> queueWork c m2
-            (runAsyncT (dequeueLoop ctx (workQueue c))) Nothing stp yld
+parLeft m1 m2 = parallel m1 m2 False
 
 -- | Same as 'parLeft'.
 {-# INLINE (<|) #-}
