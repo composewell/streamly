@@ -1,0 +1,39 @@
+# short paths == fewer problems
+
+# criterion does not support 32-bit on Windows
+# TODO disable benchmarking to test on 32-bit
+platform: x64
+
+clone_folder: "c:\\pkg"
+environment:
+  global:
+    BUILD: "stack"
+    RESOLVER: "lts-9.0"
+    GHC_OPTIONS: "-O0 -Werror"
+#   STACK_OPTIONS: "-v"
+
+    STACK_ROOT: "c:\\sr"
+    LOCAL_BIN: "%APPDATA%\\local\\bin"
+    PATH: "%PATH%;%APPDATA%\\local\\bin"
+    CABAL_REINIT_CONFIG: "y"
+    TEST_INSTALL: "y"
+    PACKAGE_TEST_VER: "fde043d6c328090883286c69443f3ad2d73ddbb5"
+
+cache:
+  - "%STACK_ROOT%" # stack root
+  # ghc & msys - cache restore takes almost same time as reinstall
+  # - "%LOCALAPPDATA%\\Programs\\stack"
+  - "%LOCAL_BIN%"
+  - "%APPDATA%\\cabal"
+  - "%APPDATA%\\ghc"
+
+build: off
+
+before_test:
+- if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
+- where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
+- curl -sSkL -opackage-test.sh https://raw.githubusercontent.com/harendra-kumar/package-test/%PACKAGE_TEST_VER%/package-test.sh
+
+test_script:
+- stack setup > nul
+- chcp 65001 && stack exec bash package-test.sh

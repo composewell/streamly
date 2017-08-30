@@ -1,0 +1,81 @@
+notifications:
+  email: false
+
+language: c
+
+sudo: false
+cache:
+  directories:
+  - $HOME/.cabal
+  - $HOME/.ghc
+  - $HOME/.local
+  - $HOME/.stack
+
+matrix:
+  include:
+  # cabal/linux
+  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
+    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+
+  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 COVERALLS=y
+    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
+
+  - env: BUILD=cabal GHCVER=head CABALVER=head
+    addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+
+  # stack/linux use a pre-installed cabal-install for faster builds
+  - env: BUILD=stack RESOLVER=lts-9.0 CABALVER=1.22
+    addons: {apt: {packages: [libgmp-dev,cabal-install-1.22], sources: [hvr-ghc]}}
+
+  - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
+    addons: {apt: {packages: [libgmp-dev,cabal-install-2.0], sources: [hvr-ghc]}}
+
+  # cabal/stack/osx - TODO install cabal-install
+  - env: BUILD=cabal RESOLVER=lts-9.0
+    os: osx
+
+  - env: BUILD=stack RESOLVER=lts-9.0
+    os: osx
+
+  allow_failures:
+  - env: BUILD=cabal GHCVER=head CABALVER=head
+#  - env: BUILD=stack RESOLVER=nightly
+
+install: true
+script:
+  - |
+    # Customizable options
+    PACKAGE_TEST_VER="fde043d6c328090883286c69443f3ad2d73ddbb5"
+    GHC_OPTIONS="-O0 -Werror"
+    test -n "$COVERALLS" && \
+      COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines \
+                         --exclude-dir=test test"
+
+    # Usually no changes should be needed after this
+    add_path()  { eval "test -n \"\$$1\"" && eval "PATH=/opt/$2/\"\$$1\"/bin:$PATH"; true; }
+    cabal_env() { test "$BUILD" = cabal && echo $1; }
+    pkg_test() { echo https://raw.githubusercontent.com/harendra-kumar/package-test/$1/package-test.sh; }
+
+    CURL=$(which curl)
+    PATH=/bin:/usr/bin
+    add_path GHCVER   ghc
+    add_path CABALVER cabal
+
+  # TRAVIS vars are needed by hpc-coveralls
+  - env -i
+      LC_ALL=C.UTF-8
+      TRAVIS=$TRAVIS
+      TRAVIS_JOB_ID=$TRAVIS_JOB_ID
+      PATH=$PATH
+      BUILD=$BUILD
+      RESOLVER=$RESOLVER
+      GHCVER=$GHCVER
+      GHC_OPTIONS="$GHC_OPTIONS"
+      COVERALLS_OPTIONS="$COVERALLS_OPTIONS"
+      CABAL_REINIT_CONFIG=y
+      TEST_INSTALL=y
+      $(cabal_env CABALVER=$CABALVER)
+      $(cabal_env CABAL_CHECK_RELAX=y)
+      $(cabal_env CABAL_NO_SANDBOX=y)
+      $(cabal_env CABAL_HACKAGE_MIRROR=hackage.haskell.org:http://hackage.fpcomplete.com)
+      /bin/bash <($CURL -sL $(pkg_test $PACKAGE_TEST_VER))
