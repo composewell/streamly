@@ -1,21 +1,21 @@
 module Main (main) where
 
-import Asyncly
 import Control.Applicative ((<|>), empty)
 import Control.Monad (mzero)
-import Control.Concurrent (myThreadId, threadDelay)
-import Data.Monoid ((<>))
+-- import Control.Concurrent (myThreadId, threadDelay)
 import Control.Monad.IO.Class (liftIO)
-import Data.List (nub, sort)
+-- import Data.List (nub)
+import Data.List (sort)
+import Data.Monoid ((<>))
 import Test.Hspec
 
-default (Int)
+import Asyncly
 
 main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
         it "simple runAsyncly" $
-            runAsyncly (return 0) `shouldReturn` ()
+            runAsyncly (return (0 :: Int)) `shouldReturn` ()
         it "simple runAsyncly with IO" $
             runAsyncly (liftIO $ putStrLn "hello") `shouldReturn` ()
         it "Captures a return value using toList" $
@@ -41,65 +41,74 @@ main = hspec $ do
     describe "Left Biased parallel loops (<|)" $ loops (<|) sort sort
     describe "Fair parallel loops (<|>)" $ loops (<|>) sort sort
 
+bind :: Spec
 bind = do
     it "Simple runAsyncly and 'then' with IO" $
         runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
             `shouldReturn` ()
     it "Then and toList" $
-        toList (return 1 >> return 2) `shouldReturn` ([2] :: [Int])
+        toList (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])
     it "Bind and toList" $
         toList (do x <- return 1; y <- return 2; return (x + y))
             `shouldReturn` ([3] :: [Int])
 
+interleaved :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
 interleaved f =
     it "Interleave four" $
-        toList ((return (0 :: Int) <> return 1) `f` (return 100 <> return 101))
+        toList ((return 0 <> return 1) `f` (return 100 <> return 101))
             `shouldReturn` ([0, 100, 1, 101])
 
+compose
+    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    -> ([Int] -> [Int])
+    -> Spec
 compose f srt = do
     it "Compose mempty, mempty" $
-        (toList (mempty `f` mempty)) `shouldReturn` ([] :: [Int])
+        (toList (mempty `f` mempty)) `shouldReturn` []
     it "Compose empty, empty" $
-        (toList (empty `f` empty)) `shouldReturn` ([] :: [Int])
+        (toList (empty `f` empty)) `shouldReturn` []
     it "Compose empty at the beginning" $
-        (toList $ (empty `f` return 1)) `shouldReturn` ([1] :: [Int])
+        (toList $ (empty `f` return 1)) `shouldReturn` [1]
     it "Compose empty at the end" $
-        (toList $ (return 1 `f` empty)) `shouldReturn` ([1] :: [Int])
+        (toList $ (return 1 `f` empty)) `shouldReturn` [1]
     it "Compose two" $
         (toList (return 0 `f` return 1) >>= return . srt)
-            `shouldReturn` ([0, 1] :: [Int])
+            `shouldReturn` [0, 1]
     it "Compose three - empty in the middle" $
         ((toList $ (return 0 `f` empty `f` return 1)) >>= return . srt)
-            `shouldReturn` ([0, 1] :: [Int])
+            `shouldReturn` [0, 1]
     it "Compose left associated" $
         ((toList $ (((return 0 `f` return 1) `f` return 2) `f` return 3))
-            >>= return . srt) `shouldReturn` ([0, 1, 2, 3] :: [Int])
+            >>= return . srt) `shouldReturn` [0, 1, 2, 3]
     it "Compose right associated" $
         ((toList $ (return 0 `f` (return 1 `f` (return 2 `f` return 3))))
-            >>= return . srt) `shouldReturn` ([0, 1, 2, 3] :: [Int])
+            >>= return . srt) `shouldReturn` [0, 1, 2, 3]
     it "Compose many" $
         ((toList $ forEachWith f [1..100] return) >>= return . srt)
-            `shouldReturn` ([1..100] :: [Int])
+            `shouldReturn` [1..100]
     it "Compose many (right fold) with bind" $
         (toList (forEachWith f [1..10 :: Int] $ \x -> return x >>= return . id)
-            >>= return . srt) `shouldReturn` ([1..10] :: [Int])
+            >>= return . srt) `shouldReturn` [1..10]
     it "Compose many (left fold) with bind" $
         let forL xs k = foldl f empty $ map k xs
          in (toList (forL [1..10 :: Int] $ \x -> return x >>= return . id)
-                >>= return . srt) `shouldReturn` ([1..10] :: [Int])
+                >>= return . srt) `shouldReturn` [1..10]
     it "Compose hierarchical (multiple levels)" $
         ((toList $ (((return 0 `f` return 1) `f` (return 2 `f` return 3))
                 `f` ((return 4 `f` return 5) `f` (return 6 `f` return 7)))
-            ) >>= return . srt) `shouldReturn` ([0..7] :: [Int])
+            ) >>= return . srt) `shouldReturn` [0..7]
 
+loops
+    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    -> ([Int] -> [Int])
+    -> ([Int] -> [Int])
+    -> Spec
 loops f tsrt hsrt = do
-    it "Tail recursive loop" $
-        (toList (loopTail (0 :: Int)) >>= return . tsrt)
-            `shouldReturn` ([0..3] :: [Int])
+    it "Tail recursive loop" $ (toList (loopTail 0) >>= return . tsrt)
+            `shouldReturn` [0..3]
 
-    it "Head recursive loop" $
-        (toList (loopHead (0 :: Int)) >>= return . hsrt)
-            `shouldReturn` ([0..3] :: [Int])
+    it "Head recursive loop" $ (toList (loopHead 0) >>= return . hsrt)
+            `shouldReturn` [0..3]
 
     where
         loopHead x = do
