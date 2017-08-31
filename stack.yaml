@@ -1,12 +1,11 @@
-resolver: lts-8.23
+resolver: lts-9.2
 packages:
 - '.'
 - location:
     git: https://github.com/harendra-kumar/monad-recorder
     commit: 05bb0cfd827d9f955108d3b03dfb20b7c6820c25
   extra-dep: true
-extra-deps:
-  - simple-conduit-0.6.0
+extra-deps: []
 flags: {}
 extra-package-dbs: []
 pvp-bounds: both

@@ -30,21 +30,16 @@ library
     ghc-options:      -Wall -fwarn-identities -fwarn-incomplete-record-updates
                       -fwarn-incomplete-uni-patterns -fwarn-tabs
 
-    build-depends:     base          >= 4.8.1  &&  < 5
-                     , containers    >= 0.5.6
-                     , time          >= 1.5
-                     , transformers  >= 0.4.2
-                     , ghc-prim
-
-                     -- libraries not bundled with GHC
-                     , atomic-primops
-                     , exceptions
-                     , lifted-base
-                     , monad-control
-                     , monad-recorder
-                     , mtl
-                     , stm
-                     , transformers-base
+    build-depends:     base              >= 4.8   &&  < 5
+                     , containers        >= 0.5   && < 0.6
+                     , exceptions        >= 0.8   && < 0.9
+                     , lifted-base       >= 0.2   && < 0.3
+                     , monad-control     >= 1.0   && < 2
+                     , monad-recorder    >= 0.1   && < 0.2
+                     , mtl               >= 2.2   && < 3
+                     , stm               >= 2.4.3 && < 2.5
+                     , transformers      >= 0.5   && < 0.6
+                     , transformers-base >= 0.4   && < 0.5
 
 test-suite test
   type: exitcode-stdio-1.0
@@ -53,11 +48,11 @@ test-suite test
   ghc-options: -O0 -Wall -fwarn-identities -fwarn-incomplete-record-updates
                -fwarn-incomplete-uni-patterns -fwarn-tabs
   build-depends:
-      base       >= 4.7 && < 5
-    , hspec      >= 2.0 && < 3
-    , containers
-    , asyncly
-    , monad-recorder
+      asyncly
+    , base              >= 4.8   && < 5
+    , hspec             >= 2.0   && < 3
+    , containers        >= 0.5   && < 0.6
+    , monad-recorder    >= 0.1   && < 0.2
   default-language: Haskell2010
 
 benchmark bench
@@ -70,20 +65,14 @@ benchmark bench
                -fno-ignore-asserts
   build-depends:
       asyncly
-    , atomic-primops
-    , base >= 4.7 && < 5
-    , conduit
-    , conduit-combinators
-    , criterion
-    , io-streams
-    , list-t
-    , logict
-    , machines
-    , mtl
-    , pipes
-    , simple-conduit
-    , streaming
-    , transient
+    , atomic-primops      >= 0.8   && < 0.9
+    , base                >= 4.8   && < 5
+    , criterion           >= 1     && < 2
+    , list-t              >= 1     && < 2
+    , logict              >= 0.6   && < 0.7
+    , machines            >= 0.6   && < 0.7
+    , mtl                 >= 2.2   && < 3
+    , transient           >= 0.5   && < 0.6
   default-language: Haskell2010
 
 source-repository head

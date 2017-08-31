@@ -123,17 +123,34 @@ module Asyncly
     ( AsyncT
     , MonadAsync
 
-    -- * Run
+    -- * Running
     , runAsyncly
     , toList
+
+    -- * Composing Operators
     , interleave
     , (<=>)
     , parLeft
     , (<|)
+
+    -- * Utilities
     , foldWith
     , foldMapWith
     , forEachWith
+
+    -- * Re-exports
+    , Monoid (..)
+    , (<>)
+    , Alternative (..)
+    , MonadPlus (..)
+    , liftIO
+    , lift
     )
 where
 
 import Asyncly.AsyncT
+import Data.Monoid (Monoid(..), (<>))
+import Control.Applicative (Alternative(..))
+import Control.Monad (MonadPlus(..))
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Class (lift)
