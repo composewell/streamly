@@ -40,7 +40,7 @@ matrix:
 
   allow_failures:
   #- env: BUILD=cabal GHCVER=head CABALVER=head
-  - env: BUILD=stack RESOLVER=nightly
+  - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
 
 install: true
 script:
