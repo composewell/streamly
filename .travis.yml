@@ -25,7 +25,7 @@ matrix:
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
   # stack/linux use a pre-installed cabal-install for faster builds
-  - env: BUILD=stack RESOLVER=lts-9.0 CABALVER=1.22
+  - env: BUILD=stack RESOLVER=lts-9.0 CABALVER=1.22 COVERALLS=y
     addons: {apt: {packages: [libgmp-dev,cabal-install-1.22], sources: [hvr-ghc]}}
 
   - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
