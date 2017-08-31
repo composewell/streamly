@@ -24,8 +24,12 @@ matrix:
   #- env: BUILD=cabal GHCVER=head CABALVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
+  # Note COVERALLS requires cabal build, we use a stack based cabal build
+  - env: BUILD=cabal RESOLVER=lts-9.0 CABALVER=1.22 COVERALLS=y
+    addons: {apt: {packages: [libgmp-dev,cabal-install-1.22], sources: [hvr-ghc]}}
+
   # stack/linux use a pre-installed cabal-install for faster builds
-  - env: BUILD=stack RESOLVER=lts-9.0 CABALVER=1.22 COVERALLS=y
+  - env: BUILD=stack RESOLVER=lts-9.0 CABALVER=1.22
     addons: {apt: {packages: [libgmp-dev,cabal-install-1.22], sources: [hvr-ghc]}}
 
   - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
