@@ -1,13 +1,15 @@
+#!/usr/bin/env stack
+-- stack runghc --package path --package path-io
 {-# LANGUAGE FlexibleContexts #-}
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Class (lift)
-import Data.Monoid ((<>))
 import Path.IO (listDir, getCurrentDir)
 import Path (Path, Dir, reldir)
+import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Asyncly
 
-main = runAsyncly $ getCurrentDir >>= readdir
+main = do
+    liftIO $ hSetBuffering stdout LineBuffering
+    runAsyncly $ getCurrentDir >>= readdir
     where readdir d = do
             (ds, fs) <- lift $ listDir d
             liftIO $ mapM_ putStrLn $ map show fs ++ map show ds
