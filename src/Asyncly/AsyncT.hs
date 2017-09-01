@@ -208,6 +208,46 @@ doFork action exHandler =
             -- XXX restore state here?
             return ()
 
+{-# NOINLINE forkWorker #-}
+forkWorker :: MonadAsync m => Maybe (Context m a) -> m ()
+forkWorker ctx = do
+    let c = fromJust ctx
+    let q = outputQueue c
+    tid <- doFork (push c) (handleChildException q)
+    liftIO $ atomically $ writeTBQueue q (ChildCreate tid)
+
+-- Note: This is performance sensitive code.
+{-# INLINE queueWork #-}
+queueWork :: MonadAsync m
+    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a -> m ()
+queueWork ctx q m = do
+    -- To guarantee deadlock avoidance we need to dispatch a worker when the
+    -- workQueue goes full. Otherwise all the worker threads might be waiting
+    -- on the queue and never wakeup.
+    --
+    -- TBD If we run out of threads we can also evaluate the action completely
+    -- right here, disallowing any further child workers and turning the
+    -- parallel composition into interleaved serial composition.
+    workQFull <- liftIO $ atomically $ isFullTBQueue q
+    when (workQFull) $ forkWorker ctx
+    liftIO $ atomically $ writeTBQueue q m
+
+-- Note: This is performance sensitive code.
+{-# INLINE dequeueLoop #-}
+dequeueLoop :: MonadAsync m
+    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> Bool -> AsyncT m a
+dequeueLoop ctx q fair = AsyncT $ \_ stp yld -> do
+    work <- liftIO $ atomically $ tryReadTBQueue q
+    case work of
+        Nothing -> stp
+        Just m -> do
+            let stop = (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
+                continue a c = yld a c (Just (dequeueLoop ctx q fair))
+                yield a c Nothing = continue a c
+                yield a c r | not fair = yld a c r
+                yield a c (Just r) = queueWork ctx q r >> continue a c
+            (runAsyncT m) ctx stop yield
+
 {-# NOINLINE push #-}
 push :: MonadAsync m => Context m a -> m ()
 push ctx = run (Just ctx) (dequeueLoop (Just ctx) (workQueue ctx)
@@ -377,45 +417,6 @@ pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
 -- XXX to rate control left folded structrues we will have to return the
 -- residual work back to the dispatcher. It will also consume a lot of
 -- memory due to queueing of all the work before execution starts.
-
-{-# NOINLINE forkWorker #-}
-forkWorker :: MonadAsync m => Maybe (Context m a) -> m ()
-forkWorker ctx = do
-    let c = fromJust ctx
-    let q = outputQueue c
-    tid <- doFork (push c) (handleChildException q)
-    liftIO $ atomically $ writeTBQueue q (ChildCreate tid)
-
--- Note: This is performance sensitive code.
-{-# INLINE queueWork #-}
-queueWork :: MonadAsync m => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a -> m ()
-queueWork ctx q m = do
-    -- To guarantee deadlock avoidance we need to dispatch a worker when the
-    -- workQueue goes full. Otherwise all the worker threads might be waiting
-    -- on the queue and never wakeup.
-    --
-    -- TBD If we run out of threads we can also evaluate the action completely
-    -- right here, disallowing any further child workers and turning the
-    -- parallel composition into interleaved serial composition.
-    workQFull <- liftIO $ atomically $ isFullTBQueue q
-    when (workQFull) $ forkWorker ctx
-    liftIO $ atomically $ writeTBQueue q m
-
--- Note: This is performance sensitive code.
-{-# INLINE dequeueLoop #-}
-dequeueLoop :: MonadAsync m
-    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> Bool -> AsyncT m a
-dequeueLoop ctx q fair = AsyncT $ \_ stp yld -> do
-    work <- liftIO $ atomically $ tryReadTBQueue q
-    case work of
-        Nothing -> stp
-        Just m -> do
-            let stop = (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
-                continue a c = yld a c (Just (dequeueLoop ctx q fair))
-                yield a c Nothing = continue a c
-                yield a c r | not fair = yld a c r
-                yield a c (Just r) = queueWork ctx q r >> continue a c
-            (runAsyncT m) ctx stop yield
 
 -- Note: This is designed to scale for right associated compositions,
 -- therefore always use a right fold for folding bigger structures.
