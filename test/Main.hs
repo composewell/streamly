@@ -35,7 +35,8 @@ main = hspec $ do
     describe "Left Biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
     describe "Serial interleaved (<=>)" $ interleaved (<=>)
-    describe "Parallel interleaved (<|>)" $ interleaved (<|>)
+    -- This is not predicatable
+    -- describe "Parallel interleaved (<|>)" $ interleaved (<|>)
 
     describe "Serial loops (<>)" $ loops (<>) id reverse
     describe "Left Biased parallel loops (<|)" $ loops (<|) sort sort
