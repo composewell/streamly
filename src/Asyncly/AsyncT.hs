@@ -445,8 +445,9 @@ parallel m1 m2 fair = AsyncT $ \ctx stp yld -> do
             -- go left to right. If the left one keeps producing results we
             -- may or may not run the right one.
             let q = workQueue c
-            queueWork q m1 >> queueWork q m2
-            (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
+                continue = (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
+            queueWork q m2
+            (runAsyncT m1) ctx continue yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
