@@ -37,10 +37,8 @@ where
 import           Control.Applicative         (Alternative (..), liftA2)
 import           Control.Concurrent          (ThreadId, forkIO, killThread,
                                               myThreadId, threadDelay)
-import           Control.Concurrent.STM      (TBQueue, atomically, newTBQueue,
-                                              tryReadTBQueue, writeTBQueue,
-                                              isEmptyTBQueue, isFullTBQueue,
-                                              peekTBQueue)
+import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
+                                              tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (ap, liftM, MonadPlus(..), mzero,
@@ -56,7 +54,9 @@ import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               writeIORef, readIORef)
-import           Data.Maybe                  (fromJust)
+import           Data.Atomics                (atomicModifyIORefCAS,
+                                              atomicModifyIORefCAS_)
+import           Data.Maybe                  (isNothing)
 import           Data.Monoid                 ((<>))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
@@ -93,9 +93,12 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
+    -- XXX keep just a list of [a] and handle other events out of band as
+    -- exceptions or using atomicModify
 data Context m a =
-    Context { outputQueue    :: TBQueue (ChildEvent a)
-            , workQueue      :: TBQueue (AsyncT m a)
+    Context { outputQueue    :: IORef [ChildEvent a]
+            , synchOutQ      :: MVar Bool -- wakeup mechanism for outQ
+            , workQueue      :: IORef [AsyncT m a]
             , runningThreads :: IORef (Set ThreadId)
             , doneThreads    :: IORef (Set ThreadId)
             , fairSched      :: Bool
@@ -198,46 +201,40 @@ instance Monad m => Applicative (AsyncT m) where
 {-# INLINE doFork #-}
 doFork :: (MonadIO m, MonadBaseControl IO m)
     => m ()
-    -> (SomeException -> IO ())
+    -> (SomeException -> m ())
     -> m ThreadId
 doFork action exHandler =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
             -- XXX test the exception handling
-            _ <- runInIO $ EL.catch (restore action) (liftIO . exHandler)
+            _ <- runInIO $ EL.catch (restore action) exHandler
             -- XXX restore state here?
             return ()
 
-{-# NOINLINE forkWorker #-}
-forkWorker :: MonadAsync m => Maybe (Context m a) -> m ()
-forkWorker ctx = do
-    let c = fromJust ctx
-    let q = outputQueue c
-    tid <- doFork (push c) (handleChildException q)
-    liftIO $ atomically $ writeTBQueue q (ChildCreate tid)
+-- XXX exception safety of all atomic/MVar operations
 
--- Note: This is performance sensitive code.
+{-# INLINE send #-}
+send :: MonadIO m => Context m a -> ChildEvent a -> m ()
+send ctx msg = liftIO $ do
+    atomicModifyIORefCAS_ (outputQueue ctx) $ \es -> msg : es
+    -- XXX need a memory barrier? The wake up must happen only after the
+    -- store has finished otherwise we can have lost wakeup problems.
+    void $ tryPutMVar (synchOutQ ctx) True
+
+-- Note: Left associated operations can grow this queue to a large size
 {-# INLINE queueWork #-}
-queueWork :: MonadAsync m
-    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> AsyncT m a -> m ()
-queueWork ctx q m = do
-    -- To guarantee deadlock avoidance we need to dispatch a worker when the
-    -- workQueue goes full. Otherwise all the worker threads might be waiting
-    -- on the queue and never wakeup.
-    --
-    -- TBD If we run out of threads we can also evaluate the action completely
-    -- right here, disallowing any further child workers and turning the
-    -- parallel composition into interleaved serial composition.
-    workQFull <- liftIO $ atomically $ isFullTBQueue q
-    when (workQFull) $ forkWorker ctx
-    liftIO $ atomically $ writeTBQueue q m
+queueWork :: MonadAsync m => IORef [AsyncT m a] -> AsyncT m a -> m ()
+queueWork q m = liftIO $ atomicModifyIORefCAS_ q $ \ ms -> m : ms
 
 -- Note: This is performance sensitive code.
 {-# INLINE dequeueLoop #-}
 dequeueLoop :: MonadAsync m
-    => Maybe (Context m a) -> TBQueue (AsyncT m a) -> Bool -> AsyncT m a
+    => Maybe (Context m a) -> IORef [AsyncT m a] -> Bool -> AsyncT m a
 dequeueLoop ctx q fair = AsyncT $ \_ stp yld -> do
-    work <- liftIO $ atomically $ tryReadTBQueue q
+    work <- liftIO $ atomicModifyIORefCAS q $ \ ms ->
+        case ms of
+            [] -> ([], Nothing)
+            x : xs -> (xs, Just x)
     case work of
         Nothing -> stp
         Just m -> do
@@ -245,7 +242,7 @@ dequeueLoop ctx q fair = AsyncT $ \_ stp yld -> do
                 continue a c = yld a c (Just (dequeueLoop ctx q fair))
                 yield a c Nothing = continue a c
                 yield a c r | not fair = yld a c r
-                yield a c (Just r) = queueWork ctx q r >> continue a c
+                yield a c (Just r) = queueWork q r >> continue a c
             (runAsyncT m) ctx stop yield
 
 {-# NOINLINE push #-}
@@ -255,13 +252,17 @@ push ctx = run (Just ctx) (dequeueLoop (Just ctx) (workQueue ctx)
 
     where
 
-    send msg = atomically $ writeTBQueue (outputQueue ctx) msg
     stop = do
-        workQEmpty <- liftIO $ atomically $ isEmptyTBQueue (workQueue ctx)
-        if (not workQEmpty) then push ctx
-        else liftIO $ myThreadId >>= \tid -> send (ChildStop tid Nothing)
-    yield a _ Nothing  = liftIO $ myThreadId >>= \tid -> send (ChildDone tid a)
-    yield a c (Just r) = liftIO (send (ChildYield a)) >> run c r
+        work <- liftIO $ readIORef (workQueue ctx)
+        case work of
+            [] -> do
+                tid <- liftIO $ myThreadId
+                send ctx (ChildStop tid Nothing)
+            _ -> push ctx
+    yield a _ Nothing  = do
+        tid <- liftIO myThreadId
+        send ctx (ChildDone tid a)
+    yield a c (Just r) = send ctx (ChildYield a) >> run c r
     run c m            = (runAsyncT m) c stop yield
 
 -- Thread tracking has a significant performance overhead (~20% on empty
@@ -301,6 +302,13 @@ addThread ctx tid = accountThread tid (doneThreads ctx) (runningThreads ctx)
 delThread :: MonadIO m => Context m a -> ThreadId -> m Bool
 delThread ctx tid = accountThread tid (runningThreads ctx) (doneThreads ctx)
 
+{-# INLINE allThreadsDone #-}
+allThreadsDone :: MonadIO m => Context m a -> m Bool
+allThreadsDone ctx = liftIO $ do
+    s1 <- readIORef (runningThreads ctx)
+    s2 <- readIORef (doneThreads ctx)
+    return $ S.null s1 && S.null s2
+
 handleException :: (MonadIO m, MonadThrow m)
     => SomeException -> Context m a -> ThreadId -> m r
 handleException e ctx tid = do
@@ -308,59 +316,64 @@ handleException e ctx tid = do
     liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
     throwM e
 
-{-# NOINLINE sendWorkerWait #-}
+{-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
 sendWorkerWait ctx = do
-    liftIO $ threadDelay 4
-    let workQ = workQueue ctx
-        outQ  = outputQueue ctx
-    workQEmpty <- liftIO $ atomically $ isEmptyTBQueue workQ
-    outQEmpty  <- liftIO $ atomically $ isEmptyTBQueue outQ
-    when (not workQEmpty && outQEmpty) $ pushWorker ctx
-    void $ liftIO $ atomically $ peekTBQueue (outputQueue ctx)
+    liftIO $ threadDelay 200
+    output <- liftIO $ readIORef (outputQueue ctx)
+    case output of
+        [] -> pushWorker ctx
+        _  -> return ()
+    void $ liftIO $ takeMVar (synchOutQ ctx)
 
 -- Note: This is performance sensitive code.
 {-# NOINLINE pullWorker #-}
 pullWorker :: MonadAsync m => Context m a -> AsyncT m a
 pullWorker ctx = AsyncT $ \pctx stp yld -> do
-    let continue = (runAsyncT (pullWorker ctx)) pctx stp yld
-        yield a  = yld a pctx (Just (pullWorker ctx))
-        threadOp tid f finish cont = do
-            done <- f ctx tid
-            if done then finish else cont
+    res <- liftIO $ tryTakeMVar (synchOutQ ctx)
+    when (isNothing res) $ sendWorkerWait ctx
+    list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
+    (runAsyncT $ processEvents list) pctx stp yld
+    where
 
-    res <- liftIO $ atomically $ tryReadTBQueue (outputQueue ctx)
-    case res of
-        Nothing -> sendWorkerWait ctx >> continue
-        Just ev ->
-            case ev of
-                ChildYield a -> yield a
-                ChildDone tid a ->
-                    threadOp tid delThread (yld a pctx Nothing) (yield a)
-                ChildStop tid e ->
-                    case e of
-                        Nothing -> threadOp tid delThread stp continue
-                        Just ex -> handleException ex ctx tid
-                ChildCreate tid -> threadOp tid addThread stp continue
+    {-# INLINE processEvents #-}
+    processEvents [] = AsyncT $ \pctx stp yld -> do
+        done <- allThreadsDone ctx
+        if not done
+        then (runAsyncT (pullWorker ctx)) pctx stp yld
+        else stp
+
+    processEvents (ev : es) = AsyncT $ \pctx stp yld -> do
+        let continue = (runAsyncT (processEvents es)) pctx stp yld
+            yield a  = yld a pctx (Just (processEvents es))
+
+        case ev of
+            ChildYield a -> yield a
+            ChildDone tid a -> delThread ctx tid >> yield a
+            ChildStop tid e ->
+                case e of
+                    Nothing -> delThread ctx tid >> continue
+                    Just ex -> handleException ex ctx tid
+            ChildCreate tid -> addThread ctx tid >> continue
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
 -- XXX Paused exceptions should only bubble up to the runRecorder computation
 {-# NOINLINE handleChildException #-}
-handleChildException :: TBQueue (ChildEvent a) -> SomeException -> IO ()
-handleChildException pchan e = do
-    tid <- myThreadId
-    atomically $ writeTBQueue pchan (ChildStop tid (Just e))
+handleChildException :: MonadIO m => Context m a -> SomeException -> m ()
+handleChildException ctx e = do
+    tid <- liftIO myThreadId
+    send ctx (ChildStop tid (Just e))
 
 -- This function is different than "forkWorker" because we have to directly
 -- insert the threadIds here and cannot use the channel to send ChildCreate
 -- unlike on the push side.  If we do that, the first thread's done message
 -- may arrive even before the second thread is forked, in that case
 -- pullWorker will falsely detect that all threads are over.
-{-# INLINE pushWorker #-}
+{-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => Context m a -> m ()
 pushWorker ctx = do
-    tid <- doFork (push ctx) (handleChildException (outputQueue ctx))
+    tid <- doFork (push ctx) (handleChildException ctx)
     liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
 -- | Split the original computation in a pull-push pair. The original
@@ -370,17 +383,19 @@ pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
 pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
     let q = workQueue ctx
-    queueWork (Just ctx) q m1 >> queueWork (Just ctx) q m2 >> pushWorker ctx
+    queueWork q m1 >> queueWork q m2 >> pushWorker ctx
     (runAsyncT (pullWorker ctx)) Nothing stp yld
 
     where
 
     newContext = do
-        outQ    <- atomically $ newTBQueue 32
-        workQ   <- atomically $ newTBQueue 32
+        outQ    <- newIORef []
+        outQMv  <- newEmptyMVar
+        workQ   <- newIORef []
         running <- newIORef S.empty
         done    <- newIORef S.empty
         return $ Context { outputQueue    = outQ
+                         , synchOutQ      = outQMv
                          , runningThreads = running
                          , doneThreads    = done
                          , workQueue      = workQ
@@ -430,7 +445,7 @@ parallel m1 m2 fair = AsyncT $ \ctx stp yld -> do
             -- go left to right. If the left one keeps producing results we
             -- may or may not run the right one.
             let q = workQueue c
-            queueWork ctx q m1 >> queueWork ctx q m2
+            queueWork q m1 >> queueWork q m2
             (runAsyncT (dequeueLoop ctx q fair)) Nothing stp yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
