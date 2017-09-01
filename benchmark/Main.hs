@@ -20,11 +20,16 @@ main :: IO ()
 main = do
     defaultMain [
         bgroup "basic"
-            [ bench "asyncly (<>)"  $ nfIO (asyncly_basic (A.<>))
-            , bench "asyncly (<=>)" $ nfIO (asyncly_basic (A.<=>))
-            , bench "asyncly (<|)"  $ nfIO (asyncly_basic (A.<|))
-            , bench "asyncly (<|>)" $ nfIO (asyncly_basic (A.<|>))
+            [ bench "asyncly-serial"              $ nfIO (asyncly_basic (A.<>))
+            , bench "asyncly-interleaved"         $ nfIO (asyncly_basic (A.<=>))
+            , bench "asyncly-parleft"             $ nfIO (asyncly_basic (A.<|))
+            , bench "asyncly-parinterleaved"      $ nfIO (asyncly_basic (A.<|>))
+            , bench "asyncly-serial-nil"          $ nfIO (asyncly_nil (A.<>))
+            , bench "asyncly-interleaved-nil"     $ nfIO (asyncly_nil (A.<=>))
+            , bench "asyncly-parleft-nil"         $ nfIO (asyncly_nil (A.<|))
+            , bench "asyncly-parinterleaved-nil"  $ nfIO (asyncly_nil (A.<|>))
             , bench "transient"     $ nfIO transient_basic
+            , bench "transient-nil" $ nfIO transient_nil
             , bench "logict"        $ nfIO logict_basic
             , bench "list-t"        $ nfIO list_t_basic
             , bench "machines"      $ nfIO machines_basic
@@ -74,6 +79,13 @@ transient_basic = T.keep' $ T.threads 0 $ do
     assert (Prelude.length xs == 49900) $
         T.exit (Prelude.length xs)
 
+transient_nil :: IO (Maybe Int)
+transient_nil = T.keep' $ T.threads 0 $ do
+    xs <- T.group 49900  $  do
+             T.choose  [1..100000 :: Int]
+    assert (Prelude.length xs == 49900) $
+        T.exit (Prelude.length xs)
+
 amap :: (Int -> Int) -> Int -> A.AsyncT IO Int
 amap = Main.map
 
@@ -97,6 +109,16 @@ asyncly_basic f = do
                 >>= amap (+1)
                 >>= afilter (\y -> y `mod` 2 == 0))
     assert (Prelude.length xs == 49900) $
+        return (Prelude.length xs)
+
+{-# INLINE asyncly_nil #-}
+asyncly_nil :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
+    -> IO Int
+asyncly_nil f = do
+    xs <- A.toList $ do
+             (A.forEachWith f [1..100000:: Int] $
+                \x -> return x >>= return . id)
+    assert (Prelude.length xs == 100000) $
         return (Prelude.length xs)
 
 lfilter :: (Int -> Bool) -> Int -> LT.ListT IO Int
