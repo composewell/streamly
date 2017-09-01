@@ -309,12 +309,20 @@ allThreadsDone ctx = liftIO $ do
     s2 <- readIORef (doneThreads ctx)
     return $ S.null s1 && S.null s2
 
-handleException :: (MonadIO m, MonadThrow m)
-    => SomeException -> Context m a -> ThreadId -> m r
-handleException e ctx tid = do
-    void (delThread ctx tid)
-    liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
-    throwM e
+-- If an exception occurs we push it to the channel so that it can handled by
+-- the parent.  'Paused' exceptions are to be collected at the top level.
+-- XXX Paused exceptions should only bubble up to the runRecorder computation
+{-# NOINLINE handleChildException #-}
+handleChildException :: MonadIO m => Context m a -> SomeException -> m ()
+handleChildException ctx e = do
+    tid <- liftIO myThreadId
+    send ctx (ChildStop tid (Just e))
+
+{-# NOINLINE pushWorker #-}
+pushWorker :: MonadAsync m => Context m a -> m ()
+pushWorker ctx = do
+    tid <- doFork (push ctx) (handleChildException ctx)
+    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
 {-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
@@ -334,7 +342,13 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
     when (isNothing res) $ sendWorkerWait ctx
     list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
     (runAsyncT $ processEvents list) pctx stp yld
+
     where
+
+    handleException e tid = do
+        void (delThread ctx tid)
+        liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
+        throwM e
 
     {-# INLINE processEvents #-}
     processEvents [] = AsyncT $ \pctx stp yld -> do
@@ -353,28 +367,8 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
             ChildStop tid e ->
                 case e of
                     Nothing -> delThread ctx tid >> continue
-                    Just ex -> handleException ex ctx tid
+                    Just ex -> handleException ex tid
             ChildCreate tid -> addThread ctx tid >> continue
-
--- If an exception occurs we push it to the channel so that it can handled by
--- the parent.  'Paused' exceptions are to be collected at the top level.
--- XXX Paused exceptions should only bubble up to the runRecorder computation
-{-# NOINLINE handleChildException #-}
-handleChildException :: MonadIO m => Context m a -> SomeException -> m ()
-handleChildException ctx e = do
-    tid <- liftIO myThreadId
-    send ctx (ChildStop tid (Just e))
-
--- This function is different than "forkWorker" because we have to directly
--- insert the threadIds here and cannot use the channel to send ChildCreate
--- unlike on the push side.  If we do that, the first thread's done message
--- may arrive even before the second thread is forked, in that case
--- pullWorker will falsely detect that all threads are over.
-{-# NOINLINE pushWorker #-}
-pushWorker :: MonadAsync m => Context m a -> m ()
-pushWorker ctx = do
-    tid <- doFork (push ctx) (handleChildException ctx)
-    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
