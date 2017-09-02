@@ -5,7 +5,8 @@ packages:
     git: https://github.com/harendra-kumar/monad-recorder
     commit: 05bb0cfd827d9f955108d3b03dfb20b7c6820c25
   extra-dep: true
-extra-deps: []
+extra-deps:
+    - lockfree-queue-0.2.3.1
 flags: {}
 extra-package-dbs: []
 pvp-bounds: both
