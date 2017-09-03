@@ -459,11 +459,7 @@ parallel :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
 parallel m1 m2 fifo = AsyncT $ \ctx stp yld -> do
     case ctx of
         Nothing -> (runAsyncT (pullFork m1 m2 fifo)) Nothing stp yld
-        Just  c -> do
-            -- XXX We can statically decide which function to call here, that
-            -- will inline the call and improve perf a little bit.
-            liftIO $ (enqueue c) m2
-            (runAsyncT m1) ctx stp yld
+        Just  c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
