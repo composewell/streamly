@@ -93,8 +93,6 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
-    -- XXX keep just a list of [a] and handle other events out of band as
-    -- exceptions or using atomicModify
 data Context m a =
     Context { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
@@ -104,14 +102,6 @@ data Context m a =
             , queueEmpty     :: m Bool
             }
 
--- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
--- Nothing case, but it makes the fold using '<|>' 25% faster. Need to try
--- again as the code has gone through many changes after this was tested.
--- With the Maybe, 'stop' is required only to represent 'empty' in an
--- Alternative composition.
---
--- Currently the only state we need is the thread context, For generality we
--- can parameterize the type with a state type 's'.
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
