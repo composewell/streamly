@@ -52,7 +52,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
-                                                     tryPopR)
+                                                     tryPopR, nullQ)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               readIORef)
@@ -101,6 +101,7 @@ data Context m a =
             , enqueue        :: AsyncT m a -> IO ()
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
+            , queueEmpty     :: m Bool
             }
 
 -- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
@@ -313,9 +314,11 @@ sendWorkerWait :: MonadAsync m => Context m a -> m ()
 sendWorkerWait ctx = do
     liftIO $ threadDelay 200
     output <- liftIO $ readIORef (outputQueue ctx)
-    case output of
-        [] -> pushWorker ctx
-        _  -> return ()
+    when (null output) $ do
+        -- Send a worker only if workqueue is not empty otherwise we may keep
+        -- sending a worker in a loop running into a livelock
+        done <- queueEmpty ctx
+        when (not done) (pushWorker ctx)
     void $ liftIO $ takeMVar (synchOutQ ctx)
 
 -- Note: This is performance sensitive code.
@@ -378,17 +381,20 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
                                 , runningThreads = running
                                 , runqueue       = runqueueFIFO ctx q
                                 , enqueue        = pushL q
+                                , queueEmpty     = liftIO $ nullQ q
                                 }
                  in return ctx
             False -> do
                 q <- newIORef []
                 enqueueLIFO q m2 >> enqueueLIFO q m1
+                let checkEmpty = liftIO (readIORef q) >>= return . null
                 let ctx =
                         Context { outputQueue    = outQ
                                 , synchOutQ      = outQMv
                                 , runningThreads = running
                                 , runqueue       = runqueueLIFO ctx q
                                 , enqueue        = enqueueLIFO q
+                                , queueEmpty     = checkEmpty
                                 }
                  in return ctx
 
