@@ -32,9 +32,9 @@ main = hspec $ do
     describe "Bind" bind
 
     describe "Serial Composition (<>)" $ compose (<>) id
+    describe "Serial interleaved (<=>)" $ interleaved (<=>)
     describe "Left Biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
-    describe "Serial interleaved (<=>)" $ interleaved (<=>)
     -- This is not predicatable
     -- describe "Parallel interleaved (<|>)" $ interleaved (<|>)
 
