@@ -35,7 +35,7 @@ module Asyncly.AsyncT
 where
 
 import           Control.Applicative         (Alternative (..), liftA2)
-import           Control.Concurrent          (ThreadId, forkIO, killThread,
+import           Control.Concurrent          (ThreadId, forkIO,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
@@ -55,7 +55,7 @@ import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
                                                      tryPopR)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
-                                              writeIORef, readIORef)
+                                              readIORef)
 import           Data.Atomics                (atomicModifyIORefCAS,
                                               atomicModifyIORefCAS_)
 import           Data.Maybe                  (isNothing)
@@ -87,9 +87,7 @@ import           Control.Monad.Trans.Recorder (MonadRecorder(..))
 
 data ChildEvent a =
       ChildYield a
-    | ChildDone ThreadId a
     | ChildStop ThreadId (Maybe SomeException)
-    | ChildCreate ThreadId
 
 ------------------------------------------------------------------------------
 -- State threaded around the monad for thread management
@@ -103,7 +101,6 @@ data Context m a =
             , enqueue        :: AsyncT m a -> IO ()
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
-            , doneThreads    :: IORef (Set ThreadId)
             }
 
 -- The 'Maybe (AsyncT m a)' is redundant as we can use 'stop' value for the
@@ -272,51 +269,30 @@ runqueueFIFO ctx q = run
     yield a _ Nothing  = sendit a >> run
     -- XXX do we need to save the context as well?
     -- we can enqueue "(runAsyncT m) ctx run yield" instead
-    yield a c (Just r) = sendit a >> liftIO (enqueueFIFO q r) >> run
+    yield a _ (Just r) = sendit a >> liftIO (enqueueFIFO q r) >> run
 
--- Thread tracking has a significant performance overhead (~20% on empty
--- threads, it will be lower for heavy threads). It is needed for two reasons:
+-- Thread tracking is needed for two reasons:
 --
 -- 1) Killing threads on exceptions. Threads may not be allowed to go away by
 -- themselves because they may run for significant times before going away or
 -- worse they may be stuck in IO and never go away.
 --
--- 2) To know when all threads are done. This can be acheived by detecting a
--- BlockedIndefinitelyOnSTM exception too. But we will have to trigger a GC to
--- make sure that we detect it promptly.
---
--- This is a bit messy because ChildCreate and ChildDone events can arrive out
--- of order in case of pushSideDispatch. Returns whether we are done draining
--- threads.
-{-# INLINE accountThread #-}
-accountThread :: MonadIO m
-    => ThreadId -> IORef (Set ThreadId) -> IORef (Set ThreadId) -> m Bool
-accountThread tid ref1 ref2 = liftIO $ do
-    s1 <- readIORef ref1
-    s2 <- readIORef ref2
-
-    if (S.member tid s1) then do
-        let r = S.delete tid s1
-        writeIORef ref1 r
-        return $ S.null r && S.null s2
-    else do
-        liftIO $ writeIORef ref2 (S.insert tid s2)
-        return False
+-- 2) To know when all threads are done.
 
 {-# NOINLINE addThread #-}
-addThread :: MonadIO m => Context m a -> ThreadId -> m Bool
-addThread ctx tid = accountThread tid (doneThreads ctx) (runningThreads ctx)
+addThread :: MonadIO m => Context m a -> ThreadId -> m ()
+addThread ctx tid =
+    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
 {-# INLINE delThread #-}
-delThread :: MonadIO m => Context m a -> ThreadId -> m Bool
-delThread ctx tid = accountThread tid (runningThreads ctx) (doneThreads ctx)
+delThread :: MonadIO m => Context m a -> ThreadId -> m ()
+delThread ctx tid =
+    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.delete tid s)
 
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => Context m a -> m Bool
 allThreadsDone ctx = liftIO $ do
-    s1 <- readIORef (runningThreads ctx)
-    s2 <- readIORef (doneThreads ctx)
-    return $ S.null s1 && S.null s2
+    readIORef (runningThreads ctx) >>= return . S.null
 
 -- If an exception occurs we push it to the channel so that it can handled by
 -- the parent.  'Paused' exceptions are to be collected at the top level.
@@ -329,9 +305,8 @@ handleChildException ctx e = do
 
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => Context m a -> m ()
-pushWorker ctx = do
-    tid <- doFork (runqueue ctx) (handleChildException ctx)
-    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
+pushWorker ctx =
+    doFork (runqueue ctx) (handleChildException ctx) >>= addThread ctx
 
 {-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
@@ -355,8 +330,9 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
     where
 
     handleException e tid = do
-        void (delThread ctx tid)
-        liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
+        delThread ctx tid
+        -- XXX implement kill async exception handling
+        -- liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
         throwM e
 
     {-# INLINE processEvents #-}
@@ -372,12 +348,10 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
 
         case ev of
             ChildYield a -> yield a
-            ChildDone tid a -> delThread ctx tid >> yield a
             ChildStop tid e ->
                 case e of
                     Nothing -> delThread ctx tid >> continue
                     Just ex -> handleException ex tid
-            ChildCreate tid -> addThread ctx tid >> continue
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
@@ -393,7 +367,6 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
         outQ    <- newIORef []
         outQMv  <- newEmptyMVar
         running <- newIORef S.empty
-        done    <- newIORef S.empty
 
         case fifo of
             True -> do
@@ -403,7 +376,6 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
                         Context { outputQueue    = outQ
                                 , synchOutQ      = outQMv
                                 , runningThreads = running
-                                , doneThreads    = done
                                 , runqueue       = runqueueFIFO ctx q
                                 , enqueue        = pushL q
                                 }
@@ -415,7 +387,6 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
                         Context { outputQueue    = outQ
                                 , synchOutQ      = outQMv
                                 , runningThreads = running
-                                , doneThreads    = done
                                 , runqueue       = runqueueLIFO ctx q
                                 , enqueue        = enqueueLIFO q
                                 }
