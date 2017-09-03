@@ -52,7 +52,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
-                                                     tryPopR, nullQ)
+                                                     tryPopR)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               writeIORef, readIORef)
@@ -100,9 +100,8 @@ data ChildEvent a =
 data Context m a =
     Context { outputQueue    :: IORef [ChildEvent a]
             , synchOutQ      :: MVar Bool -- wakeup mechanism for outQ
-            , dequeueLoop    :: AsyncT m a
-            , enqueueWork    :: AsyncT m a -> IO ()
-            , hasNoWork      :: IO Bool
+            , enqueue        :: AsyncT m a -> IO ()
+            , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
             , doneThreads    :: IORef (Set ThreadId)
             }
@@ -224,79 +223,56 @@ send ctx msg = liftIO $ do
     -- store has finished otherwise we can have lost wakeup problems.
     void $ tryPutMVar (synchOutQ ctx) True
 
+{-# INLINE sendStop #-}
+sendStop :: MonadIO m => Context m a -> m ()
+sendStop ctx = liftIO myThreadId >>= \tid -> send ctx (ChildStop tid Nothing)
+
 -- Note: Left associated operations can grow this queue to a large size
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO :: IORef [AsyncT m a] -> AsyncT m a -> IO ()
 enqueueLIFO q m = atomicModifyIORefCAS_ q $ \ ms -> m : ms
 
-{-# INLINE dequeueLIFO #-}
-dequeueLIFO :: IORef [AsyncT m a] -> IO (Maybe (AsyncT m a))
-dequeueLIFO q =
-    atomicModifyIORefCAS q $ \ ms ->
+runqueueLIFO :: MonadIO m => Context m a -> IORef [AsyncT m a] -> m ()
+runqueueLIFO ctx q = run
+
+    where
+
+    run = do
+        work <- dequeue
+        case work of
+            Nothing -> sendStop ctx
+            Just m -> (runAsyncT m) (Just ctx) run yield
+
+    sendit a = send ctx (ChildYield a)
+    yield a _ Nothing  = sendit a >> run
+    yield a c (Just r) = sendit a >> (runAsyncT r) c run yield
+
+    dequeue = liftIO $ atomicModifyIORefCAS q $ \ ms ->
         case ms of
             [] -> ([], Nothing)
             x : xs -> (xs, Just x)
 
-{-# INLINE isEmptyLIFO #-}
-isEmptyLIFO :: IORef [AsyncT m a] -> IO Bool
-isEmptyLIFO q = do
-    work <- readIORef q
-    return $ case work of
-        [] -> True
-        _ -> False
+{-# INLINE enqueueFIFO #-}
+enqueueFIFO :: LinkedQueue (AsyncT m a) -> AsyncT m a -> IO ()
+enqueueFIFO = pushL
 
--- Note: This is performance sensitive code.
-{-# INLINE dequeueLoopLIFO #-}
-dequeueLoopLIFO :: MonadAsync m
-    => Maybe (Context m a)
-    -> IORef [AsyncT m a]
-    -> AsyncT m a
-dequeueLoopLIFO ctx q = AsyncT $ \_ stp yld -> do
-    work <- liftIO $ dequeueLIFO q
-    case work of
-        Nothing -> stp
-        Just m -> do
-            let continue = dequeueLoopLIFO ctx q
-                stop = (runAsyncT continue) Nothing stp yld
-                yield a c Nothing = yld a c (Just continue)
-                yield a c r = yld a c r
-            (runAsyncT m) ctx stop yield
-
-{-# INLINE dequeueLoopFIFO #-}
-dequeueLoopFIFO :: MonadAsync m
-    => Maybe (Context m a)
-    -> LinkedQueue (AsyncT m a)
-    -> AsyncT m a
-dequeueLoopFIFO ctx q = AsyncT $ \_ stp yld -> do
-    work <- liftIO $ tryPopR q
-    case work of
-        Nothing -> stp
-        Just m -> do
-            let continue = dequeueLoopFIFO ctx q
-                stop = (runAsyncT continue) Nothing stp yld
-                yield a c Nothing = yld a c (Just continue)
-                yield a c (Just r) = do
-                    liftIO $ pushL q r
-                    yld a c (Just continue)
-            (runAsyncT m) ctx stop yield
-
-{-# NOINLINE push #-}
-push :: MonadAsync m => Context m a -> m ()
-push ctx = run (Just ctx) (dequeueLoop ctx)
+runqueueFIFO :: MonadIO m => Context m a -> LinkedQueue (AsyncT m a) -> m ()
+runqueueFIFO ctx q = run
 
     where
 
-    stop = do
-        done <- liftIO $ hasNoWork ctx
-        if done then do
-            tid <- liftIO $ myThreadId
-            send ctx (ChildStop tid Nothing)
-        else push ctx
-    yield a _ Nothing  = do
-        tid <- liftIO myThreadId
-        send ctx (ChildDone tid a)
-    yield a c (Just r) = send ctx (ChildYield a) >> run c r
-    run c m            = (runAsyncT m) c stop yield
+    run = do
+        work <- dequeue
+        case work of
+            Nothing -> sendStop ctx
+            Just m -> (runAsyncT m) (Just ctx) run yield
+
+    dequeue = liftIO $ tryPopR q
+    sendit a = send ctx (ChildYield a)
+    yield a _ Nothing  = sendit a >> run
+    -- XXX do we need to save the context as well?
+    -- we can enqueue "(runAsyncT m) ctx run yield" instead
+    yield a c (Just r) = sendit a >> liftIO (enqueueFIFO q r) >> run
 
 -- Thread tracking has a significant performance overhead (~20% on empty
 -- threads, it will be lower for heavy threads). It is needed for two reasons:
@@ -354,7 +330,7 @@ handleChildException ctx e = do
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => Context m a -> m ()
 pushWorker ctx = do
-    tid <- doFork (push ctx) (handleChildException ctx)
+    tid <- doFork (runqueue ctx) (handleChildException ctx)
     liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
 
 {-# INLINE sendWorkerWait #-}
@@ -407,7 +383,7 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 {-# NOINLINE pullFork #-}
 pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
-pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
+pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
     pushWorker ctx >> (runAsyncT (pullWorker ctx)) Nothing stp yld
 
@@ -419,7 +395,7 @@ pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
         running <- newIORef S.empty
         done    <- newIORef S.empty
 
-        case fair of
+        case fifo of
             True -> do
                 q <- newQ
                 pushL q m1 >> pushL q m2
@@ -428,9 +404,8 @@ pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
                                 , synchOutQ      = outQMv
                                 , runningThreads = running
                                 , doneThreads    = done
-                                , dequeueLoop    = dequeueLoopFIFO (Just ctx) q
-                                , enqueueWork    = pushL q
-                                , hasNoWork      = nullQ q
+                                , runqueue       = runqueueFIFO ctx q
+                                , enqueue        = pushL q
                                 }
                  in return ctx
             False -> do
@@ -441,9 +416,8 @@ pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
                                 , synchOutQ      = outQMv
                                 , runningThreads = running
                                 , doneThreads    = done
-                                , dequeueLoop    = dequeueLoopLIFO (Just ctx) q
-                                , enqueueWork    = enqueueLIFO q
-                                , hasNoWork      = isEmptyLIFO q
+                                , runqueue       = runqueueLIFO ctx q
+                                , enqueue        = enqueueLIFO q
                                 }
                  in return ctx
 
@@ -482,15 +456,14 @@ pullFork m1 m2 fair = AsyncT $ \_ stp yld -> do
 -- therefore always use a right fold for folding bigger structures.
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
-parallel m1 m2 fair = AsyncT $ \ctx stp yld -> do
+parallel m1 m2 fifo = AsyncT $ \ctx stp yld -> do
     case ctx of
-        Nothing -> (runAsyncT (pullFork m1 m2 fair)) Nothing stp yld
+        Nothing -> (runAsyncT (pullFork m1 m2 fifo)) Nothing stp yld
         Just  c -> do
-            let dqloop = (runAsyncT (dequeueLoop c)) Nothing stp yld
             -- XXX We can statically decide which function to call here, that
             -- will inline the call and improve perf a little bit.
-            liftIO $ (enqueueWork c) m2
-            (runAsyncT m1) ctx dqloop yld
+            liftIO $ (enqueue c) m2
+            (runAsyncT m1) ctx stp yld
 
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
