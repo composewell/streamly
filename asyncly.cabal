@@ -3,11 +3,11 @@ version:            0.1.0
 synopsis:           Beautiful High Level Concurrent Composition
 description:        Asyncly is best described as a superset of list transformer
                     (`ListT`) or logic programming monad (`LogicT`)
-                    additionally supporting concurrent operation. Monadic
+                    with additional support for concurrent operation. Monadic
                     streams of data can be composed using serial or parallel
                     compositions with or without fair interleaving, enabling a
                     high level composition of concurrent tasks without
-                    requiring any knowledge of low level concurrency
+                    requiring knowledge of low level concurrency
                     primitives. The programmer just expresses whether a task
                     can run in parallel with another. Threads, synchronization
                     and concurrency rate control is handled automatically.
