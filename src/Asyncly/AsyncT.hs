@@ -21,6 +21,8 @@ module Asyncly.AsyncT
     , MonadAsync
     , runAsyncly
     , toList
+    , take
+    , drop
     , interleave
     , (<=>)
     , parAhead
@@ -62,6 +64,7 @@ import           Data.Maybe                  (isNothing)
 import           Data.Monoid                 ((<>))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
+import           Prelude                     hiding (take, drop)
 
 import           Control.Monad.Trans.Recorder (MonadRecorder(..))
 
@@ -589,6 +592,26 @@ toList m = run Nothing m
 
     {-# INLINE run #-}
     run ctx mx = (runAsyncT mx) ctx stop yield
+
+------------------------------------------------------------------------------
+-- Transformation
+------------------------------------------------------------------------------
+
+take :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
+take n m = AsyncT $ \ctx stp yld -> do
+    let yield a c Nothing  = yld a c Nothing
+        yield a c (Just x) = yld a c (Just (take (n - 1) x))
+    if (n <= 0)
+    then stp
+    else (runAsyncT m) ctx stp yield
+
+drop :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
+drop n m = AsyncT $ \ctx stp yld -> do
+    let yield _ _ Nothing  = stp
+        yield _ c (Just x) = (runAsyncT $ drop (n - 1) x) c stp yld
+    if (n <= 0)
+    then (runAsyncT m) ctx stp yld
+    else (runAsyncT m) ctx stp yield
 
 ------------------------------------------------------------------------------
 -- Utilities

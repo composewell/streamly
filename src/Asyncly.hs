@@ -133,6 +133,10 @@ module Asyncly
     , parLeft
     , (<|)
 
+    -- * Transformation
+    , take
+    , drop
+
     -- * Utilities
     , foldWith
     , foldMapWith
@@ -154,3 +158,4 @@ import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
+import Prelude hiding (take, drop)

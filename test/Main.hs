@@ -7,6 +7,7 @@ import Control.Monad.IO.Class (liftIO)
 -- import Data.List (nub)
 import Data.List (sort)
 import Data.Monoid ((<>))
+import Prelude hiding (take, drop)
 import Test.Hspec
 
 import Asyncly
@@ -41,6 +42,8 @@ main = hspec $ do
     describe "Serial loops (<>)" $ loops (<>) id reverse
     describe "Left Biased parallel loops (<|)" $ loops (<|) sort sort
     describe "Fair parallel loops (<|>)" $ loops (<|>) sort sort
+
+    describe "Transformation" $ transformOps (<>)
 
 bind :: Spec
 bind = do
@@ -121,6 +124,28 @@ loops f tsrt hsrt = do
             -- this print line is important for the test (causes a bind)
             liftIO $ putStrLn "LoopTail..."
             return x `f` (if x < 3 then loopTail (x + 1) else empty)
+
+transformOps :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
+transformOps f = do
+    it "take all" $
+        (toList $ take 10 $ foldMapWith f return [1..10])
+            `shouldReturn` [1..10]
+    it "take none" $
+        (toList $ take 0 $ foldMapWith f return [1..10])
+            `shouldReturn` []
+    it "take 5" $
+        (toList $ take 5 $ foldMapWith f return [1..10])
+            `shouldReturn` [1..5]
+
+    it "drop all" $
+        (toList $ drop 10 $ foldMapWith f return [1..10])
+            `shouldReturn` []
+    it "drop none" $
+        (toList $ drop 0 $ foldMapWith f return [1..10])
+            `shouldReturn` [1..10]
+    it "drop 5" $
+        (toList $ drop 5 $ foldMapWith f return [1..10])
+            `shouldReturn` [6..10]
 
     {-
     it "Alternative composition of async and sync tasks" $
