@@ -147,8 +147,8 @@ module Asyncly
     , (<>)
     , Alternative (..)
     , MonadPlus (..)
-    , liftIO
-    , lift
+    , MonadIO (..)
+    , MonadTrans (..)
     )
 where
 
@@ -156,6 +156,6 @@ import Asyncly.AsyncT
 import Data.Monoid (Monoid(..), (<>))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Class (lift)
+import Control.Monad.IO.Class (MonadIO (..))
+import Control.Monad.Trans.Class (MonadTrans (..))
 import Prelude hiding (take, drop)
