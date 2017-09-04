@@ -16,7 +16,7 @@ description:        Asyncly is best described as a superset of list transformer
                     package authored by Alberto G. Corona.
 homepage:            http://github.com/harendra-kumar/asyncly
 bug-reports:         https://github.com/harendra-kumar/asyncly/issues
-license:             MIT
+license:             BSD3
 license-file:        LICENSE
 author:              Harendra Kumar
 maintainer:          harendra.kumar@gmail.com
