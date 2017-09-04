@@ -66,9 +66,6 @@ import           Data.Set                    (Set)
 import qualified Data.Set                    as S
 import           Prelude                     hiding (take, drop)
 
-import           Control.Monad.Trans.Recorder (MonadRecorder(..))
-
-
 ------------------------------------------------------------------------------
 -- Concurrency Semantics
 ------------------------------------------------------------------------------
@@ -288,9 +285,6 @@ allThreadsDone :: MonadIO m => Context m a -> m Bool
 allThreadsDone ctx = liftIO $ do
     readIORef (runningThreads ctx) >>= return . S.null
 
--- If an exception occurs we push it to the channel so that it can handled by
--- the parent.  'Paused' exceptions are to be collected at the top level.
--- XXX Paused exceptions should only bubble up to the runRecorder computation
 {-# NOINLINE handleChildException #-}
 handleChildException :: MonadIO m => Context m a -> SomeException -> m ()
 handleChildException ctx e = do
@@ -547,15 +541,6 @@ instance MonadState s m => MonadState s (AsyncT m) where
     get     = lift get
     put x   = lift (put x)
     state k = lift (state k)
-
-------------------------------------------------------------------------------
--- MonadRecorder
-------------------------------------------------------------------------------
-
-instance MonadRecorder m => MonadRecorder (AsyncT m) where
-    getJournal = lift getJournal
-    putJournal = lift . putJournal
-    play = lift . play
 
 ------------------------------------------------------------------------------
 -- Running the monad
