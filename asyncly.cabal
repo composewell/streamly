@@ -1,22 +1,27 @@
-name:                asyncly
-version:             0.5.5
-synopsis:            Compose asynchronous and multithreaded tasks
-description:         Asyncly allows you to compose asynchronous, concurrent
-                     and parallel tasks in a convenient manner without
-                     requiring the programmer to know the gory details
-                     of concurrent and multithreaded programming.
-                     This library is based on the wonderful work of
-                     Alberto G. Corona, see
-                     <http://github.com/agocorona/transient>
+name:               asyncly
+version:            0.1.0
+synopsis:           Beautiful High Level Concurrent Composition
+description:        Asyncly is best described as a superset of list transformer
+                    (`ListT`) or logic programming monad (`LogicT`)
+                    additionally supporting concurrent operation. Monadic
+                    streams of data can be composed using serial or parallel
+                    compositions with or without fair interleaving, enabling a
+                    high level composition of concurrent tasks without
+                    requiring any knowledge of low level concurrency
+                    primitives. The programmer just expresses whether a task
+                    can run in parallel with another. Threads, synchronization
+                    and concurrency rate control is handled automatically.
+                    .
+                    This library was originally inspired by the `transient`
+                    package authored by Alberto G. Corona.
 homepage:            http://github.com/harendra-kumar/asyncly
 bug-reports:         https://github.com/harendra-kumar/asyncly/issues
 license:             MIT
 license-file:        LICENSE
-author:              Alberto G. Corona, Harendra Kumar
+author:              Harendra Kumar
 maintainer:          harendra.kumar@gmail.com
-copyright:           2017 Harendra Kumar,
-                     2014–2017 Alberto G. Corona
-category:            Parallel, Distributed
+copyright:           2017 Harendra Kumar
+category:            Control, Concurrency, Streaming
 stability:           Experimental
 build-type:          Simple
 cabal-version:       >= 1.10
