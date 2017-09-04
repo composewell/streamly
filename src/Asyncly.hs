@@ -2,7 +2,7 @@
 -- Module      : Asyncly
 -- Copyright   : (c) 2017 Harendra Kumar
 --
--- License     : MIT-style
+-- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
