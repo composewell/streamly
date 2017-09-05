@@ -32,13 +32,12 @@ main = hspec $ do
     describe "Bind" bind
 
     describe "Serial Composition (<>)" $ compose (<>) id
-    describe "Serial interleaved (<=>)" $ interleaved (<=>)
+    describe "Serial interleaved (<=>)" $ interleaved (<=>) id
     describe "Left biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
     describe "Left biased parallel time order check" $ parallelCheck (<|)
     describe "Fair parallel time order check" $ parallelCheck (<|>)
-    -- This is not predicatable
-    -- describe "Parallel interleaved (<|>)" $ interleaved (<|>)
+    describe "Parallel interleaved (<|>)" $ interleaved (<|>) reverse
 
     describe "Serial loops (<>)" $ loops (<>) id reverse
     describe "Left biased parallel loops (<|)" $ loops (<|) sort sort
@@ -58,11 +57,14 @@ bind = do
         toList (do x <- return 1; y <- return 2; return (x + y))
             `shouldReturn` ([3] :: [Int])
 
-interleaved :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
-interleaved f =
+interleaved
+    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    -> ([Int] -> [Int])
+    -> Spec
+interleaved f srt =
     it "Interleave four" $
         toList ((return 0 <> return 1) `f` (return 100 <> return 101))
-            `shouldReturn` ([0, 100, 1, 101])
+            `shouldReturn` (srt [0, 100, 1, 101])
 
 parallelCheck :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
 parallelCheck f = do
