@@ -14,8 +14,12 @@ cache:
 matrix:
   include:
   # cabal/linux
-  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
-    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+  # cabal build for GHC 7.10.3 hangs
+  #- env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
+  #addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+
+  - env: BUILD=stack RESOLVER=lts-6.35 CABALVER=1.22
+    addons: {apt: {packages: [libgmp-dev,cabal-install-1.22], sources: [hvr-ghc]}}
 
   # stack/linux use a pre-installed cabal-install for faster builds
   # GHC 8.0.1

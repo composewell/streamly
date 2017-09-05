@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main where
 
 import           Control.Applicative (Alternative(..))
@@ -13,8 +15,10 @@ import qualified Asyncly as A
 import qualified Conduit.Simple as S
 import qualified Control.Monad.Logic as LG
 import qualified Data.Machine as M
+#if MIN_VERSION_transient(0,5,1)
 import qualified Transient.Internals as T
 import qualified Transient.Indeterminism as T
+#endif
 import qualified ListT        as LT
 
 main :: IO ()
@@ -29,8 +33,10 @@ main = do
             , bench "asyncly-interleaved-nil"     $ nfIO (asyncly_nil (A.<=>))
             , bench "asyncly-parleft-nil"         $ nfIO (asyncly_nil (A.<|))
             , bench "asyncly-parinterleaved-nil"  $ nfIO (asyncly_nil (A.<|>))
+#if MIN_VERSION_transient(0,5,1)
             , bench "transient"     $ nfIO transient_basic
             , bench "transient-nil" $ nfIO transient_nil
+#endif
             , bench "logict"        $ nfIO logict_basic
             , bench "list-t"        $ nfIO list_t_basic
             , bench "simple-conduit" $ nfIO simple_conduit_basic
@@ -58,6 +64,7 @@ drop num x =  do
     guard mn
     return x
 
+#if MIN_VERSION_transient(0,5,1)
 tmap :: (a -> Int) -> a -> T.TransIO Int
 tmap = Main.map
 
@@ -68,6 +75,7 @@ tdrop :: Int -> Int -> T.TransIO Int
 tdrop = Main.drop
 
 transient_basic :: IO (Maybe Int)
+
 transient_basic = T.keep' $ T.threads 0 $ do
     liftIO $ writeIORef count 0
     xs <- T.group 49900  $  do
@@ -87,6 +95,7 @@ transient_nil = T.keep' $ T.threads 0 $ do
              T.choose  [1..100000 :: Int]
     assert (Prelude.length xs == 49900) $
         T.exit (Prelude.length xs)
+#endif
 
 amap :: (Int -> Int) -> Int -> A.AsyncT IO Int
 amap = Main.map
