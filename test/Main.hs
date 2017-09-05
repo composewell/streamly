@@ -1,11 +1,7 @@
 module Main (main) where
 
-import Control.Applicative ((<|>), empty)
-import Control.Monad (mzero)
-import Control.Monad.IO.Class (liftIO)
 import Control.Concurrent (threadDelay)
 import Data.List (sort)
-import Data.Monoid ((<>))
 import Prelude hiding (take, drop)
 import Test.Hspec
 

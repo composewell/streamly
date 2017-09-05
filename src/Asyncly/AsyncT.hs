@@ -189,7 +189,7 @@ instance Monad m => Applicative (AsyncT m) where
 ------------------------------------------------------------------------------
 
 {-# INLINE doFork #-}
-doFork :: (MonadIO m, MonadBaseControl IO m)
+doFork :: MonadBaseControl IO m
     => m ()
     -> (SomeException -> m ())
     -> m ThreadId
@@ -627,5 +627,5 @@ forEachWith f xs g = foldr (f . g) mempty xs
 -- Convert a callback into an 'AsyncT' computation
 ------------------------------------------------------------------------------
 
-fromCallback :: Monad m => (forall r. (a -> m r) -> m r) -> AsyncT m a
+fromCallback :: (forall r. (a -> m r) -> m r) -> AsyncT m a
 fromCallback k = AsyncT $ \ctx _ yld -> k (\a -> yld a ctx Nothing)
