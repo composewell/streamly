@@ -298,15 +298,17 @@ pushWorker ctx =
 
 {-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
-sendWorkerWait ctx = do
-    liftIO $ threadDelay 200
-    output <- liftIO $ readIORef (outputQueue ctx)
-    when (null output) $ do
-        -- Send a worker only if workqueue is not empty otherwise we may keep
-        -- sending a worker in a loop running into a livelock
-        done <- queueEmpty ctx
-        when (not done) (pushWorker ctx)
-    void $ liftIO $ takeMVar (doorBell ctx)
+sendWorkerWait ctx = dispatch >> void (liftIO $ takeMVar (doorBell ctx))
+
+    where
+
+    dispatch = do
+        liftIO $ threadDelay 200
+        output <- liftIO $ readIORef (outputQueue ctx)
+        when (null output) $ do
+            done <- queueEmpty ctx
+            when (not done) $ (pushWorker ctx) >> dispatch
+
 
 -- Note: This is performance sensitive code.
 {-# NOINLINE pullWorker #-}

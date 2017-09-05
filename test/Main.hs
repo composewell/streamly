@@ -2,9 +2,8 @@ module Main (main) where
 
 import Control.Applicative ((<|>), empty)
 import Control.Monad (mzero)
--- import Control.Concurrent (myThreadId, threadDelay)
 import Control.Monad.IO.Class (liftIO)
--- import Data.List (nub)
+import Control.Concurrent (threadDelay)
 import Data.List (sort)
 import Data.Monoid ((<>))
 import Prelude hiding (take, drop)
@@ -34,13 +33,15 @@ main = hspec $ do
 
     describe "Serial Composition (<>)" $ compose (<>) id
     describe "Serial interleaved (<=>)" $ interleaved (<=>)
-    describe "Left Biased parallel Composition (<|)" $ compose (<|) sort
+    describe "Left biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
+    describe "Left biased parallel time order check" $ parallelCheck (<|)
+    describe "Fair parallel time order check" $ parallelCheck (<|>)
     -- This is not predicatable
     -- describe "Parallel interleaved (<|>)" $ interleaved (<|>)
 
     describe "Serial loops (<>)" $ loops (<>) id reverse
-    describe "Left Biased parallel loops (<|)" $ loops (<|) sort sort
+    describe "Left biased parallel loops (<|)" $ loops (<|) sort sort
     describe "Fair parallel loops (<|>)" $ loops (<|>) sort sort
 
     describe "Transformation" $ transformOps (<>)
@@ -62,6 +63,18 @@ interleaved f =
     it "Interleave four" $
         toList ((return 0 <> return 1) `f` (return 100 <> return 101))
             `shouldReturn` ([0, 100, 1, 101])
+
+parallelCheck :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
+parallelCheck f = do
+    it "Parallel ordering left associated" $
+        toList (((event 4 `f` event 3) `f` event 2) `f` event 1)
+            `shouldReturn` ([1..4])
+
+    it "Parallel ordering right associated" $
+        toList (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
+            `shouldReturn` ([1..4])
+
+    where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
 
 compose
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
