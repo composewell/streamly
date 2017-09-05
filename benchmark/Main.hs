@@ -10,6 +10,7 @@ import           Data.IORef (IORef, newIORef, writeIORef)
 import           System.IO.Unsafe (unsafePerformIO)
 
 import qualified Asyncly as A
+import qualified Conduit.Simple as S
 import qualified Control.Monad.Logic as LG
 import qualified Data.Machine as M
 import qualified Transient.Internals as T
@@ -32,6 +33,7 @@ main = do
             , bench "transient-nil" $ nfIO transient_nil
             , bench "logict"        $ nfIO logict_basic
             , bench "list-t"        $ nfIO list_t_basic
+            , bench "simple-conduit" $ nfIO simple_conduit_basic
             , bench "machines"      $ nfIO machines_basic
             ]
         ]
@@ -165,6 +167,18 @@ logict_basic = do
              >>= lgfilter (\x -> x `mod` 2 == 0)
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
+
+simple_conduit_basic :: IO Int
+simple_conduit_basic = do
+    xs <-   S.sourceList [1..100000]
+      S.$= S.filterC even
+      S.$= S.mapC ((+1) :: Int -> Int)
+      S.$= S.dropC 100
+      S.$= S.mapC ((+1) :: Int -> Int)
+      S.$= S.filterC (\x -> x `mod` 2 == 0)
+      S.$$ S.sinkList
+    assert (Prelude.length xs == 49900) $
+        return (Prelude.length (xs :: [Int]))
 
 machines_basic :: IO Int
 machines_basic = do
