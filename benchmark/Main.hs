@@ -5,15 +5,16 @@ module Main where
 import           Control.Applicative (Alternative(..))
 import           Control.Exception (assert)
 import           Control.Monad (guard)
-import           Control.Monad.IO.Class (MonadIO (liftIO))
 import           Criterion.Main (defaultMain, bgroup, bench, nfIO)
-import           Data.Atomics (atomicModifyIORefCAS)
-import           Data.IORef (IORef, newIORef, writeIORef)
-import           System.IO.Unsafe (unsafePerformIO)
 
 import qualified Asyncly as A
 
 #ifdef EXTRA_BENCHMARKS
+import           Control.Monad.IO.Class (MonadIO (liftIO))
+import           Data.Atomics (atomicModifyIORefCAS)
+import           Data.IORef (IORef, newIORef, writeIORef)
+import           System.IO.Unsafe (unsafePerformIO)
+
 import qualified Conduit.Simple as S
 import qualified Control.Monad.Logic as LG
 import qualified Data.Machine as M
@@ -57,40 +58,21 @@ map f x = return $ f x
 filter :: (Monad m, Alternative m) => (a -> Bool) -> a -> m a
 filter cond x = guard (not $ cond x) >> return x
 
-{-# NOINLINE count #-}
-count :: IORef Int
-count = unsafePerformIO $ newIORef 0
-
-drop :: (MonadIO m, Alternative m) => Int -> Int -> m Int
-drop num x =  do
-
-    mn <- liftIO $ atomicModifyIORefCAS count $ \n ->
-            if n < num then (n + 1, False) else (n, True)
-    guard mn
-    return x
-
 amap :: (Int -> Int) -> Int -> A.AsyncT IO Int
 amap = Main.map
 
 afilter :: (Int -> Bool) -> Int -> A.AsyncT IO Int
 afilter = Main.filter
 
-adrop :: Int -> Int -> A.AsyncT IO Int
-adrop = Main.drop
-
 {-# INLINE asyncly_basic #-}
 asyncly_basic :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
     -> IO Int
 asyncly_basic f = do
-    writeIORef count 0
     xs <- A.toList $ do
-             (A.forEachWith f [1..100000 :: Int] $ \x ->
-                return x
-                >>= afilter even
-                >>= amap (+1)
-                >>= adrop 100
-                >>= amap (+1)
-                >>= afilter (\y -> y `mod` 2 == 0))
+             A.drop 100 (A.forEachWith f [1..100000 :: Int] $ \x ->
+                afilter even x >>= amap (+1))
+                    >>= amap (+1)
+                    >>= afilter (\y -> y `mod` 2 == 0)
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
 
@@ -106,6 +88,19 @@ asyncly_nil f = do
 
 #ifdef EXTRA_BENCHMARKS
 #if MIN_VERSION_transient(0,5,1)
+
+{-# NOINLINE count #-}
+count :: IORef Int
+count = unsafePerformIO $ newIORef 0
+
+drop :: (MonadIO m, Alternative m) => Int -> Int -> m Int
+drop num x =  do
+
+    mn <- liftIO $ atomicModifyIORefCAS count $ \n ->
+            if n < num then (n + 1, False) else (n, True)
+    guard mn
+    return x
+
 tmap :: (a -> Int) -> a -> T.TransIO Int
 tmap = Main.map
 
