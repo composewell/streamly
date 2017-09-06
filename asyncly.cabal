@@ -1,16 +1,19 @@
 name:               asyncly
 version:            0.1.0
-synopsis:           Beautiful High Level Concurrent Composition
+synopsis:           Beautiful Concurrent, Reactive and Streaming Composition
 description:        Asyncly is best described as a superset of list transformer
-                    (`ListT`) or logic programming monad (`LogicT`)
-                    with additional support for concurrent operation. Monadic
-                    streams of data can be composed using serial or parallel
-                    compositions with or without fair interleaving, enabling a
-                    high level composition of concurrent tasks without
-                    requiring knowledge of low level concurrency
-                    primitives. The programmer just expresses whether a task
-                    can run in parallel with another. Threads, synchronization
-                    and concurrency rate control is handled automatically.
+                    (`ListT`) or logic programming monad (`LogicT`) with
+                    additional support for concurrent operation.  Concurrency
+                    enables reactivity, providing beautiful composition of
+                    stateful and reactive applications using monadic folds.
+                    Monadic streams of data or events can be composed using
+                    serial or parallel compositions with or without fair
+                    interleaving, enabling a high level composition of
+                    concurrent tasks without requiring knowledge of low level
+                    concurrency primitives. The programmer just expresses
+                    whether a task can run in parallel with another. Threads,
+                    synchronization and concurrency rate control is handled
+                    automatically.
                     .
                     This library was originally inspired by the `transient`
                     package authored by Alberto G. Corona.
@@ -21,7 +24,7 @@ license-file:        LICENSE
 author:              Harendra Kumar
 maintainer:          harendra.kumar@gmail.com
 copyright:           2017 Harendra Kumar
-category:            Control, Concurrency, Streaming
+category:            Control, Concurrency, Streaming, Reactivity
 stability:           Experimental
 build-type:          Simple
 cabal-version:       >= 1.10
