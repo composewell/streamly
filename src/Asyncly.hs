@@ -144,7 +144,7 @@ module Asyncly
 
     -- * Re-exports
     , Monoid (..)
-    , (<>)
+    , Semigroup (..)
     , Alternative (..)
     , MonadPlus (..)
     , MonadIO (..)
@@ -153,7 +153,7 @@ module Asyncly
 where
 
 import Asyncly.AsyncT
-import Data.Monoid ((<>))
+import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO (..))

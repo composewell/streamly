@@ -61,7 +61,7 @@ import           Data.IORef                  (IORef, modifyIORef, newIORef,
 import           Data.Atomics                (atomicModifyIORefCAS,
                                               atomicModifyIORefCAS_)
 import           Data.Maybe                  (isNothing)
-import           Data.Monoid                 ((<>))
+import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
 import           Prelude                     hiding (take, drop)
@@ -118,13 +118,17 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 ------------------------------------------------------------------------------
 
 -- | Appends the results of two AsyncT computations in order.
-instance Monad m => Monoid (AsyncT m a) where
-    mempty = AsyncT $ \_ stp _ -> stp
-    mappend (AsyncT m1) m2 = AsyncT $ \ctx stp yld ->
+instance Semigroup (AsyncT m a) where
+    (AsyncT m1) <> m2 = AsyncT $ \ctx stp yld ->
         let stop = (runAsyncT m2) ctx stp yld
             yield a c Nothing  = yld a c (Just m2)
             yield a c (Just r) = yld a c (Just (mappend r m2))
         in m1 ctx stop yield
+
+-- | Appends the results of two AsyncT computations in order.
+instance Monoid (AsyncT m a) where
+    mempty = AsyncT $ \_ stp _ -> stp
+    mappend = (<>)
 
 -- | Interleaves the results of two 'AsyncT' streams
 interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
