@@ -27,12 +27,19 @@ import qualified ListT        as LT
 
 main :: IO ()
 main = do
+    -- XXX due to a GHC bug passing bind as an argument causes perf
+    -- degradation, so we should keep that in account when comparing.
+    let as = asyncly_basic
     defaultMain [
         bgroup "basic"
-            [ bench "asyncly-serial"              $ nfIO (asyncly_basic (A.<>))
-            , bench "asyncly-interleaved"         $ nfIO (asyncly_basic (A.<=>))
-            , bench "asyncly-parleft"             $ nfIO (asyncly_basic (A.<|))
-            , bench "asyncly-parinterleaved"      $ nfIO (asyncly_basic (A.<|>))
+            [ bench "asyncly-serial"              $ nfIO (as (>>=) (A.<>))
+            , bench "asyncly-interleaved"         $ nfIO (as (>>=) (A.<=>))
+            , bench "asyncly-serial-fairbind"      $ nfIO (as (A.>->) (A.<>))
+            , bench "asyncly-interleaved-fairbind" $ nfIO (as (A.>->) (A.<=>))
+            , bench "asyncly-parleft"             $ nfIO (as (>>=) (A.<|))
+            , bench "asyncly-parinterleaved"      $ nfIO (as (>>=) (A.<|>))
+            , bench "asyncly-parleft-fairbind"        $ nfIO (as (A.>->) (A.<|))
+            , bench "asyncly-parinterleaved-fairbind" $ nfIO (as (A.>->) (A.<|>))
             , bench "asyncly-serial-nil"          $ nfIO (asyncly_nil (A.<>))
             , bench "asyncly-interleaved-nil"     $ nfIO (asyncly_nil (A.<=>))
             , bench "asyncly-parleft-nil"         $ nfIO (asyncly_nil (A.<|))
@@ -65,14 +72,16 @@ afilter :: (Int -> Bool) -> Int -> A.AsyncT IO Int
 afilter = Main.filter
 
 {-# INLINE asyncly_basic #-}
-asyncly_basic :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
+asyncly_basic
+    :: (A.AsyncT IO Int -> (Int -> A.AsyncT IO Int) -> A.AsyncT IO Int)
+    -> (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
     -> IO Int
-asyncly_basic f = do
+asyncly_basic f g = do
     xs <- A.toList $ do
-             A.drop 100 (A.forEachWith f [1..100000 :: Int] $ \x ->
-                afilter even x >>= amap (+1))
-                    >>= amap (+1)
-                    >>= afilter (\y -> y `mod` 2 == 0)
+             A.drop 100 (A.foldMapWith g return [1..100000 :: Int] `f` \x ->
+                afilter even x `f` amap (+1))
+                    `f` amap (+1)
+                    `f` afilter (\y -> y `mod` 2 == 0)
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
 
