@@ -133,6 +133,11 @@ module Asyncly
     , parLeft
     , (<|)
 
+    -- * Bind Operators
+    , (>->)
+    , (>>|)
+    , (>|>)
+
     -- * Transformation
     , take
     , drop

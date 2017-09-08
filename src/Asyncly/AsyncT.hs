@@ -23,12 +23,18 @@ module Asyncly.AsyncT
     , toList
     , take
     , drop
+
     , interleave
     , (<=>)
     , parAhead
     , (<>|)
     , parLeft
     , (<|)
+
+    , (>->)
+    , (>>|)
+    , (>|>)
+
     , foldWith
     , foldMapWith
     , forEachWith
@@ -155,16 +161,43 @@ infixr 5 <=>
 -- thread or not based on the level of the bind in the tree. Maybe at some
 -- point we shall be able to do that?
 
+-- XXX Using a common bindWith function is 15% slower than duplicating the
+-- code. In case that performance is important we can duplicate it.
+--
+-- | A thread context is valid only until the next bind. Upon a bind we
+-- reset the context to Nothing.
+{-# INLINE bindWith #-}
+bindWith
+    :: (forall c. AsyncT m c -> AsyncT m c -> AsyncT m c)
+    -> AsyncT m a
+    -> (a -> AsyncT m b)
+    -> AsyncT m b
+bindWith k (AsyncT m) f = AsyncT $ \_ stp yld ->
+    let run x = (runAsyncT x) Nothing stp yld
+        yield a _ Nothing  = run $ f a
+        yield a _ (Just r) = run $ f a `k` (bindWith k r f)
+    in m Nothing stp yield
+
 instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
 
-    -- | A thread context is valid only until the next bind. Upon a bind we
-    -- reset the context to Nothing.
     AsyncT m >>= f = AsyncT $ \_ stp yld ->
         let run x = (runAsyncT x) Nothing stp yld
             yield a _ Nothing  = run $ f a
             yield a _ (Just r) = run $ f a <> (r >>= f)
         in m Nothing stp yield
+
+-- | Serial, interleaved bind
+(>->) :: AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
+(>->) = bindWith (<=>)
+
+-- | Parallel, depth first bind
+(>>|) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
+(>>|) = bindWith (<|)
+
+-- | Parallel, breadth first bind
+(>|>) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
+(>|>) = bindWith (<|>)
 
 ------------------------------------------------------------------------------
 -- Functor
