@@ -49,6 +49,9 @@ library
                      , stm               >= 2.4.3 && < 2.5
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
+  if impl(ghc < 8.0)
+    build-depends:
+        semigroups    >= 0.18   && < 0.19
 
 test-suite test
   type: exitcode-stdio-1.0
