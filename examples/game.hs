@@ -7,12 +7,12 @@ import Asyncly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.State
-import Data.Foldable (fold)
+import Data.Semigroup (cycle1)
 
 data Event = Harm Int | Heal Int | Quit deriving (Show)
 
 userAction :: MonadIO m => AsyncT m Event
-userAction = fold $ repeat $ liftIO $ askUser
+userAction = cycle1 $ liftIO askUser
     where
     askUser = do
         command <- getLine
@@ -22,7 +22,7 @@ userAction = fold $ repeat $ liftIO $ askUser
             _        -> putStrLn "What?" >> askUser
 
 acidRain :: MonadIO m => AsyncT m Event
-acidRain = fold $ repeat $ liftIO (threadDelay 1000000) >> return (Harm 1)
+acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 
 game :: (MonadAsync m, MonadState Int m) => AsyncT m ()
 game = do
