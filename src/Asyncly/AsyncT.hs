@@ -125,11 +125,13 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 -- | Appends the results of two AsyncT computations in order.
 instance Semigroup (AsyncT m a) where
-    (AsyncT m1) <> m2 = AsyncT $ \ctx stp yld ->
-        let stop = (runAsyncT m2) ctx stp yld
-            yield a c Nothing  = yld a c (Just m2)
-            yield a c (Just r) = yld a c (Just (mappend r m2))
-        in m1 ctx stop yield
+    m1 <> m2 = go m1
+        where
+        go (AsyncT m) = AsyncT $ \ctx stp yld ->
+                let stop = (runAsyncT m2) ctx stp yld
+                    yield a c Nothing  = yld a c (Just m2)
+                    yield a c (Just r) = yld a c (Just (go r))
+                in m ctx stop yield
 
 -- | Appends the results of two AsyncT computations in order.
 instance Monoid (AsyncT m a) where
