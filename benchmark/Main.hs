@@ -78,7 +78,7 @@ asyncly_basic
     -> IO Int
 asyncly_basic f g = do
     xs <- A.toList $ do
-             A.drop 100 (A.foldMapWith g return [1..100000 :: Int] `f` \x ->
+             A.drop 100 (A.forEachWith g [1..100000 :: Int] $ \x ->
                 afilter even x `f` amap (+1))
                     `f` amap (+1)
                     `f` afilter (\y -> y `mod` 2 == 0)
