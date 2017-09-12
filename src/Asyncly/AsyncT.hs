@@ -172,11 +172,14 @@ bindWith
     -> AsyncT m a
     -> (a -> AsyncT m b)
     -> AsyncT m b
-bindWith k (AsyncT m) f = AsyncT $ \_ stp yld ->
-    let run x = (runAsyncT x) Nothing stp yld
-        yield a _ Nothing  = run $ f a
-        yield a _ (Just r) = run $ f a `k` (bindWith k r f)
-    in m Nothing stp yield
+bindWith k m f = go m
+    where
+        go (AsyncT g) =
+            AsyncT $ \_ stp yld ->
+            let run x = (runAsyncT x) Nothing stp yld
+                yield a _ Nothing  = run $ f a
+                yield a _ (Just r) = run $ f a `k` (go r)
+            in g Nothing stp yield
 
 instance Monad m => Monad (AsyncT m) where
     return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
