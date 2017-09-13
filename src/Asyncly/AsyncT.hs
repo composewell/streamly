@@ -120,7 +120,7 @@ newtype AsyncT m a =
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 ------------------------------------------------------------------------------
--- Monad
+-- Monoid
 ------------------------------------------------------------------------------
 
 -- | Appends the results of two AsyncT computations in order.
@@ -150,6 +150,32 @@ infixr 5 <=>
 
 (<=>) :: AsyncT m a -> AsyncT m a -> AsyncT m a
 (<=>) = interleave
+
+------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance Monad m => Functor (AsyncT m) where
+    fmap = liftM
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+-- Note: We cannot have the applicative instance run the two actions in
+-- parallel. This is because the first action can always return empty and in
+-- case it returns empty we should not be starting the second action. Therefore
+-- we can only start the second action after getting a result from the first.
+-- For running applicative actions in parallel we can use the async package and
+-- lift the result into AsyncT.
+
+instance Monad m => Applicative (AsyncT m) where
+    pure a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
+    (<*>) = ap
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
 
 -- We do not use bind for parallelism. That is, we do not start each iteration
 -- of the list in parallel. That will introduce too much uncontrolled
@@ -184,7 +210,7 @@ bindWith k m f = go m
             in g Nothing stp yield
 
 instance Monad m => Monad (AsyncT m) where
-    return a = AsyncT $ \ctx _ yld -> yld a ctx Nothing
+    return = pure
 
     AsyncT m >>= f = AsyncT $ \_ stp yld ->
         let run x = (runAsyncT x) Nothing stp yld
@@ -203,28 +229,6 @@ instance Monad m => Monad (AsyncT m) where
 -- | Parallel, breadth first bind
 (>|>) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
 (>|>) = bindWith (<|>)
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (AsyncT m) where
-    fmap = liftM
-
-------------------------------------------------------------------------------
--- Applicative
-------------------------------------------------------------------------------
-
--- Note: We cannot have the applicative instance run the two actions in
--- parallel. This is because the first action can always return empty and in
--- case it returns empty we should not be starting the second action. Therefore
--- we can only start the second action after getting a result from the first.
--- For running applicative actions in parallel we can use the async package and
--- lift the result into AsyncT.
-
-instance Monad m => Applicative (AsyncT m) where
-    pure  = return
-    (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Alternative
@@ -478,10 +482,10 @@ instance MonadAsync m => Alternative (AsyncT m) where
 -- | Just like '<>' except that it can execute the action on the right in
 -- parallel ahead of time. Returns the results in serial order like '<>' from
 -- left to right.
-parAhead :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+parAhead :: AsyncT m a -> AsyncT m a -> AsyncT m a
 parAhead = undefined
 
-(<>|) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+(<>|) :: AsyncT m a -> AsyncT m a -> AsyncT m a
 (<>|) = parAhead
 
 -- | Left biased parallel execution. Actions may run in parallel but not
