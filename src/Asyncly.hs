@@ -127,25 +127,25 @@ module Asyncly
     , runAsyncly
     , toList
 
-    -- * Composing Operators
-    , interleave
-    , (<=>)
-    , parLeft
-    , (<|)
-
-    -- * Bind Operators
+    -- * Monadic Composition (Conjunction)
+    -- $bind
     , (>->)
     , (>>|)
     , (>|>)
 
-    -- * Transformation
-    , take
-    , drop
+    -- * Monoidal Composition (Disjunction)
+    -- $monoidal
+    , (<=>)
+    , (<|)
 
-    -- * Utilities
+    -- * General Fold Utilities
     , foldWith
     , foldMapWith
     , forEachWith
+
+    -- * Special folds
+    , take
+    , drop
 
     -- * Re-exports
     , Monoid (..)
@@ -164,3 +164,13 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (MonadTrans (..))
 import Prelude hiding (take, drop)
+
+-- $monoidal
+--
+-- These combinators can be used in place of 'Monoid' ('<>') or 'Alternative'
+-- ('<|>') composition to achieve the desired variant of monoidal composition.
+--
+-- $bind
+--
+-- These combinators can be used in place of the standard monadic bind ('>>=')
+-- to achieve the desired variant of monadic composition.

@@ -76,16 +76,14 @@ import           Prelude                     hiding (take, drop)
 -- Concurrency Semantics
 ------------------------------------------------------------------------------
 --
--- Asyncly is essentially a concurrent list transformer. To concatenate the
--- lists it provides three different ways of composing them. The Monoid
--- instance concatenates lists in a non-concurrent in-order fashion. The
--- Alternative instance concatenates list in a concurrent manner potentially
--- running each action in parallel and therefore the order of the resulting
--- items is not deterministic. Computations in Alternative composition may or
--- may not run in parallel. Thirdly, the <||> operator provides a way to
--- compose computations that are guaranteed to run in parallel. This provides a
--- way to run infinite loops or long running computations without blocking
--- or starving other computations.
+-- Asyncly is essentially a concurrent list transformer. To fold the lists
+-- (AsyncT m a) it provides many different ways of composing them. The Monoid
+-- instance folds lists in a sequential fashion. The Alternative instance folds
+-- a list in a concurrent manner running each action in parallel and therefore
+-- the order of results in the fold is not deterministic, but the results are
+-- fairly interleaved. There are other ways to bind and compose. The
+-- combinations of different types of binds and monoidal compositions can be
+-- used to achieve the desired results.
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication types
@@ -108,6 +106,10 @@ data Context m a =
             , queueEmpty     :: m Bool
             }
 
+-- | Represents a monadic stream of values of type 'a' resulting from actions
+-- in monad 'm'. 'AsyncT' streams can be composed sequentially or in parallel
+-- in various ways using monadic bind or variants of it and using monoidal
+-- compositions like 'Monoid', 'Alternative' or variants of these.
 newtype AsyncT m a =
     AsyncT {
         runAsyncT :: forall r.
@@ -117,13 +119,14 @@ newtype AsyncT m a =
             -> m r
     }
 
+-- | A monad that can do asynchronous (or parallel) IO operations.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
--- | Appends the results of two AsyncT computations in order.
+-- | '<>' concatenates two 'AsyncT' streams sequentially.
 instance Semigroup (AsyncT m a) where
     m1 <> m2 = go m1
         where
@@ -133,12 +136,11 @@ instance Semigroup (AsyncT m a) where
                     yield a c (Just r) = yld a c (Just (go r))
                 in m ctx stop yield
 
--- | Appends the results of two AsyncT computations in order.
 instance Monoid (AsyncT m a) where
     mempty = AsyncT $ \_ stp _ -> stp
     mappend = (<>)
 
--- | Interleaves the results of two 'AsyncT' streams
+-- | Same as '<=>'.
 interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
 interleave m1 m2 = AsyncT $ \ctx stp yld -> do
     let stop = (runAsyncT m2) ctx stp yld
@@ -148,6 +150,8 @@ interleave m1 m2 = AsyncT $ \ctx stp yld -> do
 
 infixr 5 <=>
 
+-- | Sequential compostion, similar to '<>' except that it interleaves the two
+-- 'AsyncT' streams fairly.
 (<=>) :: AsyncT m a -> AsyncT m a -> AsyncT m a
 (<=>) = interleave
 
@@ -177,21 +181,6 @@ instance Monad m => Applicative (AsyncT m) where
 -- Monad
 ------------------------------------------------------------------------------
 
--- We do not use bind for parallelism. That is, we do not start each iteration
--- of the list in parallel. That will introduce too much uncontrolled
--- parallelism. Instead we control parallelism using <|>, it is used for
--- actions that 'may' be run in parallel. The library decides whether they will
--- be started in parallel. This puts the parallel semantics in the hands of the
--- user and operational semantics in the hands of the library. Ideally we would
--- want parallelism to be completely hidden from the user, for example we can
--- automatically decide where to start an action in parallel so that it is most
--- efficient. We can decide whether a particular bind should fork a parallel
--- thread or not based on the level of the bind in the tree. Maybe at some
--- point we shall be able to do that?
-
--- XXX Using a common bindWith function is 15% slower than duplicating the
--- code. In case that performance is important we can duplicate it.
---
 -- | A thread context is valid only until the next bind. Upon a bind we
 -- reset the context to Nothing.
 {-# INLINE bindWith #-}
@@ -209,6 +198,8 @@ bindWith k m f = go m
                 yield a _ (Just r) = run $ f a `k` (go r)
             in g Nothing stp yield
 
+-- | '>>=' runs a monadic action for each element in the stream, sequentially,
+-- in a depth first manner.
 instance Monad m => Monad (AsyncT m) where
     return = pure
 
@@ -218,17 +209,33 @@ instance Monad m => Monad (AsyncT m) where
             yield a _ (Just r) = run $ f a <> (r >>= f)
         in m Nothing stp yield
 
--- | Serial, interleaved bind
+------------------------------------------------------------------------------
+-- Alternative ways to bind
+------------------------------------------------------------------------------
+
+-- | Run a monadic action for each element in the stream, sequentially, in a
+-- breadth first manner i.e. fairly interleaved.
 (>->) :: AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
 (>->) = bindWith (<=>)
 
--- | Parallel, depth first bind
+-- | Run a monadic action for each element in the stream, in parallel, with
+-- a depth first bias.
 (>>|) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
 (>>|) = bindWith (<|)
 
--- | Parallel, breadth first bind
+-- | Run a monadic action for each element in the stream, in parallel, with a
+-- breadth first bias i.e. fairly interleaved.
 (>|>) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
 (>|>) = bindWith (<|>)
+
+-- TBD Ideally we would want parallelism to be completely hidden from the user,
+-- for example we can automatically decide where to start an action in parallel
+-- so that it is most efficient. We can decide whether a particular bind should
+-- fork a parallel thread or not based on the level of the bind in the tree.
+-- This is equivalent to dynamically deciding (maybe based user policies
+-- applied using combinators) which type of bind or monoidal composition we
+-- should use. We can have another bind operator (maybe the standard >>= should
+-- be used for that) for this type of behavior.
 
 ------------------------------------------------------------------------------
 -- Alternative
@@ -473,30 +480,41 @@ parallel m1 m2 fifo = AsyncT $ \ctx stp yld -> do
         Nothing -> (runAsyncT (pullFork m1 m2 fifo)) Nothing stp yld
         Just  c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
 
+-- | `empty` represents an action that takes non-zero time to complete.  Since
+-- all actions take non-zero time, an `Alternative` composition ('<|>') is a
+-- monoidal composition executing all actions in parallel, it is similar to
+-- '<>' except that it runs all the actions in parallel and interleaves their
+-- results fairly.
 instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
 
     {-# INLINE (<|>) #-}
     m1 <|> m2 = parallel m1 m2 True
 
--- | Just like '<>' except that it can execute the action on the right in
--- parallel ahead of time. Returns the results in serial order like '<>' from
--- left to right.
+------------------------------------------------------------------------------
+-- Other monoidal compositions for parallel actions
+------------------------------------------------------------------------------
+
+-- | Same as '<>|'.
 parAhead :: AsyncT m a -> AsyncT m a -> AsyncT m a
 parAhead = undefined
 
+-- | Sequential composition similar to '<>' except that it can execute the
+-- action on the right in parallel ahead of time. Returns the results in
+-- sequential order like '<>' from left to right.
 (<>|) :: AsyncT m a -> AsyncT m a -> AsyncT m a
 (<>|) = parAhead
 
--- | Left biased parallel execution. Actions may run in parallel but not
--- necessarily, the action on the left is executed before the one on the right
--- when parallelism is not needed. This combinator is useful when fairness is
--- not required.
+-- | Same as '<|'.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 parLeft m1 m2 = parallel m1 m2 False
 
--- | Same as 'parLeft'.
+-- | Parallel composition similar to `<|>` except that it is left-biased
+-- instead of being fair.  Action on the left is likely to be given a chance to
+-- execute before the action on the right. If the left action keeps yielding
+-- results without blocking it continues running until it finishes and only
+-- then the right action runs.
 {-# INLINE (<|) #-}
 (<|) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
 (<|) = parLeft
@@ -594,7 +612,7 @@ instance MonadState s m => MonadState s (AsyncT m) where
 -- Running the monad
 ------------------------------------------------------------------------------
 
--- | Run an 'AsyncT m' computation, wait for it to finish and discard the
+-- | Run an 'AsyncT' computation, wait for it to finish and discard the
 -- results.
 runAsyncly :: MonadAsync m => AsyncT m a -> m ()
 runAsyncly m = run Nothing m
@@ -609,8 +627,7 @@ runAsyncly m = run Nothing m
 
     run ct mx = (runAsyncT mx) ct stop yield
 
--- | Run an 'AsyncT m' computation and collect the results generated by each
--- thread of the computation in a list.
+-- | Collect the results of an 'AsyncT' stream into a list.
 {-# INLINABLE toList #-}
 toList :: MonadAsync m => AsyncT m a -> m [a]
 toList m = run Nothing m
@@ -630,6 +647,7 @@ toList m = run Nothing m
 -- Transformation
 ------------------------------------------------------------------------------
 
+-- | Take first 'n' elements from the stream and discard the rest.
 take :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
 take n m = AsyncT $ \ctx stp yld -> do
     let yield a c Nothing  = yld a c Nothing
@@ -638,6 +656,7 @@ take n m = AsyncT $ \ctx stp yld -> do
     then stp
     else (runAsyncT m) ctx stp yield
 
+-- | Discard first 'n' elements from the stream and take the rest.
 drop :: MonadAsync m => Int -> AsyncT m a -> AsyncT m a
 drop n m = AsyncT $ \ctx stp yld -> do
     let yield _ _ Nothing  = stp
@@ -662,7 +681,7 @@ foldMapWith :: (Monoid b, Foldable t) =>
     (b1 -> b -> b) -> (a -> b1) -> t a -> b
 foldMapWith f g = foldr (f . g) mempty
 
--- | Fold a 'Foldable' container using a function that is a compostioin of the
+-- | Fold a 'Foldable' container using a function that is a composition of the
 -- first and the third argument.
 {-# INLINABLE forEachWith #-}
 forEachWith :: (Monoid b, Foldable t) =>
@@ -673,5 +692,6 @@ forEachWith f xs g = foldr (f . g) mempty xs
 -- Convert a callback into an 'AsyncT' computation
 ------------------------------------------------------------------------------
 
+-- | Convert a callback into an 'AsyncT' stream.
 fromCallback :: (forall r. (a -> m r) -> m r) -> AsyncT m a
 fromCallback k = AsyncT $ \ctx _ yld -> k (\a -> yld a ctx Nothing)
