@@ -1,43 +1,38 @@
-import Control.Applicative ((<|>), empty)
-import Control.Concurrent (threadDelay, myThreadId)
-import Control.Monad.IO.Class (liftIO)
-import Data.Monoid ((<>))
-import System.Random (randomIO)
-import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Asyncly
+import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 
 main = do
     liftIO $ hSetBuffering stdout LineBuffering
 
     putStrLn $ "\nloopTail:\n"
     runAsyncly $ do
-        x <- loopTail (0 :: Int)
-        liftIO $ print x
+        x <- loopTail 0
+        liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHead:\n"
     runAsyncly $ do
-        x <- loopHead (0 :: Int)
-        liftIO $ print x
+        x <- loopHead 0
+        liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopTailA:\n"
     runAsyncly $ do
-        x <- loopTailA (0 :: Int)
-        liftIO $ print x
+        x <- loopTailA 0
+        liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHeadA:\n"
     runAsyncly $ do
-        x <- loopHeadA (0 :: Int)
-        liftIO $ print x
+        x <- loopHeadA 0
+        liftIO $ print (x :: Int)
 
     putStrLn $ "\ninterleave:\n"
     runAsyncly $ do
-        x <- return (0 :: Int) <> return 1 <=> return 100 <> return 101
-        liftIO $ print x
+        x <- return 0 <> return 1 <=> return 100 <> return 101
+        liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
     runAsyncly $ do
-        x <- return (0 :: Int) <> return 1 <|> return 100 <> return 101
-        liftIO $ print x
+        x <- return 0 <> return 1 <|> return 100 <> return 101
+        liftIO $ print (x :: Int)
 
     where
 
