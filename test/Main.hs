@@ -37,7 +37,7 @@ main = hspec $ do
     describe "Pure bind parallel BFS" $ pureBind (>|>)
 
     ---------------------------------------------------------------------------
-    -- Compositions
+    -- Monoidal Compositions
     ---------------------------------------------------------------------------
 
     describe "Serial Composition (<>)" $ compose (<>) id
@@ -45,16 +45,26 @@ main = hspec $ do
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
 
     ---------------------------------------------------------------------------
-    -- Composition ordering checks
+    -- Monoidal Composition ordering checks
     ---------------------------------------------------------------------------
 
     describe "Serial interleaved (<=>)" $ interleaved (<=>) id
+    describe "Parallel interleaved (<|>)" $ interleaved (<|>) reverse
     describe "Left biased parallel time order check" $ parallelCheck (<|)
     describe "Fair parallel time order check" $ parallelCheck (<|>)
-    describe "Parallel interleaved (<|>)" $ interleaved (<|>) reverse
 
     ---------------------------------------------------------------------------
-    -- Composition recursion loops
+    -- TBD Monoidal composition combinations
+    ---------------------------------------------------------------------------
+
+    -- TBD need more such combinations to be tested.
+    describe "<> and <>"   $ composeAndComposeSimple (<>) (<>)   [1..9]
+    describe "<> and <=>"  $ composeAndComposeSimple (<>) (<=>)  [1..9]
+    describe "<=> and <=>" $ composeAndComposeSimple (<=>) (<=>) [1,4,7,2,5,8,3,6,9]
+    describe "<=> and <>"  $ composeAndComposeSimple (<=>) (<>)  [1,4,7,2,5,8,3,6,9]
+
+    ---------------------------------------------------------------------------
+    -- Monoidal composition recursion loops
     ---------------------------------------------------------------------------
 
     describe "Serial loops (<>)" $ loops (<>) id reverse
@@ -62,7 +72,7 @@ main = hspec $ do
     describe "Fair parallel loops (<|>)" $ loops (<|>) sort sort
 
     ---------------------------------------------------------------------------
-    -- Bind and Composition combinations
+    -- Bind and monoidal composition combinations
     ---------------------------------------------------------------------------
 
     forM_ [(>>=), (>->), (>>|), (>|>)] $ \f ->
@@ -76,6 +86,10 @@ main = hspec $ do
                 forM_ [fldr, fldl] $ \k ->
                     describe "Bind and compose" $
                         bindAndComposeHierarchy f (k g)
+
+    ---------------------------------------------------------------------------
+    -- TBD Bind and Bind combinations
+    ---------------------------------------------------------------------------
 
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
@@ -149,6 +163,34 @@ compose f srt = do
         ((toList $ (((return 0 `f` return 1) `f` (return 2 `f` return 3))
                 `f` ((return 4 `f` return 5) `f` (return 6 `f` return 7)))
             ) >>= return . srt) `shouldReturn` [0..7]
+
+composeAndComposeSimple
+    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    -> (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    -> [Int]
+    -> Spec
+composeAndComposeSimple f g answer = do
+    it "Compose right associated outer expr, right folded inner" $
+        let fold = foldMapWith g return
+         in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
+            `shouldReturn` answer
+
+    {-
+    it "Compose left associated outer expr, right folded inner" $
+        let fold = foldMapWith g return
+         in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
+            `shouldReturn` answer
+
+    it "Compose right associated outer expr, left folded inner" $
+        let fold xs = foldl g empty $ map return xs
+         in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
+            `shouldReturn` answer
+
+    it "Compose left associated outer expr, left folded inner" $
+        let fold xs = foldl g empty $ map return xs
+         in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
+            `shouldReturn` answer
+    -}
 
 loops
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
