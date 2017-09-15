@@ -58,10 +58,35 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     -- TBD need more such combinations to be tested.
-    describe "<> and <>"   $ composeAndComposeSimple (<>) (<>)   [1..9]
-    describe "<> and <=>"  $ composeAndComposeSimple (<>) (<=>)  [1..9]
-    describe "<=> and <=>" $ composeAndComposeSimple (<=>) (<=>) [1,4,7,2,5,8,3,6,9]
-    describe "<=> and <>"  $ composeAndComposeSimple (<=>) (<>)  [1,4,7,2,5,8,3,6,9]
+    describe "<> and <>" $ composeAndComposeSimple (<>) (<>) (cycle [[1 .. 9]])
+
+    describe "<> and <=>" $ composeAndComposeSimple
+      (<>)
+      (<=>)
+      ([ [1 .. 9]
+       , [1 .. 9]
+       , [1, 3, 2, 4, 6, 5, 7, 9, 8]
+       , [1, 3, 2, 4, 6, 5, 7, 9, 8]
+       ])
+
+    describe "<=> and <=>" $ composeAndComposeSimple
+      (<=>)
+      (<=>)
+      ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+       , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+       , [1, 4, 3, 7, 2, 6, 9, 5, 8]
+       , [1, 7, 4, 9, 3, 8, 6, 2, 5]
+       ])
+
+    describe "<=> and <>" $ composeAndComposeSimple
+      (<=>)
+      (<>)
+      ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+       , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+       , [1, 4, 2, 7, 3, 5, 8, 6, 9]
+       , [1, 7, 4, 8, 2, 9, 5, 3, 6]
+       ])
+
 
     ---------------------------------------------------------------------------
     -- Monoidal composition recursion loops
@@ -167,30 +192,29 @@ compose f srt = do
 composeAndComposeSimple
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
     -> (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
-    -> [Int]
+    -> [[Int]]
     -> Spec
 composeAndComposeSimple f g answer = do
     it "Compose right associated outer expr, right folded inner" $
         let fold = foldMapWith g return
          in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
-            `shouldReturn` answer
+            `shouldReturn` (answer !! 0)
 
-    {-
     it "Compose left associated outer expr, right folded inner" $
         let fold = foldMapWith g return
          in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
-            `shouldReturn` answer
+            `shouldReturn` (answer !! 1)
 
     it "Compose right associated outer expr, left folded inner" $
         let fold xs = foldl g empty $ map return xs
          in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
-            `shouldReturn` answer
+            `shouldReturn` (answer !! 2)
 
     it "Compose left associated outer expr, left folded inner" $
         let fold xs = foldl g empty $ map return xs
          in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
-            `shouldReturn` answer
-    -}
+            `shouldReturn` (answer !! 3)
+
 
 loops
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
