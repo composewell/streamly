@@ -30,10 +30,10 @@ game = do
     case event of
         Harm n -> modify $ \h -> h - n
         Heal n -> modify $ \h -> h + n
-        Quit   -> error "quit"
+        Quit   -> fail "quit"
 
     h <- get
-    when (h <= 0) $ error "You die!"
+    when (h <= 0) $ fail "You die!"
     liftIO $ putStrLn $ "Health = " ++ show h
 
 main = do
