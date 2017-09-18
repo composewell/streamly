@@ -168,9 +168,9 @@ import Prelude hiding (take, drop)
 -- $monoidal
 --
 -- These combinators can be used in place of 'Monoid' ('<>') or 'Alternative'
--- ('<|>') composition to achieve the desired variant of monoidal composition.
+-- ('<|>') composition to compose the streams in alternate ways.
 --
 -- $bind
 --
 -- These combinators can be used in place of the standard monadic bind ('>>=')
--- to achieve the desired variant of monadic composition.
+-- to schedule nested loops in alternate ways.
