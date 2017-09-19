@@ -87,6 +87,31 @@ main = hspec $ do
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        ])
 
+    describe "Nested parallel and serial compositions" $ do
+        it "Nest <|>, <>, <|> (1)" $
+            let t = timed
+             in toList (
+                    ((t 8 <|> t 4) <> (t 2 <|> t 0))
+                <|> ((t 8 <|> t 4) <> (t 2 <|> t 0)))
+            `shouldReturn` ([4,4,8,8,0,0,2,2])
+        it "Nest <|>, <>, <|> (2)" $
+            let t = timed
+             in toList (
+                    ((t 4 <|> t 8) <> (t 0 <|> t 2))
+                <|> ((t 4 <|> t 8) <> (t 0 <|> t 2)))
+            `shouldReturn` ([4,4,8,8,0,0,2,2])
+        it "Nest <|>, <=>, <|> (1)" $
+            let t = timed
+             in toList (
+                    ((t 8 <|> t 4) <=> (t 2 <|> t 0))
+                <|> ((t 8 <|> t 4) <=> (t 2 <|> t 0)))
+            `shouldReturn` ([4,4,0,0,8,8,2,2])
+        it "Nest <|>, <=>, <|> (2)" $
+            let t = timed
+             in toList (
+                    ((t 4 <|> t 8) <=> (t 0 <|> t 2))
+                <|> ((t 4 <|> t 8) <=> (t 0 <|> t 2)))
+            `shouldReturn` ([4,4,0,0,8,8,2,2])
 
     ---------------------------------------------------------------------------
     -- Monoidal composition recursion loops
@@ -120,6 +145,9 @@ main = hspec $ do
     describe "Miscellaneous combined examples" mixedOps
 
     describe "Transformation" $ transformOps (<>)
+
+timed :: Int -> AsyncT IO Int
+timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 thenBind :: Spec
 thenBind = do
