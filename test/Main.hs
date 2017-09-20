@@ -97,9 +97,9 @@ main = hspec $ do
         it "Nest <|>, <>, <|> (2)" $
             let t = timed
              in toList (
-                    ((t 4 <|> t 8) <> (t 0 <|> t 2))
-                <|> ((t 4 <|> t 8) <> (t 0 <|> t 2)))
-            `shouldReturn` ([4,4,8,8,0,0,2,2])
+                    ((t 4 <|> t 8) <> (t 1 <|> t 2))
+                <|> ((t 4 <|> t 8) <> (t 1 <|> t 2)))
+            `shouldReturn` ([4,4,8,8,1,1,2,2])
         it "Nest <|>, <=>, <|> (1)" $
             let t = timed
              in toList (
