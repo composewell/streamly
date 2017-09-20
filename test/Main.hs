@@ -109,9 +109,9 @@ main = hspec $ do
         it "Nest <|>, <=>, <|> (2)" $
             let t = timed
              in toList (
-                    ((t 4 <|> t 8) <=> (t 0 <|> t 2))
-                <|> ((t 4 <|> t 9) <=> (t 0 <|> t 2)))
-            `shouldReturn` ([4,4,0,0,8,2,9,2])
+                    ((t 4 <|> t 8) <=> (t 1 <|> t 2))
+                <|> ((t 4 <|> t 9) <=> (t 1 <|> t 2)))
+            `shouldReturn` ([4,4,1,1,8,2,9,2])
         it "Nest <|>, <|>, <|>" $
             let t = timed
              in toList (
