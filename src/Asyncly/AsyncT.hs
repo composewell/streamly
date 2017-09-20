@@ -97,6 +97,10 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
+data Dimension   = Conjunction | Disjunction deriving Eq
+data SchedPolicy = LIFO | FIFO deriving Eq
+data CtxType     = CtxType Dimension SchedPolicy deriving Eq
+
 data Context m a =
     Context { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
@@ -104,6 +108,7 @@ data Context m a =
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
             , queueEmpty     :: m Bool
+            , ctxType        :: CtxType
             }
 
 -- | Represents a monadic stream of values of type 'a' resulting from actions
@@ -224,15 +229,15 @@ instance Monad m => Monad (AsyncT m) where
 (>->) = bindWith (<=>)
 
 -- | Execute a monadic action for each element in the stream, running nested
--- loops in parallel, but with a depth first preference.
+-- loops in parallel, but giving preference to inner loops.
 (>>|) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-(>>|) = bindWith (<|)
+(>>|) = bindWith (parallel (CtxType Conjunction LIFO))
 
 -- | Execute a monadic action for each element in the stream, running nested
 -- loops in parallel, but in a fairly interleaved manner i.e. both inner and
 -- outer loops yield alternately.
 (>|>) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-(>|>) = bindWith (<|>)
+(>|>) = bindWith (parallel (CtxType Conjunction FIFO))
 
 -- TBD Ideally we would want parallelism to be completely hidden from the user,
 -- for example we can automatically decide where to start an action in parallel
@@ -408,8 +413,9 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 {-# NOINLINE pullFork #-}
-pullFork :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
-pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
+pullFork :: MonadAsync m
+    => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
+pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
     ctx <- liftIO $ newContext
     pushWorker ctx >> (runAsyncT (pullWorker ctx)) Nothing stp yld
 
@@ -420,8 +426,8 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
         outQMv  <- newEmptyMVar
         running <- newIORef S.empty
 
-        case fifo of
-            True -> do
+        case ct of
+            CtxType _ FIFO -> do
                 q <- newQ
                 pushL q m1 >> pushL q m2
                 let ctx =
@@ -431,9 +437,10 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
                                 , runqueue       = runqueueFIFO ctx q
                                 , enqueue        = pushL q
                                 , queueEmpty     = liftIO $ nullQ q
+                                , ctxType        = ct
                                 }
                  in return ctx
-            False -> do
+            CtxType _ LIFO -> do
                 q <- newIORef []
                 enqueueLIFO q m2 >> enqueueLIFO q m1
                 let checkEmpty = liftIO (readIORef q) >>= return . null
@@ -444,6 +451,7 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
                                 , runqueue       = runqueueLIFO ctx q
                                 , enqueue        = enqueueLIFO q
                                 , queueEmpty     = checkEmpty
+                                , ctxType        = ct
                                 }
                  in return ctx
 
@@ -481,11 +489,13 @@ pullFork m1 m2 fifo = AsyncT $ \_ stp yld -> do
 -- Note: This is designed to scale for right associated compositions,
 -- therefore always use a right fold for folding bigger structures.
 {-# INLINE parallel #-}
-parallel :: MonadAsync m => AsyncT m a -> AsyncT m a -> Bool -> AsyncT m a
-parallel m1 m2 fifo = AsyncT $ \ctx stp yld -> do
+parallel :: MonadAsync m => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
+parallel ct m1 m2 = AsyncT $ \ctx stp yld -> do
     case ctx of
-        Nothing -> (runAsyncT (pullFork m1 m2 fifo)) Nothing stp yld
-        Just  c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
+        Nothing -> (runAsyncT (pullFork ct m1 m2)) Nothing stp yld
+        Just c | ctxType c /= ct ->
+            (runAsyncT (pullFork ct m1 m2)) Nothing stp yld
+        Just c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
 
 -- | `empty` represents an action that takes non-zero time to complete.  Since
 -- all actions take non-zero time, an `Alternative` composition ('<|>') is a
@@ -496,7 +506,7 @@ instance MonadAsync m => Alternative (AsyncT m) where
     empty = mempty
 
     {-# INLINE (<|>) #-}
-    m1 <|> m2 = parallel m1 m2 True
+    (<|>) = parallel (CtxType Disjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Other monoidal compositions for parallel actions
@@ -515,7 +525,7 @@ parAhead = undefined
 -- | Same as '<|'.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-parLeft m1 m2 = parallel m1 m2 False
+parLeft = parallel (CtxType Disjunction LIFO)
 
 -- | Parallel composition similar to `<|>` except that it is left-biased
 -- instead of being fair.  Action on the left is likely to be given a chance to
