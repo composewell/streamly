@@ -131,11 +131,11 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 instance Semigroup (AsyncT m a) where
     m1 <> m2 = go m1
         where
-        go (AsyncT m) = AsyncT $ \ctx stp yld ->
-                let stop = (runAsyncT m2) ctx stp yld
+        go (AsyncT m) = AsyncT $ \_ stp yld ->
+                let stop = (runAsyncT m2) Nothing stp yld
                     yield a Nothing  = yld a (Just m2)
                     yield a (Just r) = yld a (Just (go r))
-                in m ctx stop yield
+                in m Nothing stop yield
 
 instance Monoid (AsyncT m a) where
     mempty = AsyncT $ \_ stp _ -> stp
@@ -143,11 +143,11 @@ instance Monoid (AsyncT m a) where
 
 -- | Same as '<=>'.
 interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
-interleave m1 m2 = AsyncT $ \ctx stp yld -> do
-    let stop = (runAsyncT m2) ctx stp yld
+interleave m1 m2 = AsyncT $ \_ stp yld -> do
+    let stop = (runAsyncT m2) Nothing stp yld
         yield a Nothing  = yld a (Just m2)
         yield a (Just r) = yld a (Just (interleave m2 r))
-    (runAsyncT m1) ctx stop yield
+    (runAsyncT m1) Nothing stop yield
 
 infixr 5 <=>
 
@@ -374,7 +374,10 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
     res <- liftIO $ tryTakeMVar (doorBell ctx)
     when (isNothing res) $ sendWorkerWait ctx
     list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
-    (runAsyncT $ processEvents pctx list) Nothing stp yld
+    -- To avoid lock overhead we read all events at once instead of reading one
+    -- at a time. We just reverse the list to process the events in the order
+    -- they arrived. Maybe we can use a queue instead?
+    (runAsyncT $ processEvents pctx (reverse list)) Nothing stp yld
 
     where
 

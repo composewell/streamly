@@ -48,8 +48,8 @@ main = hspec $ do
     -- Monoidal Composition ordering checks
     ---------------------------------------------------------------------------
 
-    describe "Serial interleaved (<=>)" $ interleaved (<=>) id
-    describe "Parallel interleaved (<|>)" $ interleaved (<|>) reverse
+    describe "Serial interleaved (<=>)" $ interleaved (<=>)
+    describe "Parallel interleaved (<|>)" $ interleaved (<|>)
     describe "Left biased parallel time order check" $ parallelCheck (<|)
     describe "Fair parallel time order check" $ parallelCheck (<|>)
 
@@ -104,14 +104,20 @@ main = hspec $ do
             let t = timed
              in toList (
                     ((t 8 <|> t 4) <=> (t 2 <|> t 0))
-                <|> ((t 8 <|> t 4) <=> (t 2 <|> t 0)))
-            `shouldReturn` ([4,4,0,0,8,8,2,2])
+                <|> ((t 9 <|> t 4) <=> (t 2 <|> t 0)))
+            `shouldReturn` ([4,4,0,0,8,2,9,2])
         it "Nest <|>, <=>, <|> (2)" $
             let t = timed
              in toList (
                     ((t 4 <|> t 8) <=> (t 0 <|> t 2))
-                <|> ((t 4 <|> t 8) <=> (t 0 <|> t 2)))
-            `shouldReturn` ([4,4,0,0,8,8,2,2])
+                <|> ((t 4 <|> t 9) <=> (t 0 <|> t 2)))
+            `shouldReturn` ([4,4,0,0,8,2,9,2])
+        it "Nest <|>, <|>, <|>" $
+            let t = timed
+             in toList (
+                    ((t 4 <|> t 8) <|> (t 0 <|> t 2))
+                <|> ((t 4 <|> t 8) <|> (t 0 <|> t 2)))
+            `shouldReturn` ([0,0,2,2,4,4,8,8])
 
     ---------------------------------------------------------------------------
     -- Monoidal composition recursion loops
@@ -165,12 +171,11 @@ pureBind f = do
 
 interleaved
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
-    -> ([Int] -> [Int])
     -> Spec
-interleaved f srt =
+interleaved f =
     it "Interleave four" $
         toList ((return 0 <> return 1) `f` (return 100 <> return 101))
-            `shouldReturn` (srt [0, 100, 1, 101])
+            `shouldReturn` ([0, 100, 1, 101])
 
 parallelCheck :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
 parallelCheck f = do
