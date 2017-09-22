@@ -31,30 +31,55 @@ main = do
     -- degradation, so we should keep that in account when comparing.
     let as = asyncly_basic
     defaultMain [
-        bgroup "basic"
-            [ bench "asyncly-serial"              $ nfIO (as (>>=) (A.<>))
-            , bench "asyncly-interleaved"         $ nfIO (as (>>=) (A.<=>))
-            , bench "asyncly-serial-fairbind"      $ nfIO (as (A.>->) (A.<>))
-            , bench "asyncly-interleaved-fairbind" $ nfIO (as (A.>->) (A.<=>))
-            , bench "asyncly-parleft"             $ nfIO (as (>>=) (A.<|))
-            , bench "asyncly-parinterleaved"      $ nfIO (as (>>=) (A.<|>))
-            , bench "asyncly-parleft-fairbind"        $ nfIO (as (A.>->) (A.<|))
-            , bench "asyncly-parinterleaved-fairbind" $ nfIO (as (A.>->) (A.<|>))
-            , bench "asyncly-serial-nil"          $ nfIO (asyncly_nil (A.<>))
-            , bench "asyncly-interleaved-nil"     $ nfIO (asyncly_nil (A.<=>))
-            , bench "asyncly-parleft-nil"         $ nfIO (asyncly_nil (A.<|))
-            , bench "asyncly-parinterleaved-nil"  $ nfIO (asyncly_nil (A.<|>))
+        bgroup "asyncly"
+            [ bgroup "serial bind"
+                [ bench "serial"        $ nfIO (as (>>=) (A.<>))
+                , bench "fair serial"   $ nfIO (as (>>=) (A.<=>))
+                , bench "left parallel" $ nfIO (as (>>=) (A.<|))
+                , bench "fair parallel" $ nfIO (as (>>=) (A.<|>))
+                ]
+
+            , bgroup "fair bind"
+                [ bench "serial"        $ nfIO (as (A.>->) (A.<>))
+                , bench "fair serial"   $ nfIO (as (A.>->) (A.<=>))
+                , bench "left parallel" $ nfIO (as (A.>->) (A.<|))
+                , bench "fair parallel" $ nfIO (as (A.>->) (A.<|>))
+                ]
+
+            , bgroup "parallel bind"
+                [ bench "serial"        $ nfIO (as (A.>>|) (A.<>))
+                , bench "fair serial"   $ nfIO (as (A.>>|) (A.<=>))
+                , bench "left parallel" $ nfIO (as (A.>>|) (A.<|))
+                , bench "fair parallel" $ nfIO (as (A.>>|) (A.<|>))
+                ]
+
+            , bgroup "fair parallel bind"
+                [ bench "serial"        $ nfIO (as (A.>|>) (A.<>))
+                , bench "fair serial"   $ nfIO (as (A.>|>) (A.<=>))
+                , bench "left parallel" $ nfIO (as (A.>|>) (A.<|))
+                , bench "fair parallel" $ nfIO (as (A.>|>) (A.<|>))
+                ]
+
+            -- Benchmark smallest possible actions composed together
+            , bgroup "serial bind nil"
+                [ bench "serial"        $ nfIO (asyncly_nil (A.<>))
+                , bench "fair serial"   $ nfIO (asyncly_nil (A.<=>))
+                , bench "left parallel" $ nfIO (asyncly_nil (A.<|))
+                , bench "fair parallel" $ nfIO (asyncly_nil (A.<|>))
+                ]
+            ]
 #ifdef EXTRA_BENCHMARKS
 #if MIN_VERSION_transient(0,5,1)
-            , bench "transient"     $ nfIO transient_basic
+        , bgroup "others"
+            [ bench "transient"     $ nfIO transient_basic
             , bench "transient-nil" $ nfIO transient_nil
 #endif
             , bench "logict"        $ nfIO logict_basic
             , bench "list-t"        $ nfIO list_t_basic
             , bench "simple-conduit" $ nfIO simple_conduit_basic
             , bench "machines"      $ nfIO machines_basic
-#endif
             ]
+#endif
         ]
 
 {-# INLINABLE map #-}
