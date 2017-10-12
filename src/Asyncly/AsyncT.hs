@@ -387,14 +387,14 @@ sendWorkerWait ctx = dispatch >> void (liftIO $ takeMVar (doorBell ctx))
 -- Note: This is performance sensitive code.
 {-# NOINLINE pullWorker #-}
 pullWorker :: MonadAsync m => Context m a -> AsyncT m a
-pullWorker ctx = AsyncT $ \pctx stp yld -> do
+pullWorker ctx = AsyncT $ \_ stp yld -> do
     res <- liftIO $ tryTakeMVar (doorBell ctx)
     when (isNothing res) $ sendWorkerWait ctx
     list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
     -- To avoid lock overhead we read all events at once instead of reading one
     -- at a time. We just reverse the list to process the events in the order
     -- they arrived. Maybe we can use a queue instead?
-    (runAsyncT $ processEvents pctx (reverse list)) Nothing stp yld
+    (runAsyncT $ processEvents (reverse list)) Nothing stp yld
 
     where
 
@@ -405,15 +405,15 @@ pullWorker ctx = AsyncT $ \pctx stp yld -> do
         throwM e
 
     {-# INLINE processEvents #-}
-    processEvents pctx [] = AsyncT $ \_ stp yld -> do
+    processEvents [] = AsyncT $ \_ stp yld -> do
         done <- allThreadsDone ctx
         if not done
-        then (runAsyncT (pullWorker ctx)) pctx stp yld
+        then (runAsyncT (pullWorker ctx)) Nothing stp yld
         else stp
 
-    processEvents pctx (ev : es) = AsyncT $ \_ stp yld -> do
-        let continue = (runAsyncT (processEvents pctx es)) Nothing stp yld
-            yield a  = yld a (Just (processEvents pctx es))
+    processEvents (ev : es) = AsyncT $ \_ stp yld -> do
+        let continue = (runAsyncT (processEvents es)) Nothing stp yld
+            yield a  = yld a (Just (processEvents es))
 
         case ev of
             ChildYield a -> yield a
