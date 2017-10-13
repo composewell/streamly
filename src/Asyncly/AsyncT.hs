@@ -424,12 +424,12 @@ pullWorker ctx = AsyncT $ \_ stp yld -> do
 
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
-{-# NOINLINE pullFork #-}
-pullFork :: MonadAsync m
-    => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
-pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
+pullForkPush :: MonadAsync m
+    => CtxType -> AsyncT m a -> AsyncT m a -> m (Context m a)
+pullForkPush ct m1 m2 = do
     ctx <- liftIO $ newContext
-    pushWorker ctx >> (runAsyncT (pullWorker ctx)) Nothing stp yld
+    pushWorker ctx
+    return ctx
 
     where
 
@@ -466,6 +466,17 @@ pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
                                 , ctxType        = ct
                                 }
                  in return ctx
+
+pullForkPull :: MonadAsync m => Context m a -> AsyncT m a
+pullForkPull ctx = AsyncT $ \_ stp yld ->
+    (runAsyncT (pullWorker ctx)) Nothing stp yld
+
+{-# NOINLINE pullFork #-}
+pullFork :: MonadAsync m
+    => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
+pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
+    ctx <- pullForkPush ct m1 m2
+    (runAsyncT (pullForkPull ctx)) Nothing stp yld
 
 -- Concurrency rate control. Our objective is to create more threads on
 -- demand if the consumer is running faster than us. As soon as we
