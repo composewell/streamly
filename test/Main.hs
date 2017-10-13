@@ -27,6 +27,45 @@ main = hspec $ do
             (toList mzero) `shouldReturn` ([] :: [Int])
 
     ---------------------------------------------------------------------------
+    -- Functor
+    ---------------------------------------------------------------------------
+
+    describe "Functor (fmap)" $ do
+        it "Simple fmap" $
+            (toList $ fmap (+1) (return 1)) `shouldReturn` ([2] :: [Int])
+        it "fmap on composed (<>)" $
+            (toList $ fmap (+1) (return 1 <> return 2))
+                `shouldReturn` ([2,3] :: [Int])
+        it "fmap on composed (<|>)" $
+            (toList $ fmap (+1) (return 1 <|> return 2))
+                `shouldReturn` ([2,3] :: [Int])
+
+    ---------------------------------------------------------------------------
+    -- Applicative
+    ---------------------------------------------------------------------------
+
+    describe "Applicative" $ do
+        it "Simple apply" $
+            (toList $ (,) <$> (return 1) <*> (return 2))
+                `shouldReturn` ([(1,2)] :: [(Int, Int)])
+
+        it "Apply - serial composed first argument" $
+            (toList $ (,) <$> (return 1 <> return 2) <*> (return 3))
+                `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
+
+        it "Apply - serial composed second argument" $
+            (toList $ (,) <$> (return 1) <*> (return 2 <> return 3))
+                `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
+
+        it "Apply - parallel composed first argument" $
+            (toList $ (,) <$> (return 1 <|> return 2) <*> (return 3))
+                `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
+
+        it "Apply - parallel composed second argument" $
+            (toList $ (,) <$> (return 1) <*> (return 2 <|> return 3))
+                `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
+
+    ---------------------------------------------------------------------------
     -- Binds
     ---------------------------------------------------------------------------
 
@@ -36,11 +75,17 @@ main = hspec $ do
     describe "Pure bind parallel DFS" $ pureBind (>>|)
     describe "Pure bind parallel BFS" $ pureBind (>|>)
 
+    describe "Bind (>>=) with empty" $ bindEmpty (>>=)
+    describe "Bind (>->) with empty" $ bindEmpty (>->)
+    describe "Bind (>|>) with empty" $ bindEmpty (>|>)
+    describe "Bind (>>|) with empty" $ bindEmpty (>>|)
+
     ---------------------------------------------------------------------------
     -- Monoidal Compositions
     ---------------------------------------------------------------------------
 
     describe "Serial Composition (<>)" $ compose (<>) id
+    describe "Serial Composition (mappend)" $ compose mappend id
     describe "Left biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
 
@@ -168,6 +213,11 @@ pureBind f = do
     it "Bind and toList" $
         toList (return 1 `f` \x -> return 2 `f` \y -> return (x + y))
             `shouldReturn` ([3] :: [Int])
+
+bindEmpty :: (AsyncT IO Int -> (Int -> AsyncT IO Int) -> AsyncT IO Int) -> Spec
+bindEmpty f = it "Binds with empty" $
+    (toList (return 1 `f` \_ -> empty `f` \_ -> return 2))
+        `shouldReturn` ([] :: [Int])
 
 interleaved
     :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
