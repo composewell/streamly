@@ -86,15 +86,17 @@ main = hspec $ do
 
     describe "Serial Composition (<>)" $ compose (<>) id
     describe "Serial Composition (mappend)" $ compose mappend id
+    describe "Interleaved Composition (<>)" $ compose (<=>) sort
     describe "Left biased parallel Composition (<|)" $ compose (<|) sort
     describe "Fair parallel Composition (<|>)" $ compose (<|>) sort
+    describe "Fair parallel Composition (mplus)" $ compose mplus sort
 
     ---------------------------------------------------------------------------
     -- Monoidal Composition ordering checks
     ---------------------------------------------------------------------------
 
-    describe "Serial interleaved (<=>)" $ interleaved (<=>)
-    describe "Parallel interleaved (<|>)" $ interleaved (<|>)
+    describe "Serial interleaved ordering check (<=>)" $ interleaved (<=>)
+    describe "Parallel interleaved ordering check (<|>)" $ interleaved (<|>)
     describe "Left biased parallel time order check" $ parallelCheck (<|)
     describe "Fair parallel time order check" $ parallelCheck (<|>)
 
