@@ -2,6 +2,7 @@
 {-# LANGUAGE EmptyCase                 #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
@@ -23,6 +24,9 @@ module Asyncly.AsyncT
     , toList
     , take
     , drop
+    , zipWithM
+    , zipWith
+    , ZipSerial (..)
 
     , interleave
     , (<=>)
@@ -67,10 +71,10 @@ import           Data.IORef                  (IORef, modifyIORef, newIORef,
 import           Data.Atomics                (atomicModifyIORefCAS,
                                               atomicModifyIORefCAS_)
 import           Data.Maybe                  (isNothing)
-import           Data.Semigroup              (Semigroup(..))
+import           Data.Semigroup              (Semigroup(..), cycle1)
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
-import           Prelude                     hiding (take, drop)
+import           Prelude                     hiding (take, drop, zipWith)
 
 ------------------------------------------------------------------------------
 -- Concurrency Semantics
@@ -695,6 +699,45 @@ drop n m = AsyncT $ \ctx stp yld -> do
     if (n <= 0)
     then (runAsyncT m) ctx stp yld
     else (runAsyncT m) ctx stp yield
+
+------------------------------------------------------------------------------
+-- Zipping Streams
+------------------------------------------------------------------------------
+
+-- | Zip two AsyncT streams serially using a monadic function.
+zipWithM :: MonadAsync m =>
+    (a -> b -> AsyncT m c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
+zipWithM f m1 m2 = AsyncT $ \_ stp yld -> do
+    let merge a ra =
+            let yield2 b Nothing   = (runAsyncT (f a b)) Nothing stp yld
+                yield2 b (Just rb) =
+                    (runAsyncT ((f a b) <> (zipWithM f ra rb))) Nothing stp yld
+             in (runAsyncT m2) Nothing stp yield2
+    let yield1 a Nothing   = merge a empty
+        yield1 a (Just ra) = merge a ra
+    (runAsyncT m1) Nothing stp yield1
+
+-- | Zip two AsyncT streams serially using a pure function.
+zipWith :: MonadAsync m
+    => (a -> b -> c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
+zipWith f m1 m2 = AsyncT $ \_ stp yld -> do
+    let merge a ra =
+            let yield2 b Nothing   = yld (f a b) Nothing
+                yield2 b (Just rb) = yld (f a b) (Just (zipWith f ra rb))
+             in (runAsyncT m2) Nothing stp yield2
+    let yield1 a Nothing   = merge a empty
+        yield1 a (Just ra) = merge a ra
+    (runAsyncT m1) Nothing stp yield1
+
+-- | Wrapper around AsyncT type with a serial zipping Applicative instance
+--
+-- > f <$> ZipSerial xs1 <*> ... <*> ZipSerial xsN
+newtype ZipSerial m a = ZipSerial {getZipSerial :: AsyncT m a}
+        deriving (Functor)
+
+instance MonadAsync m => Applicative (ZipSerial m) where
+    pure a = ZipSerial $ cycle1 (pure a)
+    liftA2 f (ZipSerial xs) (ZipSerial ys) = ZipSerial (zipWith f xs ys)
 
 ------------------------------------------------------------------------------
 -- Utilities

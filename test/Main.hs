@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Concurrent (threadDelay)
 import Data.Foldable (forM_)
 import Data.List (sort)
-import Prelude hiding (take, drop)
+import Prelude hiding (take, drop, zipWith)
 import Test.Hspec
 
 import Asyncly
@@ -198,6 +198,27 @@ main = hspec $ do
     describe "Miscellaneous combined examples" mixedOps
 
     describe "Transformation" $ transformOps (<>)
+    describe "Serial zipping" $ serialZip
+
+serialZip :: Spec
+serialZip = do
+    it "zipWith" $
+        let s1 = foldMapWith (<|>) return [1..10]
+            s2 = foldMapWith (<>) return [1..]
+         in toList (zipWith (+) s1 s2)
+        `shouldReturn` ([2,4..20] :: [Int])
+
+    it "zipWithM" $
+        let s1 = foldMapWith (<|>) return [1..10]
+            s2 = foldMapWith (<>) return [1..]
+         in toList (zipWithM (\a b -> return (a + b)) s1 s2)
+        `shouldReturn` ([2,4..20] :: [Int])
+
+    it "Applicative ZipSerial" $
+        let s1 = foldMapWith (<|>) return [1..10]
+            s2 = foldMapWith (<>) return [1..]
+         in toList (getZipSerial ((+) <$> ZipSerial s1 <*> ZipSerial s2))
+        `shouldReturn` ([2,4..20] :: [Int])
 
 timed :: Int -> AsyncT IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x

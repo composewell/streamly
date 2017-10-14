@@ -146,6 +146,9 @@ module Asyncly
     -- * Special folds
     , take
     , drop
+    , zipWith
+    , zipWithM
+    , ZipSerial (..)
 
     -- * Re-exports
     , Monoid (..)
@@ -163,7 +166,7 @@ import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (MonadTrans (..))
-import Prelude hiding (take, drop)
+import Prelude hiding (take, drop, zipWith)
 
 -- $monoidal
 --
