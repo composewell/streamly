@@ -744,7 +744,7 @@ newtype ZipSerial m a = ZipSerial {getZipSerial :: AsyncT m a}
 
 instance MonadAsync m => Applicative (ZipSerial m) where
     pure a = ZipSerial $ cycle1 (pure a)
-    liftA2 f (ZipSerial xs) (ZipSerial ys) = ZipSerial (zipWith f xs ys)
+    (ZipSerial xs) <*> (ZipSerial ys) = ZipSerial (zipWith id xs ys)
 
 ------------------------------------------------------------------------------
 -- Utilities
