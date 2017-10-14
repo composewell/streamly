@@ -27,6 +27,9 @@ module Asyncly.AsyncT
     , zipWithM
     , zipWith
     , ZipSerial (..)
+    , zipAsyncWithM
+    , zipAsyncWith
+    , ZipAsync (..)
 
     , interleave
     , (<=>)
@@ -711,7 +714,7 @@ drop n m = AsyncT $ \ctx stp yld -> do
 -- Zipping Streams
 ------------------------------------------------------------------------------
 
--- | Zip two AsyncT streams serially using a monadic function.
+-- | Zip two AsyncT streams serially using a monadic zipping function.
 zipWithM :: MonadAsync m =>
     (a -> b -> AsyncT m c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
 zipWithM f m1 m2 = AsyncT $ \_ stp yld -> do
@@ -724,7 +727,7 @@ zipWithM f m1 m2 = AsyncT $ \_ stp yld -> do
         yield1 a (Just ra) = merge a ra
     (runAsyncT m1) Nothing stp yield1
 
--- | Zip two AsyncT streams serially using a pure function.
+-- | Zip two AsyncT streams serially using a pure zipping function.
 zipWith :: MonadAsync m
     => (a -> b -> c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
 zipWith f m1 m2 = AsyncT $ \_ stp yld -> do
@@ -745,6 +748,58 @@ newtype ZipSerial m a = ZipSerial {getZipSerial :: AsyncT m a}
 instance MonadAsync m => Applicative (ZipSerial m) where
     pure a = ZipSerial $ cycle1 (pure a)
     (ZipSerial xs) <*> (ZipSerial ys) = ZipSerial (zipWith id xs ys)
+
+-- | The computation specified in the argument is pushed to a new thread and
+-- the context is computation pulls output from the thread.
+pushOneToCtx :: MonadAsync m => CtxType -> AsyncT m a -> m (Context m a)
+pushOneToCtx ctype m = do
+    ctx <- liftIO $
+        case ctype of
+            CtxType _ FIFO -> do
+                c <- getFifoCtx ctype
+                return c
+            CtxType _ LIFO -> do
+                c <- getLifoCtx ctype
+                return c
+    -- Note: We must have all the work on the queue before sending the
+    -- pushworker, otherwise the pushworker may exit before we even get a
+    -- chance to push.
+    liftIO $ (enqueue ctx) m
+    pushWorker ctx
+    return ctx
+
+async :: MonadAsync m => AsyncT m a -> m (AsyncT m a)
+async m = do
+    ctx <- pushOneToCtx (CtxType Disjunction LIFO) m
+    return $ pullFromCtx ctx
+
+-- | Zip two AsyncT streams asyncly (i.e. both the streams are generated
+-- concurrently) using a monadic zipping function.
+zipAsyncWithM :: MonadAsync m
+    => (a -> b -> AsyncT m c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
+zipAsyncWithM f m1 m2 = AsyncT $ \_ stp yld -> do
+    ma <- async m1
+    mb <- async m2
+    (runAsyncT (zipWithM f ma mb)) Nothing stp yld
+
+-- | Zip two AsyncT streams asyncly (i.e. both the streams are generated
+-- concurrently) using a pure zipping function.
+zipAsyncWith :: MonadAsync m
+    => (a -> b -> c) -> AsyncT m a -> AsyncT m b -> AsyncT m c
+zipAsyncWith f m1 m2 = AsyncT $ \_ stp yld -> do
+    ma <- async m1
+    mb <- async m2
+    (runAsyncT (zipWith f ma mb)) Nothing stp yld
+
+-- | Wrapper around AsyncT type with a parallel zipping Applicative instance
+--
+-- > f <$> ZipAsync xs1 <*> ... <*> ZipAsync xsN
+newtype ZipAsync m a = ZipAsync {getZipAsync :: AsyncT m a}
+        deriving (Functor)
+
+instance MonadAsync m => Applicative (ZipAsync m) where
+    pure a = ZipAsync $ cycle1 (pure a)
+    (ZipAsync xs) <*> (ZipAsync ys) = ZipAsync (zipAsyncWith id xs ys)
 
 ------------------------------------------------------------------------------
 -- Utilities

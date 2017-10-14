@@ -1,3 +1,6 @@
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE RankNTypes          #-}
+
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
@@ -198,26 +201,36 @@ main = hspec $ do
     describe "Miscellaneous combined examples" mixedOps
 
     describe "Transformation" $ transformOps (<>)
-    describe "Serial zipping" $ serialZip
+    describe "Serial zipping" $
+        zipOps zipWith zipWithM ZipSerial getZipSerial
+    describe "Async zipping" $
+        zipOps zipAsyncWith zipAsyncWithM ZipAsync getZipAsync
 
-serialZip :: Spec
-serialZip = do
+zipOps :: Applicative (f IO)
+    => (forall a b c. (a -> b -> c)
+        -> AsyncT IO a -> AsyncT IO b -> AsyncT IO c)
+    -> (forall a b c. (a -> b -> AsyncT IO c)
+        -> AsyncT IO a -> AsyncT IO b -> AsyncT IO c)
+    -> (forall a. AsyncT IO a -> f IO a)
+    -> (forall a. f IO a -> AsyncT IO a)
+    -> Spec
+zipOps z zM app getz = do
     it "zipWith" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (zipWith (+) s1 s2)
+         in toList (z (+) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "zipWithM" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (zipWithM (\a b -> return (a + b)) s1 s2)
+         in toList (zM (\a b -> return (a + b)) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
-    it "Applicative ZipSerial" $
+    it "Applicative zip" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (getZipSerial ((+) <$> ZipSerial s1 <*> ZipSerial s2))
+         in toList (getz ((+) <$> app s1 <*> app s2))
         `shouldReturn` ([2,4..20] :: [Int])
 
 timed :: Int -> AsyncT IO Int

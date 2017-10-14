@@ -146,9 +146,14 @@ module Asyncly
     -- * Special folds
     , take
     , drop
+
+    -- * Zipping
     , zipWith
     , zipWithM
     , ZipSerial (..)
+    , zipAsyncWithM
+    , zipAsyncWith
+    , ZipAsync (..)
 
     -- * Re-exports
     , Monoid (..)
