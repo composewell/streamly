@@ -383,10 +383,10 @@ sendWorkerWait ctx = dispatch >> void (liftIO $ takeMVar (doorBell ctx))
             when (not done) $ (pushWorker ctx) >> dispatch
 
 
--- Note: This is performance sensitive code.
-{-# NOINLINE pullWorker #-}
-pullWorker :: MonadAsync m => Context m a -> AsyncT m a
-pullWorker ctx = AsyncT $ \_ stp yld -> do
+-- | Pull an AsyncT stream from a context
+{-# NOINLINE pullFromCtx #-}
+pullFromCtx :: MonadAsync m => Context m a -> AsyncT m a
+pullFromCtx ctx = AsyncT $ \_ stp yld -> do
     res <- liftIO $ tryTakeMVar (doorBell ctx)
     when (isNothing res) $ sendWorkerWait ctx
     list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
@@ -407,7 +407,7 @@ pullWorker ctx = AsyncT $ \_ stp yld -> do
     processEvents [] = AsyncT $ \_ stp yld -> do
         done <- allThreadsDone ctx
         if not done
-        then (runAsyncT (pullWorker ctx)) Nothing stp yld
+        then (runAsyncT (pullFromCtx ctx)) Nothing stp yld
         else stp
 
     processEvents (ev : es) = AsyncT $ \_ stp yld -> do
@@ -421,61 +421,68 @@ pullWorker ctx = AsyncT $ \_ stp yld -> do
                     Nothing -> delThread ctx tid >> continue
                     Just ex -> handleException ex tid
 
+getFifoCtx :: MonadIO m => CtxType -> IO (Context m a)
+getFifoCtx ctype = do
+    outQ    <- newIORef []
+    outQMv  <- newEmptyMVar
+    running <- newIORef S.empty
+    q       <- newQ
+    let ctx =
+            Context { outputQueue    = outQ
+                    , doorBell       = outQMv
+                    , runningThreads = running
+                    , runqueue       = runqueueFIFO ctx q
+                    , enqueue        = pushL q
+                    , queueEmpty     = liftIO $ nullQ q
+                    , ctxType        = ctype
+                    }
+     in return ctx
+
+getLifoCtx :: MonadIO m => CtxType -> IO (Context m a)
+getLifoCtx ctype = do
+    outQ    <- newIORef []
+    outQMv  <- newEmptyMVar
+    running <- newIORef S.empty
+    q <- newIORef []
+    let checkEmpty = liftIO (readIORef q) >>= return . null
+    let ctx =
+            Context { outputQueue    = outQ
+                    , doorBell       = outQMv
+                    , runningThreads = running
+                    , runqueue       = runqueueLIFO ctx q
+                    , enqueue        = enqueueLIFO q
+                    , queueEmpty     = checkEmpty
+                    , ctxType        = ctype
+                    }
+     in return ctx
+
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
-pullForkPush :: MonadAsync m
+pushPairToCtx :: MonadAsync m
     => CtxType -> AsyncT m a -> AsyncT m a -> m (Context m a)
-pullForkPush ct m1 m2 = do
-    ctx <- liftIO $ newContext
+pushPairToCtx ctype m1 m2 = do
+    -- Note: We must have all the work on the queue before sending the
+    -- pushworker, otherwise the pushworker may exit before we even get a
+    -- chance to push.
+    ctx <- liftIO $
+        case ctype of
+            CtxType _ FIFO -> do
+                c <- getFifoCtx ctype
+                (enqueue c) m1 >> (enqueue c) m2
+                return c
+            CtxType _ LIFO -> do
+                c <- getLifoCtx ctype
+                (enqueue c) m2 >> (enqueue c) m1
+                return c
     pushWorker ctx
     return ctx
 
-    where
-
-    newContext = do
-        outQ    <- newIORef []
-        outQMv  <- newEmptyMVar
-        running <- newIORef S.empty
-
-        case ct of
-            CtxType _ FIFO -> do
-                q <- newQ
-                pushL q m1 >> pushL q m2
-                let ctx =
-                        Context { outputQueue    = outQ
-                                , doorBell       = outQMv
-                                , runningThreads = running
-                                , runqueue       = runqueueFIFO ctx q
-                                , enqueue        = pushL q
-                                , queueEmpty     = liftIO $ nullQ q
-                                , ctxType        = ct
-                                }
-                 in return ctx
-            CtxType _ LIFO -> do
-                q <- newIORef []
-                enqueueLIFO q m2 >> enqueueLIFO q m1
-                let checkEmpty = liftIO (readIORef q) >>= return . null
-                let ctx =
-                        Context { outputQueue    = outQ
-                                , doorBell       = outQMv
-                                , runningThreads = running
-                                , runqueue       = runqueueLIFO ctx q
-                                , enqueue        = enqueueLIFO q
-                                , queueEmpty     = checkEmpty
-                                , ctxType        = ct
-                                }
-                 in return ctx
-
-pullForkPull :: MonadAsync m => Context m a -> AsyncT m a
-pullForkPull ctx = AsyncT $ \_ stp yld ->
-    (runAsyncT (pullWorker ctx)) Nothing stp yld
-
-{-# NOINLINE pullFork #-}
-pullFork :: MonadAsync m
+{-# NOINLINE pushPullFork #-}
+pushPullFork :: MonadAsync m
     => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
-pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
-    ctx <- pullForkPush ct m1 m2
-    (runAsyncT (pullForkPull ctx)) Nothing stp yld
+pushPullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
+    ctx <- pushPairToCtx ct m1 m2
+    (runAsyncT (pullFromCtx ctx)) Nothing stp yld
 
 -- Concurrency rate control. Our objective is to create more threads on
 -- demand if the consumer is running faster than us. As soon as we
@@ -514,9 +521,9 @@ pullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
 parallel :: MonadAsync m => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
 parallel ct m1 m2 = AsyncT $ \ctx stp yld -> do
     case ctx of
-        Nothing -> (runAsyncT (pullFork ct m1 m2)) Nothing stp yld
+        Nothing -> (runAsyncT (pushPullFork ct m1 m2)) Nothing stp yld
         Just c | ctxType c /= ct ->
-            (runAsyncT (pullFork ct m1 m2)) Nothing stp yld
+            (runAsyncT (pushPullFork ct m1 m2)) Nothing stp yld
         Just c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
 
 -- | `empty` represents an action that takes non-zero time to complete.  Since
