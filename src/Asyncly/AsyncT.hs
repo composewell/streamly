@@ -22,8 +22,11 @@ module Asyncly.AsyncT
     , MonadAsync
     , runAsyncly
     , toList
+    , async
+
     , take
     , drop
+
     , zipWithM
     , zipWith
     , ZipSerial (..)
@@ -768,6 +771,9 @@ pushOneToCtx ctype m = do
     pushWorker ctx
     return ctx
 
+-- | Run a computation asynchronously, triggers the computation and returns
+-- another computation (i.e. a promise) that when run produces the output from
+-- the original computation.
 async :: MonadAsync m => AsyncT m a -> m (AsyncT m a)
 async m = do
     ctx <- pushOneToCtx (CtxType Disjunction LIFO) m

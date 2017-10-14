@@ -126,6 +126,7 @@ module Asyncly
     -- * Running
     , runAsyncly
     , toList
+    , async
 
     -- * Monadic Composition (Conjunction)
     -- $bind
