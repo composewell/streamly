@@ -22,6 +22,7 @@ module Asyncly.AsyncT
     , MonadAsync
     , runAsyncly
     , toList
+    , next
     , async
 
     , take
@@ -691,6 +692,17 @@ toList m = (runAsyncT m) Nothing stop yield
     yield a Nothing  = return [a]
     yield a (Just x) = liftM (a :) (toList x)
 
+next :: MonadAsync m => AsyncT m a -> m (Maybe (a, AsyncT m a))
+next m = (runAsyncT m) Nothing stop yield
+
+    where
+
+    stop = return Nothing
+
+    {-# INLINE yield #-}
+    yield a Nothing  = return (Just (a, empty))
+    yield a (Just x) = return (Just (a, x))
+
 ------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
@@ -742,7 +754,9 @@ zipWith f m1 m2 = AsyncT $ \_ stp yld -> do
         yield1 a (Just ra) = merge a ra
     (runAsyncT m1) Nothing stp yield1
 
--- | Wrapper around AsyncT type with a serial zipping Applicative instance
+-- | Wrapper around AsyncT type with a serial zipping Applicative instance.
+-- Note that the binary function interleave (<=>) is a special case of
+-- ZipSerial Applicative.
 --
 -- > f <$> ZipSerial xs1 <*> ... <*> ZipSerial xsN
 newtype ZipSerial m a = ZipSerial {getZipSerial :: AsyncT m a}
@@ -797,7 +811,9 @@ zipAsyncWith f m1 m2 = AsyncT $ \_ stp yld -> do
     mb <- async m2
     (runAsyncT (zipWith f ma mb)) Nothing stp yld
 
--- | Wrapper around AsyncT type with a parallel zipping Applicative instance
+-- | Wrapper around AsyncT type with a parallel zipping Applicative instance.
+-- Note that the binary operator (<|>) from the Alternative instance of AsyncT
+-- is a special case of ZipAsync Applicative.
 --
 -- > f <$> ZipAsync xs1 <*> ... <*> ZipAsync xsN
 newtype ZipAsync m a = ZipAsync {getZipAsync :: AsyncT m a}
