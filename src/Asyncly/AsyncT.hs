@@ -796,9 +796,18 @@ pushOneToCtx ctype m = do
     pushWorker ctx
     return ctx
 
+-- XXX The async API is useful for exploring each stream arbitrarily when
+-- zipping or merging two streams. We can use a newtype wrapper with a monad
+-- instance that composes like regular streaming libraries to facilitate linear
+-- composition.  We will also need a yield API for that.
+
 -- | Run a computation asynchronously, triggers the computation and returns
--- another computation (i.e. a promise) that when run produces the output from
--- the original computation.
+-- another computation (i.e. a promise) that when executed produces the output
+-- from the original computation. Note that the returned action must be
+-- executed exactly once and drained completely. If not executed or not drained
+-- fully we will may have a thread blocked forever and if executed more than
+-- once a ContextUsedAfterEOF exception will be raised.
+
 async :: MonadAsync m => AsyncT m a -> m (AsyncT m a)
 async m = do
     ctx <- pushOneToCtx (CtxType Disjunction LIFO) m
