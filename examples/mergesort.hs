@@ -21,11 +21,11 @@ mergeAsync a b = do
     merge x y
 
 merge a b = do
-    x <- A.lift $ A.next a
+    x <- A.lift $ A.uncons a
     case x of
         Nothing -> b
         Just (va, ma) -> do
-            y <- A.lift $ A.next b
+            y <- A.lift $ A.uncons b
             case y of
                 Nothing -> return va A.<> ma
                 Just (vb, mb) ->

@@ -126,7 +126,7 @@ module Asyncly
     -- * Running
     , runAsyncly
     , toList
-    , next
+    , uncons
     , async
 
     -- * Monadic Composition (Conjunction)

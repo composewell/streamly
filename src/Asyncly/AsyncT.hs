@@ -22,7 +22,7 @@ module Asyncly.AsyncT
     , MonadAsync
     , runAsyncly
     , toList
-    , next
+    , uncons
     , async
 
     , take
@@ -703,8 +703,11 @@ toList m = (runAsyncT m) Nothing stop yield
     yield a Nothing  = return [a]
     yield a (Just x) = liftM (a :) (toList x)
 
-next :: MonadAsync m => AsyncT m a -> m (Maybe (a, AsyncT m a))
-next m = (runAsyncT m) Nothing stop yield
+-- | Decompose a stream into its head and tail. If the stream is empty, returns
+-- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
+-- the head of the stream and 'ma' its tail.
+uncons :: MonadAsync m => AsyncT m a -> m (Maybe (a, AsyncT m a))
+uncons m = (runAsyncT m) Nothing stop yield
 
     where
 
