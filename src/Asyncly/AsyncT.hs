@@ -227,6 +227,8 @@ instance Monad m => Monad (AsyncT m) where
 -- Alternative ways to bind
 ------------------------------------------------------------------------------
 
+-- XXX Do we need newtype wrappers for these?
+
 -- | Execute a monadic action for each element in the stream, in a fairly
 -- interleaved manner i.e. iterations yield alternately.
 (>->) :: AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
