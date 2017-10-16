@@ -4,12 +4,17 @@
 import Asyncly
 import Network.HTTP.Simple
 
+-- Runs three search engine queries in parallel.
 main = do
-    let urls = [ "https://www.google.com/search?q=haskell"
-               , "https://www.duckduckgo.com/?q=haskell"
-               , "https://www.bing.com/search?q=haskell"
-               ]
-    xs <- toList $ foldWith (<|>) $ map get urls
-    mapM_ (putStrLn . show) $ zip [1..] xs
+    putStrLn "Using parallel alternative"
+    runAsyncly $ google <|> bing <|> duckduckgo
 
-    where get s = liftIO $ httpNoBody (parseRequest_ s) >> return s
+    putStrLn "\nUsing parallel applicative zip"
+    runAsyncly $ getZipAsync $
+        (,,) <$> ZipAsync google <*> ZipAsync bing <*> ZipAsync duckduckgo
+
+    where
+        get s = liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+        google     = get "https://www.google.com/search?q=haskell"
+        bing       = get "https://www.bing.com/search?q=haskell"
+        duckduckgo = get "https://www.duckduckgo.com/?q=haskell"
