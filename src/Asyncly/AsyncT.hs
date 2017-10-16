@@ -24,6 +24,7 @@ module Asyncly.AsyncT
     , toList
     , uncons
     , async
+    , unfoldr
 
     , take
     , drop
@@ -717,6 +718,16 @@ uncons m = (runAsyncT m) Nothing stop yield
     yield a Nothing  = return (Just (a, empty))
     yield a (Just x) = return (Just (a, x))
 
+-- | Build a Stream by unfolding steps starting from a seed.
+unfoldr :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> AsyncT m a
+unfoldr step = go
+    where
+    go s = AsyncT $ \_ stp yld -> do
+        mayb <- step s
+        case mayb of
+            Nothing -> stp
+            Just (a, b) -> yld a (Just (go b))
+
 ------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
@@ -769,7 +780,7 @@ zipWith f m1 m2 = AsyncT $ \_ stp yld -> do
     (runAsyncT m1) Nothing stp yield1
 
 -- | Wrapper around AsyncT type with a serial zipping Applicative instance.
--- Note that the binary function interleave (<=>) is a special case of
+-- Note that the binary function interleave (\<=>) is a special case of
 -- ZipSerial Applicative.
 --
 -- > f <$> ZipSerial xs1 <*> ... <*> ZipSerial xsN
@@ -835,7 +846,7 @@ zipAsyncWith f m1 m2 = AsyncT $ \_ stp yld -> do
     (runAsyncT (zipWith f ma mb)) Nothing stp yld
 
 -- | Wrapper around AsyncT type with a parallel zipping Applicative instance.
--- Note that the binary operator (<|>) from the Alternative instance of AsyncT
+-- Note that the binary operator (\<|>) from the Alternative instance of AsyncT
 -- is a special case of ZipAsync Applicative.
 --
 -- > f <$> ZipAsync xs1 <*> ... <*> ZipAsync xsN

@@ -128,6 +128,7 @@ module Asyncly
     , toList
     , uncons
     , async
+    , unfoldr
 
     -- * Monadic Composition (Conjunction)
     -- $bind
