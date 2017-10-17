@@ -43,6 +43,7 @@ library
     hs-source-dirs:    src
     exposed-modules:   Asyncly
                      , Asyncly.AsyncT
+                     , Asyncly.Time
 
     default-language: Haskell2010
     ghc-options:      -Wall
