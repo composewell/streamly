@@ -150,9 +150,6 @@ main = hspec $ do
                     ((t 4 <|> t 8) <> (t 1 <|> t 2))
                 <|> ((t 4 <|> t 8) <> (t 1 <|> t 2)))
             `shouldReturn` ([4,4,8,8,1,1,2,2])
-        -- FIXME: These two keep failing intermittently on Mac OS X
-        -- Need to examine and fix the tests.
-        {-
         it "Nest <|>, <=>, <|> (1)" $
             let t = timed
              in toList (
@@ -165,7 +162,6 @@ main = hspec $ do
                     ((t 4 <|> t 8) <=> (t 1 <|> t 2))
                 <|> ((t 4 <|> t 9) <=> (t 1 <|> t 2)))
             `shouldReturn` ([4,4,1,1,8,2,9,2])
-        -}
         it "Nest <|>, <|>, <|>" $
             let t = timed
              in toList (

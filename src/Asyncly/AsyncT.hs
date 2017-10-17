@@ -379,19 +379,20 @@ pushWorker :: MonadAsync m => Context m a -> m ()
 pushWorker ctx =
     doFork (runqueue ctx) (handleChildException ctx) >>= addThread ctx
 
+-- XXX When the queue is LIFO we can put a limit on the number of dispatches.
+-- Also, if a worker blocks on the output queue we can decide if we want to
+-- block or make it go away entirely, depending on the number of workers and
+-- the type of the queue.
 {-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
-sendWorkerWait ctx = dispatch >> void (liftIO $ takeMVar (doorBell ctx))
-
-    where
-
-    dispatch = do
-        liftIO $ threadDelay 200
-        output <- liftIO $ readIORef (outputQueue ctx)
-        when (null output) $ do
-            done <- queueEmpty ctx
-            when (not done) $ (pushWorker ctx) >> dispatch
-
+sendWorkerWait ctx = do
+    liftIO $ threadDelay 200
+    output <- liftIO $ readIORef (outputQueue ctx)
+    when (null output) $ do
+        done <- queueEmpty ctx
+        if (not done)
+        then (pushWorker ctx) >> sendWorkerWait ctx
+        else void (liftIO $ takeMVar (doorBell ctx))
 
 data ContextUsedAfterEOF = ContextUsedAfterEOF deriving Show
 instance Exception ContextUsedAfterEOF
