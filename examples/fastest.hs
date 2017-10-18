@@ -2,6 +2,7 @@
 -- stack runghc
 
 import Asyncly
+import Asyncly.Prelude (ZipAsync (..))
 import Network.HTTP.Simple
 
 -- Runs three search engine queries in parallel.

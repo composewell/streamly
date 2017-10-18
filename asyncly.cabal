@@ -29,6 +29,10 @@ stability:           Experimental
 build-type:          Simple
 cabal-version:       >= 1.10
 
+source-repository head
+    type: git
+    location: https://github.com/harendra-kumar/asyncly
+
 flag dev
   description: Build development version
   manual: True
@@ -36,6 +40,11 @@ flag dev
 
 flag extra-benchmarks
   description: Include comparative benchmarks
+  manual: True
+  default: False
+
+flag examples
+  description: Build examples
   manual: True
   default: False
 
@@ -144,6 +153,120 @@ benchmark bench
       , transient           >= 0.4   && < 0.6
   default-language: Haskell2010
 
-source-repository head
-    type: git
-    location: https://github.com/harendra-kumar/asyncly
+executable circle-mouse
+  main-is: circle-mouse.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , SDL  >= 0.6.5 && < 0.7
+  else
+    buildable: False
+
+executable echo-loop
+  main-is: echo-loop.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+  else
+    buildable: False
+
+executable fastest
+  main-is: fastest.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , http-conduit
+  else
+    buildable: False
+
+executable game
+  main-is: game.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , mtl  >= 2.2   && < 3
+  else
+    buildable: False
+
+executable listdir
+  main-is: listdir.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , path
+      , path-io
+  else
+    buildable: False
+
+executable loops
+  main-is: loops.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+  else
+    buildable: False
+
+executable map-reduce
+  main-is: map-reduce.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+  else
+    buildable: False
+
+executable mergesort
+  main-is: mergesort.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , random
+  else
+    buildable: False
+
+executable nested-loops
+  main-is: nested-loops.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , random
+  else
+    buildable: False
+
+executable parallel-loops
+  main-is: parallel-loops.hs
+  hs-source-dirs:  examples
+  if flag(examples)
+    buildable: True
+    build-Depends:
+        asyncly
+      , base >= 4.8   && < 5
+      , random
+  else
+    buildable: False

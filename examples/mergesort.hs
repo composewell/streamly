@@ -6,33 +6,34 @@
 import Data.Word
 import System.Random
 import Data.List (sort)
-import qualified Asyncly as A
+import Asyncly
+import qualified Asyncly.Prelude as A
 
 getSorted = do
-    g <- A.liftIO getStdGen
+    g <- liftIO getStdGen
     let ls = take 100000 (randoms g) :: [Word16]
-    A.foldMapWith (A.<>) return (sort ls)
+    foldMapWith (<>) return (sort ls)
 
-mergeAsync :: (Ord a, A.MonadAsync m)
-    => A.AsyncT m a -> A.AsyncT m a -> A.AsyncT m a
+mergeAsync :: (Ord a, MonadAsync m)
+    => AsyncT m a -> AsyncT m a -> AsyncT m a
 mergeAsync a b = do
-    x <- A.lift $ A.async a
-    y <- A.lift $ A.async b
+    x <- lift $ async a
+    y <- lift $ async b
     merge x y
 
 merge a b = do
-    x <- A.lift $ A.uncons a
+    x <- lift $ A.uncons a
     case x of
         Nothing -> b
         Just (va, ma) -> do
-            y <- A.lift $ A.uncons b
+            y <- lift $ A.uncons b
             case y of
-                Nothing -> return va A.<> ma
+                Nothing -> return va <> ma
                 Just (vb, mb) ->
                     if (vb < va)
-                        then (return vb) A.<> merge (return va A.<> ma) mb
-                        else (return va) A.<> merge ma (return vb A.<> mb)
+                        then (return vb) <> merge (return va <> ma) mb
+                        else (return va) <> merge ma (return vb <> mb)
 
 main = do
-    xs <- A.toList $ mergeAsync getSorted getSorted
+    xs <- toList $ mergeAsync getSorted getSorted
     putStrLn $ show $ length xs
