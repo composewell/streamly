@@ -126,9 +126,7 @@ module Asyncly
     -- * Running
     , runAsyncly
     , toList
-    , uncons
     , async
-    , unfoldr
 
     -- * Monadic Composition (Conjunction)
     -- $bind
@@ -146,18 +144,6 @@ module Asyncly
     , foldMapWith
     , forEachWith
 
-    -- * Special folds
-    , take
-    , drop
-
-    -- * Zipping
-    , zipWith
-    , zipWithM
-    , ZipSerial (..)
-    , zipAsyncWithM
-    , zipAsyncWith
-    , ZipAsync (..)
-
     -- * Re-exports
     , Monoid (..)
     , Semigroup (..)
@@ -174,7 +160,6 @@ import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO (..))
 import Control.Monad.Trans.Class (MonadTrans (..))
-import Prelude hiding (take, drop, zipWith)
 
 -- $monoidal
 --

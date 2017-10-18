@@ -8,6 +8,7 @@ import           Control.Monad (guard)
 import           Criterion.Main (defaultMain, bgroup, bench, nfIO)
 
 import qualified Asyncly as A
+import qualified Asyncly.Prelude as A
 
 #ifdef EXTRA_BENCHMARKS
 import           Control.Monad.IO.Class (MonadIO (liftIO))

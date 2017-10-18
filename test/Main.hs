@@ -6,10 +6,10 @@ module Main (main) where
 import Control.Concurrent (threadDelay)
 import Data.Foldable (forM_)
 import Data.List (sort)
-import Prelude hiding (take, drop, zipWith)
 import Test.Hspec
 
 import Asyncly
+import qualified Asyncly.Prelude as A
 
 main :: IO ()
 main = hspec $ do
@@ -206,9 +206,9 @@ main = hspec $ do
 
     describe "Transformation" $ transformOps (<>)
     describe "Serial zipping" $
-        zipOps zipWith zipWithM ZipSerial getZipSerial
+        zipOps A.zipWith A.zipWithM A.ZipSerial A.getZipSerial
     describe "Async zipping" $
-        zipOps zipAsyncWith zipAsyncWithM ZipAsync getZipAsync
+        zipOps A.zipAsyncWith A.zipAsyncWithM A.ZipAsync A.getZipAsync
 
 zipOps :: Applicative (f IO)
     => (forall a b c. (a -> b -> c)
@@ -444,21 +444,21 @@ mixedOps = do
 transformOps :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
 transformOps f = do
     it "take all" $
-        (toList $ take 10 $ foldMapWith f return [1..10])
+        (toList $ A.take 10 $ foldMapWith f return [1..10])
             `shouldReturn` [1..10]
     it "take none" $
-        (toList $ take 0 $ foldMapWith f return [1..10])
+        (toList $ A.take 0 $ foldMapWith f return [1..10])
             `shouldReturn` []
     it "take 5" $
-        (toList $ take 5 $ foldMapWith f return [1..10])
+        (toList $ A.take 5 $ foldMapWith f return [1..10])
             `shouldReturn` [1..5]
 
     it "drop all" $
-        (toList $ drop 10 $ foldMapWith f return [1..10])
+        (toList $ A.drop 10 $ foldMapWith f return [1..10])
             `shouldReturn` []
     it "drop none" $
-        (toList $ drop 0 $ foldMapWith f return [1..10])
+        (toList $ A.drop 0 $ foldMapWith f return [1..10])
             `shouldReturn` [1..10]
     it "drop 5" $
-        (toList $ drop 5 $ foldMapWith f return [1..10])
+        (toList $ A.drop 5 $ foldMapWith f return [1..10])
             `shouldReturn` [6..10]
