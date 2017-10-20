@@ -7,118 +7,59 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- 'AsyncT' is a monad transformer that extends the product style composition
+-- of monads to streams; it is a functional porgramming equivalent to nested
+-- loops in imperative programming. This style of composition allows composing
+-- each element in one stream with each element in the other stream,
+-- generalizing the monadic product of single elements. For example, you can
+-- think of the IO Monad as a special case of the more general @AsyncT IO@
+-- monad; with single element streams.  List transformers and logic programming
+-- monads also provide a similar product style composition of streams, however
+-- 'AsyncT' generalizes it with the time dimension; allowing streams to be
+-- composed in an asynchronous and concurrent fashion in many different ways.
 --
--- Asyncly allows expressing and composing state machines and event driven
--- programs in a straightforward manner. It allows waiting for events to occur
--- in a non-blocking manner and process them asynchronously; multiple events
--- can be processed in parallel. Tasks can be easily split into smaller tasks,
--- processed in parallel and results combined.
+-- The power of this seemingly simple addition of asynchronicity and
+-- concurrency to product style streaming composition should not be
+-- underestimated.  It unifies a number of disparate abstractions into one
+-- powerful and elegant abstraction.  A wide variety of programming problems
+-- can be solved elegantly with this abstraction. In particular, it unifies
+-- three major programming domains namely non-deterministic (logic)
+-- programming, concurrent programming and functional reactive programming. In
+-- other words, you can do everything with this one abstraction that you could
+-- with list transformers (e.g.
+-- <https://hackage.haskell.org/package/list-t list-t>), logic programming
+-- monads (e.g.  <https://hackage.haskell.org/package/logict logict>),
+-- streaming libraries (a lot of what
+-- <https://hackage.haskell.org/package/conduit conduit> or
+-- <https://hackage.haskell.org/package/pipes pipes> can do), concurrency
+-- libraries (e.g. <https://hackage.haskell.org/package/async async>) and FRP
+-- libraries (e.g. <https://hackage.haskell.org/package/Yampa Yampa> or
+-- <https://hackage.haskell.org/package/reflex reflex>).
 --
--- The 'Alternative' composition @(\<|\>)@ is used to express asynchronous or
--- parallel tasks. The following example demonstrates generation and printing
--- of random numbers happening in parallel:
+-- When it comes to streaming composition, if @conduit@ or @pipes@ are arrows
+-- then asyncly is monad. Streaming libraries like conduit or pipes provide
+-- a categorical composition (sum) of streams whereas asyncly provides a more
+-- general monadic composition (product) of streams, with concurrency.  Asyncly
+-- interworks with major streaming libraries providing a way to use both types
+-- of compositions and using the right tool at the right place.
+-- When it comes to concurrency, asyncly may be comared with
+-- imperative style concurrency frameworks like
+-- <https://en.wikipedia.org/wiki/OpenMP OpenMP> or
+-- <https://en.wikipedia.org/wiki/Cilk Cilk>.
 --
--- @
--- import Control.Applicative ((\<|\>))
--- import Control.Concurrent (threadDelay)
--- import Control.Monad.IO.Class (liftIO)
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     x <- loop
---     liftIO $ print x
---
---     where
---
---     loop = do
---         liftIO $ threadDelay 1000000
---         x <- liftIO (randomIO :: IO Int)
---         return x \<|\> loop
--- @
---
--- Here two random number generation loops run in parallel so two numbers are
--- printed every second. Note that the threadId printed for each is different:
---
--- @
--- import Control.Applicative ((\<|\>))
--- import Control.Concurrent (myThreadId, threadDelay)
--- import Control.Monad.IO.Class (liftIO)
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     x <- loop \"A" \<|\> loop \"B"
---     liftIO $ myThreadId >>= putStr . show
---              >> putStr " "
---              >> print x
---
---     where
---
---     loop name = do
---         liftIO $ threadDelay 1000000
---         rnd <- liftIO (randomIO :: IO Int)
---         return (name, rnd) \<|\> loop name
--- @
--- Here the two loops are serially composed. For each value yielded by loop A,
--- loop B is executed. Four results are printed, all four run in separate
--- parallel threads. The composition is like ListT except that this is
--- concurrent:
---
--- @
--- import Control.Applicative ((\<|\>), empty)
--- import Control.Concurrent (myThreadId)
--- import Control.Monad.IO.Class (liftIO)
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     x <- loop "A " 2
---     y <- loop "B " 2
---     liftIO $ myThreadId >>= putStr . show
---              >> putStr " "
---              >> print (x, y)
---
---     where
---
---     loop name n = do
---         rnd <- liftIO (randomIO :: IO Int)
---         let result = (name ++ show rnd)
---             repeat = if n > 1 then loop name (n - 1) else empty
---          in (return result) \<|\> repeat
--- @
---
--- Here we perform a simple multi-threaded map-reduce by squaring each number
--- in a separate thread and then summing the squares:
---
--- @
--- import Control.Applicative ((\<|\>), empty)
--- import Data.List (sum)
--- import Asyncly
---
--- main = do
---     squares <- wait $ do
---         x <- foldl (\<|\>) empty $ map return [1..100]
---         return (x * x)
---     print . sum $ squares
--- @
---
--- 'Applicative' and 'Monoid' compositions work as expected.
+-- For more details please see the 'Asyncly.Tutorial' and 'Asyncly.Examples'.
 
--- It can be thought of as a non-deterministic continuation monad or a
--- combination of ContT and ListT. It allows to capture the state of the
--- application at any point and trigger arbitrary number of continuations from
--- the capture point. Non-determinism or parallel continuations are introduced
--- using the <|> operator. It provides a convenient way to implement and
--- compose state machines without using callbacks. An event in the state
--- machine corresponds to a continuation.  There are no cycles in the state
--- machine as each transition in the state machine is an independent instance
--- of the state machine. It is an immutable state machine!
-
+-- A simple inline example here illustrating applicative, monad and alternative
+-- compositions.
+--
+-- 'AsyncT' is like a list transformer ('ListT' or 'LogicT') that supports
+-- concurrent composition. Lists or streams can be generated using serial or
+-- concurrent monadic actions. A stream could be a stream of data or a stream
+-- of asynchronous events in an event driven program. Streams can be appended
+-- serially (<>) or interleaved fairly (\<=>), concurrent streams can be
+-- unioned like sets (\<|) or interleaved fairly (\<|>). Streams can be
+-- multiplied as in a list monad using the bind (>>=) operation.
+--
 module Asyncly
     ( AsyncT
     , MonadAsync

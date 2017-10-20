@@ -1,22 +1,43 @@
 name:               asyncly
 version:            0.1.0
-synopsis:           Beautiful Concurrent, Reactive and Streaming Composition
-description:        Asyncly is best described as a superset of list transformer
-                    (`ListT`) or logic programming monad (`LogicT`) with
-                    additional support for concurrent operation.  Concurrency
-                    enables reactivity, providing beautiful composition of
-                    stateful and reactive applications using monadic folds.
-                    Monadic streams of data or events can be composed using
-                    serial or parallel compositions with or without fair
-                    interleaving, enabling a high level composition of
-                    concurrent tasks without requiring knowledge of low level
-                    concurrency primitives. The programmer just expresses
-                    whether a task can run in parallel with another. Threads,
-                    synchronization and concurrency rate control is handled
-                    automatically.
-                    .
-                    This library was originally inspired by the `transient`
-                    package authored by Alberto G. Corona.
+synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
+description:        Asyncly is a general streaming and concurrent programming
+  monad allowing you to write a wide variety of applications ranging from
+  simple applications utilizing streaming IO to massively parallel concurrent
+  applications as well as reactive (FRP) applications with the same ease.
+  Asyncly provides high level concurrency primitives and hides the low level
+  concurrency details completely from the programmer.  The programmer just
+  expresses whether a task can run in parallel with another. Threads,
+  synchronization and concurrency rate control are handled automatically. The
+  library has been written keeping high performance applications in mind.
+  .
+  Asyncly subsumes all the use cases of list transformer (list-t) and logic
+  programming (logict) monads and adds concurrency on top. It is a streaming
+  library and therefore can be used for most of the streaming use cases as well
+  (i.e. where you would use conduit or pipes) with concurrency added. It is
+  also a first class reactive programming library and can be used where you
+  would use libraries like Yampa or reflex. One way to think about it is to
+  think of it as composable state machines with concurrency. You can write from
+  really simple to complex applications, from streaming to FRP or massively
+  concurrent applications using the same simple and concise abstractions.
+  .
+  To get a taste of the simplicity and power of the APIs, here is a full
+  program to concurrently and recursively list the contents of a directory
+  tree:
+  .
+  > import Path.IO (listDir, getCurrentDir)
+  > import Asyncly
+  >
+  > main = runAsyncly $ getCurrentDir >>= readdir
+  >    where readdir d = do
+  >             (dirs, files) <- lift $ listDir d
+  >             liftIO $ mapM_ putStrLn $ map show files
+  >             foldMapWith (<|>) readdir dirs
+  .
+  See "Asyncly.Tutorial" and "Asyncly.Examples" for more details.
+  .
+  This library was originally inspired by the `transient`
+  package authored by Alberto G. Corona.
 homepage:            http://github.com/harendra-kumar/asyncly
 bug-reports:         https://github.com/harendra-kumar/asyncly/issues
 license:             BSD3
@@ -54,6 +75,7 @@ library
                      , Asyncly.AsyncT
                      , Asyncly.Prelude
                      , Asyncly.Time
+                     , Asyncly.Tutorial
 
     default-language: Haskell2010
     ghc-options:      -Wall

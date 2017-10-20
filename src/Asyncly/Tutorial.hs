@@ -1,0 +1,229 @@
+-- |
+-- Module      : Asyncly.Tutorial
+-- Copyright   : (c) 2017 Harendra Kumar
+--
+-- License     : BSD3
+-- Maintainer  : harendra.kumar@gmail.com
+--
+-- 'AsyncT' is like a list transformer ('ListT' or 'LogicT') that supports
+-- concurrent composition. Lists or streams can be generated using serial or
+-- concurrent monadic actions. A stream could be a stream of data or a stream
+-- of asynchronous events in an event driven program. Streams can be appended
+-- serially (<>) or interleaved fairly (\<=>), concurrent streams can be
+-- unioned like sets (\<|) or interleaved fairly (\<|>). Streams can be
+-- multiplied as in a list monad using the bind (>>=) operation.
+--
+-- Here is an example program that repeatedly reads strings from standard input
+-- and echos them to the standard output:
+--
+-- @
+-- import Asyncly
+-- import Data.Semigroup (cycle1)
+--
+-- main = runAsyncly $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
+-- @
+--
+-- You can fold with (\<|) or (\<|>) to run actions concurrently. For
+-- example to find the fastest search engine:
+--
+-- @
+-- import Asyncly
+-- import Network.HTTP.Simple
+--
+-- main = runAsyncly $ google \<|> bing \<|> duckduckgo
+--     where
+--         google     = get "https://www.google.com/search?q=haskell"
+--         bing       = get "https://www.bing.com/search?q=haskell"
+--         duckduckgo = get "https://www.duckduckgo.com/?q=haskell"
+--         get s = liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+-- @
+--
+-- The above examples just used applicative or alternative compositions. They
+-- can be done equivalently using async package as well. However the real power
+-- of asyncly is in the monadic composition. Monadic composition allows
+-- creating state machines or event networks or multiplying streams whatever
+-- way you want to think about it. It is a very powerful general, concurrent
+-- and reactive  programming tool.
+--
+-- Let us now see an applicative example of the same:
+--
+-- Let's take an example of listing a directory tree:
+--
+-- @
+-- import Path.IO (listDir, getCurrentDir)
+-- import Asyncly
+--
+-- main = runAsyncly $ getCurrentDir >>= readdir
+--    where readdir d = do
+--             (dirs, files) <- lift $ listDir d
+--             liftIO $ mapM_ putStrLn $ map show files
+--             foldr (<>) mempty $ map readdir dirs
+-- @
+--
+-- Just think that you had applicative and no monad in Haskell. We have
+-- streaming libraries that are equivalent to applicative and asyncly is the
+-- equivalent of the monadic composition of streams. We have had that in th
+-- form of half hearted list transformers but asyncly provides a full fledged
+-- concurent list transformer.
+--
+-- Let us see a reactive programming example:
+--
+-- @
+-- import Asyncly
+-- import Control.Concurrent (threadDelay)
+-- import Control.Monad (when)
+-- import Control.Monad.State
+-- import Data.Semigroup (cycle1)
+--
+-- data Event = Harm Int | Heal Int | Quit deriving (Show)
+--
+-- userAction :: MonadIO m => AsyncT m Event
+-- userAction = cycle1 $ liftIO askUser
+--     where
+--     askUser = do
+--         command <- getLine
+--         case command of
+--             "potion" -> return (Heal 10)
+--             "quit"   -> return  Quit
+--             _        -> putStrLn "What?" >> askUser
+--
+-- acidRain :: MonadIO m => AsyncT m Event
+-- acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
+--
+-- game :: (MonadAsync m, MonadState Int m) => AsyncT m ()
+-- game = do
+--     event <- userAction <|> acidRain
+--     case event of
+--         Harm n -> modify $ \h -> h - n
+--         Heal n -> modify $ \h -> h + n
+--         Quit   -> fail "quit"
+--
+--     h <- get
+--     when (h <= 0) $ fail "You die!"
+--     liftIO $ putStrLn $ "Health = " ++ show h
+--
+-- main = do
+--     putStrLn "Your health is deteriorating due to acid rain,\
+--              \ type \"potion\" or \"quit\""
+--     runStateT (runAsyncly game) 60
+-- @
+--
+-- You can create trees of demand driven parallel computations. Parallel
+-- computations are started faster if the consumer is pulling faster. The
+-- number of threads are automatically adjusted and are kept at a minimum
+-- required depending on the consumer rate.
+
+-- Asyncly allows expressing and composing state machines and event driven
+-- programs in a straightforward manner. It allows waiting for events to occur
+-- in a non-blocking manner and process them asynchronously; multiple events
+-- can be processed in parallel. Tasks can be easily split into smaller tasks,
+-- processed in parallel and results combined.
+--
+-- The 'Alternative' composition @(\<|\>)@ is used to express asynchronous or
+-- parallel tasks. The following example demonstrates generation and printing
+-- of random numbers happening in parallel:
+--
+-- @
+-- import Control.Applicative ((\<|\>))
+-- import Control.Concurrent (threadDelay)
+-- import Control.Monad.IO.Class (liftIO)
+-- import System.Random (randomIO)
+-- import Asyncly
+--
+-- main = wait_ $ do
+--     x <- loop
+--     liftIO $ print x
+--
+--     where
+--
+--     loop = do
+--         liftIO $ threadDelay 1000000
+--         x <- liftIO (randomIO :: IO Int)
+--         return x \<|\> loop
+-- @
+--
+-- Here two random number generation loops run in parallel so two numbers are
+-- printed every second. Note that the threadId printed for each is different:
+--
+-- @
+-- import Control.Applicative ((\<|\>))
+-- import Control.Concurrent (myThreadId, threadDelay)
+-- import Control.Monad.IO.Class (liftIO)
+-- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+-- import System.Random (randomIO)
+-- import Asyncly
+--
+-- main = wait_ $ do
+--     liftIO $ hSetBuffering stdout LineBuffering
+--     x <- loop \"A" \<|\> loop \"B"
+--     liftIO $ myThreadId >>= putStr . show
+--              >> putStr " "
+--              >> print x
+--
+--     where
+--
+--     loop name = do
+--         liftIO $ threadDelay 1000000
+--         rnd <- liftIO (randomIO :: IO Int)
+--         return (name, rnd) \<|\> loop name
+-- @
+-- Here the two loops are serially composed. For each value yielded by loop A,
+-- loop B is executed. Four results are printed, all four run in separate
+-- parallel threads. The composition is like ListT except that this is
+-- concurrent:
+--
+-- @
+-- import Control.Applicative ((\<|\>), empty)
+-- import Control.Concurrent (myThreadId)
+-- import Control.Monad.IO.Class (liftIO)
+-- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+-- import System.Random (randomIO)
+-- import Asyncly
+--
+-- main = wait_ $ do
+--     liftIO $ hSetBuffering stdout LineBuffering
+--     x <- loop "A " 2
+--     y <- loop "B " 2
+--     liftIO $ myThreadId >>= putStr . show
+--              >> putStr " "
+--              >> print (x, y)
+--
+--     where
+--
+--     loop name n = do
+--         rnd <- liftIO (randomIO :: IO Int)
+--         let result = (name ++ show rnd)
+--             repeat = if n > 1 then loop name (n - 1) else empty
+--          in (return result) \<|\> repeat
+-- @
+--
+-- Here we perform a simple multi-threaded map-reduce by squaring each number
+-- in a separate thread and then summing the squares:
+--
+-- @
+-- import Control.Applicative ((\<|\>), empty)
+-- import Data.List (sum)
+-- import Asyncly
+--
+-- main = do
+--     squares <- wait $ do
+--         x <- foldl (\<|\>) empty $ map return [1..100]
+--         return (x * x)
+--     print . sum $ squares
+-- @
+--
+-- 'Applicative' and 'Monoid' compositions work as expected.
+
+-- It can be thought of as a non-deterministic continuation monad or a
+-- combination of ContT and ListT. It allows to capture the state of the
+-- application at any point and trigger arbitrary number of continuations from
+-- the capture point. Non-determinism or parallel continuations are introduced
+-- using the <|> operator. It provides a convenient way to implement and
+-- compose state machines without using callbacks. An event in the state
+-- machine corresponds to a continuation.  There are no cycles in the state
+-- machine as each transition in the state machine is an independent instance
+-- of the state machine. It is an immutable state machine!
+
+module Asyncly.Tutorial
+    ()
+where
