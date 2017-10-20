@@ -56,7 +56,7 @@ install: true
 script:
   - |
     # Customizable options
-    PACKAGE_TEST_VER="fde043d6c328090883286c69443f3ad2d73ddbb5"
+    PACKAGE_TEST_VER="536355be0507c234e5b4ea51dafdb8c3d1ede948"
     GHC_OPTIONS="-O0 -Werror"
     test -n "$COVERALLS" && \
       COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines \
