@@ -3,6 +3,8 @@
 -- This example is adapted from Gabriel Gonzalez's pipes-concurrency package.
 -- https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html
 
+module Asyncly.Examples.AcidRainGame where
+
 import Asyncly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
@@ -36,7 +38,9 @@ game = do
     when (h <= 0) $ fail "You die!"
     liftIO $ putStrLn $ "Health = " ++ show h
 
-main = do
+acidRainGame :: IO ()
+acidRainGame = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
-    runStateT (runAsyncly game) 60
+    _ <- runStateT (runAsyncly game) 60
+    return ()

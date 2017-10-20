@@ -75,6 +75,12 @@ library
                      , Asyncly.Prelude
                      , Asyncly.Time
                      , Asyncly.Tutorial
+    if flag(examples)
+      exposed-modules: Asyncly.Examples.SearchEngineQuery
+                     , Asyncly.Examples.ListDirRecursive
+                     , Asyncly.Examples.MergeSortedStreams
+                     , Asyncly.Examples.AcidRainGame
+                     , Asyncly.Examples.CirclingSquare
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -104,9 +110,17 @@ library
                      , stm               >= 2.4.3 && < 2.5
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
+
   if impl(ghc < 8.0)
     build-depends:
         semigroups    >= 0.18   && < 0.19
+
+  if flag(examples)
+    build-Depends:
+        http-conduit
+      , path-io
+      , random
+      , SDL  >= 0.6.5 && < 0.7
 
 test-suite test
   type: exitcode-stdio-1.0
@@ -174,17 +188,9 @@ benchmark bench
       , transient           >= 0.4   && < 0.6
   default-language: Haskell2010
 
-executable circle-mouse
-  main-is: circle-mouse.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        asyncly
-      , base >= 4.8   && < 5
-      , SDL  >= 0.6.5 && < 0.7
-  else
-    buildable: False
+-------------------------------------------------------------------------------
+-- Examples
+-------------------------------------------------------------------------------
 
 executable echo-loop
   main-is: echo-loop.hs
@@ -194,43 +200,6 @@ executable echo-loop
     build-Depends:
         asyncly
       , base >= 4.8   && < 5
-  else
-    buildable: False
-
-executable fastest
-  main-is: fastest.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        asyncly
-      , base >= 4.8   && < 5
-      , http-conduit
-  else
-    buildable: False
-
-executable game
-  main-is: game.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        asyncly
-      , base >= 4.8   && < 5
-      , mtl  >= 2.2   && < 3
-  else
-    buildable: False
-
-executable listdir
-  main-is: listdir.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        asyncly
-      , base >= 4.8   && < 5
-      , path
-      , path-io
   else
     buildable: False
 
@@ -253,18 +222,6 @@ executable map-reduce
     build-Depends:
         asyncly
       , base >= 4.8   && < 5
-  else
-    buildable: False
-
-executable mergesort
-  main-is: mergesort.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        asyncly
-      , base >= 4.8   && < 5
-      , random
   else
     buildable: False
 

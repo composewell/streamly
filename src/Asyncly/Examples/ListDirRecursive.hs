@@ -1,13 +1,13 @@
-#!/usr/bin/env stack
--- stack runghc --package path --package path-io
 {-# LANGUAGE FlexibleContexts #-}
 
+module Asyncly.Examples.ListDirRecursive where
+
 import Path.IO (listDir, getCurrentDir)
-import Path (Path, Dir, reldir)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Asyncly
 
-main = do
+listDirRecursive :: IO ()
+listDirRecursive = do
     liftIO $ hSetBuffering stdout LineBuffering
     runAsyncly $ getCurrentDir >>= readdir
     where readdir d = do

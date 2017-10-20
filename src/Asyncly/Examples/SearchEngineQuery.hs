@@ -1,12 +1,12 @@
-#!/usr/bin/env stack
--- stack runghc
+module Asyncly.Examples.SearchEngineQuery where
 
 import Asyncly
 import Asyncly.Prelude (ZipAsync (..))
 import Network.HTTP.Simple
 
 -- Runs three search engine queries in parallel.
-main = do
+searchEngineQuery :: IO ()
+searchEngineQuery = do
     putStrLn "Using parallel alternative"
     runAsyncly $ google <|> bing <|> duckduckgo
 

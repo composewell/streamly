@@ -5,6 +5,8 @@
 -- compile it like this:
 -- stack ghc --package SDL circle-mouse.hs
 
+module Asyncly.Examples.CirclingSquare where
+
 import Data.IORef
 import Graphics.UI.SDL as SDL
 import Asyncly
@@ -20,7 +22,7 @@ sdlInit = do
 
   let width  = 640
       height = 480
-  screen <- SDL.setVideoMode width height 16 [SWSurface]
+  _ <- SDL.setVideoMode width height 16 [SWSurface]
   SDL.setCaption "Test" ""
 
 ------------------------------------------------------------------------------
@@ -34,14 +36,14 @@ display (playerX, playerY) = do
   -- Paint screen green
   let format = surfaceGetPixelFormat screen
   bgColor <- mapRGB format 55 60 64
-  fillRect screen Nothing bgColor
+  _ <- fillRect screen Nothing bgColor
 
   -- Paint small red square, at an angle 'angle' with respect to the center
   foreC <- mapRGB format 212 108 73
   let side = 10
       x = round playerX
       y = round playerY
-  fillRect screen (Just (Rect x y side side)) foreC
+  _ <- fillRect screen (Just (Rect x y side side)) foreC
 
   -- Double buffering
   SDL.flip screen
@@ -50,6 +52,7 @@ display (playerX, playerY) = do
 -- Wait and update Controller Position if it changes
 ------------------------------------------------------------------------------
 
+refreshRate :: Int
 refreshRate = 40
 
 updateController :: IORef (Double, Double) -> IO ()
@@ -80,7 +83,8 @@ updateDisplay cref = withClock clock refreshRate displaySquare
         let t = (fromIntegral time) * speed / 1000000
          in display (x + cos t * radius, y + sin t * radius)
 
-main = do
+circlingSquare :: IO ()
+circlingSquare = do
   sdlInit
   cref <- newIORef (0,0)
   runAsyncly $  liftIO (updateController cref) <|> liftIO (updateDisplay cref)
