@@ -24,9 +24,8 @@ think of it as composable state machines with concurrency. You can write from
 really simple to complex applications, from streaming to FRP or massively
 concurrent applications using the same simple and concise abstractions.
 
-To get a taste of the simplicity and power of the APIs, here is a full
-program to concurrently and recursively list the contents of a directory
-tree:
+Here is a simple example to concurrently and recursively list the contents of a
+directory tree:
 
 ``` haskell
 import Path.IO (listDir, getCurrentDir)
