@@ -371,7 +371,10 @@ pushWorker ctx =
 {-# INLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Context m a -> m ()
 sendWorkerWait ctx = do
-    liftIO $ threadDelay 200
+    case ctxType ctx of
+        CtxType _ LIFO -> liftIO $ threadDelay 200
+        CtxType _ FIFO -> liftIO $ threadDelay 0
+
     output <- liftIO $ readIORef (outputQueue ctx)
     when (null output) $ do
         done <- queueEmpty ctx
@@ -387,7 +390,7 @@ instance Exception ContextUsedAfterEOF
 pullFromCtx :: MonadAsync m => Context m a -> AsyncT m a
 pullFromCtx ctx = AsyncT $ \_ stp yld -> do
     -- When using an async handle to the context, one may keep using a stale
-    -- context even after it has been fullt drained. To detect it gracefully we
+    -- context even after it has been fully drained. To detect it gracefully we
     -- raise an explicit exception.
     -- XXX if reading the IORef is costly we can use a flag in the context to
     -- indicate we are done.
