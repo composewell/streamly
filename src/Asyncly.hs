@@ -51,15 +51,6 @@
 
 -- A simple inline example here illustrating applicative, monad and alternative
 -- compositions.
---
--- 'AsyncT' is like a list transformer ('ListT' or 'LogicT') that supports
--- concurrent composition. Lists or streams can be generated using serial or
--- concurrent monadic actions. A stream could be a stream of data or a stream
--- of asynchronous events in an event driven program. Streams can be appended
--- serially (<>) or interleaved fairly (\<=>), concurrent streams can be
--- unioned like sets (\<|) or interleaved fairly (\<|>). Streams can be
--- multiplied as in a list monad using the bind (>>=) operation.
---
 module Asyncly
     ( AsyncT
     , MonadAsync

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
 -- Module      : Asyncly.Tutorial
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -5,26 +6,261 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 --
--- 'AsyncT' is like a list transformer ('ListT' or 'LogicT') that supports
--- concurrent composition. Lists or streams can be generated using serial or
--- concurrent monadic actions. A stream could be a stream of data or a stream
--- of asynchronous events in an event driven program. Streams can be appended
--- serially (<>) or interleaved fairly (\<=>), concurrent streams can be
--- unioned like sets (\<|) or interleaved fairly (\<|>). Streams can be
--- multiplied as in a list monad using the bind (>>=) operation.
 --
--- Here is an example program that repeatedly reads strings from standard input
--- and echos them to the standard output:
+-- Asyncly combines streaming, logic programming, concurrency and reactive
+-- programming under a single abstraction with a concise API, giving
+-- programmers a powerful tool for wide variety of applications.
+--
+-- The 'AsyncT' monad operates on streams. Multiple streams of the same type
+-- can be summed using different sum style operators. For example, '<>' appends
+-- streams serially, '<=>' interleaves streams, '<|' combines streams in
+-- parallel and '<|>' combines streams in a fairly parallel manner. Fold
+-- utilities are provided to choose a fold style and an operator to fold a
+-- container in a desired manner producing an AsyncT stream.
+--
+-- Streams of the same or different types can be zipped or transformed using
+-- applicative or monadic composition. The monadic composition is exactly the
+-- same as a list transformer except that it can be concurrent. It can be
+-- likened to nested loops in the imperative programming parlance. In addition
+-- to the regular monadic bind operator '>>=', other operators are provided to
+-- compose streams in alternate manners. For example, '>->' interleaves the
+-- iterations of outer and inner loops, '>>|' runs outer and inner loops in
+-- parallel and '>|>' runs the outer and inner loops in fairly parallel manner.
+--
+-- With asyncly you can write concurrent and streaming applications without
+-- being aware of threads or synchronization. No explicit thread control is
+-- needed, where applicable the concurrency rate is automatically controlled
+-- based on the demand by the consumer. However, combinators are provided to
+-- fine tune the concurrency control.  Streaming and concurrency allows
+-- expressing reactive applications conveniently. See 'Asyncly.Examples' for a
+-- simple SDL based FRP example.
+--
+-- For examples and other ways to use the library see 'Asyncly.Examples' as
+-- well.
+--
+module Asyncly.Tutorial
+    (
+    -- * AsyncT Monad Transformer
+    -- $transformer
+
+    -- * Generating Streams (Monoidal Sum Composition)
+    -- $generating
+
+    -- ** Serial composition (Append)
+    -- $serial
+
+    -- ** Interleaved composition
+    -- $interleaved
+
+    -- ** Parallel composition
+    -- $parallel
+
+    -- ** Fairly Parallel composition
+    -- $fairParallel
+
+    -- ** Custom composition
+    -- $custom
+
+    -- * Looping Over Streams (Monadic Product Composition)
+
+    -- ** List Transformer
+    -- $listt
+
+    -- ** Interleaved Nesting
+    -- $interleavedNesting
+
+    -- ** Concurrent Nesting
+    -- $concurrentNesting
+
+    -- ** Fairly Concurrent Nesting
+    -- $fairlyConcurrentNesting
+
+    -- * Applicative Composition
+    -- $applicative
+
+    -- * Reactive Programming
+    -- $reactive
+
+    -- * State Machine Model
+    -- $statemachine
+
+    -- * Interworking with Streaming Libraries
+    -- $interwork
+
+    -- * Performance
+    -- $performance
+    )
+where
+
+import Asyncly.AsyncT
+import Asyncly.Prelude
+-- import Asyncly.Examples
+import Data.Semigroup
+import Control.Applicative
+import           Control.Monad.IO.Class      (MonadIO(..))
+import           Control.Monad.Trans.Class   (MonadTrans (lift))
+
+-- $transformer
+--
+-- 'AsyncT' is a monad transformer, the type 'AsyncT m a' represents a stream
+-- of values of type 'a' in the underlying monad 'm'. As usual you can use the
+-- 'lift' combinator to lift values from the immediately lower monad in the
+-- transformer stack or 'liftIO' to lift values from IO. 'runAsyncly' runs the
+-- monad discarding any results, 'toList' can be used to collect the results in
+-- a list. You can also use 'uncons' to extract results from 'AsyncT'. For
+-- example:
 --
 -- @
 -- import Asyncly
--- import Data.Semigroup (cycle1)
 --
--- main = runAsyncly $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
+-- main = do
+--  runAsyncly $ liftIO $ putStrLn "Hello world!"
+--  xs \<- toList $ return 1 <> return 2
+--  print xs
+-- @
+
+-- $generating
+--
+-- AsyncT streams are generated using either 'return' on pure values or by
+-- using 'lift' or a variant of it or by folding existing 'AsyncT' streams with
+-- a suitable sum operator. Some fold utilities are provided by the library for
+-- convenience:
+--
+-- * 'foldWith' folds a Foldable container of AsyncT computations using the
+-- given function.
+-- * 'foldMapWith' folds like foldWith but also maps a function before folding.
+-- * 'forEachWith' is like foldMapwith but the container argument comes before
+-- the function argument.
+--
+-- @
+-- import Asyncly
+--
+-- main = do
+--  runAsyncly $ liftIO $ putStrLn "Hello world!"
+--  xs \<- toList $ return 1 <> return 2;               print xs
+--  xs \<- toList $ foldWith (<>) (map return [1..10]); print xs
+--  xs \<- toList $ foldMapWith (<>) return [1..10];    print xs
+--  xs \<- toList $ forEachWith (<>) [1..10] return;    print xs
+-- @
+-- The following sections illustrate different operators that we can use to
+-- fold AsyncT streams. We will use a trivial example of composing a few timer
+-- using the timer function defined below. In general these could be
+-- arbitrarily complex computations and any number of them.
+--
+-- @
+-- import Asyncly
+-- import Control.Concurrent
+--
+-- traced m = liftIO (myThreadId >>= print) >> m
+--
+-- timer n = liftIO $ do
+--  threadDelay (n * 1000000)
+--  tid \<- myThreadId
+--  putStrLn (show tid ++ ": Timer " ++ show n)
+-- @
+
+-- $serial
+-- The '<>' operator composes multiple AsyncT streams in series i.e. the next
+-- event happens after the previous one is completed. The following example
+-- prints the sequence 3, 2, 1 and takes a total of 6 seconds:
+--
+-- @
+-- main = runAsyncly $ timer 3 <> timer 2 <> timer 1
+-- @
+-- @
+-- ThreadId 36: Timer 3
+-- ThreadId 36: Timer 2
+-- ThreadId 36: Timer 1
+-- @
+
+-- $interleaved
+-- The '<=>' operator interleaves the two computations i.e. it yields one item
+-- from the first stream and then one item from the second stream. The
+-- following example should print the sequence 1, 3, 2, 4:
+--
+-- @
+-- main = runAsyncly $ (timer 1 <> timer 2) \<=> (timer 3 <> timer 4)
+-- @
+-- @
+-- ThreadId 36: Timer 1
+-- ThreadId 36: Timer 3
+-- ThreadId 36: Timer 2
+-- ThreadId 36: Timer 4
+-- @
+
+-- $parallel
+--
+-- The '<|' operator runs computations in parallel, preferring the first
+-- computation over the second. The second computation is run in parallel with
+-- the first only if the first computation is not producing enough output to
+-- keep the consumer busy otherwise the second computation is run serially
+-- after the first. We maintain a pool of minimum number of threads, for
+-- running the computations, that is big enough to match the pull rate of the
+-- consumer of the stream.
+-- Note that the left bias of the operator '<|' is suggested by its shape.
+-- It is also half cut '<|>' which is fairly parallel in contrast.
+--
+-- The following example runs all the parallel computations in a single thread
+-- one after another, because none of them blocks. Note that if the consumer
+-- were faster than the producer this would start new threads for each
+-- computation to keep up even if none of them blocks:
+--
+-- @
+-- main = runAsyncly $ traced (sqrt 9) <| traced (sqrt 16) <| traced (sqrt 25)
+-- @
+-- @
+-- ThreadId 40
+-- ThreadId 40
+-- ThreadId 40
 -- @
 --
--- You can fold with (\<|) or (\<|>) to run actions concurrently. For
--- example to find the fastest search engine:
+-- In the following example since the first computation blocks we start the
+-- next one in a separate thread and so on:
+--
+-- @
+-- main = runAsyncly $ timer 3 <| timer 2 <| timer 1
+-- @
+-- @
+-- ThreadId 42: Timer 1
+-- ThreadId 41: Timer 2
+-- ThreadId 40: Timer 3
+-- @
+--
+-- When we have a hierarchy of computations this operator follows DFS style:
+--
+-- @
+-- main = runAsyncly $ (p 1 <| p 2) <| (p 3 <| p 4)
+--  where p = liftIO . print
+-- @
+-- @
+-- 1
+-- 2
+-- 3
+-- 4
+-- @
+--
+-- Note that since this operator is left biased it should not be used when the
+-- computations have timers that are relative to each other because all
+-- computations may not be started at the same time and therefore timers in all
+-- of them will not start at the same time.  When relative timing among all
+-- computations is important or when we need to start all computations at once
+-- for some reason use '<|>' instead.  However, '<|' is useful in situations
+-- when we want to optimally utilize the resources and we know that the
+-- computations can run in parallel but we do not care if they actually run in
+-- parallel or not, that decision is left to the scheduler. Also, note that
+-- this operator can be used to fold infinite containers in contrast to '<|>',
+-- because it does not require us to run all of them at the same time.
+
+-- $fairParallel
+--
+-- The 'Alternative' composition operator '<|>', like '<|', runs the composed
+-- computations in parallel. However, unlike '<|' it runs all of the
+-- computations in fairly parallel manner using a round robin scheduling. Note
+-- that this should not be used on infinite containers, as it will lead to an
+-- infinite scheduling queue.
+--
+-- The following example sends a query to three search engines and prints the
+-- name of the search engine as a response arrives:
 --
 -- @
 -- import Asyncly
@@ -37,15 +273,86 @@
 --         duckduckgo = get "https://www.duckduckgo.com/?q=haskell"
 --         get s = liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
 -- @
+
+
+-- $custom
 --
+-- The 'async' API can be used to create references to asynchronously running
+-- 'AsyncT' computations. We can then use 'uncons' to explore the
+-- streams arbitrarily and then recompose them to create a new 'AsyncT' stream.
+-- This way we can dynamically decide which stream to explore at any given time.
+-- Take an example of a merge sort of two sorted streams. We need to keep
+-- consuming items from the stream which has the lowest item in the sort order.
+-- This can be achieved using async references to streams. See
+-- 'Asyncly.Examples.MergeSortedStreams'.
+
+-- $listt
+--
+-- The previous section discussed ways to purely compose streams using sum
+-- style operators. In this section we will explore how to transform streams
+-- using monadic composition.
 -- The above examples just used applicative or alternative compositions. They
 -- can be done equivalently using async package as well. However the real power
 -- of asyncly is in the monadic composition. Monadic composition allows
 -- creating state machines or event networks or multiplying streams whatever
 -- way you want to think about it. It is a very powerful general, concurrent
 -- and reactive  programming tool.
+
 --
--- Let us now see an applicative example of the same:
+-- Here is an example program that repeatedly reads strings from standard input
+-- and echoes them to the standard output:
+--
+-- @
+-- import Asyncly
+-- import Data.Semigroup (cycle1)
+--
+-- main = runAsyncly $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
+-- @
+-- Here we perform a simple multi-threaded map-reduce by squaring each number
+-- in a separate thread and then summing the squares:
+--
+-- @
+-- import Control.Applicative ((\<|\>), empty)
+-- import Data.List (sum)
+-- import Asyncly
+--
+-- main = do
+--     squares <- wait $ do
+--         x <- foldl (\<|\>) empty $ map return [1..100]
+--         return (x * x)
+--     print . sum $ squares
+-- @
+--
+-- Here two random number generation loops run in parallel so two numbers are
+-- printed every second. Note that the threadId printed for each is different:
+--
+-- @
+-- import Control.Applicative ((\<|\>))
+-- import Control.Concurrent (myThreadId, threadDelay)
+-- import Control.Monad.IO.Class (liftIO)
+-- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+-- import System.Random (randomIO)
+-- import Asyncly
+--
+-- main = wait_ $ do
+--     liftIO $ hSetBuffering stdout LineBuffering
+--     x <- loop \"A" \<|\> loop \"B"
+--     liftIO $ myThreadId >>= putStr . show
+--              >> putStr " "
+--              >> print x
+--
+--     where
+--
+--     loop name = do
+--         liftIO $ threadDelay 1000000
+--         rnd <- liftIO (randomIO :: IO Int)
+--         return (name, rnd) \<|\> loop name
+-- @
+
+-- $interleavedNesting
+-- interleavedNesting
+
+-- $concurrentNesting
 --
 -- Let's take an example of listing a directory tree:
 --
@@ -59,12 +366,43 @@
 --             liftIO $ mapM_ putStrLn $ map show files
 --             foldr (<>) mempty $ map readdir dirs
 -- @
+-- Here the two loops are serially composed. For each value yielded by loop A,
+-- loop B is executed. Four results are printed, all four run in separate
+-- parallel threads. The composition is like ListT except that this is
+-- concurrent:
 --
--- Just think that you had applicative and no monad in Haskell. We have
--- streaming libraries that are equivalent to applicative and asyncly is the
--- equivalent of the monadic composition of streams. We have had that in th
--- form of half hearted list transformers but asyncly provides a full fledged
--- concurent list transformer.
+-- @
+-- import Control.Applicative ((\<|\>), empty)
+-- import Control.Concurrent (myThreadId)
+-- import Control.Monad.IO.Class (liftIO)
+-- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+-- import System.Random (randomIO)
+-- import Asyncly
+--
+-- main = wait_ $ do
+--     liftIO $ hSetBuffering stdout LineBuffering
+--     x <- loop "A " 2
+--     y <- loop "B " 2
+--     liftIO $ myThreadId >>= putStr . show
+--              >> putStr " "
+--              >> print (x, y)
+--
+--     where
+--
+--     loop name n = do
+--         rnd <- liftIO (randomIO :: IO Int)
+--         let result = (name ++ show rnd)
+--             repeat = if n > 1 then loop name (n - 1) else empty
+--          in (return result) \<|\> repeat
+-- @
+
+-- $fairlyConcurrentNesting
+-- fairlyConcurrentNesting
+
+-- $applicative
+-- Applicative composition
+
+-- $reactive
 --
 -- Let us see a reactive programming example:
 --
@@ -107,123 +445,6 @@
 --              \ type \"potion\" or \"quit\""
 --     runStateT (runAsyncly game) 60
 -- @
---
--- You can create trees of demand driven parallel computations. Parallel
--- computations are started faster if the consumer is pulling faster. The
--- number of threads are automatically adjusted and are kept at a minimum
--- required depending on the consumer rate.
 
--- Asyncly allows expressing and composing state machines and event driven
--- programs in a straightforward manner. It allows waiting for events to occur
--- in a non-blocking manner and process them asynchronously; multiple events
--- can be processed in parallel. Tasks can be easily split into smaller tasks,
--- processed in parallel and results combined.
---
--- The 'Alternative' composition @(\<|\>)@ is used to express asynchronous or
--- parallel tasks. The following example demonstrates generation and printing
--- of random numbers happening in parallel:
---
--- @
--- import Control.Applicative ((\<|\>))
--- import Control.Concurrent (threadDelay)
--- import Control.Monad.IO.Class (liftIO)
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     x <- loop
---     liftIO $ print x
---
---     where
---
---     loop = do
---         liftIO $ threadDelay 1000000
---         x <- liftIO (randomIO :: IO Int)
---         return x \<|\> loop
--- @
---
--- Here two random number generation loops run in parallel so two numbers are
--- printed every second. Note that the threadId printed for each is different:
---
--- @
--- import Control.Applicative ((\<|\>))
--- import Control.Concurrent (myThreadId, threadDelay)
--- import Control.Monad.IO.Class (liftIO)
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     x <- loop \"A" \<|\> loop \"B"
---     liftIO $ myThreadId >>= putStr . show
---              >> putStr " "
---              >> print x
---
---     where
---
---     loop name = do
---         liftIO $ threadDelay 1000000
---         rnd <- liftIO (randomIO :: IO Int)
---         return (name, rnd) \<|\> loop name
--- @
--- Here the two loops are serially composed. For each value yielded by loop A,
--- loop B is executed. Four results are printed, all four run in separate
--- parallel threads. The composition is like ListT except that this is
--- concurrent:
---
--- @
--- import Control.Applicative ((\<|\>), empty)
--- import Control.Concurrent (myThreadId)
--- import Control.Monad.IO.Class (liftIO)
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import System.Random (randomIO)
--- import Asyncly
---
--- main = wait_ $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     x <- loop "A " 2
---     y <- loop "B " 2
---     liftIO $ myThreadId >>= putStr . show
---              >> putStr " "
---              >> print (x, y)
---
---     where
---
---     loop name n = do
---         rnd <- liftIO (randomIO :: IO Int)
---         let result = (name ++ show rnd)
---             repeat = if n > 1 then loop name (n - 1) else empty
---          in (return result) \<|\> repeat
--- @
---
--- Here we perform a simple multi-threaded map-reduce by squaring each number
--- in a separate thread and then summing the squares:
---
--- @
--- import Control.Applicative ((\<|\>), empty)
--- import Data.List (sum)
--- import Asyncly
---
--- main = do
---     squares <- wait $ do
---         x <- foldl (\<|\>) empty $ map return [1..100]
---         return (x * x)
---     print . sum $ squares
--- @
---
--- 'Applicative' and 'Monoid' compositions work as expected.
-
--- It can be thought of as a non-deterministic continuation monad or a
--- combination of ContT and ListT. It allows to capture the state of the
--- application at any point and trigger arbitrary number of continuations from
--- the capture point. Non-determinism or parallel continuations are introduced
--- using the <|> operator. It provides a convenient way to implement and
--- compose state machines without using callbacks. An event in the state
--- machine corresponds to a continuation.  There are no cycles in the state
--- machine as each transition in the state machine is an independent instance
--- of the state machine. It is an immutable state machine!
-
-module Asyncly.Tutorial
-    ()
-where
+-- $statemachine
+-- State machine stuff
