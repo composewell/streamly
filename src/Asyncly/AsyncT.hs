@@ -29,6 +29,7 @@ module Asyncly.AsyncT
     , (<=>)
     , (<|)
 
+    , yielding
     , interleave
     , parallel
     , parLeft
@@ -126,6 +127,9 @@ newtype Stream m a =
 -- | A monad that can do asynchronous (or parallel) IO operations.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
+yielding :: a -> Stream m a
+yielding a = Stream $ \_ _ yld -> yld a Nothing
+
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
@@ -163,10 +167,8 @@ instance Monad m => Functor (Stream m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
--- The newtype ZipAsync provides a parallel zip applicative instance
-
 instance Monad m => Applicative (Stream m) where
-    pure a = Stream $ \_ _ yld -> yld a Nothing
+    pure = yielding
     (<*>) = ap
 
 ------------------------------------------------------------------------------

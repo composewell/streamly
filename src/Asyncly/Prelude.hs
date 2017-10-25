@@ -54,7 +54,7 @@ module Asyncly.Prelude
 where
 
 import           Control.Applicative         (Alternative (..), liftA2)
-import           Control.Monad               (MonadPlus(..))
+import           Control.Monad               (MonadPlus(..), ap, liftM)
 import           Control.Monad.Base          (MonadBase (..))
 import           Control.Monad.Catch         (MonadThrow)
 import           Control.Monad.Error.Class   (MonadError(..))
@@ -140,8 +140,7 @@ instance (Monad m, Floating a) => Floating (StreamT m a) where
 ------------------------------------------------------------------------------
 
 newtype InterleavedT m a = InterleavedT {getInterleavedT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid,
-              MonadTrans, MonadIO, MonadThrow)
+    deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadAsync m => Alternative (InterleavedT m)
 deriving instance MonadAsync m => MonadPlus (InterleavedT m)
@@ -157,6 +156,7 @@ instance Streaming InterleavedT where
 -- | Execute a monadic action for each element in the stream, in a fairly
 -- interleaved manner i.e. iterations yield alternately.
 instance Monad m => Monad (InterleavedT m) where
+    return = pure
     (InterleavedT (Stream m)) >>= f = InterleavedT $ Stream $ \_ stp yld ->
         let run x = (runStream x) Nothing stp yld
             yield a Nothing  = run $ getInterleavedT (f a)
@@ -164,6 +164,21 @@ instance Monad m => Monad (InterleavedT m) where
                                      `interleave`
                                      getInterleavedT ((InterleavedT r) >>= f)
         in m Nothing stp yield
+
+------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance Monad m => Functor (InterleavedT m) where
+    fmap = liftM
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+instance Monad m => Applicative (InterleavedT m) where
+    pure = InterleavedT . yielding
+    (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Num
@@ -216,7 +231,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 ------------------------------------------------------------------------------
 
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid, MonadTrans)
+    deriving (Semigroup, Monoid, MonadTrans)
 
 deriving instance MonadAsync m => MonadIO (AsyncT m)
 deriving instance MonadAsync m => MonadThrow (AsyncT m)
@@ -250,15 +265,31 @@ parbind k m f = go m
 -- iterations in parallel, but giving preference to iterations started
 -- earlier.
 instance MonadAsync m => Monad (AsyncT m) where
+    return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
               par = parallel (CtxType Conjunction LIFO)
 
 ------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Functor (AsyncT m) where
+    fmap = liftM
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Applicative (AsyncT m) where
+    pure = AsyncT . yielding
+    (<*>) = ap
+
+------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Monad m, Num a) => Num (AsyncT m a) where
+instance (MonadAsync m, Num a) => Num (AsyncT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -269,14 +300,14 @@ instance (Monad m, Num a) => Num (AsyncT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (AsyncT m a) where
+instance (MonadAsync m, Fractional a) => Fractional (AsyncT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (AsyncT m a) where
+instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -305,7 +336,7 @@ instance (Monad m, Floating a) => Floating (AsyncT m a) where
 ------------------------------------------------------------------------------
 
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid, MonadTrans)
+    deriving (Semigroup, Monoid, MonadTrans)
 
 deriving instance MonadAsync m => MonadIO (ParallelT m)
 deriving instance MonadAsync m => MonadThrow (ParallelT m)
@@ -324,15 +355,31 @@ instance Streaming ParallelT where
 -- iterations in a fairly parallel manner, i.e. all iterations are equally
 -- likely to run.
 instance MonadAsync m => Monad (ParallelT m) where
+    return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
               par = parallel (CtxType Conjunction FIFO)
 
 ------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Functor (ParallelT m) where
+    fmap = liftM
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+instance MonadAsync m => Applicative (ParallelT m) where
+    pure = ParallelT . yielding
+    (<*>) = ap
+
+------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Monad m, Num a) => Num (ParallelT m a) where
+instance (MonadAsync m, Num a) => Num (ParallelT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -343,14 +390,14 @@ instance (Monad m, Num a) => Num (ParallelT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (ParallelT m a) where
+instance (MonadAsync m, Fractional a) => Fractional (ParallelT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (ParallelT m a) where
+instance (MonadAsync m, Floating a) => Floating (ParallelT m a) where
     pi = pure pi
 
     exp  = fmap exp
