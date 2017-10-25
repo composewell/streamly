@@ -16,27 +16,25 @@
 --
 --
 module Asyncly.AsyncT
-    ( AsyncT (..)
+    ( Stream (..)
     , MonadAsync
-    , runAsyncly
+
+    , fromCallback
+
+    , runStreaming
     , toList
     , async
 
     , interleave
-    , (<=>)
-    , parAhead
-    , (<>|)
+    , parallel
     , parLeft
-    , (<|)
-
-    , (>->)
-    , (>>|)
-    , (>|>)
+    , CtxType (..)
+    , SchedPolicy (..)
+    , Dimension (..)
 
     , foldWith
     , foldMapWith
     , forEachWith
-    , fromCallback
     )
 where
 
@@ -101,7 +99,7 @@ data CtxType     = CtxType Dimension SchedPolicy deriving Eq
 data Context m a =
     Context { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
-            , enqueue        :: AsyncT m a -> IO ()
+            , enqueue        :: Stream m a -> IO ()
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
             , queueEmpty     :: m Bool
@@ -112,12 +110,12 @@ data Context m a =
 -- in monad 'm'. 'AsyncT' streams can be composed sequentially or in parallel
 -- in various ways using monadic bind or variants of it and using monoidal
 -- compositions like 'Monoid', 'Alternative' or variants of these.
-newtype AsyncT m a =
-    AsyncT {
-        runAsyncT :: forall r.
+newtype Stream m a =
+    Stream {
+        runStream :: forall r.
                Maybe (Context m a)               -- local state
             -> m r                               -- stop
-            -> (a -> Maybe (AsyncT m a) -> m r)  -- yield
+            -> (a -> Maybe (Stream m a) -> m r)  -- yield
             -> m r
     }
 
@@ -130,40 +128,31 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 -- | '<>' concatenates two 'AsyncT' streams sequentially i.e. the first stream
 -- is exhausted completely before yielding any element from the second stream.
-instance Semigroup (AsyncT m a) where
+instance Semigroup (Stream m a) where
     m1 <> m2 = go m1
         where
-        go (AsyncT m) = AsyncT $ \_ stp yld ->
-                let stop = (runAsyncT m2) Nothing stp yld
+        go (Stream m) = Stream $ \_ stp yld ->
+                let stop = (runStream m2) Nothing stp yld
                     yield a Nothing  = yld a (Just m2)
                     yield a (Just r) = yld a (Just (go r))
                 in m Nothing stop yield
 
-instance Monoid (AsyncT m a) where
-    mempty = AsyncT $ \_ stp _ -> stp
+instance Monoid (Stream m a) where
+    mempty = Stream $ \_ stp _ -> stp
     mappend = (<>)
 
--- | Same as '<=>'.
-interleave :: AsyncT m a -> AsyncT m a -> AsyncT m a
-interleave m1 m2 = AsyncT $ \_ stp yld -> do
-    let stop = (runAsyncT m2) Nothing stp yld
+interleave :: Stream m a -> Stream m a -> Stream m a
+interleave m1 m2 = Stream $ \_ stp yld -> do
+    let stop = (runStream m2) Nothing stp yld
         yield a Nothing  = yld a (Just m2)
         yield a (Just r) = yld a (Just (interleave m2 r))
-    (runAsyncT m1) Nothing stop yield
-
-infixr 5 <=>
-
--- | Sequential interleaved composition, similar to '<>' except that it
--- fairly interleaves the two 'AsyncT' streams, yielding an element from each
--- stream alternately.
-(<=>) :: AsyncT m a -> AsyncT m a -> AsyncT m a
-(<=>) = interleave
+    (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Functor (AsyncT m) where
+instance Monad m => Functor (Stream m) where
     fmap = liftM
 
 ------------------------------------------------------------------------------
@@ -172,87 +161,24 @@ instance Monad m => Functor (AsyncT m) where
 
 -- The newtype ZipAsync provides a parallel zip applicative instance
 
-instance Monad m => Applicative (AsyncT m) where
-    pure a = AsyncT $ \_ _ yld -> yld a Nothing
+instance Monad m => Applicative (Stream m) where
+    pure a = Stream $ \_ _ yld -> yld a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
--- | A thread context is valid only until the next bind. Upon a bind we
--- reset the context to Nothing.
-{-# INLINE bindWith #-}
-bindWith
-    :: (forall c. AsyncT m c -> AsyncT m c -> AsyncT m c)
-    -> AsyncT m a
-    -> (a -> AsyncT m b)
-    -> AsyncT m b
-bindWith k m f = go m
-    where
-        go (AsyncT g) =
-            AsyncT $ \_ stp yld ->
-            let run x = (runAsyncT x) Nothing stp yld
-                yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `k` (go r)
-            in g Nothing stp yield
-
 -- | Execute a monadic action sequentially for each element in the 'AsyncT'
 -- stream, i.e. an iteration finishes completely before the next one starts.
-instance Monad m => Monad (AsyncT m) where
+instance Monad m => Monad (Stream m) where
     return = pure
 
-    AsyncT m >>= f = AsyncT $ \_ stp yld ->
-        let run x = (runAsyncT x) Nothing stp yld
+    Stream m >>= f = Stream $ \_ stp yld ->
+        let run x = (runStream x) Nothing stp yld
             yield a Nothing  = run $ f a
             yield a (Just r) = run $ f a <> (r >>= f)
         in m Nothing stp yield
-
-------------------------------------------------------------------------------
--- Alternative ways to bind
-------------------------------------------------------------------------------
-
--- XXX Do we need newtype wrappers for these?
-
--- | Execute a monadic action for each element in the stream, in a fairly
--- interleaved manner i.e. iterations yield alternately.
-(>->) :: AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-(>->) = bindWith (<=>)
-
-{-# INLINE parbind #-}
-parbind
-    :: (forall c. AsyncT m c -> AsyncT m c -> AsyncT m c)
-    -> AsyncT m a
-    -> (a -> AsyncT m b)
-    -> AsyncT m b
-parbind k m f = go m
-    where
-        go (AsyncT g) =
-            AsyncT $ \ctx stp yld ->
-            let run x = (runAsyncT x) ctx stp yld
-                yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `k` (go r)
-            in g Nothing stp yield
-
--- | Execute a monadic action for each element in the stream, running
--- iterations in parallel, but giving preference to iterations started earlier.
-(>>|) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-(>>|) = parbind (parallel (CtxType Conjunction LIFO))
-
--- | Execute a monadic action for each element in the stream, running
--- iterations in a fairly parallel manner, i.e. all iterations are equally
--- likely to run.
-(>|>) :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
-(>|>) = parbind (parallel (CtxType Conjunction FIFO))
-
--- TBD Ideally we would want parallelism to be completely hidden from the user,
--- for example we can automatically decide where to start an action in parallel
--- so that it is most efficient. We can decide whether a particular bind should
--- fork a parallel thread or not based on the level of the bind in the tree.
--- This is equivalent to dynamically deciding (maybe based user policies
--- applied using combinators) which type of bind or monoidal composition we
--- should use. We can have another bind operator (maybe the standard >>= should
--- be used for that) for this type of behavior.
 
 ------------------------------------------------------------------------------
 -- Alternative
@@ -287,10 +213,10 @@ sendStop ctx = liftIO myThreadId >>= \tid -> send ctx (ChildStop tid Nothing)
 
 -- Note: Left associated operations can grow this queue to a large size
 {-# INLINE enqueueLIFO #-}
-enqueueLIFO :: IORef [AsyncT m a] -> AsyncT m a -> IO ()
+enqueueLIFO :: IORef [Stream m a] -> Stream m a -> IO ()
 enqueueLIFO q m = atomicModifyIORefCAS_ q $ \ ms -> m : ms
 
-runqueueLIFO :: MonadIO m => Context m a -> IORef [AsyncT m a] -> m ()
+runqueueLIFO :: MonadIO m => Context m a -> IORef [Stream m a] -> m ()
 runqueueLIFO ctx q = run
 
     where
@@ -299,11 +225,11 @@ runqueueLIFO ctx q = run
         work <- dequeue
         case work of
             Nothing -> sendStop ctx
-            Just m -> (runAsyncT m) (Just ctx) run yield
+            Just m -> (runStream m) (Just ctx) run yield
 
     sendit a = send ctx (ChildYield a)
     yield a Nothing  = sendit a >> run
-    yield a (Just r) = sendit a >> (runAsyncT r) (Just ctx) run yield
+    yield a (Just r) = sendit a >> (runStream r) (Just ctx) run yield
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \ ms ->
         case ms of
@@ -311,10 +237,10 @@ runqueueLIFO ctx q = run
             x : xs -> (xs, Just x)
 
 {-# INLINE enqueueFIFO #-}
-enqueueFIFO :: LinkedQueue (AsyncT m a) -> AsyncT m a -> IO ()
+enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO = pushL
 
-runqueueFIFO :: MonadIO m => Context m a -> LinkedQueue (AsyncT m a) -> m ()
+runqueueFIFO :: MonadIO m => Context m a -> LinkedQueue (Stream m a) -> m ()
 runqueueFIFO ctx q = run
 
     where
@@ -323,7 +249,7 @@ runqueueFIFO ctx q = run
         work <- dequeue
         case work of
             Nothing -> sendStop ctx
-            Just m -> (runAsyncT m) (Just ctx) run yield
+            Just m -> (runStream m) (Just ctx) run yield
 
     dequeue = liftIO $ tryPopR q
     sendit a = send ctx (ChildYield a)
@@ -387,8 +313,8 @@ instance Exception ContextUsedAfterEOF
 
 -- | Pull an AsyncT stream from a context
 {-# NOINLINE pullFromCtx #-}
-pullFromCtx :: MonadAsync m => Context m a -> AsyncT m a
-pullFromCtx ctx = AsyncT $ \_ stp yld -> do
+pullFromCtx :: MonadAsync m => Context m a -> Stream m a
+pullFromCtx ctx = Stream $ \_ stp yld -> do
     -- When using an async handle to the context, one may keep using a stale
     -- context even after it has been fully drained. To detect it gracefully we
     -- raise an explicit exception.
@@ -403,7 +329,7 @@ pullFromCtx ctx = AsyncT $ \_ stp yld -> do
     -- To avoid lock overhead we read all events at once instead of reading one
     -- at a time. We just reverse the list to process the events in the order
     -- they arrived. Maybe we can use a queue instead?
-    (runAsyncT $ processEvents (reverse list)) Nothing stp yld
+    (runStream $ processEvents (reverse list)) Nothing stp yld
 
     where
 
@@ -414,14 +340,14 @@ pullFromCtx ctx = AsyncT $ \_ stp yld -> do
         throwM e
 
     {-# INLINE processEvents #-}
-    processEvents [] = AsyncT $ \_ stp yld -> do
+    processEvents [] = Stream $ \_ stp yld -> do
         done <- allThreadsDone ctx
         if not done
-        then (runAsyncT (pullFromCtx ctx)) Nothing stp yld
+        then (runStream (pullFromCtx ctx)) Nothing stp yld
         else stp
 
-    processEvents (ev : es) = AsyncT $ \_ stp yld -> do
-        let continue = (runAsyncT (processEvents es)) Nothing stp yld
+    processEvents (ev : es) = Stream $ \_ stp yld -> do
+        let continue = (runStream (processEvents es)) Nothing stp yld
             yield a  = yld a (Just (processEvents es))
 
         case ev of
@@ -469,7 +395,7 @@ getLifoCtx ctype = do
 -- | Split the original computation in a pull-push pair. The original
 -- computation pulls from a Channel while m1 and m2 push to the channel.
 pushPairToCtx :: MonadAsync m
-    => CtxType -> AsyncT m a -> AsyncT m a -> m (Context m a)
+    => CtxType -> Stream m a -> Stream m a -> m (Context m a)
 pushPairToCtx ctype m1 m2 = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
@@ -489,10 +415,10 @@ pushPairToCtx ctype m1 m2 = do
 
 {-# NOINLINE pushPullFork #-}
 pushPullFork :: MonadAsync m
-    => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
-pushPullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
+    => CtxType -> Stream m a -> Stream m a -> Stream m a
+pushPullFork ct m1 m2 = Stream $ \_ stp yld -> do
     ctx <- pushPairToCtx ct m1 m2
-    (runAsyncT (pullFromCtx ctx)) Nothing stp yld
+    (runStream (pullFromCtx ctx)) Nothing stp yld
 
 -- Concurrency rate control. Our objective is to create more threads on
 -- demand if the consumer is running faster than us. As soon as we
@@ -528,20 +454,20 @@ pushPullFork ct m1 m2 = AsyncT $ \_ stp yld -> do
 -- Note: This is designed to scale for right associated compositions,
 -- therefore always use a right fold for folding bigger structures.
 {-# INLINE parallel #-}
-parallel :: MonadAsync m => CtxType -> AsyncT m a -> AsyncT m a -> AsyncT m a
-parallel ct m1 m2 = AsyncT $ \ctx stp yld -> do
+parallel :: MonadAsync m => CtxType -> Stream m a -> Stream m a -> Stream m a
+parallel ct m1 m2 = Stream $ \ctx stp yld -> do
     case ctx of
-        Nothing -> (runAsyncT (pushPullFork ct m1 m2)) Nothing stp yld
+        Nothing -> (runStream (pushPullFork ct m1 m2)) Nothing stp yld
         Just c | ctxType c /= ct ->
-            (runAsyncT (pushPullFork ct m1 m2)) Nothing stp yld
-        Just c -> liftIO ((enqueue c) m2) >> (runAsyncT m1) ctx stp yld
+            (runStream (pushPullFork ct m1 m2)) Nothing stp yld
+        Just c -> liftIO ((enqueue c) m2) >> (runStream m1) ctx stp yld
 
 -- | `empty` represents an action that takes non-zero time to complete.  Since
 -- all actions take non-zero time, an `Alternative` composition ('<|>') is a
 -- monoidal composition executing all actions in parallel, it is similar to
 -- '<>' except that it runs all the actions in parallel and interleaves their
 -- results fairly.
-instance MonadAsync m => Alternative (AsyncT m) where
+instance MonadAsync m => Alternative (Stream m) where
     empty = mempty
 
     {-# INLINE (<|>) #-}
@@ -551,37 +477,30 @@ instance MonadAsync m => Alternative (AsyncT m) where
 -- Other monoidal compositions for parallel actions
 ------------------------------------------------------------------------------
 
+{-
 -- | Same as '<>|'.
-parAhead :: AsyncT m a -> AsyncT m a -> AsyncT m a
+parAhead :: Stream m a -> Stream m a -> Stream m a
 parAhead = undefined
 
 -- | Sequential composition similar to '<>' except that it can execute the
 -- action on the right in parallel ahead of time. Returns the results in
 -- sequential order like '<>' from left to right.
-(<>|) :: AsyncT m a -> AsyncT m a -> AsyncT m a
+(<>|) :: Stream m a -> Stream m a -> Stream m a
 (<>|) = parAhead
+-}
 
 -- | Same as '<|'.
 {-# INLINE parLeft #-}
-parLeft :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 parLeft = parallel (CtxType Disjunction LIFO)
 
--- | Parallel composition similar to `<|>` except that it is left-biased
--- instead of being fair.  Action on the left is likely to be given a chance to
--- execute before the action on the right. If the left action keeps yielding
--- results without blocking it continues running until it finishes and only
--- then the right action runs.
-{-# INLINE (<|) #-}
-(<|) :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
-(<|) = parLeft
-
-instance MonadAsync m => MonadPlus (AsyncT m) where
+instance MonadAsync m => MonadPlus (Stream m) where
     mzero = empty
     mplus = (<|>)
 
 -- | The computation specified in the argument is pushed to a new thread and
 -- the context is computation pulls output from the thread.
-pushOneToCtx :: MonadAsync m => CtxType -> AsyncT m a -> m (Context m a)
+pushOneToCtx :: MonadAsync m => CtxType -> Stream m a -> m (Context m a)
 pushOneToCtx ctype m = do
     ctx <- liftIO $
         case ctype of
@@ -610,7 +529,7 @@ pushOneToCtx ctype m = do
 -- fully we will may have a thread blocked forever and if executed more than
 -- once a ContextUsedAfterEOF exception will be raised.
 
-async :: MonadAsync m => AsyncT m a -> m (AsyncT m a)
+async :: MonadAsync m => Stream m a -> m (Stream m a)
 async m = do
     ctx <- pushOneToCtx (CtxType Disjunction LIFO) m
     return $ pullFromCtx ctx
@@ -619,7 +538,7 @@ async m = do
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Monad m, Num a) => Num (AsyncT m a) where
+instance (Monad m, Num a) => Num (Stream m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -630,14 +549,14 @@ instance (Monad m, Num a) => Num (AsyncT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (AsyncT m a) where
+instance (Monad m, Fractional a) => Fractional (Stream m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (AsyncT m a) where
+instance (Monad m, Floating a) => Floating (Stream m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -663,39 +582,39 @@ instance (Monad m, Floating a) => Floating (AsyncT m a) where
 -- AsyncT transformer
 -------------------------------------------------------------------------------
 
-instance MonadTrans AsyncT where
-    lift mx = AsyncT $ \_ _ yld -> mx >>= (\a -> (yld a Nothing))
+instance MonadTrans Stream where
+    lift mx = Stream $ \_ _ yld -> mx >>= (\a -> (yld a Nothing))
 
-instance (MonadBase b m, Monad m) => MonadBase b (AsyncT m) where
+instance (MonadBase b m, Monad m) => MonadBase b (Stream m) where
     liftBase = liftBaseDefault
 
 ------------------------------------------------------------------------------
 -- Standard transformer instances
 ------------------------------------------------------------------------------
 
-instance MonadIO m => MonadIO (AsyncT m) where
+instance MonadIO m => MonadIO (Stream m) where
     liftIO = lift . liftIO
 
-instance MonadThrow m => MonadThrow (AsyncT m) where
+instance MonadThrow m => MonadThrow (Stream m) where
     throwM = lift . throwM
 
 -- XXX handle and test cross thread state transfer
-instance MonadError e m => MonadError e (AsyncT m) where
+instance MonadError e m => MonadError e (Stream m) where
     throwError     = lift . throwError
-    catchError m h = AsyncT $ \ctx stp yld ->
-        let handle r = r `catchError` \e -> (runAsyncT (h e)) ctx stp yld
+    catchError m h = Stream $ \ctx stp yld ->
+        let handle r = r `catchError` \e -> (runStream (h e)) ctx stp yld
             yield a Nothing = yld a Nothing
             yield a (Just r) = yld a (Just (catchError r h))
-        in handle $ (runAsyncT m) ctx stp yield
+        in handle $ (runStream m) ctx stp yield
 
-instance MonadReader r m => MonadReader r (AsyncT m) where
+instance MonadReader r m => MonadReader r (Stream m) where
     ask = lift ask
-    local f m = AsyncT $ \ctx stp yld ->
+    local f m = Stream $ \ctx stp yld ->
         let yield a Nothing  = local f $ yld a Nothing
             yield a (Just r) = local f $ yld a (Just (local f r))
-        in (runAsyncT m) ctx (local f stp) yield
+        in (runStream m) ctx (local f stp) yield
 
-instance MonadState s m => MonadState s (AsyncT m) where
+instance MonadState s m => MonadState s (Stream m) where
     get     = lift get
     put x   = lift (put x)
     state k = lift (state k)
@@ -706,8 +625,8 @@ instance MonadState s m => MonadState s (AsyncT m) where
 
 -- | Run an 'AsyncT' computation, wait for it to finish and discard the
 -- results.
-runAsyncly :: MonadAsync m => AsyncT m a -> m ()
-runAsyncly m = (runAsyncT m) Nothing stop yield
+runStreaming :: Monad m => Stream m a -> m ()
+runStreaming m = (runStream m) Nothing stop yield
 
     where
 
@@ -715,13 +634,12 @@ runAsyncly m = (runAsyncT m) Nothing stop yield
 
     {-# INLINE yield #-}
     yield _ Nothing  = stop
-    yield _ (Just x) = runAsyncly x
-
+    yield _ (Just x) = runStreaming x
 
 -- | Collect the results of an 'AsyncT' stream into a list.
 {-# INLINABLE toList #-}
-toList :: MonadAsync m => AsyncT m a -> m [a]
-toList m = (runAsyncT m) Nothing stop yield
+toList :: Monad m => Stream m a -> m [a]
+toList m = (runStream m) Nothing stop yield
 
     where
 
@@ -759,5 +677,5 @@ forEachWith f xs g = foldr (f . g) mempty xs
 ------------------------------------------------------------------------------
 
 -- | Convert a callback into an 'AsyncT' stream.
-fromCallback :: (forall r. (a -> m r) -> m r) -> AsyncT m a
-fromCallback k = AsyncT $ \_ _ yld -> k (\a -> yld a Nothing)
+fromCallback :: (forall r. (a -> m r) -> m r) -> Stream m a
+fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)

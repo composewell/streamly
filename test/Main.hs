@@ -14,20 +14,20 @@ import qualified Asyncly.Prelude as A
 main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
-        it "simple runAsyncly" $
-            runAsyncly (return (0 :: Int)) `shouldReturn` ()
-        it "simple runAsyncly with IO" $
-            runAsyncly (liftIO $ putStrLn "hello") `shouldReturn` ()
+        it "simple serially" $
+            serially (return (0 :: Int)) `shouldReturn` ()
+        it "simple serially with IO" $
+            serially (liftIO $ putStrLn "hello") `shouldReturn` ()
         it "Captures a return value using toList" $
-            toList (return 0) `shouldReturn` ([0] :: [Int])
+            toListSerial (return 0) `shouldReturn` ([0] :: [Int])
 
     describe "Empty" $ do
         it "Monoid - mempty" $
-            (toList mempty) `shouldReturn` ([] :: [Int])
+            (toListSerial mempty) `shouldReturn` ([] :: [Int])
         it "Alternative - empty" $
-            (toList empty) `shouldReturn` ([] :: [Int])
+            (toListSerial empty) `shouldReturn` ([] :: [Int])
         it "MonadPlus - mzero" $
-            (toList mzero) `shouldReturn` ([] :: [Int])
+            (toListSerial mzero) `shouldReturn` ([] :: [Int])
 
     ---------------------------------------------------------------------------
     -- Functor
@@ -35,12 +35,12 @@ main = hspec $ do
 
     describe "Functor (fmap)" $ do
         it "Simple fmap" $
-            (toList $ fmap (+1) (return 1)) `shouldReturn` ([2] :: [Int])
+            (toListSerial $ fmap (+1) (return 1)) `shouldReturn` ([2] :: [Int])
         it "fmap on composed (<>)" $
-            (toList $ fmap (+1) (return 1 <> return 2))
+            (toListSerial $ fmap (+1) (return 1 <> return 2))
                 `shouldReturn` ([2,3] :: [Int])
         it "fmap on composed (<|>)" $
-            (toList $ fmap (+1) (return 1 <|> return 2))
+            (toListSerial $ fmap (+1) (return 1 <|> return 2))
                 `shouldReturn` ([2,3] :: [Int])
 
     ---------------------------------------------------------------------------
@@ -49,23 +49,23 @@ main = hspec $ do
 
     describe "Applicative" $ do
         it "Simple apply" $
-            (toList $ (,) <$> (return 1) <*> (return 2))
+            (toListSerial $ (,) <$> (return 1) <*> (return 2))
                 `shouldReturn` ([(1,2)] :: [(Int, Int)])
 
         it "Apply - serial composed first argument" $
-            (toList $ (,) <$> (return 1 <> return 2) <*> (return 3))
+            (toListSerial $ (,) <$> (return 1 <> return 2) <*> (return 3))
                 `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
 
         it "Apply - serial composed second argument" $
-            (toList $ (,) <$> (return 1) <*> (return 2 <> return 3))
+            (toListSerial $ (,) <$> (return 1) <*> (return 2 <> return 3))
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
         it "Apply - parallel composed first argument" $
-            (toList $ (,) <$> (return 1 <|> return 2) <*> (return 3))
+            (toListSerial $ (,) <$> (return 1 <|> return 2) <*> (return 3))
                 `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
 
         it "Apply - parallel composed second argument" $
-            (toList $ (,) <$> (return 1) <*> (return 2 <|> return 3))
+            (toListSerial $ (,) <$> (return 1) <*> (return 2 <|> return 3))
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
     ---------------------------------------------------------------------------
@@ -73,15 +73,15 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Bind then" thenBind
-    describe "Pure bind serial" $ pureBind (>>=)
-    describe "Pure bind serial interleaved" $ pureBind (>->)
-    describe "Pure bind parallel DFS" $ pureBind (>>|)
-    describe "Pure bind parallel BFS" $ pureBind (>|>)
+    describe "Pure bind serial" $ pureBind toListSerial
+    describe "Pure bind serial interleaved" $ pureBind toListInterleaved
+    describe "Pure bind parallel DFS" $ pureBind toListAsync
+    describe "Pure bind parallel BFS" $ pureBind toListParallel
 
-    describe "Bind (>>=) with empty" $ bindEmpty (>>=)
-    describe "Bind (>->) with empty" $ bindEmpty (>->)
-    describe "Bind (>|>) with empty" $ bindEmpty (>|>)
-    describe "Bind (>>|) with empty" $ bindEmpty (>>|)
+    describe "Bind (>>=) with empty" $ bindEmpty toListSerial
+    describe "Bind (>->) with empty" $ bindEmpty toListInterleaved
+    describe "Bind (>|>) with empty" $ bindEmpty toListAsync
+    describe "Bind (>>|) with empty" $ bindEmpty toListParallel
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions
@@ -98,8 +98,8 @@ main = hspec $ do
     -- Monoidal Composition ordering checks
     ---------------------------------------------------------------------------
 
-    describe "Serial interleaved ordering check (<=>)" $ interleaved (<=>)
-    describe "Parallel interleaved ordering check (<|>)" $ interleaved (<|>)
+    describe "Serial interleaved ordering check (<=>)" $ interleaveCheck (<=>)
+    describe "Parallel interleaved ordering check (<|>)" $ interleaveCheck (<|>)
     describe "Left biased parallel time order check" $ parallelCheck (<|)
     describe "Fair parallel time order check" $ parallelCheck (<|>)
 
@@ -140,13 +140,13 @@ main = hspec $ do
     describe "Nested parallel and serial compositions" $ do
         it "Nest <|>, <>, <|> (1)" $
             let t = timed
-             in toList (
+             in toListSerial (
                     ((t 8 <|> t 4) <> (t 2 <|> t 0))
                 <|> ((t 8 <|> t 4) <> (t 2 <|> t 0)))
             `shouldReturn` ([4,4,8,8,0,0,2,2])
         it "Nest <|>, <>, <|> (2)" $
             let t = timed
-             in toList (
+             in toListSerial (
                     ((t 4 <|> t 8) <> (t 1 <|> t 2))
                 <|> ((t 4 <|> t 8) <> (t 1 <|> t 2)))
             `shouldReturn` ([4,4,8,8,1,1,2,2])
@@ -155,20 +155,20 @@ main = hspec $ do
         {-
         it "Nest <|>, <=>, <|> (1)" $
             let t = timed
-             in toList (
+             in toListSerial (
                     ((t 8 <|> t 4) <=> (t 2 <|> t 0))
                 <|> ((t 9 <|> t 4) <=> (t 2 <|> t 0)))
             `shouldReturn` ([4,4,0,0,8,2,9,2])
         it "Nest <|>, <=>, <|> (2)" $
             let t = timed
-             in toList (
+             in toListSerial (
                     ((t 4 <|> t 8) <=> (t 1 <|> t 2))
                 <|> ((t 4 <|> t 9) <=> (t 1 <|> t 2)))
             `shouldReturn` ([4,4,1,1,8,2,9,2])
         -}
         it "Nest <|>, <|>, <|>" $
             let t = timed
-             in toList (
+             in toListSerial (
                     ((t 4 <|> t 8) <|> (t 0 <|> t 2))
                 <|> ((t 4 <|> t 8) <|> (t 0 <|> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])
@@ -185,17 +185,37 @@ main = hspec $ do
     -- Bind and monoidal composition combinations
     ---------------------------------------------------------------------------
 
-    forM_ [(>>=), (>->), (>>|), (>|>)] $ \f ->
-        forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
-            describe "Bind and compose" $ bindAndComposeSimple f g
+    forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+        describe "Bind and compose" $ bindAndComposeSimple toListSerial g
+
+    forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+        describe "Bind and compose" $ bindAndComposeSimple toListInterleaved g
+
+    forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+        describe "Bind and compose" $ bindAndComposeSimple toListAsync g
+
+    forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+        describe "Bind and compose" $ bindAndComposeSimple toListParallel g
 
     let fldr f = foldr f empty
         fldl f = foldl f empty
-     in forM_ [(>>=), (>->), (>>|), (>|>)] $ \f ->
-            forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
-                forM_ [fldr, fldl] $ \k ->
-                    describe "Bind and compose" $
-                        bindAndComposeHierarchy f (k g)
+     in do
+        forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+            forM_ [fldr, fldl] $ \k ->
+                describe "Bind and compose" $
+                    bindAndComposeHierarchy toListSerial (k g)
+        forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+            forM_ [fldr, fldl] $ \k ->
+                describe "Bind and compose" $
+                    bindAndComposeHierarchy toListInterleaved (k g)
+        forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+            forM_ [fldr, fldl] $ \k ->
+                describe "Bind and compose" $
+                    bindAndComposeHierarchy toListAsync (k g)
+        forM_ [(<>), (<=>), (<|), (<|>)] $ \g ->
+            forM_ [fldr, fldl] $ \k ->
+                describe "Bind and compose" $
+                    bindAndComposeHierarchy toListParallel (k g)
 
     ---------------------------------------------------------------------------
     -- TBD Bind and Bind combinations
@@ -206,149 +226,153 @@ main = hspec $ do
 
     describe "Transformation" $ transformOps (<>)
     describe "Serial zipping" $
-        zipOps A.zipWith A.zipWithM A.ZipSerial A.getZipSerial
+        zipOps A.zipWith A.zipWithM fromStream fromZipStream
     describe "Async zipping" $
-        zipOps A.zipAsyncWith A.zipAsyncWithM A.ZipAsync A.getZipAsync
+        zipOps A.zipAsyncWith A.zipAsyncWithM fromStream fromZipAsync
 
 zipOps :: Applicative (f IO)
     => (forall a b c. (a -> b -> c)
-        -> AsyncT IO a -> AsyncT IO b -> AsyncT IO c)
-    -> (forall a b c. (a -> b -> AsyncT IO c)
-        -> AsyncT IO a -> AsyncT IO b -> AsyncT IO c)
-    -> (forall a. AsyncT IO a -> f IO a)
-    -> (forall a. f IO a -> AsyncT IO a)
+        -> StreamT IO a -> StreamT IO b -> StreamT IO c)
+    -> (forall a b c. (a -> b -> StreamT IO c)
+        -> StreamT IO a -> StreamT IO b -> StreamT IO c)
+    -> (forall a. StreamT IO a -> f IO a)
+    -> (forall a. f IO a -> StreamT IO a)
     -> Spec
 zipOps z zM app getz = do
     it "zipWith" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (z (+) s1 s2)
+         in toListSerial (z (+) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "zipWithM" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (zM (\a b -> return (a + b)) s1 s2)
+         in toListSerial (zM (\a b -> return (a + b)) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "Applicative zip" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
-         in toList (getz ((+) <$> app s1 <*> app s2))
+         in toListSerial (getz ((+) <$> app s1 <*> app s2))
         `shouldReturn` ([2,4..20] :: [Int])
 
-timed :: Int -> AsyncT IO Int
+timed :: Int -> StreamT IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 thenBind :: Spec
 thenBind = do
     it "Simple runAsyncly and 'then' with IO" $
-        runAsyncly (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
+        serially (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
             `shouldReturn` ()
     it "Then and toList" $
-        toList (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])
+        toListSerial (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])
 
-pureBind :: (AsyncT IO Int -> (Int -> AsyncT IO Int) -> AsyncT IO Int) -> Spec
-pureBind f = do
+type ToListType s = (forall a. s IO a -> IO [a])
+pureBind :: Monad (s IO) => ToListType s -> Spec
+pureBind l = do
     it "Bind and toList" $
-        toList (return 1 `f` \x -> return 2 `f` \y -> return (x + y))
+        l (return 1 `f` \x -> return 2 `f` \y -> return (x + y))
             `shouldReturn` ([3] :: [Int])
+    where f = (>>=)
 
-bindEmpty :: (AsyncT IO Int -> (Int -> AsyncT IO Int) -> AsyncT IO Int) -> Spec
-bindEmpty f = it "Binds with empty" $
-    (toList (return 1 `f` \_ -> empty `f` \_ -> return 2))
+bindEmpty :: (Monad (s IO), Alternative (s IO)) => ToListType s -> Spec
+bindEmpty l = it "Binds with empty" $
+    (l (return (1 :: Int) `f` \_ -> empty `f` \_ -> return 2))
         `shouldReturn` ([] :: [Int])
+    where f = (>>=)
 
-interleaved
-    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+interleaveCheck
+    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
     -> Spec
-interleaved f =
+interleaveCheck f =
     it "Interleave four" $
-        toList ((return 0 <> return 1) `f` (return 100 <> return 101))
+        toListSerial ((return 0 <> return 1) `f` (return 100 <> return 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
+parallelCheck :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int) -> Spec
 parallelCheck f = do
     it "Parallel ordering left associated" $
-        toList (((event 4 `f` event 3) `f` event 2) `f` event 1)
+        toListSerial (((event 4 `f` event 3) `f` event 2) `f` event 1)
             `shouldReturn` ([1..4])
 
     it "Parallel ordering right associated" $
-        toList (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
+        toListSerial (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
 
 compose
-    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
     -> ([Int] -> [Int])
     -> Spec
 compose f srt = do
     it "Compose mempty, mempty" $
-        (toList (mempty `f` mempty)) `shouldReturn` []
+        (tl (mempty `f` mempty)) `shouldReturn` []
     it "Compose empty, empty" $
-        (toList (empty `f` empty)) `shouldReturn` []
+        (tl (empty `f` empty)) `shouldReturn` []
     it "Compose empty at the beginning" $
-        (toList $ (empty `f` return 1)) `shouldReturn` [1]
+        (tl $ (empty `f` return 1)) `shouldReturn` [1]
     it "Compose empty at the end" $
-        (toList $ (return 1 `f` empty)) `shouldReturn` [1]
+        (tl $ (return 1 `f` empty)) `shouldReturn` [1]
     it "Compose two" $
-        (toList (return 0 `f` return 1) >>= return . srt)
+        (tl (return 0 `f` return 1) >>= return . srt)
             `shouldReturn` [0, 1]
     it "Compose three - empty in the middle" $
-        ((toList $ (return 0 `f` empty `f` return 1)) >>= return . srt)
+        ((tl $ (return 0 `f` empty `f` return 1)) >>= return . srt)
             `shouldReturn` [0, 1]
     it "Compose left associated" $
-        ((toList $ (((return 0 `f` return 1) `f` return 2) `f` return 3))
+        ((tl $ (((return 0 `f` return 1) `f` return 2) `f` return 3))
             >>= return . srt) `shouldReturn` [0, 1, 2, 3]
     it "Compose right associated" $
-        ((toList $ (return 0 `f` (return 1 `f` (return 2 `f` return 3))))
+        ((tl $ (return 0 `f` (return 1 `f` (return 2 `f` return 3))))
             >>= return . srt) `shouldReturn` [0, 1, 2, 3]
     it "Compose many" $
-        ((toList $ forEachWith f [1..100] return) >>= return . srt)
+        ((tl $ forEachWith f [1..100] return) >>= return . srt)
             `shouldReturn` [1..100]
     it "Compose hierarchical (multiple levels)" $
-        ((toList $ (((return 0 `f` return 1) `f` (return 2 `f` return 3))
+        ((tl $ (((return 0 `f` return 1) `f` (return 2 `f` return 3))
                 `f` ((return 4 `f` return 5) `f` (return 6 `f` return 7)))
             ) >>= return . srt) `shouldReturn` [0..7]
+    where tl = toListSerial
 
 composeAndComposeSimple
-    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
-    -> (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    -> (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
     -> [[Int]]
     -> Spec
 composeAndComposeSimple f g answer = do
     it "Compose right associated outer expr, right folded inner" $
         let fold = foldMapWith g return
-         in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
+         in (toListSerial (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
             `shouldReturn` (answer !! 0)
 
     it "Compose left associated outer expr, right folded inner" $
         let fold = foldMapWith g return
-         in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
+         in (toListSerial ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
             `shouldReturn` (answer !! 1)
 
     it "Compose right associated outer expr, left folded inner" $
         let fold xs = foldl g empty $ map return xs
-         in (toList (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
+         in (toListSerial (fold [1,2,3] `f` (fold [4,5,6] `f` fold [7,8,9])))
             `shouldReturn` (answer !! 2)
 
     it "Compose left associated outer expr, left folded inner" $
         let fold xs = foldl g empty $ map return xs
-         in (toList ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
+         in (toListSerial ((fold [1,2,3] `f` fold [4,5,6]) `f` fold [7,8,9]))
             `shouldReturn` (answer !! 3)
 
 
 loops
-    :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
     -> Spec
 loops f tsrt hsrt = do
-    it "Tail recursive loop" $ (toList (loopTail 0) >>= return . tsrt)
+    it "Tail recursive loop" $ (toListSerial (loopTail 0) >>= return . tsrt)
             `shouldReturn` [0..3]
 
-    it "Head recursive loop" $ (toList (loopHead 0) >>= return . hsrt)
+    it "Head recursive loop" $ (toListSerial (loopHead 0) >>= return . hsrt)
             `shouldReturn` [0..3]
 
     where
@@ -363,26 +387,27 @@ loops f tsrt hsrt = do
             return x `f` (if x < 3 then loopTail (x + 1) else empty)
 
 bindAndComposeSimple
-    :: (AsyncT IO Int -> (Int -> AsyncT IO Int) -> AsyncT IO Int)
-    -> (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int)
+    :: (Alternative (s IO), Monad (s IO), Monoid (s IO Int)) => (forall a. s IO a -> IO [a])
+    -> (s IO Int -> s IO Int -> s IO Int)
     -> Spec
-bindAndComposeSimple f g = do
+bindAndComposeSimple tl g = do
     it "Compose many (right fold) with bind" $
-        (toList (forEachWith g [1..10 :: Int] $ \x -> return x `f` (return .  id))
+        (tl (forEachWith g [1..10 :: Int] $ \x -> return x `f` (return .  id))
             >>= return . sort) `shouldReturn` [1..10]
 
     it "Compose many (left fold) with bind" $
         let forL xs k = foldl g empty $ map k xs
-         in (toList (forL [1..10 :: Int] $ \x -> return x `f` (return . id))
+         in (tl (forL [1..10 :: Int] $ \x -> return x `f` (return . id))
                 >>= return . sort) `shouldReturn` [1..10]
+    where f = (>>=)
 
 bindAndComposeHierarchy
-    :: (AsyncT IO Int -> (Int -> AsyncT IO Int) -> AsyncT IO Int)
-    -> ([AsyncT IO Int] -> AsyncT IO Int)
+    :: Monad (s IO) => (forall a. s IO a -> IO [a])
+    -> ([s IO Int] -> s IO Int)
     -> Spec
-bindAndComposeHierarchy f g = do
+bindAndComposeHierarchy tl g = do
     it "Bind and compose nested" $
-        (toList bindComposeNested >>= return . sort)
+        (tl bindComposeNested >>= return . sort)
             `shouldReturn` (sort (
                    [12, 18]
                 ++ replicate 3 13
@@ -393,7 +418,7 @@ bindAndComposeHierarchy f g = do
 
     where
 
-    bindComposeNested :: AsyncT IO Int
+    -- bindComposeNested :: AsyncT IO Int
     bindComposeNested =
         let c1 = tripleCompose (return 1) (return 2) (return 3)
             c2 = tripleCompose (return 4) (return 5) (return 6)
@@ -410,17 +435,18 @@ bindAndComposeHierarchy f g = do
         mx `f` \x -> my
            `f` \y -> mz
            `f` \z -> return (x + y + z)
+    f = (>>=)
 
 mixedOps :: Spec
 mixedOps = do
     it "Compose many ops" $
-        (toList composeMixed >>= return . sort)
+        (toListSerial composeMixed >>= return . sort)
             `shouldReturn` ([8,9,9,9,9,9,10,10,10,10,10,10,10,10,10,10,11,11
                             ,11,11,11,11,11,11,11,11,12,12,12,12,12,13
                             ] :: [Int])
     where
 
-    composeMixed :: AsyncT IO Int
+    composeMixed :: StreamT IO Int
     composeMixed = do
         liftIO $ return ()
         liftIO $ putStr ""
@@ -441,24 +467,24 @@ mixedOps = do
                 return (x1 + y1 + z1)
         return (x + y + z)
 
-transformOps :: (AsyncT IO Int -> AsyncT IO Int -> AsyncT IO Int) -> Spec
+transformOps :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int) -> Spec
 transformOps f = do
     it "take all" $
-        (toList $ A.take 10 $ foldMapWith f return [1..10])
+        (toListSerial $ A.take 10 $ foldMapWith f return [1..10])
             `shouldReturn` [1..10]
     it "take none" $
-        (toList $ A.take 0 $ foldMapWith f return [1..10])
+        (toListSerial $ A.take 0 $ foldMapWith f return [1..10])
             `shouldReturn` []
     it "take 5" $
-        (toList $ A.take 5 $ foldMapWith f return [1..10])
+        (toListSerial $ A.take 5 $ foldMapWith f return [1..10])
             `shouldReturn` [1..5]
 
     it "drop all" $
-        (toList $ A.drop 10 $ foldMapWith f return [1..10])
+        (toListSerial $ A.drop 10 $ foldMapWith f return [1..10])
             `shouldReturn` []
     it "drop none" $
-        (toList $ A.drop 0 $ foldMapWith f return [1..10])
+        (toListSerial $ A.drop 0 $ foldMapWith f return [1..10])
             `shouldReturn` [1..10]
     it "drop 5" $
-        (toList $ A.drop 5 $ foldMapWith f return [1..10])
+        (toListSerial $ A.drop 5 $ foldMapWith f return [1..10])
             `shouldReturn` [6..10]

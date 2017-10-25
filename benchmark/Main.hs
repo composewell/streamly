@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RankNTypes          #-}
 
 module Main where
 
@@ -30,35 +31,38 @@ main :: IO ()
 main = do
     -- XXX due to a GHC bug passing bind as an argument causes perf
     -- degradation, so we should keep that in account when comparing.
-    let as = asyncly_basic
+    let as = asyncly_serial
+        ai = asyncly_interleaved
+        aa = asyncly_async
+        ap = asyncly_parallel
     defaultMain [
         bgroup "asyncly"
             [ bgroup "serial bind"
-                [ bench "serial"        $ nfIO (as (>>=) (A.<>))
-                , bench "fair serial"   $ nfIO (as (>>=) (A.<=>))
-                , bench "left parallel" $ nfIO (as (>>=) (A.<|))
-                , bench "fair parallel" $ nfIO (as (>>=) (A.<|>))
+                [ bench "serial"        $ nfIO (as (A.<>))
+                , bench "fair serial"   $ nfIO (as (A.<=>))
+                , bench "left parallel" $ nfIO (as (A.<|))
+                , bench "fair parallel" $ nfIO (as (A.<|>))
                 ]
 
-            , bgroup "fair bind"
-                [ bench "serial"        $ nfIO (as (A.>->) (A.<>))
-                , bench "fair serial"   $ nfIO (as (A.>->) (A.<=>))
-                , bench "left parallel" $ nfIO (as (A.>->) (A.<|))
-                , bench "fair parallel" $ nfIO (as (A.>->) (A.<|>))
+            , bgroup "interleaved bind"
+                [ bench "serial"        $ nfIO (ai (A.<>))
+                , bench "fair serial"   $ nfIO (ai (A.<=>))
+                , bench "left parallel" $ nfIO (ai (A.<|))
+                , bench "fair parallel" $ nfIO (ai (A.<|>))
+                ]
+
+            , bgroup "async bind"
+                [ bench "serial"        $ nfIO (aa (A.<>))
+                , bench "fair serial"   $ nfIO (aa (A.<=>))
+                , bench "left parallel" $ nfIO (aa (A.<|))
+                , bench "fair parallel" $ nfIO (aa (A.<|>))
                 ]
 
             , bgroup "parallel bind"
-                [ bench "serial"        $ nfIO (as (A.>>|) (A.<>))
-                , bench "fair serial"   $ nfIO (as (A.>>|) (A.<=>))
-                , bench "left parallel" $ nfIO (as (A.>>|) (A.<|))
-                , bench "fair parallel" $ nfIO (as (A.>>|) (A.<|>))
-                ]
-
-            , bgroup "fair parallel bind"
-                [ bench "serial"        $ nfIO (as (A.>|>) (A.<>))
-                , bench "fair serial"   $ nfIO (as (A.>|>) (A.<=>))
-                , bench "left parallel" $ nfIO (as (A.>|>) (A.<|))
-                , bench "fair parallel" $ nfIO (as (A.>|>) (A.<|>))
+                [ bench "serial"        $ nfIO (ap (A.<>))
+                , bench "fair serial"   $ nfIO (ap (A.<=>))
+                , bench "left parallel" $ nfIO (ap (A.<|))
+                , bench "fair parallel" $ nfIO (ap (A.<|>))
                 ]
 
             -- Benchmark smallest possible actions composed together
@@ -91,31 +95,56 @@ map f x = return $ f x
 filter :: (Monad m, Alternative m) => (a -> Bool) -> a -> m a
 filter cond x = guard (not $ cond x) >> return x
 
-amap :: (Int -> Int) -> Int -> A.AsyncT IO Int
+amap :: Monad (s IO) => (Int -> Int) -> Int -> s IO Int
 amap = Main.map
 
-afilter :: (Int -> Bool) -> Int -> A.AsyncT IO Int
+afilter :: (Alternative (s IO), Monad (s IO)) => (Int -> Bool) -> Int -> s IO Int
 afilter = Main.filter
 
 {-# INLINE asyncly_basic #-}
 asyncly_basic
-    :: (A.AsyncT IO Int -> (Int -> A.AsyncT IO Int) -> A.AsyncT IO Int)
-    -> (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
+    :: (Alternative (s IO), Monad (s IO), Monoid (s IO Int), A.Streaming s) => (forall a. s IO a -> IO [a])
+    -> (s IO Int -> s IO Int -> s IO Int)
     -> IO Int
-asyncly_basic f g = do
-    xs <- A.toList $ do
+asyncly_basic tl g = do
+    xs <- tl $ do
              A.drop 100 (A.forEachWith g [1..100000 :: Int] $ \x ->
                 afilter even x `f` amap (+1))
                     `f` amap (+1)
                     `f` afilter (\y -> y `mod` 2 == 0)
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
+    where f = (>>=)
+
+{-# INLINE asyncly_serial #-}
+asyncly_serial
+    :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
+    -> IO Int
+asyncly_serial = asyncly_basic A.toListSerial
+
+{-# INLINE asyncly_interleaved #-}
+asyncly_interleaved
+    :: (A.InterleavedT IO Int -> A.InterleavedT IO Int -> A.InterleavedT IO Int)
+    -> IO Int
+asyncly_interleaved = asyncly_basic A.toListInterleaved
+
+{-# INLINE asyncly_async #-}
+asyncly_async
+    :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
+    -> IO Int
+asyncly_async = asyncly_basic A.toListAsync
+
+{-# INLINE asyncly_parallel #-}
+asyncly_parallel
+    :: (A.ParallelT IO Int -> A.ParallelT IO Int -> A.ParallelT IO Int)
+    -> IO Int
+asyncly_parallel = asyncly_basic A.toListParallel
 
 {-# INLINE asyncly_nil #-}
-asyncly_nil :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
+asyncly_nil :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
 asyncly_nil f = do
-    xs <- A.toList $ do
+    xs <- A.toListSerial $ do
              (A.forEachWith f [1..100000:: Int] $
                 \x -> return x >>= return . id)
     assert (Prelude.length xs == 100000) $

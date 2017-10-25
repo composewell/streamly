@@ -52,24 +52,36 @@
 -- A simple inline example here illustrating applicative, monad and alternative
 -- compositions.
 module Asyncly
-    ( AsyncT
-    , MonadAsync
+    ( MonadAsync
+    , Streaming
+        ( fromStream
+        , fromInterleaved
+        , fromAsync
+        , fromParallel
+        , fromZipStream
+        , fromZipAsync
+        , (<=>)
+        , (<|)
+        )
 
-    -- * Running
-    , runAsyncly
-    , toList
-    , async
+    -- * Stream Styles
+    , StreamT
+    , InterleavedT
+    , AsyncT
+    , ParallelT
+    , ZipStream
+    , ZipAsync
 
-    -- * Monadic Composition (Conjunction)
-    -- $bind
-    , (>->)
-    , (>>|)
-    , (>|>)
+    -- * Running Streams
+    , serially
+    , interleaved
+    , asyncly
+    , parallely
 
-    -- * Monoidal Composition (Disjunction)
-    -- $monoidal
-    , (<=>)
-    , (<|)
+    , toListSerial
+    , toListInterleaved
+    , toListAsync
+    , toListParallel
 
     -- * General Fold Utilities
     , foldWith
@@ -87,6 +99,7 @@ module Asyncly
 where
 
 import Asyncly.AsyncT
+import Asyncly.Prelude
 import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
