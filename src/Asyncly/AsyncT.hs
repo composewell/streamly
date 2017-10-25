@@ -42,7 +42,7 @@ module Asyncly.AsyncT
     )
 where
 
-import           Control.Applicative         (Alternative (..), liftA2)
+import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent          (ThreadId, forkIO,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
@@ -520,50 +520,6 @@ pushOneToCtx ctype m = do
     liftIO $ (enqueue ctx) m
     pushWorker ctx
     return ctx
-
-------------------------------------------------------------------------------
--- Num
-------------------------------------------------------------------------------
-
-instance (Monad m, Num a) => Num (Stream m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (Monad m, Fractional a) => Fractional (Stream m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (Monad m, Floating a) => Floating (Stream m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
 
 -------------------------------------------------------------------------------
 -- AsyncT transformer

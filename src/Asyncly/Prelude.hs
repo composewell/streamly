@@ -71,8 +71,8 @@ import           Asyncly.AsyncT
 ------------------------------------------------------------------------------
 
 newtype StreamT m a = StreamT {getStreamT :: Stream m a}
-    deriving (Functor, Applicative, Monad, Semigroup, Monoid, Num, Fractional,
-              Floating, MonadTrans, MonadIO, MonadThrow)
+    deriving (Functor, Applicative, Monad, Semigroup, Monoid,
+              MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadAsync m => Alternative (StreamT m)
 deriving instance MonadAsync m => MonadPlus (StreamT m)
@@ -85,15 +85,63 @@ instance Streaming StreamT where
     toStream = getStreamT
     fromStream = StreamT
 
+-- XXX The Functor/Applicative/Num instances for all the types are exactly the
+-- same, how can we reduce this boilerplate (use TH)? We cannot derive them
+-- from a single base type because they depend on the Monad instance which is
+-- different for each type.
+
+------------------------------------------------------------------------------
+-- Num
+------------------------------------------------------------------------------
+
+instance (Monad m, Num a) => Num (StreamT m a) where
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (StreamT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (StreamT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
+
 ------------------------------------------------------------------------------
 -- InterleavedT interleaves the iterations in the Monad and Applicative
 -- compositions. It does not make much sense for infinite streams.
 ------------------------------------------------------------------------------
 
--- XXX the applicative, functor and num instances may not be correct
 newtype InterleavedT m a = InterleavedT {getInterleavedT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid, Num, Fractional,
-              Floating, MonadTrans, MonadIO, MonadThrow)
+    deriving (Functor, Applicative, Semigroup, Monoid,
+              MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadAsync m => Alternative (InterleavedT m)
 deriving instance MonadAsync m => MonadPlus (InterleavedT m)
@@ -106,9 +154,9 @@ instance Streaming InterleavedT where
     toStream = getInterleavedT
     fromStream = InterleavedT
 
+-- | Execute a monadic action for each element in the stream, in a fairly
+-- interleaved manner i.e. iterations yield alternately.
 instance Monad m => Monad (InterleavedT m) where
-    -- | Execute a monadic action for each element in the stream, in a fairly
-    -- interleaved manner i.e. iterations yield alternately.
     (InterleavedT (Stream m)) >>= f = InterleavedT $ Stream $ \_ stp yld ->
         let run x = (runStream x) Nothing stp yld
             yield a Nothing  = run $ getInterleavedT (f a)
@@ -118,14 +166,57 @@ instance Monad m => Monad (InterleavedT m) where
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
+-- Num
+------------------------------------------------------------------------------
+
+instance (Monad m, Num a) => Num (InterleavedT m a) where
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (InterleavedT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (InterleavedT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
+
+------------------------------------------------------------------------------
 -- AsyncT runs the iterations asynchronously in the Monad and Applicative
 -- compositions. More iterations are started in parallel on demand. It can work
 -- with infinite streams.
 ------------------------------------------------------------------------------
 
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid, Num, Fractional,
-              Floating, MonadTrans)
+    deriving (Functor, Applicative, Semigroup, Monoid, MonadTrans)
 
 deriving instance MonadAsync m => MonadIO (AsyncT m)
 deriving instance MonadAsync m => MonadThrow (AsyncT m)
@@ -155,13 +246,57 @@ parbind k m f = go m
                 yield a (Just r) = run $ f a `k` (go r)
             in g Nothing stp yield
 
+-- | Execute a monadic action for each element in the stream, running
+-- iterations in parallel, but giving preference to iterations started
+-- earlier.
 instance MonadAsync m => Monad (AsyncT m) where
-    -- | Execute a monadic action for each element in the stream, running
-    -- iterations in parallel, but giving preference to iterations started
-    -- earlier.
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
               par = parallel (CtxType Conjunction LIFO)
+
+------------------------------------------------------------------------------
+-- Num
+------------------------------------------------------------------------------
+
+instance (Monad m, Num a) => Num (AsyncT m a) where
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (AsyncT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (AsyncT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
 -- ParallelT runs all iterations in parallel in the Monad and Applicative
@@ -170,8 +305,7 @@ instance MonadAsync m => Monad (AsyncT m) where
 ------------------------------------------------------------------------------
 
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (Functor, Applicative, Semigroup, Monoid, Num, Fractional,
-              Floating, MonadTrans)
+    deriving (Functor, Applicative, Semigroup, Monoid, MonadTrans)
 
 deriving instance MonadAsync m => MonadIO (ParallelT m)
 deriving instance MonadAsync m => MonadThrow (ParallelT m)
@@ -186,13 +320,57 @@ instance Streaming ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
 
+-- | Execute a monadic action for each element in the stream, running
+-- iterations in a fairly parallel manner, i.e. all iterations are equally
+-- likely to run.
 instance MonadAsync m => Monad (ParallelT m) where
-    -- | Execute a monadic action for each element in the stream, running
-    -- iterations in a fairly parallel manner, i.e. all iterations are equally
-    -- likely to run.
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
               par = parallel (CtxType Conjunction FIFO)
+
+------------------------------------------------------------------------------
+-- Num
+------------------------------------------------------------------------------
+
+instance (Monad m, Num a) => Num (ParallelT m a) where
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (ParallelT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (ParallelT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams

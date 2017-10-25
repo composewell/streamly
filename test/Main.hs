@@ -229,6 +229,22 @@ main = hspec $ do
                 describe "Bind and compose" $
                     bindAndComposeHierarchy toListParallel (k g)
 
+    -- Nest two lists using different styles of product compositions
+    it "Nests two streams using monadic serial composition" nestTwoSerial
+    it "Nests two streams using monadic interleaved composition" nestTwoInterleaved
+    it "Nests two streams using monadic async composition" nestTwoAsync
+    it "Nests two streams using monadic parallel composition" nestTwoParallel
+
+    it "Nests two streams using applicative serial composition" nestTwoSerialApp
+    it "Nests two streams using applicative interleaved composition" nestTwoInterleavedApp
+    it "Nests two streams using applicative async composition" nestTwoAsyncApp
+    it "Nests two streams using applicative parallel composition" nestTwoParallelApp
+
+    it "Nests two streams using Num serial composition" nestTwoSerialNum
+    it "Nests two streams using Num interleaved composition" nestTwoInterleavedNum
+    it "Nests two streams using Num async composition" nestTwoAsyncNum
+    it "Nests two streams using Num parallel composition" nestTwoParallelNum
+
     ---------------------------------------------------------------------------
     -- TBD Bind and Bind combinations
     ---------------------------------------------------------------------------
@@ -241,6 +257,102 @@ main = hspec $ do
         zipOps A.zipWith A.zipWithM zipping
     describe "Async zipping" $
         zipOps A.zipAsyncWith A.zipAsyncWithM zippingAsync
+
+nestTwoSerial :: Expectation
+nestTwoSerial =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListSerial (do
+        x <- s1
+        y <- s2
+        return (x + y)
+        ) `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoSerialApp :: Expectation
+nestTwoSerialApp =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListSerial ((+) <$> s1 <*> s2)
+        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoSerialNum :: Expectation
+nestTwoSerialNum =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListSerial (s1 + s2)
+        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoInterleaved :: Expectation
+nestTwoInterleaved =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListInterleaved (do
+        x <- s1
+        y <- s2
+        return (x + y)
+        ) `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+
+nestTwoInterleavedApp :: Expectation
+nestTwoInterleavedApp =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListInterleaved ((+) <$> s1 <*> s2)
+        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+
+nestTwoInterleavedNum :: Expectation
+nestTwoInterleavedNum =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListInterleaved (s1 + s2)
+        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+
+nestTwoAsync :: Expectation
+nestTwoAsync =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListAsync (do
+        x <- s1
+        y <- s2
+        return (x + y)
+        ) `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoAsyncApp :: Expectation
+nestTwoAsyncApp =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListAsync ((+) <$> s1 <*> s2)
+        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoAsyncNum :: Expectation
+nestTwoAsyncNum =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListAsync (s1 + s2)
+        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoParallel :: Expectation
+nestTwoParallel =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListParallel (do
+        x <- s1
+        y <- s2
+        return (x + y)
+        ) `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+
+nestTwoParallelApp :: Expectation
+nestTwoParallelApp =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListParallel ((+) <$> s1 <*> s2)
+        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+
+nestTwoParallelNum :: Expectation
+nestTwoParallelNum =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in toListParallel (s1 + s2)
+        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 zipOps :: (Streaming t, Applicative (t IO))
     => (forall a b c. (a -> b -> c)
