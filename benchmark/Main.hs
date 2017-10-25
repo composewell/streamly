@@ -120,31 +120,31 @@ asyncly_basic tl g = do
 asyncly_serial
     :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
-asyncly_serial = asyncly_basic A.toListSerial
+asyncly_serial = asyncly_basic (A.toList . A.serially)
 
 {-# INLINE asyncly_interleaved #-}
 asyncly_interleaved
     :: (A.InterleavedT IO Int -> A.InterleavedT IO Int -> A.InterleavedT IO Int)
     -> IO Int
-asyncly_interleaved = asyncly_basic A.toListInterleaved
+asyncly_interleaved = asyncly_basic (A.toList . A.interleaving)
 
 {-# INLINE asyncly_async #-}
 asyncly_async
     :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
     -> IO Int
-asyncly_async = asyncly_basic A.toListAsync
+asyncly_async = asyncly_basic (A.toList . A.asyncly)
 
 {-# INLINE asyncly_parallel #-}
 asyncly_parallel
     :: (A.ParallelT IO Int -> A.ParallelT IO Int -> A.ParallelT IO Int)
     -> IO Int
-asyncly_parallel = asyncly_basic A.toListParallel
+asyncly_parallel = asyncly_basic (A.toList . A.parallely)
 
 {-# INLINE asyncly_nil #-}
 asyncly_nil :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
 asyncly_nil f = do
-    xs <- A.toListSerial $ do
+    xs <- (A.toList . A.serially) $ do
              (A.forEachWith f [1..100000:: Int] $
                 \x -> return x >>= return . id)
     assert (Prelude.length xs == 100000) $

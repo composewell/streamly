@@ -11,13 +11,25 @@ import Test.Hspec
 import Asyncly
 import qualified Asyncly.Prelude as A
 
+toListSerial :: StreamT IO a -> IO [a]
+toListSerial = toList . serially
+
+toListInterleaved :: InterleavedT IO a -> IO [a]
+toListInterleaved = toList . interleaving
+
+toListAsync :: AsyncT IO a -> IO [a]
+toListAsync = toList . asyncly
+
+toListParallel :: ParallelT IO a -> IO [a]
+toListParallel = toList . parallely
+
 main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
         it "simple serially" $
-            serially (return (0 :: Int)) `shouldReturn` ()
+            (runStreaming . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            serially (liftIO $ putStrLn "hello") `shouldReturn` ()
+            (runStreaming . serially) (liftIO $ putStrLn "hello") `shouldReturn` ()
         it "Captures a return value using toList" $
             toListSerial (return 0) `shouldReturn` ([0] :: [Int])
 
@@ -226,19 +238,18 @@ main = hspec $ do
 
     describe "Transformation" $ transformOps (<>)
     describe "Serial zipping" $
-        zipOps A.zipWith A.zipWithM fromStream fromZipStream
+        zipOps A.zipWith A.zipWithM zipping
     describe "Async zipping" $
-        zipOps A.zipAsyncWith A.zipAsyncWithM fromStream fromZipAsync
+        zipOps A.zipAsyncWith A.zipAsyncWithM zippingAsync
 
-zipOps :: Applicative (f IO)
+zipOps :: (Streaming t, Applicative (t IO))
     => (forall a b c. (a -> b -> c)
         -> StreamT IO a -> StreamT IO b -> StreamT IO c)
     -> (forall a b c. (a -> b -> StreamT IO c)
         -> StreamT IO a -> StreamT IO b -> StreamT IO c)
-    -> (forall a. StreamT IO a -> f IO a)
-    -> (forall a. f IO a -> StreamT IO a)
+    -> (forall a. t IO a -> t IO a)
     -> Spec
-zipOps z zM app getz = do
+zipOps z zM app = do
     it "zipWith" $
         let s1 = foldMapWith (<|>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
@@ -252,9 +263,9 @@ zipOps z zM app getz = do
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "Applicative zip" $
-        let s1 = foldMapWith (<|>) return [1..10]
-            s2 = foldMapWith (<>) return [1..]
-         in toListSerial (getz ((+) <$> app s1 <*> app s2))
+        let s1 = adapt $ serially $ foldMapWith (<|>) return [1..10]
+            s2 = adapt $ serially $ foldMapWith (<>) return [1..]
+         in (toList . app) ((+) <$> s1 <*> s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
 timed :: Int -> StreamT IO Int
@@ -263,7 +274,7 @@ timed x = liftIO (threadDelay (x * 100000)) >> return x
 thenBind :: Spec
 thenBind = do
     it "Simple runAsyncly and 'then' with IO" $
-        serially (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
+        (runStreaming . serially) (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
             `shouldReturn` ()
     it "Then and toList" $
         toListSerial (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])

@@ -18,12 +18,16 @@
 module Asyncly.AsyncT
     ( Stream (..)
     , MonadAsync
+    , Streaming (..)
 
     , fromCallback
 
     , runStreaming
     , toList
     , async
+
+    , (<=>)
+    , (<|)
 
     , interleave
     , parallel
@@ -517,23 +521,6 @@ pushOneToCtx ctype m = do
     pushWorker ctx
     return ctx
 
--- XXX The async API is useful for exploring each stream arbitrarily when
--- zipping or merging two streams. We can use a newtype wrapper with a monad
--- instance that composes like regular streaming libraries to facilitate linear
--- composition.  We will also need a yield API for that.
-
--- | Run a computation asynchronously, triggers the computation and returns
--- another computation (i.e. a promise) that when executed produces the output
--- from the original computation. Note that the returned action must be
--- executed exactly once and drained completely. If not executed or not drained
--- fully we will may have a thread blocked forever and if executed more than
--- once a ContextUsedAfterEOF exception will be raised.
-
-async :: MonadAsync m => Stream m a -> m (Stream m a)
-async m = do
-    ctx <- pushOneToCtx (CtxType Disjunction LIFO) m
-    return $ pullFromCtx ctx
-
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
@@ -620,34 +607,81 @@ instance MonadState s m => MonadState s (Stream m) where
     state k = lift (state k)
 
 ------------------------------------------------------------------------------
+-- Types that can behave as a Stream
+------------------------------------------------------------------------------
+
+class Streaming t where
+    toStream :: t m a -> Stream m a
+    fromStream :: Stream m a -> t m a
+
+-- XXX The async API is useful for exploring each stream arbitrarily when
+-- zipping or merging two streams. We can use a newtype wrapper with a monad
+-- instance that composes like regular streaming libraries to facilitate linear
+-- composition.  We will also need a yield API for that.
+
+-- | Run a computation asynchronously, triggers the computation and returns
+-- another computation (i.e. a promise) that when executed produces the output
+-- from the original computation. Note that the returned action must be
+-- executed exactly once and drained completely. If not executed or not drained
+-- fully we will may have a thread blocked forever and if executed more than
+-- once a ContextUsedAfterEOF exception will be raised.
+
+async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
+async m = do
+    ctx <- pushOneToCtx (CtxType Disjunction LIFO) (toStream m)
+    return $ fromStream $ pullFromCtx ctx
+
+infixr 5 <=>
+
+-- | Sequential interleaved composition, similar to '<>' except that it fairly
+-- interleaves the two 'AsyncT' streams, yielding an element from each stream
+-- alternately. Should be used only on finite streams.
+{-# INLINE (<=>) #-}
+(<=>) :: Streaming t => t m a -> t m a -> t m a
+m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
+
+-- | Parallel composition similar to '<|>' except that it is left-biased
+-- instead of being fair.  Action on the left is likely to be given a chance to
+-- execute before the action on the right. If the left action keeps yielding
+-- results without blocking it continues running until it finishes and only
+-- then the right action runs. Unlike '<|>' it can be used on infinite streams.
+{-# INLINE (<|) #-}
+(<|) :: (Streaming t, MonadAsync m) => t m a -> t m a -> t m a
+m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
+
+------------------------------------------------------------------------------
 -- Running the monad
 ------------------------------------------------------------------------------
 
 -- | Run an 'AsyncT' computation, wait for it to finish and discard the
 -- results.
-runStreaming :: Monad m => Stream m a -> m ()
-runStreaming m = (runStream m) Nothing stop yield
+runStreaming :: (Monad m, Streaming t) => t m a -> m ()
+runStreaming m = go (toStream m)
 
     where
+
+    go m1 = (runStream m1) Nothing stop yield
 
     stop = return ()
 
     {-# INLINE yield #-}
     yield _ Nothing  = stop
-    yield _ (Just x) = runStreaming x
+    yield _ (Just x) = go x
 
 -- | Collect the results of an 'AsyncT' stream into a list.
 {-# INLINABLE toList #-}
-toList :: Monad m => Stream m a -> m [a]
-toList m = (runStream m) Nothing stop yield
+toList :: (Monad m, Streaming t) => t m a -> m [a]
+toList m = go (toStream m)
 
     where
+
+    go m1 = (runStream m1) Nothing stop yield
 
     stop = return []
 
     {-# INLINE yield #-}
     yield a Nothing  = return [a]
-    yield a (Just x) = liftM (a :) (toList x)
+    yield a (Just x) = liftM (a :) (go x)
 
 ------------------------------------------------------------------------------
 -- Utilities

@@ -54,17 +54,11 @@
 module Asyncly
     ( MonadAsync
     , Streaming
-        ( fromStream
-        , fromInterleaved
-        , fromAsync
-        , fromParallel
-        , fromZipStream
-        , fromZipAsync
-        , (<=>)
-        , (<|)
-        )
 
-    -- * Stream Styles
+    -- * Construction
+    , fromCallback
+
+    -- * Product Style Composition
     , StreamT
     , InterleavedT
     , AsyncT
@@ -72,18 +66,28 @@ module Asyncly
     , ZipStream
     , ZipAsync
 
+    -- * Sum Style Composition
+    -- $monoidal
+    , (<=>)
+    , (<|)
+
+    -- * Custom Composition
+    , async
+
     -- * Running Streams
+    , runStreaming
+    , toList
+
+    -- * Stream Type Adapters
     , serially
-    , interleaved
+    , interleaving
     , asyncly
     , parallely
+    , zipping
+    , zippingAsync
+    , adapt
 
-    , toListSerial
-    , toListInterleaved
-    , toListAsync
-    , toListParallel
-
-    -- * General Fold Utilities
+    -- * Fold Utilities
     , foldWith
     , foldMapWith
     , forEachWith
@@ -110,8 +114,3 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 --
 -- These combinators can be used in place of 'Monoid' ('<>') or 'Alternative'
 -- ('<|>') composition to compose the streams in alternate ways.
---
--- $bind
---
--- These combinators can be used in place of the standard monadic bind ('>>=')
--- to schedule nested loops in alternate ways.
