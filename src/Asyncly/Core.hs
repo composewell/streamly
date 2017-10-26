@@ -19,7 +19,7 @@ module Asyncly.Core
     ( Stream (..)
     , MonadAsync
     , Streaming (..)
-    , ContextUsedAfterEOF (..)
+    , EndOfStream (..)
 
     -- * Running the Monad
     , runStreaming
@@ -304,8 +304,8 @@ sendWorkerWait ctx = do
         else void (liftIO $ takeMVar (doorBell ctx))
 
 -- | An 'async' stream has finished but is still being used.
-data ContextUsedAfterEOF = ContextUsedAfterEOF deriving Show
-instance Exception ContextUsedAfterEOF
+data EndOfStream = EndOfStream deriving Show
+instance Exception EndOfStream
 
 -- | Pull a stream from a context
 {-# NOINLINE pullFromCtx #-}
@@ -317,7 +317,7 @@ pullFromCtx ctx = Stream $ \_ stp yld -> do
     -- XXX if reading the IORef is costly we can use a flag in the context to
     -- indicate we are done.
     done <- allThreadsDone ctx
-    when done $ throwM ContextUsedAfterEOF
+    when done $ throwM EndOfStream
 
     res <- liftIO $ tryTakeMVar (doorBell ctx)
     when (isNothing res) $ sendWorkerWait ctx
