@@ -35,6 +35,14 @@ module Asyncly.Streams
     , zipping
     , zippingAsync
     , adapt
+
+    -- * Running Streams
+    , runStreamT
+    , runInterleavedT
+    , runAsyncT
+    , runParallelT
+    , runZipStream
+    , runZipAsync
     )
 where
 
@@ -659,3 +667,31 @@ zipping x = x
 -- | Interpret an ambiguously typed stream as 'ZipAsync'.
 zippingAsync :: ZipAsync m a -> ZipAsync m a
 zippingAsync x = x
+
+-------------------------------------------------------------------------------
+-- Running Streams, convenience functions specialized to types
+-------------------------------------------------------------------------------
+
+-- | Run a 'StreamT' computation. Same as @runStreaming . serially@.
+runStreamT :: Monad m => StreamT m a -> m ()
+runStreamT = runStreaming
+
+-- | Run an 'InterleavedT' computation. Same as @runStreaming . interleaving@.
+runInterleavedT :: Monad m => InterleavedT m a -> m ()
+runInterleavedT = runStreaming
+
+-- | Run an 'AsyncT' computation. Same as @runStreaming . asyncly@.
+runAsyncT :: Monad m => AsyncT m a -> m ()
+runAsyncT = runStreaming
+
+-- | Run a 'ParallelT' computation. Same as @runStreaming . parallely@.
+runParallelT :: Monad m => ParallelT m a -> m ()
+runParallelT = runStreaming
+
+-- | Run a 'ZipStream' computation. Same as @runStreaming . zipping@.
+runZipStream :: Monad m => ZipStream m a -> m ()
+runZipStream = runStreaming
+
+-- | Run a 'ZipAsync' computation. Same as @runStreaming . zippingAsync@.
+runZipAsync :: Monad m => ZipAsync m a -> m ()
+runZipAsync = runStreaming

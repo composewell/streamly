@@ -72,9 +72,6 @@ module Asyncly
     -- * Custom Composition
     , async
 
-    -- * Running Streams
-    , runStreaming
-
     -- * Stream Type Adapters
     , serially
     , interleaving
@@ -83,6 +80,15 @@ module Asyncly
     , zipping
     , zippingAsync
     , adapt
+
+    -- * Running Streams
+    , runStreaming
+    , runStreamT
+    , runInterleavedT
+    , runAsyncT
+    , runParallelT
+    , runZipStream
+    , runZipAsync
 
     -- * Fold Utilities
     , foldWith
