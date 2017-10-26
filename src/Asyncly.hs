@@ -54,6 +54,7 @@
 module Asyncly
     ( MonadAsync
     , Streaming
+    , ContextUsedAfterEOF
 
     -- * Product Style Composition
     , StreamT

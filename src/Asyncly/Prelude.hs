@@ -39,13 +39,29 @@ module Asyncly.Prelude
     )
 where
 
+import           Control.Monad               (liftM)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith)
 import           Asyncly.Core
 
 ------------------------------------------------------------------------------
--- Construct and deconstruct
+-- Elimination
 ------------------------------------------------------------------------------
+
+-- | Collect the results of an 'AsyncT' stream into a list.
+{-# INLINABLE toList #-}
+toList :: (Monad m, Streaming t) => t m a -> m [a]
+toList m = go (toStream m)
+
+    where
+
+    go m1 = (runStream m1) Nothing stop yield
+
+    stop = return []
+
+    {-# INLINE yield #-}
+    yield a Nothing  = return [a]
+    yield a (Just x) = liftM (a :) (go x)
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
@@ -60,6 +76,10 @@ uncons m = (runStream (toStream m)) Nothing stop yield
     yield a Nothing  = return (Just (a, mempty))
     yield a (Just x) = return (Just (a, (fromStream x)))
 
+------------------------------------------------------------------------------
+-- Construction
+------------------------------------------------------------------------------
+
 -- | Build a Stream by unfolding steps starting from a seed.
 unfoldr :: (Streaming t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldr step = fromStream . go
@@ -69,6 +89,10 @@ unfoldr step = fromStream . go
         case mayb of
             Nothing -> stp
             Just (a, b) -> yld a (Just (go b))
+
+-- | Convert a callback into a stream.
+fromCallback :: (forall r. (a -> m r) -> m r) -> Stream m a
+fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 
 ------------------------------------------------------------------------------
 -- Special folds

@@ -19,25 +19,27 @@ module Asyncly.Core
     ( Stream (..)
     , MonadAsync
     , Streaming (..)
+    , ContextUsedAfterEOF (..)
 
-    , fromCallback
-
+    -- * Running the Monad
     , runStreaming
-    , toList
-    , async
 
-    , (<=>)
-    , (<|)
-
-    , yielding
+    -- * Interleaving
     , interleave
-    , parallel
-    , parAlt
-    , parLeft
+    , (<=>)
+
+    -- * Asynchronous Operations
     , CtxType (..)
     , SchedPolicy (..)
     , Dimension (..)
+    , yielding
+    , parallel
+    , parAlt
+    , parLeft
+    , (<|)
+    , async
 
+    -- * Fold Utilities
     , foldWith
     , foldMapWith
     , forEachWith
@@ -51,8 +53,7 @@ import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..), Exception)
 import qualified Control.Exception.Lifted    as EL
-import           Control.Monad               (liftM, MonadPlus(..), mzero,
-                                              when)
+import           Control.Monad               (MonadPlus(..), mzero, when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.Error.Class   (MonadError(..))
@@ -61,35 +62,23 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
+import           Data.Atomics                (atomicModifyIORefCAS,
+                                              atomicModifyIORefCAS_)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
                                                      tryPopR, nullQ)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               readIORef)
-import           Data.Atomics                (atomicModifyIORefCAS,
-                                              atomicModifyIORefCAS_)
 import           Data.Maybe                  (isNothing)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
 
 ------------------------------------------------------------------------------
--- Concurrency Semantics
-------------------------------------------------------------------------------
---
--- Asyncly is essentially a concurrent list transformer. To fold the lists
--- (AsyncT m a) it provides many different ways of composing them. The Monoid
--- instance folds lists in a sequential fashion. The Alternative instance folds
--- a list in a concurrent manner running each action in parallel and therefore
--- the order of results in the fold is not deterministic, but the results are
--- fairly interleaved. There are other ways to bind and compose. The
--- combinations of different types of binds and monoidal compositions can be
--- used to achieve the desired results.
-
-------------------------------------------------------------------------------
--- Parent child thread communication types
+-- Parent child thread communication type
 ------------------------------------------------------------------------------
 
+-- | Events that a child thread may send to a parent thread.
 data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
@@ -98,10 +87,24 @@ data ChildEvent a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
+-- | Conjunction is used for monadic/product style composition. Disjunction is
+-- used for fold/sum style composition. We need to distiguish the two types of
+-- contexts so that the scheduing of the two is independent.
 data Dimension   = Conjunction | Disjunction deriving Eq
+
+-- | For fairly interleaved parallel composition the sched policy is FIFO
+-- whereas for left biased parallel composition it is LIFO.
 data SchedPolicy = LIFO | FIFO deriving Eq
+
+-- | Identify the type of the context used for parallel composition.
 data CtxType     = CtxType Dimension SchedPolicy deriving Eq
 
+-- | A Context represents a parallel composition. It has a runqueue which holds
+-- the tasks that are to be picked by a pool of worker threads. It has an
+-- output queue where the results are placed by the worker threads. A
+-- doorBell is used by the worker threads to intimate the consumer thread
+-- about availability of new results. New work is usually enqueued as a result
+-- of executing the parallel combinators i.e. '<|' and '<|>'.
 data Context m a =
     Context { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
@@ -112,10 +115,15 @@ data Context m a =
             , ctxType        :: CtxType
             }
 
--- | Represents a monadic stream of values of type 'a' resulting from actions
--- in monad 'm'. 'AsyncT' streams can be composed sequentially or in parallel
--- in various ways using monadic bind or variants of it and using monoidal
--- compositions like 'Monoid', 'Alternative' or variants of these.
+------------------------------------------------------------------------------
+-- The stream type
+------------------------------------------------------------------------------
+
+-- | Represents a monadic stream of values of type 'a' constructed using
+-- actions in monad 'm'. Streams can be composed sequentially or in parallel in
+-- product style compositions (monadic bind multiplies streams in a ListT
+-- fashion) and using sum style compositions like 'Semigroup', 'Monoid',
+-- 'Alternative' or variants of these.
 newtype Stream m a =
     Stream {
         runStream :: forall r.
@@ -125,18 +133,19 @@ newtype Stream m a =
             -> m r
     }
 
--- | A monad that can do asynchronous (or parallel) IO operations.
+-- | A monad that can perform asynchronous/concurrent IO operations.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
+-- | Yield a singleton value in a stream.
 yielding :: a -> Stream m a
 yielding a = Stream $ \_ _ yld -> yld a Nothing
 
 ------------------------------------------------------------------------------
--- Monoid
+-- Semigroup
 ------------------------------------------------------------------------------
 
--- | '<>' concatenates two 'AsyncT' streams sequentially i.e. the first stream
--- is exhausted completely before yielding any element from the second stream.
+-- | '<>' concatenates two streams sequentially i.e. the first stream is
+-- exhausted completely before yielding any element from the second stream.
 instance Semigroup (Stream m a) where
     m1 <> m2 = go m1
         where
@@ -146,10 +155,19 @@ instance Semigroup (Stream m a) where
                     yield a (Just r) = yld a (Just (go r))
                 in m Nothing stop yield
 
+------------------------------------------------------------------------------
+-- Monoid
+------------------------------------------------------------------------------
+
 instance Monoid (Stream m a) where
     mempty = Stream $ \_ stp _ -> stp
     mappend = (<>)
 
+------------------------------------------------------------------------------
+-- Interleave
+------------------------------------------------------------------------------
+
+-- | Same as '<=>'.
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = Stream $ \_ stp yld -> do
     let stop = (runStream m2) Nothing stp yld
@@ -158,7 +176,7 @@ interleave m1 m2 = Stream $ \_ stp yld -> do
     (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
--- Streaming threads for parallel composition
+-- Spawning threads and collecting result in streamed fashion
 ------------------------------------------------------------------------------
 
 {-# INLINE doFork #-}
@@ -285,10 +303,11 @@ sendWorkerWait ctx = do
         then (pushWorker ctx) >> sendWorkerWait ctx
         else void (liftIO $ takeMVar (doorBell ctx))
 
+-- | An 'async' stream has finished but is still being used.
 data ContextUsedAfterEOF = ContextUsedAfterEOF deriving Show
 instance Exception ContextUsedAfterEOF
 
--- | Pull an AsyncT stream from a context
+-- | Pull a stream from a context
 {-# NOINLINE pullFromCtx #-}
 pullFromCtx :: MonadAsync m => Context m a -> Stream m a
 pullFromCtx ctx = Stream $ \_ stp yld -> do
@@ -390,55 +409,6 @@ pushPairToCtx ctype m1 m2 = do
     pushWorker ctx
     return ctx
 
-{-# NOINLINE pushPullFork #-}
-pushPullFork :: MonadAsync m
-    => CtxType -> Stream m a -> Stream m a -> Stream m a
-pushPullFork ct m1 m2 = Stream $ \_ stp yld -> do
-    ctx <- pushPairToCtx ct m1 m2
-    (runStream (pullFromCtx ctx)) Nothing stp yld
-
--- Concurrency rate control. Our objective is to create more threads on
--- demand if the consumer is running faster than us. As soon as we
--- encounter an Alternative composition we create a push pull pair of
--- threads. We use a channel for communication between the consumer that
--- pulls from the channel and the producer that pushes to the channel. The
--- producer creates more threads if the channel becomes empty at times,
--- that is the consumer is running faster. However this mechanism can be
--- problematic if the initial production latency is high, we may end up
--- creating too many threads. So we need some way to monitor and use the
--- latency as well.
---
--- TBD For quick response we may have to increase the rate in the middle of
--- a serially running computation. For that we can use a state flag to fork
--- the rest of the computation at any point of time inside the Monad bind
--- operation if the consumer is running at a faster speed.
---
--- TBD the alternative composition allows us to dispatch a chunkSize of only 1.
--- If we have to dispatch in arbitrary chunksizes we will need to compose the
--- parallel actions using a data constructor instead so that we can divide it
--- in chunks of arbitrary size before dispatch. When batching we can convert
--- the structure into Alternative batches of Monoid composition. That will also
--- allow us to dispatch more work to existing threads rather than creating new
--- threads always.
---
--- TBD for pure work (when we are not in the IO monad) we can divide it into
--- just the number of CPUs.
---
--- XXX to rate control left folded structrues we will have to return the
--- residual work back to the dispatcher. It will also consume a lot of
--- memory due to queueing of all the work before execution starts.
-
--- Note: This is designed to scale for right associated compositions,
--- therefore always use a right fold for folding bigger structures.
-{-# INLINE parallel #-}
-parallel :: MonadAsync m => CtxType -> Stream m a -> Stream m a -> Stream m a
-parallel ct m1 m2 = Stream $ \ctx stp yld -> do
-    case ctx of
-        Nothing -> (runStream (pushPullFork ct m1 m2)) Nothing stp yld
-        Just c | ctxType c /= ct ->
-            (runStream (pushPullFork ct m1 m2)) Nothing stp yld
-        Just c -> liftIO ((enqueue c) m2) >> (runStream m1) ctx stp yld
-
 -- | The computation specified in the argument is pushed to a new thread and
 -- the context is returned. The returned context can be used to pull the output
 -- of the computation.
@@ -458,6 +428,58 @@ pushOneToCtx ctype m = do
     liftIO $ (enqueue ctx) m
     pushWorker ctx
     return ctx
+
+{-# NOINLINE pushPullFork #-}
+pushPullFork :: MonadAsync m
+    => CtxType -> Stream m a -> Stream m a -> Stream m a
+pushPullFork ct m1 m2 = Stream $ \_ stp yld -> do
+    ctx <- pushPairToCtx ct m1 m2
+    (runStream (pullFromCtx ctx)) Nothing stp yld
+
+-- Concurrency rate control. Our objective is to create more threads on demand
+-- if the consumer is running faster than us. As soon as we encounter an
+-- Alternative composition we create a push pull pair of threads. We use a
+-- channel for communication between the consumer pulling from the channel and
+-- the producer who pushing to the channel. The producer creates more threads
+-- if no output is seen on the channel, that is the consumer is running faster.
+-- However this mechanism can be problematic if the initial production latency
+-- is high, we may end up creating too many threads. So we need some way to
+-- monitor and use the latency as well.
+--
+-- TBD We may run computations at the lower level of the composition tree
+-- serially even if they are composed using a parallel combinator. We can use
+-- <> in place of <| and <=> in place of <|>. If we find that a parallel
+-- channel immediately above a computation becomes empty we can switch to
+-- parallelizing the computation.  For that we can use a state flag to fork the
+-- rest of the computation at any point of time inside the Monad bind operation
+-- if the consumer is running at a faster speed.
+--
+-- TBD the alternative composition allows us to dispatch a chunkSize of only 1.
+-- If we have to dispatch in arbitrary chunksizes we will need to compose the
+-- parallel actions using a data constructor (Free Alternative) instead so that
+-- we can divide it in chunks of arbitrary size before dispatch. If the stream
+-- is composed of hierarchically composed grains of different sizes then we can
+-- always switch to a desired granularity depending on the consumer speed.
+--
+-- TBD for pure work (when we are not in the IO monad) we can divide it into
+-- just the number of CPUs.
+--
+-- XXX to rate control left folded structrues we will have to return the
+-- residual work back to the dispatcher. It will also consume a lot of
+-- memory due to queueing of all the work before execution starts.
+
+-- | Compose two streams in parallel using a scheduling policy specified by
+-- 'CtxType'.  Note: This is designed to scale for right associated
+-- compositions, therefore always use a right fold for folding bigger
+-- structures.
+{-# INLINE parallel #-}
+parallel :: MonadAsync m => CtxType -> Stream m a -> Stream m a -> Stream m a
+parallel ct m1 m2 = Stream $ \ctx stp yld -> do
+    case ctx of
+        Nothing -> (runStream (pushPullFork ct m1 m2)) Nothing stp yld
+        Just c | ctxType c /= ct ->
+            (runStream (pushPullFork ct m1 m2)) Nothing stp yld
+        Just c -> liftIO ((enqueue c) m2) >> (runStream m1) ctx stp yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -486,9 +508,11 @@ parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 parLeft = parallel (CtxType Disjunction LIFO)
 
 -------------------------------------------------------------------------------
+-- Instances (only used for deriving newtype instances)
+-------------------------------------------------------------------------------
+
 -- Stream type is not exposed, these instances are only for deriving instances
 -- for the newtype wrappers based on Stream.
--------------------------------------------------------------------------------
 
 -- Dummy Instances, defined to enable the definition of other instances that
 -- require a Monad constraint.  Must be defined by the newtypes.
@@ -566,9 +590,14 @@ instance MonadState s m => MonadState s (Stream m) where
 -- Types that can behave as a Stream
 ------------------------------------------------------------------------------
 
+-- | Types that can represent a stream of elements.
 class Streaming t where
     toStream :: t m a -> Stream m a
     fromStream :: Stream m a -> t m a
+
+------------------------------------------------------------------------------
+-- Some basic stream type agnostic APIs
+------------------------------------------------------------------------------
 
 -- XXX The async API is useful for exploring each stream arbitrarily when
 -- zipping or merging two streams. We can use a newtype wrapper with a monad
@@ -576,11 +605,11 @@ class Streaming t where
 -- composition.  We will also need a yield API for that.
 
 -- | Run a computation asynchronously, triggers the computation and returns
--- another computation (i.e. a promise) that when executed produces the output
--- from the original computation. Note that the returned action must be
--- executed exactly once and drained completely. If not executed or not drained
--- fully we will may have a thread blocked forever and if executed more than
--- once a ContextUsedAfterEOF exception will be raised.
+-- another computation that when executed produces the output generated by the
+-- original computation. Note that the returned action must be executed exactly
+-- once and drained completely. If not executed or not drained fully we may
+-- have a thread blocked forever and if executed more than once a
+-- 'ContextUsedAfterEOF' exception will be raised.
 
 async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
 async m = do
@@ -589,18 +618,20 @@ async m = do
 
 infixr 5 <=>
 
--- | Sequential interleaved composition, similar to '<>' except that it fairly
--- interleaves the two 'AsyncT' streams, yielding an element from each stream
--- alternately. Should be used only on finite streams.
+-- | Sequential interleaved composition, in contrast to '<>' this operator
+-- fairly interleaves the two streams instead of appending them; yielding one
+-- element from each stream alternately. Unlike '<>' it cannot be used to fold
+-- an infinite container of streams.
 {-# INLINE (<=>) #-}
 (<=>) :: Streaming t => t m a -> t m a -> t m a
 m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
 
--- | Parallel composition similar to '<|>' except that it is left-biased
--- instead of being fair.  Action on the left is likely to be given a chance to
--- execute before the action on the right. If the left action keeps yielding
--- results without blocking it continues running until it finishes and only
--- then the right action runs. Unlike '<|>' it can be used on infinite streams.
+-- | Parallel interleaved composition, in contrast to '<|>' this operator
+-- "merges" streams in a left biased manner rather than fairly interleaving
+-- them.  It keeps yielding from the stream on the left as long as it can. If
+-- the left stream blocks or cannot keep up with the pace of the consumer it
+-- can yield from the stream on the right in parallel.  Unlike '<|>' it can be
+-- used to fold infinite containers of streams.
 {-# INLINE (<|) #-}
 (<|) :: (Streaming t, MonadAsync m) => t m a -> t m a -> t m a
 m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
@@ -609,8 +640,8 @@ m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
 -- Running the monad
 ------------------------------------------------------------------------------
 
--- | Run an 'AsyncT' computation, wait for it to finish and discard the
--- results.
+-- | Run a composed streaming computation, wait for it to finish and discard
+-- the results.
 runStreaming :: (Monad m, Streaming t) => t m a -> m ()
 runStreaming m = go (toStream m)
 
@@ -623,21 +654,6 @@ runStreaming m = go (toStream m)
     {-# INLINE yield #-}
     yield _ Nothing  = stop
     yield _ (Just x) = go x
-
--- | Collect the results of an 'AsyncT' stream into a list.
-{-# INLINABLE toList #-}
-toList :: (Monad m, Streaming t) => t m a -> m [a]
-toList m = go (toStream m)
-
-    where
-
-    go m1 = (runStream m1) Nothing stop yield
-
-    stop = return []
-
-    {-# INLINE yield #-}
-    yield a Nothing  = return [a]
-    yield a (Just x) = liftM (a :) (go x)
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -661,11 +677,3 @@ foldMapWith f g = foldr (f . g) mempty
 forEachWith :: (Monoid b, Foldable t) =>
     (b1 -> b -> b) -> t a -> (a -> b1) -> b
 forEachWith f xs g = foldr (f . g) mempty xs
-
-------------------------------------------------------------------------------
--- Convert a callback into an 'AsyncT' computation
-------------------------------------------------------------------------------
-
--- | Convert a callback into an 'AsyncT' stream.
-fromCallback :: (forall r. (a -> m r) -> m r) -> Stream m a
-fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)

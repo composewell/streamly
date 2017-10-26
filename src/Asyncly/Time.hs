@@ -7,6 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Time utilities for reactive programming.
 
 module Asyncly.Time
     ( periodic
