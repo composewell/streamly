@@ -69,17 +69,17 @@ import           Asyncly.AsyncT
 
 -- $product
 --
--- Different styles of streams dictate the manner in which a stream is
--- processed in monadic or applicative composition. Each style is represented
--- by a different type. The types have the same underlying representation and
+-- Different styles of streams represented by different types dictate the
+-- manner in which a stream is processed in monadic or applicative composition.
+-- Each type differs in the processing order of the elements or processing
+-- parallelism.  The types have the same underlying representation and
 -- therefore can be converted back and forth easily to switch the composition
--- style at any point. In other words, processing order of the elements or
--- processing parallelism is decided by the type of the stream.
+-- style at any point.
 --
 -- 'StreamT' and 'InterleavedT' process the streams serially but differ in the
 -- order in which the elements of the streams are processed. 'StreamT' goes
 -- depth first that is it combine one element of the first stream to every
--- element of the second stream before it comes back to process th second
+-- element of the second stream before it comes back to process the second
 -- element of the first stream.  'InterleavedT' takes turns when processing
 -- elements from each stream and therefore all iterations finish at the same
 -- time rather than one iteration at a time as in the case of 'StreamT'.
@@ -88,8 +88,8 @@ import           Asyncly.AsyncT
 --
 -- 'AsyncT' and 'ParallelT' can process the individual elements of the streams
 -- in parallel. 'AsyncT' is the parallel version of 'StreamT', it follows the
--- order of 'StreamT' processing multiple elements of a stream concurrently.
--- 'ParallelT' follows the order of 'InterleavedT' processing and interleaving
+-- order of 'StreamT', processing multiple elements of a stream concurrently.
+-- 'ParallelT' follows the order of 'InterleavedT', processing and interleaving
 -- both streams concurrently. Also, note that 'fmap' on these streams would
 -- also work in a concurrent fashion i.e. multiple elements in a stream or
 -- multiple streams can be mapped concurrently.
