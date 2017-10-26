@@ -585,3 +585,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $statemachine
 -- State machine stuff
+
+-- $comparison
+--
+-- Even though asyncly covers all that is provided by the 'async' package or
+-- most of what is provided by the 'streaming', 'pipes' or 'conduit' packages,
+-- I would not say that it renders those useless. Asyncly is like monad if
+-- 'async' is applicative and monads and applicatives both have their use
+-- cases. It can completely repalce 'async', the ZipAsync type is equivalent to
+-- the functionality provided by 'async'.
+--
+-- pipes and conduit are like Arrows and asyncly is like monad to them. You
+-- would use pipes and conduit when you do not need the product style
+-- composition and the implicit concurrency.

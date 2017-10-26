@@ -32,6 +32,7 @@ module Asyncly.AsyncT
     , yielding
     , interleave
     , parallel
+    , parAlt
     , parLeft
     , CtxType (..)
     , SchedPolicy (..)
@@ -157,37 +158,7 @@ interleave m1 m2 = Stream $ \_ stp yld -> do
     (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (Stream m) where
-    fmap = liftM
-
-------------------------------------------------------------------------------
--- Applicative
-------------------------------------------------------------------------------
-
-instance Monad m => Applicative (Stream m) where
-    pure = yielding
-    (<*>) = ap
-
-------------------------------------------------------------------------------
--- Monad
-------------------------------------------------------------------------------
-
--- | Execute a monadic action sequentially for each element in the 'AsyncT'
--- stream, i.e. an iteration finishes completely before the next one starts.
-instance Monad m => Monad (Stream m) where
-    return = pure
-
-    Stream m >>= f = Stream $ \_ stp yld ->
-        let run x = (runStream x) Nothing stp yld
-            yield a Nothing  = run $ f a
-            yield a (Just r) = run $ f a <> (r >>= f)
-        in m Nothing stp yield
-
-------------------------------------------------------------------------------
--- Alternative
+-- Streaming threads for parallel composition
 ------------------------------------------------------------------------------
 
 {-# INLINE doFork #-}
@@ -468,44 +439,9 @@ parallel ct m1 m2 = Stream $ \ctx stp yld -> do
             (runStream (pushPullFork ct m1 m2)) Nothing stp yld
         Just c -> liftIO ((enqueue c) m2) >> (runStream m1) ctx stp yld
 
--- | `empty` represents an action that takes non-zero time to complete.  Since
--- all actions take non-zero time, an `Alternative` composition ('<|>') is a
--- monoidal composition executing all actions in parallel, it is similar to
--- '<>' except that it runs all the actions in parallel and interleaves their
--- results fairly.
-instance MonadAsync m => Alternative (Stream m) where
-    empty = mempty
-
-    {-# INLINE (<|>) #-}
-    (<|>) = parallel (CtxType Disjunction FIFO)
-
-------------------------------------------------------------------------------
--- Other monoidal compositions for parallel actions
-------------------------------------------------------------------------------
-
-{-
--- | Same as '<>|'.
-parAhead :: Stream m a -> Stream m a -> Stream m a
-parAhead = undefined
-
--- | Sequential composition similar to '<>' except that it can execute the
--- action on the right in parallel ahead of time. Returns the results in
--- sequential order like '<>' from left to right.
-(<>|) :: Stream m a -> Stream m a -> Stream m a
-(<>|) = parAhead
--}
-
--- | Same as '<|'.
-{-# INLINE parLeft #-}
-parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parLeft = parallel (CtxType Disjunction LIFO)
-
-instance MonadAsync m => MonadPlus (Stream m) where
-    mzero = empty
-    mplus = (<|>)
-
 -- | The computation specified in the argument is pushed to a new thread and
--- the context is computation pulls output from the thread.
+-- the context is returned. The returned context can be used to pull the output
+-- of the computation.
 pushOneToCtx :: MonadAsync m => CtxType -> Stream m a -> m (Context m a)
 pushOneToCtx ctype m = do
     ctx <- liftIO $
@@ -523,8 +459,70 @@ pushOneToCtx ctype m = do
     pushWorker ctx
     return ctx
 
+------------------------------------------------------------------------------
+-- Semigroup and Monoid style compositions for parallel actions
+------------------------------------------------------------------------------
+
+{-
+-- | Same as '<>|'.
+parAhead :: Stream m a -> Stream m a -> Stream m a
+parAhead = undefined
+
+-- | Sequential composition similar to '<>' except that it can execute the
+-- action on the right in parallel ahead of time. Returns the results in
+-- sequential order like '<>' from left to right.
+(<>|) :: Stream m a -> Stream m a -> Stream m a
+(<>|) = parAhead
+-}
+
+-- | Same as '<|>'.
+{-# INLINE parAlt #-}
+parAlt :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parAlt = parallel (CtxType Disjunction FIFO)
+
+-- | Same as '<|'.
+{-# INLINE parLeft #-}
+parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parLeft = parallel (CtxType Disjunction LIFO)
+
 -------------------------------------------------------------------------------
--- AsyncT transformer
+-- Stream type is not exposed, these instances are only for deriving instances
+-- for the newtype wrappers based on Stream.
+-------------------------------------------------------------------------------
+
+-- Dummy Instances, defined to enable the definition of other instances that
+-- require a Monad constraint.  Must be defined by the newtypes.
+
+instance Monad m => Functor (Stream m) where
+    fmap = undefined
+
+instance Monad m => Applicative (Stream m) where
+    pure = undefined
+    (<*>) = undefined
+
+instance Monad m => Monad (Stream m) where
+    return = pure
+    (>>=) = undefined
+
+------------------------------------------------------------------------------
+-- Alternative & MonadPlus
+------------------------------------------------------------------------------
+
+-- | `empty` represents an action that takes non-zero time to complete.  Since
+-- all actions take non-zero time, an `Alternative` composition ('<|>') is a
+-- monoidal composition executing all actions in parallel, it is similar to
+-- '<>' except that it runs all the actions in parallel and interleaves their
+-- results fairly.
+instance MonadAsync m => Alternative (Stream m) where
+    empty = mempty
+    (<|>) = parAlt
+
+instance MonadAsync m => MonadPlus (Stream m) where
+    mzero = empty
+    mplus = (<|>)
+
+-------------------------------------------------------------------------------
+-- Transformer
 -------------------------------------------------------------------------------
 
 instance MonadTrans Stream where
