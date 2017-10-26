@@ -47,7 +47,7 @@ import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
-import           Data.Semigroup              (Semigroup(..), cycle1)
+import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith)
 import           Asyncly.Core
 import           Asyncly.Prelude
@@ -515,7 +515,7 @@ instance Monad m => Functor (ZipStream m) where
         in m Nothing stp yield
 
 instance Monad m => Applicative (ZipStream m) where
-    pure a = ZipStream $ cycle1 (pure a)
+    pure = ZipStream . yielding
     (<*>) = zipWith id
 
 instance Streaming ZipStream where
@@ -581,7 +581,7 @@ instance Monad m => Functor (ZipAsync m) where
         in m Nothing stp yield
 
 instance MonadAsync m => Applicative (ZipAsync m) where
-    pure a = ZipAsync $ cycle1 (pure a)
+    pure = ZipAsync . yielding
     (<*>) = zipAsyncWith id
 
 instance Streaming ZipAsync where
