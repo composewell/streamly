@@ -363,19 +363,19 @@ zipOps :: (Streaming t, Applicative (t IO))
     -> Spec
 zipOps z zM app = do
     it "zipWith" $
-        let s1 = foldMapWith (<|>) return [1..10]
+        let s1 = foldMapWith (<>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
          in toListSerial (z (+) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "zipWithM" $
-        let s1 = foldMapWith (<|>) return [1..10]
+        let s1 = foldMapWith (<>) return [1..10]
             s2 = foldMapWith (<>) return [1..]
          in toListSerial (zM (\a b -> return (a + b)) s1 s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
     it "Applicative zip" $
-        let s1 = adapt $ serially $ foldMapWith (<|>) return [1..10]
+        let s1 = adapt $ serially $ foldMapWith (<>) return [1..10]
             s2 = adapt $ serially $ foldMapWith (<>) return [1..]
          in (A.toList . app) ((+) <$> s1 <*> s2)
         `shouldReturn` ([2,4..20] :: [Int])
