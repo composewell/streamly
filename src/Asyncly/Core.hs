@@ -640,8 +640,7 @@ m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
 -- Running the monad
 ------------------------------------------------------------------------------
 
--- | Run a composed streaming computation, wait for it to finish and discard
--- the results.
+-- | Run a composed streaming computation, discard the results.
 runStreaming :: (Monad m, Streaming t) => t m a -> m ()
 runStreaming m = go (toStream m)
 

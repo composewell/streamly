@@ -24,10 +24,11 @@ module Asyncly.Prelude
 
     -- * Elimination
     , runStreaming
-    , toList
+    , foldr
     , uncons
 
     -- * Special folds
+    , toList
     , take
     , drop
 
@@ -41,27 +42,26 @@ where
 
 import           Control.Monad               (liftM)
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (drop, take, zipWith)
+import           Prelude hiding              (drop, take, zipWith, foldr)
 import           Asyncly.Core
 
 ------------------------------------------------------------------------------
 -- Elimination
 ------------------------------------------------------------------------------
 
--- | Collect the results of an 'AsyncT' stream into a list.
-{-# INLINABLE toList #-}
-toList :: (Monad m, Streaming t) => t m a -> m [a]
-toList m = go (toStream m)
+-- | Right fold a stream producing a result in the underlying monad.
+foldr :: Streaming t => (a -> m b -> m b) -> m b -> t m a -> m b
+foldr f z m = go (toStream m)
 
     where
 
     go m1 = (runStream m1) Nothing stop yield
 
-    stop = return []
+    stop = z
 
     {-# INLINE yield #-}
-    yield a Nothing  = return [a]
-    yield a (Just x) = liftM (a :) (go x)
+    yield a Nothing  = f a z
+    yield a (Just x) = f a (go x)
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
@@ -98,6 +98,11 @@ fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 -- Special folds
 ------------------------------------------------------------------------------
 
+-- | Convert a stream into a list in the underlying monad.
+{-# INLINABLE toList #-}
+toList :: (Monad m, Streaming t) => t m a -> m [a]
+toList = foldr (\a xs -> liftM (a :) xs) (return [])
+
 -- | Take first 'n' elements from the stream and discard the rest.
 take :: Streaming t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
@@ -124,7 +129,7 @@ drop n m = fromStream $ go n (toStream m)
 -- Serially Zipping Streams
 ------------------------------------------------------------------------------
 
--- | Zip two AsyncT streams serially using a monadic zipping function.
+-- | Zip two streams serially using a monadic zipping function.
 zipWithM :: Streaming t => (a -> b -> t m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
@@ -139,7 +144,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         (runStream mx) Nothing stp yield1
     g a b = toStream $ f a b
 
--- | Zip two AsyncT streams serially using a pure zipping function.
+-- | Zip two streams serially using a pure zipping function.
 zipWith :: Streaming t => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
@@ -156,7 +161,7 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
 
--- | Zip two AsyncT streams asyncly (i.e. both the streams are generated
+-- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
 zipAsyncWithM :: (Streaming t, MonadAsync m)
     => (a -> b -> t m c) -> t m a -> t m b -> t m c
@@ -165,7 +170,7 @@ zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     mb <- async m2
     (runStream (toStream (zipWithM f ma mb))) Nothing stp yld
 
--- | Zip two AsyncT streams asyncly (i.e. both the streams are generated
+-- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a pure zipping function.
 zipAsyncWith :: (Streaming t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
