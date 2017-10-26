@@ -73,6 +73,7 @@ library
     exposed-modules:   Asyncly
                      , Asyncly.Core
                      , Asyncly.Prelude
+                     , Asyncly.Streams
                      , Asyncly.Time
                      , Asyncly.Tutorial
     if flag(examples)

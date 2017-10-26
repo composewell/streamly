@@ -12,16 +12,16 @@ import Asyncly
 import qualified Asyncly.Prelude as A
 
 toListSerial :: StreamT IO a -> IO [a]
-toListSerial = toList . serially
+toListSerial = A.toList . serially
 
 toListInterleaved :: InterleavedT IO a -> IO [a]
-toListInterleaved = toList . interleaving
+toListInterleaved = A.toList . interleaving
 
 toListAsync :: AsyncT IO a -> IO [a]
-toListAsync = toList . asyncly
+toListAsync = A.toList . asyncly
 
 toListParallel :: ParallelT IO a -> IO [a]
-toListParallel = toList . parallely
+toListParallel = A.toList . parallely
 
 main :: IO ()
 main = hspec $ do
@@ -377,7 +377,7 @@ zipOps z zM app = do
     it "Applicative zip" $
         let s1 = adapt $ serially $ foldMapWith (<|>) return [1..10]
             s2 = adapt $ serially $ foldMapWith (<>) return [1..]
-         in (toList . app) ((+) <$> s1 <*> s2)
+         in (A.toList . app) ((+) <$> s1 <*> s2)
         `shouldReturn` ([2,4..20] :: [Int])
 
 timed :: Int -> StreamT IO Int

@@ -55,9 +55,6 @@ module Asyncly
     ( MonadAsync
     , Streaming
 
-    -- * Construction
-    , fromCallback
-
     -- * Product Style Composition
     , StreamT
     , InterleavedT
@@ -76,7 +73,6 @@ module Asyncly
 
     -- * Running Streams
     , runStreaming
-    , toList
 
     -- * Stream Type Adapters
     , serially
@@ -103,7 +99,7 @@ module Asyncly
 where
 
 import Asyncly.Core
-import Asyncly.Prelude
+import Asyncly.Streams
 import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
@@ -113,4 +109,4 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $monoidal
 --
 -- These combinators can be used in place of 'Monoid' ('<>') or 'Alternative'
--- ('<|>') composition to compose the streams in alternate ways.
+-- ('<|>') composition to fold streams in alternate ways.
