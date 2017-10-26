@@ -65,7 +65,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..), cycle1)
 import           Prelude hiding              (drop, take, zipWith)
-import           Asyncly.AsyncT
+import           Asyncly.Core
 
 -- $product
 --

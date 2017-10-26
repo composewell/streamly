@@ -6,7 +6,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Asyncly.AsyncT
+-- Module      : Asyncly.Core
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -15,7 +15,7 @@
 -- Portability : GHC
 --
 --
-module Asyncly.AsyncT
+module Asyncly.Core
     ( Stream (..)
     , MonadAsync
     , Streaming (..)

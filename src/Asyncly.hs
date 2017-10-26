@@ -102,7 +102,7 @@ module Asyncly
     )
 where
 
-import Asyncly.AsyncT
+import Asyncly.Core
 import Asyncly.Prelude
 import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))

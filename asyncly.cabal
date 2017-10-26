@@ -71,7 +71,7 @@ flag examples
 library
     hs-source-dirs:    src
     exposed-modules:   Asyncly
-                     , Asyncly.AsyncT
+                     , Asyncly.Core
                      , Asyncly.Prelude
                      , Asyncly.Time
                      , Asyncly.Tutorial

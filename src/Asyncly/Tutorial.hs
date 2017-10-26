@@ -116,7 +116,7 @@ module Asyncly.Tutorial
     )
 where
 
-import Asyncly.AsyncT
+import Asyncly.Core
 import Asyncly.Prelude
 -- import Asyncly.Examples
 import Data.Semigroup
