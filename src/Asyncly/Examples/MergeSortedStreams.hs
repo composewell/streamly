@@ -8,19 +8,20 @@ import Data.List (sort)
 import Asyncly
 import qualified Asyncly.Prelude as A
 
-getSorted :: MonadIO m => AsyncT m Word16
+getSorted :: MonadIO m => StreamT m Word16
 getSorted = do
     g <- liftIO getStdGen
     let ls = take 100000 (randoms g) :: [Word16]
     foldMapWith (<>) return (sort ls)
 
-mergeAsync :: (Ord a, MonadAsync m) => AsyncT m a -> AsyncT m a -> AsyncT m a
+mergeAsync :: (Ord a, MonadAsync m)
+    => StreamT m a -> StreamT m a -> StreamT m a
 mergeAsync a b = do
     x <- lift $ async a
     y <- lift $ async b
     merge x y
 
-merge :: (Ord a, MonadAsync m) => AsyncT m a -> AsyncT m a -> AsyncT m a
+merge :: (Ord a, MonadAsync m) => StreamT m a -> StreamT m a -> StreamT m a
 merge a b = do
     a1 <- lift $ A.uncons a
     case a1 of
@@ -36,5 +37,5 @@ merge a b = do
 
 mergeSortedStreams :: IO ()
 mergeSortedStreams = do
-    xs <- toList $ mergeAsync getSorted getSorted
+    xs <- A.toList $ mergeAsync getSorted getSorted
     putStrLn $ show $ length xs

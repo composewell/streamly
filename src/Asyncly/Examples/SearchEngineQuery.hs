@@ -1,18 +1,16 @@
 module Asyncly.Examples.SearchEngineQuery where
 
 import Asyncly
-import Asyncly.Prelude (ZipAsync (..))
 import Network.HTTP.Simple
 
 -- Runs three search engine queries in parallel.
 searchEngineQuery :: IO ()
 searchEngineQuery = do
     putStrLn "Using parallel alternative"
-    runAsyncly $ google <|> bing <|> duckduckgo
+    runStreamT $ google <|> bing <|> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runAsyncly $ getZipAsync $
-        (,,) <$> ZipAsync google <*> ZipAsync bing <*> ZipAsync duckduckgo
+    runZipAsync $ (,,) <$> pure google <*> pure bing <*> pure duckduckgo
 
     where
         get s = liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))

@@ -9,7 +9,7 @@ import Asyncly
 listDirRecursive :: IO ()
 listDirRecursive = do
     liftIO $ hSetBuffering stdout LineBuffering
-    runAsyncly $ getCurrentDir >>= readdir
+    runStreamT $ getCurrentDir >>= readdir
     where readdir d = do
             (ds, fs) <- lift $ listDir d
             liftIO $ mapM_ putStrLn $ map show fs ++ map show ds
