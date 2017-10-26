@@ -51,7 +51,7 @@ import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..), Exception)
 import qualified Control.Exception.Lifted    as EL
-import           Control.Monad               (ap, liftM, MonadPlus(..), mzero,
+import           Control.Monad               (liftM, MonadPlus(..), mzero,
                                               when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
