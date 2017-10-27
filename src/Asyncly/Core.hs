@@ -19,12 +19,16 @@ module Asyncly.Core
     ( Stream (..)
     , MonadAsync
     , Streaming (..)
-    , EndOfStream (..)
 
-    -- * Running the Monad
+    -- * Construction
+    , streamBuild
+    , yielding
+
+    -- * Elimination
+    , streamFold
     , runStreaming
 
-    -- * Interleaving
+    -- * Composition
     , interleave
     , (<=>)
 
@@ -32,7 +36,7 @@ module Asyncly.Core
     , CtxType (..)
     , SchedPolicy (..)
     , Dimension (..)
-    , yielding
+    , EndOfStream (..)
     , parallel
     , parAlt
     , parLeft
@@ -118,6 +122,8 @@ data Context m a =
 ------------------------------------------------------------------------------
 -- The stream type
 ------------------------------------------------------------------------------
+
+-- TBD use a functor instead of the bare type a?
 
 -- | Represents a monadic stream of values of type 'a' constructed using
 -- actions in monad 'm'. Streams can be composed sequentially or in parallel in
@@ -596,7 +602,7 @@ class Streaming t where
     fromStream :: Stream m a -> t m a
 
 ------------------------------------------------------------------------------
--- Some basic stream type agnostic APIs
+-- Some basic type agnostic (working on the Streaming type class) APIs
 ------------------------------------------------------------------------------
 
 -- XXX The async API is useful for exploring each stream arbitrarily when
@@ -609,7 +615,7 @@ class Streaming t where
 -- original computation. Note that the returned action must be executed exactly
 -- once and drained completely. If not executed or not drained fully we may
 -- have a thread blocked forever and if executed more than once a
--- 'ContextUsedAfterEOF' exception will be raised.
+-- 'EndOfStream' exception will be raised.
 
 async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
 async m = do
@@ -637,22 +643,40 @@ m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
 m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
--- Running the monad
+-- Constructing a stream
 ------------------------------------------------------------------------------
 
--- | Run a composed streaming computation, discard the results.
+-- XXX Need to accept a context as well
+-- | Build a stream from its church encoding.
+streamBuild :: Streaming t
+    => (forall r. (a -> Maybe (t m a) -> m r) -> m r -> m r) -> t m a
+streamBuild f = fromStream $ Stream $ \_ stp yld ->
+    let yield a Nothing = yld a Nothing
+        yield a (Just r) = yld a (Just (toStream r))
+     in f yield stp
+
+------------------------------------------------------------------------------
+-- Destroying a stream
+------------------------------------------------------------------------------
+
+-- | Fold a stream using its church encoding. The first argument is the
+-- "step" function consuming one element and the rest of the stream. The second
+-- argument is the "done" function that is called when the stream is over.
+streamFold :: Streaming t => (a -> Maybe (t m a) -> m r) -> m r -> t m a -> m r
+streamFold step done m =
+    let yield a Nothing = step a Nothing
+        yield a (Just x) = step a (Just (fromStream x))
+     in (runStream (toStream m)) Nothing done yield
+
+-- | Run a streaming composition, discard the results.
 runStreaming :: (Monad m, Streaming t) => t m a -> m ()
 runStreaming m = go (toStream m)
-
     where
-
-    go m1 = (runStream m1) Nothing stop yield
-
-    stop = return ()
-
-    {-# INLINE yield #-}
-    yield _ Nothing  = stop
-    yield _ (Just x) = go x
+    go m1 =
+        let stop = return ()
+            yield _ Nothing  = stop
+            yield _ (Just x) = go x
+         in (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Utilities
