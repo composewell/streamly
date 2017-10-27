@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -25,6 +26,9 @@ module Asyncly.Prelude
     -- * Elimination
     , runStreaming
     , foldr
+    , foldrM
+    , foldl
+    , foldlM
     , uncons
 
     -- * Special folds
@@ -42,39 +46,68 @@ where
 
 import           Control.Monad               (liftM)
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (drop, take, zipWith, foldr)
+import           Prelude hiding              (drop, take, zipWith, foldr,
+                                              foldl)
 import           Asyncly.Core
 
 ------------------------------------------------------------------------------
 -- Elimination
 ------------------------------------------------------------------------------
 
--- | Right fold a stream producing a result in the underlying monad.
-foldr :: Streaming t => (a -> m b -> m b) -> m b -> t m a -> m b
-foldr f z m = go (toStream m)
-
+-- | Right fold.
+foldr :: (Monad m, Streaming t) => (a -> b -> b) -> b -> t m a -> m b
+foldr step acc m = go (toStream m)
     where
+    go m1 =
+        let stop = return acc
+            yield a Nothing  = return (step a acc)
+            yield a (Just x) = go x >>= \b -> return (step a b)
+        in (runStream m1) Nothing stop yield
 
-    go m1 = (runStream m1) Nothing stop yield
+-- | Right fold with a monadic step function.  See 'toList' for an example use.
+foldrM :: Streaming t => (a -> m b -> m b) -> m b -> t m a -> m b
+foldrM step acc m = go (toStream m)
+    where
+    go m1 =
+        let stop = acc
+            yield a Nothing  = step a acc
+            yield a (Just x) = step a (go x)
+        in (runStream m1) Nothing stop yield
 
-    stop = z
+-- | Strict left fold. This is typed to work with the foldl package. To use
+-- directly pass 'id' as the third argument.
+foldl :: (Monad m, Streaming t)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldl step begin done m = go begin (toStream m)
+    where
+    go !acc m1 =
+        let stop = return (done acc)
+            yield a Nothing  = return (done (step acc a))
+            yield a (Just x) = go (step acc a) x
+         in (runStream m1) Nothing stop yield
 
-    {-# INLINE yield #-}
-    yield a Nothing  = f a z
-    yield a (Just x) = f a (go x)
+-- | Strict left fold, with monadic step function. This is typed to work
+-- with the foldl package. To use directly pass 'id' as the third argument.
+foldlM :: (Monad m, Streaming t)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldlM step begin done m = go begin (toStream m)
+    where
+    go !acc m1 =
+        let stop = acc >>= done
+            yield a Nothing  = acc >>= \b -> step b a >>= done
+            yield a (Just x) = acc >>= \b -> go (step b a) x
+         in (runStream m1) Nothing stop yield
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
 -- the head of the stream and 'ma' its tail.
 uncons :: (Streaming t, Monad m, Monoid (t m a))
     => t m a -> m (Maybe (a, t m a))
-uncons m = (runStream (toStream m)) Nothing stop yield
-    where
-    stop = return Nothing
-
-    {-# INLINE yield #-}
-    yield a Nothing  = return (Just (a, mempty))
-    yield a (Just x) = return (Just (a, (fromStream x)))
+uncons m =
+    let stop = return Nothing
+        yield a Nothing  = return (Just (a, mempty))
+        yield a (Just x) = return (Just (a, (fromStream x)))
+    in (runStream (toStream m)) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -101,7 +134,7 @@ fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
 toList :: (Monad m, Streaming t) => t m a -> m [a]
-toList = foldr (\a xs -> liftM (a :) xs) (return [])
+toList = foldrM (\a xs -> liftM (a :) xs) (return [])
 
 -- | Take first 'n' elements from the stream and discard the rest.
 take :: Streaming t => Int -> t m a -> t m a
