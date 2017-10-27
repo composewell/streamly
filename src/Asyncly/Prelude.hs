@@ -49,6 +49,7 @@ import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith, foldr,
                                               foldl)
 import           Asyncly.Core
+import           Asyncly.Streams
 
 ------------------------------------------------------------------------------
 -- Elimination
@@ -123,10 +124,6 @@ unfoldr step = fromStream . go
             Nothing -> stp
             Just (a, b) -> yld a (Just (go b))
 
--- | Convert a callback into a stream.
-fromCallback :: (forall r. (a -> m r) -> m r) -> Stream m a
-fromCallback k = Stream $ \_ _ yld -> k (\a -> yld a Nothing)
-
 ------------------------------------------------------------------------------
 -- Special folds
 ------------------------------------------------------------------------------
@@ -177,19 +174,6 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         (runStream mx) Nothing stp yield1
     g a b = toStream $ f a b
 
--- | Zip two streams serially using a pure zipping function.
-zipWith :: Streaming t => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
-    where
-    go mx my = Stream $ \_ stp yld -> do
-        let merge a ra =
-                let yield2 b Nothing   = yld (f a b) Nothing
-                    yield2 b (Just rb) = yld (f a b) (Just (go ra rb))
-                 in (runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a mempty
-            yield1 a (Just ra) = merge a ra
-        (runStream mx) Nothing stp yield1
-
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
@@ -202,12 +186,3 @@ zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     ma <- async m1
     mb <- async m2
     (runStream (toStream (zipWithM f ma mb))) Nothing stp yld
-
--- | Zip two streams asyncly (i.e. both the elements being zipped are generated
--- concurrently) using a pure zipping function.
-zipAsyncWith :: (Streaming t, MonadAsync m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
-    ma <- async m1
-    mb <- async m2
-    (runStream (toStream (zipWith f ma mb))) Nothing stp yld

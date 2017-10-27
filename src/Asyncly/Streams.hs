@@ -20,14 +20,18 @@ module Asyncly.Streams
     (
     -- * Product Style Composition
     -- $product
-      StreamT
+      Streaming (..)
+    , MonadAsync
+
+    -- * Stream Styles
+    , StreamT
     , InterleavedT
     , AsyncT
     , ParallelT
     , ZipStream
     , ZipAsync
 
-    -- * Stream Type Adapters
+    -- * Type Adapters
     , serially
     , interleaving
     , asyncly
@@ -36,6 +40,14 @@ module Asyncly.Streams
     , zippingAsync
     , adapt
 
+    -- * Construction
+    , streamBuild
+    , fromCallback
+
+    -- * Elimination
+    , streamFold
+    , runStreaming
+
     -- * Running Streams
     , runStreamT
     , runInterleavedT
@@ -43,6 +55,23 @@ module Asyncly.Streams
     , runParallelT
     , runZipStream
     , runZipAsync
+
+    -- * Transformation
+    , EndOfStream (..)
+    , async
+
+    -- * Zipping
+    , zipWith
+    , zipAsyncWith
+
+    -- * Sum Style Composition
+    , (<=>)
+    , (<|)
+
+    -- * Fold Utilities
+    , foldWith
+    , foldMapWith
+    , forEachWith
     )
 where
 
@@ -58,7 +87,6 @@ import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith)
 import           Asyncly.Core
-import           Asyncly.Prelude
 
 -- $product
 --
@@ -101,6 +129,16 @@ import           Asyncly.Prelude
 -- stream. On the other hand the product style composition (e.g. 'AsyncT' or
 -- 'ParallelT' or 'ZipAsync') dictate how the elements of a stream are
 -- processed when it is consumed.
+
+------------------------------------------------------------------------------
+-- Types that can behave as a Stream
+------------------------------------------------------------------------------
+
+-- | Class of types that can represent a stream of elements of some type 'a' in
+-- some monad 'm'.
+class Streaming t where
+    toStream :: t m a -> Stream m a
+    fromStream :: Stream m a -> t m a
 
 ------------------------------------------------------------------------------
 -- StreamT iterates serially in the Monad and Applicative compositions
@@ -508,6 +546,19 @@ instance (MonadAsync m, Floating a) => Floating (ParallelT m a) where
 -- Serially Zipping Streams
 ------------------------------------------------------------------------------
 
+-- | Zip two streams serially using a pure zipping function.
+zipWith :: Streaming t => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
+    where
+    go mx my = Stream $ \_ stp yld -> do
+        let merge a ra =
+                let yield2 b Nothing   = yld (f a b) Nothing
+                    yield2 b (Just rb) = yld (f a b) (Just (go ra rb))
+                 in (runStream my) Nothing stp yield2
+        let yield1 a Nothing   = merge a mempty
+            yield1 a (Just ra) = merge a ra
+        (runStream mx) Nothing stp yield1
+
 -- | 'ZipStream' zips serially i.e. it produces one element from each stream in
 -- a serial manner and then zips the two elements.
 newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
@@ -573,6 +624,15 @@ instance (Monad m, Floating a) => Floating (ZipStream m a) where
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
+
+-- | Zip two streams asyncly (i.e. both the elements being zipped are generated
+-- concurrently) using a pure zipping function.
+zipAsyncWith :: (Streaming t, MonadAsync m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
+    ma <- async m1
+    mb <- async m2
+    (runStream (toStream (zipWith f ma mb))) Nothing stp yld
 
 -- | 'ZipAsync' zips in parallel, it produces one element from each stream
 -- concurrently and then zips the two.
@@ -668,6 +728,47 @@ zipping x = x
 zippingAsync :: ZipAsync m a -> ZipAsync m a
 zippingAsync x = x
 
+------------------------------------------------------------------------------
+-- Constructing a stream
+------------------------------------------------------------------------------
+
+-- XXX Need to accept a context as well
+-- | Build a stream from its church encoding.  The function passed maps
+-- directly to the underlying representation of the stream type.
+streamBuild :: Streaming t
+    => (forall r. (a -> Maybe (t m a) -> m r) -> m r -> m r) -> t m a
+streamBuild k = fromStream $ Stream $ \_ stp yld ->
+    let yield a Nothing = yld a Nothing
+        yield a (Just r) = yld a (Just (toStream r))
+     in k yield stp
+
+-- | Convert a callback into a stream.
+fromCallback :: (Streaming t) => (forall r. (a -> m r) -> m r) -> t m a
+fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
+
+------------------------------------------------------------------------------
+-- Destroying a stream
+------------------------------------------------------------------------------
+
+-- | Fold a stream using its church encoding. The first argument is the
+-- "step" function consuming one element and the rest of the stream. The second
+-- argument is the "done" function that is called when the stream is over.
+streamFold :: Streaming t => (a -> Maybe (t m a) -> m r) -> m r -> t m a -> m r
+streamFold step done m =
+    let yield a Nothing = step a Nothing
+        yield a (Just x) = step a (Just (fromStream x))
+     in (runStream (toStream m)) Nothing done yield
+
+-- | Run a streaming composition, discard the results.
+runStreaming :: (Monad m, Streaming t) => t m a -> m ()
+runStreaming m = go (toStream m)
+    where
+    go m1 =
+        let stop = return ()
+            yield _ Nothing  = stop
+            yield _ (Just x) = go x
+         in (runStream m1) Nothing stop yield
+
 -------------------------------------------------------------------------------
 -- Running Streams, convenience functions specialized to types
 -------------------------------------------------------------------------------
@@ -695,3 +796,65 @@ runZipStream = runStreaming
 -- | Run a 'ZipAsync' computation. Same as @runStreaming . zippingAsync@.
 runZipAsync :: Monad m => ZipAsync m a -> m ()
 runZipAsync = runStreaming
+
+------------------------------------------------------------------------------
+-- Transformation
+------------------------------------------------------------------------------
+
+-- | Make a stream asynchronous, triggers the computation and returns a stream
+-- in the underlying monad representing the output generated by the original
+-- computation. The returned action must be drained once and only once. If not
+-- drained fully we may have a thread blocked forever and once drained it will
+-- throw an 'EndOfStream' exception if we try to run it again
+
+async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
+async m = do
+    ctx <- pushOneToCtx (CtxType Disjunction LIFO) (toStream m)
+    return $ fromStream $ pullFromCtx ctx
+
+------------------------------------------------------------------------------
+-- Sum Style Composition
+------------------------------------------------------------------------------
+
+infixr 5 <=>
+
+-- | Sequential interleaved composition, in contrast to '<>' this operator
+-- fairly interleaves the two streams instead of appending them; yielding one
+-- element from each stream alternately. Unlike '<>' it cannot be used to fold
+-- an infinite container of streams.
+{-# INLINE (<=>) #-}
+(<=>) :: Streaming t => t m a -> t m a -> t m a
+m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
+
+-- | Parallel interleaved composition, in contrast to '<|>' this operator
+-- "merges" streams in a left biased manner rather than fairly interleaving
+-- them.  It keeps yielding from the stream on the left as long as it can. If
+-- the left stream blocks or cannot keep up with the pace of the consumer it
+-- can yield from the stream on the right in parallel.  Unlike '<|>' it can be
+-- used to fold infinite containers of streams.
+{-# INLINE (<|) #-}
+(<|) :: (Streaming t, MonadAsync m) => t m a -> t m a -> t m a
+m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
+
+------------------------------------------------------------------------------
+-- Fold Utilities
+------------------------------------------------------------------------------
+
+-- | Fold a 'Foldable' container using the given function.
+{-# INLINABLE foldWith #-}
+foldWith :: (Monoid b, Foldable t) => (a -> b -> b) -> t a -> b
+foldWith f = foldr f mempty
+
+-- | Fold a 'Foldable' container using a function that is a composition of the
+-- two arguments.
+{-# INLINABLE foldMapWith #-}
+foldMapWith :: (Monoid b, Foldable t) =>
+    (b1 -> b -> b) -> (a -> b1) -> t a -> b
+foldMapWith f g = foldr (f . g) mempty
+
+-- | Fold a 'Foldable' container using a function that is a composition of the
+-- first and the third argument.
+{-# INLINABLE forEachWith #-}
+forEachWith :: (Monoid b, Foldable t) =>
+    (b1 -> b -> b) -> t a -> (a -> b1) -> b
+forEachWith f xs g = foldr (f . g) mempty xs

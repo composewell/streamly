@@ -54,7 +54,6 @@
 module Asyncly
     ( MonadAsync
     , Streaming
-    , EndOfStream
 
     -- * Product Style Composition
     , StreamT
@@ -63,14 +62,6 @@ module Asyncly
     , ParallelT
     , ZipStream
     , ZipAsync
-
-    -- * Sum Style Composition
-    -- $monoidal
-    , (<=>)
-    , (<|)
-
-    -- * Custom Composition
-    , async
 
     -- * Stream Type Adapters
     , serially
@@ -90,6 +81,15 @@ module Asyncly
     , runZipStream
     , runZipAsync
 
+    -- * Transformation
+    , EndOfStream
+    , async
+
+    -- * Sum Style Composition
+    -- $monoidal
+    , (<=>)
+    , (<|)
+
     -- * Fold Utilities
     , foldWith
     , foldMapWith
@@ -105,7 +105,6 @@ module Asyncly
     )
 where
 
-import Asyncly.Core
 import Asyncly.Streams
 import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))
