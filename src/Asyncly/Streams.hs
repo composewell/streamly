@@ -22,6 +22,8 @@ module Asyncly.Streams
     -- $product
       Streaming (..)
     , MonadAsync
+    , EndOfStream (..)
+    , SVar
 
     -- * Stream Styles
     , StreamT
@@ -43,10 +45,12 @@ module Asyncly.Streams
     -- * Construction
     , streamBuild
     , fromCallback
+    , fromSVar
 
     -- * Elimination
     , streamFold
     , runStreaming
+    , toSVar
 
     -- * Running Streams
     , runStreamT
@@ -57,7 +61,6 @@ module Asyncly.Streams
     , runZipAsync
 
     -- * Transformation
-    , EndOfStream (..)
     , async
 
     -- * Zipping
@@ -187,7 +190,7 @@ instance Monad m => Monad (StreamT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (StreamT m) where
-    pure = StreamT . yielding
+    pure = StreamT . yields
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -281,7 +284,7 @@ instance Monad m => Monad (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (InterleavedT m) where
-    pure = InterleavedT . yielding
+    pure = InterleavedT . yields
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -385,14 +388,14 @@ instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
-              par = parallel (CtxType Conjunction LIFO)
+              par = parallel (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (AsyncT m) where
-    pure = AsyncT . yielding
+    pure = AsyncT . yields
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -481,14 +484,14 @@ instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
-              par = parallel (CtxType Conjunction FIFO)
+              par = parallel (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (ParallelT m) where
-    pure = ParallelT . yielding
+    pure = ParallelT . yields
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -574,7 +577,7 @@ instance Monad m => Functor (ZipStream m) where
         in m Nothing stp yield
 
 instance Monad m => Applicative (ZipStream m) where
-    pure = ZipStream . yielding
+    pure = ZipStream . yields
     (<*>) = zipWith id
 
 instance Streaming ZipStream where
@@ -649,7 +652,7 @@ instance Monad m => Functor (ZipAsync m) where
         in m Nothing stp yield
 
 instance MonadAsync m => Applicative (ZipAsync m) where
-    pure = ZipAsync . yielding
+    pure = ZipAsync . yields
     (<*>) = zipAsyncWith id
 
 instance Streaming ZipAsync where
@@ -732,7 +735,7 @@ zippingAsync x = x
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- XXX Need to accept a context as well
+-- XXX Need to accept an SVar as well
 -- | Build a stream from its church encoding.  The function passed maps
 -- directly to the underlying representation of the stream type.
 streamBuild :: Streaming t
@@ -745,6 +748,11 @@ streamBuild k = fromStream $ Stream $ \_ stp yld ->
 -- | Convert a callback into a stream.
 fromCallback :: (Streaming t) => (forall r. (a -> m r) -> m r) -> t m a
 fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
+
+-- | Convert an SVar to a stream. Throws 'EndOfStream' if the SVar is accessed
+-- even after it has been fully drained.
+fromSVar :: (MonadAsync m, Streaming t) => SVar m a -> t m a
+fromSVar sv = fromStream $ streamSVar sv
 
 ------------------------------------------------------------------------------
 -- Destroying a stream
@@ -768,6 +776,10 @@ runStreaming m = go (toStream m)
             yield _ Nothing  = stop
             yield _ (Just x) = go x
          in (runStream m1) Nothing stop yield
+
+-- | Convert a stream to an SVar, thus making it asynchronous.
+toSVar :: (Streaming t, MonadAsync m) => t m a -> m (SVar m a)
+toSVar m = newSVar1 (SVarStyle Disjunction LIFO) (toStream m)
 
 -------------------------------------------------------------------------------
 -- Running Streams, convenience functions specialized to types
@@ -801,6 +813,7 @@ runZipAsync = runStreaming
 -- Transformation
 ------------------------------------------------------------------------------
 
+-- XXX Get rid of this?
 -- | Make a stream asynchronous, triggers the computation and returns a stream
 -- in the underlying monad representing the output generated by the original
 -- computation. The returned action must be drained once and only once. If not
@@ -808,9 +821,7 @@ runZipAsync = runStreaming
 -- throw an 'EndOfStream' exception if we try to run it again
 
 async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
-async m = do
-    ctx <- pushOneToCtx (CtxType Disjunction LIFO) (toStream m)
-    return $ fromStream $ pullFromCtx ctx
+async m = toSVar m >>= return . fromSVar
 
 ------------------------------------------------------------------------------
 -- Sum Style Composition

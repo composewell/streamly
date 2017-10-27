@@ -16,25 +16,28 @@
 --
 --
 module Asyncly.Core
-    ( Stream (..)
-    , MonadAsync
+    (
+      MonadAsync
 
-    -- * Construction
-    , yielding
-
-    -- * Composition
+    -- * Streams
+    , Stream (..)
+    , yields
     , interleave
 
-    -- * Asynchronous Operations
-    , CtxType (..)
-    , SchedPolicy (..)
-    , Dimension (..)
+    -- * Concurrent Stream Vars (SVars)
+    , SVar
+    , SVarSched (..)
+    , SVarTag (..)
+    , SVarStyle (..)
     , EndOfStream (..)
+    , newSVar1
+    , newSVar2
+    , streamSVar
+
+    -- * Concurrent Streams
     , parallel
     , parAlt
     , parLeft
-    , pushOneToCtx
-    , pullFromCtx
     )
 where
 
@@ -81,30 +84,35 @@ data ChildEvent a =
 
 -- | Conjunction is used for monadic/product style composition. Disjunction is
 -- used for fold/sum style composition. We need to distiguish the two types of
--- contexts so that the scheduing of the two is independent.
-data Dimension   = Conjunction | Disjunction deriving Eq
+-- SVars so that the scheduling of the two is independent.
+data SVarTag = Conjunction | Disjunction deriving Eq
 
 -- | For fairly interleaved parallel composition the sched policy is FIFO
 -- whereas for left biased parallel composition it is LIFO.
-data SchedPolicy = LIFO | FIFO deriving Eq
+data SVarSched = LIFO | FIFO deriving Eq
 
--- | Identify the type of the context used for parallel composition.
-data CtxType     = CtxType Dimension SchedPolicy deriving Eq
+-- | Identify the type of the SVar. Two computations using the same style can
+-- be bunched on the same SVar.
+data SVarStyle = SVarStyle SVarTag SVarSched deriving Eq
 
--- | A Context represents a parallel composition. It has a runqueue which holds
--- the tasks that are to be picked by a pool of worker threads. It has an
--- output queue where the results are placed by the worker threads. A
--- doorBell is used by the worker threads to intimate the consumer thread
--- about availability of new results. New work is usually enqueued as a result
--- of executing the parallel combinators i.e. '<|' and '<|>'.
-data Context m a =
-    Context { outputQueue    :: IORef [ChildEvent a]
+-- | An SVar is a conduit to multiple streams running concurrently. It has an
+-- associated runqueue that holds the streams to be picked by a pool of worker
+-- threads. It has an associated output queue where the output stream elements
+-- are placed by the worker threads. A doorBell is used by the worker threads
+-- to intimate the consumer thread about availability of new results in the
+-- output queue.
+--
+-- New work is enqueued either at the time of creation of the SVar or as a
+-- result of executing the parallel combinators i.e. '<|' and '<|>' by already
+-- enqueued work.
+data SVar m a =
+       SVar { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
             , enqueue        :: Stream m a -> IO ()
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
             , queueEmpty     :: m Bool
-            , ctxType        :: CtxType
+            , svarStyle      :: SVarStyle
             }
 
 ------------------------------------------------------------------------------
@@ -121,7 +129,7 @@ data Context m a =
 newtype Stream m a =
     Stream {
         runStream :: forall r.
-               Maybe (Context m a)               -- local state
+               Maybe (SVar m a)               -- local state
             -> m r                               -- stop
             -> (a -> Maybe (Stream m a) -> m r)  -- yield
             -> m r
@@ -131,15 +139,15 @@ newtype Stream m a =
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 -- | Yield a singleton value in a stream.
-yielding :: a -> Stream m a
-yielding a = Stream $ \_ _ yld -> yld a Nothing
+yields :: a -> Stream m a
+yields a = Stream $ \_ _ yld -> yld a Nothing
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
 -- | '<>' concatenates two streams sequentially i.e. the first stream is
--- exhausted completely before yielding any element from the second stream.
+-- exhausted completely before yields any element from the second stream.
 instance Semigroup (Stream m a) where
     m1 <> m2 = go m1
         where
@@ -189,36 +197,36 @@ doFork action exHandler =
 -- XXX exception safety of all atomic/MVar operations
 
 {-# INLINE send #-}
-send :: MonadIO m => Context m a -> ChildEvent a -> m ()
-send ctx msg = liftIO $ do
-    atomicModifyIORefCAS_ (outputQueue ctx) $ \es -> msg : es
+send :: MonadIO m => SVar m a -> ChildEvent a -> m ()
+send sv msg = liftIO $ do
+    atomicModifyIORefCAS_ (outputQueue sv) $ \es -> msg : es
     -- XXX need a memory barrier? The wake up must happen only after the
     -- store has finished otherwise we can have lost wakeup problems.
-    void $ tryPutMVar (doorBell ctx) True
+    void $ tryPutMVar (doorBell sv) True
 
 {-# INLINE sendStop #-}
-sendStop :: MonadIO m => Context m a -> m ()
-sendStop ctx = liftIO myThreadId >>= \tid -> send ctx (ChildStop tid Nothing)
+sendStop :: MonadIO m => SVar m a -> m ()
+sendStop sv = liftIO myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
 
--- Note: Left associated operations can grow this queue to a large size
+-- Note: Left associated compositions can grow this queue to a large size
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO :: IORef [Stream m a] -> Stream m a -> IO ()
 enqueueLIFO q m = atomicModifyIORefCAS_ q $ \ ms -> m : ms
 
-runqueueLIFO :: MonadIO m => Context m a -> IORef [Stream m a] -> m ()
-runqueueLIFO ctx q = run
+runqueueLIFO :: MonadIO m => SVar m a -> IORef [Stream m a] -> m ()
+runqueueLIFO sv q = run
 
     where
 
     run = do
         work <- dequeue
         case work of
-            Nothing -> sendStop ctx
-            Just m -> (runStream m) (Just ctx) run yield
+            Nothing -> sendStop sv
+            Just m -> (runStream m) (Just sv) run yield
 
-    sendit a = send ctx (ChildYield a)
+    sendit a = send sv (ChildYield a)
     yield a Nothing  = sendit a >> run
-    yield a (Just r) = sendit a >> (runStream r) (Just ctx) run yield
+    yield a (Just r) = sendit a >> (runStream r) (Just sv) run yield
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \ ms ->
         case ms of
@@ -229,19 +237,19 @@ runqueueLIFO ctx q = run
 enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO = pushL
 
-runqueueFIFO :: MonadIO m => Context m a -> LinkedQueue (Stream m a) -> m ()
-runqueueFIFO ctx q = run
+runqueueFIFO :: MonadIO m => SVar m a -> LinkedQueue (Stream m a) -> m ()
+runqueueFIFO sv q = run
 
     where
 
     run = do
         work <- dequeue
         case work of
-            Nothing -> sendStop ctx
-            Just m -> (runStream m) (Just ctx) run yield
+            Nothing -> sendStop sv
+            Just m -> (runStream m) (Just sv) run yield
 
     dequeue = liftIO $ tryPopR q
-    sendit a = send ctx (ChildYield a)
+    sendit a = send sv (ChildYield a)
     yield a Nothing  = sendit a >> run
     yield a (Just r) = sendit a >> liftIO (enqueueFIFO q r) >> run
 
@@ -254,68 +262,65 @@ runqueueFIFO ctx q = run
 -- 2) To know when all threads are done.
 
 {-# NOINLINE addThread #-}
-addThread :: MonadIO m => Context m a -> ThreadId -> m ()
-addThread ctx tid =
-    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.insert tid s)
+addThread :: MonadIO m => SVar m a -> ThreadId -> m ()
+addThread sv tid =
+    liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.insert tid s)
 
 {-# INLINE delThread #-}
-delThread :: MonadIO m => Context m a -> ThreadId -> m ()
-delThread ctx tid =
-    liftIO $ modifyIORef (runningThreads ctx) $ (\s -> S.delete tid s)
+delThread :: MonadIO m => SVar m a -> ThreadId -> m ()
+delThread sv tid =
+    liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.delete tid s)
 
 {-# INLINE allThreadsDone #-}
-allThreadsDone :: MonadIO m => Context m a -> m Bool
-allThreadsDone ctx = liftIO $ do
-    readIORef (runningThreads ctx) >>= return . S.null
+allThreadsDone :: MonadIO m => SVar m a -> m Bool
+allThreadsDone sv = liftIO $ do
+    readIORef (runningThreads sv) >>= return . S.null
 
 {-# NOINLINE handleChildException #-}
-handleChildException :: MonadIO m => Context m a -> SomeException -> m ()
-handleChildException ctx e = do
+handleChildException :: MonadIO m => SVar m a -> SomeException -> m ()
+handleChildException sv e = do
     tid <- liftIO myThreadId
-    send ctx (ChildStop tid (Just e))
+    send sv (ChildStop tid (Just e))
 
 {-# NOINLINE pushWorker #-}
-pushWorker :: MonadAsync m => Context m a -> m ()
-pushWorker ctx =
-    doFork (runqueue ctx) (handleChildException ctx) >>= addThread ctx
+pushWorker :: MonadAsync m => SVar m a -> m ()
+pushWorker sv =
+    doFork (runqueue sv) (handleChildException sv) >>= addThread sv
 
 -- XXX When the queue is LIFO we can put a limit on the number of dispatches.
 -- Also, if a worker blocks on the output queue we can decide if we want to
 -- block or make it go away entirely, depending on the number of workers and
 -- the type of the queue.
 {-# INLINE sendWorkerWait #-}
-sendWorkerWait :: MonadAsync m => Context m a -> m ()
-sendWorkerWait ctx = do
-    case ctxType ctx of
-        CtxType _ LIFO -> liftIO $ threadDelay 200
-        CtxType _ FIFO -> liftIO $ threadDelay 0
+sendWorkerWait :: MonadAsync m => SVar m a -> m ()
+sendWorkerWait sv = do
+    case svarStyle sv of
+        SVarStyle _ LIFO -> liftIO $ threadDelay 200
+        SVarStyle _ FIFO -> liftIO $ threadDelay 0
 
-    output <- liftIO $ readIORef (outputQueue ctx)
+    output <- liftIO $ readIORef (outputQueue sv)
     when (null output) $ do
-        done <- queueEmpty ctx
+        done <- queueEmpty sv
         if (not done)
-        then (pushWorker ctx) >> sendWorkerWait ctx
-        else void (liftIO $ takeMVar (doorBell ctx))
+        then (pushWorker sv) >> sendWorkerWait sv
+        else void (liftIO $ takeMVar (doorBell sv))
 
 -- | An 'async' stream has finished but is still being used.
 data EndOfStream = EndOfStream deriving Show
 instance Exception EndOfStream
 
--- | Pull a stream from a context
-{-# NOINLINE pullFromCtx #-}
-pullFromCtx :: MonadAsync m => Context m a -> Stream m a
-pullFromCtx ctx = Stream $ \_ stp yld -> do
-    -- When using an async handle to the context, one may keep using a stale
-    -- context even after it has been fully drained. To detect it gracefully we
-    -- raise an explicit exception.
-    -- XXX if reading the IORef is costly we can use a flag in the context to
+-- | Pull a stream from an SVar.
+{-# NOINLINE streamSVar #-}
+streamSVar :: MonadAsync m => SVar m a -> Stream m a
+streamSVar sv = Stream $ \_ stp yld -> do
+    -- XXX if reading the IORef is costly we can use a flag in the SVar to
     -- indicate we are done.
-    done <- allThreadsDone ctx
+    done <- allThreadsDone sv
     when done $ throwM EndOfStream
 
-    res <- liftIO $ tryTakeMVar (doorBell ctx)
-    when (isNothing res) $ sendWorkerWait ctx
-    list <- liftIO $ atomicModifyIORefCAS (outputQueue ctx) $ \x -> ([], x)
+    res <- liftIO $ tryTakeMVar (doorBell sv)
+    when (isNothing res) $ sendWorkerWait sv
+    list <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> ([], x)
     -- To avoid lock overhead we read all events at once instead of reading one
     -- at a time. We just reverse the list to process the events in the order
     -- they arrived. Maybe we can use a queue instead?
@@ -324,16 +329,16 @@ pullFromCtx ctx = Stream $ \_ stp yld -> do
     where
 
     handleException e tid = do
-        delThread ctx tid
+        delThread sv tid
         -- XXX implement kill async exception handling
-        -- liftIO $ readIORef (runningThreads ctx) >>= mapM_ killThread
+        -- liftIO $ readIORef (runningThreads sv) >>= mapM_ killThread
         throwM e
 
     {-# INLINE processEvents #-}
     processEvents [] = Stream $ \_ stp yld -> do
-        done <- allThreadsDone ctx
+        done <- allThreadsDone sv
         if not done
-        then (runStream (pullFromCtx ctx)) Nothing stp yld
+        then (runStream (streamSVar sv)) Nothing stp yld
         else stp
 
     processEvents (ev : es) = Stream $ \_ stp yld -> do
@@ -344,91 +349,85 @@ pullFromCtx ctx = Stream $ \_ stp yld -> do
             ChildYield a -> yield a
             ChildStop tid e ->
                 case e of
-                    Nothing -> delThread ctx tid >> continue
+                    Nothing -> delThread sv tid >> continue
                     Just ex -> handleException ex tid
 
-getFifoCtx :: MonadIO m => CtxType -> IO (Context m a)
-getFifoCtx ctype = do
+getFifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getFifoSVar ctype = do
     outQ    <- newIORef []
     outQMv  <- newEmptyMVar
     running <- newIORef S.empty
     q       <- newQ
-    let ctx =
-            Context { outputQueue    = outQ
+    let sv =
+            SVar { outputQueue    = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
-                    , runqueue       = runqueueFIFO ctx q
+                    , runqueue       = runqueueFIFO sv q
                     , enqueue        = pushL q
                     , queueEmpty     = liftIO $ nullQ q
-                    , ctxType        = ctype
+                    , svarStyle        = ctype
                     }
-     in return ctx
+     in return sv
 
-getLifoCtx :: MonadIO m => CtxType -> IO (Context m a)
-getLifoCtx ctype = do
+getLifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getLifoSVar ctype = do
     outQ    <- newIORef []
     outQMv  <- newEmptyMVar
     running <- newIORef S.empty
     q <- newIORef []
     let checkEmpty = liftIO (readIORef q) >>= return . null
-    let ctx =
-            Context { outputQueue    = outQ
+    let sv =
+            SVar { outputQueue    = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
-                    , runqueue       = runqueueLIFO ctx q
+                    , runqueue       = runqueueLIFO sv q
                     , enqueue        = enqueueLIFO q
                     , queueEmpty     = checkEmpty
-                    , ctxType        = ctype
+                    , svarStyle        = ctype
                     }
-     in return ctx
+     in return sv
 
--- | Split the original computation in a pull-push pair. The original
--- computation pulls from a Channel while m1 and m2 push to the channel.
-pushPairToCtx :: MonadAsync m
-    => CtxType -> Stream m a -> Stream m a -> m (Context m a)
-pushPairToCtx ctype m1 m2 = do
+-- | Create a new SVar and enqueue one stream computation on it.
+newSVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
+newSVar1 style m = do
+    sv <- liftIO $
+        case style of
+            SVarStyle _ FIFO -> do
+                c <- getFifoSVar style
+                return c
+            SVarStyle _ LIFO -> do
+                c <- getLifoSVar style
+                return c
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    ctx <- liftIO $
-        case ctype of
-            CtxType _ FIFO -> do
-                c <- getFifoCtx ctype
+    liftIO $ (enqueue sv) m
+    pushWorker sv
+    return sv
+
+-- | Create a new SVar and enqueue two stream computations on it.
+newSVar2 :: MonadAsync m
+    => SVarStyle -> Stream m a -> Stream m a -> m (SVar m a)
+newSVar2 style m1 m2 = do
+    -- Note: We must have all the work on the queue before sending the
+    -- pushworker, otherwise the pushworker may exit before we even get a
+    -- chance to push.
+    sv <- liftIO $
+        case style of
+            SVarStyle _ FIFO -> do
+                c <- getFifoSVar style
                 (enqueue c) m1 >> (enqueue c) m2
                 return c
-            CtxType _ LIFO -> do
-                c <- getLifoCtx ctype
+            SVarStyle _ LIFO -> do
+                c <- getLifoSVar style
                 (enqueue c) m2 >> (enqueue c) m1
                 return c
-    pushWorker ctx
-    return ctx
+    pushWorker sv
+    return sv
 
--- | The computation specified in the argument is pushed to a new thread and
--- the context is returned. The returned context can be used to pull the output
--- of the computation.
-pushOneToCtx :: MonadAsync m => CtxType -> Stream m a -> m (Context m a)
-pushOneToCtx ctype m = do
-    ctx <- liftIO $
-        case ctype of
-            CtxType _ FIFO -> do
-                c <- getFifoCtx ctype
-                return c
-            CtxType _ LIFO -> do
-                c <- getLifoCtx ctype
-                return c
-    -- Note: We must have all the work on the queue before sending the
-    -- pushworker, otherwise the pushworker may exit before we even get a
-    -- chance to push.
-    liftIO $ (enqueue ctx) m
-    pushWorker ctx
-    return ctx
-
-{-# NOINLINE pushPullFork #-}
-pushPullFork :: MonadAsync m
-    => CtxType -> Stream m a -> Stream m a -> Stream m a
-pushPullFork ct m1 m2 = Stream $ \_ stp yld -> do
-    ctx <- pushPairToCtx ct m1 m2
-    (runStream (pullFromCtx ctx)) Nothing stp yld
+------------------------------------------------------------------------------
+-- Running streams concurrently
+------------------------------------------------------------------------------
 
 -- Concurrency rate control. Our objective is to create more threads on demand
 -- if the consumer is running faster than us. As soon as we encounter an
@@ -457,23 +456,28 @@ pushPullFork ct m1 m2 = Stream $ \_ stp yld -> do
 --
 -- TBD for pure work (when we are not in the IO monad) we can divide it into
 -- just the number of CPUs.
---
--- XXX to rate control left folded structrues we will have to return the
--- residual work back to the dispatcher. It will also consume a lot of
--- memory due to queueing of all the work before execution starts.
+
+{-# NOINLINE makeAsync #-}
+makeAsync :: MonadAsync m
+    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
+makeAsync style m1 m2 = Stream $ \_ stp yld -> do
+    sv <- newSVar2 style m1 m2
+    (runStream (streamSVar sv)) Nothing stp yld
 
 -- | Compose two streams in parallel using a scheduling policy specified by
--- 'CtxType'.  Note: This is designed to scale for right associated
--- compositions, therefore always use a right fold for folding bigger
--- structures.
+-- 'SVarStyle'.  Note: This is designed to scale for right associated
+-- compositions, therefore always use a right fold for folding large or
+-- infinite structures. For left associated structures it will first
+-- destructure the whole structure and then start executing, consuming memory
+-- proportional to the size of the structure, just like a left fold.
 {-# INLINE parallel #-}
-parallel :: MonadAsync m => CtxType -> Stream m a -> Stream m a -> Stream m a
-parallel ct m1 m2 = Stream $ \ctx stp yld -> do
-    case ctx of
-        Nothing -> (runStream (pushPullFork ct m1 m2)) Nothing stp yld
-        Just c | ctxType c /= ct ->
-            (runStream (pushPullFork ct m1 m2)) Nothing stp yld
-        Just c -> liftIO ((enqueue c) m2) >> (runStream m1) ctx stp yld
+parallel :: MonadAsync m => SVarStyle -> Stream m a -> Stream m a -> Stream m a
+parallel style m1 m2 = Stream $ \st stp yld -> do
+    case st of
+        Nothing -> (runStream (makeAsync style m1 m2)) Nothing stp yld
+        Just sv | svarStyle sv /= style ->
+            (runStream (makeAsync style m1 m2)) Nothing stp yld
+        Just sv -> liftIO ((enqueue sv) m2) >> (runStream m1) st stp yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -494,12 +498,12 @@ parAhead = undefined
 -- | Same as '<|>'.
 {-# INLINE parAlt #-}
 parAlt :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parAlt = parallel (CtxType Disjunction FIFO)
+parAlt = parallel (SVarStyle Disjunction FIFO)
 
 -- | Same as '<|'.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parLeft = parallel (CtxType Disjunction LIFO)
+parLeft = parallel (SVarStyle Disjunction LIFO)
 
 -------------------------------------------------------------------------------
 -- Instances (only used for deriving newtype instances)
@@ -562,18 +566,18 @@ instance MonadThrow m => MonadThrow (Stream m) where
 -- XXX handle and test cross thread state transfer
 instance MonadError e m => MonadError e (Stream m) where
     throwError     = lift . throwError
-    catchError m h = Stream $ \ctx stp yld ->
-        let handle r = r `catchError` \e -> (runStream (h e)) ctx stp yld
+    catchError m h = Stream $ \st stp yld ->
+        let handle r = r `catchError` \e -> (runStream (h e)) st stp yld
             yield a Nothing = yld a Nothing
             yield a (Just r) = yld a (Just (catchError r h))
-        in handle $ (runStream m) ctx stp yield
+        in handle $ (runStream m) st stp yield
 
 instance MonadReader r m => MonadReader r (Stream m) where
     ask = lift ask
-    local f m = Stream $ \ctx stp yld ->
+    local f m = Stream $ \st stp yld ->
         let yield a Nothing  = local f $ yld a Nothing
             yield a (Just r) = local f $ yld a (Just (local f r))
-        in (runStream m) ctx (local f stp) yield
+        in (runStream m) st (local f stp) yield
 
 instance MonadState s m => MonadState s (Stream m) where
     get     = lift get

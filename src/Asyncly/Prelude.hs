@@ -21,10 +21,8 @@ module Asyncly.Prelude
     (
     -- * Construction
       unfoldr
-    , fromCallback
 
     -- * Elimination
-    , runStreaming
     , foldr
     , foldrM
     , foldl
