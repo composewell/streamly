@@ -30,10 +30,12 @@ module Asyncly.Core
     , SVarTag (..)
     , SVarStyle (..)
     , EndOfStream (..)
-    , newSVar1
-    , newSVar2
-    , joinSVar2
-    , streamSVar
+    , newEmptySVar
+    , newStreamVar1
+    , newStreamVar2
+    , joinStreamVar2
+    , fromStreamVar
+    , toStreamVar
 
     -- * Concurrent Streams
     , parAlt
@@ -95,21 +97,30 @@ data SVarSched = LIFO | FIFO deriving Eq
 -- be scheduled on the same SVar.
 data SVarStyle = SVarStyle SVarTag SVarSched deriving Eq
 
--- | An SVar (A Stream Var or an Sched Var) is a conduit to multiple streams
--- running concurrently. It has an associated runqueue that holds the streams
--- to be picked and run by a pool of worker threads. It has an associated
--- output queue where the output stream elements are placed by the worker
--- threads. A doorBell is used by the worker threads to intimate the consumer
--- thread about availability of new results in the output queue. More workers
--- are added to the SVar by 'streamSVar' on demand if the output produced is
--- not keeping pace with the consumer. On bounded SVars, workers block on the
--- output queue to provide throttling when the consumer is not pulling fast
--- enough. The number of workers may even get reduced depending on the
--- consuming pace.
+-- | An SVar or a Stream Var is a conduit to the output from multiple streams
+-- running concurrently and asynchronously. An SVar can be thought of as an
+-- asynchronous IO handle. We can write any number of streams to an SVar in a
+-- non-blocking manner and then read them back at any time at any pace.  The
+-- SVar would run the streams asynchronously and accumulate results. An SVar
+-- may not really execute the stream completely and accumulate all the results.
+-- However, it ensures that the reader can read the results at whatever paces
+-- it wants to read. The SVar monitors and adapts to the consumer's pace.
+--
+-- An SVar is a mini scheduler, it has an associated runqueue that holds the
+-- stream tasks to be picked and run by a pool of worker threads. It has an
+-- associated output queue where the output stream elements are placed by the
+-- worker threads. A doorBell is used by the worker threads to intimate the
+-- consumer thread about availability of new results in the output queue. More
+-- workers are added to the SVar by 'fromStreamVar' on demand if the output
+-- produced is not keeping pace with the consumer. On bounded SVars, workers
+-- block on the output queue to provide throttling of the producer  when the
+-- consumer is not pulling fast enough.  The number of workers may even get
+-- reduced depending on the consuming pace.
 --
 -- New work is enqueued either at the time of creation of the SVar or as a
 -- result of executing the parallel combinators i.e. '<|' and '<|>' when the
--- already enqueued computations get evaluated. See 'joinSVar2'.
+-- already enqueued computations get evaluated. See 'joinStreamVar2'.
+--
 data SVar m a =
        SVar { outputQueue    :: IORef [ChildEvent a]
             , doorBell       :: MVar Bool -- wakeup mechanism for outQ
@@ -315,9 +326,9 @@ data EndOfStream = EndOfStream deriving Show
 instance Exception EndOfStream
 
 -- | Pull a stream from an SVar.
-{-# NOINLINE streamSVar #-}
-streamSVar :: MonadAsync m => SVar m a -> Stream m a
-streamSVar sv = Stream $ \_ stp yld -> do
+{-# NOINLINE fromStreamVar #-}
+fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
+fromStreamVar sv = Stream $ \_ stp yld -> do
     -- XXX if reading the IORef is costly we can use a flag in the SVar to
     -- indicate we are done.
     done <- allThreadsDone sv
@@ -343,7 +354,7 @@ streamSVar sv = Stream $ \_ stp yld -> do
     processEvents [] = Stream $ \_ stp yld -> do
         done <- allThreadsDone sv
         if not done
-        then (runStream (streamSVar sv)) Nothing stp yld
+        then (runStream (fromStreamVar sv)) Nothing stp yld
         else stp
 
     processEvents (ev : es) = Stream $ \_ stp yld -> do
@@ -392,9 +403,9 @@ getLifoSVar ctype = do
                     }
      in return sv
 
--- | Create a new SVar and enqueue one stream computation on it.
-newSVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
-newSVar1 style m = do
+-- | Create a new empty SVar.
+newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
+newEmptySVar style = do
     sv <- liftIO $
         case style of
             SVarStyle _ FIFO -> do
@@ -403,6 +414,12 @@ newSVar1 style m = do
             SVarStyle _ LIFO -> do
                 c <- getLifoSVar style
                 return c
+    return sv
+
+-- | Create a new SVar and enqueue one stream computation on it.
+newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
+newStreamVar1 style m = do
+    sv <- newEmptySVar style
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
@@ -411,9 +428,9 @@ newSVar1 style m = do
     return sv
 
 -- | Create a new SVar and enqueue two stream computations on it.
-newSVar2 :: MonadAsync m
+newStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> m (SVar m a)
-newSVar2 style m1 m2 = do
+newStreamVar2 style m1 m2 = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
@@ -429,6 +446,17 @@ newSVar2 style m1 m2 = do
                 return c
     pushWorker sv
     return sv
+
+-- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
+-- be read back from the SVar using 'fromSVar'.
+toStreamVar :: MonadAsync m => SVar m a -> Stream m a -> m ()
+toStreamVar sv m = do
+    liftIO $ (enqueue sv) m
+    done <- allThreadsDone sv
+    -- XXX there may be a race here unless we are running in the consumer
+    -- thread. This is safe only when called from the consumer thread or when
+    -- no consumer is present.
+    when done $ pushWorker sv
 
 ------------------------------------------------------------------------------
 -- Running streams concurrently
@@ -466,8 +494,8 @@ newSVar2 style m1 m2 = do
 withNewSVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
-    sv <- newSVar2 style m1 m2
-    (runStream (streamSVar sv)) Nothing stp yld
+    sv <- newStreamVar2 style m1 m2
+    (runStream (fromStreamVar sv)) Nothing stp yld
 
 -- | Join two computations on the currently running 'SVar' queue for concurrent
 -- execution. The 'SVarStyle' required by the current composition context is
@@ -479,9 +507,9 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 -- When we are using parallel composition, an SVar is passed around as a state
 -- variable. We try to schedule a new parallel computation on the SVar passed
 -- to us. The first time, when no SVar exists, a new SVar is created.
--- Subsequently, 'joinSVar2' may get called when a computation already
+-- Subsequently, 'joinStreamVar2' may get called when a computation already
 -- scheduled on the SVar is further evaluated. For example, when (a \<|> b) is
--- evaluated it calls a 'joinSVar2' to put 'a' and 'b' on the current scheduler
+-- evaluated it calls a 'joinStreamVar2' to put 'a' and 'b' on the current scheduler
 -- queue.  However, if the scheduling and composition style of the new
 -- computation being scheduled is different than the style of the current SVar,
 -- then we create a new SVar and schedule it on that.
@@ -497,10 +525,10 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
 --
-{-# INLINE joinSVar2 #-}
-joinSVar2 :: MonadAsync m
+{-# INLINE joinStreamVar2 #-}
+joinStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinSVar2 style m1 m2 = Stream $ \st stp yld -> do
+joinStreamVar2 style m1 m2 = Stream $ \st stp yld -> do
     case st of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) st stp yld
@@ -526,7 +554,7 @@ parAhead = undefined
 -- cannot fold infinite number of streams using this operation.
 {-# INLINE parAlt #-}
 parAlt :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parAlt = joinSVar2 (SVarStyle Disjunction FIFO)
+parAlt = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -- | Same as '<|'. Since this schedules the left side computation first you can
 -- right fold an infinite container using this operator. However a left fold
@@ -535,7 +563,7 @@ parAlt = joinSVar2 (SVarStyle Disjunction FIFO)
 -- structure.
 {-# INLINE parLeft #-}
 parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parLeft = joinSVar2 (SVarStyle Disjunction LIFO)
+parLeft = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
 -------------------------------------------------------------------------------
 -- Instances (only used for deriving newtype instances)

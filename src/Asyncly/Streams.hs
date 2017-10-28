@@ -22,8 +22,14 @@ module Asyncly.Streams
     -- $product
       Streaming (..)
     , MonadAsync
+
+    -- * SVars
     , EndOfStream (..)
+    , SVarSched (..)
+    , SVarTag (..)
+    , SVarStyle (..)
     , SVar
+    , newEmptySVar
 
     -- * Stream Styles
     , StreamT
@@ -388,7 +394,7 @@ instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
-              par = joinSVar2 (SVarStyle Conjunction LIFO)
+              par = joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -484,7 +490,7 @@ instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
-              par = joinSVar2 (SVarStyle Conjunction FIFO)
+              par = joinStreamVar2 (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -758,7 +764,7 @@ fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 -- | Convert an SVar to a stream. Throws 'EndOfStream' if the SVar is accessed
 -- even after it has been fully drained.
 fromSVar :: (MonadAsync m, Streaming t) => SVar m a -> t m a
-fromSVar sv = fromStream $ streamSVar sv
+fromSVar sv = fromStream $ fromStreamVar sv
 
 ------------------------------------------------------------------------------
 -- Destroying a stream
@@ -784,9 +790,10 @@ runStreaming m = go (toStream m)
             yield _ (Just x) = go x
          in (runStream m1) Nothing stop yield
 
--- | Convert a stream to an SVar, thus making it asynchronous.
-toSVar :: (Streaming t, MonadAsync m) => t m a -> m (SVar m a)
-toSVar m = newSVar1 (SVarStyle Disjunction LIFO) (toStream m)
+-- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
+-- be read back from the SVar using 'fromSVar'.
+toSVar :: (Streaming t, MonadAsync m) => SVar m a -> t m a -> m ()
+toSVar sv m = toStreamVar sv (toStream m)
 
 -------------------------------------------------------------------------------
 -- Running Streams, convenience functions specialized to types
@@ -828,7 +835,9 @@ runZipAsync = runStreaming
 -- throw an 'EndOfStream' exception if we try to run it again
 
 async :: (Streaming t, MonadAsync m) => t m a -> m (t m a)
-async m = toSVar m >>= return . fromSVar
+async m = do
+    sv <- newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
+    return $ fromSVar sv
 
 ------------------------------------------------------------------------------
 -- Sum Style Composition
