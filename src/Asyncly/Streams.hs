@@ -372,13 +372,13 @@ parbind
     -> Stream m a
     -> (a -> Stream m b)
     -> Stream m b
-parbind k m f = go m
+parbind par m f = go m
     where
         go (Stream g) =
             Stream $ \ctx stp yld ->
             let run x = (runStream x) ctx stp yld
                 yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `k` (go r)
+                yield a (Just r) = run $ f a `par` (go r)
             in g Nothing stp yield
 
 -- | Execute a monadic action for each element in the stream, running
@@ -388,7 +388,7 @@ instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
-              par = parallel (SVarStyle Conjunction LIFO)
+              par = joinSVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
@@ -484,7 +484,7 @@ instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
-              par = parallel (SVarStyle Conjunction FIFO)
+              par = joinSVar2 (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
