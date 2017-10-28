@@ -735,17 +735,23 @@ zippingAsync x = x
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- XXX Need to accept an SVar as well
 -- | Build a stream from its church encoding.  The function passed maps
--- directly to the underlying representation of the stream type.
+-- directly to the underlying representation of the stream type. The second
+-- parameter to the function is the "yield" function yielding a value and the
+-- remaining stream if any otherwise 'Nothing'. The third parameter is to
+-- represent an "empty" stream.
 streamBuild :: Streaming t
-    => (forall r. (a -> Maybe (t m a) -> m r) -> m r -> m r) -> t m a
-streamBuild k = fromStream $ Stream $ \_ stp yld ->
+    => (forall r. Maybe (SVar m a)
+        -> (a -> Maybe (t m a) -> m r)
+        -> m r
+        -> m r)
+    -> t m a
+streamBuild k = fromStream $ Stream $ \sv stp yld ->
     let yield a Nothing = yld a Nothing
         yield a (Just r) = yld a (Just (toStream r))
-     in k yield stp
+     in k sv yield stp
 
--- | Convert a callback into a stream.
+-- | Build a singleton stream from a callback function.
 fromCallback :: (Streaming t) => (forall r. (a -> m r) -> m r) -> t m a
 fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 
@@ -758,14 +764,15 @@ fromSVar sv = fromStream $ streamSVar sv
 -- Destroying a stream
 ------------------------------------------------------------------------------
 
--- | Fold a stream using its church encoding. The first argument is the
--- "step" function consuming one element and the rest of the stream. The second
--- argument is the "done" function that is called when the stream is over.
-streamFold :: Streaming t => (a -> Maybe (t m a) -> m r) -> m r -> t m a -> m r
-streamFold step done m =
+-- | Fold a stream using its church encoding. The second argument is the "step"
+-- function consuming an element and the remaining stream, if any. The third
+-- argument is for consuming an "empty" stream that yields nothing.
+streamFold :: Streaming t
+    => Maybe (SVar m a) -> (a -> Maybe (t m a) -> m r) -> m r -> t m a -> m r
+streamFold sv step blank m =
     let yield a Nothing = step a Nothing
         yield a (Just x) = step a (Just (fromStream x))
-     in (runStream (toStream m)) Nothing done yield
+     in (runStream (toStream m)) sv blank yield
 
 -- | Run a streaming composition, discard the results.
 runStreaming :: (Monad m, Streaming t) => t m a -> m ()
