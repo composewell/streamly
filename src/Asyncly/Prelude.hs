@@ -21,6 +21,7 @@ module Asyncly.Prelude
     (
     -- * Construction
       unfoldr
+    , fromHandle
 
     -- * Elimination
     , foldr
@@ -28,6 +29,7 @@ module Asyncly.Prelude
     , foldl
     , foldlM
     , uncons
+    , toHandle
 
     -- * Special folds
     , toList
@@ -46,11 +48,40 @@ module Asyncly.Prelude
 where
 
 import           Control.Monad               (liftM)
+import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (filter, drop, dropWhile, take,
                                               takeWhile, zipWith, foldr, foldl)
+import qualified System.IO as IO
+
 import           Asyncly.Core
 import           Asyncly.Streams
+
+------------------------------------------------------------------------------
+-- Construction
+------------------------------------------------------------------------------
+
+-- | Build a Stream by unfolding steps starting from a seed.
+unfoldr :: (Streaming t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldr step = fromStream . go
+    where
+    go s = Stream $ \_ stp yld -> do
+        mayb <- step s
+        case mayb of
+            Nothing -> stp
+            Just (a, b) -> yld a (Just (go b))
+
+-- | Read lines from an IO Handle into a stream of Strings.
+fromHandle :: (MonadIO m, Streaming t) => IO.Handle -> t m String
+fromHandle h = fromStream $ go
+  where
+  go = Stream $ \_ stp yld -> do
+        eof <- liftIO $ IO.hIsEOF h
+        if eof
+        then stp
+        else do
+            str <- liftIO $ IO.hGetLine h
+            yld str (Just go)
 
 ------------------------------------------------------------------------------
 -- Elimination
@@ -111,19 +142,15 @@ uncons m =
         yield a (Just x) = return (Just (a, (fromStream x)))
     in (runStream (toStream m)) Nothing stop yield
 
-------------------------------------------------------------------------------
--- Construction
-------------------------------------------------------------------------------
-
--- | Build a Stream by unfolding steps starting from a seed.
-unfoldr :: (Streaming t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldr step = fromStream . go
+-- | Write a stream of Strings to an IO Handle.
+toHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String -> m ()
+toHandle h m = go (toStream m)
     where
-    go s = Stream $ \_ stp yld -> do
-        mayb <- step s
-        case mayb of
-            Nothing -> stp
-            Just (a, b) -> yld a (Just (go b))
+    go m1 =
+        let stop = return ()
+            yield a Nothing  = liftIO (IO.hPutStrLn h a)
+            yield a (Just x) = liftIO (IO.hPutStrLn h a) >> go x
+        in (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Special folds
