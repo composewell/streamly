@@ -82,7 +82,6 @@ module Asyncly
     , runZipAsync
 
     -- * Transformation
-    , EndOfStream
     , async
 
     -- * Sum Style Composition

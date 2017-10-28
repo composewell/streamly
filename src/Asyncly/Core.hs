@@ -29,7 +29,6 @@ module Asyncly.Core
     , SVarSched (..)
     , SVarTag (..)
     , SVarStyle (..)
-    , EndOfStream (..)
     , newEmptySVar
     , newStreamVar1
     , newStreamVar2
@@ -48,7 +47,7 @@ import           Control.Concurrent          (ThreadId, forkIO,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
-import           Control.Exception           (SomeException (..), Exception)
+import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (MonadPlus(..), mzero, when)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
@@ -321,10 +320,6 @@ sendWorkerWait sv = do
         then (pushWorker sv) >> sendWorkerWait sv
         else void (liftIO $ takeMVar (doorBell sv))
 
--- | A stream being pulled from 'SVar' has ended.
-data EndOfStream = EndOfStream deriving Show
-instance Exception EndOfStream
-
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
@@ -332,15 +327,16 @@ fromStreamVar sv = Stream $ \_ stp yld -> do
     -- XXX if reading the IORef is costly we can use a flag in the SVar to
     -- indicate we are done.
     done <- allThreadsDone sv
-    when done $ throwM EndOfStream
-
-    res <- liftIO $ tryTakeMVar (doorBell sv)
-    when (isNothing res) $ sendWorkerWait sv
-    list <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> ([], x)
-    -- To avoid lock overhead we read all events at once instead of reading one
-    -- at a time. We just reverse the list to process the events in the order
-    -- they arrived. Maybe we can use a queue instead?
-    (runStream $ processEvents (reverse list)) Nothing stp yld
+    if done
+    then stp
+    else do
+        res <- liftIO $ tryTakeMVar (doorBell sv)
+        when (isNothing res) $ sendWorkerWait sv
+        list <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> ([], x)
+        -- To avoid lock overhead we read all events at once instead of reading
+        -- one at a time. We just reverse the list to process the events in the
+        -- order they arrived. Maybe we can use a queue instead?
+        (runStream $ processEvents (reverse list)) Nothing stp yld
 
     where
 
