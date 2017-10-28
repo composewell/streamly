@@ -31,8 +31,11 @@ module Asyncly.Prelude
 
     -- * Special folds
     , toList
+    , filter
     , take
+    , takeWhile
     , drop
+    , dropWhile
 
     -- * Zipping
     , zipWith
@@ -44,8 +47,8 @@ where
 
 import           Control.Monad               (liftM)
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (drop, take, zipWith, foldr,
-                                              foldl)
+import           Prelude hiding              (filter, drop, dropWhile, take,
+                                              takeWhile, zipWith, foldr, foldl)
 import           Asyncly.Core
 import           Asyncly.Streams
 
@@ -142,6 +145,28 @@ take n m = fromStream $ go n (toStream m)
         then stp
         else (runStream m1) ctx stp yield
 
+-- | Include only those elements that pass a predicate.
+filter :: Streaming t => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \ctx stp yld -> do
+        let yield a Nothing  | p a       = yld a Nothing
+                             | otherwise = stp
+            yield a (Just x) | p a       = yld a (Just (go x))
+                             | otherwise = (runStream (go x)) ctx stp yield
+         in (runStream m1) ctx stp yield
+
+-- | End the stream as soon as the predicate fails on an element.
+takeWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
+takeWhile p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \ctx stp yld -> do
+        let yield a Nothing  | p a       = yld a Nothing
+                             | otherwise = stp
+            yield a (Just x) | p a       = yld a (Just (go x))
+                             | otherwise = stp
+         in (runStream m1) ctx stp yield
+
 -- | Discard first 'n' elements from the stream and take the rest.
 drop :: Streaming t => Int -> t m a -> t m a
 drop n m = fromStream $ go n (toStream m)
@@ -152,6 +177,18 @@ drop n m = fromStream $ go n (toStream m)
         if (n1 <= 0)
         then (runStream m1) ctx stp yld
         else (runStream m1) ctx stp yield
+
+-- | Drop elements in the stream as long as the predicate succeeds and then
+-- take the rest of the stream.
+dropWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
+dropWhile p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \ctx stp yld -> do
+        let yield a Nothing  | p a       = stp
+                             | otherwise = yld a Nothing
+            yield a (Just x) | p a       = (runStream (go x)) ctx stp yield
+                             | otherwise = yld a (Just x)
+         in (runStream m1) ctx stp yield
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
