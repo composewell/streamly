@@ -39,6 +39,11 @@ module Asyncly.Prelude
     , drop
     , dropWhile
 
+    -- * Transformation
+    , mapM
+    , mapM_
+    , sequence
+
     -- * Zipping
     , zipWith
     , zipWithM
@@ -51,7 +56,8 @@ import           Control.Monad               (liftM)
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (filter, drop, dropWhile, take,
-                                              takeWhile, zipWith, foldr, foldl)
+                                              takeWhile, zipWith, foldr, foldl,
+                                              mapM, mapM_, sequence)
 import qualified System.IO as IO
 
 import           Asyncly.Core
@@ -216,6 +222,42 @@ dropWhile p m = fromStream $ go (toStream m)
             yield a (Just x) | p a       = (runStream (go x)) ctx stp yield
                              | otherwise = yld a (Just x)
          in (runStream m1) ctx stp yield
+
+------------------------------------------------------------------------------
+-- Transformation
+------------------------------------------------------------------------------
+
+-- | Apply a monadic action to each element of the stream and replace it with
+-- the result.
+mapM :: (Streaming t, Monad m) => (a -> m b) -> t m a -> t m b
+mapM f m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \_ stp yld -> do
+        let stop = stp
+            yield a Nothing  = f a >>= \b -> yld b Nothing
+            yield a (Just x) = f a >>= \b -> yld b (Just (go x))
+         in (runStream m1) Nothing stop yield
+
+-- | Apply a monadic action to each element of the stream and discard the
+-- results.
+mapM_ :: (Streaming t, Monad m) => (a -> m b) -> t m a -> m ()
+mapM_ f m = go (toStream m)
+    where
+    go m1 =
+        let stop = return ()
+            yield a Nothing  = f a >> return ()
+            yield a (Just x) = f a >> go x
+         in (runStream m1) Nothing stop yield
+
+-- | Reduce a stream of monadic actions to a stream of their results.
+sequence :: (Streaming t, Monad m) => t m (m a) -> t m a
+sequence m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \_ stp yld -> do
+        let stop = stp
+            yield a Nothing  = a >>= \b -> yld b Nothing
+            yield a (Just x) = a >>= \b -> yld b (Just (go x))
+         in (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
