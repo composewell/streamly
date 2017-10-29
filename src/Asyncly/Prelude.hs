@@ -29,10 +29,23 @@ module Asyncly.Prelude
     , foldl
     , foldlM
     , uncons
-    , toHandle
 
-    -- * Special folds
+    -- * Elimination Special Folds
     , toList
+    , toHandle
+    , all
+    , any
+    , sum
+    , product
+    , head
+    , last
+    , length
+    , elem
+    , notElem
+    , maximum
+    , minimum
+
+    -- * Filtering
     , filter
     , take
     , takeWhile
@@ -57,7 +70,10 @@ import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (filter, drop, dropWhile, take,
                                               takeWhile, zipWith, foldr, foldl,
-                                              mapM, mapM_, sequence)
+                                              mapM, mapM_, sequence, all, any,
+                                              sum, product, elem, notElem,
+                                              maximum, minimum, head, last,
+                                              length)
 import qualified System.IO as IO
 
 import           Asyncly.Core
@@ -222,6 +238,105 @@ dropWhile p m = fromStream $ go (toStream m)
             yield a (Just x) | p a       = (runStream (go x)) ctx stp yield
                              | otherwise = yld a (Just x)
          in (runStream m1) ctx stp yield
+
+-- | Determine whether all elements of a stream satisfy a predicate.
+all :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m Bool
+all p m = go (toStream m)
+    where
+    go m1 =
+        let yield a Nothing  | p a       = return True
+                             | otherwise = return False
+            yield a (Just x) | p a       = go x
+                             | otherwise = return False
+         in (runStream m1) Nothing (return True) yield
+
+-- | Determine whether any of the elements of a stream satisfy a predicate.
+any :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m Bool
+any p m = go (toStream m)
+    where
+    go m1 =
+        let yield a Nothing  | p a       = return True
+                             | otherwise = return False
+            yield a (Just x) | p a       = return True
+                             | otherwise = go x
+         in (runStream m1) Nothing (return False) yield
+
+-- | Determine the sum of all elements of a stream of numbers
+sum :: (Streaming t, Monad m, Num a) => t m a -> m a
+sum = foldl (+) 0 id
+
+-- | Determine the product of all elements of a stream of numbers
+product :: (Streaming t, Monad m, Num a) => t m a -> m a
+product = foldl (*) 0 id
+
+-- | Extract the first element of the stream, if any.
+head :: (Streaming t, Monad m) => t m a -> m (Maybe a)
+head m =
+    let stop      = return Nothing
+        yield a _ = return (Just a)
+    in (runStream (toStream m)) Nothing stop yield
+
+-- | Extract the first element of the stream, if any.
+last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
+last m = go (toStream m)
+    where
+    go m1 =
+        let stop            = return Nothing
+            yield a Nothing = return (Just a)
+            yield _ (Just x) = go x
+        in (runStream m1) Nothing stop yield
+
+-- | Determine whether an element is present in the stream.
+elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
+elem e m = go (toStream m)
+    where
+    go m1 =
+        let stop            = return False
+            yield a Nothing = return (a == e)
+            yield a (Just x) = if (a == e) then return True else go x
+        in (runStream m1) Nothing stop yield
+
+-- | Determine whether an element is not present in the stream.
+notElem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
+notElem e m = go (toStream m)
+    where
+    go m1 =
+        let stop            = return True
+            yield a Nothing = return (a /= e)
+            yield a (Just x) = if (a == e) then return False else go x
+        in (runStream m1) Nothing stop yield
+
+-- | Determine the length of the stream.
+length :: (Streaming t, Monad m) => t m a -> m Int
+length = foldl (\n _ -> n + 1) 0 id
+
+-- | Determine the minimum element in a stream.
+minimum :: (Streaming t, Monad m, Ord a) => t m a -> m (Maybe a)
+minimum m = go Nothing (toStream m)
+    where
+    go r m1 =
+        let stop            = return r
+            yield a Nothing = return $ min_ a r
+            yield a (Just x) = go (min_ a r) x
+        in (runStream m1) Nothing stop yield
+
+    min_ a r = case r of
+        Nothing -> Just a
+        Just e  -> Just $ min a e
+
+-- | Determine the maximum element in a stream.
+maximum :: (Streaming t, Monad m, Ord a) => t m a -> m (Maybe a)
+maximum m = go Nothing (toStream m)
+    where
+    go r m1 =
+        let stop            = return r
+            yield a Nothing = return $ max_ a r
+            yield a (Just x) = go (max_ a r) x
+        in (runStream m1) Nothing stop yield
+
+    max_ a r = case r of
+        Nothing -> Just a
+        Just e  -> Just $ max a e
 
 ------------------------------------------------------------------------------
 -- Transformation
