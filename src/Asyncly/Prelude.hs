@@ -20,7 +20,10 @@
 module Asyncly.Prelude
     (
     -- * Construction
-      unfoldr
+      cons
+    , nil
+    , unfoldr
+    , each
     , fromHandle
 
     -- * Elimination
@@ -74,6 +77,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
                                               length)
+import qualified Prelude as Prelude
 import qualified System.IO as IO
 
 import           Asyncly.Core
@@ -93,6 +97,12 @@ unfoldr step = fromStream . go
             Nothing -> stp
             Just (a, b) -> yld a (Just (go b))
 
+-- XXX need eachInterleaved, eachAsync, eachParallel
+-- | Same as @foldWith (<>)@ but more efficient.
+{-# INLINE each #-}
+each :: (Foldable f, Streaming t) => f a -> t m a
+each xs = Prelude.foldr cons nil xs
+
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (MonadIO m, Streaming t) => IO.Handle -> t m String
 fromHandle h = fromStream $ go
@@ -109,6 +119,8 @@ fromHandle h = fromStream $ go
 -- Elimination
 ------------------------------------------------------------------------------
 
+-- Parallel variants of folds?
+
 -- | Right fold.
 foldr :: (Monad m, Streaming t) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc m = go (toStream m)
@@ -120,6 +132,7 @@ foldr step acc m = go (toStream m)
         in (runStream m1) Nothing stop yield
 
 -- | Right fold with a monadic step function.  See 'toList' for an example use.
+{-# INLINE foldrM #-}
 foldrM :: Streaming t => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = go (toStream m)
     where
@@ -276,7 +289,7 @@ head m =
         yield a _ = return (Just a)
     in (runStream (toStream m)) Nothing stop yield
 
--- | Extract the first element of the stream, if any.
+-- | Extract the last element of the stream, if any.
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last m = go (toStream m)
     where
@@ -341,6 +354,8 @@ maximum m = go Nothing (toStream m)
 ------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
+
+-- XXX Parallel variants of these? mapMWith et al. sequenceWith.
 
 -- | Apply a monadic action to each element of the stream and replace it with
 -- the result.

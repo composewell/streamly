@@ -53,6 +53,8 @@ module Asyncly.Streams
     , fromSVar
 
     -- * Elimination
+    , cons
+    , nil
     , streamFold
     , runStreaming
     , toSVar
@@ -77,6 +79,7 @@ module Asyncly.Streams
     , (<|)
 
     -- * Fold Utilities
+    -- $foldutils
     , foldWith
     , foldMapWith
     , forEachWith
@@ -740,6 +743,12 @@ zippingAsync x = x
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
+cons :: (Streaming t) => a -> t m a -> t m a
+cons a r = fromStream $ Stream $ \_ _ yld -> yld a (Just (toStream r))
+
+nil :: Streaming t => t m a
+nil = fromStream $ Stream $ \_ stp _ -> stp
+
 -- | Build a stream from its church encoding.  The function passed maps
 -- directly to the underlying representation of the stream type. The second
 -- parameter to the function is the "yield" function yielding a value and the
@@ -865,21 +874,33 @@ m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
 -- Fold Utilities
 ------------------------------------------------------------------------------
 
--- | Fold a 'Foldable' container using the given function.
+-- $foldutils
+-- These utilities are designed to pass the first argument as one of the sum
+-- style composition operators (i.e. '<>', '<=>', '<|', '<|>') to conveniently
+-- fold a container using any style of stream composition.
+
+-- | Like the 'Prelude' 'fold' but allows you to specify a binary sum style
+-- stream composition operator to fold a container of streams.
+--
+-- @foldWith (<>) $ map return [1..3]@
 {-# INLINABLE foldWith #-}
-foldWith :: (Monoid b, Foldable t) => (a -> b -> b) -> t a -> b
-foldWith f = foldr f mempty
+foldWith :: (Streaming t, Foldable f)
+    => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
+foldWith f = foldr f nil
 
--- | Fold a 'Foldable' container using a function that is a composition of the
--- two arguments.
+-- | Like 'foldMap' but allows you to specify a binary sum style composition
+-- operator to fold a container of streams. Maps a monadic streaming action on
+-- the container before folding it.
+--
+-- @foldMapWith (<>) return [1..3]@
 {-# INLINABLE foldMapWith #-}
-foldMapWith :: (Monoid b, Foldable t) =>
-    (b1 -> b -> b) -> (a -> b1) -> t a -> b
-foldMapWith f g = foldr (f . g) mempty
+foldMapWith :: (Streaming t, Foldable f)
+    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+foldMapWith f g = foldr (f . g) nil
 
--- | Fold a 'Foldable' container using a function that is a composition of the
--- first and the third argument.
+-- | Like 'foldMapWith' but with the last two arguments reversed i.e. the
+-- monadic streaming function is the last argument.
 {-# INLINABLE forEachWith #-}
-forEachWith :: (Monoid b, Foldable t) =>
-    (b1 -> b -> b) -> t a -> (a -> b1) -> b
-forEachWith f xs g = foldr (f . g) mempty xs
+forEachWith :: (Streaming t, Foldable f)
+    => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
+forEachWith f xs g = foldr (f . g) nil xs
