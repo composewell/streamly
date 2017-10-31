@@ -510,8 +510,9 @@ loops f tsrt hsrt = do
             return x `f` (if x < 3 then loopTail (x + 1) else empty)
 
 bindAndComposeSimple
-    :: (Alternative (s IO), Monad (s IO), Monoid (s IO Int)) => (forall a. s IO a -> IO [a])
-    -> (s IO Int -> s IO Int -> s IO Int)
+    :: (Streaming t, Alternative (t IO), Monad (t IO))
+    => (forall a. t IO a -> IO [a])
+    -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 bindAndComposeSimple tl g = do
     it "Compose many (right fold) with bind" $
