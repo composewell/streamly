@@ -7,6 +7,7 @@ import           Control.Applicative (Alternative(..))
 import           Control.Exception (assert)
 import           Control.Monad (guard)
 import           Criterion.Main (defaultMain, bgroup, bench, nfIO)
+import           Data.Function ((&))
 
 import qualified Asyncly as A
 import qualified Asyncly.Prelude as A
@@ -37,7 +38,9 @@ main = do
         ap = asyncly_parallel
     defaultMain [
         bgroup "asyncly"
-            [ bgroup "serial bind"
+            [ bench "function style all serial" $ nfIO asyncly_function_style
+
+            , bgroup "serial bind"
                 [ bench "serial"        $ nfIO (as (A.<>))
                 , bench "fair serial"   $ nfIO (as (A.<=>))
                 , bench "left parallel" $ nfIO (as (A.<|))
@@ -103,18 +106,31 @@ afilter = Main.filter
 
 {-# INLINE asyncly_basic #-}
 asyncly_basic
-    :: (Alternative (s IO), Monad (s IO), Monoid (s IO Int), A.Streaming s) => (forall a. s IO a -> IO [a])
-    -> (s IO Int -> s IO Int -> s IO Int)
+    :: (Alternative (t IO), Monad (t IO), A.Streaming t)
+    => (forall a. t IO a -> IO [a])
+    -> (t IO Int -> t IO Int -> t IO Int)
     -> IO Int
 asyncly_basic tl g = do
     xs <- tl $ do
              A.drop 100 (A.forEachWith g [1..100000 :: Int] $ \x ->
-                afilter even x `f` amap (+1))
-                    `f` amap (+1)
-                    `f` afilter (\y -> y `mod` 2 == 0)
+                afilter even x >>= amap (+1))
+                    >>= amap (+1)
+                    >>= afilter (\y -> y `mod` 2 == 0)
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
-    where f = (>>=)
+
+{-# INLINE asyncly_function_style #-}
+asyncly_function_style :: IO Int
+asyncly_function_style = do
+    xs <- A.toList $ A.serially $
+          A.each [1..100000 :: Int]
+        & A.filter even
+        & fmap (+1)
+        & A.drop 100
+        & fmap (+1)
+        & A.filter (\y -> y `mod` 2 == 0)
+    assert (Prelude.length xs == 49900) $
+        return (Prelude.length xs)
 
 {-# INLINE asyncly_serial #-}
 asyncly_serial
