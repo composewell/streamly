@@ -70,12 +70,12 @@ flag examples
 
 library
     hs-source-dirs:    src
-    exposed-modules:   Asyncly
-                     , Asyncly.Core
-                     , Asyncly.Prelude
+    exposed-modules:   Asyncly.Core
                      , Asyncly.Streams
+                     , Asyncly.Prelude
                      , Asyncly.Time
                      , Asyncly.Tutorial
+                     , Asyncly
     if flag(examples)
       exposed-modules: Asyncly.Examples.SearchEngineQuery
                      , Asyncly.Examples.ListDirRecursive
