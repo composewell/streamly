@@ -198,7 +198,7 @@ instance Monad m => Monad (StreamT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (StreamT m) where
-    pure = StreamT . yields
+    pure a = StreamT $ scons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -292,7 +292,7 @@ instance Monad m => Monad (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (InterleavedT m) where
-    pure = InterleavedT . yields
+    pure a = InterleavedT $ scons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -403,7 +403,7 @@ instance MonadAsync m => Monad (AsyncT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (AsyncT m) where
-    pure = AsyncT . yields
+    pure a = AsyncT $ scons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -499,7 +499,7 @@ instance MonadAsync m => Monad (ParallelT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (ParallelT m) where
-    pure = ParallelT . yields
+    pure a = ParallelT $ scons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -566,7 +566,7 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
                 let yield2 b Nothing   = yld (f a b) Nothing
                     yield2 b (Just rb) = yld (f a b) (Just (go ra rb))
                  in (runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a mempty
+        let yield1 a Nothing   = merge a snil
             yield1 a (Just ra) = merge a ra
         (runStream mx) Nothing stp yield1
 
@@ -585,7 +585,7 @@ instance Monad m => Functor (ZipStream m) where
         in m Nothing stp yield
 
 instance Monad m => Applicative (ZipStream m) where
-    pure = ZipStream . yields
+    pure a = ZipStream $ scons a Nothing
     (<*>) = zipWith id
 
 instance Streaming ZipStream where
@@ -660,7 +660,7 @@ instance Monad m => Functor (ZipAsync m) where
         in m Nothing stp yield
 
 instance MonadAsync m => Applicative (ZipAsync m) where
-    pure = ZipAsync . yields
+    pure a = ZipAsync $ scons a Nothing
     (<*>) = zipAsyncWith id
 
 instance Streaming ZipAsync where
@@ -744,10 +744,10 @@ zippingAsync x = x
 ------------------------------------------------------------------------------
 
 cons :: (Streaming t) => a -> t m a -> t m a
-cons a r = fromStream $ Stream $ \_ _ yld -> yld a (Just (toStream r))
+cons a r = fromStream $ scons a (Just (toStream r))
 
 nil :: Streaming t => t m a
-nil = fromStream $ Stream $ \_ stp _ -> stp
+nil = fromStream $ snil
 
 -- | Build a stream from its church encoding.  The function passed maps
 -- directly to the underlying representation of the stream type. The second

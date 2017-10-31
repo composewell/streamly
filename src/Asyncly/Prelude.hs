@@ -169,11 +169,10 @@ foldlM step begin done m = go begin (toStream m)
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
 -- the head of the stream and 'ma' its tail.
-uncons :: (Streaming t, Monad m, Monoid (t m a))
-    => t m a -> m (Maybe (a, t m a))
+uncons :: (Streaming t, Monad m) => t m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
-        yield a Nothing  = return (Just (a, mempty))
+        yield a Nothing  = return (Just (a, nil))
         yield a (Just x) = return (Just (a, (fromStream x)))
     in (runStream (toStream m)) Nothing stop yield
 
@@ -401,7 +400,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
                     yield2 b (Just rb) =
                         (runStream ((g a b) <> (go ra rb))) Nothing stp yld
                  in (runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a mempty
+        let yield1 a Nothing   = merge a snil
             yield1 a (Just ra) = merge a ra
         (runStream mx) Nothing stp yield1
     g a b = toStream $ f a b

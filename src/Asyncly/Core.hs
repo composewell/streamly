@@ -21,7 +21,12 @@ module Asyncly.Core
 
     -- * Streams
     , Stream (..)
-    , yields
+
+    -- * Construction
+    , scons
+    , snil
+
+    -- * Composition
     , interleave
 
     -- * Concurrent Stream Vars (SVars)
@@ -135,6 +140,7 @@ data SVar m a =
 ------------------------------------------------------------------------------
 
 -- TBD use a functor instead of the bare type a?
+-- XXX remove the Maybe, use "empty" as the base case
 
 -- | Represents a monadic stream of values of type 'a' constructed using
 -- actions in monad 'm'. Streams can be composed sequentially or in parallel;
@@ -153,9 +159,11 @@ newtype Stream m a =
 -- | A monad that can perform asynchronous/concurrent IO operations.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
--- | Yield a singleton value as a stream.
-yields :: a -> Stream m a
-yields a = Stream $ \_ _ yld -> yld a Nothing
+scons :: a -> Maybe (Stream m a) -> Stream m a
+scons a r = Stream $ \_ _ yld -> yld a r
+
+snil :: Stream m a
+snil = Stream $ \_ stp _ -> stp
 
 ------------------------------------------------------------------------------
 -- Semigroup
