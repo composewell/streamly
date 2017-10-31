@@ -85,6 +85,7 @@ main = do
             , bench "logict"        $ nfIO logict_basic
             , bench "list-t"        $ nfIO list_t_basic
             , bench "simple-conduit" $ nfIO simple_conduit_basic
+            , bench "simple-conduit-bind" $ nfIO simple_conduit_bind
             , bench "machines"      $ nfIO machines_basic
             ]
 #endif
@@ -269,6 +270,23 @@ simple_conduit_basic = do
       S.$$ S.sinkList
     assert (Prelude.length xs == 49900) $
         return (Prelude.length (xs :: [Int]))
+
+smap :: Monad (s IO) => (Int -> Int) -> Int -> s IO Int
+smap = Main.map
+
+sfilter :: (Alternative (s IO), Monad (s IO)) => (Int -> Bool) -> Int -> s IO Int
+sfilter = Main.filter
+
+{-# INLINE simple_conduit_bind #-}
+simple_conduit_bind :: IO Int
+simple_conduit_bind = do
+    xs <- S.sinkList $ do
+             S.dropC 100 (S.sourceList [1..100000 :: Int] >>= \x ->
+                sfilter even x >>= smap (+1))
+                    >>= smap (+1)
+                    >>= sfilter (\y -> y `mod` 2 == 0)
+    assert (Prelude.length xs == 49900) $
+        return (Prelude.length xs)
 
 machines_basic :: IO Int
 machines_basic = do
