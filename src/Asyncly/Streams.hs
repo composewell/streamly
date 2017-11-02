@@ -87,7 +87,7 @@ module Asyncly.Streams
 where
 
 import           Control.Applicative         (Alternative (..), liftA2)
-import           Control.Monad               (MonadPlus(..), ap, liftM)
+import           Control.Monad               (MonadPlus(..), ap)
 import           Control.Monad.Base          (MonadBase (..))
 import           Control.Monad.Catch         (MonadThrow)
 import           Control.Monad.Error.Class   (MonadError(..))
@@ -285,7 +285,11 @@ instance Monad m => Applicative (StreamT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (StreamT m) where
-    fmap = liftM
+    fmap f (StreamT (Stream m)) = StreamT $ Stream $ \_ stp yld ->
+        let yield a Nothing  = yld (f a) Nothing
+            yield a (Just r) = yld (f a)
+                               (Just (getStreamT (fmap f (StreamT r))))
+        in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -379,7 +383,11 @@ instance Monad m => Applicative (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (InterleavedT m) where
-    fmap = liftM
+    fmap f (InterleavedT (Stream m)) = InterleavedT $ Stream $ \_ stp yld ->
+        let yield a Nothing  = yld (f a) Nothing
+            yield a (Just r) =
+                yld (f a) (Just (getInterleavedT (fmap f (InterleavedT r))))
+        in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -489,8 +497,11 @@ instance MonadAsync m => Applicative (AsyncT m) where
 -- Functor
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Functor (AsyncT m) where
-    fmap = liftM
+instance Monad m => Functor (AsyncT m) where
+    fmap f (AsyncT (Stream m)) = AsyncT $ Stream $ \_ stp yld ->
+        let yield a Nothing  = yld (f a) Nothing
+            yield a (Just r) = yld (f a) (Just (getAsyncT (fmap f (AsyncT r))))
+        in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -585,8 +596,12 @@ instance MonadAsync m => Applicative (ParallelT m) where
 -- Functor
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Functor (ParallelT m) where
-    fmap = liftM
+instance Monad m => Functor (ParallelT m) where
+    fmap f (ParallelT (Stream m)) = ParallelT $ Stream $ \_ stp yld ->
+        let yield a Nothing  = yld (f a) Nothing
+            yield a (Just r) = yld (f a)
+                                   (Just (getParallelT (fmap f (ParallelT r))))
+        in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
