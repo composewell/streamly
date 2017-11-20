@@ -27,7 +27,7 @@ description:        Streamly is a general streaming and concurrent programming
   > import Path.IO (listDir, getCurrentDir)
   > import Streamly
   >
-  > main = runStreamly $ getCurrentDir >>= readdir
+  > main = runStreaming $ serially $ getCurrentDir >>= readdir
   >    where readdir d = do
   >             (dirs, files) <- lift $ listDir d
   >             liftIO $ mapM_ putStrLn $ map show files
