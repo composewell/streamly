@@ -150,12 +150,16 @@ main = hspec $ do
        ])
 
     describe "Nested parallel and serial compositions" $ do
+        {-
+        -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
+        -- because of parallelism of [8,0] and [8,0].
         it "Nest <|>, <>, <|> (1)" $
             let t = timed
              in toListSerial (
                     ((t 8 <|> t 4) <> (t 2 <|> t 0))
                 <|> ((t 8 <|> t 4) <> (t 2 <|> t 0)))
             `shouldReturn` ([4,4,8,8,0,0,2,2])
+        -}
         it "Nest <|>, <>, <|> (2)" $
             let t = timed
              in toListSerial (
