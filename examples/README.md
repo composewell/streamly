@@ -1,4 +1,6 @@
-You can run the examples using `stack` like this:
+For better examples see the Streamly.Examples module.
+
+You can run these examples using `stack` like this:
 
 ```
 $ stack build
