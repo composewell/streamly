@@ -23,6 +23,7 @@ module Asyncly.Prelude
       cons
     , nil
     , unfoldr
+    , unfoldrM
     , each
     , fromHandle
 
@@ -87,9 +88,18 @@ import           Asyncly.Streams
 -- Construction
 ------------------------------------------------------------------------------
 
--- | Build a Stream by unfolding steps starting from a seed.
-unfoldr :: (Streaming t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
+-- | Build a Stream by unfolding pure steps starting from a seed.
+unfoldr :: Streaming t => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step = fromStream . go
+    where
+    go s = Stream $ \_ stp yld -> do
+        case step s of
+            Nothing -> stp
+            Just (a, b) -> yld a (Just (go b))
+
+-- | Build a Stream by unfolding monadic steps starting from a seed.
+unfoldrM :: (Streaming t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM step = fromStream . go
     where
     go s = Stream $ \_ stp yld -> do
         mayb <- step s
@@ -354,8 +364,8 @@ maximum m = go Nothing (toStream m)
 
 -- XXX Parallel variants of these? mapMWith et al. sequenceWith.
 
--- | Apply a monadic action to each element of the stream and replace it with
--- the result.
+-- | Replace each element of the stream with the result of a monadic action
+-- applied on the element.
 mapM :: (Streaming t, Monad m) => (a -> m b) -> t m a -> t m b
 mapM f m = fromStream $ go (toStream m)
     where
@@ -366,7 +376,7 @@ mapM f m = fromStream $ go (toStream m)
          in (runStream m1) Nothing stop yield
 
 -- | Apply a monadic action to each element of the stream and discard the
--- results.
+-- output of the action.
 mapM_ :: (Streaming t, Monad m) => (a -> m b) -> t m a -> m ()
 mapM_ f m = go (toStream m)
     where
@@ -376,7 +386,8 @@ mapM_ f m = go (toStream m)
             yield a (Just x) = f a >> go x
          in (runStream m1) Nothing stop yield
 
--- | Reduce a stream of monadic actions to a stream of their results.
+-- | Reduce a stream of monadic actions to a stream of the output of those
+-- actions.
 sequence :: (Streaming t, Monad m) => t m (m a) -> t m a
 sequence m = fromStream $ go (toStream m)
     where
