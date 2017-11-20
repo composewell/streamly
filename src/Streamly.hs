@@ -1,5 +1,5 @@
 -- |
--- Module      : Asyncly
+-- Module      : Streamly
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -37,21 +37,21 @@
 -- <https://hackage.haskell.org/package/reflex reflex>).
 --
 -- When it comes to streaming composition, if @conduit@ or @pipes@ are arrows
--- then asyncly is monad. Streaming libraries like conduit or pipes provide
--- a categorical composition (sum) of streams whereas asyncly provides a more
--- general monadic composition (product) of streams, with concurrency.  Asyncly
--- interworks with major streaming libraries providing a way to use both types
--- of compositions and using the right tool at the right place.
--- When it comes to concurrency, asyncly may be comared with
--- imperative style concurrency frameworks like
+-- then streamly is monad. Streaming libraries like conduit or pipes provide
+-- a categorical composition (sum) of streams whereas streamly provides a more
+-- general monadic composition (product) of streams, with concurrency.
+-- Streamly interworks with major streaming libraries providing a way to use
+-- both types of compositions and using the right tool at the right place.
+-- When it comes to concurrency, streamly may be comared with imperative style
+-- concurrency frameworks like
 -- <https://en.wikipedia.org/wiki/OpenMP OpenMP> or
 -- <https://en.wikipedia.org/wiki/Cilk Cilk>.
 --
--- For more details please see the 'Asyncly.Tutorial' and 'Asyncly.Examples'.
+-- For more details please see the 'Streamly.Tutorial' and 'Streamly.Examples'.
 
 -- A simple inline example here illustrating applicative, monad and alternative
 -- compositions.
-module Asyncly
+module Streamly
     ( MonadAsync
     , Streaming
 
@@ -104,7 +104,7 @@ module Asyncly
     )
 where
 
-import Asyncly.Streams
+import Streamly.Streams
 import Data.Semigroup (Semigroup(..))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))

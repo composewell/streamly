@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleContexts    #-}
 
-module Asyncly.Examples.MergeSortedStreams where
+module Streamly.Examples.MergeSortedStreams where
 
 import Data.Word
 import System.Random
 import Data.List (sort)
-import Asyncly
-import qualified Asyncly.Prelude as A
+import Streamly
+import qualified Streamly.Prelude as A
 
 getSorted :: MonadIO m => StreamT m Word16
 getSorted = do

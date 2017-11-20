@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Asyncly.Prelude
+-- Module      : Streamly.Prelude
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -17,7 +17,7 @@
 -- Portability : GHC
 --
 --
-module Asyncly.Prelude
+module Streamly.Prelude
     (
     -- * Construction
       cons
@@ -81,8 +81,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
 import qualified Prelude as Prelude
 import qualified System.IO as IO
 
-import           Asyncly.Core
-import           Asyncly.Streams
+import           Streamly.Core
+import           Streamly.Streams
 
 ------------------------------------------------------------------------------
 -- Construction

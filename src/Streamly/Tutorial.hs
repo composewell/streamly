@@ -1,12 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 -- |
--- Module      : Asyncly.Tutorial
+-- Module      : Streamly.Tutorial
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 --
--- Asyncly combines streaming, logic programming, concurrency and reactive
+-- Streamly combines streaming, logic programming, concurrency and reactive
 -- programming under a single abstraction with a concise API, giving
 -- programmers a simple yet powerful tool for wide variety of applications.
 --
@@ -26,18 +26,18 @@
 -- iterations of a loop, '>>|' runs iterations in parallel and '>|>' runs all
 -- iterations in fairly parallel manner.
 --
--- With asyncly you can write concurrent and streaming applications without
+-- With streamly you can write concurrent and streaming applications without
 -- being aware of threads or synchronization. No explicit thread control is
 -- needed, where applicable the concurrency rate is automatically controlled
 -- based on the demand by the consumer. However, combinators are provided to
 -- fine tune the concurrency control.  Streaming and concurrency allows
--- expressing reactive applications conveniently. See 'Asyncly.Examples' for a
+-- expressing reactive applications conveniently. See 'Streamly.Examples' for a
 -- simple SDL based FRP example.
 --
--- For examples and other ways to use the library see 'Asyncly.Examples' as
+-- For examples and other ways to use the library see 'Streamly.Examples' as
 -- well.
 --
-module Asyncly.Tutorial
+module Streamly.Tutorial
     (
     -- * AsyncT Monad Transformer
     -- $transformer
@@ -116,9 +116,9 @@ module Asyncly.Tutorial
     )
 where
 
-import Asyncly.Core
-import Asyncly.Prelude
--- import Asyncly.Examples
+import Streamly.Core
+import Streamly.Prelude
+-- import Streamly.Examples
 import Data.Semigroup
 import Control.Applicative
 import Control.Monad
@@ -156,7 +156,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- to deconstruct an 'AsyncT' stream into head and tail.
 --
 -- @
--- import Asyncly
+-- import Streamly
 --
 -- main = do
 --  runAsyncly $ liftIO $ putStrLn "Hello world!"
@@ -174,7 +174,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- specified by the argument in seconds and then prints the argument.
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Control.Concurrent
 --
 -- traced m = liftIO (myThreadId >>= print) >> m
@@ -289,7 +289,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- name of the search engine as a response arrives:
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Network.HTTP.Simple
 --
 -- main = runAsyncly $ google \<|> bing \<|> duckduckgo
@@ -309,7 +309,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Take an example of a merge sort of two sorted streams. We need to keep
 -- consuming items from the stream which has the lowest item in the sort order.
 -- This can be achieved using async references to streams. See
--- 'Asyncly.Examples.MergeSortedStreams'.
+-- 'Streamly.Examples.MergeSortedStreams'.
 
 -- $monoid
 --
@@ -324,7 +324,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the function argument.
 --
 -- @
--- import Asyncly
+-- import Streamly
 --
 -- main = do
 --  runAsyncly $ liftIO $ putStrLn "Hello world!"
@@ -352,7 +352,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- all elements of the stream using 'fmap'.
 --
 -- @
--- import Asyncly
+-- import Streamly
 --
 -- main = do
 --     let nums    = foldMapWith (<>) return [1..10]
@@ -395,7 +395,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- loop:
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Data.Semigroup (cycle1)
 --
 -- main = runAsyncly $ do
@@ -430,7 +430,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- example:
 --
 -- @
--- import Asyncly
+-- import Streamly
 --
 -- main = runAsyncly $
 --     sizes  >-> \\sz ->
@@ -449,7 +449,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $concurrentNesting
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 -- import Control.Concurrent
 --
@@ -476,7 +476,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $fairlyConcurrentNesting
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 -- import Control.Concurrent
 --
@@ -516,7 +516,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- sum and print them serially:
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Data.List (sum)
 --
 -- main = do
@@ -529,7 +529,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- monadic bind.
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Data.List (sum)
 --
 -- main = do
@@ -544,7 +544,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Let us see a reactive programming example:
 --
 -- @
--- import Asyncly
+-- import Streamly
 -- import Control.Concurrent (threadDelay)
 -- import Control.Monad (when)
 -- import Control.Monad.State
@@ -588,13 +588,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $comparison
 --
--- Even though asyncly covers all that is provided by the 'async' package or
+-- Even though streamly covers all that is provided by the 'async' package or
 -- most of what is provided by the 'streaming', 'pipes' or 'conduit' packages,
--- I would not say that it renders those useless. Asyncly is like monad if
+-- I would not say that it renders those useless. Streamly is like monad if
 -- 'async' is applicative and monads and applicatives both have their use
 -- cases. It can completely repalce 'async', the ZipAsync type is equivalent to
 -- the functionality provided by 'async'.
 --
--- pipes and conduit are like Arrows and asyncly is like monad to them. You
+-- pipes and conduit are like Arrows and streamly is like monad to them. You
 -- would use pipes and conduit when you do not need the product style
 -- composition and the implicit concurrency.

@@ -1,6 +1,6 @@
-module Asyncly.Examples.SearchEngineQuery where
+module Streamly.Examples.SearchEngineQuery where
 
-import Asyncly
+import Streamly
 import Network.HTTP.Simple
 
 -- Runs three search engine queries in parallel.

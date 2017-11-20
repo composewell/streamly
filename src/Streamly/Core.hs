@@ -6,7 +6,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Asyncly.Core
+-- Module      : Streamly.Core
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -15,7 +15,7 @@
 -- Portability : GHC
 --
 --
-module Asyncly.Core
+module Streamly.Core
     (
       MonadAsync
 

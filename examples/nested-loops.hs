@@ -3,7 +3,7 @@ import Control.Concurrent (myThreadId)
 import Control.Monad.IO.Class (liftIO)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
-import Asyncly
+import Streamly
 
 main = runStreamT $ do
     liftIO $ hSetBuffering stdout LineBuffering

@@ -1,16 +1,16 @@
 -- Adapted from the Yampa package.
 -- Displays a square moving in a circle. To move the position drag the mouse.
 --
--- Requires the SDL package, assuming asyncly has already been built, you can
+-- Requires the SDL package, assuming streamly has already been built, you can
 -- compile it like this:
 -- stack ghc --package SDL circle-mouse.hs
 
-module Asyncly.Examples.CirclingSquare where
+module Streamly.Examples.CirclingSquare where
 
 import Data.IORef
 import Graphics.UI.SDL as SDL
-import Asyncly
-import Asyncly.Time
+import Streamly
+import Streamly.Time
 
 ------------------------------------------------------------------------------
 -- SDL Graphics Init

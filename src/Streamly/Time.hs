@@ -1,5 +1,5 @@
 -- |
--- Module      : Asyncly.Time
+-- Module      : Streamly.Time
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -9,7 +9,7 @@
 --
 -- Time utilities for reactive programming.
 
-module Asyncly.Time
+module Streamly.Time
     ( periodic
     , withClock
     )

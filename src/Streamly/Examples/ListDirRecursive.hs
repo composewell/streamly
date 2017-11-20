@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module Asyncly.Examples.ListDirRecursive where
+module Streamly.Examples.ListDirRecursive where
 
 import Path.IO (listDir, getCurrentDir)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Asyncly
+import Streamly
 
 listDirRecursive :: IO ()
 listDirRecursive = do

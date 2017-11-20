@@ -1,4 +1,4 @@
-import Asyncly
+import Streamly
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 
 main = do

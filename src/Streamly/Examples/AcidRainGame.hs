@@ -3,9 +3,9 @@
 -- This example is adapted from Gabriel Gonzalez's pipes-concurrency package.
 -- https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html
 
-module Asyncly.Examples.AcidRainGame where
+module Streamly.Examples.AcidRainGame where
 
-import Asyncly
+import Streamly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.State

@@ -1,5 +1,5 @@
 import Control.Monad.IO.Class (liftIO)
-import Asyncly
+import Streamly
 
 input :: StreamT IO String
 input = do

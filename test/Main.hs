@@ -8,8 +8,8 @@ import Data.Foldable (forM_)
 import Data.List (sort)
 import Test.Hspec
 
-import Asyncly
-import qualified Asyncly.Prelude as A
+import Streamly
+import qualified Streamly.Prelude as A
 
 toListSerial :: StreamT IO a -> IO [a]
 toListSerial = A.toList . serially
@@ -385,7 +385,7 @@ timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 thenBind :: Spec
 thenBind = do
-    it "Simple runAsyncly and 'then' with IO" $
+    it "Simple runStreaming and 'then' with IO" $
         (runStreaming . serially) (liftIO (putStrLn "hello") >> liftIO (putStrLn "world"))
             `shouldReturn` ()
     it "Then and toList" $

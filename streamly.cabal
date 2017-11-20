@@ -1,17 +1,17 @@
-name:               asyncly
+name:               streamly
 version:            0.1.0
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
-description:        Asyncly is a general streaming and concurrent programming
+description:        Streamly is a general streaming and concurrent programming
   monad allowing you to write a wide variety of applications ranging from
   simple applications utilizing streaming IO to massively parallel concurrent
   applications as well as reactive (FRP) applications with the same ease.
-  Asyncly provides high level concurrency primitives and hides the low level
+  Streamly provides high level concurrency primitives and hides the low level
   concurrency details completely from the programmer.  The programmer just
   expresses whether a task can run in parallel with another. Threads,
   synchronization and concurrency rate control are handled automatically. The
   library has been written keeping high performance applications in mind.
   .
-  Asyncly subsumes all the use cases of list transformer (list-t) and logic
+  Streamly subsumes all the use cases of list transformer (list-t) and logic
   programming (logict) monads and adds concurrency on top. It is a streaming
   library and therefore can be used for most of the streaming use cases as well
   (i.e. where you would use conduit or pipes) with concurrency added. It is
@@ -25,20 +25,20 @@ description:        Asyncly is a general streaming and concurrent programming
   a directory tree:
   .
   > import Path.IO (listDir, getCurrentDir)
-  > import Asyncly
+  > import Streamly
   >
-  > main = runAsyncly $ getCurrentDir >>= readdir
+  > main = runStreamly $ getCurrentDir >>= readdir
   >    where readdir d = do
   >             (dirs, files) <- lift $ listDir d
   >             liftIO $ mapM_ putStrLn $ map show files
   >             foldMapWith (<|>) readdir dirs
   .
-  See "Asyncly.Tutorial" and "Asyncly.Examples" for more details.
+  See "Streamly.Tutorial" and "Streamly.Examples" for more details.
   .
   This library was originally inspired by the `transient`
   package authored by Alberto G. Corona.
-homepage:            http://github.com/harendra-kumar/asyncly
-bug-reports:         https://github.com/harendra-kumar/asyncly/issues
+homepage:            http://github.com/harendra-kumar/streamly
+bug-reports:         https://github.com/harendra-kumar/streamly/issues
 license:             BSD3
 license-file:        LICENSE
 author:              Harendra Kumar
@@ -51,7 +51,7 @@ cabal-version:       >= 1.10
 
 source-repository head
     type: git
-    location: https://github.com/harendra-kumar/asyncly
+    location: https://github.com/harendra-kumar/streamly
 
 flag dev
   description: Build development version
@@ -70,18 +70,18 @@ flag examples
 
 library
     hs-source-dirs:    src
-    exposed-modules:   Asyncly.Core
-                     , Asyncly.Streams
-                     , Asyncly.Prelude
-                     , Asyncly.Time
-                     , Asyncly.Tutorial
-                     , Asyncly
+    exposed-modules:   Streamly.Core
+                     , Streamly.Streams
+                     , Streamly.Prelude
+                     , Streamly.Time
+                     , Streamly.Tutorial
+                     , Streamly
     if flag(examples)
-      exposed-modules: Asyncly.Examples.SearchEngineQuery
-                     , Asyncly.Examples.ListDirRecursive
-                     , Asyncly.Examples.MergeSortedStreams
-                     , Asyncly.Examples.AcidRainGame
-                     , Asyncly.Examples.CirclingSquare
+      exposed-modules: Streamly.Examples.SearchEngineQuery
+                     , Streamly.Examples.ListDirRecursive
+                     , Streamly.Examples.MergeSortedStreams
+                     , Streamly.Examples.AcidRainGame
+                     , Streamly.Examples.CirclingSquare
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -141,7 +141,7 @@ test-suite test
                     -Wnoncanonical-monad-instances
                     -Wnoncanonical-monadfail-instances
   build-depends:
-      asyncly
+      streamly
     , base              >= 4.8   && < 5
     , hspec             >= 2.0   && < 3
     , containers        >= 0.5   && < 0.6
@@ -169,7 +169,7 @@ benchmark bench
                     -Wnoncanonical-monad-instances
                     -Wnoncanonical-monadfail-instances
   build-depends:
-      asyncly
+      streamly
     , atomic-primops      >= 0.8   && < 0.9
     , base                >= 4.8   && < 5
     , criterion           >= 1     && < 2
@@ -199,7 +199,7 @@ executable echo-loop
   if flag(examples)
     buildable: True
     build-Depends:
-        asyncly
+        streamly
       , base >= 4.8   && < 5
   else
     buildable: False
@@ -210,7 +210,7 @@ executable loops
   if flag(examples)
     buildable: True
     build-Depends:
-        asyncly
+        streamly
       , base >= 4.8   && < 5
   else
     buildable: False
@@ -221,7 +221,7 @@ executable map-reduce
   if flag(examples)
     buildable: True
     build-Depends:
-        asyncly
+        streamly
       , base >= 4.8   && < 5
   else
     buildable: False
@@ -232,7 +232,7 @@ executable nested-loops
   if flag(examples)
     buildable: True
     build-Depends:
-        asyncly
+        streamly
       , base >= 4.8   && < 5
       , random
   else
@@ -244,7 +244,7 @@ executable parallel-loops
   if flag(examples)
     buildable: True
     build-Depends:
-        asyncly
+        streamly
       , base >= 4.8   && < 5
       , random
   else

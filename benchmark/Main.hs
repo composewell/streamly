@@ -9,8 +9,8 @@ import           Control.Monad (guard)
 import           Criterion.Main (defaultMain, bgroup, bench, nfIO)
 import           Data.Function ((&))
 
-import qualified Asyncly as A
-import qualified Asyncly.Prelude as A
+import qualified Streamly as A
+import qualified Streamly.Prelude as A
 
 #ifdef EXTRA_BENCHMARKS
 import           Control.Monad.IO.Class (MonadIO (liftIO))
@@ -32,13 +32,13 @@ main :: IO ()
 main = do
     -- XXX due to a GHC bug passing bind as an argument causes perf
     -- degradation, so we should keep that in account when comparing.
-    let as = asyncly_serial
-        ai = asyncly_interleaved
-        aa = asyncly_async
-        ap = asyncly_parallel
+    let as = streamly_serial
+        ai = streamly_interleaved
+        aa = streamly_async
+        ap = streamly_parallel
     defaultMain [
-        bgroup "asyncly"
-            [ bench "function style all serial" $ nfIO asyncly_function_style
+        bgroup "streamly"
+            [ bench "function style all serial" $ nfIO streamly_function_style
 
             , bgroup "serial bind"
                 [ bench "serial"        $ nfIO (as (A.<>))
@@ -70,10 +70,10 @@ main = do
 
             -- Benchmark smallest possible actions composed together
             , bgroup "serial bind nil"
-                [ bench "serial"        $ nfIO (asyncly_nil (A.<>))
-                , bench "fair serial"   $ nfIO (asyncly_nil (A.<=>))
-                , bench "left parallel" $ nfIO (asyncly_nil (A.<|))
-                , bench "fair parallel" $ nfIO (asyncly_nil (A.<|>))
+                [ bench "serial"        $ nfIO (streamly_nil (A.<>))
+                , bench "fair serial"   $ nfIO (streamly_nil (A.<=>))
+                , bench "left parallel" $ nfIO (streamly_nil (A.<|))
+                , bench "fair parallel" $ nfIO (streamly_nil (A.<|>))
                 ]
             ]
 #ifdef EXTRA_BENCHMARKS
@@ -105,13 +105,13 @@ amap = Main.map
 afilter :: (Alternative (s IO), Monad (s IO)) => (Int -> Bool) -> Int -> s IO Int
 afilter = Main.filter
 
-{-# INLINE asyncly_basic #-}
-asyncly_basic
+{-# INLINE streamly_basic #-}
+streamly_basic
     :: (Alternative (t IO), Monad (t IO), A.Streaming t)
     => (forall a. t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> IO Int
-asyncly_basic tl g = do
+streamly_basic tl g = do
     xs <- tl $ do
              A.drop 100 (A.forEachWith g [1..100000 :: Int] $ \x ->
                 afilter even x >>= amap (+1))
@@ -120,9 +120,9 @@ asyncly_basic tl g = do
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
 
-{-# INLINE asyncly_function_style #-}
-asyncly_function_style :: IO Int
-asyncly_function_style = do
+{-# INLINE streamly_function_style #-}
+streamly_function_style :: IO Int
+streamly_function_style = do
     xs <- A.toList $ A.serially $
           A.each [1..100000 :: Int]
         & A.filter even
@@ -133,34 +133,34 @@ asyncly_function_style = do
     assert (Prelude.length xs == 49900) $
         return (Prelude.length xs)
 
-{-# INLINE asyncly_serial #-}
-asyncly_serial
+{-# INLINE streamly_serial #-}
+streamly_serial
     :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
-asyncly_serial = asyncly_basic (A.toList . A.serially)
+streamly_serial = streamly_basic (A.toList . A.serially)
 
-{-# INLINE asyncly_interleaved #-}
-asyncly_interleaved
+{-# INLINE streamly_interleaved #-}
+streamly_interleaved
     :: (A.InterleavedT IO Int -> A.InterleavedT IO Int -> A.InterleavedT IO Int)
     -> IO Int
-asyncly_interleaved = asyncly_basic (A.toList . A.interleaving)
+streamly_interleaved = streamly_basic (A.toList . A.interleaving)
 
-{-# INLINE asyncly_async #-}
-asyncly_async
+{-# INLINE streamly_async #-}
+streamly_async
     :: (A.AsyncT IO Int -> A.AsyncT IO Int -> A.AsyncT IO Int)
     -> IO Int
-asyncly_async = asyncly_basic (A.toList . A.asyncly)
+streamly_async = streamly_basic (A.toList . A.asyncly)
 
-{-# INLINE asyncly_parallel #-}
-asyncly_parallel
+{-# INLINE streamly_parallel #-}
+streamly_parallel
     :: (A.ParallelT IO Int -> A.ParallelT IO Int -> A.ParallelT IO Int)
     -> IO Int
-asyncly_parallel = asyncly_basic (A.toList . A.parallely)
+streamly_parallel = streamly_basic (A.toList . A.parallely)
 
-{-# INLINE asyncly_nil #-}
-asyncly_nil :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
+{-# INLINE streamly_nil #-}
+streamly_nil :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
-asyncly_nil f = do
+streamly_nil f = do
     xs <- (A.toList . A.serially) $ do
              (A.forEachWith f [1..100000:: Int] $
                 \x -> return x >>= return . id)

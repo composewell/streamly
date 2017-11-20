@@ -7,7 +7,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Asyncly.Streams
+-- Module      : Streamly.Streams
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -16,7 +16,7 @@
 -- Portability : GHC
 --
 --
-module Asyncly.Streams
+module Streamly.Streams
     (
     -- * Product Style Composition
     -- $product
@@ -97,7 +97,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith)
-import           Asyncly.Core
+import           Streamly.Core
 
 -- $product
 --
