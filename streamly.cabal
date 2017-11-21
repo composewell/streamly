@@ -1,25 +1,34 @@
 name:               streamly
 version:            0.1.0
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
-description:        Streamly is a general streaming and concurrent programming
-  monad allowing you to write a wide variety of applications ranging from
-  simple applications utilizing streaming IO to massively parallel concurrent
-  applications as well as reactive (FRP) applications with the same ease.
-  Streamly provides high level concurrency primitives and hides the low level
-  concurrency details completely from the programmer.  The programmer just
-  expresses whether a task can run in parallel with another. Threads,
-  synchronization and concurrency rate control are handled automatically. The
-  library has been written keeping high performance applications in mind.
+description: Streamly unifies concurrency and streaming in a single monad
+  transformer with a concise and simple API. It provides two ways to combine
+  streams, a monadic product composition as well as the standard pipelined
+  composition provided by streaming libraries. A natural extension of regular
+  monadic composition to streaming and concurrency makes it intuitive and
+  concise with almost unviversal application.  You can write concurrent or
+  non-concurrent applications using simple IO, logic programming, streaming IO
+  or reactive programming (FRP) using the same API. You can also think about it
+  as representing concurrent and composable state machines in imperative terms.
+  It unifies the core functionality provided by
+  <https://hackage.haskell.org/package/async async>,
+  <(https://hackage.haskell.org/package/logict logict>,
+  <https://hackage.haskell.org/package/list-t list-t>,
+  <https://hackage.haskell.org/package/conduit conduit>\/<https://hackage.haskell.org/package/pipes pipes>,
+  <https://hackage.haskell.org/package/Yampa Yampa>\/<https://hackage.haskell.org/package/reflex reflex>
+  under one type and API. It interworks with the existing streaming libraries.
   .
-  Streamly subsumes all the use cases of list transformer (list-t) and logic
-  programming (logict) monads and adds concurrency on top. It is a streaming
-  library and therefore can be used for most of the streaming use cases as well
-  (i.e. where you would use conduit or pipes) with concurrency added. It is
-  also a first class reactive programming library and can be used where you
-  would use libraries like Yampa or reflex. One way to think about it is to
-  think of it as composable state machines with concurrency. You can write from
-  really simple to complex applications, from streaming to FRP or massively
-  concurrent applications using the same simple and concise abstractions.
+  Streamly provides high level concurrency primitives (higher level than async)
+  and hides the low level concurrency details completely from the programmer.
+  Concurrency can be used with ease in applicative or monadic contexts.  The
+  programmer just expresses whether a task can run in parallel with another.
+  Threads, synchronization and concurrency rate control are handled
+  automatically under the hood. The concurrency facilities provided by streamly
+  can be compared with <https://en.wikipedia.org/wiki/OpenMP OpenMP> and
+  <https://en.wikipedia.org/wiki/Cilk Cilk> but with a more declarative
+  expression.  Concurrency support does not compromise performance in
+  non-concurrent cases, the performance of the library is at par or better than
+  most of the existing streaming libraries.
   .
   Here is a simple example to concurrently and recursively list the contents of
   a directory tree:
