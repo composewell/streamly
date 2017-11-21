@@ -18,8 +18,6 @@
 --
 module Streamly.Streams
     (
-    -- * Product Style Composition
-    -- $product
       Streaming (..)
     , MonadAsync
 
@@ -98,48 +96,6 @@ import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (drop, take, zipWith)
 import           Streamly.Core
-
--- $product
---
--- Different styles of streams represented by different types dictate the
--- manner in which a stream is processed in monadic or applicative composition.
--- Each type differs in the processing order of the elements or processing
--- parallelism.  The types have the same underlying representation and
--- therefore can be converted back and forth easily to switch the composition
--- style at any point.
---
--- 'StreamT' and 'InterleavedT' process the streams serially but differ in the
--- order in which the elements of the streams are processed. 'StreamT' goes
--- depth first that is it combine one element of the first stream to every
--- element of the second stream before it comes back to process the second
--- element of the first stream.  'InterleavedT' takes turns when processing
--- elements from each stream and therefore all iterations finish at the same
--- time rather than one iteration at a time as in the case of 'StreamT'.
--- Depending on the cache behavior or IO behavior 'InterleavedT' might be
--- slightly more efficient than 'StreamT' or vice-versa.
---
--- 'AsyncT' and 'ParallelT' can process the individual elements of the streams
--- in parallel. 'AsyncT' is the parallel version of 'StreamT', it follows the
--- order of 'StreamT', processing multiple elements of a stream concurrently.
--- 'ParallelT' follows the order of 'InterleavedT', processing and interleaving
--- both streams concurrently. Also, note that 'fmap' on these streams would
--- also work in a concurrent fashion i.e. multiple elements in a stream or
--- multiple streams can be mapped concurrently.
---
--- Zipping types have a different style of composition altogether, they zip the
--- streams rather than multiplying them. These types provide only Applicative
--- composition and no Monad instances. 'ZipStream' zips serially i.e. it
--- produces one element from each stream in a serial manner and then zips the
--- two items. 'ZipAsync' on the other hand zips in parallel, it produces one
--- element from each stream concurrently and then zips the two.
---
--- It may help develop a better understanding if we think in terms of stream
--- generation (production) side parallelism versus stream processing
--- (consumption) side parallelism. The sum style operators (e.g. '<|' or '<|>')
--- generate streams in parallel and then combine the results into a unified
--- stream. On the other hand the product style composition (e.g. 'AsyncT' or
--- 'ParallelT' or 'ZipAsync') dictate how the elements of a stream are
--- processed when it is consumed.
 
 ------------------------------------------------------------------------------
 -- Types that can behave as a Stream
@@ -231,12 +187,19 @@ async m = do
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------
--- StreamT iterates serially in the Monad and Applicative compositions
+-- StreamT
 ------------------------------------------------------------------------------
 
--- | Note that 'StreamT' style composition works well operationally for
--- infinite streams.  However if the second stream is infinite we will never
--- come back to the second iteration of the first stream.
+-- | The 'Monad' instance of 'StreamT' combines two streams serially in the
+-- most straightforward manner, just like the nested 'for' loops in imperative
+-- paradigm.  It moves to the next element in the first stream only after the
+-- first element has been combined with every element in the second stream. In
+-- other words, 'StreamT' nests loops in a depth first manner.
+--
+-- Note that 'StreamT' style composition works well operationally even when the
+-- streams being composed are infinite.  However, if the second stream is
+-- infinite we will never come back to the second iteration of the first
+-- stream.
 
 newtype StreamT m a = StreamT {getStreamT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
@@ -261,8 +224,6 @@ instance Streaming StreamT where
 -- Monad
 ------------------------------------------------------------------------------
 
--- | Execute a monadic action sequentially for each element in the 'AsyncT'
--- stream, i.e. an iteration finishes completely before the next one starts.
 instance Monad m => Monad (StreamT m) where
     return = pure
     (StreamT (Stream m)) >>= f = StreamT $ Stream $ \_ stp yld ->
@@ -336,13 +297,16 @@ instance (Monad m, Floating a) => Floating (StreamT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- InterleavedT interleaves the iterations in the Monad and Applicative
--- compositions.
+-- InterleavedT
 ------------------------------------------------------------------------------
 
--- | Note that 'InterleavedT' style composition cannot work well operationally
--- on infinite streams. It will keep accumulating the elements of the stream
--- resulting in continuous increase in space consumption.
+-- | The 'Monad' instance of 'InterleavedT' fairly interleaves the iterations
+-- of the inner and the outer loop, nesting loops in a breadth first manner.
+--
+-- Note that 'InterleavedT' style composition cannot work well operationally on
+-- infinite streams. Since the next iteration of the outer loop is started even
+-- before the first one has finsihed, it will keep accumulating space resulting
+-- in a continuous increase in space consumption.
 --
 newtype InterleavedT m a = InterleavedT {getInterleavedT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
@@ -358,8 +322,6 @@ instance Streaming InterleavedT where
     toStream = getInterleavedT
     fromStream = InterleavedT
 
--- | Execute a monadic action for each element in the stream, in a fairly
--- interleaved manner i.e. iterations yield alternately.
 instance Monad m => Monad (InterleavedT m) where
     return = pure
     (InterleavedT (Stream m)) >>= f = InterleavedT $ Stream $ \_ stp yld ->
@@ -434,16 +396,18 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- AsyncT runs the iterations asynchronously in the Monad and Applicative
--- compositions. More iterations are started in parallel on demand. It can work
--- with infinite streams.
+-- AsyncT
 ------------------------------------------------------------------------------
 
--- | Just like 'StreamT', 'AsyncT' style composition works well operationally
--- for infinite streams.  However, if the second stream is infinite we will
--- never be able to finish the first stream.
+-- | 'AsyncT' is the concurrent equivalent of 'StreamT'. The type 'AsyncT'
+-- follows the same composition scheme as 'StreamT' except that it can run
+-- multiple iterations concurrently.  More concurrent iterations are started
+-- only if the previous iterations are not able to produce enough output for
+-- the consumer.
 --
--- Note that 'fmap' on 'AsyncT' would map on multiple elements concurrently.
+-- Just like 'StreamT', 'AsyncT' style composition works well operationally
+-- for infinite streams.  However, if the second stream is infinite we will
+-- never be able to start the second iteration of the first stream.
 
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans)
@@ -476,9 +440,6 @@ parbind par m f = go m
                 yield a (Just r) = run $ f a `par` (go r)
             in g Nothing stp yield
 
--- | Execute a monadic action for each element in the stream, running
--- iterations in parallel, but giving preference to iterations started
--- earlier.
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
@@ -548,16 +509,19 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- ParallelT runs all iterations in parallel in the Monad and Applicative
--- compositions. Iterations are scheduled in a round-robin fashion.
+-- ParallelT
 ------------------------------------------------------------------------------
 
--- | Note that, just like 'InterleavedT', 'ParallelT' style composition cannot
--- work well operationally on infinite streams. It will keep accumulating the
+-- | 'ParallelT' is the concurrent equivalent of 'InterleavedT'. It follows the
+-- same composition scheme as 'InterleavedT' i.e. fairly interleaving the inner
+-- and outer loops in a round robin fashion except that it can run multiple
+-- iterations concurrently.
+--
+-- Note that, just like 'InterleavedT', 'ParallelT' style composition cannot
+-- work well operationally on infinite streams. Because earlier iterations do
+-- not finish before the new ones are started, it will keep on accumulating the
 -- elements of the stream resulting in continuous increase in space
 -- consumption.
---
--- Note that 'fmap' on 'ParallelT' would map on both streams concurrently.
 --
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans)
@@ -575,9 +539,6 @@ instance Streaming ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
 
--- | Execute a monadic action for each element in the stream, running
--- iterations in a fairly parallel manner, i.e. all iterations are equally
--- likely to run.
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
@@ -870,7 +831,8 @@ infixr 5 <=>
 -- | Sequential interleaved composition, in contrast to '<>' this operator
 -- fairly interleaves the two streams instead of appending them; yielding one
 -- element from each stream alternately. Unlike '<>' it cannot be used to fold
--- an infinite container of streams.
+-- an infinite container of streams. This operator corresponds to the
+-- 'InterleavedT' type for product style composition.
 {-# INLINE (<=>) #-}
 (<=>) :: Streaming t => t m a -> t m a -> t m a
 m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
@@ -880,7 +842,8 @@ m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
 -- them.  It keeps yielding from the stream on the left as long as it can. If
 -- the left stream blocks or cannot keep up with the pace of the consumer it
 -- can yield from the stream on the right in parallel.  Unlike '<|>' it can be
--- used to fold infinite containers of streams.
+-- used to fold infinite containers of streams. This operator corresponds to
+-- the 'AsyncT' type for product style composition.
 {-# INLINE (<|) #-}
 (<|) :: (Streaming t, MonadAsync m) => t m a -> t m a -> t m a
 m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)

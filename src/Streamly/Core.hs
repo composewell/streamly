@@ -156,7 +156,9 @@ newtype Stream m a =
             -> m r
     }
 
--- | A monad that can perform asynchronous/concurrent IO operations.
+-- | A monad that can perform asynchronous/concurrent IO operations. Streams
+-- that can be composed concurrently require the underlying monad to be
+-- 'MonadAsync'.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 scons :: a -> Maybe (Stream m a) -> Stream m a
