@@ -10,7 +10,7 @@ Streamly unifies concurrency and streaming in a single monad transformer with a
 concise and simple API. It provides two ways to combine streams, a monadic
 product composition as well as the standard pipelined composition provided by
 streaming libraries. A natural extension of regular monadic composition to
-streaming and concurrency makes it intuitive and concise with almost unviversal
+streaming and concurrency makes it intuitive and concise with almost universal
 application.  You can write concurrent or non-concurrent applications using
 simple IO, logic programming, streaming IO or reactive programming (FRP) using
 the same API. You can also think about it as representing concurrent and
