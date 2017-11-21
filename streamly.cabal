@@ -79,12 +79,14 @@ flag examples
 
 library
     hs-source-dirs:    src
-    exposed-modules:   Streamly.Core
+    other-modules:     Streamly.Core
                      , Streamly.Streams
-                     , Streamly.Prelude
+
+    exposed-modules:   Streamly.Prelude
                      , Streamly.Time
                      , Streamly.Tutorial
                      , Streamly
+
     if flag(examples)
       exposed-modules: Streamly.Examples.SearchEngineQuery
                      , Streamly.Examples.ListDirRecursive
