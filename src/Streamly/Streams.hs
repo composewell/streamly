@@ -111,9 +111,11 @@ class Streaming t where
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
+-- | Add an element a the head of a stream.
 cons :: (Streaming t) => a -> t m a -> t m a
 cons a r = fromStream $ scons a (Just (toStream r))
 
+-- | An empty stream.
 nil :: Streaming t => t m a
 nil = fromStream $ snil
 
