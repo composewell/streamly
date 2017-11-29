@@ -34,17 +34,20 @@ module Streamly.Tutorial
     -- ** Eliminating Streams
     -- $eliminating
 
+    -- * Folding Streams
+    -- $folding
+
     -- * Semigroup Style Composition
     -- $semigroup
 
     -- ** Serial composition ('<>')
     -- $serial
 
-    -- ** Interleaved composition ('<=>')
-    -- $interleaved
-
     -- ** Async composition ('<|')
     -- $parallel
+
+    -- ** Interleaved composition ('<=>')
+    -- $interleaved
 
     -- ** Parallel composition ('<|>')
     -- $fairParallel
@@ -58,32 +61,32 @@ module Streamly.Tutorial
     -- * Transforming Streams
     -- $transforming
 
-    -- ** Functor
-    -- $functor
+    -- ** Monad
+    -- $monad
+
+    -- *** Serial Iterations ('StreamT')
+    -- $regularSerial
+
+    -- *** Concurrent Iterations ('AsyncT')
+    -- $concurrentNesting
+
+    -- *** Interleaved Iterations ('InterleavedT')
+    -- $interleavedNesting
+
+    -- *** Fairly Concurrent Iterations ('ParallelT')
+    -- $fairlyConcurrentNesting
+
+    -- *** Exercise
+    -- $monadExercise
 
     -- ** Applicative
     -- $applicative
 
-    -- ** Monad
-    -- $listt
+    -- ** Functor
+    -- $functor
 
-    -- * Alternate Monadic Compositions
-    -- $monadicAlternatives
-
-    -- ** Serial Iterations
-    -- $regularSerial
-
-    -- ** Interleaved Iterations
-    -- $interleavedNesting
-
-    -- ** Concurrent Iterations
-    -- $concurrentNesting
-
-    -- ** Fairly Concurrent Iterations
-    -- $fairlyConcurrentNesting
-
-    -- * Folding Streams
-    -- $folding
+    -- * Summary of Compositions
+    -- $compositionSummary
 
     -- * Zipping Streams
     -- $zipping
@@ -194,10 +197,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 
 -- $serial
--- As we have already seen, the '<>' operator composes multiple streams in
--- series i.e. the next element is yielded only after the previous one has been
--- processed completely. The following example prints the sequence 3, 2, 1 and
--- takes a total of 6 seconds because everything is serial:
+--
+-- We have already seen, the '<>' operator. It composes two streams in series
+-- i.e. the first stream is completely exhausted and then the second stream is
+-- processed.  The following example prints the sequence 3, 2, 1 and takes a
+-- total of 6 seconds because everything is serial:
 --
 -- @
 -- main = runStreamT $ delay 3 <> delay 2 <> delay 1
@@ -209,10 +213,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 
 -- $interleaved
--- The '<=>' operator interleaves the two computations i.e. it yields one
--- element from the first stream and then one element from the second stream,
--- and so on.  The following example prints the sequence 1, 3, 2, 4 and takes a
--- total of 10 seconds because everything is serial:
+-- The '<=>' operator is serial like '<>' but it interleaves the two streams
+-- i.e. it yields one element from the first stream and then one element from
+-- the second stream, and so on.  The following example prints the sequence 1,
+-- 3, 2, 4 and takes a total of 10 seconds because everything is serial:
 --
 -- @
 -- main = runStreamT $ (delay 1 <> delay 2) \<=> (delay 3 <> delay 4)
@@ -223,33 +227,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 36: Delay 2
 -- ThreadId 36: Delay 4
 -- @
+--
+-- Note that this operator cannot be used to fold infinite containers since it
+-- requires preserving the state until a stream is finished.
 
 -- $parallel
 --
--- The '<|' operator can run computations concurrently, preferring the first
--- computation over the second. The second computation is run concurrently with
--- the first only if the first computation is not producing enough output to
--- keep the consumer busy otherwise the second computation is run serially
--- after the previous one. The number of concurrent threads is adapted
--- dynamically based on the pull rate of the consumer of the stream.
---
--- Note that the left bias of the operator '<|' is suggested by its shape.
--- It is also an unbalanced version of the fairly parallel operator '<|>'.
---
--- The following example runs all the parallel computations in a single thread
--- one after another, because none of them blocks. Note that if the consumer
--- were faster than the producer this would start new threads for each
--- computation to keep up even if none of them blocks:
---
--- @
--- main = runStreamT $ traced (sqrt 9) <| traced (sqrt 16) <| traced (sqrt 25)
--- @
--- @
--- ThreadId 40
--- ThreadId 40
--- ThreadId 40
--- @
---
+-- The '<|' operator can run both computations concurrently, /when needed/.
 -- In the following example since the first computation blocks we start the
 -- next one in a separate thread and so on:
 --
@@ -262,8 +246,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 40: Delay 3
 -- @
 --
--- When we have a tree of computations composed using this operator, the tree
--- is traversed in DFS style because it always prefers the left computation:
+-- This is the concurrent version of the '<>' operator. The computations are
+-- triggered in the same order as '<>' except that they are concurrent.  When
+-- we have a tree of computations composed using this operator, the tree is
+-- traversed in DFS style just like '<>'.
 --
 -- @
 -- main = runStreamT $ (p 1 <| p 2) <| (p 3 <| p 4)
@@ -276,28 +262,55 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 4
 -- @
 --
--- Note that since this operator is left biased it cannot be used when the
--- composed computations have timers that are relative to each other because
--- all computations may not be started at the same time and therefore timers in
--- all of them may not start at the same time.  When relative timing among all
--- computations is important or when we need to start all computations at once
--- for some reason '<|>' must be used instead.  However, '<|' is useful in
--- situations when we want to optimally utilize the resources and we know that
--- the computations can run in parallel but we do not care if they actually run
--- in parallel or not, that decision is left to the scheduler. Also, note that
--- this operator can be used to fold infinite containers in contrast to '<|>',
--- because it does not require us to run all of them at the same time.
+-- Concurrency provided by this operator is demand driven. The second
+-- computation is run concurrently with the first only if the first computation
+-- is not producing enough output to keep the stream consumer busy otherwise
+-- the second computation is run serially after the previous one. The number of
+-- concurrent threads is adapted dynamically based on the pull rate of the
+-- consumer of the stream.
+-- As you can see, in the following example the computations are run in a
+-- single thread one after another, because none of them blocks. However, if
+-- the thread consuming the stream were faster than the producer then it would
+-- have started parallel threads for each computation to keep up even if none
+-- of them blocks:
+--
+-- @
+-- main = runStreamT $ traced (sqrt 9) <| traced (sqrt 16) <| traced (sqrt 25)
+-- @
+-- @
+-- ThreadId 40
+-- ThreadId 40
+-- ThreadId 40
+-- @
+--
+-- Since the concurrency provided by this operator is demand driven it cannot
+-- be used when the composed computations have timers that are relative to each
+-- other because all computations may not be started at the same time and
+-- therefore timers in all of them may not start at the same time.  When
+-- relative timing among all computations is important or when we need to start
+-- all computations at once for some reason '<|>' must be used instead.
+-- However, '<|' is useful in situations when we want to optimally utilize the
+-- resources and we know that the computations can run in parallel but we do
+-- not care if they actually run in parallel or not, that decision is left to
+-- the scheduler. Also, note that this operator can be used to fold infinite
+-- containers in contrast to '<|>', because it does not require us to run all
+-- of them at the same time.
+--
+-- The left bias (or the DFS style) of the operator '<|' is suggested by its
+-- shape.  You can also think of this as an unbalanced version of the fairly
+-- parallel operator '<|>'.
 
 -- $fairParallel
 --
 -- The 'Alternative' composition operator '<|>', like '<|', runs the composed
--- computations in parallel. However, unlike '<|' it runs all of the
+-- computations concurrently. However, unlike '<|' it runs all of the
 -- computations in fairly parallel manner using a round robin scheduling
--- mechanism. Note that this should not be used on infinite containers, as it
--- will lead to an infinite sized scheduling queue.
+-- mechanism. This can be considered as the concurrent version of the fairly
+-- interleaved serial operation '<=>'. Note that this cannot be used on
+-- infinite containers, as it will lead to an infinite sized scheduling queue.
 --
--- The following example sends a query to three search engines and prints the
--- name of the search engine as a response arrives:
+-- The following example sends a query to three search engines in parallel and
+-- prints the name of the search engine as a response arrives:
 --
 -- @
 -- import Streamly
@@ -335,16 +348,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- * 'foldMapWith' folds like foldWith but also maps a function before folding.
 -- * 'forEachWith' is like foldMapwith but the container argument comes before
 -- the function argument.
+-- * The 'each' primitive from @Streamly.Prelude@ folds a 'Foldable' container
+-- using the '<>' operator:
+--
+-- All of the following are equivalent:
 --
 -- @
 -- import Streamly
 --
 -- main = do
---  runStreaming . serially $ liftIO $ putStrLn "Hello world!"
---  xs \<- toList . serially $ return 1 <> return 2;               print xs
---  xs \<- toList . serially $ foldWith (<>) (map return [1..10]); print xs
---  xs \<- toList . serially $ foldMapWith (<>) return [1..10];    print xs
---  xs \<- toList . serially $ forEachWith (<>) [1..10] return;    print xs
+--  toList . serially $ foldWith    (<>) (map return [1..10]) >>= print
+--  toList . serially $ foldMapWith (<>) return [1..10]       >>= print
+--  toList . serially $ forEachWith (<>) [1..10] return       >>= print
+--  toList . serially $ each [1..10]                          >>= print
 -- @
 
 -- $transforming
@@ -356,76 +372,163 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- behave exactly the same way as a list transformer.  For simplicity of
 -- illustration we are using streams of pure values in the following examples.
 -- However, the real application of streams arises when these streams are
--- generated using monadic actions. In the pure stream cases 'StreamT' is
--- equivalent to the list monad.
+-- generated using monadic actions.
 
--- $functor
+-- $monad
 --
--- The simplest transformation on a stream is mapping a function on
--- all elements of the stream using 'fmap'.
+-- In functional programmer's parlance the 'Monad' instance of 'Streaming'
+-- types implement non-determinism, exploring all possible combination of
+-- choices from both the streams. From an imperative programmer's point of view
+-- it behaves like nested loops i.e.  for each element in the first stream and
+-- for each element in the second stream apply the body of the loop. If you are
+-- familiar with list transformer this behavior is exactly the same as that of
+-- a list transformer.
 --
--- @
--- import Streamly
---
--- main = do
---     let nums    = each [1..10]
---     let strings = fmap show nums
---     (toList $ serially $ fmap putStrLn strings) >>= sequence
--- @
+-- Just like we saw in sum style compositions earlier, monadic composition also
+-- has multiple variants each of which exactly corresponds to one of the sum
+-- style composition variant.
 
--- $applicative
+-- $regularSerial
 --
--- In functional programmer's parlance the 'Applicative' instance of
--- 'Streaming' types implement non-determinism, exploring all possible
--- combination of choices from both the streams. From an imperative
--- programmer's point of view the applicative behaves like nested loops i.e.
--- for each element in the first argument and for each element in the second
--- argument apply the body of the loop. Note that this behavior of applicative
--- instance of all 'Streaming' types is exactly the same as that of a list
--- transformer.
---
--- The following example prints all combinations of size, color and shape:
+-- When we interpret the monadic composition as 'StreamT' we get a standard
+-- list transformer like serial composition.
 --
 -- @
--- main = (toList . serially $ (,,) \<$> sizes \<*> colors \<*> shapes) >>= print
---
---     where
---
---     sizes  = each [1, 2, 3]
---     colors = each ["red", "green", "blue"]
---     shapes = each ["triangle", "square", "circle"]
--- @
-
--- $listt
---
--- The monadic composition of 'Streaming' types is similar to 'Applicative'
--- composition and just the same as that of list transformer. It is like nested
--- loops in the imperative parlance. The monadic continuation is executed for
--- each element in a stream.
--- For example the following program repeatedly reads strings from standard
--- input and echoes them to the standard output. This is like one infinite
--- loop:
---
--- @
--- import Streamly
--- import Data.Semigroup (cycle1)
---
 -- main = runStreamT $ do
---  str <- cycle1 (liftIO getLine)
---  liftIO $ putStrLn str
+--     x <- each [3,2,1]
+--     delay x
 -- @
+-- @
+-- ThreadId 30: Delay 3
+-- ThreadId 30: Delay 2
+-- ThreadId 30: Delay 1
+-- @
+--
+-- As you can see the code after the @each@ statement is run three times, once
+-- for each value of @x@. All the three iterations are serial and run in the
+-- same thread one after another. When compared to imperative programming, this
+-- can also be viewed as a @for@ loop with three iterations.
+--
+-- When multiple streams are composed using this style they nest in a DFS
+-- manner i.e. nested iterations of an iteration are executed before we proceed
+-- to the next iteration at higher level. This behaves just like nested @for@
+-- loops in imperative programming.
+--
+-- @
+-- main = runStreamT $ do
+--     x <- each [1,2]
+--     y <- each [3,4]
+--     liftIO $ putStrLn $ show (x, y)
+-- @
+-- @
+-- (1,3)
+-- (1,4)
+-- (2,3)
+-- (2,4)
+-- @
+--
+-- You will also notice that this is the monadic equivalent of the sum style
+-- composition using '<>'.
 
--- $monadicAlternatives
+-- $concurrentNesting
 --
--- Just like we saw multiple non-concurrent and concurrent variants of sum
--- style compositions earlier, monadic composition also has multiple variants
--- each of which exactly corresponds to one of the sum style composition
--- variant.
+-- When we interpret the monadic composition as 'AsyncT' we get a /concurrent/
+-- list-transformer like composition. Multiple monadic continuations (or loop
+-- iterations) may be started concurrently. Concurrency is demand driven
+-- i.e. more concurrent iterations are started only if the previous iterations
+-- are not able to produce enough output for the consumer of the output stream.
+-- This is the concurrent version of 'StreamT'.
 --
--- We will use the following polymorphic code which is agnostic of a specific
--- 'Streaming' type to illustrate various variants of monadic stream
--- composition. This code can be interpreted in many different ways depending
--- on the actual type used.
+-- @
+-- main = runAsyncT $ do
+--     x <- each [3,2,1]
+--     delay x
+-- @
+-- @
+-- ThreadId 40: Delay 1
+-- ThreadId 39: Delay 2
+-- ThreadId 38: Delay 3
+-- @
+--
+-- As you can see the code after the @each@ statement is run three times, once
+-- for each value of @x@. All the three iterations are concurrent and run in
+-- different threads. The iteration with least delay finishes first. When
+-- compared to imperative programming, this can be viewed as a @for@ loop
+-- with three concurrent iterations.
+--
+-- Concurrency is demand driven just as in the case of '<|'. When multiple
+-- streams are composed using this style the iterations are triggered in a DFS
+-- manner just like 'StreamT' i.e. nested iterations are executed before we
+-- proceed to the next iteration at higher level. However, unlike 'StreamT'
+-- more than one iterations may be started concurrently, and based on the
+-- demand from the consumer.
+--
+-- @
+-- main = runAsyncT $ do
+--     x <- each [1,2]
+--     y <- each [3,4]
+--     liftIO $ putStrLn $ show (x, y)
+-- @
+-- @
+-- (1,3)
+-- (1,4)
+-- (2,3)
+-- (2,4)
+-- @
+--
+-- You will notice that this is the monadic equivalent of the '<|' style
+-- sum composition. The same caveats apply to this as the '<|' operation.
+
+-- $interleavedNesting
+--
+-- When we interpret the monadic composition as 'InterleavedT' we get a serial
+-- but fairly interleaved list-transformer like composition. The monadic
+-- continuations or iterations of the outer loop are fairly interleaved with
+-- the continuations or iterations of the inner loop.
+--
+-- @
+-- main = runInterleavedT $ do
+--     x <- each [1,2]
+--     y <- each [3,4]
+--     liftIO $ putStrLn $ show (x, y)
+-- @
+-- @
+-- (1,3)
+-- (2,3)
+-- (1,4)
+-- (2,4)
+-- @
+--
+-- You will notice that this is the monadic equivalent of the '<=>' style
+-- sum composition. The same caveats apply to this as the '<=>' operation.
+
+-- $fairlyConcurrentNesting
+--
+-- When we interpret the monadic composition as 'ParallelT' we get a
+-- /concurrent/ list-transformer like composition just like 'AsyncT'. The
+-- difference is that this is fully parallel with all iterations starting
+-- concurrently instead of the demand driven concurrency of 'AsyncT'.
+--
+-- @
+-- main = runParallelT $ do
+--     x <- each [3,2,1]
+--     delay x
+-- @
+-- @
+-- ThreadId 40: Delay 1
+-- ThreadId 39: Delay 2
+-- ThreadId 38: Delay 3
+-- @
+--
+-- You will notice that this is the monadic equivalent of the '<|>' style
+-- sum composition. The same caveats apply to this as the '<|>' operation.
+
+-- $monadExercise
+--
+-- The streamly code is usually written in a way that is agnostic of the
+-- specific monadic composition type. We use a polymorphic type with a
+-- 'Streaming' type class constraint. When running the stream we can choose the
+-- specific mode of composition. For example look at the following code.
 --
 -- @
 -- import Streamly
@@ -443,85 +546,119 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     colors = each ["red", "green", "blue"]
 --     shapes = each ["triangle", "square", "circle"]
 -- @
+--
+-- Now we can interpret this in whatever way we want:
+--
+-- @
+-- main = runStreamT      composed
+-- main = runAsyncT       composed
+-- main = runInterleavedT composed
+-- main = runParallelT    composed
+-- @
+--
+-- Equivalently, we can also write it using the type adapter combinators, like
+-- this:
+--
+-- @
+-- main = runStreaming $ serially     $ composed
+-- main = runStreaming $ asyncly      $ composed
+-- main = runStreaming $ interleaving $ composed
+-- main = runStreaming $ parallely    $ composed
+-- @
+--
+--  As an exercise try to figure out the output of this code for each mode of
+--  composition.
 
--- $regularSerial
+-- $functor
 --
--- When we interpret the code as 'StreamT' we get the regular list transformer
--- like serial composition.  The following is equivalent to three nested loops,
--- the first one for sizes, the second one for colors and the third one for
--- shapes. For each size we iterate each color and for each color we iterate
--- each shape.
---
--- @
--- main = runStreaming $ serially $ composed
--- @
---
-
--- $interleavedNesting
---
--- @
--- main = runStreaming $ interleaved $ composed
--- @
-
--- $concurrentNesting
+-- The simplest transformation on a stream is mapping a function on
+-- all elements of the stream using 'fmap'.
 --
 -- @
 -- import Streamly
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import Control.Concurrent
 --
--- printWithTid s = do
---     threadDelay 500
---     tid <- myThreadId
---     putStrLn (show tid ++ ": " ++ s)
---
--- main = runStreaming $ asyncly $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     sz <- sizes
---     cl <- colors
---     sh <- shapes
---     liftIO $ putStrLn $ show (sz, cl, sh)
---
---     where
---
---     toStream xs = foldMapWith (<>) return xs
---     sizes  = toStream [1, 2, 3]
---     colors = toStream ["red", "green", "blue"]
---     shapes = toStream ["triangle", "square", "circle"]
+-- main = (toList $ serially $ fmap show $ each [1..10]) >>= print
 -- @
 
--- $fairlyConcurrentNesting
+-- $applicative
+--
+-- Applicative is a special case of monad and behaves just like the monadic
+-- composition. The following example runs all iterations serially and takes a
+-- total 17 seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
--- import Streamly
--- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
--- import Control.Concurrent
+-- s1 = d 1 <> d 2
+-- s2 = d 3 <> d 4
+-- d n = delay n >> return n
 --
--- printWithTid s = do
---     threadDelay 500
---     tid <- myThreadId
---     putStrLn (show tid ++ ": " ++ s)
+-- main = (toList . serially $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+-- @
+-- ThreadId 36: Delay 1
+-- ThreadId 36: Delay 3
+-- ThreadId 36: Delay 4
+-- ThreadId 36: Delay 2
+-- ThreadId 36: Delay 3
+-- ThreadId 36: Delay 4
+-- [(1,3),(1,4),(2,3),(2,4)]
+-- @
 --
--- main = runStreaming $ parallely $ do
---     liftIO $ hSetBuffering stdout LineBuffering
---     sz <- sizes
---     cl <- colors
---     sh <- shapes
---     liftIO $ putStrLn $ show (sz, cl, sh)
+-- Similalrly interleaving runs the iterations in an interleaved order but
+-- since it is serial it takes a total of 17 seconds:
 --
---     where
+-- @
+-- main = (toList . interleaving $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+-- @
+-- ThreadId 36: Delay 1
+-- ThreadId 36: Delay 3
+-- ThreadId 36: Delay 2
+-- ThreadId 36: Delay 3
+-- ThreadId 36: Delay 4
+-- ThreadId 36: Delay 4
+-- [(1,3),(2,3),(1,4),(2,4)]
+-- @
 --
---     toStream xs = foldMapWith (<>) return xs
---     sizes  = toStream [1, 2, 3]
---     colors = toStream ["red", "green", "blue"]
---     shapes = toStream ["triangle", "square", "circle"]
+-- 'AsyncT' can run the iterations concurrently and therefore takes a total
+-- of 10 seconds (1 + 2 + 3 + 4):
+--
+-- @
+-- main = (toList . asyncly $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+-- @
+-- ThreadId 34: Delay 1
+-- ThreadId 36: Delay 2
+-- ThreadId 35: Delay 3
+-- ThreadId 36: Delay 3
+-- ThreadId 35: Delay 4
+-- ThreadId 36: Delay 4
+-- [(1,3),(2,3),(1,4),(2,4)]
+-- @
+--
+-- Similalrly 'ParallelT' as well can run the iterations concurrently and
+-- therefore takes a total of 10 seconds (1 + 2 + 3 + 4):
+--
+-- @
+-- main = (toList . parallely $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+-- @
+-- ThreadId 34: Delay 1
+-- ThreadId 36: Delay 2
+-- ThreadId 35: Delay 3
+-- ThreadId 36: Delay 3
+-- ThreadId 35: Delay 4
+-- ThreadId 36: Delay 4
+-- [(1,3),(2,3),(1,4),(2,4)]
 -- @
 
 -- $folding
 -- Folds
 
+-- $compositionSummary
+-- Summary of compositions
+
 -- $zipping
--- Applicative composition
+-- Applicative composition, Parallel applicative
 
 -- $concurrent
 --
