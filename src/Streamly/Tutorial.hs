@@ -91,6 +91,12 @@ module Streamly.Tutorial
     -- * Zipping Streams
     -- $zipping
 
+    -- ** Serial Zipping
+    -- $serialzip
+
+    -- ** Parallel Zipping
+    -- $parallelzip
+
     -- * Concurrent Programming Examples
     -- $concurrent
 
@@ -587,6 +593,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- total 17 seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
+-- import Streamly
+-- import Streamly.Prelude
+-- import Control.Concurrent
+--
 -- s1 = d 1 <> d 2
 -- s2 = d 3 <> d 4
 -- d n = delay n >> return n
@@ -655,10 +665,89 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Folds
 
 -- $compositionSummary
--- Summary of compositions
+--
+-- The following table summarizes the types for monadic compositions and the
+-- operators for sum style compositions. This table captures the essence of
+-- streamly.
+--
+-- @
+-- +-----+--------------+------------+
+-- |     | Serial       | Concurrent |
+-- +=====+==============+============+
+-- | DFS | 'StreamT'      | 'AsyncT'     |
+-- |     +--------------+------------+
+-- |     | '<>'           | '<|'         |
+-- +-----+--------------+------------+
+-- | BFS | 'InterleavedT' | 'ParallelT'  |
+-- |     +--------------+------------+
+-- |     | '<=>'          | '<|>'        |
+-- +-----+--------------+------------+
+-- @
 
 -- $zipping
--- Applicative composition, Parallel applicative
+--
+-- Zipping is a special transformation where the corresponding elements of two
+-- streams are combined together using a zip function producing a new
+-- stream of outputs. Two different types are provided for serial and
+-- concurrent zipping. These types provide an applicative instance that zips
+-- the argument streams.
+
+-- $serialzip
+--
+-- 'StreamZip' zips streams serially:
+--
+-- @
+-- import Streamly
+-- import Streamly.Prelude
+-- import Control.Concurrent
+--
+-- d n = delay n >> return n
+-- s1 = adapt . serially $ d 1 <> d 2
+-- s2 = adapt . serially $ d 3 <> d 4
+--
+-- main = (toList . zipping $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+--
+-- This takes total 10 seconds to zip, which is (1 + 2 + 3 + 4) since
+-- everything runs serially:
+--
+-- @
+-- ThreadId 29: Delay 1
+-- ThreadId 29: Delay 3
+-- ThreadId 29: Delay 2
+-- ThreadId 29: Delay 4
+-- [(1,3),(2,4)]
+-- @
+
+-- $parallelzip
+--
+-- 'AsyncZip' zips streams concurrently:
+--
+-- @
+-- import Streamly
+-- import Streamly.Prelude
+-- import Control.Concurrent
+-- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+--
+-- d n = delay n >> return n
+-- s1 = adapt . serially $ d 1 <> d 2
+-- s2 = adapt . serially $ d 3 <> d 4
+--
+-- main = do
+--     liftIO $ hSetBuffering stdout LineBuffering
+--     (toList . zippingAsync $ (,) \<$> s1 \<*> s2) >>= print
+-- @
+--
+-- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
+-- are produced concurrently, and 2 and 4 are produced concurrently:
+--
+-- @
+-- ThreadId 32: Delay 1
+-- ThreadId 32: Delay 2
+-- ThreadId 33: Delay 3
+-- ThreadId 33: Delay 4
+-- [(1,3),(2,4)]
+-- @
 
 -- $concurrent
 --
@@ -671,6 +760,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- import Streamly
+-- import Streamly.Prelude (toList)
 -- import Data.List (sum)
 --
 -- main = do
@@ -684,11 +774,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- import Streamly
+-- import Streamly.Prelude (toList)
 -- import Data.List (sum)
 --
 -- main = do
---     z \<- toList $ asyncly $ foldMapWith (\<|) (\\x -> return $ x * x) [1..100] >>= \\xsq ->
---         foldMapWith (\<|) (\\x -> return $ x * x) [1..100] >>= \\ysq ->
+--     z \<- toList $ asyncly $ do
+--         xsq \<- foldMapWith (\<|) (\\x -> return $ x * x) [1..100]
+--         ysq \<- foldMapWith (\<|) (\\x -> return $ x * x) [1..100]
 --         return $ sqrt (xsq + ysq)
 --     print $ sum z
 -- @
@@ -698,6 +790,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Let us see a reactive programming example:
 --
 -- @
+-- {-\# LANGUAGE FlexibleContexts #-}
+--
 -- import Streamly
 -- import Control.Concurrent (threadDelay)
 -- import Control.Monad (when)
@@ -706,7 +800,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- data Event = Harm Int | Heal Int | Quit deriving (Show)
 --
--- userAction :: MonadIO m => AsyncT m Event
+-- userAction :: MonadIO m => StreamT m Event
 -- userAction = cycle1 $ liftIO askUser
 --     where
 --     askUser = do
@@ -716,15 +810,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             "quit"   -> return  Quit
 --             _        -> putStrLn "What?" >> askUser
 --
--- acidRain :: MonadIO m => AsyncT m Event
+-- acidRain :: MonadIO m => StreamT m Event
 -- acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 --
--- game :: (MonadAsync m, MonadState Int m) => AsyncT m ()
+-- game :: (MonadAsync m, MonadState Int m) => StreamT m ()
 -- game = do
 --     event \<- userAction \<|> acidRain
 --     case event of
---         Harm n -> modify $ \h -> h - n
---         Heal n -> modify $ \h -> h + n
+--         Harm n -> modify $ \\h -> h - n
+--         Heal n -> modify $ \\h -> h + n
 --         Quit   -> fail "quit"
 --
 --     h <- get
@@ -732,9 +826,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     liftIO $ putStrLn $ "Health = " ++ show h
 --
 -- main = do
---     putStrLn "Your health is deteriorating due to acid rain,\
---              \ type \"potion\" or \"quit\""
---     runStateT (runStreaming $ serially $ game) 60
+--     putStrLn "Your health is deteriorating due to acid rain,\\
+--              \\ type \\"potion\\" or \\"quit\\""
+--     _ <- runStateT (runStreamT game) 60
+--     return ()
 -- @
 
 -- $statemachine
