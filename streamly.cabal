@@ -42,7 +42,8 @@ description: Streamly unifies concurrency and streaming in a single monad
   >             liftIO $ mapM_ putStrLn $ map show files
   >             foldMapWith (<|>) readdir dirs
   .
-  See "Streamly.Tutorial" and "Streamly.Examples" for more details.
+  See "Streamly.Tutorial" and "Streamly.Examples" (available only when built
+  with 'examples' build flag) for more details.
   .
   This library was originally inspired by the `transient`
   package authored by Alberto G. Corona.

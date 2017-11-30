@@ -19,9 +19,15 @@
 -- Streaming and concurrency together enable expressing reactive applications
 -- conveniently. See 'Streamly.Examples' for a simple SDL based FRP example.
 --
--- In this tutorial we will go over the basic concepts and how to use the
--- library.  For examples and other ways to use the library see
--- the module @Streamly.Examples@ as well.
+-- Streamly streams are very much like the Haskell lists and most of the
+-- functions that work on lists have a counterpart that works on streams.
+-- However, streamly streams can be generated, consumed or combined
+-- concurrently. In this tutorial we will go over the basic concepts and how to
+-- use the library.  The documentation of @Streamly@ module has more details on
+-- core APIs.  For more APIs for constructing, folding, filtering, mapping and
+-- zipping etc. see the documentation of @Streamly.Prelude@ module. For
+-- examples and other ways to use the library see the module
+-- @Streamly.Examples@ as well.
 
 module Streamly.Tutorial
     (
@@ -34,28 +40,28 @@ module Streamly.Tutorial
     -- ** Eliminating Streams
     -- $eliminating
 
-    -- * Folding Streams
-    -- $folding
+    -- * Combining Streams
+    -- $combining
 
-    -- * Semigroup Style Composition
+    -- ** Semigroup Style
     -- $semigroup
 
-    -- ** Serial composition ('<>')
+    -- *** Serial composition ('<>')
     -- $serial
 
-    -- ** Async composition ('<|')
+    -- *** Async composition ('<|')
     -- $parallel
 
-    -- ** Interleaved composition ('<=>')
+    -- *** Interleaved composition ('<=>')
     -- $interleaved
 
-    -- ** Parallel composition ('<|>')
+    -- *** Fair Concurrent composition ('<|>')
     -- $fairParallel
 
-    -- ** Custom composition
+    -- *** Custom composition
     -- $custom
 
-    -- * Monoid Style composition
+    -- ** Monoid Style
     -- $monoid
 
     -- * Transforming Streams
@@ -64,16 +70,16 @@ module Streamly.Tutorial
     -- ** Monad
     -- $monad
 
-    -- *** Serial Iterations ('StreamT')
+    -- *** Serial Composition ('StreamT')
     -- $regularSerial
 
-    -- *** Concurrent Iterations ('AsyncT')
+    -- *** Async Composition ('AsyncT')
     -- $concurrentNesting
 
-    -- *** Interleaved Iterations ('InterleavedT')
+    -- *** Interleaved Composition ('InterleavedT')
     -- $interleavedNesting
 
-    -- *** Fairly Concurrent Iterations ('ParallelT')
+    -- *** Fair Concurrent Composition ('ParallelT')
     -- $fairlyConcurrentNesting
 
     -- *** Exercise
@@ -85,9 +91,6 @@ module Streamly.Tutorial
     -- ** Functor
     -- $functor
 
-    -- * Summary of Compositions
-    -- $compositionSummary
-
     -- * Zipping Streams
     -- $zipping
 
@@ -96,6 +99,9 @@ module Streamly.Tutorial
 
     -- ** Parallel Zipping
     -- $parallelzip
+
+    -- * Summary of Compositions
+    -- $compositionSummary
 
     -- * Concurrent Programming Examples
     -- $concurrent
@@ -153,6 +159,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --  return 1 <> return 2 <> return 3 :: StreamT IO Int
 -- @
+--
+-- For more ways to construct or generate a stream see the module
+-- @Streamly.Prelude@.
 
 -- $eliminating
 --
@@ -181,7 +190,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --  print xs
 -- @
 --
--- For other ways to eliminate a stream see the module @Streamly.Prelude@.
+-- For other ways to eliminate or fold a stream see the module
+-- @Streamly.Prelude@.
 
 -- $semigroup
 -- Streams of the same type can be combined into a composite stream in many
@@ -577,20 +587,29 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $functor
 --
--- The simplest transformation on a stream is mapping a function on
--- all elements of the stream using 'fmap'.
+-- 'fmap' transforms a stream by mapping a function on all elements of the
+-- stream. The functor instance of each stream type defines 'fmap' to be
+-- precisely the same as 'liftM', and therefore 'fmap' is always serial
+-- irrespective of the type. For concurrent mapping, alternative versions of
+-- 'fmap', namely, 'asyncMap' and 'parMap' are provided.
 --
 -- @
 -- import Streamly
 --
 -- main = (toList $ serially $ fmap show $ each [1..10]) >>= print
 -- @
+--
+-- Also see the 'mapM' and 'sequence' functions for mapping actions, in the
+-- @Streamly.Prelude@ module.
 
 -- $applicative
 --
--- Applicative is a special case of monad and behaves just like the monadic
--- composition. The following example runs all iterations serially and takes a
--- total 17 seconds (1 + 3 + 4 + 2 + 3 + 4):
+-- Applicative is precisely the same as the 'ap' operation of 'Monad'. For
+-- zipping and parallel applicatives separate types 'ZipStream' and 'ZipAsync'
+-- are provided.
+--
+-- The following example runs all iterations serially and takes a total 17
+-- seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
 -- import Streamly
@@ -661,9 +680,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- [(1,3),(2,3),(1,4),(2,4)]
 -- @
 
--- $folding
--- Folds
-
 -- $compositionSummary
 --
 -- The following table summarizes the types for monadic compositions and the
@@ -690,11 +706,12 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- streams are combined together using a zip function producing a new
 -- stream of outputs. Two different types are provided for serial and
 -- concurrent zipping. These types provide an applicative instance that zips
--- the argument streams.
+-- the argument streams. Also see the zipping function in the @Streamly.Prelude@
+-- module.
 
 -- $serialzip
 --
--- 'StreamZip' zips streams serially:
+-- 'ZipStream' zips streams serially:
 --
 -- @
 -- import Streamly
@@ -721,7 +738,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $parallelzip
 --
--- 'AsyncZip' zips streams concurrently:
+-- 'ZipAsync' zips streams concurrently:
 --
 -- @
 -- import Streamly
@@ -764,7 +781,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Data.List (sum)
 --
 -- main = do
---     squares \<- toList $ serially $ foldMapWith (<|) (\x -\> return $ x * x) [1..100]
+--     squares \<- toList $ serially $ forEachWith (<|) [1..100] $ \\x -\> return $ x * x
 --     print $ sum squares
 -- @
 --
@@ -779,8 +796,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- main = do
 --     z \<- toList $ asyncly $ do
---         xsq \<- foldMapWith (\<|) (\\x -> return $ x * x) [1..100]
---         ysq \<- foldMapWith (\<|) (\\x -> return $ x * x) [1..100]
+--         xsq \<- forEachWith (\<|) [1..100] $ \\x -> return $ x * x
+--         ysq \<- forEachWith (\<|) [1..100] $ \\x -> return $ x * x
 --         return $ sqrt (xsq + ysq)
 --     print $ sum z
 -- @
