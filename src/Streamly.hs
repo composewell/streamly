@@ -151,7 +151,8 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- concurrent composition operators '<|' and '<|>' require the underlying monad
 -- of the streaming monad transformer to be 'MonadAsync'.
 --
--- For more details please see the 'Streamly.Tutorial' and 'Streamly.Examples'.
+-- For more details please see the "Streamly.Tutorial" and "Streamly.Examples"
+-- (the latter is available only when built with the 'examples' build flag).
 
 -- A simple inline example here illustrating applicative, monad and alternative
 -- compositions.

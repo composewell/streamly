@@ -17,7 +17,7 @@
 -- demand by the consumer. However, combinators are provided to fine tune the
 -- concurrency control.
 -- Streaming and concurrency together enable expressing reactive applications
--- conveniently. See 'Streamly.Examples' for a simple SDL based FRP example.
+-- conveniently. See "Streamly.Examples" for a simple SDL based FRP example.
 --
 -- Streamly streams are very much like the Haskell lists and most of the
 -- functions that work on lists have a counterpart that works on streams.
@@ -25,9 +25,9 @@
 -- concurrently. In this tutorial we will go over the basic concepts and how to
 -- use the library.  The documentation of @Streamly@ module has more details on
 -- core APIs.  For more APIs for constructing, folding, filtering, mapping and
--- zipping etc. see the documentation of @Streamly.Prelude@ module. For
+-- zipping etc. see the documentation of "Streamly.Prelude" module. For
 -- examples and other ways to use the library see the module
--- @Streamly.Examples@ as well.
+-- "Streamly.Examples" as well.
 
 module Streamly.Tutorial
     (
@@ -125,7 +125,6 @@ where
 
 import Streamly
 import Streamly.Prelude
--- import Streamly.Examples
 import Data.Semigroup
 import Control.Applicative
 import Control.Monad
@@ -161,7 +160,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- For more ways to construct or generate a stream see the module
--- @Streamly.Prelude@.
+-- "Streamly.Prelude".
 
 -- $eliminating
 --
@@ -191,7 +190,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- For other ways to eliminate or fold a stream see the module
--- @Streamly.Prelude@.
+-- "Streamly.Prelude".
 
 -- $semigroup
 -- Streams of the same type can be combined into a composite stream in many
@@ -349,7 +348,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- time.  Take an example of a merge sort of two sorted streams. We need to
 -- keep consuming items from the stream which has the lowest item in the sort
 -- order.  This can be achieved using async references to streams. See
--- 'Streamly.Examples.MergeSortedStreams'.
+-- "Streamly.Examples.MergeSortedStreams".
 
 -- $monoid
 --
@@ -364,7 +363,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- * 'foldMapWith' folds like foldWith but also maps a function before folding.
 -- * 'forEachWith' is like foldMapwith but the container argument comes before
 -- the function argument.
--- * The 'each' primitive from @Streamly.Prelude@ folds a 'Foldable' container
+-- * The 'each' primitive from "Streamly.Prelude" folds a 'Foldable' container
 -- using the '<>' operator:
 --
 -- All of the following are equivalent:
@@ -600,7 +599,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- Also see the 'mapM' and 'sequence' functions for mapping actions, in the
--- @Streamly.Prelude@ module.
+-- "Streamly.Prelude" module.
 
 -- $applicative
 --
@@ -703,11 +702,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $zipping
 --
 -- Zipping is a special transformation where the corresponding elements of two
--- streams are combined together using a zip function producing a new
--- stream of outputs. Two different types are provided for serial and
--- concurrent zipping. These types provide an applicative instance that zips
--- the argument streams. Also see the zipping function in the @Streamly.Prelude@
--- module.
+-- streams are combined together using a zip function producing a new stream of
+-- outputs. Two different types are provided for serial and concurrent zipping.
+-- These types provide an applicative instance that zips the argument streams.
+-- Also see the zipping function in the "Streamly.Prelude" module.
 
 -- $serialzip
 --
