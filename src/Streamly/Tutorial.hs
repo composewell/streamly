@@ -147,16 +147,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- using the 'lift' combinator. Some examples of streams with a single element:
 --
 -- @
---  return 1 :: StreamT IO Int
+--  return 1 :: 'StreamT' IO Int
 -- @
 -- @
---  liftIO $ putStrLn "Hello world!" :: StreamT IO ()
+--  liftIO $ putStrLn "Hello world!" :: 'StreamT' IO ()
 -- @
 --
 -- We can combine streams using '<>' to create streams of many elements:
 --
 -- @
---  return 1 <> return 2 <> return 3 :: StreamT IO Int
+--  return 1 <> return 2 <> return 3 :: 'StreamT' IO Int
 -- @
 --
 -- For more ways to construct or generate a stream see the module
@@ -168,9 +168,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the underlying monad and discarding the result stream:
 --
 -- @
--- import Streamly
+-- import "Streamly"
 --
--- main = runStreamT $ liftIO $ putStrLn "Hello world!"
+-- main = 'runStreamT' $ liftIO $ putStrLn "Hello world!"
 -- @
 --
 -- 'toList' runs a stream computation and collects the result stream in a list
@@ -182,10 +182,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- StreamT@.
 --
 -- @
--- import Streamly
+-- import "Streamly"
 --
 -- main = do
---  xs \<- toList $ serially $ return 1 <> return 2
+--  xs \<- 'toList' $ 'serially' $ return 1 <> return 2
 --  print xs
 -- @
 --
@@ -202,7 +202,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- function to introduce a delay specified in seconds.
 --
 -- @
--- import Streamly
+-- import "Streamly"
 -- import Control.Concurrent
 --
 -- delay n = liftIO $ do
@@ -219,7 +219,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- total of 6 seconds because everything is serial:
 --
 -- @
--- main = runStreamT $ delay 3 <> delay 2 <> delay 1
+-- main = 'runStreamT' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -234,7 +234,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 3, 2, 4 and takes a total of 10 seconds because everything is serial:
 --
 -- @
--- main = runStreamT $ (delay 1 <> delay 2) \<=> (delay 3 <> delay 4)
+-- main = 'runStreamT' $ (delay 1 <> delay 2) '<=>' (delay 3 <> delay 4)
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -253,7 +253,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- next one in a separate thread and so on:
 --
 -- @
--- main = runStreamT $ delay 3 <| delay 2 <| delay 1
+-- main = 'runStreamT' $ delay 3 '<|' delay 2 '<|' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -267,7 +267,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- traversed in DFS style just like '<>'.
 --
 -- @
--- main = runStreamT $ (p 1 <| p 2) <| (p 3 <| p 4)
+-- main = 'runStreamT' $ (p 1 '<|' p 2) '<|' (p 3 '<|' p 4)
 --  where p = liftIO . print
 -- @
 -- @
@@ -290,7 +290,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- of them blocks:
 --
 -- @
--- main = runStreamT $ traced (sqrt 9) <| traced (sqrt 16) <| traced (sqrt 25)
+-- main = 'runStreamT' $ traced (sqrt 9) '<|' traced (sqrt 16) '<|' traced (sqrt 25)
 -- @
 -- @
 -- ThreadId 40
@@ -328,10 +328,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- prints the name of the search engine as a response arrives:
 --
 -- @
--- import Streamly
+-- import "Streamly"
 -- import Network.HTTP.Simple
 --
--- main = runStreamT $ google \<|> bing \<|> duckduckgo
+-- main = 'runStreamT' $ google \<|> bing \<|> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -369,13 +369,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- All of the following are equivalent:
 --
 -- @
--- import Streamly
+-- import "Streamly"
 --
 -- main = do
---  toList . serially $ foldWith    (<>) (map return [1..10]) >>= print
---  toList . serially $ foldMapWith (<>) return [1..10]       >>= print
---  toList . serially $ forEachWith (<>) [1..10] return       >>= print
---  toList . serially $ each [1..10]                          >>= print
+--  'toList' . 'serially' $ 'foldWith'    (<>) (map return [1..10]) >>= print
+--  'toList' . 'serially' $ 'foldMapWith' (<>) return [1..10]       >>= print
+--  'toList' . 'serially' $ 'forEachWith' (<>) [1..10] return       >>= print
+--  'toList' . 'serially' $ 'each' [1..10]                          >>= print
 -- @
 
 -- $transforming
@@ -409,8 +409,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- list transformer like serial composition.
 --
 -- @
--- main = runStreamT $ do
---     x <- each [3,2,1]
+-- main = 'runStreamT' $ do
+--     x <- 'each' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -430,9 +430,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- loops in imperative programming.
 --
 -- @
--- main = runStreamT $ do
---     x <- each [1,2]
---     y <- each [3,4]
+-- main = 'runStreamT' $ do
+--     x <- 'each' [1,2]
+--     y <- 'each' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -455,8 +455,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- This is the concurrent version of 'StreamT'.
 --
 -- @
--- main = runAsyncT $ do
---     x <- each [3,2,1]
+-- main = 'runAsyncT' $ do
+--     x <- 'each' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -479,9 +479,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- demand from the consumer.
 --
 -- @
--- main = runAsyncT $ do
---     x <- each [1,2]
---     y <- each [3,4]
+-- main = 'runAsyncT' $ do
+--     x <- 'each' [1,2]
+--     y <- 'each' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -502,9 +502,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the continuations or iterations of the inner loop.
 --
 -- @
--- main = runInterleavedT $ do
---     x <- each [1,2]
---     y <- each [3,4]
+-- main = 'runInterleavedT' $ do
+--     x <- 'each' [1,2]
+--     y <- 'each' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -525,8 +525,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrently instead of the demand driven concurrency of 'AsyncT'.
 --
 -- @
--- main = runParallelT $ do
---     x <- each [3,2,1]
+-- main = 'runParallelT' $ do
+--     x <- 'each' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -546,9 +546,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- specific mode of composition. For example look at the following code.
 --
 -- @
--- import Streamly
+-- import "Streamly"
 --
--- composed :: Streaming t => t m a
+-- composed :: 'Streaming' t => t m a
 -- composed = do
 --     sz <- sizes
 --     cl <- colors
@@ -557,28 +557,28 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 --     where
 --
---     sizes  = each [1, 2, 3]
---     colors = each ["red", "green", "blue"]
---     shapes = each ["triangle", "square", "circle"]
+--     sizes  = 'each' [1, 2, 3]
+--     colors = 'each' ["red", "green", "blue"]
+--     shapes = 'each' ["triangle", "square", "circle"]
 -- @
 --
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = runStreamT      composed
--- main = runAsyncT       composed
--- main = runInterleavedT composed
--- main = runParallelT    composed
+-- main = 'runStreamT'      composed
+-- main = 'runAsyncT'       composed
+-- main = 'runInterleavedT' composed
+-- main = 'runParallelT'    composed
 -- @
 --
 -- Equivalently, we can also write it using the type adapter combinators, like
 -- this:
 --
 -- @
--- main = runStreaming $ serially     $ composed
--- main = runStreaming $ asyncly      $ composed
--- main = runStreaming $ interleaving $ composed
--- main = runStreaming $ parallely    $ composed
+-- main = 'runStreaming' $ 'serially'     $ composed
+-- main = 'runStreaming' $ 'asyncly'      $ composed
+-- main = 'runStreaming' $ 'interleaving' $ composed
+-- main = 'runStreaming' $ 'parallely'    $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of
@@ -593,9 +593,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'fmap', namely, 'asyncMap' and 'parMap' are provided.
 --
 -- @
--- import Streamly
+-- import "Streamly"
 --
--- main = (toList $ serially $ fmap show $ each [1..10]) >>= print
+-- main = ('toList' $ 'serially' $ fmap show $ 'each' [1..10]) >>= print
 -- @
 --
 -- Also see the 'mapM' and 'sequence' functions for mapping actions, in the
@@ -611,15 +611,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
--- import Streamly
--- import Streamly.Prelude
+-- import "Streamly"
+-- import "Streamly.Prelude"
 -- import Control.Concurrent
 --
 -- s1 = d 1 <> d 2
 -- s2 = d 3 <> d 4
 -- d n = delay n >> return n
 --
--- main = (toList . serially $ (,) \<$> s1 \<*> s2) >>= print
+-- main = ('toList' . 'serially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -635,7 +635,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- since it is serial it takes a total of 17 seconds:
 --
 -- @
--- main = (toList . interleaving $ (,) \<$> s1 \<*> s2) >>= print
+-- main = ('toList' . 'interleaving' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -651,7 +651,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- of 10 seconds (1 + 2 + 3 + 4):
 --
 -- @
--- main = (toList . asyncly $ (,) \<$> s1 \<*> s2) >>= print
+-- main = ('toList' . 'asyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -667,7 +667,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- therefore takes a total of 10 seconds (1 + 2 + 3 + 4):
 --
 -- @
--- main = (toList . parallely $ (,) \<$> s1 \<*> s2) >>= print
+-- main = ('toList' . 'parallely' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -712,15 +712,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'ZipStream' zips streams serially:
 --
 -- @
--- import Streamly
--- import Streamly.Prelude
+-- import "Streamly"
+-- import "Streamly.Prelude"
 -- import Control.Concurrent
 --
 -- d n = delay n >> return n
--- s1 = adapt . serially $ d 1 <> d 2
--- s2 = adapt . serially $ d 3 <> d 4
+-- s1 = 'adapt' . 'serially' $ d 1 <> d 2
+-- s2 = 'adapt' . 'serially' $ d 3 <> d 4
 --
--- main = (toList . zipping $ (,) \<$> s1 \<*> s2) >>= print
+-- main = ('toList' . 'zipping' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes total 10 seconds to zip, which is (1 + 2 + 3 + 4) since
@@ -739,18 +739,18 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'ZipAsync' zips streams concurrently:
 --
 -- @
--- import Streamly
--- import Streamly.Prelude
+-- import "Streamly"
+-- import "Streamly.Prelude"
 -- import Control.Concurrent
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
 -- d n = delay n >> return n
--- s1 = adapt . serially $ d 1 <> d 2
--- s2 = adapt . serially $ d 3 <> d 4
+-- s1 = 'adapt' . 'serially' $ d 1 <> d 2
+-- s2 = 'adapt' . 'serially' $ d 3 <> d 4
 --
 -- main = do
 --     liftIO $ hSetBuffering stdout LineBuffering
---     (toList . zippingAsync $ (,) \<$> s1 \<*> s2) >>= print
+--     ('toList' . 'zippingAsync' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
@@ -774,12 +774,12 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- sum and print them serially:
 --
 -- @
--- import Streamly
--- import Streamly.Prelude (toList)
+-- import "Streamly"
+-- import "Streamly.Prelude" (toList)
 -- import Data.List (sum)
 --
 -- main = do
---     squares \<- toList $ serially $ forEachWith (<|) [1..100] $ \\x -\> return $ x * x
+--     squares \<- 'toList' $ 'serially' $ 'forEachWith' ('<|') [1..100] $ \\x -\> return $ x * x
 --     print $ sum squares
 -- @
 --
@@ -788,14 +788,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- monadic bind.
 --
 -- @
--- import Streamly
--- import Streamly.Prelude (toList)
+-- import "Streamly"
+-- import "Streamly.Prelude" (toList)
 -- import Data.List (sum)
 --
 -- main = do
---     z \<- toList $ asyncly $ do
---         xsq \<- forEachWith (\<|) [1..100] $ \\x -> return $ x * x
---         ysq \<- forEachWith (\<|) [1..100] $ \\x -> return $ x * x
+--     z \<- 'toList' $ 'asyncly' $ do
+--         xsq \<- 'forEachWith' ('<|') [1..100] $ \\x -> return $ x * x
+--         ysq \<- 'forEachWith' ('<|') [1..100] $ \\x -> return $ x * x
 --         return $ sqrt (xsq + ysq)
 --     print $ sum z
 -- @
@@ -807,7 +807,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 -- {-\# LANGUAGE FlexibleContexts #-}
 --
--- import Streamly
+-- import "Streamly"
 -- import Control.Concurrent (threadDelay)
 -- import Control.Monad (when)
 -- import Control.Monad.State
@@ -815,7 +815,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- data Event = Harm Int | Heal Int | Quit deriving (Show)
 --
--- userAction :: MonadIO m => StreamT m Event
+-- userAction :: MonadIO m => 'StreamT' m Event
 -- userAction = cycle1 $ liftIO askUser
 --     where
 --     askUser = do
@@ -825,10 +825,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             "quit"   -> return  Quit
 --             _        -> putStrLn "What?" >> askUser
 --
--- acidRain :: MonadIO m => StreamT m Event
+-- acidRain :: MonadIO m => 'StreamT' m Event
 -- acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 --
--- game :: (MonadAsync m, MonadState Int m) => StreamT m ()
+-- game :: ('MonadAsync' m, MonadState Int m) => 'StreamT' m ()
 -- game = do
 --     event \<- userAction \<|> acidRain
 --     case event of
@@ -843,7 +843,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- main = do
 --     putStrLn "Your health is deteriorating due to acid rain,\\
 --              \\ type \\"potion\\" or \\"quit\\""
---     _ <- runStateT (runStreamT game) 60
+--     _ <- runStateT ('runStreamT' game) 60
 --     return ()
 -- @
 
