@@ -1,9 +1,9 @@
 # Streamly
 
 [![Gitter chat](https://badges.gitter.im/composewell/gitter.svg)](https://gitter.im/composewell/streamly)
-[![Build Status](https://travis-ci.org/harendra-kumar/streamly.svg?branch=master)](https://travis-ci.org/harendra-kumar/streamly)
-[![Windows Build status](https://ci.appveyor.com/api/projects/status/0g4nmxxhy9c7al30?svg=true)](https://ci.appveyor.com/project/harendra-kumar/streamly)
-[![Coverage Status](https://coveralls.io/repos/harendra-kumar/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/harendra-kumar/streamly?branch=master)
+[![Build Status](https://travis-ci.org/composewell/streamly.svg?branch=master)](https://travis-ci.org/composewell/streamly)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/ajxg0c79raou9ned?svg=true)](https://ci.appveyor.com/project/harendra-kumar/streamly)
+[![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
 
 ## Stream`ing` `Concurrent`ly
 Streamly unifies concurrency and streaming in a single monad transformer with a
