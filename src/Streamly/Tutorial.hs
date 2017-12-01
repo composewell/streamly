@@ -796,11 +796,30 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- You can see how this directly maps to the imperative style
--- <https://en.wikipedia.org/wiki/OpenMP OpenMP> model.
+-- <https://en.wikipedia.org/wiki/OpenMP OpenMP> model, we use combinators
+-- and operators instead of the ugly pragmas.
+--
+-- For more concurrent programming examples see,
+-- "Streamly.Examples.ListDirRecursive", "Streamly.Examples.MergeSortedStreams"
+-- and "Streamly.Examples.SearchEngineQuery".
 
 -- $reactive
 --
--- Let us see a reactive programming example:
+-- Reactive programming is nothing but concurrent streaming which is what
+-- streamly is all about. With streamly we can generate streams of events,
+-- merge streams that are generated concurrently and process events
+-- concurrently. We can do all this without any knowledge about the specifics
+-- of the implementation of concurrency. In the following example you will see
+-- that the code is just regular Haskell code without much streamly APIs used
+-- (active hyperlinks are the streamly APIs) and yet it is a reactive
+-- application.
+--
+--
+-- This application has two independent and concurrent sources of event
+-- streams, @acidRain@ and @userAction@. @acidRain@ continuously generates
+-- events that deteriorate the health of the game character. @userAction@ can
+-- be "potion" or "quit". When the user types "potion" the health improves and
+-- the game continues.
 --
 -- @
 -- {-\# LANGUAGE FlexibleContexts #-}
@@ -844,6 +863,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     _ <- runStateT ('runStreamT' game) 60
 --     return ()
 -- @
+--
+-- You can also find the source of this example in
+-- "Streamly.Examples.AcidRainGame". It has been adapted from Gabriel's
+-- <https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html pipes-concurrency>
+-- package.
+-- This is much simpler compared to the pipes version because of the builtin
+-- concurrency in streamly. You can also find a SDL based reactive programming
+-- example adapted from Yampa in "Streamly.Examples.CirclingSquare".
 
 -- $statemachine
 -- State machine stuff
