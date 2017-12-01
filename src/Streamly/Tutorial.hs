@@ -103,7 +103,7 @@ module Streamly.Tutorial
     -- * Summary of Compositions
     -- $compositionSummary
 
-    -- * Concurrent Programming Examples
+    -- * Concurrent Programming
     -- $concurrent
 
     -- * Reactive Programming
@@ -766,26 +766,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $concurrent
 --
--- There are two ways to achieve concurrency. We can generate individual
--- elements of a stream concurrently by folding with parallel composition
--- operators i.e.  '<|' or '<|>'. 'forEachWith' can be useful in such cases.
+-- When writing concurrent programs there are two distinct places where the
+-- programmer chooses the type of concurrency. First, when /generating/ a
+-- stream by combining other streams we can use one of the sum style operators
+-- to combine them concurrently or serially. Second, when /processing/ a stream
+-- in a monadic composition we can choose one of the monad composition types to
+-- choose the desired type of concurrency.
 --
--- In the following example, we square each number concurrently but then
--- sum and print them serially:
---
--- @
--- import "Streamly"
--- import "Streamly.Prelude" (toList)
--- import Data.List (sum)
---
--- main = do
---     squares \<- 'toList' $ 'serially' $ 'forEachWith' ('<|') [1..100] $ \\x -\> return $ x * x
---     print $ sum squares
--- @
---
--- The following example not just computes the squares concurrently but also
--- computes the square root of their sums concurrently by using the parallel
--- monadic bind.
+-- In the following example the squares of @x@ and @y@ are computed
+-- concurrently using the '<|' operator and the square roots of their sum are
+-- also computed concurrently by using the 'asyncly' combinator. We can choose
+-- different combinators e.g. '<>' and 'serially', to control the concurrency.
 --
 -- @
 -- import "Streamly"
@@ -793,12 +784,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Data.List (sum)
 --
 -- main = do
---     z \<- 'toList' $ 'asyncly' $ do
---         xsq \<- 'forEachWith' ('<|') [1..100] $ \\x -> return $ x * x
---         ysq \<- 'forEachWith' ('<|') [1..100] $ \\x -> return $ x * x
---         return $ sqrt (xsq + ysq)
+--     z \<-   'toList'
+--          $ 'asyncly'     -- Concurrent monadic processing (sqrt below)
+--          $ do
+--              x2 \<- 'forEachWith' ('<|') [1..100] $ -- Concurrent @for@ loop
+--                          \\x -> return $ x * x  -- body of the loop
+--              y2 \<- 'forEachWith' ('<|') [1..100] $
+--                          \\y -> return $ y * y
+--              return $ sqrt (x2 + y2)
 --     print $ sum z
 -- @
+--
+-- You can see how this directly maps to the imperative style
+-- <https://en.wikipedia.org/wiki/OpenMP OpenMP> model.
 
 -- $reactive
 --
