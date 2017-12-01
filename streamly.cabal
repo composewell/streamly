@@ -78,6 +78,11 @@ flag examples
   manual: True
   default: False
 
+flag examples-sdl
+  description: Include examples that use SDL dependency
+  manual: True
+  default: False
+
 library
     hs-source-dirs:    src
     other-modules:     Streamly.Core
@@ -88,12 +93,15 @@ library
                      , Streamly.Tutorial
                      , Streamly
 
-    if flag(examples)
-      exposed-modules: Streamly.Examples.SearchEngineQuery
+    if flag(examples) || flag(examples-sdl)
+      exposed-modules: Streamly.Examples
+                     , Streamly.Examples.SearchEngineQuery
                      , Streamly.Examples.ListDirRecursive
                      , Streamly.Examples.MergeSortedStreams
                      , Streamly.Examples.AcidRainGame
-                     , Streamly.Examples.CirclingSquare
+
+    if flag(examples-sdl)
+      exposed-modules: Streamly.Examples.CirclingSquare
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -111,6 +119,8 @@ library
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Wnoncanonical-monadfail-instances
+    if flag(examples-sdl)
+      cpp-options:      -DEXAMPLES_SDL
 
     build-depends:     base              >= 4.8   &&  < 5
                      , atomic-primops    >= 0.8   && < 0.9
@@ -128,12 +138,15 @@ library
     build-depends:
         semigroups    >= 0.18   && < 0.19
 
-  if flag(examples)
+  if flag(examples) || flag(examples-sdl)
     build-Depends:
         http-conduit
       , path-io
       , random
-      , SDL  >= 0.6.5 && < 0.7
+
+  if flag(examples-sdl)
+    build-Depends:
+        SDL  >= 0.6.5 && < 0.7
 
 test-suite test
   type: exitcode-stdio-1.0
