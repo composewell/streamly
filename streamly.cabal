@@ -190,30 +190,8 @@ benchmark bench
 -- Examples
 -------------------------------------------------------------------------------
 
-executable echo-loop
-  main-is: echo-loop.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        streamly
-      , base >= 4.8   && < 5
-  else
-    buildable: False
-
 executable loops
   main-is: loops.hs
-  hs-source-dirs:  examples
-  if flag(examples)
-    buildable: True
-    build-Depends:
-        streamly
-      , base >= 4.8   && < 5
-  else
-    buildable: False
-
-executable map-reduce
-  main-is: map-reduce.hs
   hs-source-dirs:  examples
   if flag(examples)
     buildable: True
