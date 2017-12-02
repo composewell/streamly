@@ -1,52 +1,24 @@
 name:               streamly
 version:            0.1.0
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
-description: Streamly unifies concurrency and streaming in a single monad
-  transformer with a concise and simple API. It provides two ways to combine
-  streams, a monadic product composition as well as the standard pipelined
-  composition provided by streaming libraries. A natural extension of regular
-  monadic composition to streaming and concurrency makes it intuitive and
-  concise with almost universal application.  You can write concurrent or
-  non-concurrent applications using simple IO, logic programming, streaming IO
-  or reactive programming (FRP) using the same API. You can also think about it
-  as representing concurrent and composable state machines in imperative terms.
-  It unifies the core functionality provided by
-  <https://hackage.haskell.org/package/async async>,
-  <(https://hackage.haskell.org/package/logict logict>,
-  <https://hackage.haskell.org/package/list-t list-t>,
-  <https://hackage.haskell.org/package/conduit conduit>\/<https://hackage.haskell.org/package/pipes pipes>,
-  <https://hackage.haskell.org/package/Yampa Yampa>\/<https://hackage.haskell.org/package/reflex reflex>
-  under one type and API. It interworks with the existing streaming libraries.
+description:
+  Streamly is a monad transformer unifying non-determinism
+  (<https://hackage.haskell.org/package/list-t list-t>\/<https://hackage.haskell.org/package/logict logict>),
+  concurrency (<https://hackage.haskell.org/package/async async>),
+  streaming (<https://hackage.haskell.org/package/conduit conduit>\/<https://hackage.haskell.org/package/pipes pipes>),
+  and FRP (<https://hackage.haskell.org/package/Yampa Yampa>\/<https://hackage.haskell.org/package/reflex reflex>)
+  functionality in a concise and intuitive API.
+  High level concurrency makes concurrent applications almost indistinguishable
+  from non-concurrent ones.  By changing a single combinator you can control
+  whether the code runs serially or concurrently.  It naturally integrates
+  concurrency with streaming rather than adding it as an afterthought.
+  Moreover, it interworks with the popular streaming libraries.
   .
-  Streamly provides high level concurrency primitives (higher level than async)
-  and hides the low level concurrency details completely from the programmer.
-  Concurrency can be used with ease in applicative or monadic contexts.  The
-  programmer just expresses whether a task can run in parallel with another.
-  Threads, synchronization and concurrency rate control are handled
-  automatically under the hood. The concurrency facilities provided by streamly
-  can be compared with <https://en.wikipedia.org/wiki/OpenMP OpenMP> and
-  <https://en.wikipedia.org/wiki/Cilk Cilk> but with a more declarative
-  expression.  Concurrency support does not compromise performance in
-  non-concurrent cases, the performance of the library is at par or better than
-  most of the existing streaming libraries.
-  .
-  Here is a simple example to concurrently and recursively list the contents of
-  a directory tree:
-  .
-  > import Path.IO (listDir, getCurrentDir)
-  > import Streamly
-  >
-  > main = runStreaming $ serially $ getCurrentDir >>= readdir
-  >    where readdir d = do
-  >             (dirs, files) <- lift $ listDir d
-  >             liftIO $ mapM_ putStrLn $ map show files
-  >             foldMapWith (<|>) readdir dirs
-  .
-  See "Streamly.Tutorial" and "Streamly.Examples" (available only when built
-  with 'examples' build flag) for more details.
-  .
-  This library was originally inspired by the `transient`
-  package authored by Alberto G. Corona.
+  See the README for an overview and the haddock documentation for full
+  reference.  It is recommended to read the comprehensive tutorial module
+  "Streamly.Tutorial" first. Also see "Streamly.Examples" for some working
+  examples.
+
 homepage:            http://github.com/harendra-kumar/streamly
 bug-reports:         https://github.com/harendra-kumar/streamly/issues
 license:             BSD3
