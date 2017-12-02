@@ -182,6 +182,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- import "Streamly"
+-- import "Streamly.Prelude"
 --
 -- main = do
 --  xs \<- 'toList' $ 'serially' $ return 1 <> return 2
@@ -369,6 +370,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- import "Streamly"
+-- import "Streamly.Prelude"
 --
 -- main = do
 --  'toList' . 'serially' $ 'foldWith'    (<>) (map return [1..10]) >>= print
@@ -408,6 +410,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- list transformer like serial composition.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runStreamT' $ do
 --     x <- 'each' [3,2,1]
 --     delay x
@@ -423,12 +428,25 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- same thread one after another. When compared to imperative programming, this
 -- can also be viewed as a @for@ loop with three iterations.
 --
+-- A console echo loop copying standard input to standard output can simply be
+-- written like this:
+--
+-- @
+-- import "Streamly"
+-- import Data.Semigroup (cycle1)
+--
+-- main = 'runStreamT' $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
+-- @
+--
 -- When multiple streams are composed using this style they nest in a DFS
 -- manner i.e. nested iterations of an iteration are executed before we proceed
 -- to the next iteration at higher level. This behaves just like nested @for@
 -- loops in imperative programming.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runStreamT' $ do
 --     x <- 'each' [1,2]
 --     y <- 'each' [3,4]
@@ -454,6 +472,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- This is the concurrent version of 'StreamT'.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runAsyncT' $ do
 --     x <- 'each' [3,2,1]
 --     delay x
@@ -478,6 +499,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- demand from the consumer.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runAsyncT' $ do
 --     x <- 'each' [1,2]
 --     y <- 'each' [3,4]
@@ -501,6 +525,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the continuations or iterations of the inner loop.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runInterleavedT' $ do
 --     x <- 'each' [1,2]
 --     y <- 'each' [3,4]
@@ -524,6 +551,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrently instead of the demand driven concurrency of 'AsyncT'.
 --
 -- @
+-- import "Streamly"
+-- import "Streamly.Prelude"
+--
 -- main = 'runParallelT' $ do
 --     x <- 'each' [3,2,1]
 --     delay x
@@ -546,6 +576,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- import "Streamly"
+-- import "Streamly.Prelude"
+--
 --
 -- composed :: 'Streaming' t => t m a
 -- composed = do
@@ -889,8 +921,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- demonstrated below.
 --
 -- @
--- import Streamly
--- import Streamly.Prelude
+-- import "Streamly"
+-- import "Streamly.Prelude"
 -- import System.IO (stdin)
 --
 -- -- Adapt uncons to return an Either instead of Maybe
@@ -911,7 +943,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     -- pipe to streamly
 --     -- Adapt P.next to return a Maybe instead of Either
 --     let nextM p = P.next p >>= either (\\_ -> return Nothing) (return . Just)
---     runStreamT $ unfoldrM nextM P.stdinLn >>= lift . putStrLn
+--     'runStreamT' $ 'unfoldrM' nextM P.stdinLn >>= lift . putStrLn
 -- @
 --
 -- Interop with @streaming@:
@@ -925,7 +957,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     S.stdoutLn $ S.unfoldr unconsE stdinLn
 --
 --     -- streaming to streamly
---     runStreamT $ unfoldrM S.uncons S.stdinLn >>= lift . putStrLn
+--     'runStreamT' $ unfoldrM S.uncons S.stdinLn >>= lift . putStrLn
 --
 -- @
 --
