@@ -6,11 +6,13 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 --
--- Streamly, short for stream concurrently, combines the essence of streaming
--- and concurrency in functional programming. You can write concurrent as well
--- as non-concurrent applications with streamly. Streaming enables writing
--- modular, composable and scalable applications with ease and concurrency
--- allows you to make them scale and perform well.
+-- Streamly, short for stream concurrently, combines the essence of
+-- non-determinism, streaming and concurrency in functional programming.
+-- Concurrent and non-concurrent applications are almost indistinguisable,
+-- concurrency capability does not at all impact the performance of
+-- non-concurrent case.
+-- Streaming enables writing modular, composable and scalable applications with
+-- ease and concurrency allows you to make them scale and perform well.
 -- Streamly enables writing concurrent applications without being aware of
 -- threads or synchronization. No explicit thread control is needed, where
 -- applicable the concurrency rate is automatically controlled based on the
@@ -784,7 +786,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     z \<-   'toList'
 --          $ 'asyncly'     -- Concurrent monadic processing (sqrt below)
 --          $ do
---              x2 \<- 'forEachWith' ('<|') [1..100] $ -- Concurrent @for@ loop
+--              x2 \<- 'forEachWith' ('<|') [1..100] $ -- Concurrent @"for"@ loop
 --                          \\x -> return $ x * x  -- body of the loop
 --              y2 \<- 'forEachWith' ('<|') [1..100] $
 --                          \\y -> return $ y * y
@@ -940,13 +942,68 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $comparison
 --
--- Even though streamly covers all that is provided by the 'async' package or
--- most of what is provided by the 'streaming', 'pipes' or 'conduit' packages,
--- I would not say that it renders those useless. Streamly is like monad if
--- 'async' is applicative and monads and applicatives both have their use
--- cases. It can completely repalce 'async', the ZipAsync type is equivalent to
--- the functionality provided by 'async'.
+-- Streamly unifies non-determinism, streaming, concurrency and FRP
+-- functionality that is otherwise covered by several disparate packages, and
+-- it does that with a surprisingly concise API.  Here is a list of popular and
+-- well-known packages in all these areas:
 --
--- pipes and conduit are like Arrows and streamly is like monad to them. You
--- would use pipes and conduit when you do not need the product style
--- composition and the implicit concurrency.
+-- @
+-- +-----------------+----------------+
+-- | Non-determinism | <https://hackage.haskell.org/package/list-t list-t>         |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/logict logict>         |
+-- +-----------------+----------------+
+-- | Streaming       | <https://hackage.haskell.org/package/streaming streaming>      |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/conduit conduit>        |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/pipes pipes>          |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/simple-conduit simple-conduit> |
+-- +-----------------+----------------+
+-- | Concurrency     | <https://hackage.haskell.org/package/async async>          |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/transient transient>      |
+-- +-----------------+----------------+
+-- | FRP             | <https://hackage.haskell.org/package/Yampa Yampa>          |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/dunai dunai>          |
+-- |                 +----------------+
+-- |                 | <https://hackage.haskell.org/package/reflex reflex>         |
+-- +-----------------+----------------+
+-- @
+--
+-- Streamly covers all the functionality provided by both the non-determinism
+-- packages listed above and provides better performance in comparison to
+-- those. In fact, at the core streamly is a list transformer but it naturally
+-- integrates the concurrency dimension to the basic list transformer
+-- functionality.
+--
+-- When it comes to streaming, in terms of core concepts, @simple-conduit@ is
+-- the package that is closest to streamly if we set aside the concurrency
+-- dimension, both are streaming packages with list transformer like monad
+-- composition.  However, in terms of API it is more like the @streaming@
+-- package. Streamly can be used to achieve more or less the functionality
+-- provided by any of the streaming packages listed above. The types and API of
+-- streamly are much simpler in comparison to conduit and pipes. It is more or
+-- less like the standard Haskell list APIs.
+--
+-- When it comes to concurrency, streamly can do everything that the @async@
+-- package can do and more. async provides applicative concurrency whereas
+-- streamly provides both applicative and monadic concurrency. The 'ZipAsync'
+-- type behaves like the applicative instance of async.  This work was
+-- originally inspired by the concurrency implementation in @transient@ though
+-- it has no resemblence with that. Streamly provides concurrency as transient
+-- does but in a sort of dual manner, it can lazily stream the output. In
+-- comparison to transient streamly has a first class streaming interface and
+-- is a monad transformer that can be used universally in any Haskell monad
+-- transformer stack.
+--
+-- The non-determinism, concurrency and streaming combination make streamly a
+-- strong FRP capable library as well. FRP is fundamentally stream of events
+-- that can be processed concurrently. The example in this tutorial as well as
+-- the "Streamly.Examples.CirclingSquare" example from Yampa demonstrate the
+-- basic FRP capability of streamly. In core concepts streamly is strikingly
+-- similar to @dunai@. dunai was designed from a FRP perspective and streamly
+-- wa original designed from a concurrency perspective. However, both have
+-- similarity at the core.
