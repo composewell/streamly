@@ -109,14 +109,11 @@ module Streamly.Tutorial
     -- * Reactive Programming
     -- $reactive
 
-    -- * State Machine Model
-    -- $statemachine
-
     -- * Performance
     -- $performance
 
-    -- * Interworking with Streaming Libraries
-    -- $interwork
+    -- * Interoperation with Streaming Libraries
+    -- $interop
 
     -- * Comparison with Existing Packages
     -- $comparison
@@ -872,8 +869,74 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrency in streamly. You can also find a SDL based reactive programming
 -- example adapted from Yampa in "Streamly.Examples.CirclingSquare".
 
--- $statemachine
--- State machine stuff
+-- $performance
+--
+-- Streamly is highly optimized for performance, it is designed for serious
+-- high performing, concurrent and scalable applications. We have created the
+-- <https://hackage.haskell.org/package/streaming-benchmarks streaming-benchmarks>
+-- package which is specifically and carefully designed to measure the
+-- performance of Haskell streaming libraries fairly and squarely in the right
+-- way. Streamly performs at par or even better than most streaming libraries
+-- for common operations even though it needs to deal with the concurrency
+-- capability.
+
+-- $interop
+--
+-- We can use @unfoldr@ and @uncons@ to convert one streaming type to another.
+-- We will assume the following common code to be available in the examples
+-- demonstrated below.
+--
+-- @
+-- import Streamly
+-- import Streamly.Prelude
+-- import System.IO (stdin)
+--
+-- -- Adapt uncons to return an Either instead of Maybe
+-- unconsE s = 'uncons' s >>= maybe (return $ Left ()) (return . Right)
+-- stdinLn = 'serially' $ 'fromHandle' stdin
+-- @
+--
+--  Interop with @pipes@:
+--
+-- @
+-- import qualified Pipes as P
+-- import qualified Pipes.Prelude as P
+--
+-- main = do
+--     -- streamly to pipe
+--     P.runEffect $ P.for (P.unfoldr unconsE stdinLn) (lift . putStrLn)
+--
+--     -- pipe to streamly
+--     -- Adapt P.next to return a Maybe instead of Either
+--     let nextM p = P.next p >>= either (\\_ -> return Nothing) (return . Just)
+--     runStreamT $ unfoldrM nextM P.stdinLn >>= lift . putStrLn
+-- @
+--
+-- Interop with @streaming@:
+--
+-- @
+-- import qualified Streaming as S
+-- import qualified Streaming.Prelude as S
+--
+-- main = do
+--     -- streamly to streaming
+--     S.stdoutLn $ S.unfoldr unconsE stdinLn
+--
+--     -- streaming to streamly
+--     runStreamT $ unfoldrM S.uncons S.stdinLn >>= lift . putStrLn
+--
+-- @
+--
+-- Interop with @conduit@:
+--
+-- @
+-- import qualified Data.Conduit as C
+-- import qualified Data.Conduit.List as C
+-- import qualified Data.Conduit.Combinators as C
+--
+-- -- streamly to conduit
+-- main = (C.unfoldM 'uncons' stdinLn) C.$$ C.print
+-- @
 
 -- $comparison
 --
