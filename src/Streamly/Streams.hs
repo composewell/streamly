@@ -201,8 +201,8 @@ async m = do
 --     liftIO $ print x
 -- @
 -- @
--- "1"
--- "2"
+-- 1
+-- 2
 -- @
 --
 -- 'StreamT' nests streams serially in a depth first manner.

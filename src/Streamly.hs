@@ -219,6 +219,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- one of the following combinators to specify what type of stream you mean.
 --
 -- This code:
+--
 -- @
 -- main = ('toList' $ (return 1 <> return 2)) >>= print
 -- @
@@ -229,10 +230,10 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- Ambiguous type variable ‘t0’ arising from a use of ...
 -- @
 --
---  To fix the error:
+--  To fix the error just tell 'toList' what kind of stream are we feeding it:
 --
 -- @
--- main = ('toList' . 'serially' $ (return 1 <> return 2)) >>= print
+-- main = ('toList' $ 'serially' $ (return 1 <> return 2)) >>= print
 -- @
 -- @
 -- main = ('toList' $ (return 1 <> return 2 :: StreamT IO Int)) >>= print
