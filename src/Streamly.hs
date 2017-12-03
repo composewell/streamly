@@ -167,31 +167,80 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $zipping
 --
 -- 'ZipStream' and 'ZipAsync', provide 'Applicative' instances for zipping the
--- corresponding elements of two streams together. Note that these types do not
--- provide 'Monad' instances.
+-- corresponding elements of two streams together. Note that these types are
+-- not monads.
 
 -- $sum
 --
 -- Just like product style composition there are four distinct ways to combine
 -- streams in sum style each directly corresponding to one of the product style
--- composition.  The standard semigroup append '<>' operator appends two
--- streams serially, this style corresponds to the 'StreamT' style of monadic
--- composition. The standard 'Alternative' operator '<|>'  fairly interleaves
--- two streams in parallel, this corresponds to the 'ParallelT' style. Two
--- additional sum style composition operators that streamly introduces are
+-- composition.
+--
+-- The standard semigroup append '<>' operator appends two streams serially,
+-- this style corresponds to the 'StreamT' style of monadic composition.
+--
+-- @
+-- main = ('toList' . 'serially' $ (return 1 <> return 2) <> (return 3 <> return 4)) >>= print
+-- @
+-- @
+-- [1,2,3,4]
+-- @
+--
+-- The standard 'Alternative' operator '<|>'  fairly interleaves two streams in
+-- parallel, this operator corresponds to the 'ParallelT' style.
+--
+-- @
+-- main = ('toList' . 'serially' $ (return 1 <> return 2) \<|\> (return 3 <> return 4)) >>= print
+-- @
+-- @
+-- [1,3,2,4]
+-- @
+--
+-- Unlike '<|', this operator cannot be used to fold infinite containers since
+-- that might accumulate too many partially drained streams.  To be clear, it
+-- can combine infinite streams but not infinite number of streams.
+--
+-- Two additional sum style composition operators that streamly introduces are
 -- described below.
 
 -- $adapters
 --
--- Code using streamly is written such that it is agnostic of any specific
--- streaming type.  We use a polymorphic type with the 'Streaming' class
--- constraint. Finally when running the monad we can specify the actual type
--- that we want to use to interpret the code. However, in certain cases we may
--- want to use a specific type to force a certain type of composition.  Since
--- they have the same underlying type, streams can be converted from one type
--- to another freely. These combinators can be used to convert the streaming
--- types at will. If you get an ambiguous type error you perhaps forgot to
--- use a sepcific type before running the monad.
+-- Code using streamly is usually written such that it is agnostic of any
+-- specific streaming type.  We use a type variable (polymorphic type) with the
+-- 'Streaming' class constraint. Finally, when running the monad we can specify
+-- the actual type that we want to use to interpret the code. However, in
+-- certain cases we may want to use a specific type to force a certain type of
+-- composition. These combinators can be used to convert the stream types from
+-- one to another at no cost as all the types have the same underlying
+-- representation.
+--
+-- If you see an @ambiguous type variable@ error then most likely it is because
+-- you have not specified the stream type. You either need a type annotation or
+-- one of the following combinators to specify what type of stream you mean.
+--
+-- This code:
+-- @
+-- main = ('toList' $ (return 1 <> return 2)) >>= print
+-- @
+--
+-- will result in a type error like this:
+--
+-- @
+-- Ambiguous type variable ‘t0’ arising from a use of ...
+-- @
+--
+--  To fix the error:
+--
+-- @
+-- main = ('toList' . 'serially' $ (return 1 <> return 2)) >>= print
+-- @
+-- @
+-- main = ('toList' $ (return 1 <> return 2 :: StreamT IO Int)) >>= print
+-- @
+--
+-- Note that using the combinators is easier as you do not have to think about
+-- the specific types, they are just inferred.
+--
 
 -- $foldutils
 --

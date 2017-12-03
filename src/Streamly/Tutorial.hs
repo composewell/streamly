@@ -244,7 +244,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- Note that this operator cannot be used to fold infinite containers since it
--- requires preserving the state until a stream is finished.
+-- requires preserving the state until a stream is finished. To be clear, it
+-- can combine infinite streams but not infinite number of streams.
 
 -- $parallel
 --
