@@ -8,7 +8,7 @@ module Streamly.Examples.AcidRainGame where
 import Streamly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
-import Control.Monad.State
+import Control.Monad.State (MonadState, get, modify, runStateT)
 import Data.Semigroup (cycle1)
 
 data Event = Harm Int | Heal Int | Quit deriving (Show)

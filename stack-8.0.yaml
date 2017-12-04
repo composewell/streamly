@@ -1,0 +1,17 @@
+resolver: lts-7.24
+packages:
+- '.'
+extra-deps:
+    - lockfree-queue-0.2.3.1
+    - simple-conduit-0.6.0
+    - transient-0.4.4
+    - monad-recorder-0.1.0
+    - http-conduit-2.2.2
+    - http-client-0.5.0
+    - http-client-tls-0.3.0
+    - SDL-0.6.5.1
+flags: {}
+extra-package-dbs: []
+# For mac ports installed SDL library on Mac OS X
+#extra-include-dirs:
+#- /opt/local/include

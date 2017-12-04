@@ -3,7 +3,7 @@
 module Streamly.Examples.MergeSortedStreams where
 
 import Data.Word
-import System.Random
+import System.Random (getStdGen, randoms)
 import Data.List (sort)
 import Streamly
 import qualified Streamly.Prelude as A
