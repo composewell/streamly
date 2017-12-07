@@ -59,7 +59,7 @@ install: true
 script:
   - |
     # Customizable options
-    PACKAGE_TEST_VER="df401952254b782379b3d109bd051a4a56e61635"
+    PACKAGE_TEST_VER="7fe14f616d05d69de25a46002668a8509b6257a5"
     GHC_OPTIONS="-O0 -Werror"
     test -n "$COVERALLS" && \
       COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines \
@@ -83,6 +83,7 @@ script:
       PATH=$PATH
       BUILD=$BUILD
       RESOLVER=$RESOLVER
+      STACK_UPGRADE=y
       STACK_YAML=$STACK_YAML
       STACK_BUILD_OPTIONS="$STACK_BUILD_OPTIONS"
       GHCVER=$GHCVER

@@ -10,6 +10,7 @@ environment:
     BUILD: "stack"
     RESOLVER: "lts-9.0"
     GHC_OPTIONS: "-O0 -Werror"
+    STACK_UPGRADE: "y"
 #   STACK_OPTIONS: "-v"
 
     STACK_ROOT: "c:\\sr"
@@ -17,7 +18,7 @@ environment:
     PATH: "%PATH%;%APPDATA%\\local\\bin"
     CABAL_REINIT_CONFIG: "y"
     TEST_INSTALL: "y"
-    PACKAGE_TEST_VER: "df401952254b782379b3d109bd051a4a56e61635"
+    PACKAGE_TEST_VER: "7fe14f616d05d69de25a46002668a8509b6257a5"
 
 cache:
   - "%STACK_ROOT%" # stack root
@@ -32,6 +33,7 @@ build: off
 before_test:
 - if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
 - where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
+- stack --version
 - curl -sSkL -opackage-test.sh https://raw.githubusercontent.com/harendra-kumar/package-test/%PACKAGE_TEST_VER%/package-test.sh
 
 test_script:
