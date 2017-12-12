@@ -164,10 +164,13 @@ and `Streamly.Examples.CirclingSquare` for an SDL based animation example.
 
 ## Contributing
 
-The code is available under BSD-3 license [on
-github](https://github.com/composewell/streamly). Join the [gitter
-chat](https://gitter.im/composewell/streamly) channel for discussions. All
-contributions are welcome!
+The code is available under BSD-3 license
+[on github](https://github.com/composewell/streamly). Join the
+[gitter chat](https://gitter.im/composewell/streamly) channel for discussions.
+You can find some of the
+[todo items on the github wiki](https://github.com/composewell/streamly/wiki/Things-To-Do).
+Please ask on the gitter channel or [contact the maintainer directly](mailto:harendra.kumar@gmail.com)
+for more details on each item. All contributions are welcome!
 
 This library was originally inspired by the `transient` package authored by
 Alberto G. Corona.
