@@ -292,6 +292,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = 'runStreamT' $ traced (sqrt 9) '<|' traced (sqrt 16) '<|' traced (sqrt 25)
+--  where traced m = liftIO (myThreadId >>= print) >> m
 -- @
 -- @
 -- ThreadId 40
