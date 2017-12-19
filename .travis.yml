@@ -1,81 +1,96 @@
 notifications:
   email: false
 
-language: c
-
-sudo: false
-cache:
-  directories:
-  - $HOME/.cabal
-  - $HOME/.ghc
-  - $HOME/.local
-  - $HOME/.stack
-
 matrix:
   include:
-  # cabal/linux
-  # cabal build for GHC 7.10.3 hangs
-  #- env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
-  #addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-6.35 STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" CABALVER=1.22
-    addons: {apt: {packages: [libgmp-dev,cabal-install-1.22,libsdl1.2-dev], sources: [hvr-ghc]}}
+  # --------------------------------------------------------------------------
+  # Linux/cabal builds
+  # cabal builds require pre-installed cabal-install and ghc
+  # --------------------------------------------------------------------------
 
-  # stack/linux use a pre-installed cabal-install for faster builds
-  # GHC 8.0.1
-  - env: BUILD=stack RESOLVER=lts-7.24 STACK_YAML=stack-8.0.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" CABALVER=1.24
-    addons: {apt: {packages: [libgmp-dev,cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
-
-  - env: BUILD=stack RESOLVER=lts-9.16 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl" CABALVER=1.24
-    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
-
-  # Note COVERALLS (hpc-coveralls) requires cabal build
-  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 COVERALLS=y
+  # Note COVERALLS (hpc-coveralls) requires cabal build. Sends the coverage
+  # info for the test suite named "test" to coveralls.io using hpc-coveralls.
+  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
     addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal GHCVER=head CABALVER=head
-  #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+  # --------------------------------------------------------------------------
+  # Linux/stack builds
+  # --------------------------------------------------------------------------
 
-  - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
-    addons: {apt: {packages: [libgmp-dev,cabal-install-2.0], sources: [hvr-ghc]}}
-
-  #- env: BUILD=cabal GHCVER=head CABALVER=head
-  #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
-
-  # cabal/stack/osx - TODO install cabal-install
-  # GHC 8.0.1
-  - env: BUILD=cabal RESOLVER=lts-7.24
-    os: osx
+  # GHC 7.10.3
+  - env: BUILD=stack RESOLVER=lts-6.35 STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+    addons: {apt: {packages: [libgmp-dev,libsdl1.2-dev]}}
 
   # GHC 8.0.2
-  - env: BUILD=stack RESOLVER=lts-9.16
+  - env: BUILD=stack RESOLVER=lts-9.20 STACK_YAML=stack-8.0.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+    addons: {apt: {packages: [libsdl1.2-dev]}}
+
+  # GHC 8.2.2
+  - env: BUILD=stack RESOLVER=lts-10.0 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+    addons: {apt: {packages: [libsdl1.2-dev]}}
+
+  # Nightly
+  - env: BUILD=stack RESOLVER=nightly
+
+  # --------------------------------------------------------------------------
+  # OS X builds
+  # --------------------------------------------------------------------------
+
+  # GHC 8.2.2/cabal
+  - env: BUILD=cabal RESOLVER=lts-10.0
     os: osx
 
-  allow_failures:
-  - env: BUILD=stack RESOLVER=nightly CABALVER=2.0
-  #- env: BUILD=cabal GHCVER=head CABALVER=head
+  # GHC 8.2.2/stack
+  - env: BUILD=stack RESOLVER=lts-10.0
+    os: osx
 
-install: true
+  # --------------------------------------------------------------------------
+  # Lint
+  # --------------------------------------------------------------------------
+
+  - env: BUILD=stack RESOLVER=lts-10.0 HLINT_OPTIONS="."
+
+  # --------------------------------------------------------------------------
+  # Builds that are allowed to fail
+  # --------------------------------------------------------------------------
+
+  allow_failures:
+  - env: BUILD=stack RESOLVER=nightly
+  - env: BUILD=stack RESOLVER=lts-10.0 HLINT_OPTIONS="."
+
 script:
   - |
-    # Customizable options
-    PACKAGE_TEST_VER="7fe14f616d05d69de25a46002668a8509b6257a5"
-    GHC_OPTIONS="-O0 -Werror"
-    test -n "$COVERALLS" && \
-      COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines \
-                         --exclude-dir=test test"
+    # ------------------------------------------------------------------------
+    # You can customize these to desired values
+    # ------------------------------------------------------------------------
 
-    # Usually no changes should be needed after this
-    add_path()  { eval "test -n \"\$$1\"" && eval "PATH=/opt/$2/\"\$$1\"/bin:$PATH"; true; }
-    cabal_env() { test "$BUILD" = cabal && echo $1; }
+    # The commit id of the package-test script to use
+    PACKAGE_TEST_VER="1a4de26422ee296f0811e032bec922123f019963"
+    GHC_OPTIONS="-O0 -Werror"
+
+    # ------------------------------------------------------------------------
+    # Normally no customizations should be needed this point onwards
+    # ------------------------------------------------------------------------
+
+    # Where to find the package-test.sh script
     pkg_test() { echo https://raw.githubusercontent.com/harendra-kumar/package-test/$1/package-test.sh; }
+
+    # When GHCVER or CABALVER env variables are specified, modify the path to
+    # find the binaries installed from hvr-ghc repo
+    add_path()  { eval "test -n \"\$$1\"" && eval "PATH=/opt/$2/\"\$$1\"/bin:$PATH"; true; }
+
+    # Emit the value of the var specified as arg only when the build is cabal
+    cabal_env() { test "$BUILD" = cabal && echo $1; }
 
     CURL=$(which curl)
     PATH=/bin:/usr/bin
     add_path GHCVER   ghc
     add_path CABALVER cabal
 
-  # TRAVIS vars are needed by hpc-coveralls
+    # We start with a clean environment (env -i) and specify all the
+    # environment variables explicitly. TRAVIS vars are needed by
+    # hpc-coveralls.
   - env -i
       LC_ALL=C.UTF-8
       TRAVIS=$TRAVIS
@@ -84,7 +99,7 @@ script:
       BUILD=$BUILD
       RESOLVER=$RESOLVER
       STACK_UPGRADE=y
-      STACK_YAML=$STACK_YAML
+      STACK_YAML="$STACK_YAML"
       STACK_BUILD_OPTIONS="$STACK_BUILD_OPTIONS"
       GHCVER=$GHCVER
       GHC_OPTIONS="$GHC_OPTIONS"
@@ -95,4 +110,20 @@ script:
       $(cabal_env CABAL_CHECK_RELAX=y)
       $(cabal_env CABAL_NO_SANDBOX=y)
       $(cabal_env CABAL_HACKAGE_MIRROR=hackage.haskell.org:http://hackage.fpcomplete.com)
+      HLINT_OPTIONS="$HLINT_OPTIONS"
       /bin/bash <($CURL -sL $(pkg_test $PACKAGE_TEST_VER))
+
+install: true
+language: c
+
+# ------------------------------------------------------------------------
+# Build caching
+# ------------------------------------------------------------------------
+
+sudo: false
+cache:
+  directories:
+  - $HOME/.cabal
+  - $HOME/.ghc
+  - $HOME/.local
+  - $HOME/.stack

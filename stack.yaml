@@ -1,9 +1,7 @@
-#resolver: lts-9.2
-resolver: nightly-2017-09-07
+resolver: lts-10.0
 packages:
 - '.'
 extra-deps:
-    - lockfree-queue-0.2.3.1
     - simple-conduit-0.6.0
     - SDL-0.6.5.1
 flags: {}
