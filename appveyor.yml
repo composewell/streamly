@@ -1,41 +1,38 @@
-# short paths == fewer problems
-
-# criterion does not support 32-bit on Windows
-# TODO disable benchmarking to test on 32-bit
-platform: x64
-
-clone_folder: "c:\\pkg"
 environment:
   global:
-    BUILD: "stack"
     RESOLVER: "lts-10.0"
     GHC_OPTIONS: "-O0 -Werror"
-    STACK_UPGRADE: "y"
-#   STACK_OPTIONS: "-v"
+    PACKCHECK: ./packcheck.sh
+    # The commit id of packcheck.sh to use from harendra-kumar/packcheck on github
+    PACKCHECK_COMMIT: "c028c2425a372487e74157569d0a6cd4d745575d"
+
+    # ------------------------------------------------------------------------
+    # Normally you do not need to customize hereafter
+    # ------------------------------------------------------------------------
 
     STACK_ROOT: "c:\\sr"
     LOCAL_BIN: "%APPDATA%\\local\\bin"
     PATH: "%PATH%;%APPDATA%\\local\\bin"
     CABAL_REINIT_CONFIG: "y"
     TEST_INSTALL: "y"
-    PACKAGE_TEST_VER: "1a4de26422ee296f0811e032bec922123f019963"
 
 cache:
-  - "%STACK_ROOT%" # stack root
-  # ghc & msys - cache restore takes almost same time as reinstall
-  # - "%LOCALAPPDATA%\\Programs\\stack"
+  - "%STACK_ROOT%"
   - "%LOCAL_BIN%"
   - "%APPDATA%\\cabal"
   - "%APPDATA%\\ghc"
+# - "%LOCALAPPDATA%\\Programs\\stack"
 
+clone_folder: "c:\\pkg"
 build: off
 
 before_test:
+- if not exist %PACKCHECK% curl -sSkL -o%PACKCHECK% https://raw.githubusercontent.com/harendra-kumar/packcheck/%PACKCHECK_COMMIT%/packcheck.sh
 - if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
 - where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
+- stack upgrade
 - stack --version
-- curl -sSkL -opackage-test.sh https://raw.githubusercontent.com/harendra-kumar/package-test/%PACKAGE_TEST_VER%/package-test.sh
 
 test_script:
 - stack setup > nul
-- chcp 65001 && stack exec bash package-test.sh
+- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK%; %PACKCHECK% stack"

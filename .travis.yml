@@ -1,26 +1,23 @@
 notifications:
   email: false
 
+env:
+  global:
+  - GHC_OPTIONS="-O0 -Werror"
+  - PACKCHECK="./packcheck.sh"
+  # The commit id of packcheck.sh to use from harendra-kumar/packcheck on github
+  - PACKCHECK_COMMIT="c028c2425a372487e74157569d0a6cd4d745575d"
+
 matrix:
   include:
 
   # --------------------------------------------------------------------------
-  # Linux/cabal builds
-  # cabal builds require pre-installed cabal-install and ghc
-  # --------------------------------------------------------------------------
-
-  # Note COVERALLS (hpc-coveralls) requires cabal build. Sends the coverage
-  # info for the test suite named "test" to coveralls.io using hpc-coveralls.
-  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
-    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
-
-  # --------------------------------------------------------------------------
-  # Linux/stack builds
+  # (Linux) stack builds
   # --------------------------------------------------------------------------
 
   # GHC 7.10.3
   - env: BUILD=stack RESOLVER=lts-6.35 STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [libgmp-dev,libsdl1.2-dev]}}
+    addons: {apt: {packages: [libsdl1.2-dev]}}
 
   # GHC 8.0.2
   - env: BUILD=stack RESOLVER=lts-9.20 STACK_YAML=stack-8.0.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
@@ -34,10 +31,23 @@ matrix:
   - env: BUILD=stack RESOLVER=nightly
 
   # --------------------------------------------------------------------------
+  # (Linux) cabal builds require pre-installed cabal-install and ghc
+  # --------------------------------------------------------------------------
+
+  - env: BUILD=cabal GHCVER=7.10.3 CABALVER=1.22
+    addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+
+  - env: BUILD=cabal GHCVER=8.0.2 CABALVER=1.24
+    addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
+
+  - env: BUILD=cabal GHCVER=8.2.2 CABALVER=2.0
+    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+
+  # --------------------------------------------------------------------------
   # OS X builds
   # --------------------------------------------------------------------------
 
-  # GHC 8.2.2/cabal
+  # GHC 8.2.2/cabal build via stack
   - env: BUILD=cabal RESOLVER=lts-10.0
     os: osx
 
@@ -52,6 +62,15 @@ matrix:
   - env: BUILD=stack RESOLVER=lts-10.0 HLINT_OPTIONS="."
 
   # --------------------------------------------------------------------------
+  # Build and send coverage report to coveralls.io using hpc-coveralls
+  # --------------------------------------------------------------------------
+
+  # Note COVERALLS (hpc-coveralls) works only with cabal build.
+  # For this to succeed you have to add your porject to coveralls.io first
+  - env: BUILD=cabal GHCVER=8.2.2 CABALVER=2.0 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
+    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+
+  # --------------------------------------------------------------------------
   # Builds that are allowed to fail
   # --------------------------------------------------------------------------
 
@@ -59,22 +78,22 @@ matrix:
   - env: BUILD=stack RESOLVER=nightly
   - env: BUILD=stack RESOLVER=lts-10.0 HLINT_OPTIONS="."
 
+# ------------------------------------------------------------------------
+#  Settings beyond this point are advanced and normally not tweaked
+# ------------------------------------------------------------------------
+
+sudo: false
+cache:
+  directories:
+  - $HOME/.cabal
+  - $HOME/.ghc
+  - $HOME/.local
+  - $HOME/.stack
+
 script:
   - |
-    # ------------------------------------------------------------------------
-    # You can customize these to desired values
-    # ------------------------------------------------------------------------
-
-    # The commit id of the package-test script to use
-    PACKAGE_TEST_VER="1a4de26422ee296f0811e032bec922123f019963"
-    GHC_OPTIONS="-O0 -Werror"
-
-    # ------------------------------------------------------------------------
-    # Normally no customizations should be needed this point onwards
-    # ------------------------------------------------------------------------
-
-    # Where to find the package-test.sh script
-    pkg_test() { echo https://raw.githubusercontent.com/harendra-kumar/package-test/$1/package-test.sh; }
+    # Where to find the packcheck.sh script
+    PACKCHECK_URL=https://raw.githubusercontent.com/harendra-kumar/packcheck/${PACKCHECK_COMMIT}/packcheck.sh
 
     # When GHCVER or CABALVER env variables are specified, modify the path to
     # find the binaries installed from hvr-ghc repo
@@ -88,6 +107,11 @@ script:
     add_path GHCVER   ghc
     add_path CABALVER cabal
 
+    # If a custom stack-yaml is specified, replace the default with that
+    if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
+    if test ! -e "$PACKCHECK"; then $CURL -sL -o "$PACKCHECK" $PACKCHECK_URL; fi;
+    chmod +x $PACKCHECK
+
     # We start with a clean environment (env -i) and specify all the
     # environment variables explicitly. TRAVIS vars are needed by
     # hpc-coveralls.
@@ -95,11 +119,9 @@ script:
       LC_ALL=C.UTF-8
       TRAVIS=$TRAVIS
       TRAVIS_JOB_ID=$TRAVIS_JOB_ID
-      PATH=$PATH
-      BUILD=$BUILD
+      PATH="$PATH"
       RESOLVER=$RESOLVER
       STACK_UPGRADE=y
-      STACK_YAML="$STACK_YAML"
       STACK_BUILD_OPTIONS="$STACK_BUILD_OPTIONS"
       GHCVER=$GHCVER
       GHC_OPTIONS="$GHC_OPTIONS"
@@ -111,19 +133,7 @@ script:
       $(cabal_env CABAL_NO_SANDBOX=y)
       $(cabal_env CABAL_HACKAGE_MIRROR=hackage.haskell.org:http://hackage.fpcomplete.com)
       HLINT_OPTIONS="$HLINT_OPTIONS"
-      /bin/bash <($CURL -sL $(pkg_test $PACKAGE_TEST_VER))
+      bash -c "$PACKCHECK $BUILD"
 
 install: true
 language: c
-
-# ------------------------------------------------------------------------
-# Build caching
-# ------------------------------------------------------------------------
-
-sudo: false
-cache:
-  directories:
-  - $HOME/.cabal
-  - $HOME/.ghc
-  - $HOME/.local
-  - $HOME/.stack
