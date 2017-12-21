@@ -352,12 +352,14 @@ nestTwoParallelApp =
     in toListParallel ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
+{-
 nestTwoParallelNum :: Expectation
 nestTwoParallelNum =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in toListParallel (s1 + s2)
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
+-}
 
 zipOps :: (Streaming t, Applicative (t IO))
     => (forall a b c. (a -> b -> c)
