@@ -29,9 +29,12 @@ the comprehensive tutorial module `Streamly.Tutorial` first. Also see
 The monad instance composes like a list monad.
 
 ``` haskell
-loops = $ do
-    x <- each [1,2]
-    y <- each [3,4]
+import Streamly
+import qualified Streamly.Prelude as S
+
+loops = do
+    x <- S.each [1,2]
+    y <- S.each [3,4]
     liftIO $ putStrLn $ show (x, y)
 
 main = runStreaming $ serially $ loops
@@ -69,13 +72,17 @@ You can fold multiple streams or IO actions using parallel combinators like
 concurrently sum the square roots of all combinations:
 
 ``` haskell
+import Streamly
+import qualified Streamly.Prelude as S
+
 main = do
-  print $ sum $ asyncly $ do
-      -- Squaring is concurrent (<|)
-      x2 <- forEachWith (<|) [1..100] $ \x -> return $ x * x
-      y2 <- forEachWith (<|) [1..100] $ \y -> return $ y * y
-      -- sqrt is concurrent (asyncly)
-      return $ sqrt (x2 + y2)
+    s <- S.sum $ asyncly $ do
+        -- Squaring is concurrent (<|)
+        x2 <- forEachWith (<|) [1..100] $ \x -> return $ x * x
+        y2 <- forEachWith (<|) [1..100] $ \y -> return $ y * y
+        -- sqrt is concurrent (asyncly)
+        return $ sqrt (x2 + y2)
+    print s
 ```
 
 Of course, the actions running in parallel could be arbitrary IO actions.  To
@@ -144,11 +151,13 @@ main = S.each [1..10]
 Streams can be combined together in multiple ways:
 
 ```haskell
-return 1 <> return 2               -- serial, combine atoms
-S.each [1..10] <> S.each [11..20]  -- serial
-S.each [1..10] <| S.each [11..20]  -- demand driven parallel
-S.each [1..10] <=> S.each [11..20] -- serial but interleaved
-S.each [1..10] <|> S.each [11..20] -- fully parallel
+main = do
+    let p s = (toList . serially) s >>= print
+    p $ return 1 <> return 2               -- serial, combine atoms
+    p $ S.each [1..10] <> S.each [11..20]  -- serial
+    p $ S.each [1..10] <| S.each [11..20]  -- demand driven parallel
+    p $ S.each [1..10] <=> S.each [11..20] -- serial but interleaved
+    p $ S.each [1..10] <|> S.each [11..20] -- fully parallel
 ```
 
 As we have already seen streams can be combined using monadic composition in a
