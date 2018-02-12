@@ -124,7 +124,7 @@ therefore, no special operator is needed to join stream stages, just a forward
 
 ```haskell
 import Streamly
-import Streamly.Prelude as S
+import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
 main = S.each [1..10]
