@@ -25,22 +25,19 @@ module Streamly.Prelude
     , unfoldr
     , unfoldrM
     , each
-    , fromHandle
 
     -- * Elimination
+    -- ** General Folds
     , foldr
     , foldrM
     , foldl
     , foldlM
     , uncons
 
-    -- * Elimination Special Folds
+    -- ** Special Folds
     , toList
-    , toHandle
     , all
     , any
-    , sum
-    , product
     , head
     , last
     , length
@@ -48,6 +45,8 @@ module Streamly.Prelude
     , notElem
     , maximum
     , minimum
+    , sum
+    , product
 
     -- * Filtering
     , filter
@@ -66,6 +65,11 @@ module Streamly.Prelude
     , zipWithM
     , zipAsyncWith
     , zipAsyncWithM
+
+    -- * IO
+    , fromHandle
+    , toHandle
+
     )
 where
 
@@ -110,11 +114,11 @@ unfoldrM step = fromStream . go
 -- XXX need eachInterleaved, eachAsync, eachParallel
 -- | Same as @foldWith (<>)@ but more efficient.
 {-# INLINE each #-}
-each :: (Foldable f, Streaming t) => f a -> t m a
+each :: (Streaming t, Foldable f) => f a -> t m a
 each xs = Prelude.foldr cons nil xs
 
 -- | Read lines from an IO Handle into a stream of Strings.
-fromHandle :: (MonadIO m, Streaming t) => IO.Handle -> t m String
+fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = fromStream $ go
   where
   go = Stream $ \_ stp yld -> do
@@ -132,7 +136,7 @@ fromHandle h = fromStream $ go
 -- Parallel variants of folds?
 
 -- | Right fold.
-foldr :: (Monad m, Streaming t) => (a -> b -> b) -> b -> t m a -> m b
+foldr :: (Streaming t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc m = go (toStream m)
     where
     go m1 =
@@ -154,7 +158,7 @@ foldrM step acc m = go (toStream m)
 
 -- | Strict left fold. This is typed to work with the foldl package. To use
 -- directly pass 'id' as the third argument.
-foldl :: (Monad m, Streaming t)
+foldl :: (Streaming t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
 foldl step begin done m = go begin (toStream m)
     where
@@ -166,7 +170,7 @@ foldl step begin done m = go begin (toStream m)
 
 -- | Strict left fold, with monadic step function. This is typed to work
 -- with the foldl package. To use directly pass 'id' as the third argument.
-foldlM :: (Monad m, Streaming t)
+foldlM :: (Streaming t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
 foldlM step begin done m = go begin (toStream m)
     where
@@ -202,7 +206,7 @@ toHandle h m = go (toStream m)
 
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
-toList :: (Monad m, Streaming t) => t m a -> m [a]
+toList :: (Streaming t, Monad m) => t m a -> m [a]
 toList = foldrM (\a xs -> liftM (a :) xs) (return [])
 
 -- | Take first 'n' elements from the stream and discard the rest.
