@@ -20,8 +20,8 @@ toListInterleaved = A.toList . interleaving
 toListAsync :: AsyncT IO a -> IO [a]
 toListAsync = A.toList . asyncly
 
-toListParallel :: ParallelT IO a -> IO [a]
-toListParallel = A.toList . parallely
+toListParallel :: Ord a => ParallelT IO a -> IO [a]
+toListParallel = fmap sort . A.toList . parallely
 
 main :: IO ()
 main = hspec $ do
@@ -398,7 +398,7 @@ thenBind = do
     it "Then and toList" $
         toListSerial (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])
 
-type ToListType s = (forall a. s IO a -> IO [a])
+type ToListType s = (forall a. Ord a => s IO a -> IO [a])
 pureBind :: Monad (s IO) => ToListType s -> Spec
 pureBind l = do
     it "Bind and toList" $
@@ -518,7 +518,7 @@ loops f tsrt hsrt = do
 
 bindAndComposeSimple
     :: (Streaming t, Alternative (t IO), Monad (t IO))
-    => (forall a. t IO a -> IO [a])
+    => (forall a. Ord a => t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 bindAndComposeSimple tl g = do
@@ -533,7 +533,7 @@ bindAndComposeSimple tl g = do
     where f = (>>=)
 
 bindAndComposeHierarchy
-    :: Monad (s IO) => (forall a. s IO a -> IO [a])
+    :: Monad (s IO) => (forall a. Ord a => s IO a -> IO [a])
     -> ([s IO Int] -> s IO Int)
     -> Spec
 bindAndComposeHierarchy tl g = do
