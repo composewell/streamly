@@ -226,8 +226,15 @@ take n m = fromStream $ go n (toStream m)
 
 -- | Include only those elements that pass a predicate.
 {-# INLINE filter #-}
-filter :: (Streaming t, Monad (t m)) => (a -> Bool) -> t m a -> t m a
-filter p m = m >>= \x -> if p x then return x else nil
+filter :: Streaming t => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \ctx stp yld -> do
+        let yield a Nothing  | p a       = yld a Nothing
+                             | otherwise = stp
+            yield a (Just x) | p a       = yld a (Just (go x))
+                             | otherwise = (runStream x) ctx stp yield
+         in (runStream m1) ctx stp yield
 
 -- | End the stream as soon as the predicate fails on an element.
 takeWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
