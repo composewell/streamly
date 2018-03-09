@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
@@ -253,10 +254,9 @@ runqueueLIFO sv q = run
     yield a Nothing  = sendit a >> run
     yield a (Just r) = sendit a >> (runStream r) (Just sv) run yield
 
-    dequeue = liftIO $ atomicModifyIORefCAS q $ \ ms ->
-        case ms of
-            [] -> ([], Nothing)
-            x : xs -> (xs, Just x)
+    dequeue = liftIO $ atomicModifyIORefCAS q $ \case
+                [] -> ([], Nothing)
+                x : xs -> (xs, Just x)
 
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
@@ -289,7 +289,7 @@ runqueueFIFO sv q = run
 {-# NOINLINE addThread #-}
 addThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 addThread sv tid =
-    liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.insert tid s)
+    liftIO $ modifyIORef (runningThreads sv) (S.insert tid)
 
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar m a -> ThreadId -> m ()
@@ -298,8 +298,7 @@ delThread sv tid =
 
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => SVar m a -> m Bool
-allThreadsDone sv = liftIO $ do
-    readIORef (runningThreads sv) >>= return . S.null
+allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: MonadIO m => SVar m a -> SomeException -> m ()
@@ -326,8 +325,8 @@ sendWorkerWait sv = do
     output <- liftIO $ readIORef (outputQueue sv)
     when (null output) $ do
         done <- queueEmpty sv
-        if (not done)
-        then (pushWorker sv) >> sendWorkerWait sv
+        if not done
+        then pushWorker sv >> sendWorkerWait sv
         else void (liftIO $ takeMVar (doorBell sv))
 
 -- | Pull a stream from an SVar.
@@ -381,13 +380,13 @@ getFifoSVar ctype = do
     running <- newIORef S.empty
     q       <- newQ
     let sv =
-            SVar { outputQueue    = outQ
+            SVar { outputQueue       = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
                     , runqueue       = runqueueFIFO sv q
                     , enqueue        = pushL q
                     , queueEmpty     = liftIO $ nullQ q
-                    , svarStyle        = ctype
+                    , svarStyle       = ctype
                     }
      in return sv
 
@@ -397,30 +396,25 @@ getLifoSVar ctype = do
     outQMv  <- newEmptyMVar
     running <- newIORef S.empty
     q <- newIORef []
-    let checkEmpty = liftIO (readIORef q) >>= return . null
+    let checkEmpty = null <$> liftIO (readIORef q)
     let sv =
-            SVar { outputQueue    = outQ
+            SVar { outputQueue       = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
                     , runqueue       = runqueueLIFO sv q
                     , enqueue        = enqueueLIFO q
                     , queueEmpty     = checkEmpty
-                    , svarStyle        = ctype
+                    , svarStyle      = ctype
                     }
      in return sv
 
 -- | Create a new empty SVar.
 newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
 newEmptySVar style = do
-    sv <- liftIO $
+    liftIO $
         case style of
-            SVarStyle _ FIFO -> do
-                c <- getFifoSVar style
-                return c
-            SVarStyle _ LIFO -> do
-                c <- getLifoSVar style
-                return c
-    return sv
+            SVarStyle _ FIFO -> getFifoSVar style
+            SVarStyle _ LIFO -> getLifoSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
 newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
@@ -534,7 +528,7 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 {-# INLINE joinStreamVar2 #-}
 joinStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVar2 style m1 m2 = Stream $ \st stp yld -> do
+joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
     case st of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) st stp yld

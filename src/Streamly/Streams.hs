@@ -94,7 +94,7 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (drop, take, zipWith)
+import           Prelude hiding              (zipWith)
 import           Streamly.Core
 
 ------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ cons a r = fromStream $ scons a (Just (toStream r))
 
 -- | An empty stream.
 nil :: Streaming t => t m a
-nil = fromStream $ snil
+nil = fromStream snil
 
 -- | Build a stream from its church encoding.  The function passed maps
 -- directly to the underlying representation of the stream type. The second
@@ -483,7 +483,7 @@ parbind par m f = go m
             Stream $ \ctx stp yld ->
             let run x = (runStream x) ctx stp yld
                 yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `par` (go r)
+                yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
 
 instance MonadAsync m => Monad (AsyncT m) where
