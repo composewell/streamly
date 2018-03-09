@@ -372,6 +372,7 @@ maximum m = go Nothing (toStream m)
 
 -- | Replace each element of the stream with the result of a monadic action
 -- applied on the element.
+{-# INLINE mapM #-}
 mapM :: (Streaming t, Monad m) => (a -> m b) -> t m a -> t m b
 mapM f m = fromStream $ go (toStream m)
     where
