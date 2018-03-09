@@ -622,6 +622,12 @@ transformOps f = do
     it "drop none" $ testOp (A.drop 0)  (drop 0)
     it "drop 5"    $ testOp (A.drop 5)  (drop 5)
 
+    it "dropWhile true"  $ testOp (A.dropWhile (const True))
+                                  (dropWhile (const True))
+    it "dropWhile false" $ testOp (A.dropWhile (const False))
+                                  (dropWhile (const False))
+    it "dropWhile < 5"   $ testOp (A.dropWhile (< 5)) (dropWhile (< 5))
+
     it "filter all out" $ testOp (A.filter (> 10)) (filter (> 10))
     it "filter all in"  $ testOp (A.filter (<= 10)) (filter (<= 10))
     it "filter even"    $ testOp (A.filter even)  (filter even)

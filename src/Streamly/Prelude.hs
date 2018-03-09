@@ -216,10 +216,6 @@ take n m = fromStream $ go n (toStream m)
             yield a (Just x) = yld a (Just (go (n1 - 1) x))
         in if n1 <= 0 then stp else (runStream m1) ctx stp yield
 
--- XXX This is not as efficient as it could be. We need a short circuiting at
--- a lower level. Compare with simple-conduit, filtering there cuts down time
--- due to short circuting whereas the time spent remains the same here.
-
 -- | Include only those elements that pass a predicate.
 {-# INLINE filter #-}
 filter :: Streaming t => (a -> Bool) -> t m a -> t m a
@@ -256,13 +252,14 @@ drop n m = fromStream $ go n (toStream m)
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
+{-# INLINE dropWhile #-}
 dropWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
 dropWhile p m = fromStream $ go (toStream m)
     where
     go m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  | p a       = stp
                              | otherwise = yld a Nothing
-            yield a (Just x) | p a       = (runStream (go x)) ctx stp yield
+            yield a (Just x) | p a       = (runStream x) ctx stp yield
                              | otherwise = yld a (Just x)
          in (runStream m1) ctx stp yield
 
