@@ -208,6 +208,7 @@ toList :: (Streaming t, Monad m) => t m a -> m [a]
 toList = foldrM (\a xs -> fmap (a :) xs) (return [])
 
 -- | Take first 'n' elements from the stream and discard the rest.
+{-# INLINE take #-}
 take :: Streaming t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
@@ -229,6 +230,7 @@ filter p m = fromStream $ go (toStream m)
          in (runStream m1) ctx stp yield
 
 -- | End the stream as soon as the predicate fails on an element.
+{-# INLINE takeWhile #-}
 takeWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStream $ go (toStream m)
     where
