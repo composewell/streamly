@@ -661,6 +661,9 @@ streamOperations (stream, list, len) = do
 
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
+    if list == []
+    then it "last empty" $ A.last stream `shouldReturn` Nothing
+    else it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
 
     where
 
