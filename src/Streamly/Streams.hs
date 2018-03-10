@@ -142,6 +142,21 @@ infixr 5 .:
 --
 -- '.:' constructs a stream just like ':' constructs a list.
 --
+-- Also note that another equivalent way of building streams from pure values
+-- is:
+--
+-- @
+-- > let stream = pure 1 <> pure 2 <> pure 3
+-- > (toList . serially) stream
+-- [1,2,3]
+-- @
+--
+-- In the first method we construct a stream by adding one element at a time.
+-- In the second method we first construct singleton streams using 'pure' and
+-- then compose all those streams together using the 'Semigroup' style
+-- composition of streams. The former method is a bit more efficient than the
+-- latter.
+--
 (.:) :: (Streaming t) => a -> t m a -> t m a
 (.:) = cons
 
