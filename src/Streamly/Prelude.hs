@@ -248,6 +248,7 @@ drop n m = fromStream $ go n (toStream m)
     go n1 m1 = Stream $ \ctx stp yld ->
         let yield _ Nothing  = stp
             yield _ (Just x) = (runStream $ go (n1 - 1) x) ctx stp yld
+        -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
            then (runStream m1) ctx stp yld
            else (runStream m1) ctx stp yield
