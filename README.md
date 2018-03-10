@@ -24,6 +24,12 @@ See the haddock documentation for full reference.  It is recommended to read
 the comprehensive tutorial module `Streamly.Tutorial` first. Also see
 `Streamly.Examples` for some working examples.
 
+`Streamly` has best in class performance even though it generalizes streaming
+to concurrent composition that does not mean it sacrifices non-concurrent
+performance. See
+[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
+detailed performance comparison with regular streaming libraries.
+
 ## Non-determinism
 
 The monad instance composes like a list monad.
