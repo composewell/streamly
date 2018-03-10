@@ -154,8 +154,12 @@ foldrM step acc m = go (toStream m)
             yield a (Just x) = step a (go x)
         in (runStream m1) Nothing stop yield
 
--- | Strict left fold. This is typed to work with the foldl package. To use
--- directly pass 'id' as the third argument.
+-- XXX This more straightforward implementation of fold is almost twice as
+-- costly as the implementation we are using! Need to figure out what's wrong
+-- with it. Is it GHC that is not able to optimize this somehow? Or is it
+-- something else?  In fact scan is more optimal than this. The fold we are
+-- using is actually a @scan@ where we discard the intermediate values!
+{-
 foldl :: (Streaming t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
 foldl step begin done m = go begin (toStream m)
@@ -165,7 +169,38 @@ foldl step begin done m = go begin (toStream m)
             yield a Nothing  = return (done (step acc a))
             yield a (Just x) = go (step acc a) x
          in (runStream m1) Nothing stop yield
+-}
 
+-- XXX We implement fold like a scan but just drop the intermediate steps and
+-- extract the last step as the only element from the stream. We also use a
+-- NOINLINE on the extraction function but INLINE the fold function. This seems
+-- to work well with the GHC simplifier and we get almost 50% reduction in
+-- cost! Need to figure what's going on with GHC simplifier, why is the simpler
+-- code above is not optimal.
+
+-- | Strict left fold. This is typed to work with the foldl package. To use
+-- it normally just pass 'id' as the third argument.
+{-# INLINE foldl #-}
+foldl :: (Streaming t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldl step begin done m = get $ go (toStream m) begin
+    where
+    {-# NOINLINE get #-}
+    get m1 =
+        let yield a Nothing  = return $ done a
+            yield _ _ = undefined
+         in (runStream m1) Nothing undefined yield
+
+    go m1 !acc = Stream $ \_ stp yld ->
+        let
+            stop = yld acc Nothing
+            yield a Nothing  = yld (step acc a) Nothing
+            yield a (Just x) =
+                let s = step acc a
+                in (runStream (go x s)) Nothing stp yld
+        in (runStream m1) Nothing stop yield
+
+-- XXX Need to measure perf and optimize like foldl if needed.
 -- | Strict left fold, with monadic step function. This is typed to work
 -- with the foldl package. To use directly pass 'id' as the third argument.
 foldlM :: (Streaming t, Monad m)
