@@ -257,7 +257,7 @@ main = hspec $ do
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
 
-    describe "Transformation" $ transformOps
+    describe "Stream Operations" $ streamOperations
         ((<>) :: StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
     describe "Serial zipping" $
         zipOps A.zipWith A.zipWithM zipping
@@ -599,38 +599,42 @@ mixedOps = do
                 return (x1 + y1 + z1)
         return (x + y + z)
 
-testListOp
-    :: (Streaming t, Monad (t IO))
-    => (t IO Int -> t IO Int -> t IO Int)
-    -> (t IO Int -> t IO Int)
-    -> ([Int] -> [Int])
-    -> Expectation
-testListOp f streamOp listOp =
-    let list = [1..10]
-        stream = foldMapWith f return list
-    in (A.toList $ streamOp stream) `shouldReturn` listOp list
-
-transformOps
+streamOperations
     :: (Streaming t, Monad (t IO))
     => (t IO Int -> t IO Int -> t IO Int) -> Spec
-transformOps f = do
-    it "take all"  $ testOp (A.take 10) (take 10)
-    it "take none" $ testOp (A.take 0) (take 0)
-    it "take 5"    $ testOp (A.take 5) (take 5)
+streamOperations f = do
 
-    it "drop all"  $ testOp (A.drop 10) (drop 10)
-    it "drop none" $ testOp (A.drop 0)  (drop 0)
-    it "drop 5"    $ testOp (A.drop 5)  (drop 5)
+    -- Filtering
+    it "take all"  $ transform (A.take 10) (take 10)
+    it "take none" $ transform (A.take 0) (take 0)
+    it "take 5"    $ transform (A.take 5) (take 5)
 
-    it "dropWhile true"  $ testOp (A.dropWhile (const True))
+    it "drop all"  $ transform (A.drop 10) (drop 10)
+    it "drop none" $ transform (A.drop 0)  (drop 0)
+    it "drop 5"    $ transform (A.drop 5)  (drop 5)
+
+    it "dropWhile true"  $ transform (A.dropWhile (const True))
                                   (dropWhile (const True))
-    it "dropWhile false" $ testOp (A.dropWhile (const False))
+    it "dropWhile false" $ transform (A.dropWhile (const False))
                                   (dropWhile (const False))
-    it "dropWhile < 5"   $ testOp (A.dropWhile (< 5)) (dropWhile (< 5))
+    it "dropWhile < 5"   $ transform (A.dropWhile (< 5)) (dropWhile (< 5))
 
-    it "filter all out" $ testOp (A.filter (> 10)) (filter (> 10))
-    it "filter all in"  $ testOp (A.filter (<= 10)) (filter (<= 10))
-    it "filter even"    $ testOp (A.filter even)  (filter even)
+    it "filter all out" $ transform (A.filter (> 10)) (filter (> 10))
+    it "filter all in"  $ transform (A.filter (<= 10)) (filter (<= 10))
+    it "filter even"    $ transform (A.filter even)  (filter even)
+
+    -- Elimination
+    it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
 
     where
-        testOp = testListOp f
+
+    -- XXX run on empty stream as well
+    transform streamOp listOp =
+        let list = [1..10]
+            stream = foldMapWith f return list
+        in (A.toList $ streamOp stream) `shouldReturn` listOp list
+
+    elimination streamOp listOp =
+        let list = [1..10]
+            stream = foldMapWith f return list
+        in (streamOp stream) `shouldReturn` listOp list
