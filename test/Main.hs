@@ -257,12 +257,47 @@ main = hspec $ do
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
 
-    describe "Stream Operations" $ streamOperations
-        ((<>) :: StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    ---------------------------------------------------------------------------
+    -- Stream operations
+    ---------------------------------------------------------------------------
+
+    -- XXX for streams other than StreamT
+    describe "Stream Ops empty" $ streamOperations makeEmptyStream
+    describe "Stream ops singleton constr" $ streamOperations makeSingletonStream1
+    describe "Stream ops singleton folded" $ streamOperations makeSingletonStream2
+    describe "Stream Ops constr" $ streamOperations makeStream1
+    describe "Stream Ops folded" $ streamOperations $ makeStream2
+          ((<>) :: StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+
     describe "Serial zipping" $
         zipOps A.zipWith A.zipWithM zipping
     describe "Async zipping" $
         zipOps A.zipAsyncWith A.zipAsyncWithM zippingAsync
+
+makeEmptyStream :: (StreamT IO Int, [Int], Int)
+makeEmptyStream = (A.nil, [], 0)
+
+makeSingletonStream1 :: (StreamT IO Int, [Int], Int)
+makeSingletonStream1 = (1 `A.cons` A.nil, [1], 1)
+
+makeSingletonStream2 :: (StreamT IO Int, [Int], Int)
+makeSingletonStream2 = (return 1, [1], 1)
+
+-- Streams that indicate an end via the stop continuation
+makeStream1 :: (StreamT IO Int, [Int], Int)
+makeStream1 =
+    let list = [1..10]
+        stream = A.each list
+    in (stream, list, 10)
+
+-- Streams that indicate an end via the yield continuation
+makeStream2 :: (Streaming t, Monad (t IO))
+    => (t IO Int -> t IO Int -> t IO Int)
+    -> (t IO Int, [Int], Int)
+makeStream2 f =
+    let list = [1..10]
+        stream = foldMapWith f return list
+    in (stream, list, 10)
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
@@ -599,28 +634,29 @@ mixedOps = do
                 return (x1 + y1 + z1)
         return (x + y + z)
 
-streamOperations
-    :: (Streaming t, Monad (t IO))
-    => (t IO Int -> t IO Int -> t IO Int) -> Spec
-streamOperations f = do
+streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
+streamOperations (stream, list, len) = do
 
     -- Filtering
-    it "take all"  $ transform (A.take 10) (take 10)
+    it "take all"  $ transform (A.take len) (take len)
     it "take none" $ transform (A.take 0) (take 0)
-    it "take 5"    $ transform (A.take 5) (take 5)
+    it "take some" $ transform (A.take $ len - 1) (take $ len - 1)
+    it "take one" $ transform (A.take 1) (take 1)
 
-    it "drop all"  $ transform (A.drop 10) (drop 10)
+    it "drop all"  $ transform (A.drop len) (drop len)
     it "drop none" $ transform (A.drop 0)  (drop 0)
-    it "drop 5"    $ transform (A.drop 5)  (drop 5)
+    it "drop some" $ transform (A.drop $ len - 1)  (drop $ len - 1)
+    it "drop one"  $ transform (A.drop 1)  (drop 1)
 
     it "dropWhile true"  $ transform (A.dropWhile (const True))
                                   (dropWhile (const True))
     it "dropWhile false" $ transform (A.dropWhile (const False))
                                   (dropWhile (const False))
-    it "dropWhile < 5"   $ transform (A.dropWhile (< 5)) (dropWhile (< 5))
+    it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
+                                      (dropWhile (< (len `div` 2)))
 
-    it "filter all out" $ transform (A.filter (> 10)) (filter (> 10))
-    it "filter all in"  $ transform (A.filter (<= 10)) (filter (<= 10))
+    it "filter all out" $ transform (A.filter (> len)) (filter (> len))
+    it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
     it "filter even"    $ transform (A.filter even)  (filter even)
 
     -- Elimination
@@ -630,11 +666,6 @@ streamOperations f = do
 
     -- XXX run on empty stream as well
     transform streamOp listOp =
-        let list = [1..10]
-            stream = foldMapWith f return list
-        in (A.toList $ streamOp stream) `shouldReturn` listOp list
+        (A.toList $ streamOp stream) `shouldReturn` listOp list
 
-    elimination streamOp listOp =
-        let list = [1..10]
-            stream = foldMapWith f return list
-        in (streamOp stream) `shouldReturn` listOp list
+    elimination streamOp listOp = (streamOp stream) `shouldReturn` listOp list
