@@ -638,10 +638,21 @@ streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
 streamOperations (stream, list, len) = do
 
     -- Filtering
+    it "filter all out" $ transform (A.filter (> len)) (filter (> len))
+    it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
+    it "filter even"    $ transform (A.filter even)  (filter even)
+
     it "take all"  $ transform (A.take len) (take len)
     it "take none" $ transform (A.take 0) (take 0)
     it "take some" $ transform (A.take $ len - 1) (take $ len - 1)
     it "take one" $ transform (A.take 1) (take 1)
+
+    it "takeWhile true"  $ transform (A.takeWhile (const True))
+                                     (takeWhile (const True))
+    it "takeWhile false" $ transform (A.takeWhile (const False))
+                                     (takeWhile (const False))
+    it "takeWhile < some" $ transform (A.takeWhile (< (len `div` 2)))
+                                      (takeWhile (< (len `div` 2)))
 
     it "drop all"  $ transform (A.drop len) (drop len)
     it "drop none" $ transform (A.drop 0)  (drop 0)
@@ -649,21 +660,35 @@ streamOperations (stream, list, len) = do
     it "drop one"  $ transform (A.drop 1)  (drop 1)
 
     it "dropWhile true"  $ transform (A.dropWhile (const True))
-                                  (dropWhile (const True))
+                                     (dropWhile (const True))
     it "dropWhile false" $ transform (A.dropWhile (const False))
-                                  (dropWhile (const False))
+                                     (dropWhile (const False))
     it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
                                       (dropWhile (< (len `div` 2)))
 
-    it "filter all out" $ transform (A.filter (> len)) (filter (> len))
-    it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
-    it "filter even"    $ transform (A.filter even)  (filter even)
-
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
+    it "all" $ elimination (A.all even) (all even)
+    it "any" $ elimination (A.any even) (any even)
+    it "length" $ elimination A.length length
+    it "elem" $ elimination (A.elem (len - 1)) (elem (len - 1))
+    it "elem" $ elimination (A.elem (len + 1)) (elem (len + 1))
+    it "notElem" $ elimination (A.notElem (len - 1)) (notElem (len - 1))
+    it "notElem" $ elimination (A.notElem (len + 1)) (notElem (len + 1))
+    it "sum" $ elimination A.sum sum
+    it "product" $ elimination A.product product
+
     if list == []
-    then it "last empty" $ A.last stream `shouldReturn` Nothing
-    else it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
+    then do
+        it "head empty" $ A.head stream `shouldReturn` Nothing
+        it "last empty" $ A.last stream `shouldReturn` Nothing
+        it "maximum empty" $ A.maximum stream `shouldReturn` Nothing
+        it "minimum empty" $ A.minimum stream `shouldReturn` Nothing
+    else do
+        it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
+        it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
+        it "maximum nonEmpty" $ A.maximum stream `shouldReturn` Just (maximum list)
+        it "minimum nonEmpty" $ A.minimum stream `shouldReturn` Just (minimum list)
 
     where
 
