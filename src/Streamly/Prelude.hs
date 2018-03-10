@@ -18,8 +18,9 @@
 module Streamly.Prelude
     (
     -- * Construction
-      cons
-    , nil
+      nil
+    , cons
+    , (.:)
     , unfoldr
     , unfoldrM
     , each
