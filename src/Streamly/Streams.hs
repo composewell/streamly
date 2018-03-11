@@ -29,13 +29,14 @@ module Streamly.Streams
     , newEmptySVar
 
     -- * Construction
+    , nil
+    , cons
+    , (.:)
     , streamBuild
     , fromCallback
     , fromSVar
 
     -- * Elimination
-    , cons
-    , nil
     , streamFold
     , runStreaming
     , toSVar
@@ -94,7 +95,7 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (drop, take, zipWith)
+import           Prelude hiding              (zipWith)
 import           Streamly.Core
 
 ------------------------------------------------------------------------------
@@ -111,13 +112,53 @@ class Streaming t where
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- | Add an element a the head of a stream.
+-- | Represesnts an empty stream just like @[]@ represents and empty list.
+nil :: Streaming t => t m a
+nil = fromStream snil
+
+infixr 5 `cons`
+
+-- | Constructs a stream by adding a pure value at the head of an existing
+-- stream, just like ':' constructs lists. For example:
+--
+-- @
+-- > let stream = 1 \`cons` 2 \`cons` 3 \`cons` nil
+-- > (toList . serially) stream
+-- [1,2,3]
+-- @
 cons :: (Streaming t) => a -> t m a -> t m a
 cons a r = fromStream $ scons a (Just (toStream r))
 
--- | An empty stream.
-nil :: Streaming t => t m a
-nil = fromStream $ snil
+infixr 5 .:
+
+-- | Operator equivalent of 'cons' so that you can construct a stream of pure
+-- values more succinctly like this:
+--
+-- @
+-- > let stream = 1 .: 2 .: 3 .: nil
+-- > (toList . serially) stream
+-- [1,2,3]
+-- @
+--
+-- '.:' constructs a stream just like ':' constructs a list.
+--
+-- Also note that another equivalent way of building streams from pure values
+-- is:
+--
+-- @
+-- > let stream = pure 1 <> pure 2 <> pure 3
+-- > (toList . serially) stream
+-- [1,2,3]
+-- @
+--
+-- In the first method we construct a stream by adding one element at a time.
+-- In the second method we first construct singleton streams using 'pure' and
+-- then compose all those streams together using the 'Semigroup' style
+-- composition of streams. The former method is a bit more efficient than the
+-- latter.
+--
+(.:) :: (Streaming t) => a -> t m a -> t m a
+(.:) = cons
 
 -- | Build a stream from its church encoding.  The function passed maps
 -- directly to the underlying representation of the stream type. The second
@@ -483,7 +524,7 @@ parbind par m f = go m
             Stream $ \ctx stp yld ->
             let run x = (runStream x) ctx stp yld
                 yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `par` (go r)
+                yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
 
 instance MonadAsync m => Monad (AsyncT m) where

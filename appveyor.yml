@@ -1,20 +1,41 @@
+# See https://github.com/harendra-kumar/packcheck for all options and their
+# explanation.
 environment:
   global:
+    # ------------------------------------------------------------------------
+    # Global options used for all CI tests
+    # ------------------------------------------------------------------------
+    GHC_OPTIONS: "-Werror"
+    # ------------------------------------------------------------------------
+    # Options for builds that need stack
+    # ------------------------------------------------------------------------
+    #STACKVER: "1.6.5"
+    STACK_UPGRADE: "y"
     RESOLVER: "lts-10.0"
-    GHC_OPTIONS: "-O0 -Werror"
-    PACKCHECK: ./packcheck.sh
-    # The commit id of packcheck.sh to use from harendra-kumar/packcheck on github
-    PACKCHECK_COMMIT: "c028c2425a372487e74157569d0a6cd4d745575d"
-
     # ------------------------------------------------------------------------
-    # Normally you do not need to customize hereafter
+    # Normally you would not need to customize these params
     # ------------------------------------------------------------------------
-
+    CABAL_REINIT_CONFIG: "y"
+    CABAL_CHECK_RELAX: "y"
+    CABAL_NO_SANDBOX: "y"
+    CABAL_HACKAGE_MIRROR: "hackage.haskell.org:http://hackage.fpcomplete.com"
+    TEST_INSTALL: "y"
+    LC_ALL: "C.UTF-8"
+    PATH: "%PATH%;%APPDATA%\\local\\bin"
     STACK_ROOT: "c:\\sr"
     LOCAL_BIN: "%APPDATA%\\local\\bin"
-    PATH: "%PATH%;%APPDATA%\\local\\bin"
-    CABAL_REINIT_CONFIG: "y"
-    TEST_INSTALL: "y"
+    # ------------------------------------------------------------------------
+    # Location of packcheck.sh (the shell script invoked to perform CI tests ).
+    # ------------------------------------------------------------------------
+    # You can either commit the packcheck.sh script at this path in your repo or
+    # you can use it by specifying the PACKCHECK_REPO_URL option below in which
+    # case it will be automatically copied from the packcheck repo to this path
+    # during CI tests. In any case it is finally invoked from this path.
+    PACKCHECK_LOCAL_PATH: "./packcheck.sh"
+    # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
+    # then it is automatically pulled from this URL.
+    PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
+    PACKCHECK_GITHUB_COMMIT: "da9d6da3d18d6250c06617817f0879324c75c224"
 
 cache:
   - "%STACK_ROOT%"
@@ -27,12 +48,12 @@ clone_folder: "c:\\pkg"
 build: off
 
 before_test:
-- if not exist %PACKCHECK% curl -sSkL -o%PACKCHECK% https://raw.githubusercontent.com/harendra-kumar/packcheck/%PACKCHECK_COMMIT%/packcheck.sh
+- if not exist %PACKCHECK_LOCAL_PATH% curl -sSkL -o%PACKCHECK_LOCAL_PATH% %PACKCHECK_GITHUB_URL%/%PACKCHECK_GITHUB_COMMIT%/packcheck.sh
 - if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
 - where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
-- stack upgrade
+#- stack upgrade --binary-only --binary-version %STACKVER%
 - stack --version
 
 test_script:
 - stack setup > nul
-- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK%; %PACKCHECK% stack"
+- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK_LOCAL_PATH%; %PACKCHECK_LOCAL_PATH% stack"

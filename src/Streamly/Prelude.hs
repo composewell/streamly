@@ -1,10 +1,8 @@
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -20,8 +18,9 @@
 module Streamly.Prelude
     (
     -- * Construction
-      cons
-    , nil
+      nil
+    , cons
+    , (.:)
     , unfoldr
     , unfoldrM
     , each
@@ -30,6 +29,7 @@ module Streamly.Prelude
     -- ** General Folds
     , foldr
     , foldrM
+    , scan
     , foldl
     , foldlM
     , uncons
@@ -73,7 +73,7 @@ module Streamly.Prelude
     )
 where
 
-import           Control.Monad               (liftM)
+import           Control.Monad (void)
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (filter, drop, dropWhile, take,
@@ -82,7 +82,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
                                               length)
-import qualified Prelude as Prelude
+import qualified Prelude
 import qualified System.IO as IO
 
 import           Streamly.Core
@@ -96,7 +96,7 @@ import           Streamly.Streams
 unfoldr :: Streaming t => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step = fromStream . go
     where
-    go s = Stream $ \_ stp yld -> do
+    go s = Stream $ \_ stp yld ->
         case step s of
             Nothing -> stp
             Just (a, b) -> yld a (Just (go b))
@@ -115,11 +115,11 @@ unfoldrM step = fromStream . go
 -- | Same as @foldWith (<>)@ but more efficient.
 {-# INLINE each #-}
 each :: (Streaming t, Foldable f) => f a -> t m a
-each xs = Prelude.foldr cons nil xs
+each = Prelude.foldr cons nil
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
-fromHandle h = fromStream $ go
+fromHandle h = fromStream go
   where
   go = Stream $ \_ stp yld -> do
         eof <- liftIO $ IO.hIsEOF h
@@ -156,8 +156,25 @@ foldrM step acc m = go (toStream m)
             yield a (Just x) = step a (go x)
         in (runStream m1) Nothing stop yield
 
--- | Strict left fold. This is typed to work with the foldl package. To use
--- directly pass 'id' as the third argument.
+-- | Scan left. A strict left fold which accumulates the result of its reduction steps inside a stream, from left.
+{-# INLINE scan #-}
+scan :: Streaming t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scan step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
+    where
+    go m1 !acc = Stream $ \_ stp yld ->
+        let stop = stp
+            yield a Nothing = yld (done $ step acc a) Nothing
+            yield a (Just x) =
+                let s = step acc a
+                in yld (done s) (Just (go x s))
+        in runStream m1 Nothing stop yield
+
+-- XXX This more straightforward implementation of fold is almost twice as
+-- costly as the implementation we are using! Need to figure out what's wrong
+-- with it. Is it GHC that is not able to optimize this somehow? Or is it
+-- something else?  In fact scan is more optimal than this. The fold we are
+-- using is actually a @scan@ where we discard the intermediate values!
+{-
 foldl :: (Streaming t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
 foldl step begin done m = go begin (toStream m)
@@ -167,7 +184,38 @@ foldl step begin done m = go begin (toStream m)
             yield a Nothing  = return (done (step acc a))
             yield a (Just x) = go (step acc a) x
          in (runStream m1) Nothing stop yield
+-}
 
+-- XXX We implement fold like a scan but just drop the intermediate steps and
+-- extract the last step as the only element from the stream. We also use a
+-- NOINLINE on the extraction function but INLINE the fold function. This seems
+-- to work well with the GHC simplifier and we get almost 50% reduction in
+-- cost! Need to figure what's going on with GHC simplifier, why is the simpler
+-- code above is not optimal.
+
+-- | Strict left fold. This is typed to work with the foldl package. To use
+-- it normally just pass 'id' as the third argument.
+{-# INLINE foldl #-}
+foldl :: (Streaming t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldl step begin done m = get $ go (toStream m) begin
+    where
+    {-# NOINLINE get #-}
+    get m1 =
+        let yield a Nothing  = return $ done a
+            yield _ _ = undefined
+         in (runStream m1) Nothing undefined yield
+
+    go m1 !acc = Stream $ \_ stp yld ->
+        let
+            stop = yld acc Nothing
+            yield a Nothing  = yld (step acc a) Nothing
+            yield a (Just x) =
+                let s = step acc a
+                in (runStream (go x s)) Nothing stp yld
+        in (runStream m1) Nothing stop yield
+
+-- XXX Need to measure perf and optimize like foldl if needed.
 -- | Strict left fold, with monadic step function. This is typed to work
 -- with the foldl package. To use directly pass 'id' as the third argument.
 foldlM :: (Streaming t, Monad m)
@@ -187,7 +235,7 @@ uncons :: (Streaming t, Monad m) => t m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
         yield a Nothing  = return (Just (a, nil))
-        yield a (Just x) = return (Just (a, (fromStream x)))
+        yield a (Just x) = return (Just (a, fromStream x))
     in (runStream (toStream m)) Nothing stop yield
 
 -- | Write a stream of Strings to an IO Handle.
@@ -207,33 +255,36 @@ toHandle h m = go (toStream m)
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
 toList :: (Streaming t, Monad m) => t m a -> m [a]
-toList = foldrM (\a xs -> liftM (a :) xs) (return [])
+toList = foldrM (\a xs -> fmap (a :) xs) (return [])
 
 -- | Take first 'n' elements from the stream and discard the rest.
+{-# INLINE take #-}
 take :: Streaming t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp yld -> do
+    go n1 m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  = yld a Nothing
             yield a (Just x) = yld a (Just (go (n1 - 1) x))
-        if (n1 <= 0)
-        then stp
-        else (runStream m1) ctx stp yield
-
--- XXX This is not as efficient as it could be. We need a short circuiting at
--- a lower level. Compare with simple-conduit, filtering there cuts down time
--- due to short circuting whereas the time spent remains the same here.
+        in if n1 <= 0 then stp else (runStream m1) ctx stp yield
 
 -- | Include only those elements that pass a predicate.
 {-# INLINE filter #-}
-filter :: (Streaming t, Monad (t m)) => (a -> Bool) -> t m a -> t m a
-filter p m = m >>= \x -> if p x then return x else nil
+filter :: Streaming t => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \ctx stp yld ->
+        let yield a Nothing  | p a       = yld a Nothing
+                             | otherwise = stp
+            yield a (Just x) | p a       = yld a (Just (go x))
+                             | otherwise = (runStream x) ctx stp yield
+         in (runStream m1) ctx stp yield
 
 -- | End the stream as soon as the predicate fails on an element.
+{-# INLINE takeWhile #-}
 takeWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp yld -> do
+    go m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  | p a       = yld a Nothing
                              | otherwise = stp
             yield a (Just x) | p a       = yld a (Just (go x))
@@ -244,22 +295,24 @@ takeWhile p m = fromStream $ go (toStream m)
 drop :: Streaming t => Int -> t m a -> t m a
 drop n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp yld -> do
+    go n1 m1 = Stream $ \ctx stp yld ->
         let yield _ Nothing  = stp
             yield _ (Just x) = (runStream $ go (n1 - 1) x) ctx stp yld
-        if (n1 <= 0)
-        then (runStream m1) ctx stp yld
-        else (runStream m1) ctx stp yield
+        -- Somehow "<=" check performs better than a ">"
+        in if n1 <= 0
+           then (runStream m1) ctx stp yld
+           else (runStream m1) ctx stp yield
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
+{-# INLINE dropWhile #-}
 dropWhile :: Streaming t => (a -> Bool) -> t m a -> t m a
 dropWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp yld -> do
+    go m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  | p a       = stp
                              | otherwise = yld a Nothing
-            yield a (Just x) | p a       = (runStream (go x)) ctx stp yield
+            yield a (Just x) | p a       = (runStream x) ctx stp yield
                              | otherwise = yld a (Just x)
          in (runStream m1) ctx stp yield
 
@@ -317,7 +370,7 @@ elem e m = go (toStream m)
     go m1 =
         let stop            = return False
             yield a Nothing = return (a == e)
-            yield a (Just x) = if (a == e) then return True else go x
+            yield a (Just x) = if a == e then return True else go x
         in (runStream m1) Nothing stop yield
 
 -- | Determine whether an element is not present in the stream.
@@ -327,7 +380,7 @@ notElem e m = go (toStream m)
     go m1 =
         let stop            = return True
             yield a Nothing = return (a /= e)
-            yield a (Just x) = if (a == e) then return False else go x
+            yield a (Just x) = if a == e then return False else go x
         in (runStream m1) Nothing stop yield
 
 -- | Determine the length of the stream.
@@ -370,10 +423,11 @@ maximum m = go Nothing (toStream m)
 
 -- | Replace each element of the stream with the result of a monadic action
 -- applied on the element.
+{-# INLINE mapM #-}
 mapM :: (Streaming t, Monad m) => (a -> m b) -> t m a -> t m b
 mapM f m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \_ stp yld -> do
+    go m1 = Stream $ \_ stp yld ->
         let stop = stp
             yield a Nothing  = f a >>= \b -> yld b Nothing
             yield a (Just x) = f a >>= \b -> yld b (Just (go x))
@@ -386,7 +440,7 @@ mapM_ f m = go (toStream m)
     where
     go m1 =
         let stop = return ()
-            yield a Nothing  = f a >> return ()
+            yield a Nothing  = void (f a)
             yield a (Just x) = f a >> go x
          in (runStream m1) Nothing stop yield
 
@@ -395,7 +449,7 @@ mapM_ f m = go (toStream m)
 sequence :: (Streaming t, Monad m) => t m (m a) -> t m a
 sequence m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \_ stp yld -> do
+    go m1 = Stream $ \_ stp yld ->
         let stop = stp
             yield a Nothing  = a >>= \b -> yld b Nothing
             yield a (Just x) = a >>= \b -> yld b (Just (go x))
@@ -413,7 +467,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         let merge a ra =
                 let yield2 b Nothing   = (runStream (g a b)) Nothing stp yld
                     yield2 b (Just rb) =
-                        (runStream ((g a b) <> (go ra rb))) Nothing stp yld
+                        (runStream (g a b <> go ra rb)) Nothing stp yld
                  in (runStream my) Nothing stp yield2
         let yield1 a Nothing   = merge a snil
             yield1 a (Just ra) = merge a ra

@@ -49,7 +49,7 @@ withClock clock freq action = do
         action localTime
         when (delay > 0) $ threadDelay delay
 
-        if (n == freq)
+        if n == freq
         then do
             (t, newTick, newDelay) <- adjustClock lastAdj localTime delay
             go t newDelay newTick (localTime + newTick) 0

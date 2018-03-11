@@ -20,8 +20,8 @@ toListInterleaved = A.toList . interleaving
 toListAsync :: AsyncT IO a -> IO [a]
 toListAsync = A.toList . asyncly
 
-toListParallel :: ParallelT IO a -> IO [a]
-toListParallel = A.toList . parallely
+toListParallel :: Ord a => ParallelT IO a -> IO [a]
+toListParallel = fmap sort . A.toList . parallely
 
 main :: IO ()
 main = hspec $ do
@@ -257,11 +257,47 @@ main = hspec $ do
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
 
-    describe "Transformation" $ transformOps (<>)
+    ---------------------------------------------------------------------------
+    -- Stream operations
+    ---------------------------------------------------------------------------
+
+    -- XXX for streams other than StreamT
+    describe "Stream Ops empty" $ streamOperations makeEmptyStream
+    describe "Stream ops singleton constr" $ streamOperations makeSingletonStream1
+    describe "Stream ops singleton folded" $ streamOperations makeSingletonStream2
+    describe "Stream Ops constr" $ streamOperations makeStream1
+    describe "Stream Ops folded" $ streamOperations $ makeStream2
+          ((<>) :: StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+
     describe "Serial zipping" $
         zipOps A.zipWith A.zipWithM zipping
     describe "Async zipping" $
         zipOps A.zipAsyncWith A.zipAsyncWithM zippingAsync
+
+makeEmptyStream :: (StreamT IO Int, [Int], Int)
+makeEmptyStream = (A.nil, [], 0)
+
+makeSingletonStream1 :: (StreamT IO Int, [Int], Int)
+makeSingletonStream1 = (1 `A.cons` A.nil, [1], 1)
+
+makeSingletonStream2 :: (StreamT IO Int, [Int], Int)
+makeSingletonStream2 = (return 1, [1], 1)
+
+-- Streams that indicate an end via the stop continuation
+makeStream1 :: (StreamT IO Int, [Int], Int)
+makeStream1 =
+    let list = [1..10]
+        stream = A.each list
+    in (stream, list, 10)
+
+-- Streams that indicate an end via the yield continuation
+makeStream2 :: (Streaming t, Monad (t IO))
+    => (t IO Int -> t IO Int -> t IO Int)
+    -> (t IO Int, [Int], Int)
+makeStream2 f =
+    let list = [1..10]
+        stream = foldMapWith f return list
+    in (stream, list, 10)
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
@@ -398,7 +434,7 @@ thenBind = do
     it "Then and toList" $
         toListSerial (return (1 :: Int) >> return 2) `shouldReturn` ([2] :: [Int])
 
-type ToListType s = (forall a. s IO a -> IO [a])
+type ToListType s = (forall a. Ord a => s IO a -> IO [a])
 pureBind :: Monad (s IO) => ToListType s -> Spec
 pureBind l = do
     it "Bind and toList" $
@@ -518,7 +554,7 @@ loops f tsrt hsrt = do
 
 bindAndComposeSimple
     :: (Streaming t, Alternative (t IO), Monad (t IO))
-    => (forall a. t IO a -> IO [a])
+    => (forall a. Ord a => t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 bindAndComposeSimple tl g = do
@@ -533,7 +569,7 @@ bindAndComposeSimple tl g = do
     where f = (>>=)
 
 bindAndComposeHierarchy
-    :: Monad (s IO) => (forall a. s IO a -> IO [a])
+    :: Monad (s IO) => (forall a. Ord a => s IO a -> IO [a])
     -> ([s IO Int] -> s IO Int)
     -> Spec
 bindAndComposeHierarchy tl g = do
@@ -598,24 +634,68 @@ mixedOps = do
                 return (x1 + y1 + z1)
         return (x + y + z)
 
-transformOps :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int) -> Spec
-transformOps f = do
-    it "take all" $
-        (toListSerial $ A.take 10 $ foldMapWith f return [1..10])
-            `shouldReturn` [1..10]
-    it "take none" $
-        (toListSerial $ A.take 0 $ foldMapWith f return [1..10])
-            `shouldReturn` []
-    it "take 5" $
-        (toListSerial $ A.take 5 $ foldMapWith f return [1..10])
-            `shouldReturn` [1..5]
+streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
+streamOperations (stream, list, len) = do
 
-    it "drop all" $
-        (toListSerial $ A.drop 10 $ foldMapWith f return [1..10])
-            `shouldReturn` []
-    it "drop none" $
-        (toListSerial $ A.drop 0 $ foldMapWith f return [1..10])
-            `shouldReturn` [1..10]
-    it "drop 5" $
-        (toListSerial $ A.drop 5 $ foldMapWith f return [1..10])
-            `shouldReturn` [6..10]
+    -- Filtering
+    it "filter all out" $ transform (A.filter (> len)) (filter (> len))
+    it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
+    it "filter even"    $ transform (A.filter even)  (filter even)
+
+    it "take all"  $ transform (A.take len) (take len)
+    it "take none" $ transform (A.take 0) (take 0)
+    it "take some" $ transform (A.take $ len - 1) (take $ len - 1)
+    it "take one" $ transform (A.take 1) (take 1)
+
+    it "takeWhile true"  $ transform (A.takeWhile (const True))
+                                     (takeWhile (const True))
+    it "takeWhile false" $ transform (A.takeWhile (const False))
+                                     (takeWhile (const False))
+    it "takeWhile < some" $ transform (A.takeWhile (< (len `div` 2)))
+                                      (takeWhile (< (len `div` 2)))
+
+    it "drop all"  $ transform (A.drop len) (drop len)
+    it "drop none" $ transform (A.drop 0)  (drop 0)
+    it "drop some" $ transform (A.drop $ len - 1)  (drop $ len - 1)
+    it "drop one"  $ transform (A.drop 1)  (drop 1)
+
+    it "dropWhile true"  $ transform (A.dropWhile (const True))
+                                     (dropWhile (const True))
+    it "dropWhile false" $ transform (A.dropWhile (const False))
+                                     (dropWhile (const False))
+    it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
+                                      (dropWhile (< (len `div` 2)))
+
+    it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
+
+    -- Elimination
+    it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
+    it "all" $ elimination (A.all even) (all even)
+    it "any" $ elimination (A.any even) (any even)
+    it "length" $ elimination A.length length
+    it "elem" $ elimination (A.elem (len - 1)) (elem (len - 1))
+    it "elem" $ elimination (A.elem (len + 1)) (elem (len + 1))
+    it "notElem" $ elimination (A.notElem (len - 1)) (notElem (len - 1))
+    it "notElem" $ elimination (A.notElem (len + 1)) (notElem (len + 1))
+    it "sum" $ elimination A.sum sum
+    it "product" $ elimination A.product product
+
+    if list == []
+    then do
+        it "head empty" $ A.head stream `shouldReturn` Nothing
+        it "last empty" $ A.last stream `shouldReturn` Nothing
+        it "maximum empty" $ A.maximum stream `shouldReturn` Nothing
+        it "minimum empty" $ A.minimum stream `shouldReturn` Nothing
+    else do
+        it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
+        it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
+        it "maximum nonEmpty" $ A.maximum stream `shouldReturn` Just (maximum list)
+        it "minimum nonEmpty" $ A.minimum stream `shouldReturn` Just (minimum list)
+
+    where
+
+    -- XXX run on empty stream as well
+    transform streamOp listOp =
+        (A.toList $ streamOp stream) `shouldReturn` listOp list
+
+    elimination streamOp listOp = (streamOp stream) `shouldReturn` listOp list

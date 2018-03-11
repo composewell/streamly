@@ -1,6 +1,7 @@
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
@@ -89,7 +90,7 @@ data ChildEvent a =
 ------------------------------------------------------------------------------
 
 -- | Conjunction is used for monadic/product style composition. Disjunction is
--- used for fold/sum style composition. We need to distiguish the two types of
+-- used for fold/sum style composition. We need to distinguish the two types of
 -- SVars so that the scheduling of the two is independent.
 data SVarTag = Conjunction | Disjunction deriving Eq
 
@@ -140,13 +141,65 @@ data SVar m a =
 ------------------------------------------------------------------------------
 
 -- TBD use a functor instead of the bare type a?
--- XXX remove the Maybe, use "empty" as the base case
 
--- | Represents a monadic stream of values of type 'a' constructed using
--- actions in monad 'm'. Streams can be composed sequentially or in parallel;
--- in product style compositions (monadic bind multiplies streams in a ListT
--- fashion) or in sum style compositions like 'Semigroup', 'Monoid',
--- 'Alternative' or variants of these.
+-- | The type 'Stream m a' represents a monadic stream of values of type 'a'
+-- constructed using actions in monad 'm'. It uses a stop continuation and a
+-- yield continuation. You can consider it a rough equivalent of direct style
+-- type:
+--
+-- data Stream m a = Stop | Yield a (Maybe (Stream m a))
+--
+-- Our goal is to be able to represent finite as well infinite streams and
+-- being able to compose a large number of small streams efficiently. In
+-- addition we want to compose streams in parallel, to facilitate that we
+-- maintain a local state in an SVar that is shared across and is used for
+-- synchronization of the streams being composed.
+--
+-- Using this type, there are two ways to indicate the end of a stream, one is
+-- by calling the stop continuation and the other one is by yielding the last
+-- value along with 'Nothing' as the rest of the stream.
+--
+-- Why do we have this redundancy? Why can't we use (a -> Stream m a -> m r) as
+-- the type of the yield continuation and always use the stop continuation to
+-- indicate the end of the stream? The reason is that when we compose a large
+-- number of short or singleton streams then using the stop continuation
+-- becomes expensive, just to know that there is no next element we have to
+-- call the continuation, introducing an indirection, it seems when using CPS
+-- GHC is not able to optimize this out as efficiently as it can be in direct
+-- style because of the function call involved. In direct style it will just be
+-- a constructor check and a memory access instead of a function call. So we
+-- could use:
+--
+-- data Stream m a = Stop | Yield a (Stream m a)
+--
+-- In CPS style, when we use the 'Maybe' argument of yield to indicate the end
+-- then just like direct style we can figure out that there is no next element
+-- without a function call.
+--
+-- Then why not get rid of the stop continuation and use only yield to indicate
+-- the end of stream? The answer is, in that case to indicate the end of the
+-- stream we would have to yield at least one element so there is no way to
+-- represent an empty stream.
+--
+-- Whenever we make a singleton stream or in general when we build a stream
+-- strictly i.e. when we know all the elements of the stream in advance we can
+-- use the last yield to indicate th end of the stream, because we know in
+-- advance at the time of the last yield that the stream is ending.  We build
+-- singleton streams in the implementation of 'pure' for Applicative and Monad,
+-- and in 'lift' for MonadTrans, in these places we use yield with 'Nothing' to
+-- indicate the end of the stream. Note that, the only advantage of Maybe is
+-- when we have to build a large number of singleton or short streams. For
+-- larger streams anyway the overhead of a separate stop continuation is not
+-- significant. This could be significant when we breakdown a large stream into
+-- its elements, process them in some way and then recompose it from the
+-- pieces. Zipping streams is one such example. Zipping with streamly is the
+-- fastest among all streaming libraries.
+--
+-- However in a lazy computation we cannot know in advance that the stream is
+-- ending therefore we cannot use 'Maybe', we use the stop continuation in that
+-- case. For example when building a stream from a lazy container using a right
+-- fold.
+--
 newtype Stream m a =
     Stream {
         runStream :: forall r.
@@ -166,6 +219,15 @@ scons a r = Stream $ \_ _ yld -> yld a r
 
 snil :: Stream m a
 snil = Stream $ \_ stp _ -> stp
+
+------------------------------------------------------------------------------
+-- Composing streams
+------------------------------------------------------------------------------
+
+-- Streams can be composed sequentially or in parallel; in product style
+-- compositions (monadic bind multiplies streams in a ListT fashion) or in sum
+-- style compositions like 'Semigroup', 'Monoid', 'Alternative' or variants of
+-- these.
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -253,10 +315,9 @@ runqueueLIFO sv q = run
     yield a Nothing  = sendit a >> run
     yield a (Just r) = sendit a >> (runStream r) (Just sv) run yield
 
-    dequeue = liftIO $ atomicModifyIORefCAS q $ \ ms ->
-        case ms of
-            [] -> ([], Nothing)
-            x : xs -> (xs, Just x)
+    dequeue = liftIO $ atomicModifyIORefCAS q $ \case
+                [] -> ([], Nothing)
+                x : xs -> (xs, Just x)
 
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
@@ -289,7 +350,7 @@ runqueueFIFO sv q = run
 {-# NOINLINE addThread #-}
 addThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 addThread sv tid =
-    liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.insert tid s)
+    liftIO $ modifyIORef (runningThreads sv) (S.insert tid)
 
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar m a -> ThreadId -> m ()
@@ -298,8 +359,7 @@ delThread sv tid =
 
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => SVar m a -> m Bool
-allThreadsDone sv = liftIO $ do
-    readIORef (runningThreads sv) >>= return . S.null
+allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: MonadIO m => SVar m a -> SomeException -> m ()
@@ -326,8 +386,8 @@ sendWorkerWait sv = do
     output <- liftIO $ readIORef (outputQueue sv)
     when (null output) $ do
         done <- queueEmpty sv
-        if (not done)
-        then (pushWorker sv) >> sendWorkerWait sv
+        if not done
+        then pushWorker sv >> sendWorkerWait sv
         else void (liftIO $ takeMVar (doorBell sv))
 
 -- | Pull a stream from an SVar.
@@ -381,13 +441,13 @@ getFifoSVar ctype = do
     running <- newIORef S.empty
     q       <- newQ
     let sv =
-            SVar { outputQueue    = outQ
+            SVar { outputQueue       = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
                     , runqueue       = runqueueFIFO sv q
                     , enqueue        = pushL q
                     , queueEmpty     = liftIO $ nullQ q
-                    , svarStyle        = ctype
+                    , svarStyle       = ctype
                     }
      in return sv
 
@@ -397,30 +457,25 @@ getLifoSVar ctype = do
     outQMv  <- newEmptyMVar
     running <- newIORef S.empty
     q <- newIORef []
-    let checkEmpty = liftIO (readIORef q) >>= return . null
+    let checkEmpty = null <$> liftIO (readIORef q)
     let sv =
-            SVar { outputQueue    = outQ
+            SVar { outputQueue       = outQ
                     , doorBell       = outQMv
                     , runningThreads = running
                     , runqueue       = runqueueLIFO sv q
                     , enqueue        = enqueueLIFO q
                     , queueEmpty     = checkEmpty
-                    , svarStyle        = ctype
+                    , svarStyle      = ctype
                     }
      in return sv
 
 -- | Create a new empty SVar.
 newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
 newEmptySVar style = do
-    sv <- liftIO $
+    liftIO $
         case style of
-            SVarStyle _ FIFO -> do
-                c <- getFifoSVar style
-                return c
-            SVarStyle _ LIFO -> do
-                c <- getLifoSVar style
-                return c
-    return sv
+            SVarStyle _ FIFO -> getFifoSVar style
+            SVarStyle _ LIFO -> getLifoSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
 newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
@@ -534,7 +589,7 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 {-# INLINE joinStreamVar2 #-}
 joinStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVar2 style m1 m2 = Stream $ \st stp yld -> do
+joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
     case st of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) st stp yld
