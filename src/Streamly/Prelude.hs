@@ -29,6 +29,7 @@ module Streamly.Prelude
     -- ** General Folds
     , foldr
     , foldrM
+    , scan
     , foldl
     , foldlM
     , uncons
@@ -154,6 +155,19 @@ foldrM step acc m = go (toStream m)
             yield a Nothing  = step a acc
             yield a (Just x) = step a (go x)
         in (runStream m1) Nothing stop yield
+
+-- | Scan left. A strict left fold which accumulates the result of its reduction steps inside a stream, from left.
+{-# INLINE scan #-}
+scan :: Streaming t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scan step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
+    where
+    go m1 !acc = Stream $ \_ stp yld ->
+        let stop = stp
+            yield a Nothing = yld (done $ step acc a) Nothing
+            yield a (Just x) =
+                let s = step acc a
+                in yld (done s) (Just (go x s))
+        in runStream m1 Nothing stop yield
 
 -- XXX This more straightforward implementation of fold is almost twice as
 -- costly as the implementation we are using! Need to figure out what's wrong

@@ -666,6 +666,8 @@ streamOperations (stream, list, len) = do
     it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
                                       (dropWhile (< (len `div` 2)))
 
+    it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
+
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
     it "all" $ elimination (A.all even) (all even)
