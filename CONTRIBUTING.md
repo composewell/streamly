@@ -78,7 +78,9 @@ changes must be documented in the `Changelog`.
 ## Coding Style
 
 As long as possible please try to match the style of the file or the
-surrounding code.
+surrounding code. For haskell coding style guidelines, please [see this style
+guide](https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md).
+Specifically,
 
 * Please use 4 spaces for indentation.
 * Do not let the code go beyond 79 columns
