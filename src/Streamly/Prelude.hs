@@ -45,6 +45,7 @@ module Streamly.Prelude
     , length
     , elem
     , notElem
+    , reverse
     , maximum
     , minimum
     , sum
@@ -84,7 +85,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, all, any,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              tail, length, null)
+                                              tail, length, null, reverse)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -348,7 +349,7 @@ tail m =
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
 
--- | Determine wheter the stream is empty
+-- | Determine whether the stream is empty.
 null :: (Streaming t, Monad m) => t m a -> m Bool
 null m =
     let stop      = return True
@@ -378,6 +379,20 @@ notElem e m = go (toStream m)
 -- | Determine the length of the stream.
 length :: (Streaming t, Monad m) => t m a -> m Int
 length = foldl (\n _ -> n + 1) 0 id
+
+-- | Returns the elements of the stream in reverse order. 
+-- The stream must be finite.
+reverse :: (Streaming t) => t m a -> t m a
+reverse m = fromStream $ go Nothing (toStream m)
+    where
+      go rev rest = Stream $ \s stp yld ->
+          let
+              stop             = case rev of
+                  Nothing -> runStream snil s stp yld
+                  Just str -> runStream str s stp yld
+              yield a Nothing  = runStream (a `scons` rev) s stp yld
+              yield a (Just x) = runStream (go (Just $ a `scons` rev) x) s stp yld
+           in runStream rest Nothing stop yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
