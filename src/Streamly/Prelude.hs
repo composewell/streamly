@@ -41,6 +41,7 @@ module Streamly.Prelude
     , head
     , tail
     , last
+    , null
     , length
     , elem
     , notElem
@@ -83,7 +84,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, all, any,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              tail, length)
+                                              tail, length, null)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -346,6 +347,13 @@ tail m =
 {-# INLINE last #-}
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
+
+-- | Determine wheter the stream is empty
+null :: (Streaming t, Monad m) => t m a -> m Bool
+null m =
+    let stop      = return True
+        yield _ _ = return False
+    in (runStream (toStream m)) Nothing stop yield
 
 -- | Determine whether an element is present in the stream.
 elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
