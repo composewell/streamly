@@ -89,24 +89,30 @@ Specifically,
 
 ### Organization
 
-Use this simple rule to organize functions in a file or even modules in the
-cabal file - `Define before first use` or in other words use the `bottom up
-style`.  Note that this rule does not apply in choosing `let` vs `where`
-clauses. Use of `let`s  leads to bottom up and use of `where`s leads to top
-down style. But we do not encourage `let` over `where`, you can freely use
-`where` clauses. Also note that this is not possible in mutually recursive
-code.
+Use this simple rule to organize functions in a file: `Define before first
+use`. In other words, use the `bottom up style` to organize functions.
 
-One big benefit of this rule is easier type error debugging. It allows you to
-cut a part of the code tree cleanly by commenting out the code in a file from
-any point in the file up to the end of the file by just using a single comment
-block and the uncommented code still compiles. That way we can incrementally
-increase the uncommented portion by just sliding the beginning of the comment
-further down in the file and compile the file. This way it is very easy to
-incrementally compile the code and figure out the type errors in a smaller yet
-complete code, this reduction in the scope of type inferencing makes it really
-easy to figure out even hard to understand type errors.
+One big benefit of this rule is easier type error debugging. Using a single
+block comment, at any point in the file up to the end of the file, you can cut
+the tail and still cleanly compile the remaining head portion of the file.
 
-Similalrly when you put modules in the cabal file in dependency order you can
-do the same there, just comment out a tail of the module list and the rest will
-still compile.
+It is very helpful when we make significant changes to the file. We can start
+compiling a minimal head portion of the file and keep expanding the head by
+just moving the start of commented block further down. This keeps the scope of
+type inference minimal and type errors can be discovered incrementally by
+increasing the scope a little bit at a time.  If you use type signatures on all
+top level declarations then you do not even need to comment out the code.  This
+organization results in a better order of type errors which makes it easier to
+fix them and when necessary use elimination method by commenting out some code.
+
+Similarly when you put modules in the cabal file in dependency order you can
+do the same there, just comment out a tail of the module list and your library
+will still compile.
+
+Note that this rule does not apply in choosing `let` vs `where` clauses. Use of
+`let`s  leads to bottom up and use of `where`s leads to top down style. But we
+do not encourage `let` over `where`, you can freely use `where` clauses.
+
+Also note that this is not possible in mutually recursive code. The mutually
+recursive code has to be considered a single block.
+
