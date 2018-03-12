@@ -75,7 +75,9 @@ library please indicate that in the `Changelog` as `Breaking Changes` and what
 the programmers need to do to adapt to the new change. Any new user visible
 changes must be documented in the `Changelog`.
 
-## Coding Style
+## Coding
+
+### Style
 
 As long as possible please try to match the style of the file or the
 surrounding code. For haskell coding style guidelines, please [see this style
@@ -83,17 +85,28 @@ guide](https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md
 Specifically,
 
 * Please use 4 spaces for indentation.
-* Do not let the code go beyond 79 columns
-* Use multiline `let` clauses like this:
-  ```
-  let stop = stp
-      yield a Nothing = ...
-      ...
-  ```
-* Align the contents of the where clause in the same column as the `where`
-  keyword for saving unnecessary indentation, like this:
-  ```
-      where
+* Do not let the code go beyond 80 columns
 
-      x = ...
-  ```
+### Organization
+
+Use this simple rule to organize functions in a file or even modules in the
+cabal file - `Define before first use` or in other words use the `bottom up
+style`.  Note that this rule does not apply in choosing `let` vs `where`
+clauses. Use of `let`s  leads to bottom up and use of `where`s leads to top
+down style. But we do not encourage `let` over `where`, you can freely use
+`where` clauses. Also note that this is not possible in mutually recursive
+code.
+
+One big benefit of this rule is easier type error debugging. It allows you to
+cut a part of the code tree cleanly by commenting out the code in a file from
+any point in the file up to the end of the file by just using a single comment
+block and the uncommented code still compiles. That way we can incrementally
+increase the uncommented portion by just sliding the beginning of the comment
+further down in the file and compile the file. This way it is very easy to
+incrementally compile the code and figure out the type errors in a smaller yet
+complete code, this reduction in the scope of type inferencing makes it really
+easy to figure out even hard to understand type errors.
+
+Similalrly when you put modules in the cabal file in dependency order you can
+do the same there, just comment out a tail of the module list and the rest will
+still compile.
