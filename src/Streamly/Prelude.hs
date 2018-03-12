@@ -39,6 +39,7 @@ module Streamly.Prelude
     , all
     , any
     , head
+    , tail
     , last
     , length
     , elem
@@ -82,7 +83,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, all, any,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              length)
+                                              tail, length)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -331,6 +332,14 @@ head :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 head m =
     let stop      = return Nothing
         yield a _ = return (Just a)
+    in (runStream (toStream m)) Nothing stop yield
+
+-- | Extract all but the first element of the stream, if any.
+tail :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
+tail m =
+    let stop             = return Nothing
+        yield _ Nothing  = return $ Just nil
+        yield _ (Just t) = return $ Just $ fromStream t
     in (runStream (toStream m)) Nothing stop yield
 
 -- | Extract the last element of the stream, if any.
