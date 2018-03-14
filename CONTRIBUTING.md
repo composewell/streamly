@@ -71,7 +71,8 @@ by the programmers to deem it usable.
 ### Changelog
 
 Any new changes that affect the programmer in some way must be documented in
-the `Changelog`.  If you make changes that are incompatible with the released
+the `Changelog`.  Please start the summary with imperative mood just as in
+commit messages. If you make changes that are incompatible with the released
 versions of the library please indicate that in the `Changelog` as `Breaking
 Changes` and also write short notes regarding what the programmers need to do
 to adapt their existing code to the new change.  The changes in the changelog
