@@ -324,7 +324,7 @@ sum = foldl (+) 0 id
 
 -- | Determine the product of all elements of a stream of numbers
 product :: (Streaming t, Monad m, Num a) => t m a -> m a
-product = foldl (*) 0 id
+product = foldl (*) 1 id
 
 -- | Extract the first element of the stream, if any.
 head :: (Streaming t, Monad m) => t m a -> m (Maybe a)
