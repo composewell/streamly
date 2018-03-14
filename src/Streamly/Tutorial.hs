@@ -1016,7 +1016,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- When it comes to streaming, in terms of core concepts, @simple-conduit@ is
 -- the package that is closest to streamly if we set aside the concurrency
 -- dimension, both are streaming packages with list transformer like monad
--- composition.  However, in terms of API it is more like the @streaming@
+-- composition.  However, in terms of API @streamly@ is more like the @streaming@
 -- package. Streamly can be used to achieve more or less the functionality
 -- provided by any of the streaming packages listed above. The types and API of
 -- streamly are much simpler in comparison to conduit and pipes. It is more or
@@ -1039,5 +1039,5 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the "Streamly.Examples.CirclingSquare" example from Yampa demonstrate the
 -- basic FRP capability of streamly. In core concepts streamly is strikingly
 -- similar to @dunai@. dunai was designed from a FRP perspective and streamly
--- wa original designed from a concurrency perspective. However, both have
+-- was originally designed from a concurrency perspective. However, both have
 -- similarity at the core.
