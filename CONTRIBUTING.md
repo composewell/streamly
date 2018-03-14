@@ -70,13 +70,11 @@ by the programmers to deem it usable.
 
 ### Changelog
 
-Any new changes that affect the programmer in some way must be documented in
-the `Changelog`.  Please start the summary with imperative mood just as in
-commit messages. If you make changes that are incompatible with the released
-versions of the library please indicate that in the `Changelog` as `Breaking
-Changes` and also write short notes regarding what the programmers need to do
-to adapt their existing code to the new change.  The changes in the changelog
-must be organized in the following categories, in that order:
+Any new changes that affect the user of the library in some way must be
+documented under `Unreleased` section at the top of the `Changelog`.  Please
+start the summary of the change with imperative mood just as in commit
+messages.  The changes in the changelog must be organized in the following
+categories, in that order:
 
 * Breaking Changes
 * Enhancements
@@ -86,6 +84,11 @@ must be organized in the following categories, in that order:
 If there are very few changes then you can just prefix a bullet with these
 annotations. If there are many changes make sections to group them. A section
 can be absent if there is nothing to add in it.
+
+If you make changes that are incompatible with the released versions
+of the library please indicate that in the `Changelog` as `Breaking Changes`
+and also write short notes regarding what the programmers need to do to adapt
+their existing code to the new change.
 
 ## Coding
 
