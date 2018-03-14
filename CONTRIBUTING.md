@@ -70,10 +70,21 @@ by the programmers to deem it usable.
 
 ### Changelog
 
-If you make changes that are incompatible with the released versions of the
-library please indicate that in the `Changelog` as `Breaking Changes` and what
-the programmers need to do to adapt to the new change. Any new user visible
-changes must be documented in the `Changelog`.
+Any new changes that affect the programmer in some way must be documented in
+the `Changelog`.  If you make changes that are incompatible with the released
+versions of the library please indicate that in the `Changelog` as `Breaking
+Changes` and also write short notes regarding what the programmers need to do
+to adapt their existing code to the new change.  The changes in the changelog
+must be organized in the following categories, in that order:
+
+* Breaking Changes
+* Enhancements
+* Bug Fixes
+* Deprecations
+
+If there are very few changes then you can just prefix a bullet with these
+annotations. If there are many changes make sections to group them. A section
+can be absent if there is nothing to add in it.
 
 ## Coding
 
