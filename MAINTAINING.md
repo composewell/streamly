@@ -1,0 +1,92 @@
+# Maintainers' Guide
+
+## Release Checklist
+
+* Check if any critical pending bugs or issues are to be included
+* _Documentation_:
+
+    * Update the README if needed.
+    * Make sure haddock docs are consistent with the changes in the release
+
+* _Benchmarks_:
+
+    * Check regressions from previous release
+    * Check comparative benchmarks using streaming-benchmarks
+
+* _Update changelog_:
+
+    * Change the `Unreleased` section at the top of changelog file to the new
+      release version number and make an `Unreleased` section above it. Using
+      `Unreleased` instead of the next release number for unreleased changes is
+      important. If we use the next release number instead, then when adding a
+      new change to the changelog, at one look we cannot know whether the
+      release number on top is unreleased or released.
+
+    * Make sure all the bug fixes being included in this release are marked
+      with a target release on github. So that users can search by release if
+      they want.
+
+* _Update Package Metadata:_
+
+    * Update `stack.yaml` to latest stable resolver, cleanup extra-deps
+    * Make sure the description in cabal file is in sync with README and other docs
+    * Make sure CI configs include last three major releases of GHC in CI testing.
+    * Update `tested-with` field
+    * Make sure all dependency bounds are correct
+    * Bump the package version
+
+* _Upload_:
+
+    * Wait for final CI tests to pass:
+
+        * Create a git tag corresponding to the release where X.Y.Z is the new
+          package version (`git tag vX.Y.Z && git push -f origin v.X.Y.Z`).
+        * Mask out the build status lines from the README
+        * Upload to hackage (`stack upload .`)
+        * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
+        * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
+            * Update release contributors on github release page
+              (`git shortlog -s prev_tag..new_tag | sed $'s/^[0-9 \t]*/* /' | sort -f`)
+        * Update and if needed release streaming-benchmarks package
+        * Check https://matrix.hackage.haskell.org/package/streamly
+        * Check haddocks on Hackage, upload if not built
+        * Announce to haskell-cafe@haskell.org
+
+## Managing Changes
+
+### User Impacting Changes
+
+__RULE__ Any commit that may affect the end user in some way MUST have either a
+changelog entry OR MUST have an issue marked with one of the following labels
+OR both.  We can have more than one of these labels on the same issue e.g.
+breaking, enhancement:
+
+* breaking
+* deprecating
+* enhancement
+* bug
+
+Note that if you are making a big feature change you may have a single issue
+for that feature and attach many commits with it. So you do not necessarily
+need to have an issue for each commit.
+
+Every new issue that requires a fix MAY be marked with a target release. But
+remember that before we make a new release EVERY issue with a commit included
+in that release that affects the end user MUST have the target release
+correctly set.
+
+### Maintenance Changes
+
+Commits that do not impact the end user in any way are not required to have a
+changelog entry or an issue.  Issues that do not have a corresponding commit
+may be left without a label but preferably should be marked with one of the
+following:
+
+* invalid
+* question
+* wontfix
+* maintenance
+
+## TODO
+
+* GPG signed releases and tags
