@@ -340,7 +340,7 @@ head m =
 tail :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
 tail m =
     let stop             = return Nothing
-        yield _ Nothing  = return $ Just nil
+        yield _ Nothing  = return Nothing
         yield _ (Just t) = return $ Just $ fromStream t
     in (runStream (toStream m)) Nothing stop yield
 
@@ -385,14 +385,13 @@ length = foldl (\n _ -> n + 1) 0 id
 reverse :: (Streaming t) => t m a -> t m a
 reverse m = fromStream $ go Nothing (toStream m)
     where
-      go rev rest = Stream $ \s stp yld ->
-          let
-              stop             = case rev of
-                  Nothing -> runStream snil s stp yld
-                  Just str -> runStream str s stp yld
-              yield a Nothing  = runStream (a `scons` rev) s stp yld
-              yield a (Just x) = runStream (go (Just $ a `scons` rev) x) s stp yld
-           in runStream rest Nothing stop yield
+    go rev rest = Stream $ \svr stp yld ->
+        let stop = case rev of
+                Nothing ->  stp
+                Just str -> runStream str svr stp yld
+            yield a Nothing  = runStream (a `scons` rev) svr stp yld
+            yield a (Just x) = runStream (go (Just $ a `scons` rev) x) svr stp yld
+         in runStream rest svr stop yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.

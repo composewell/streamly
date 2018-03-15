@@ -677,6 +677,9 @@ streamOperations (stream, list, len) = do
 
     it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
 
+    -- Transformations
+    it "reverse" $ transform A.reverse reverse
+
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
     it "all" $ elimination (A.all even) (all even)
@@ -695,11 +698,13 @@ streamOperations (stream, list, len) = do
         it "last empty" $ A.last stream `shouldReturn` Nothing
         it "maximum empty" $ A.maximum stream `shouldReturn` Nothing
         it "minimum empty" $ A.minimum stream `shouldReturn` Nothing
+        it "null empty" $ A.null stream `shouldReturn` True
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
         it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
         it "maximum nonEmpty" $ A.maximum stream `shouldReturn` Just (maximum list)
         it "minimum nonEmpty" $ A.minimum stream `shouldReturn` Just (minimum list)
+        it "null nonEmpty" $ A.null stream `shouldReturn` False
 
     where
 
