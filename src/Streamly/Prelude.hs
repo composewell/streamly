@@ -87,7 +87,6 @@ import qualified System.IO as IO
 
 import           Streamly.Core
 import           Streamly.Streams
-
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
@@ -334,14 +333,9 @@ head m =
     in (runStream (toStream m)) Nothing stop yield
 
 -- | Extract the last element of the stream, if any.
+{-# INLINE last #-}
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
-last m = go (toStream m)
-    where
-    go m1 =
-        let stop            = return Nothing
-            yield a Nothing = return (Just a)
-            yield _ (Just x) = go x
-        in (runStream m1) Nothing stop yield
+last = foldl (\_ y -> Just y) Nothing id
 
 -- | Determine whether an element is present in the stream.
 elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
