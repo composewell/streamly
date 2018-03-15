@@ -340,7 +340,7 @@ head m =
 tail :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
 tail m =
     let stop             = return Nothing
-        yield _ Nothing  = return Nothing
+        yield _ Nothing  = return $ Just nil
         yield _ (Just t) = return $ Just $ fromStream t
     in (runStream (toStream m)) Nothing stop yield
 
