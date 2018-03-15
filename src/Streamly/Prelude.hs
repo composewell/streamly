@@ -59,6 +59,7 @@ module Streamly.Prelude
     , mapM
     , mapM_
     , sequence
+    , replicateM
 
     -- * Zipping
     , zipWith
@@ -430,6 +431,14 @@ sequence m = fromStream $ go (toStream m)
             yield a Nothing  = a >>= \b -> yld b Nothing
             yield a (Just x) = a >>= \b -> yld b (Just (go x))
          in (runStream m1) Nothing stop yield
+
+replicateM :: (Streaming t, Monad m) => Int -> m a -> t m a
+replicateM n m = fromStream $ go n
+    where
+    go cnt = Stream $ \_ stp yld ->
+        if cnt <= 0
+        then stp
+        else m >>= \a -> yld a (Just $ go (cnt - 1))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
