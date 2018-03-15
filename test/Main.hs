@@ -4,6 +4,7 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (replicateM)
 import Data.Foldable (forM_)
 import Data.List (sort)
 import Test.Hspec
@@ -636,6 +637,14 @@ mixedOps = do
 
 streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
 streamOperations (stream, list, len) = do
+
+    -- Generation
+    it "replicateM" $ do
+            let x = return (1 :: Int)
+            str <- A.toList . serially $ A.replicateM len x
+            lst <- replicateM len x
+            return $ str == lst
+        `shouldReturn` True
 
     -- Filtering
     it "filter all out" $ transform (A.filter (> len)) (filter (> len))

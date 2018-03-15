@@ -1,7 +1,7 @@
 ## Unreleased
 
 ### Enhancements
-* Add the `scan` operation for left scan of a stream
+* Add `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
 
 ### Bug Fixes
