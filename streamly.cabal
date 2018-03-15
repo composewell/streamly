@@ -119,7 +119,7 @@ library
 
   if flag(examples) || flag(examples-sdl)
     build-Depends:
-        http-conduit >= 2.2.2 && < 2.3
+        http-conduit >= 2.2.2 && < 2.4
       , path-io      >= 0.1.0 && < 1.4
       , random       >= 1.0.0 && < 1.2
 
