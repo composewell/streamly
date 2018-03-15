@@ -58,7 +58,10 @@ module Streamly.Prelude
     -- * Transformation
     , mapM
     , mapM_
+    , forM
+    , forM_
     , sequence
+    , sequence_
 
     -- * Zipping
     , zipWith
@@ -78,8 +81,8 @@ import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (filter, drop, dropWhile, take,
                                               takeWhile, zipWith, foldr, foldl,
-                                              mapM, mapM_, sequence, all, any,
-                                              sum, product, elem, notElem,
+                                              mapM, mapM_, sequence, sequence_, all, 
+                                              any, sum, product, elem, notElem,
                                               maximum, minimum, head, last,
                                               length)
 import qualified Prelude
@@ -420,6 +423,14 @@ mapM_ f m = go (toStream m)
             yield a (Just x) = f a >> go x
          in (runStream m1) Nothing stop yield
 
+-- | 'forM' is 'mapM' with arguments flipped.
+forM :: (Streaming t, Monad m) => t m a -> (a -> m b) -> t m b
+forM = flip mapM
+
+-- | 'forM_' is 'mapM_' with arguments flipped.
+forM_ :: (Streaming t, Monad m) => t m a -> (a -> m b) -> m ()
+forM_ = flip mapM_
+
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
 sequence :: (Streaming t, Monad m) => t m (m a) -> t m a
@@ -429,6 +440,17 @@ sequence m = fromStream $ go (toStream m)
         let stop = stp
             yield a Nothing  = a >>= \b -> yld b Nothing
             yield a (Just x) = a >>= \b -> yld b (Just (go x))
+         in (runStream m1) Nothing stop yield
+
+-- | Reduce a stream of monadic actions to a stream of the output but
+-- discards the output of the action.
+sequence_ :: (Streaming t, Monad m) => t m (m a) -> m ()
+sequence_ m = go (toStream m)
+    where
+    go m1 =
+        let stop = return ()
+            yield a Nothing  = void a
+            yield a (Just x) = a >> go x
          in (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
