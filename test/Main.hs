@@ -7,7 +7,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM)
 import Data.Foldable (forM_)
 import Data.List (sort)
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (fromJust)
 import Test.Hspec
 
 import Streamly
@@ -699,16 +699,18 @@ streamOperations (stream, list, len) = do
         it "maximum empty" $ A.maximum stream `shouldReturn` Nothing
         it "minimum empty" $ A.minimum stream `shouldReturn` Nothing
         it "null empty" $ A.null stream `shouldReturn` True
-        it "tail empty" $ A.tail stream >>= 
-            \t -> if isNothing t then return () else expectationFailure "failed"
+        it "tail empty" $ (A.tail stream >>= return . maybe True (const False))
+            `shouldReturn` True
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
         it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
-        it "maximum nonEmpty" $ A.maximum stream `shouldReturn` Just (maximum list)
-        it "minimum nonEmpty" $ A.minimum stream `shouldReturn` Just (minimum list)
+        it "maximum nonEmpty" $ A.maximum stream
+            `shouldReturn` Just (maximum list)
+        it "minimum nonEmpty" $ A.minimum stream
+            `shouldReturn` Just (minimum list)
         it "null nonEmpty" $ A.null stream `shouldReturn` False
-        it "tail nonEmpty" $ 
-            (A.tail stream >>= A.toList . fromJust) `shouldReturn` tail list
+        it "tail nonEmpty" $ (A.tail stream >>= A.toList . fromJust)
+            `shouldReturn` tail list
 
     where
     -- XXX run on empty stream as well
