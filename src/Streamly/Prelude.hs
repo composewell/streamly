@@ -39,10 +39,13 @@ module Streamly.Prelude
     , all
     , any
     , head
+    , tail
     , last
+    , null
     , length
     , elem
     , notElem
+    , reverse
     , maximum
     , minimum
     , sum
@@ -82,7 +85,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, all, any,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              length)
+                                              tail, length, null, reverse)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -333,10 +336,25 @@ head m =
         yield a _ = return (Just a)
     in (runStream (toStream m)) Nothing stop yield
 
+-- | Extract all but the first element of the stream, if any.
+tail :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
+tail m =
+    let stop             = return Nothing
+        yield _ Nothing  = return $ Just nil
+        yield _ (Just t) = return $ Just $ fromStream t
+    in (runStream (toStream m)) Nothing stop yield
+
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
+
+-- | Determine whether the stream is empty.
+null :: (Streaming t, Monad m) => t m a -> m Bool
+null m =
+    let stop      = return True
+        yield _ _ = return False
+    in (runStream (toStream m)) Nothing stop yield
 
 -- | Determine whether an element is present in the stream.
 elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -361,6 +379,19 @@ notElem e m = go (toStream m)
 -- | Determine the length of the stream.
 length :: (Streaming t, Monad m) => t m a -> m Int
 length = foldl (\n _ -> n + 1) 0 id
+
+-- | Returns the elements of the stream in reverse order. 
+-- The stream must be finite.
+reverse :: (Streaming t) => t m a -> t m a
+reverse m = fromStream $ go Nothing (toStream m)
+    where
+    go rev rest = Stream $ \svr stp yld ->
+        let stop = case rev of
+                Nothing ->  stp
+                Just str -> runStream str svr stp yld
+            yield a Nothing  = runStream (a `scons` rev) svr stp yld
+            yield a (Just x) = runStream (go (Just $ a `scons` rev) x) svr stp yld
+         in runStream rest svr stop yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
