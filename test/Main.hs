@@ -7,6 +7,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (replicateM)
 import Data.Foldable (forM_)
 import Data.List (sort)
+import qualified Data.List as L
 import Data.Maybe (fromJust)
 import Test.Hspec
 
@@ -693,6 +694,7 @@ streamOperations (stream, list, len) = do
     -- Transformations
     it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
     it "reverse" $ transform A.reverse reverse
+    it "intersperse" $ transform (A.intersperse 0) (L.intersperse 0)
 
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
