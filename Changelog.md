@@ -1,7 +1,7 @@
 ## Unreleased
 
 ### Enhancements
-* Add `replicateM`, `scan` stream operations
+* Add `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
 
 ### Bug Fixes
