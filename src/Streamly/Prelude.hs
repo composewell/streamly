@@ -380,7 +380,7 @@ notElem e m = go (toStream m)
 length :: (Streaming t, Monad m) => t m a -> m Int
 length = foldl (\n _ -> n + 1) 0 id
 
--- | Returns the elements of the stream in reverse order. 
+-- | Returns the elements of the stream in reverse order.
 -- The stream must be finite.
 reverse :: (Streaming t) => t m a -> t m a
 reverse m = fromStream $ go Nothing (toStream m)
@@ -463,6 +463,7 @@ sequence m = fromStream $ go (toStream m)
             yield a (Just x) = a >>= \b -> yld b (Just (go x))
          in (runStream m1) Nothing stop yield
 
+-- | Generate a stream by performing an action @n@ times.
 replicateM :: (Streaming t, Monad m) => Int -> m a -> t m a
 replicateM n m = fromStream $ go n
     where

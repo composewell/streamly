@@ -112,7 +112,7 @@ class Streaming t where
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- | Represesnts an empty stream just like @[]@ represents and empty list.
+-- | Represesnts an empty stream just like @[]@ represents an empty list.
 nil :: Streaming t => t m a
 nil = fromStream snil
 
