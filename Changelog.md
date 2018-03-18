@@ -1,4 +1,4 @@
-## Unreleased
+## 0.1.1
 
 ### Enhancements
 * Make `cons` right associative and provide an operator form `.:` for it
