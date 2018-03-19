@@ -20,16 +20,19 @@ whether the code runs serially or concurrently.  It naturally integrates
 concurrency with streaming rather than adding it as an afterthought.
 Moreover, it interworks with the popular streaming libraries.
 
-See the haddock documentation for full reference.  It is recommended to read
-the comprehensive tutorial module `Streamly.Tutorial` first. Also see
-`Streamly.Examples` for some working examples.
+See the haddock documentation for full reference.  It is recommended that you
+read `Streamly.Tutorial` first. Also see `Streamly.Examples` for some working
+examples.
 
 `Streamly` has best in class performance even though it generalizes streaming
 to concurrent composition that does not mean it sacrifices non-concurrent
 performance. See
 [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
 detailed performance comparison with regular streaming libraries and the
-explanation of the benchmarks. Here is a summary:
+explanation of the benchmarks. The following graphs show a summary, the first
+one measures how four pipeline stages in a series perform, the second one
+measures the performance of individual stream operations; in both cases the
+stream processes a million elements:
 
 ![Composing Pipeline Stages](charts/ComposingPipelineStages.svg)
 ![All Operations at a Glance](charts/AllOperationsataGlance.svg)
