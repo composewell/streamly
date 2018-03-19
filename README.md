@@ -28,7 +28,11 @@ the comprehensive tutorial module `Streamly.Tutorial` first. Also see
 to concurrent composition that does not mean it sacrifices non-concurrent
 performance. See
 [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
-detailed performance comparison with regular streaming libraries.
+detailed performance comparison with regular streaming libraries and the
+explanation of the benchmarks. Here is a summary:
+
+![Composing Pipeline Stages](charts/ComposingPipelineStages.svg)
+![All Operations at a Glance](charts/AllOperationsataGlance.svg)
 
 ## Non-determinism
 
