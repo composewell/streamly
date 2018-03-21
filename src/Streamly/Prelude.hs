@@ -26,6 +26,9 @@ module Streamly.Prelude
     , each
     , iterate
     , iterateM
+    , repeat
+    , replicate
+    , cycle
 
     -- * Elimination
     -- ** General Folds
@@ -89,7 +92,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
                                               tail, length, null, reverse,
-                                              iterate)
+                                              iterate, repeat, replicate,
+                                              cycle)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -137,6 +141,31 @@ iterateM step = fromStream . go
     go s = Stream $ \_ _ yld -> do
        a <- step s
        yld s (Just (go a))
+
+-- | @repeat a@ creates an infinite stream of @a@.
+repeat :: (Streaming t) => a -> t m a
+repeat a = a .: repeat a
+
+-- | @replicate n a@ creates an @n@ element stream of only @a@.
+replicate :: (Streaming t) => Int -> a -> t m a
+replicate n a = take n $ repeat a
+
+-- | @cycle m@ creates an infinite stream by starting at the first element of
+-- @m@ after exhausting all other elements.
+-- The given stream may NOT be empty.
+cycle :: (Streaming t) => t m a -> t m a
+cycle m = fromStream $ goIfNotNull $ toStream m
+    where
+    goIfNotNull m1 = Stream $ \svr _ yld ->
+        let stop = error "Can't cycle an empty Stream"
+            yield a Nothing = yld a $ Just $ go $ toStream m
+            yield a (Just m') = yld a $ Just $ go m'
+        in (runStream m1) svr stop yield
+    go m1 = Stream $ \svr _ yld ->
+        let stop = runStream (go $ toStream m) svr stop yield
+            yield a Nothing = yld a $ Just $ go $ toStream m
+            yield a (Just m') = yld a $ Just $ go m'
+        in (runStream m1) svr stop yield
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
