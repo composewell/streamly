@@ -65,6 +65,8 @@ breaking, enhancement:
 * breaking
 * deprecating
 * enhancement
+* performance
+* documentation
 * bug
 
 Note that if you are making a big feature change you may have a single issue
