@@ -122,10 +122,12 @@ unfoldrM step = fromStream . go
 each :: (Streaming t, Foldable f) => f a -> t m a
 each = Prelude.foldr cons nil
 
+-- | Iterate a pure function from a seed value, streaming the results forever
 iterate :: Streaming t => (a -> a) -> a -> t m a
-iterate f = fromStream . go
+iterate step = fromStream . go
   where
-    go s = scons s (Just (go (f s)))
+    go s = scons s (Just (go (step s)))
+
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
