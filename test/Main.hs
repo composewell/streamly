@@ -651,6 +651,12 @@ streamOperations (stream, list, len) = do
             return $ str == lst
         `shouldReturn` True
 
+    it "iterate" $ do
+            let lst = take len $ iterate (+ 1) 0
+            str <- A.toList . serially . (A.take len) $ (A.iterate (+ 1) (0 :: Int))
+            return $ str == lst
+        `shouldReturn` True
+
     -- Filtering
     it "filter all out" $ transform (A.filter (> len)) (filter (> len))
     it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
