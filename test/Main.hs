@@ -422,8 +422,12 @@ zipOps z zM app = do
     it "Applicative zip" $
         let s1 = adapt $ serially $ foldMapWith (<>) return [1..10]
             s2 = adapt $ serially $ foldMapWith (<>) return [1..]
-         in (A.toList . app) ((+) <$> s1 <*> s2)
-        `shouldReturn` ([2,4..20] :: [Int])
+            f = A.toList . app
+            functorial = f $ (+) <$> s1 <*> s2
+            applicative = f $ pure (+) <*> s1 <*> s2
+            expected = ([2,4..20] :: [Int])
+         in (,) <$> functorial <*> applicative
+        `shouldReturn` (expected, expected)
 
 timed :: Int -> StreamT IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x

@@ -25,6 +25,7 @@ module Streamly.Core
 
     -- * Construction
     , scons
+    , srepeat
     , snil
 
     -- * Composition
@@ -216,6 +217,9 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 scons :: a -> Maybe (Stream m a) -> Stream m a
 scons a r = Stream $ \_ _ yld -> yld a r
+
+srepeat :: a -> Stream m a
+srepeat a = let x = scons a (Just x) in x
 
 snil :: Stream m a
 snil = Stream $ \_ stp _ -> stp
