@@ -1,3 +1,8 @@
+## Unreleased
+
+### Bug Fixes
+* Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
+
 ## 0.1.1
 
 ### Enhancements
