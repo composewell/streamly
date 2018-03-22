@@ -7,7 +7,7 @@
 
 ### Enhancements
 * Make `cons` right associative and provide an operator form `.:` for it
-* Add `iterate`, `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
+* Add `iterateM`, `iterate`, `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
 
 ### Bug Fixes
