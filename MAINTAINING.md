@@ -67,11 +67,6 @@ Note that if you are making a big feature change you may have a single issue
 for that feature and attach many commits with it. So you do not necessarily
 need to have an issue for each commit.
 
-Every new issue that requires a fix MAY be marked with a target release. But
-remember that before we make a new release EVERY issue with a commit included
-in that release that affects the end user MUST have the target release
-correctly set.
-
 ### Maintenance Changes
 
 Commits that do not impact the end user in any way are not required to have a
@@ -83,6 +78,31 @@ following:
 * question
 * wontfix
 * maintenance
+
+### Planning and Tracking Changes
+
+For planning purposes, open issues may be marked with milestones or target
+releases.  However, it may not always be known which release a fix will finally
+land in.  For example, we may decide to make a minor release instead of a major
+one if there are no breaking changes yet, so we may not always know what would
+be the next release version.
+
+Trackability means that we should be able to find which issues got fixed in
+which release. Or what all issues got fixed in a particular release. We track
+significant changes using the changelog. However, there may be more changes
+that can only be tracked via issues, PRs or commits.  When we make a release we
+can mark all the issues fixed in that release with a correct release target for
+future trackability.
+
+For better trackability of which issue got fixed in which release we need the
+following:
+
+* Before you close an issue make sure a commit or a PR fixing the issue is
+  attached with it. In the commit message you can reference an issue like
+  "fixes #50", you can do the same in a PR as well.
+* Before we make a new release EVERY issue with a commit included in that
+  release that affects the end user, especially bugs and breaking changes MUST
+  have the target release correctly set.
 
 ### Changelog Management
 
