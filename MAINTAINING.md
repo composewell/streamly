@@ -19,18 +19,12 @@
     * Make sure the description in cabal file is in sync with README and other docs
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update `tested-with` field
-    * Make sure all dependency bounds are correct
+    * Make sure all dependency bounds can use latest versions
 
 * _Update changelog & Version_:
 
     * Change the `Unreleased` section at the top of changelog file to the new
-      release version number. Using `Unreleased` instead of the next release
-      number for unreleased changes is important. First, we do not know the
-      next release number in advance, it could be a major or minor release.
-      Second, if we use the next release number instead, then when adding a new
-      change to the changelog, at one look we cannot know whether the release
-      number on top is unreleased or released.
-
+      release version number.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
@@ -89,6 +83,15 @@ following:
 * question
 * wontfix
 * maintenance
+
+### Changelog Management
+
+Keep the unreleased changes in the `Unreleased` section at the top of changelog
+file.  Using `Unreleased` instead of the next release number for unreleased
+changes is important. First, we do not know the next release number in advance,
+it could be a major or minor release.  Second, if we use the next release
+number instead, then when adding a new change to the changelog, at one look we
+cannot know whether the release number on top is unreleased or released.
 
 ## TODO
 
