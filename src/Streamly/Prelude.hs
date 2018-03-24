@@ -150,12 +150,12 @@ foldr step acc m = go (toStream m)
 
 -- | Right fold with a monadic step function.  See 'toList' for an example use.
 {-# INLINE foldrM #-}
-foldrM :: (Streaming t, Monad m) => (a -> b -> m b) -> m b -> t m a -> m b
+foldrM :: (Streaming t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
 foldrM step acc m = go (toStream m)
     where
     go m1 =
-        let stop = acc
-            yield a Nothing  = acc >>= (step a)
+        let stop = return acc
+            yield a Nothing  = step a acc
             yield a (Just x) = (go x) >>= (step a)
         in (runStream m1) Nothing stop yield
 
@@ -238,7 +238,7 @@ toHandle h m = go (toStream m)
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
 toList :: (Streaming t, Monad m) => t m a -> m [a]
-toList = foldrM (\a xs -> return (a : xs)) (return [])
+toList = foldrM (\a xs -> return (a : xs)) []
 
 -- | Take first 'n' elements from the stream and discard the rest.
 {-# INLINE take #-}
