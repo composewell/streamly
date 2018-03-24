@@ -24,6 +24,8 @@ module Streamly.Prelude
     , unfoldr
     , unfoldrM
     , each
+    , iterate
+    , iterateM
 
     -- * Elimination
     -- ** General Folds
@@ -85,7 +87,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, all, any,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              tail, length, null, reverse)
+                                              tail, length, null, reverse,
+                                              iterate)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -119,6 +122,20 @@ unfoldrM step = fromStream . go
 {-# INLINE each #-}
 each :: (Streaming t, Foldable f) => f a -> t m a
 each = Prelude.foldr cons nil
+
+-- | Iterate a pure function from a seed value, streaming the results forever
+iterate :: Streaming t => (a -> a) -> a -> t m a
+iterate step = fromStream . go
+    where
+    go s = scons s (Just (go (step s)))
+
+-- | Iterate a monadic function from a seed value, streaming the results forever
+iterateM :: (Streaming t, Monad m) => (a -> m a) -> a -> t m a
+iterateM step = fromStream . go
+    where
+    go s = Stream $ \_ _ yld -> do
+       a <- step s
+       yld s (Just (go a))
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String

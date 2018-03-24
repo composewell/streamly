@@ -1,4 +1,5 @@
 ## Unreleased
+* Add `iterate`, `iterateM` stream operations
 
 ### Bug Fixes
 * Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
