@@ -658,7 +658,7 @@ streamOperations (stream, list, len) = do
     it "iterateM" $ do
               let addM = (\ y -> return (y + 1))
               A.toList . serially . (A.take len) $ A.iterateM addM (0 :: Int)
-           `shouldReturn` (take len $ iterate (+ 1) 0)
+              `shouldReturn` (take len $ iterate (+ 1) 0)
 
 
     -- Filtering
