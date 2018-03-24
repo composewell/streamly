@@ -1,4 +1,5 @@
 ## Unreleased
+* Add `iterate`, `iterateM` stream operations
 
 ### Bug Fixes
 * Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
@@ -7,7 +8,7 @@
 
 ### Enhancements
 * Make `cons` right associative and provide an operator form `.:` for it
-* Add `iterateM`, `iterate`, `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
+* Add `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
 
 ### Bug Fixes

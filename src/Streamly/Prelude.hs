@@ -126,16 +126,16 @@ each = Prelude.foldr cons nil
 -- | Iterate a pure function from a seed value, streaming the results forever
 iterate :: Streaming t => (a -> a) -> a -> t m a
 iterate step = fromStream . go
-  where
-  go s = scons s (Just (go (step s)))
+    where
+    go s = scons s (Just (go (step s)))
 
 -- | Iterate a monadic function from a seed value, streaming the results forever
-iterateM :: (Streaming t, Monad m) => (a -> m a) -> m a -> t m a
+iterateM :: (Streaming t, Monad m) => (a -> m a) -> a -> t m a
 iterateM step = fromStream . go
-  where
-  go ms = Stream $ \_ _ yld -> do
-    s <- ms
-    yld s (Just (go (step s)))
+    where
+    go s = Stream $ \_ _ yld -> do
+       a <- step s
+       yld s (Just (go a))
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
