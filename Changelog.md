@@ -1,8 +1,11 @@
-## Unreleased
+## 0.1.2
+
+### Enhancements
 * Add `iterate`, `iterateM` stream operations
 
 ### Bug Fixes
-* Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
+* Fixed a bug that casued unexpected behavior when `pure` was used to inject
+  values in Applicative composition of `ZipStream` and `ZipAsync` types.
 
 ## 0.1.1
 

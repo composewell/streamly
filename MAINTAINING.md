@@ -28,7 +28,7 @@
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
-    * Bump the package version
+    * Bump the package version in cabal file or package.yaml
 
 * _Upload_:
 
