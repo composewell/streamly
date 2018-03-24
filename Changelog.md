@@ -1,4 +1,5 @@
 ## Unreleased
+* Add `iterate`, `iterateM` stream operations
 
 ### Breaking
 * Change the type of `foldrM` to take a pure seed and pure second argument in the step function
@@ -10,7 +11,7 @@
 
 ### Enhancements
 * Make `cons` right associative and provide an operator form `.:` for it
-* Add `iterateM`, `iterate`, `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
+* Add `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
 
 ### Bug Fixes
