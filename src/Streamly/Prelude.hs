@@ -55,6 +55,9 @@ module Streamly.Prelude
     , minimum
     , sum
     , product
+    , lookup
+    , find
+    , partition
 
     -- * Filtering
     , filter
@@ -93,7 +96,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               maximum, minimum, head, last,
                                               tail, length, null, reverse,
                                               iterate, repeat, replicate,
-                                              cycle)
+                                              cycle, lookup)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -483,6 +486,41 @@ maximum m = go Nothing (toStream m)
     max_ a r = case r of
         Nothing -> Just a
         Just e  -> Just $ max a e
+
+-- | Looks the given key up, treating the given stream as an association list.
+lookup :: (Streaming t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
+lookup e m = go (toStream m)
+    where
+    go m1 =
+        let stop                  = return Nothing
+            yield (a, b) Nothing  | a == e = return $ Just b
+                                  | otherwise = return Nothing
+            yield (a, b) (Just x) | a == e = return $ Just b
+                                  | otherwise = go x
+        in runStream m1 Nothing stop yield
+
+-- | Returns the first element of the stream satisfying the given predicate,
+-- if any.
+find :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
+find p m = go (toStream m)
+    where
+    go m1 =
+        let stop = return Nothing
+            yield a Nothing  | p a = return $ Just a
+                             | otherwise = return Nothing
+            yield a (Just x) | p a = return $ Just a
+                             | otherwise = go x
+        in runStream m1 Nothing stop yield
+
+-- | Splits the stream into two streams. The first contains all elements
+-- satisfying the given predicate. The second contains all other.
+--
+-- @partition p m == (filter p m, filter (not . p) m)@
+partition :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m (t m a, t m a)
+partition p = foldr select (nil, nil)
+    where
+        select a ~(ps, fs) | p a = (a .: ps, fs)
+                           | otherwise = (ps, a .: fs)
 
 ------------------------------------------------------------------------------
 -- Transformation

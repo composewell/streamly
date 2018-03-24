@@ -731,6 +731,17 @@ streamOperations (stream, list, len) = do
     it "notElem" $ elimination (A.notElem (len + 1)) (notElem (len + 1))
     it "sum" $ elimination A.sum sum
     it "product" $ elimination A.product product
+    it "find" $ elimination (A.find odd) (L.find odd)
+
+    let zippedStream = A.zipWith (,) stream (A.each [(1::Int) ..])
+    let zippedList = zip list [(1::Int) ..]
+    it "lookup" $
+        A.lookup 1 zippedStream `shouldReturn` lookup 1 zippedList
+
+    (oddStream, evenStream) <- runIO $ A.partition odd stream
+    let (oddList, evenList) = L.partition odd list
+    it "partition matching" $ A.toList oddStream `shouldReturn` oddList
+    it "partition nonMatching" $ A.toList evenStream `shouldReturn` evenList
 
     if list == []
     then do
