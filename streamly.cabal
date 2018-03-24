@@ -1,5 +1,5 @@
 name:               streamly
-version:            0.1.1
+version:            0.1.2
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly is a monad transformer unifying non-determinism

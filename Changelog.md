@@ -1,11 +1,14 @@
-## Unreleased
+## 0.1.2
+
+### Enhancements
 * Add `iterate`, `iterateM` stream operations
 
 ### Breaking
 * Change the type of `foldrM` to take a pure seed and pure second argument in the step function
 
 ### Bug Fixes
-* Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
+* Fixed a bug that casued unexpected behavior when `pure` was used to inject
+  values in Applicative composition of `ZipStream` and `ZipAsync` types.
 
 ## 0.1.1
 
