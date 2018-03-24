@@ -5,11 +5,11 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (ErrorCall)
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Data.Foldable (forM_)
 import Data.List (sort)
 import qualified Data.List as L
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isNothing)
 import Test.Hspec
 
 import Streamly
@@ -642,7 +642,8 @@ mixedOps = do
                 return (x1 + y1 + z1)
         return (x + y + z)
 
-streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
+streamOperations :: (Streaming t, Applicative (t IO), Semigroup (t IO Int)) =>
+    (t IO Int, [Int], Int) -> Spec
 streamOperations (stream, list, len) = do
 
     -- Generation
@@ -714,6 +715,31 @@ streamOperations (stream, list, len) = do
                                      (dropWhile (const False))
     it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
                                       (dropWhile (< (len `div` 2)))
+    it "splitAt all" $ transformSplit (A.splitAt len) (splitAt len)
+    it "splitAt none" $ transformSplit (A.splitAt 0) (splitAt 0)
+    it "splitAt some" $ transformSplit (A.splitAt $ len-1) (splitAt $ len-1)
+    it "splitAt one" $ transformSplit (A.splitAt 1) (splitAt 1)
+    it "span" $ transformSplit (A.span (<3)) (span (<3))
+    it "break" $ transformSplit (A.break (>3)) (break (>3))
+
+    it "stripPrefix emptyPrefix" $
+        (A.stripPrefix A.nil stream >>= A.toList . fromJust) `shouldReturn` list
+    it "stripPrefix fullPrefix" $
+        (A.stripPrefix stream stream >>= A.toList . fromJust) `shouldReturn` []
+    it "stripPrefix longerThanActual" $
+        isNothing <$> A.stripPrefix (stream <> pure 10) stream
+        `shouldReturn`
+        True
+    when (len > 0) $ do
+        it "stripPrefix partialPrefix" $
+            (A.stripPrefix (A.take (len-1) stream) stream >>= A.toList . fromJust)
+            `shouldReturn`
+            [last list]
+        it "stripPrefix wrongPrefix" $
+            isNothing <$> A.stripPrefix (pure $ head list + 1) stream
+            `shouldReturn`
+            True
+
 
     -- Transformations
     it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
@@ -767,5 +793,10 @@ streamOperations (stream, list, len) = do
     -- XXX run on empty stream as well
     transform streamOp listOp =
         (A.toList $ streamOp stream) `shouldReturn` listOp list
+    transformSplit streamOp listOp = do
+        (s1, s2) <- streamOp stream
+        l1 <- A.toList s1
+        l2 <- A.toList s2
+        (l1, l2) `shouldBe` listOp list
 
     elimination streamOp listOp = (streamOp stream) `shouldReturn` listOp list

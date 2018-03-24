@@ -59,6 +59,12 @@ module Streamly.Prelude
     , find
     , partition
 
+    -- * Splitting
+    , splitAt
+    , span
+    , break
+    , stripPrefix
+
     -- * Filtering
     , filter
     , take
@@ -96,7 +102,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               maximum, minimum, head, last,
                                               tail, length, null, reverse,
                                               iterate, repeat, replicate,
-                                              cycle, lookup)
+                                              cycle, lookup, splitAt, span,
+                                              break)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -348,6 +355,64 @@ dropWhile p m = fromStream $ go (toStream m)
             yield a (Just x) | p a       = (runStream x) ctx stp yield
                              | otherwise = yld a (Just x)
          in (runStream m1) ctx stp yield
+
+-- | @splitAt n s@ is equivalent to @return (take n s, drop n s)@, but it
+-- doesn't traverse the prefix twice.
+splitAt :: (Streaming t, Monad m) => Int -> t m a -> m (t m a, t m a)
+splitAt total m = go total (toStream m)
+    where
+    go n m1 | n <= 0 = return (nil, fromStream m1)
+            | otherwise =
+                let stop             = return (nil, nil)
+                    yield a Nothing  = return (a .: nil, nil)
+                    yield a (Just x) = go (n - 1) x >>= \(as, bs) ->
+                        return (a .: as, bs)
+                in runStream m1 Nothing stop yield
+
+-- | @span p s@ returns a tuple, with the first element beeing the prefix of
+-- the stream satisfying the predicate. The second tuple element is the
+-- remaining stream.
+--
+-- @span p s == return (takeWhile p s, dropWhile p s)@, but without traversing
+-- the prefix twice.
+span :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m (t m a, t m a)
+span p m =
+    let stop             = return (nil, nil)
+        yield a Nothing  | p a = return (a .: nil, nil)
+                         | otherwise = return (nil, a .: nil)
+        yield a (Just x) | p a = span p (fromStream x) >>=
+                                    \(as, bs) -> return (a .: as, bs)
+                         | otherwise = return (nil, m)
+    in runStream (toStream m) Nothing stop yield
+
+-- | Like span, but returns a prefix not satisfying the given predicate.
+--
+-- @break p == span (not . p)@
+-- @break p m == return (takeWhile (not . p) m, dropWhile (not . p) m)@
+break :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m (t m a, t m a)
+break p m =
+    let stop             = return (nil, nil)
+        yield a Nothing  | p a = return (nil, a .: nil)
+                         | otherwise = return (a .: nil, nil)
+        yield a (Just x) | p a = return (nil, m)
+                         | otherwise = break p (fromStream x) >>=
+                                    \(as, bs) -> return (a .: as, bs)
+    in runStream (toStream m) Nothing stop yield
+
+-- | Drops the given prefix from the stream. If the stream doesn't start with
+-- the given Stream, then it return @Nothing@.
+stripPrefix :: (Streaming t, Monad m, Eq a) =>
+    t m a -> t m a -> m (Maybe (t m a))
+stripPrefix p m = do
+    mbUnconsP <- uncons p
+    case mbUnconsP of
+        Nothing -> return $ Just m
+        Just (h, hs) -> do
+            mbUnconsM <- uncons m
+            case mbUnconsM of
+                Nothing -> return Nothing
+                Just (x, xs) | x == h -> stripPrefix hs xs
+                             | otherwise -> return Nothing
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 all :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m Bool
