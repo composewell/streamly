@@ -1,5 +1,8 @@
 ## Unreleased
 
+### Breaking
+* Change the type of `foldrM` to take a pure seed and pure second argument in the step function
+
 ### Bug Fixes
 * Fix Zip/AsyncZip applicative instances to handle applicative injection of function like `pure f <*> s1 <*> s2`
 
