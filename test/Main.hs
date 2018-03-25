@@ -769,6 +769,38 @@ streamOperations (stream, list, len) = do
     it "partition matching" $ A.toList oddStream `shouldReturn` oddList
     it "partition nonMatching" $ A.toList evenStream `shouldReturn` evenList
 
+    it "isPrefixOf none" $ A.isPrefixOf A.nil stream `shouldReturn` True
+    it "isPrefixOf all" $ A.isPrefixOf stream stream `shouldReturn` True
+    it "isPrefixOf part" $
+        A.isPrefixOf (A.take 3 stream) stream `shouldReturn` True
+    it "isSuffixOf none" $ A.isSuffixOf A.nil stream `shouldReturn` True
+    it "isSuffixOf all" $ A.isSuffixOf stream stream `shouldReturn` True
+    it "isSuffixOf part" $
+        A.isSuffixOf (A.drop 3 stream) stream `shouldReturn` True
+    it "isInfixOf none" $ A.isInfixOf A.nil stream `shouldReturn` True
+    it "isInfixOf all" $ A.isInfixOf stream stream `shouldReturn` True
+    when (len >= 2) $
+        it "isInfixOf part" $ do
+            Just t <- A.tail stream
+            Just i <- A.init t
+            A.isInfixOf i stream `shouldReturn` True
+    it "isSubsequenceOf none" $ A.isSubsequenceOf A.nil stream `shouldReturn` True
+    it "isSubsequenceOf all" $ A.isSubsequenceOf stream stream `shouldReturn` True
+    it "isSubsequenceOf part" $
+        let indexedStream = A.zipWith (,) stream (A.each [(1::Int)..])
+            oddElements = fst <$> A.filter (\(_, i) -> odd i) indexedStream
+        in A.isSubsequenceOf oddElements stream `shouldReturn` True
+
+    when (len > 0) $ do
+        it "isPrefixOf fail" $
+            A.isPrefixOf ((+1) <$> stream) stream `shouldReturn` False
+        it "isSuffixOf fail" $
+            A.isSuffixOf ((+1) <$> stream) stream `shouldReturn` False
+        it "isInfixOf fail" $
+            A.isInfixOf ((+1) <$> stream) stream `shouldReturn` False
+        it "isSubsequenceOf fail" $
+            A.isSubsequenceOf ((+1) <$> stream) stream `shouldReturn` False
+
     if list == []
     then do
         it "head empty" $ A.head stream `shouldReturn` Nothing

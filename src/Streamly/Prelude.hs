@@ -66,6 +66,12 @@ module Streamly.Prelude
     , break
     , stripPrefix
 
+    -- * SubStreams
+    , isPrefixOf
+    , isInfixOf
+    , isSuffixOf
+    , isSubsequenceOf
+
     -- * Filtering
     , filter
     , take
@@ -603,6 +609,71 @@ partition p = foldr select (nil, nil)
     where
         select a ~(ps, fs) | p a = (a .: ps, fs)
                            | otherwise = (ps, a .: fs)
+
+-- | Takes two streams and returns true if and only if the first is a prefix of
+-- the second.
+isPrefixOf :: (Streaming t, Monad m, Eq a) => t m a -> t m a -> m Bool
+isPrefixOf p m = do
+    mbUnconsP <- uncons p
+    case mbUnconsP of
+        Nothing -> return True
+        Just (headP, p') -> do
+            mbUnconsM <- uncons m
+            case mbUnconsM of
+                Just (headM, m') | headM == headP -> p' `isPrefixOf` m'
+                _ -> return False
+
+-- | Takes two streams and returns true if and only if the second  the second
+-- stream ends in the first.
+-- Both streams must be finite.
+isSuffixOf :: (Streaming t, Monad m, Eq a) => t m a -> t m a -> m Bool
+isSuffixOf p m = do
+    lengthP <- length p
+    lengthM <- length m
+    if lengthM >= lengthP
+        then equiv p (drop (lengthM - lengthP) m)
+        else return False
+    where
+    equiv m1 m2 = do
+        mbUncons1 <- uncons m1
+        mbUncons2 <- uncons m2
+        case (mbUncons1, mbUncons2) of
+            (Nothing, Nothing) -> return True
+            (Just (h1, m1'), Just (h2, m2')) | h1 == h2 -> equiv m1' m2'
+            _ -> return False
+
+-- | Takes two streams and determines if the first stream is contained
+-- continously in the second.
+isInfixOf :: (Streaming t, Monad m, Eq a) => t m a -> t m a -> m Bool
+isInfixOf p m = do
+    mbUnconsP <- uncons p
+    case mbUnconsP of
+        Nothing -> return True
+        Just (headP, p') -> do
+            mbUnconsM <- uncons m
+            case mbUnconsM of
+                Just (headM, m') -> do
+                    next <- p `isInfixOf` m'
+                    current <- if headM == headP then p' `isInfixOf` m'
+                                                 else return False
+                    return $ current || next
+                Nothing -> return False
+
+-- | Takes two streams and determines if the elements of the first stream
+-- occur in the second in the right order, but opposed to @isInfixOf@ they
+-- don't have to be continous.
+isSubsequenceOf :: (Streaming t, Monad m, Eq a) => t m a -> t m a -> m Bool
+isSubsequenceOf p m = do
+    mbUnconsP <- uncons p
+    case mbUnconsP of
+        Nothing -> return True
+        Just (headP, p') -> do
+            mbUnconsM <- uncons m
+            case mbUnconsM of
+                Nothing -> return False
+                Just (headM, m') ->
+                    if headM == headP then p' `isSubsequenceOf` m'
+                                      else p `isSubsequenceOf` m'
 
 ------------------------------------------------------------------------------
 -- Transformation
