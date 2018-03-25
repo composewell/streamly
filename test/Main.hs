@@ -778,6 +778,7 @@ streamOperations (stream, list, len) = do
         it "null empty" $ A.null stream `shouldReturn` True
         it "tail empty" $ (A.tail stream >>= return . maybe True (const False))
             `shouldReturn` True
+        it "init empty" $ (isNothing <$> A.init stream) `shouldReturn` True
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
         it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
@@ -788,6 +789,8 @@ streamOperations (stream, list, len) = do
         it "null nonEmpty" $ A.null stream `shouldReturn` False
         it "tail nonEmpty" $ (A.tail stream >>= A.toList . fromJust)
             `shouldReturn` tail list
+        it "init nonEmpty" $ (A.init stream >>= A.toList . fromJust)
+            `shouldReturn` init list
 
     where
     -- XXX run on empty stream as well

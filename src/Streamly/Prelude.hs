@@ -46,6 +46,7 @@ module Streamly.Prelude
     , head
     , tail
     , last
+    , init
     , null
     , length
     , elem
@@ -103,7 +104,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               tail, length, null, reverse,
                                               iterate, repeat, replicate,
                                               cycle, lookup, splitAt, span,
-                                              break)
+                                              break, init)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -464,12 +465,28 @@ tail m =
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
 
+snull :: Monad m => Stream m a -> m Bool
+snull m1 =
+    let stop = return True
+        yield _ _ = return False
+    in runStream m1 Nothing stop yield
+
+-- | Extract all but the last element of a stream, if any.
+init :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
+init m = (fromStream <$>) <$> go (toStream m)
+    where
+    go m1 =
+        let stop = return Nothing
+            yield _ Nothing = return $ Just snil
+            yield a (Just x) = snull x >>= \n ->
+                if n then return $ Just snil
+                     else go x >>= \t ->
+                         return $ Just (a `scons` t)
+        in runStream m1 Nothing stop yield
+
 -- | Determine whether the stream is empty.
 null :: (Streaming t, Monad m) => t m a -> m Bool
-null m =
-    let stop      = return True
-        yield _ _ = return False
-    in (runStream (toStream m)) Nothing stop yield
+null m = snull $ toStream m
 
 -- | Determine whether an element is present in the stream.
 elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
