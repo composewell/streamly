@@ -198,6 +198,7 @@ benchmark bench
 -------------------------------------------------------------------------------
 
 executable loops
+  default-language: Haskell2010
   main-is: loops.hs
   hs-source-dirs:  examples
   if flag(examples)
@@ -209,6 +210,7 @@ executable loops
     buildable: False
 
 executable nested-loops
+  default-language: Haskell2010
   main-is: nested-loops.hs
   hs-source-dirs:  examples
   if flag(examples)
@@ -221,6 +223,7 @@ executable nested-loops
     buildable: False
 
 executable parallel-loops
+  default-language: Haskell2010
   main-is: parallel-loops.hs
   hs-source-dirs:  examples
   if flag(examples)
