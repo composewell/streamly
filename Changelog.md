@@ -1,3 +1,9 @@
+## Unrelased
+
+### Breaking change
+* Change the type of `foldrM` to take a pure seed and pure second argument in the step function
+
+
 ## 0.1.2
 
 ### Enhancements
