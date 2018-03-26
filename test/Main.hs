@@ -740,6 +740,10 @@ streamOperations (stream, list, len) = do
             `shouldReturn`
             True
 
+    it "findIndices" $ transform (A.findIndices odd) (L.findIndices odd)
+    it "findIndex" $ elimination (A.findIndex odd) (L.findIndex odd)
+    it "elemIndices" $ transform (A.elemIndices 3) (L.elemIndices 3)
+    it "elemIndex" $ elimination (A.elemIndex 3) (L.elemIndex 3)
 
     -- Transformations
     it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)

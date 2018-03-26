@@ -72,6 +72,12 @@ module Streamly.Prelude
     , isSuffixOf
     , isSubsequenceOf
 
+    -- * Indices
+    , findIndices
+    , findIndex
+    , elemIndices
+    , elemIndex
+
     -- * Filtering
     , filter
     , take
@@ -674,6 +680,33 @@ isSubsequenceOf p m = do
                 Just (headM, m') ->
                     if headM == headP then p' `isSubsequenceOf` m'
                                       else p `isSubsequenceOf` m'
+
+-- | Finds all the indices of elements satisfying the given predicate.
+findIndices :: Streaming t => (a -> Bool) -> t m a -> t m Int
+findIndices p = fromStream . go 0 . toStream
+    where
+    go offset m1 = Stream $ \svr stp yld ->
+        let yield a Nothing =
+                if p a then yld offset Nothing
+                       else stp
+            yield a (Just x) =
+                if p a then yld offset $ Just $ go (offset + 1) x
+                       else runStream (go (offset + 1) x) svr stp yld
+        in runStream m1 Nothing stp yield
+
+-- | Gives the index of the first stream element satisfying the given
+-- preficate.
+findIndex :: (Streaming t, Monad m) => (a -> Bool) -> t m a -> m (Maybe Int)
+findIndex p = head . findIndices p
+
+-- | Finds the index of all elements in the stream which are equal to the
+-- given.
+elemIndices :: (Streaming t, Eq a) => a -> t m a -> t m Int
+elemIndices a = findIndices (==a)
+
+-- | Gives the first index of an element in the stream, which equals the given.
+elemIndex :: (Streaming t, Monad m, Eq a) => a -> t m a -> m (Maybe Int)
+elemIndex a = findIndex (==a)
 
 ------------------------------------------------------------------------------
 -- Transformation
