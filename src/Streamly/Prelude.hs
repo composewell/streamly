@@ -33,9 +33,11 @@ module Streamly.Prelude
     -- * Elimination
     -- ** General Folds
     , foldr
+    , foldr1
     , foldrM
     , scan
     , foldl
+    , foldl1
     , foldlM
     , uncons
 
@@ -59,6 +61,8 @@ module Streamly.Prelude
     , lookup
     , find
     , partition
+    , and
+    , or
 
     -- * Splitting
     , splitAt
@@ -116,7 +120,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               tail, length, null, reverse,
                                               iterate, repeat, replicate,
                                               cycle, lookup, splitAt, span,
-                                              break, init)
+                                              break, init, foldr1, foldl1, and,
+                                              or)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -218,6 +223,20 @@ foldr step acc m = go (toStream m)
             yield a (Just x) = go x >>= \b -> return (step a b)
         in (runStream m1) Nothing stop yield
 
+-- | Right fold, with no starting value. Returns Nothing if the list is empty.
+foldr1 :: (Streaming t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
+foldr1 step m = go (toStream m)
+    where
+    go m1 =
+        let stop = return Nothing
+            yield a Nothing = return $ Just a
+            yield a (Just x) = go x >>= \b ->
+                return $ Just $ maybe_ a (step a) b
+        in runStream m1 Nothing stop yield
+
+    maybe_ def _ Nothing = def
+    maybe_ _ f (Just v)  = f v
+
 -- | Right fold with a monadic step function.  See 'toList' for an example use.
 {-# INLINE foldrM #-}
 foldrM :: (Streaming t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
@@ -267,6 +286,18 @@ foldl step begin done m = get $ go (toStream m) begin
                     Nothing -> yld s Nothing
                     Just x -> (runStream (go x s)) Nothing undefined yld
         in (runStream m1) Nothing stop yield
+
+-- | Strict left fold, which uses the first element as a starting value.
+foldl1 :: (Streaming t, Monad m)
+    => (a -> a -> a) -> (a -> b) -> t m a -> m (Maybe b)
+foldl1 step done m = do
+    mbUnconsM <- uncons m
+    case mbUnconsM of
+        Nothing -> return Nothing
+        Just (h, t) -> do
+            res <- foldl step h id t
+            return $ Just $ done res
+
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Strict left fold, with monadic step function. This is typed to work
@@ -615,6 +646,28 @@ partition p = foldr select (nil, nil)
     where
         select a ~(ps, fs) | p a = (a .: ps, fs)
                            | otherwise = (ps, a .: fs)
+
+-- | Determines if all elements of a boolean stream are True.
+and :: (Streaming t, Monad m) => t m Bool -> m Bool
+and = go . toStream
+    where
+    go m1 =
+        let stop                = return True
+            yield a Nothing     = return a
+            yield False _       = return False
+            yield True (Just x) = go x
+        in runStream m1 Nothing stop yield
+
+-- | Determines wheter at least one element of a boolean stream is True.
+or :: (Streaming t, Monad m) => t m Bool -> m Bool
+or = go . toStream
+    where
+    go m1 =
+        let stop                 = return False
+            yield a Nothing      = return a
+            yield True _         = return True
+            yield False (Just x) = go x
+        in runStream m1 Nothing stop yield
 
 -- | Takes two streams and returns true if and only if the first is a prefix of
 -- the second.

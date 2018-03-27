@@ -13,6 +13,7 @@ import Data.Maybe (fromJust, isNothing)
 import Test.Hspec
 
 import Streamly
+import Streamly.Prelude ((.:))
 import qualified Streamly.Prelude as A
 
 toListSerial :: StreamT IO a -> IO [a]
@@ -815,6 +816,18 @@ streamOperations (stream, list, len) = do
         it "tail empty" $ (A.tail stream >>= return . maybe True (const False))
             `shouldReturn` True
         it "init empty" $ (isNothing <$> A.init stream) `shouldReturn` True
+        it "foldl1 empty" $
+            (A.foldl1 undefined undefined stream :: IO (Maybe Int))
+            `shouldReturn`
+            Nothing
+        it "foldr1 empty" $
+            A.foldr1 undefined stream `shouldReturn` Nothing
+        it "or empty" $ A.or (serially A.nil) `shouldReturn` False
+        let infOrTest = serially $ False .: False .: True .: A.repeat False
+        it "or infinite" $ A.or infOrTest `shouldReturn` True
+        it "and empty" $ A.and (serially A.nil) `shouldReturn` True
+        let infAndTest = serially $ True .: True .: False .: A.repeat True
+        it "and infinite" $ A.and infAndTest `shouldReturn` False
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
         it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
@@ -827,6 +840,24 @@ streamOperations (stream, list, len) = do
             `shouldReturn` tail list
         it "init nonEmpty" $ (A.init stream >>= A.toList . fromJust)
             `shouldReturn` init list
+        it "foldl1 nonEmpty" $ do
+            foldedHead <- A.foldl1 const id stream
+            normalHead <- A.head stream
+            foldedHead `shouldBe` normalHead
+        it "foldr1 nonEmpty" $ do
+            foldedLast <- A.foldr1 (\_ b -> b) stream
+            normalLast <- A.last stream
+            foldedLast `shouldBe` normalLast
+        it "or nonEmpty" $ do
+            let boolStream = (== 1) <$> stream
+            orPrelude <- A.or boolStream
+            orAdhoc <- A.any (==True) boolStream
+            orPrelude `shouldBe` orAdhoc
+        it "and nonEmpty" $ do
+            let boolStream = (== 1) <$> stream
+            andPrelude <- A.and boolStream
+            andAdhoc <- A.all (== True) boolStream
+            andPrelude `shouldBe` andAdhoc
 
     where
     -- XXX run on empty stream as well
