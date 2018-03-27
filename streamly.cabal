@@ -176,7 +176,7 @@ benchmark bench
       streamly
     , atomic-primops      >= 0.8   && < 0.9
     , base                >= 4.8   && < 5
-    , criterion           >= 1     && < 2
+    , gauge               >= 0.2.1 && < 0.3
     , mtl                 >= 2.2   && < 3
 
   if impl(ghc < 8.0)
