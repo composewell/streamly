@@ -16,6 +16,9 @@ import qualified Streamly.Prelude as A
 toListSerial :: StreamT IO a -> IO [a]
 toListSerial = A.toList . serially
 
+toListReversely :: ReverseT IO a -> IO [a]
+toListReversely = A.toList . reversely
+
 toListInterleaved :: InterleavedT IO a -> IO [a]
 toListInterleaved = A.toList . interleaving
 
@@ -96,6 +99,27 @@ main = hspec $ do
     describe "Bind (>->) with empty" $ bindEmpty toListInterleaved
     describe "Bind (>|>) with empty" $ bindEmpty toListAsync
     describe "Bind (>>|) with empty" $ bindEmpty toListParallel
+
+    ---------------------------------------------------------------------------
+    -- ReverseT
+    ---------------------------------------------------------------------------
+
+    describe "Dual to StreamT" $ do
+
+        it "simple reversely" $
+          toListReversely (do
+            x <- A.each [1, 2]
+            y <- A.each [3, 4]
+            return (x, y))
+          `shouldReturn` ([(1, 3), (2, 3), (1, 4), (2, 4)] :: [(Int, Int)])
+
+        it "complex reversely" $
+          toListReversely (do
+            x <- A.each [1, 2]
+            y <- A.each [3, 4]
+            z <- A.each [5, 6]
+            return (x, y, z))
+          `shouldReturn` ([(1, 3, 5), (2, 3, 5), (1, 4, 5), (2, 4, 5), (1, 3, 6), (2, 3, 6), (1, 4, 6), (2, 4, 6)]:: [(Int, Int, Int)])
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions

@@ -21,6 +21,7 @@ module Streamly
     -- * Product Style Composition
     -- $product
     , StreamT
+    , ReverseT
     , InterleavedT
     , AsyncT
     , ParallelT
@@ -41,6 +42,7 @@ module Streamly
     -- * Stream Type Adapters
     -- $adapters
     , serially
+    , reversely
     , interleaving
     , asyncly
     , parallely
