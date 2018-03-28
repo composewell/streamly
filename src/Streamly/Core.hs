@@ -24,6 +24,7 @@ module Streamly.Core
     , Stream (..)
 
     -- * Construction
+    , ssing
     , scons
     , srepeat
     , snil
@@ -214,6 +215,9 @@ newtype Stream m a =
 -- that can be composed concurrently require the underlying monad to be
 -- 'MonadAsync'.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+
+ssing :: a -> Stream m a
+ssing = flip scons Nothing
 
 scons :: a -> Maybe (Stream m a) -> Stream m a
 scons a r = Stream $ \_ _ yld -> yld a r
