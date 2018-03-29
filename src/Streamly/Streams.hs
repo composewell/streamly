@@ -307,7 +307,7 @@ instance Monad m => Monad (StreamT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (StreamT m) where
-    pure a = StreamT $ scons a Nothing
+    pure = StreamT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -398,7 +398,7 @@ instance Monad m => Monad (ReverseT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (ReverseT m) where
-    pure a = ReverseT $ scons a Nothing
+    pure = ReverseT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -508,7 +508,7 @@ instance Monad m => Monad (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (InterleavedT m) where
-    pure a = InterleavedT $ scons a Nothing
+    pure = InterleavedT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -633,7 +633,7 @@ instance MonadAsync m => Monad (AsyncT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (AsyncT m) where
-    pure a = AsyncT $ scons a Nothing
+    pure = AsyncT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -742,7 +742,7 @@ instance MonadAsync m => Monad (ParallelT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (ParallelT m) where
-    pure a = ParallelT $ scons a Nothing
+    pure = ParallelT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------

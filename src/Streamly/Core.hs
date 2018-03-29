@@ -24,7 +24,7 @@ module Streamly.Core
     , Stream (..)
 
     -- * Construction
-    , ssing
+    , singleton
     , scons
     , srepeat
     , snil
@@ -217,8 +217,8 @@ newtype Stream m a =
 -- 'MonadAsync'.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
-ssing :: a -> Stream m a
-ssing = flip scons Nothing
+singleton :: a -> Stream m a
+singleton = flip scons Nothing
 
 scons :: a -> Maybe (Stream m a) -> Stream m a
 scons a r = Stream $ \_ _ yld -> yld a r
@@ -283,7 +283,7 @@ roundrobin m = Stream $ \_ stp yld ->
       yield m1 Nothing = run m1
       yield m1 (Just rr) = run $ Stream $ \_ stp1 yld1 ->
         let yield1 a Nothing  = yld1 a (Just $ roundrobin rr)
-            yield1 a (Just r) = yld1 a (Just $ roundrobin (rr <> ssing r))
+            yield1 a (Just r) = yld1 a (Just $ roundrobin (rr <> singleton r))
         in (runStream m1) Nothing stp1 yield1
   in (runStream m) Nothing stp yield
 
