@@ -106,14 +106,35 @@ main = hspec $ do
 
     describe "Dual to StreamT" $ do
 
-        it "simple reversely" $
+        it "empty reversely" $
+          toListReversely (do
+            x <- A.each []
+            y <- A.each []
+            return (x, y))
+          `shouldReturn` ([] :: [(Int, Int)])
+
+        it "empty inner reversely" $
+          toListReversely (do
+            x <- A.each []
+            y <- A.each [1, 2]
+            return (x, y))
+          `shouldReturn` ([] :: [(Int, Int)])
+
+        it "empty outer reversely" $
           toListReversely (do
             x <- A.each [1, 2]
-            y <- A.each [3, 4]
+            y <- A.each []
             return (x, y))
-          `shouldReturn` ([(1, 3), (2, 3), (1, 4), (2, 4)] :: [(Int, Int)])
+          `shouldReturn` ([] :: [(Int, Int)])
 
-        it "complex reversely" $
+        it "produce reversely" $
+          toListReversely (do
+            x <- A.each [1, 2, 3]
+            y <- A.each [4, 5, 6]
+            return (x, y))
+          `shouldReturn` ([(1, 4), (2, 4), (3, 4), (1, 5), (2, 5), (3, 5),(1, 6), (2, 6), (3, 6)] :: [(Int, Int)])
+
+        it "produce layers reversely" $
           toListReversely (do
             x <- A.each [1, 2]
             y <- A.each [3, 4]
