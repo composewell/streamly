@@ -282,9 +282,8 @@ roundrobin m = Stream $ \_ stp yld ->
   let run x = (runStream x) Nothing stp yld
       yield m1 Nothing = run m1
       yield m1 (Just rr) = run $ Stream $ \_ stp1 yld1 ->
-        let run1 m2 = (runStream m2) Nothing stp1 yld1
-            yield1 a Nothing  = run1 $ ssing a <> roundrobin rr
-            yield1 a (Just r) = run1 $ ssing a <> roundrobin (rr <> ssing r)
+        let yield1 a Nothing  = yld1 a (Just $ roundrobin rr)
+            yield1 a (Just r) = yld1 a (Just $ roundrobin (rr <> ssing r))
         in (runStream m1) Nothing stp1 yield1
   in (runStream m) Nothing stp yield
 
