@@ -641,6 +641,8 @@ streamOperations (stream, list, len) = do
     it "filter all out" $ transform (A.filter (> len)) (filter (> len))
     it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
     it "filter even"    $ transform (A.filter even)  (filter even)
+    it "mapM *2 " $ transform (A.mapM (\x -> return (x * 2))) (map (\x -> x * 2))
+    it "sequence *2" transform (A.ma)
 
     it "take all"  $ transform (A.take len) (take len)
     it "take none" $ transform (A.take 0) (take 0)
@@ -697,5 +699,5 @@ streamOperations (stream, list, len) = do
     -- XXX run on empty stream as well
     transform streamOp listOp =
         (A.toList $ streamOp stream) `shouldReturn` listOp list
-
+                                     
     elimination streamOp listOp = (streamOp stream) `shouldReturn` listOp list
