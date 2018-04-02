@@ -6,12 +6,17 @@ environment:
     # Global options used for all CI tests
     # ------------------------------------------------------------------------
     GHC_OPTIONS: "-Werror"
+
     # ------------------------------------------------------------------------
-    # Options for builds that need stack
+    # Options for builds that need stack (note, cabal builds can use stack)
     # ------------------------------------------------------------------------
+    # Note requiring a specific version of stack using STACKVER may fail due to
+    # github API limit while checking and upgrading/downgrading to the specific
+    # version.
     #STACKVER: "1.6.5"
     STACK_UPGRADE: "y"
-    RESOLVER: "lts-10.0"
+    RESOLVER: "lts-11.0"
+
     # ------------------------------------------------------------------------
     # Normally you would not need to customize these params
     # ------------------------------------------------------------------------
@@ -24,6 +29,7 @@ environment:
     PATH: "%PATH%;%APPDATA%\\local\\bin"
     STACK_ROOT: "c:\\sr"
     LOCAL_BIN: "%APPDATA%\\local\\bin"
+
     # ------------------------------------------------------------------------
     # Location of packcheck.sh (the shell script invoked to perform CI tests ).
     # ------------------------------------------------------------------------
@@ -35,7 +41,7 @@ environment:
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "da9d6da3d18d6250c06617817f0879324c75c224"
+    PACKCHECK_GITHUB_COMMIT: "437800a90f3b469b04768af068094d2ac582f351"
 
 cache:
   - "%STACK_ROOT%"

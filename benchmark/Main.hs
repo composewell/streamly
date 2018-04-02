@@ -6,7 +6,7 @@ module Main where
 import           Control.Applicative (Alternative(..))
 import           Control.Exception (assert)
 import           Control.Monad (guard)
-import           Criterion.Main (defaultMain, bgroup, bench, nfIO)
+import           Gauge.Main (defaultMain, bgroup, bench, nfIO)
 import           Data.Function ((&))
 
 import qualified Streamly as A

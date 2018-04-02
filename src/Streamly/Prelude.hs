@@ -24,6 +24,8 @@ module Streamly.Prelude
     , unfoldr
     , unfoldrM
     , each
+    , iterate
+    , iterateM
 
     -- * Elimination
     -- ** General Folds
@@ -39,10 +41,13 @@ module Streamly.Prelude
     , all
     , any
     , head
+    , tail
     , last
+    , null
     , length
     , elem
     , notElem
+    , reverse
     , maximum
     , minimum
     , sum
@@ -62,6 +67,7 @@ module Streamly.Prelude
     , forM_
     , sequence
     , sequence_
+    , replicateM
 
     -- * Zipping
     , zipWith
@@ -84,7 +90,8 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               mapM, mapM_, sequence, sequence_, all, 
                                               any, sum, product, elem, notElem,
                                               maximum, minimum, head, last,
-                                              length)
+                                              tail, length, null, reverse,
+                                              iterate)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -119,6 +126,20 @@ unfoldrM step = fromStream . go
 each :: (Streaming t, Foldable f) => f a -> t m a
 each = Prelude.foldr cons nil
 
+-- | Iterate a pure function from a seed value, streaming the results forever
+iterate :: Streaming t => (a -> a) -> a -> t m a
+iterate step = fromStream . go
+    where
+    go s = scons s (Just (go (step s)))
+
+-- | Iterate a monadic function from a seed value, streaming the results forever
+iterateM :: (Streaming t, Monad m) => (a -> m a) -> a -> t m a
+iterateM step = fromStream . go
+    where
+    go s = Stream $ \_ _ yld -> do
+       a <- step s
+       yld s (Just (go a))
+
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = fromStream go
@@ -149,13 +170,13 @@ foldr step acc m = go (toStream m)
 
 -- | Right fold with a monadic step function.  See 'toList' for an example use.
 {-# INLINE foldrM #-}
-foldrM :: Streaming t => (a -> m b -> m b) -> m b -> t m a -> m b
+foldrM :: (Streaming t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
 foldrM step acc m = go (toStream m)
     where
     go m1 =
-        let stop = acc
+        let stop = return acc
             yield a Nothing  = step a acc
-            yield a (Just x) = step a (go x)
+            yield a (Just x) = (go x) >>= (step a)
         in (runStream m1) Nothing stop yield
 
 -- | Scan left. A strict left fold which accumulates the result of its reduction steps inside a stream, from left.
@@ -237,7 +258,7 @@ toHandle h m = go (toStream m)
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
 toList :: (Streaming t, Monad m) => t m a -> m [a]
-toList = foldrM (\a xs -> fmap (a :) xs) (return [])
+toList = foldrM (\a xs -> return (a : xs)) []
 
 -- | Take first 'n' elements from the stream and discard the rest.
 {-# INLINE take #-}
@@ -335,10 +356,25 @@ head m =
         yield a _ = return (Just a)
     in (runStream (toStream m)) Nothing stop yield
 
+-- | Extract all but the first element of the stream, if any.
+tail :: (Streaming t, Monad m) => t m a -> m (Maybe (t m a))
+tail m =
+    let stop             = return Nothing
+        yield _ Nothing  = return $ Just nil
+        yield _ (Just t) = return $ Just $ fromStream t
+    in (runStream (toStream m)) Nothing stop yield
+
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
 last :: (Streaming t, Monad m) => t m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
+
+-- | Determine whether the stream is empty.
+null :: (Streaming t, Monad m) => t m a -> m Bool
+null m =
+    let stop      = return True
+        yield _ _ = return False
+    in (runStream (toStream m)) Nothing stop yield
 
 -- | Determine whether an element is present in the stream.
 elem :: (Streaming t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -363,6 +399,19 @@ notElem e m = go (toStream m)
 -- | Determine the length of the stream.
 length :: (Streaming t, Monad m) => t m a -> m Int
 length = foldl (\n _ -> n + 1) 0 id
+
+-- | Returns the elements of the stream in reverse order.
+-- The stream must be finite.
+reverse :: (Streaming t) => t m a -> t m a
+reverse m = fromStream $ go Nothing (toStream m)
+    where
+    go rev rest = Stream $ \svr stp yld ->
+        let stop = case rev of
+                Nothing ->  stp
+                Just str -> runStream str svr stp yld
+            yield a Nothing  = runStream (a `scons` rev) svr stp yld
+            yield a (Just x) = runStream (go (Just $ a `scons` rev) x) svr stp yld
+         in runStream rest svr stop yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
@@ -452,6 +501,15 @@ sequence_ m = go (toStream m)
             yield a Nothing  = void a
             yield a (Just x) = a >> go x
          in (runStream m1) Nothing stop yield
+
+-- | Generate a stream by performing an action @n@ times.
+replicateM :: (Streaming t, Monad m) => Int -> m a -> t m a
+replicateM n m = fromStream $ go n
+    where
+    go cnt = Stream $ \_ stp yld ->
+        if cnt <= 0
+        then stp
+        else m >>= \a -> yld a (Just $ go (cnt - 1))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams

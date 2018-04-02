@@ -4,8 +4,10 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
+import Control.Monad (replicateM)
 import Data.Foldable (forM_)
 import Data.List (sort)
+import Data.Maybe (fromJust)
 import Test.Hspec
 
 import Streamly
@@ -420,8 +422,12 @@ zipOps z zM app = do
     it "Applicative zip" $
         let s1 = adapt $ serially $ foldMapWith (<>) return [1..10]
             s2 = adapt $ serially $ foldMapWith (<>) return [1..]
-         in (A.toList . app) ((+) <$> s1 <*> s2)
-        `shouldReturn` ([2,4..20] :: [Int])
+            f = A.toList . app
+            functorial = f $ (+) <$> s1 <*> s2
+            applicative = f $ pure (+) <*> s1 <*> s2
+            expected = ([2,4..20] :: [Int])
+         in (,) <$> functorial <*> applicative
+        `shouldReturn` (expected, expected)
 
 timed :: Int -> StreamT IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
@@ -637,6 +643,24 @@ mixedOps = do
 streamOperations :: Streaming t => (t IO Int, [Int], Int) -> Spec
 streamOperations (stream, list, len) = do
 
+    -- Generation
+    it "replicateM" $ do
+            let x = return (1 :: Int)
+            str <- A.toList . serially $ A.replicateM len x
+            lst <- replicateM len x
+            return $ str == lst
+        `shouldReturn` True
+
+    it "iterate" $
+            (A.toList . serially . (A.take len) $ (A.iterate (+ 1) (0 :: Int)))
+            `shouldReturn` (take len $ iterate (+ 1) 0)
+
+    it "iterateM" $ do
+              let addM = (\ y -> return (y + 1))
+              A.toList . serially . (A.take len) $ A.iterateM addM (0 :: Int)
+              `shouldReturn` (take len $ iterate (+ 1) 0)
+
+
     -- Filtering
     it "filter all out" $ transform (A.filter (> len)) (filter (> len))
     it "filter all in"  $ transform (A.filter (<= len)) (filter (<= len))
@@ -668,7 +692,9 @@ streamOperations (stream, list, len) = do
     it "dropWhile < some" $ transform (A.dropWhile (< (len `div` 2)))
                                       (dropWhile (< (len `div` 2)))
 
+    -- Transformations
     it "scan left"  $ transform (A.scan (+) 0 id) (scanl (+) 0)
+    it "reverse" $ transform A.reverse reverse
 
     -- Elimination
     it "foldl" $ elimination (A.foldl (+) 0 id) (foldl (+) 0)
@@ -688,14 +714,21 @@ streamOperations (stream, list, len) = do
         it "last empty" $ A.last stream `shouldReturn` Nothing
         it "maximum empty" $ A.maximum stream `shouldReturn` Nothing
         it "minimum empty" $ A.minimum stream `shouldReturn` Nothing
+        it "null empty" $ A.null stream `shouldReturn` True
+        it "tail empty" $ (A.tail stream >>= return . maybe True (const False))
+            `shouldReturn` True
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
         it "last nonEmpty" $ A.last stream `shouldReturn` Just (last list)
-        it "maximum nonEmpty" $ A.maximum stream `shouldReturn` Just (maximum list)
-        it "minimum nonEmpty" $ A.minimum stream `shouldReturn` Just (minimum list)
+        it "maximum nonEmpty" $ A.maximum stream
+            `shouldReturn` Just (maximum list)
+        it "minimum nonEmpty" $ A.minimum stream
+            `shouldReturn` Just (minimum list)
+        it "null nonEmpty" $ A.null stream `shouldReturn` False
+        it "tail nonEmpty" $ (A.tail stream >>= A.toList . fromJust)
+            `shouldReturn` tail list
 
     where
-
     -- XXX run on empty stream as well
     transform streamOp listOp =
         (A.toList $ streamOp stream) `shouldReturn` listOp list

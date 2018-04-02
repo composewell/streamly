@@ -1,5 +1,5 @@
 name:               streamly
-version:            0.1.0
+version:            0.1.2
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly is a monad transformer unifying non-determinism
@@ -23,7 +23,7 @@ homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD3
 license-file:        LICENSE
-tested-with:         GHC==7.10.3, GHC==8.0.2, GHC==8.2.2
+tested-with:         GHC==7.10.3, GHC==8.0.2, GHC==8.2.2, GHC==8.4.1
 author:              Harendra Kumar
 maintainer:          harendra.kumar@gmail.com
 copyright:           2017 Harendra Kumar
@@ -104,7 +104,7 @@ library
     build-depends:     base              >= 4.8   &&  < 5
                      , atomic-primops    >= 0.8   && < 0.9
                      , containers        >= 0.5   && < 0.6
-                     , exceptions        >= 0.8   && < 0.9
+                     , exceptions        >= 0.8   && < 0.11
                      , lifted-base       >= 0.2   && < 0.3
                      , lockfree-queue    >= 0.2.3 && < 0.3
                      , monad-control     >= 1.0   && < 2
@@ -119,7 +119,7 @@ library
 
   if flag(examples) || flag(examples-sdl)
     build-Depends:
-        http-conduit >= 2.2.2 && < 2.3
+        http-conduit >= 2.2.2 && < 2.4
       , path-io      >= 0.1.0 && < 1.4
       , random       >= 1.0.0 && < 1.2
 
@@ -176,7 +176,7 @@ benchmark bench
       streamly
     , atomic-primops      >= 0.8   && < 0.9
     , base                >= 4.8   && < 5
-    , criterion           >= 1     && < 2
+    , gauge               >= 0.2.1 && < 0.3
     , mtl                 >= 2.2   && < 3
 
   if impl(ghc < 8.0)
@@ -198,6 +198,7 @@ benchmark bench
 -------------------------------------------------------------------------------
 
 executable loops
+  default-language: Haskell2010
   main-is: loops.hs
   hs-source-dirs:  examples
   if flag(examples)
@@ -209,6 +210,7 @@ executable loops
     buildable: False
 
 executable nested-loops
+  default-language: Haskell2010
   main-is: nested-loops.hs
   hs-source-dirs:  examples
   if flag(examples)
@@ -221,6 +223,7 @@ executable nested-loops
     buildable: False
 
 executable parallel-loops
+  default-language: Haskell2010
   main-is: parallel-loops.hs
   hs-source-dirs:  examples
   if flag(examples)

@@ -5,6 +5,8 @@ extra-deps:
     - lockfree-queue-0.2.3.1
     - simple-conduit-0.6.0
     - SDL-0.6.5.1
+    - gauge-0.2.1
+    - basement-0.0.4
 flags: {}
 extra-package-dbs: []
 rebuild-ghc-options: true

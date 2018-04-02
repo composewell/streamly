@@ -112,7 +112,7 @@ class Streaming t where
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- | Represesnts an empty stream just like @[]@ represents and empty list.
+-- | Represesnts an empty stream just like @[]@ represents an empty list.
 nil :: Streaming t => t m a
 nil = fromStream snil
 
@@ -751,7 +751,7 @@ instance Monad m => Functor (ZipStream m) where
         in m Nothing stp yield
 
 instance Monad m => Applicative (ZipStream m) where
-    pure a = ZipStream $ scons a Nothing
+    pure = ZipStream . srepeat
     (<*>) = zipWith id
 
 instance Streaming ZipStream where
@@ -838,7 +838,7 @@ instance Monad m => Functor (ZipAsync m) where
         in m Nothing stp yield
 
 instance MonadAsync m => Applicative (ZipAsync m) where
-    pure a = ZipAsync $ scons a Nothing
+    pure = ZipAsync . srepeat
     (<*>) = zipAsyncWith id
 
 instance Streaming ZipAsync where

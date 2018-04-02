@@ -13,27 +13,22 @@
     * Check regressions from previous release
     * Check comparative benchmarks using streaming-benchmarks
 
-* _Update changelog_:
-
-    * Change the `Unreleased` section at the top of changelog file to the new
-      release version number and make an `Unreleased` section above it. Using
-      `Unreleased` instead of the next release number for unreleased changes is
-      important. If we use the next release number instead, then when adding a
-      new change to the changelog, at one look we cannot know whether the
-      release number on top is unreleased or released.
-
-    * Make sure all the bug fixes being included in this release are marked
-      with a target release on github. So that users can search by release if
-      they want.
-
 * _Update Package Metadata:_
 
     * Update `stack.yaml` to latest stable resolver, cleanup extra-deps
     * Make sure the description in cabal file is in sync with README and other docs
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update `tested-with` field
-    * Make sure all dependency bounds are correct
-    * Bump the package version
+    * Make sure all dependency bounds can use latest versions
+
+* _Update changelog & Version_:
+
+    * Change the `Unreleased` section at the top of changelog file to the new
+      release version number.
+    * Make sure all the bug fixes being included in this release are marked
+      with a target release on github. So that users can search by release if
+      they want.
+    * Bump the package version in cabal file or package.yaml
 
 * _Upload_:
 
@@ -64,16 +59,13 @@ breaking, enhancement:
 * breaking
 * deprecating
 * enhancement
+* performance
+* documentation
 * bug
 
 Note that if you are making a big feature change you may have a single issue
 for that feature and attach many commits with it. So you do not necessarily
 need to have an issue for each commit.
-
-Every new issue that requires a fix MAY be marked with a target release. But
-remember that before we make a new release EVERY issue with a commit included
-in that release that affects the end user MUST have the target release
-correctly set.
 
 ### Maintenance Changes
 
@@ -86,6 +78,40 @@ following:
 * question
 * wontfix
 * maintenance
+
+### Planning and Tracking Changes
+
+For planning purposes, open issues may be marked with milestones or target
+releases.  However, it may not always be known which release a fix will finally
+land in.  For example, we may decide to make a minor release instead of a major
+one if there are no breaking changes yet, so we may not always know what would
+be the next release version.
+
+Trackability means that we should be able to find which issues got fixed in
+which release. Or what all issues got fixed in a particular release. We track
+significant changes using the changelog. However, there may be more changes
+that can only be tracked via issues, PRs or commits.  When we make a release we
+can mark all the issues fixed in that release with a correct release target for
+future trackability.
+
+For better trackability of which issue got fixed in which release we need the
+following:
+
+* Before you close an issue make sure a commit or a PR fixing the issue is
+  attached with it. In the commit message you can reference an issue like
+  "fixes #50", you can do the same in a PR as well.
+* Before we make a new release EVERY issue with a commit included in that
+  release that affects the end user, especially bugs and breaking changes MUST
+  have the target release correctly set.
+
+### Changelog Management
+
+Keep the unreleased changes in the `Unreleased` section at the top of changelog
+file.  Using `Unreleased` instead of the next release number for unreleased
+changes is important. First, we do not know the next release number in advance,
+it could be a major or minor release.  Second, if we use the next release
+number instead, then when adding a new change to the changelog, at one look we
+cannot know whether the release number on top is unreleased or released.
 
 ## TODO
 
