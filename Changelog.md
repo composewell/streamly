@@ -1,9 +1,26 @@
-## Unreleased
+## Unrelased
+
+* Add `mapM`, `mapM_` and `sequence_` operation.
+
+### Breaking change
+* Change the type of `foldrM` to take a pure seed and pure second argument in the step function
+
+
+## 0.1.2
 
 ### Enhancements
-* Add the `scan` operation for left scan of a stream
+* Add `iterate`, `iterateM` stream operations
+
+### Bug Fixes
+* Fixed a bug that casued unexpected behavior when `pure` was used to inject
+  values in Applicative composition of `ZipStream` and `ZipAsync` types.
+
+## 0.1.1
+
+### Enhancements
+* Make `cons` right associative and provide an operator form `.:` for it
+* Add `null`, `tail`, `reverse`, `replicateM`, `scan` stream operations
 * Improve performance of some stream operations (`foldl`, `dropWhile`)
-* Add `mapM`, `mapM_` and `sequence_` operation.
 
 ### Bug Fixes
 * Fix the `product` operation. Earlier, it always returned 0 due to a bug
