@@ -206,19 +206,14 @@ foldr step acc m = go (toStream m)
             yield a (Just x) = go x >>= \b -> return (step a b)
         in (runStream m1) Nothing stop yield
 
--- | Right fold, with no starting value. Returns Nothing if the list is empty.
+-- | Right fold, for non-empty streams, using first element as the starting
+-- value. Returns 'Nothing' if the stream is empty.
 foldr1 :: (Streaming t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
-foldr1 step m = go (toStream m)
+foldr1 step = foldr go Nothing
     where
-    go m1 =
-        let stop = return Nothing
-            yield a Nothing = return $ Just a
-            yield a (Just x) = go x >>= \b ->
-                return $ Just $ maybe_ a (step a) b
-        in runStream m1 Nothing stop yield
-
-    maybe_ def _ Nothing = def
-    maybe_ _ f (Just v)  = f v
+        go x m = Just (case m of
+                            Nothing -> x
+                            Just y -> step x y)
 
 -- | Right fold with a monadic step function.  See 'toList' for an example use.
 {-# INLINE foldrM #-}
