@@ -796,8 +796,8 @@ streamOperations (stream, list, len) = do
         it "tail empty" $ (A.tail stream >>= return . maybe True (const False))
             `shouldReturn` True
         it "init empty" $ (isNothing <$> A.init stream) `shouldReturn` True
-        it "foldl1 empty" $
-            (A.foldl1 undefined undefined stream :: IO (Maybe Int))
+        it "foldl1' empty" $
+            (A.foldl1' undefined undefined stream :: IO (Maybe Int))
             `shouldReturn`
             Nothing
         it "foldr1 empty" $
@@ -822,8 +822,8 @@ streamOperations (stream, list, len) = do
             `shouldReturn` tail list
         it "init nonEmpty" $ (A.init stream >>= A.toList . fromJust)
             `shouldReturn` init list
-        it "foldl1 nonEmpty" $ do
-            foldedHead <- A.foldl1 const id stream
+        it "foldl1' nonEmpty" $ do
+            foldedHead <- A.foldl1' const id stream
             normalHead <- A.head stream
             foldedHead `shouldBe` normalHead
         it "foldr1 nonEmpty" $ do

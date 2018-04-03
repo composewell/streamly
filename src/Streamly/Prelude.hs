@@ -34,7 +34,7 @@ module Streamly.Prelude
     , foldrM
     , scan
     , foldl
-    , foldl1
+    , foldl1'
     , foldlM
     , uncons
 
@@ -117,8 +117,7 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               maximum, minimum, head, last,
                                               tail, length, null, reverse,
                                               iterate, lookup, splitAt, span,
-                                              break, init, foldr1, foldl1, and,
-                                              or)
+                                              break, init, foldr1, and, or)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -256,9 +255,9 @@ foldl step begin done m = get $ go (toStream m) begin
 
 -- | Strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns 'Nothing' if the stream is empty.
-foldl1 :: (Streaming t, Monad m)
+foldl1' :: (Streaming t, Monad m)
     => (a -> a -> a) -> (a -> b) -> t m a -> m (Maybe b)
-foldl1 step done m = do
+foldl1' step done m = do
     mbUnconsM <- uncons m
     case mbUnconsM of
         Nothing -> return Nothing
