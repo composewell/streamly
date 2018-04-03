@@ -92,7 +92,7 @@ module Streamly.Prelude
     , sequence
     , replicateM
     , repeatM
-    , intersperse
+    , intersperseM
 
     -- * Zipping
     , zipWith
@@ -537,8 +537,8 @@ reverse m = fromStream $ go Nothing (toStream m)
             yield a (Just x) = runStream (go (Just $ a `scons` rev) x) svr stp yld
          in runStream rest svr stop yield
 
-intersperse :: (Streaming t) => a -> t m a -> t m a
-intersperse a m = fromStream $ prependingStart (toStream m)
+intersperseM :: (Streaming t, Monad m) => m a -> t m a -> t m a
+intersperseM a m = fromStream $ prependingStart (toStream m)
     where
     prependingStart m1 = Stream $ \svr stp yld ->
         let stop             = stp
@@ -547,8 +547,8 @@ intersperse a m = fromStream $ prependingStart (toStream m)
          in runStream m1 svr stop yield
     go m2 = Stream $ \svr stp yld ->
         let stop             = stp
-            yield i Nothing  = yld a (Just $ i `scons` Nothing)
-            yield i (Just x) = yld a (Just $ i `scons` Just (go x))
+            yield i Nothing  = a >>= \y -> yld y (Just $ i `scons` Nothing)
+            yield i (Just x) = a >>= \y -> yld y (Just $ i `scons` Just (go x))
         in runStream m2 svr stop yield
 
 -- XXX replace the recursive "go" with continuation
