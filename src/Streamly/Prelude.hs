@@ -501,8 +501,9 @@ init m = (fromStream <$>) <$> go (toStream m)
         let stop = return Nothing
             yield _ Nothing = return $ Just snil
             yield a (Just x) = snull x >>= \n ->
-                if n then return $ Just snil
-                     else go x >>= \t ->
+                if n
+                then return $ Just snil
+                else go x >>= \t ->
                          return $ Just (a `scons` t)
         in runStream m1 Nothing stop yield
 
