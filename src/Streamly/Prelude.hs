@@ -651,8 +651,8 @@ isPrefixOf p m = do
                 Just (headM, m') | headM == headP -> p' `isPrefixOf` m'
                 _ -> return False
 
--- | Takes two streams and returns true if and only if the second  the second
--- stream ends in the first.
+-- | Takes two streams and returns true if and only if the second stream ends
+-- in the first.
 -- Both streams must be finite.
 isSuffixOf :: (Streaming t, Monad m, Eq a) => t m a -> t m a -> m Bool
 isSuffixOf p m = do
