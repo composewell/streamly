@@ -168,11 +168,13 @@ iterateM step = fromStream . go
        a <- step s
        yld s (Just (go a))
 
--- | @repeat a@ creates an infinite stream of @a@.
+-- | @repeat a@ creates an infinite stream where the value of every element is
+-- @a@.
 repeat :: (Streaming t) => a -> t m a
 repeat a = a .: repeat a
 
--- | @replicate n a@ creates an @n@ element stream of only @a@.
+-- | @replicate n a@ creates a stream of length @n@ where the value of every
+-- element is @a@.
 replicate :: (Streaming t) => Int -> a -> t m a
 replicate n a = take n $ repeat a
 
