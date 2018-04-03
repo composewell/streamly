@@ -4,7 +4,6 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (ErrorCall)
 import Control.Monad (replicateM, when)
 import Data.Foldable (forM_)
 import Data.List (sort)
@@ -666,17 +665,6 @@ streamOperations (stream, list, len) = do
         toListSerial (A.replicate len (1::Int))
         `shouldReturn`
         replicate len 1
-    if list == []
-    then
-        it "cycle empty" $
-            A.toList (A.cycle stream)
-            `shouldThrow`
-            (const True :: ErrorCall -> Bool)
-    else
-        it "cycle nonEmpty" $
-            A.toList (A.take (3*len + 1) $ A.cycle stream)
-            `shouldReturn`
-            take (3*len + 1) (cycle list)
 
     it "iterate" $
             (A.toList . serially . (A.take len) $ (A.iterate (+ 1) (0 :: Int)))
