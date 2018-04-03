@@ -26,8 +26,6 @@ module Streamly.Prelude
     , each
     , iterate
     , iterateM
-    , repeat
-    , replicate
 
     -- * Elimination
     -- ** General Folds
@@ -93,6 +91,7 @@ module Streamly.Prelude
     , mapM_
     , sequence
     , replicateM
+    , repeatM
     , intersperse
 
     -- * Zipping
@@ -117,9 +116,9 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
                                               sum, product, elem, notElem,
                                               maximum, minimum, head, last,
                                               tail, length, null, reverse,
-                                              iterate, repeat, replicate,
-                                              lookup, splitAt, span, break,
-                                              init, foldr1, foldl1, and, or)
+                                              iterate, lookup, splitAt, span,
+                                              break, init, foldr1, foldl1, and,
+                                              or)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -167,16 +166,6 @@ iterateM step = fromStream . go
     go s = Stream $ \_ _ yld -> do
        a <- step s
        yld s (Just (go a))
-
--- | @repeat a@ creates an infinite stream where the value of every element is
--- @a@.
-repeat :: (Streaming t) => a -> t m a
-repeat a = a .: repeat a
-
--- | @replicate n a@ creates a stream of length @n@ where the value of every
--- element is @a@.
-replicate :: (Streaming t) => Int -> a -> t m a
-replicate n a = take n $ repeat a
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (Streaming t, MonadIO m) => IO.Handle -> t m String
@@ -789,6 +778,12 @@ replicateM n m = fromStream $ go n
         if cnt <= 0
         then stp
         else m >>= \a -> yld a (Just $ go (cnt - 1))
+
+repeatM :: (Streaming t, Monad m) => m a -> t m a
+repeatM = fromStream . go
+    where
+        go m = Stream $ \_ _ yld ->
+            m >>= \a -> yld a $ Just $ go m
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams

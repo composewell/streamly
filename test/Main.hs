@@ -657,14 +657,6 @@ streamOperations (stream, list, len) = do
         toListSerial (A.take len $ A.iterate (+1) (1::Int))
         `shouldReturn`
         take len (iterate (+1) 1)
-    it "repeat" $
-        toListSerial (A.take len $ A.repeat (1::Int))
-        `shouldReturn`
-        take len (repeat 1)
-    it "replicate" $
-        toListSerial (A.replicate len (1::Int))
-        `shouldReturn`
-        replicate len 1
 
     it "iterate" $
             (A.toList . serially . (A.take len) $ (A.iterate (+ 1) (0 :: Int)))
@@ -811,10 +803,12 @@ streamOperations (stream, list, len) = do
         it "foldr1 empty" $
             A.foldr1 undefined stream `shouldReturn` Nothing
         it "or empty" $ A.or (serially A.nil) `shouldReturn` False
-        let infOrTest = serially $ False .: False .: True .: A.repeat False
+        let infOrTest = serially $
+                False .: False .: True .: A.repeatM (return False)
         it "or infinite" $ A.or infOrTest `shouldReturn` True
         it "and empty" $ A.and (serially A.nil) `shouldReturn` True
-        let infAndTest = serially $ True .: True .: False .: A.repeat True
+        let infAndTest = serially $
+                True .: True .: False .: A.repeatM (return True)
         it "and infinite" $ A.and infAndTest `shouldReturn` False
     else do
         it "head nonEmpty" $ A.head stream `shouldReturn` Just (head list)
