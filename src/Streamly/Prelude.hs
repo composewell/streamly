@@ -265,7 +265,8 @@ foldl step begin done m = get $ go (toStream m) begin
                     Just x -> (runStream (go x s)) Nothing undefined yld
         in (runStream m1) Nothing stop yield
 
--- | Strict left fold, which uses the first element as a starting value.
+-- | Strict left fold, for non-empty streams, using first element as the
+-- starting value. Returns 'Nothing' if the stream is empty.
 foldl1 :: (Streaming t, Monad m)
     => (a -> a -> a) -> (a -> b) -> t m a -> m (Maybe b)
 foldl1 step done m = do
