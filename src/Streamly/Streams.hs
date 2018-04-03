@@ -722,18 +722,19 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
             yield1 a (Just ra) = merge a ra
         (runStream mx) Nothing stp yield1
 
--- | 'ZipStream' zips serially i.e. it produces one element from each stream
--- serially and then zips the two elements. Note, for convenience we have used
--- the 'zipping' combinator in the following example instead of using a type
--- annotation.
+-- | The applicative instance of 'ZipStream' zips a number of streams serially
+-- i.e. it produces one element from each stream serially and then zips all
+-- those elements. Note, for convenience we have used the 'zipping' combinator
+-- in the following example instead of using a 'ZipStream' type annotation.
 --
 -- @
--- main = (toList . 'zipping' $ (,) \<$\> s1 \<*\> s2) >>= print
---     where s1 = pure 1 <> pure 2
---           s2 = pure 3 <> pure 4
+-- main = (toList . 'zipping' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
+--     where s1 = each [1, 2]
+--           s2 = each [3, 4]
+--           s3 = each [5, 6]
 -- @
 -- @
--- [(1,3),(2,4)]
+-- [(1,3,5),(2,4,6)]
 -- @
 --
 -- This applicative operation can be seen as the zipping equivalent of
@@ -811,16 +812,17 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     mb <- async m2
     (runStream (toStream (zipWith f ma mb))) Nothing stp yld
 
--- | Like 'ZipStream' but zips in parallel, it generates both the elements to
+-- | Like 'ZipStream' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.
 --
 -- @
--- main = (toList . 'zippingAsync' $ (,) \<$\> s1 \<*\> s2) >>= print
---     where s1 = pure 1 <> pure 2
---           s2 = pure 3 <> pure 4
+-- main = (toList . 'zippingAsync' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
+--     where s1 = each [1, 2]
+--           s2 = each [3, 4]
+--           s3 = each [5, 6]
 -- @
 -- @
--- [(1,3),(2,4)]
+-- [(1,3,5),(2,4,6)]
 -- @
 --
 -- This applicative operation can be seen as the zipping equivalent of
