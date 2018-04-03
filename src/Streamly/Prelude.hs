@@ -427,12 +427,12 @@ break p m =
 stripPrefix :: (Streaming t, Monad m, Eq a) =>
     t m a -> t m a -> m (Maybe (t m a))
 stripPrefix p m = do
-    mbUnconsP <- uncons p
-    case mbUnconsP of
+    rP <- uncons p
+    case rP of
         Nothing -> return $ Just m
         Just (h, hs) -> do
-            mbUnconsM <- uncons m
-            case mbUnconsM of
+            rM <- uncons m
+            case rM of
                 Nothing -> return Nothing
                 Just (x, xs) | x == h -> stripPrefix hs xs
                              | otherwise -> return Nothing
