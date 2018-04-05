@@ -71,10 +71,9 @@ by the programmers to deem it usable.
 ### Changelog
 
 Any new changes that affect the user of the library in some way must be
-documented under `Unreleased` section at the top of the `Changelog`.  Please
-start the summary of the change with imperative mood just as in commit
-messages.  The changes in the changelog must be organized in the following
-categories, in that order:
+documented under `Unreleased` section at the top of the `Changelog`.  The
+changes in the changelog must be organized in the following categories, in that
+order:
 
 * Breaking Changes
 * Enhancements
