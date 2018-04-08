@@ -3,6 +3,8 @@
 ## Release Checklist
 
 * Check if any critical pending bugs or issues are to be included
+* If this is a major release check if any previously deprecated features are to
+  be removed in this release.
 * _Documentation_:
 
     * Update the README if needed.
