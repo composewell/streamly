@@ -46,6 +46,7 @@ module Streamly.Streams
 
     -- * Stream Styles
     , StreamT
+    , ReverseT
     , InterleavedT
     , AsyncT
     , ParallelT
@@ -54,6 +55,7 @@ module Streamly.Streams
 
     -- * Type Adapters
     , serially
+    , reversely
     , interleaving
     , asyncly
     , parallely
@@ -63,6 +65,7 @@ module Streamly.Streams
 
     -- * Running Streams
     , runStreamT
+    , runReverseT
     , runInterleavedT
     , runAsyncT
     , runParallelT
@@ -304,7 +307,7 @@ instance Monad m => Monad (StreamT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (StreamT m) where
-    pure a = StreamT $ scons a Nothing
+    pure = StreamT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -363,6 +366,98 @@ instance (Monad m, Floating a) => Floating (StreamT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
+-- ReverseT
+------------------------------------------------------------------------------
+
+-- TODO: documenation
+
+newtype ReverseT m a = ReverseT {getReverseT :: Stream m a}
+    deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
+
+deriving instance MonadAsync m => Alternative (ReverseT m)
+deriving instance MonadAsync m => MonadPlus (ReverseT m)
+deriving instance (MonadBase b m, Monad m) => MonadBase b (ReverseT m)
+deriving instance MonadError e m => MonadError e (ReverseT m)
+deriving instance MonadReader r m => MonadReader r (ReverseT m)
+deriving instance MonadState s m => MonadState s (ReverseT m)
+
+instance Streaming ReverseT where
+    toStream = getReverseT
+    fromStream = ReverseT
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance Monad m => Monad (ReverseT m) where
+     return = pure
+     s >>= f = ReverseT . roundrobin . getReverseT $ fmap (getReverseT . f) s
+
+------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+instance Monad m => Applicative (ReverseT m) where
+    pure = ReverseT . singleton
+    (<*>) = ap
+
+------------------------------------------------------------------------------
+-- Functor
+------------------------------------------------------------------------------
+
+instance Monad m => Functor (ReverseT m) where
+    fmap f (ReverseT (Stream m)) = ReverseT $ Stream $ \_ stp yld ->
+        let yield a Nothing  = yld (f a) Nothing
+            yield a (Just r) = yld (f a)
+                               (Just (getReverseT (fmap f (ReverseT r))))
+        in m Nothing stp yield
+
+------------------------------------------------------------------------------
+-- Num
+------------------------------------------------------------------------------
+
+instance (Monad m, Num a) => Num (ReverseT m a) where
+    fromInteger n = pure (fromInteger n)
+
+    negate = fmap negate
+    abs    = fmap abs
+    signum = fmap signum
+
+    (+) = liftA2 (+)
+    (*) = liftA2 (*)
+    (-) = liftA2 (-)
+
+instance (Monad m, Fractional a) => Fractional (ReverseT m a) where
+    fromRational n = pure (fromRational n)
+
+    recip = fmap recip
+
+    (/) = liftA2 (/)
+
+instance (Monad m, Floating a) => Floating (ReverseT m a) where
+    pi = pure pi
+
+    exp  = fmap exp
+    sqrt = fmap sqrt
+    log  = fmap log
+    sin  = fmap sin
+    tan  = fmap tan
+    cos  = fmap cos
+    asin = fmap asin
+    atan = fmap atan
+    acos = fmap acos
+    sinh = fmap sinh
+    tanh = fmap tanh
+    cosh = fmap cosh
+    asinh = fmap asinh
+    atanh = fmap atanh
+    acosh = fmap acosh
+
+    (**)    = liftA2 (**)
+    logBase = liftA2 logBase
+
+
+------------------------------------------------------------------------------
 -- InterleavedT
 ------------------------------------------------------------------------------
 
@@ -413,7 +508,7 @@ instance Monad m => Monad (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (InterleavedT m) where
-    pure a = InterleavedT $ scons a Nothing
+    pure = InterleavedT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -538,7 +633,7 @@ instance MonadAsync m => Monad (AsyncT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (AsyncT m) where
-    pure a = AsyncT $ scons a Nothing
+    pure = AsyncT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -647,7 +742,7 @@ instance MonadAsync m => Monad (ParallelT m) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (ParallelT m) where
-    pure a = ParallelT $ scons a Nothing
+    pure = ParallelT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -899,6 +994,10 @@ adapt = fromStream . toStream
 serially :: StreamT m a -> StreamT m a
 serially x = x
 
+-- | Interpret an ambiguously typed stream as 'ReverseT'.
+reversely :: ReverseT m a -> ReverseT m a
+reversely x = x
+
 -- | Interpret an ambiguously typed stream as 'InterleavedT'.
 interleaving :: InterleavedT m a -> InterleavedT m a
 interleaving x = x
@@ -926,6 +1025,10 @@ zippingAsync x = x
 -- | Same as @runStreaming . serially@.
 runStreamT :: Monad m => StreamT m a -> m ()
 runStreamT = runStreaming
+
+-- | Same as @runStreaming . reversely@.
+runReverseT :: Monad m => ReverseT m a -> m ()
+runReverseT = runStreaming
 
 -- | Same as @runStreaming . interleaving@.
 runInterleavedT :: Monad m => InterleavedT m a -> m ()

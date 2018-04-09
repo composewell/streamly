@@ -24,12 +24,14 @@ module Streamly.Core
     , Stream (..)
 
     -- * Construction
+    , singleton
     , scons
     , srepeat
     , snil
 
     -- * Composition
     , interleave
+    , roundrobin
 
     -- * Concurrent Stream Vars (SVars)
     , SVar
@@ -215,6 +217,9 @@ newtype Stream m a =
 -- 'MonadAsync'.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
+singleton :: a -> Stream m a
+singleton = flip scons Nothing
+
 scons :: a -> Maybe (Stream m a) -> Stream m a
 scons a r = Stream $ \_ _ yld -> yld a r
 
@@ -267,6 +272,20 @@ interleave m1 m2 = Stream $ \_ stp yld -> do
         yield a Nothing  = yld a (Just m2)
         yield a (Just r) = yld a (Just (interleave m2 r))
     (runStream m1) Nothing stop yield
+
+------------------------------------------------------------------------------
+-- Roundrobin
+------------------------------------------------------------------------------
+
+roundrobin :: Stream m (Stream m a)  -> Stream m a
+roundrobin m = Stream $ \_ stp yld ->
+  let run x = (runStream x) Nothing stp yld
+      yield m1 Nothing = run m1
+      yield m1 (Just rr) = run $ Stream $ \_ stp1 yld1 ->
+        let yield1 a Nothing  = yld1 a (Just $ roundrobin rr)
+            yield1 a (Just r) = yld1 a (Just $ roundrobin (rr <> singleton r))
+        in (runStream m1) Nothing stp1 yield1
+  in (runStream m) Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Spawning threads and collecting result in streamed fashion

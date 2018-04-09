@@ -33,6 +33,7 @@ main = do
     -- XXX due to a GHC bug passing bind as an argument causes perf
     -- degradation, so we should keep that in account when comparing.
     let as = streamly_serial
+        ac = streamly_coserial
         ai = streamly_interleaved
         aa = streamly_async
         ap = streamly_parallel
@@ -45,6 +46,13 @@ main = do
                 , bench "fair serial"   $ nfIO (as (A.<=>))
                 , bench "left parallel" $ nfIO (as (A.<|))
                 , bench "fair parallel" $ nfIO (as (A.<|>))
+                ]
+
+            , bgroup "coserial bind"
+                [ bench "serial"        $ nfIO (ac (A.<>))
+                , bench "fair serial"   $ nfIO (ac (A.<=>))
+                , bench "left parallel" $ nfIO (ac (A.<|))
+                , bench "fair parallel" $ nfIO (ac (A.<|>))
                 ]
 
             , bgroup "interleaved bind"
@@ -138,6 +146,12 @@ streamly_serial
     :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
     -> IO Int
 streamly_serial = streamly_basic (A.toList . A.serially)
+
+{-# INLINE streamly_coserial #-}
+streamly_coserial
+    :: (A.ReverseT IO Int -> A.ReverseT IO Int -> A.ReverseT IO Int)
+    -> IO Int
+streamly_coserial = streamly_basic (A.toList . A.reversely)
 
 {-# INLINE streamly_interleaved #-}
 streamly_interleaved
