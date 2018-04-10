@@ -1,9 +1,26 @@
 resolver: lts-11.0
 packages:
 - '.'
+#- location: ../bench-graph
+#  extra-dep: true
 extra-deps:
     - simple-conduit-0.6.0
     - SDL-0.6.5.1
+
+    - git: https://github.com/composewell/bench-graph
+      commit: dfabeaaa0f7c3ed3945e18cb6e2b2d0c03ae713f
+
+    - Chart-diagrams-1.8.3
+    - SVGFonts-1.6.0.3
+    - diagrams-core-1.4.0.1
+    - diagrams-lib-1.4.2
+    - diagrams-postscript-1.4
+    - diagrams-svg-1.4.1.1
+    - diagrams-solve-0.1.1
+    - dual-tree-0.2.1
+    - lens-4.15.4
+    - free-4.12.4
+
 flags: {}
 extra-package-dbs: []
 rebuild-ghc-options: true
