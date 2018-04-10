@@ -8,7 +8,7 @@ extra-deps:
     - SDL-0.6.5.1
 
     - git: https://github.com/composewell/bench-graph
-      commit: dfabeaaa0f7c3ed3945e18cb6e2b2d0c03ae713f
+    commit: b6d6c69f76c0d951aecd257866cede9467bd166d
 
     - Chart-diagrams-1.8.3
     - SVGFonts-1.6.0.3
