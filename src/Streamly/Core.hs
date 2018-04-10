@@ -150,7 +150,7 @@ data SVar m a =
 --
 -- data Stream m a = Stop | Yield a (Maybe (Stream m a))
 --
--- Our goal is to be able to represent finite as well infinite streams and
+-- Our goal is to be able to represent finite as well as infinite streams and
 -- being able to compose a large number of small streams efficiently. In
 -- addition we want to compose streams in parallel, to facilitate that we
 -- maintain a local state in an SVar that is shared across and is used for
@@ -184,7 +184,7 @@ data SVar m a =
 --
 -- Whenever we make a singleton stream or in general when we build a stream
 -- strictly i.e. when we know all the elements of the stream in advance we can
--- use the last yield to indicate th end of the stream, because we know in
+-- use the last yield to indicate the end of the stream, because we know in
 -- advance at the time of the last yield that the stream is ending.  We build
 -- singleton streams in the implementation of 'pure' for Applicative and Monad,
 -- and in 'lift' for MonadTrans, in these places we use yield with 'Nothing' to
@@ -531,7 +531,7 @@ toStreamVar sv m = do
 -- if the consumer is running faster than us. As soon as we encounter an
 -- Alternative composition we create a push pull pair of threads. We use a
 -- channel for communication between the consumer pulling from the channel and
--- the producer who pushing to the channel. The producer creates more threads
+-- the producer who is pushing to the channel. The producer creates more threads
 -- if no output is seen on the channel, that is the consumer is running faster.
 -- However this mechanism can be problematic if the initial production latency
 -- is high, we may end up creating too many threads. So we need some way to
@@ -548,7 +548,7 @@ toStreamVar sv m = do
 -- TBD the alternative composition allows us to dispatch a chunkSize of only 1.
 -- If we have to dispatch in arbitrary chunksizes we will need to compose the
 -- parallel actions using a data constructor (Free Alternative) instead so that
--- we can divide it in chunks of arbitrary size before dispatch. If the stream
+-- we can divide it in chunks of arbitrary size before dispatching. If the stream
 -- is composed of hierarchically composed grains of different sizes then we can
 -- always switch to a desired granularity depending on the consumer speed.
 --
