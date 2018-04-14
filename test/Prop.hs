@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main (main) where
 
 import Control.Monad (when)
@@ -161,7 +163,12 @@ transformOpsWord8 desc t = do
     prop (desc ++ " elem") $ elemOp t A.notElem notElem
 
 semigroupOps
-    :: (Streaming t, MonadPlus (t IO), Semigroup (t IO Int), Monoid (t IO Int))
+    :: ( Streaming t, MonadPlus (t IO)
+
+#if __GLASGOW_HASKELL__ < 804
+       , Semigroup (t IO Int)
+#endif
+       , Monoid (t IO Int))
     => String -> (t IO Int -> t IO Int) -> Spec
 semigroupOps desc t = do
     prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) return) t
