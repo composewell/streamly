@@ -17,6 +17,9 @@ import Test.Hspec
 import Streamly
 import qualified Streamly.Prelude as A
 
+sortEq :: Ord a => [a] -> [a] -> Bool
+sortEq a b = sort a == sort b
+
 equals
     :: (Show a, Monad m)
     => (a -> a -> Bool) -> a -> a -> PropertyM m ()
@@ -42,23 +45,25 @@ constructWithReplicateM op len =
 transformFromList
     :: (Streaming t)
     => ([Int] -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
     -> ([Int] -> [Int])
     -> (t IO Int -> t IO Int)
     -> [Int]
     -> Property
-transformFromList constr listOp op a =
+transformFromList constr eq listOp op a =
     monadicIO $ do
         stream <- run ((A.toList . op) (constr a))
         let list = listOp a
-        equals (==) stream list
+        equals eq stream list
 
 foldFromList
     :: (Streaming t)
     => ([Int] -> t IO Int)
     -> (t IO Int -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
     -> [Int]
     -> Property
-foldFromList constr op a = transformFromList constr id op a
+foldFromList constr op eq a = transformFromList constr eq id op a
 
 eliminateOp
     :: (Streaming t, Show a, Eq a)
@@ -87,57 +92,80 @@ elemOp op streamOp listOp (x, xs) =
 
 transformOp
     :: (Streaming t)
-    => ([Int] -> [Int]) -> (t IO Int -> t IO Int) -> [Int] -> Property
+    => ([Int] -> [Int] -> Bool)
+    -> ([Int] -> [Int])
+    -> (t IO Int -> t IO Int)
+    -> [Int]
+    -> Property
 transformOp = transformFromList (A.each)
 
 functorOps
     :: (Streaming t, Functor (t IO))
-    => String -> (t IO Int -> t IO Int) -> Spec
-functorOps desc t = do
-    prop (desc ++ " id") $ transformOp id $ t
-    prop (desc ++ " fmap (+1)") $ transformOp (fmap (+1)) $ t . (fmap (+1))
+    => String
+    -> (t IO Int -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Spec
+functorOps desc t eq = do
+    prop (desc ++ " id") $ transformOp eq id $ t
+    prop (desc ++ " fmap (+1)") $ transformOp eq (fmap (+1)) $ t . (fmap (+1))
 
 transformOps
     :: Streaming t
-    => String -> (t IO Int -> t IO Int) -> Spec
-transformOps desc t
- = do
+    => String
+    -> (t IO Int -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Spec
+transformOps desc t eq = do
+    let transform = transformOp eq
     -- Filtering
     prop (desc ++ " filter False") $
-        transformOp (filter (const False)) $ t . (A.filter (const False))
+        transform (filter (const False)) $ t . (A.filter (const False))
     prop (desc ++ " filter True") $
-        transformOp (filter (const True)) $ t . (A.filter (const True))
+        transform (filter (const True)) $ t . (A.filter (const True))
     prop (desc ++ " filter even") $
-        transformOp (filter even) $ t . (A.filter even)
+        transform (filter even) $ t . (A.filter even)
 
     prop (desc ++ " take maxBound") $
-        transformOp (take maxBound) $ t . (A.take maxBound)
-    prop (desc ++ " take 0") $ transformOp (take 0) $ t . (A.take 0)
-    prop (desc ++ " take 1") $ transformOp (take 1) $ t . (A.take 1)
-    prop (desc ++ " take 10") $ transformOp (take 10) $ t . (A.take 10)
+        transform (take maxBound) $ t . (A.take maxBound)
+    prop (desc ++ " take 0") $ transform (take 0) $ t . (A.take 0)
+    prop (desc ++ " take 1") $ transform (take 1) $ t . (A.take 1)
+    prop (desc ++ " take 10") $ transform (take 10) $ t . (A.take 10)
 
     prop (desc ++ " takeWhile True") $
-        transformOp (takeWhile (const True)) $ t . (A.takeWhile (const True))
+        transform (takeWhile (const True)) $ t . (A.takeWhile (const True))
     prop (desc ++ " takeWhile False") $
-        transformOp (takeWhile (const False)) $ t . (A.takeWhile (const False))
+        transform (takeWhile (const False)) $ t . (A.takeWhile (const False))
     prop (desc ++ " takeWhile > 0") $
-        transformOp (takeWhile (> 0)) $ t . (A.takeWhile (> 0))
+        transform (takeWhile (> 0)) $ t . (A.takeWhile (> 0))
 
     prop (desc ++ " drop maxBound") $
-        transformOp (drop maxBound) $ t . (A.drop maxBound)
-    prop (desc ++ " drop 0") $ transformOp (drop 0) $ t . (A.drop 0)
-    prop (desc ++ " drop 1") $ transformOp (drop 1) $ t . (A.drop 1)
-    prop (desc ++ " drop 10") $ transformOp (drop 10) $ t . (A.drop 10)
+        transform (drop maxBound) $ t . (A.drop maxBound)
+    prop (desc ++ " drop 0") $ transform (drop 0) $ t . (A.drop 0)
+    prop (desc ++ " drop 1") $ transform (drop 1) $ t . (A.drop 1)
+    prop (desc ++ " drop 10") $ transform (drop 10) $ t . (A.drop 10)
 
     prop (desc ++ " dropWhile True") $
-        transformOp (dropWhile (const True)) $ t . (A.dropWhile (const True))
+        transform (dropWhile (const True)) $ t . (A.dropWhile (const True))
     prop (desc ++ " dropWhile False") $
-        transformOp (dropWhile (const False)) $ t . (A.dropWhile (const False))
+        transform (dropWhile (const False)) $ t . (A.dropWhile (const False))
     prop (desc ++ " dropWhile > 0") $
-        transformOp (dropWhile (> 0)) $ t . (A.dropWhile (> 0))
-    prop (desc ++ " scan") $ transformOp (scanl (+) 0) $ t . (A.scan (+) 0 id)
-    prop (desc ++ "reverse") $ transformOp reverse $ t . A.reverse
+        transform (dropWhile (> 0)) $ t . (A.dropWhile (> 0))
+    prop (desc ++ " scan") $ transform (scanl (+) 0) $ t . (A.scan (+) 0 id)
+    prop (desc ++ "reverse") $ transform reverse $ t . A.reverse
 
+wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
+wrapMaybe f =
+    \x ->
+        if x == []
+            then Nothing
+            else Just (f x)
+
+eliminationOps
+    :: Streaming t
+    => String
+    -> (t IO Int -> t IO Int)
+    -> Spec
+eliminationOps desc t = do
     -- Elimination
     prop (desc ++ " null") $ eliminateOp null $ A.null . t
     prop (desc ++ " foldl") $
@@ -146,22 +174,26 @@ transformOps desc t
     prop (desc ++ " any") $ eliminateOp (any even) $ (A.any even) . t
     prop (desc ++ " length") $ eliminateOp length $ A.length . t
     prop (desc ++ " sum") $ eliminateOp sum $ A.sum . t
-    prop (desc ++ " sum") $ eliminateOp product $ A.product . t
+    prop (desc ++ " product") $ eliminateOp product $ A.product . t
 
-    let wrap f =
-            \x ->
-                if x == []
-                    then Nothing
-                    else Just (f x)
-    prop (desc ++ " head") $ eliminateOp (wrap head) $ A.head . t
-    prop (desc ++ " tail") $ eliminateOp (wrap tail) $ \x -> do
+    prop (desc ++ " maximum") $ eliminateOp (wrapMaybe maximum) $ A.maximum . t
+    prop (desc ++ " minimum") $ eliminateOp (wrapMaybe minimum) $ A.minimum . t
+
+-- head/tail/last may depend on the order in case of parallel streams
+-- so we test these only for serial streams.
+serialEliminationOps
+    :: Streaming t
+    => String
+    -> (t IO Int -> t IO Int)
+    -> Spec
+serialEliminationOps desc t = do
+    prop (desc ++ " head") $ eliminateOp (wrapMaybe head) $ A.head . t
+    prop (desc ++ " tail") $ eliminateOp (wrapMaybe tail) $ \x -> do
         r <- A.tail (t x)
         case r of
             Nothing -> return Nothing
             Just s -> A.toList s >>= return . Just
-    prop (desc ++ " last") $ eliminateOp (wrap last) $ A.last . t
-    prop (desc ++ " maximum") $ eliminateOp (wrap maximum) $ A.maximum . t
-    prop (desc ++ " minimum") $ eliminateOp (wrap minimum) $ A.minimum . t
+    prop (desc ++ " last") $ eliminateOp (wrapMaybe last) $ A.last . t
 
 transformOpsWord8
     :: Streaming t
@@ -170,6 +202,7 @@ transformOpsWord8 desc t = do
     prop (desc ++ " elem") $ elemOp t A.elem elem
     prop (desc ++ " elem") $ elemOp t A.notElem notElem
 
+-- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
     :: ( Streaming t, MonadPlus (t IO)
 
@@ -179,13 +212,12 @@ semigroupOps
        , Monoid (t IO Int))
     => String -> (t IO Int -> t IO Int) -> Spec
 semigroupOps desc t = do
-    prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) return) t
-    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend return) t
-    prop (desc ++ " <=>") $ foldFromList (foldMapWith (<=>) return) t
-   -- XXX equality should be multiset equality
-    prop (desc ++ " <|>") $ foldFromList (foldMapWith (<|>) return) t
-    prop (desc ++ " mplus") $ foldFromList (foldMapWith mplus return) t
-    prop (desc ++ " <|") $ foldFromList (foldMapWith (<|) return) t
+    prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) return) t (==)
+    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend return) t (==)
+    prop (desc ++ " <=>") $ foldFromList (foldMapWith (<=>) return) t (==)
+    prop (desc ++ " <|>") $ foldFromList (foldMapWith (<|>) return) t sortEq
+    prop (desc ++ " mplus") $ foldFromList (foldMapWith mplus return) t sortEq
+    prop (desc ++ " <|") $ foldFromList (foldMapWith (<|) return) t sortEq
 
 applicativeOps
     :: (Streaming t, Applicative (t IO))
@@ -257,6 +289,7 @@ monadBind t eq (a, b) =
 main :: IO ()
 main = hspec $ do
     describe "Construction" $ do
+        -- XXX test for all types of streams
         prop "serially replicateM" $ constructWithReplicateM serially
         it "iterate" $
             (A.toList . serially . (A.take 100) $ (A.iterate (+ 1) (0 :: Int)))
@@ -268,18 +301,17 @@ main = hspec $ do
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
     describe "Functor operations" $ do
-        functorOps "serially" serially
-        functorOps "interleaving" interleaving
-        functorOps "zipping" zipping
-        functorOps "asyncly" asyncly
-        functorOps "parallely" parallely
-        functorOps "zippingAsync" zippingAsync
+        functorOps "serially" serially (==)
+        functorOps "interleaving" interleaving (==)
+        functorOps "zipping" zipping (==)
+        functorOps "asyncly" asyncly sortEq
+        functorOps "parallely" parallely sortEq
+        functorOps "zippingAsync" zippingAsync (==)
 
     describe "Semigroup operations" $ do
         semigroupOps "serially" serially
         semigroupOps "interleaving" interleaving
 
-    let sortEq a b = sort a == sort b
     describe "Applicative operations" $ do
         -- The tests using sorted equality are weaker tests
         -- We need to have stronger unit tests for all those
@@ -309,15 +341,31 @@ main = hspec $ do
         prop "asyncly monad bind" $ monadBind asyncly sortEq
         prop "parallely monad bind" $ monadBind parallely sortEq
 
-    describe "Stream operations" $ do
-        transformOps "serially" serially
-        transformOps "interleaving" interleaving
-        transformOps "zipping" zipping
-        transformOps "asyncly" asyncly
-        transformOps "parallely" parallely
+    describe "Stream transform operations" $ do
+        transformOps "serially" serially (==)
+        transformOps "interleaving" interleaving (==)
+        transformOps "zipping" zipping (==)
+        transformOps "zippingAsync" zippingAsync (==)
+        transformOps "asyncly" asyncly sortEq
+        transformOps "parallely" parallely sortEq
 
         transformOpsWord8 "serially" serially
         transformOpsWord8 "interleaving" interleaving
         transformOpsWord8 "zipping" zipping
+        transformOpsWord8 "zippingAsync" zippingAsync
         transformOpsWord8 "asyncly" asyncly
         transformOpsWord8 "parallely" parallely
+
+    describe "Stream elimination operations" $ do
+        eliminationOps "serially" serially
+        eliminationOps "interleaving" interleaving
+        eliminationOps "zipping" zipping
+        eliminationOps "zippingAsync" zippingAsync
+        eliminationOps "asyncly" asyncly
+        eliminationOps "parallely" parallely
+
+    describe "Stream elimination operations" $ do
+        serialEliminationOps "serially" serially
+        serialEliminationOps "interleaving" interleaving
+        serialEliminationOps "zipping" zipping
+        serialEliminationOps "zippingAsync" zippingAsync
