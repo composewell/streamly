@@ -161,13 +161,15 @@ transformOpsWord8 desc t = do
     prop (desc ++ " elem") $ elemOp t A.notElem notElem
 
 semigroupOps
-    :: (Streaming t, Monad (t IO), Semigroup (t IO Int), Alternative (t IO))
+    :: (Streaming t, MonadPlus (t IO), Semigroup (t IO Int), Monoid (t IO Int))
     => String -> (t IO Int -> t IO Int) -> Spec
 semigroupOps desc t = do
     prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) return) t
+    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend return) t
     prop (desc ++ " <=>") $ foldFromList (foldMapWith (<=>) return) t
    -- XXX equality should be multiset equality
     prop (desc ++ " <|>") $ foldFromList (foldMapWith (<|>) return) t
+    prop (desc ++ " mplus") $ foldFromList (foldMapWith mplus return) t
     prop (desc ++ " <|") $ foldFromList (foldMapWith (<|) return) t
 
 applicativeOps
