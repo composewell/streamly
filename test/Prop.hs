@@ -6,7 +6,7 @@ import Control.Monad (replicateM)
 import Data.List (sort)
 import GHC.Word (Word8)
 
-import Test.Hspec (hspec, Spec)
+import Test.Hspec (hspec, Spec, describe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, Property)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
@@ -239,52 +239,60 @@ monadBind t eq (a, b) =
 
 main :: IO ()
 main = hspec $ do
-    prop "serially replicateM" $ constructWithReplicateM serially
+    describe "Construction" $ do
+        prop "serially replicateM" $ constructWithReplicateM serially
 
-    functorOps "serially" serially
-    functorOps "interleaving" interleaving
-    functorOps "zipping" zipping
-    functorOps "asyncly" asyncly
-    functorOps "parallely" parallely
-    functorOps "zippingAsync" zippingAsync
+    describe "Functor operations" $ do
+        functorOps "serially" serially
+        functorOps "interleaving" interleaving
+        functorOps "zipping" zipping
+        functorOps "asyncly" asyncly
+        functorOps "parallely" parallely
+        functorOps "zippingAsync" zippingAsync
 
-    semigroupOps "serially" serially
-    semigroupOps "interleaving" interleaving
+    describe "Semigroup operations" $ do
+        semigroupOps "serially" serially
+        semigroupOps "interleaving" interleaving
 
-    -- The tests using sorted equality are weaker tests
-    -- We need to have stronger unit tests for all those
-    -- XXX applicative with three arguments
     let sortEq a b = sort a == sort b
-    prop "serially applicative" $ applicativeOps serially (==)
-    prop "interleaving applicative" $ applicativeOps interleaving sortEq
-    prop "asyncly applicative" $ applicativeOps asyncly sortEq
-    prop "parallely applicative" $ applicativeOps parallely sortEq
-    prop "zipping applicative" $ zipApplicative zipping (==)
-    -- XXX this hangs
-    -- prop "zippingAsync applicative" $ zipApplicative zippingAsync (==)
-    prop "zip monadic serially" $ zipMonadic serially (==)
-    prop "zip monadic interleaving" $ zipMonadic interleaving (==)
-    prop "zip monadic asyncly" $ zipMonadic asyncly (==)
-    prop "zip monadic parallely" $ zipMonadic parallely (==)
+    describe "Applicative operations" $ do
+        -- The tests using sorted equality are weaker tests
+        -- We need to have stronger unit tests for all those
+        -- XXX applicative with three arguments
+        prop "serially applicative" $ applicativeOps serially (==)
+        prop "interleaving applicative" $ applicativeOps interleaving sortEq
+        prop "asyncly applicative" $ applicativeOps asyncly sortEq
+        prop "parallely applicative" $ applicativeOps parallely sortEq
 
-    prop "serially monad then" $ monadThen serially (==)
-    prop "interleaving monad then" $ monadThen interleaving sortEq
-    prop "asyncly monad then" $ monadThen asyncly sortEq
-    prop "parallely monad then" $ monadThen parallely sortEq
+    describe "Zip operations" $ do
+        prop "zipping applicative" $ zipApplicative zipping (==)
+        -- XXX this hangs
+        -- prop "zippingAsync applicative" $ zipApplicative zippingAsync (==)
+        prop "zip monadic serially" $ zipMonadic serially (==)
+        prop "zip monadic interleaving" $ zipMonadic interleaving (==)
+        prop "zip monadic asyncly" $ zipMonadic asyncly (==)
+        prop "zip monadic parallely" $ zipMonadic parallely (==)
 
-    prop "serially monad bind" $ monadBind serially (==)
-    prop "interleaving monad bind" $ monadBind interleaving sortEq
-    prop "asyncly monad bind" $ monadBind asyncly sortEq
-    prop "parallely monad bind" $ monadBind parallely sortEq
+    describe "Monad operations" $ do
+        prop "serially monad then" $ monadThen serially (==)
+        prop "interleaving monad then" $ monadThen interleaving sortEq
+        prop "asyncly monad then" $ monadThen asyncly sortEq
+        prop "parallely monad then" $ monadThen parallely sortEq
 
-    transformOps "serially" serially
-    transformOps "interleaving" interleaving
-    transformOps "zipping" zipping
-    transformOps "asyncly" asyncly
-    transformOps "parallely" parallely
+        prop "serially monad bind" $ monadBind serially (==)
+        prop "interleaving monad bind" $ monadBind interleaving sortEq
+        prop "asyncly monad bind" $ monadBind asyncly sortEq
+        prop "parallely monad bind" $ monadBind parallely sortEq
 
-    transformOpsWord8 "serially" serially
-    transformOpsWord8 "interleaving" interleaving
-    transformOpsWord8 "zipping" zipping
-    transformOpsWord8 "asyncly" asyncly
-    transformOpsWord8 "parallely" parallely
+    describe "Stream operations" $ do
+        transformOps "serially" serially
+        transformOps "interleaving" interleaving
+        transformOps "zipping" zipping
+        transformOps "asyncly" asyncly
+        transformOps "parallely" parallely
+
+        transformOpsWord8 "serially" serially
+        transformOpsWord8 "interleaving" interleaving
+        transformOpsWord8 "zipping" zipping
+        transformOpsWord8 "asyncly" asyncly
+        transformOpsWord8 "parallely" parallely
