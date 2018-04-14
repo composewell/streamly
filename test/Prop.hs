@@ -8,10 +8,11 @@ import Control.Monad (replicateM)
 import Data.List (sort)
 import GHC.Word (Word8)
 
-import Test.Hspec (hspec, Spec, describe)
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (counterexample, Property)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
+
+import Test.Hspec
 
 import Streamly
 import qualified Streamly.Prelude as A
@@ -135,8 +136,10 @@ transformOps desc t
     prop (desc ++ " dropWhile > 0") $
         transformOp (dropWhile (> 0)) $ t . (A.dropWhile (> 0))
     prop (desc ++ " scan") $ transformOp (scanl (+) 0) $ t . (A.scan (+) 0 id)
+    prop (desc ++ "reverse") $ transformOp reverse $ t . A.reverse
 
     -- Elimination
+    prop (desc ++ " null") $ eliminateOp null $ A.null . t
     prop (desc ++ " foldl") $
         eliminateOp (foldl (+) 0) $ (A.foldl (+) 0 id) . t
     prop (desc ++ " all") $ eliminateOp (all even) $ (A.all even) . t
@@ -151,6 +154,11 @@ transformOps desc t
                     then Nothing
                     else Just (f x)
     prop (desc ++ " head") $ eliminateOp (wrap head) $ A.head . t
+    prop (desc ++ " tail") $ eliminateOp (wrap tail) $ \x -> do
+        r <- A.tail (t x)
+        case r of
+            Nothing -> return Nothing
+            Just s -> A.toList s >>= return . Just
     prop (desc ++ " last") $ eliminateOp (wrap last) $ A.last . t
     prop (desc ++ " maximum") $ eliminateOp (wrap maximum) $ A.maximum . t
     prop (desc ++ " minimum") $ eliminateOp (wrap minimum) $ A.minimum . t
@@ -250,6 +258,14 @@ main :: IO ()
 main = hspec $ do
     describe "Construction" $ do
         prop "serially replicateM" $ constructWithReplicateM serially
+        it "iterate" $
+            (A.toList . serially . (A.take 100) $ (A.iterate (+ 1) (0 :: Int)))
+            `shouldReturn` (take 100 $ iterate (+ 1) 0)
+
+        it "iterateM" $ do
+            let addM = (\ y -> return (y + 1))
+            A.toList . serially . (A.take 100) $ A.iterateM addM (0 :: Int)
+            `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
     describe "Functor operations" $ do
         functorOps "serially" serially
