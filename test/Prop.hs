@@ -310,7 +310,11 @@ main = hspec $ do
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
     let folded :: Streaming t => [a] -> t IO a
-        folded = adapt . serially . (foldMapWith (<>) return)
+        folded = adapt . serially . (\xs ->
+            case xs of
+                [x] -> return x -- singleton stream case
+                _ -> foldMapWith (<>) return xs
+            )
     describe "Functor operations" $ do
         functorOps A.each "serially" serially (==)
         functorOps folded "serially folded" serially (==)
