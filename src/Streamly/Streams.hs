@@ -46,6 +46,7 @@ module Streamly.Streams
 
     -- * Stream Styles
     , SerialT
+    , StreamT           -- deprecated
     , InterleavedT
     , AsyncT
     , ParallelT
@@ -63,6 +64,7 @@ module Streamly.Streams
 
     -- * Running Streams
     , runSerialT
+    , runStreamT       -- deprecated
     , runInterleavedT
     , runAsyncT
     , runParallelT
@@ -280,6 +282,10 @@ deriving instance MonadState s m => MonadState s (SerialT m)
 instance Streaming SerialT where
     toStream = getSerialT
     fromStream = SerialT
+
+-- | Same as SerialT.
+{-# Deprecated StreamT "Please use SerialT instead." #-}
+type StreamT = SerialT
 
 -- XXX The Functor/Applicative/Num instances for all the types are exactly the
 -- same, how can we reduce this boilerplate (use TH)? We cannot derive them
@@ -926,6 +932,11 @@ zippingAsync x = x
 -- | Same as @runStreaming . serially@.
 runSerialT :: Monad m => SerialT m a -> m ()
 runSerialT = runStreaming
+
+-- | Same as @runSerialT@.
+{-# Deprecated runStreamT "Please use runSerialT instead." #-}
+runStreamT :: Monad m => SerialT m a -> m ()
+runStreamT = runStreaming
 
 -- | Same as @runStreaming . interleaving@.
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
