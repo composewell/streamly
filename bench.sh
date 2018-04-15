@@ -3,6 +3,12 @@
 print_help () {
   echo "Usage: $0 [--quick] [--append] [--no-graphs] [--no-measure] \
 [--no-compare] [--base commit] [--candidate commit] -- <gauge options>"
+  echo
+  echo "Default generates comparative chart of HEAD^ vs HEAD commit, "
+  echo "in the 'charts' directory. Use --base and --candidate to select "
+  echo "the commits to compare. Use --no-compare to just benchmark the "
+  echo "current workspace only."
+  echo
   echo "Any arguments after a '--' are passed directly to guage"
   echo "You can omit '--' if the gauge args used do not start with a '-'."
   exit
@@ -128,7 +134,7 @@ if test "$MEASURE" != "0"
   else
     if test -z "$CANDIDATE"
     then
-      CANDIDATE=HEAD
+      CANDIDATE=$(git rev-parse HEAD)
     fi
     if test -z "$BASE"
     then
