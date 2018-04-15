@@ -31,9 +31,12 @@ module Streamly.Prelude
     -- ** General Folds
     , foldr
     , foldrM
-    , scan
-    , foldl
-    , foldlM
+    , foldl'
+    , foldlM'
+    , scanl'
+    , scanx
+    , foldx
+    , foldxM
     , uncons
 
     -- ** Special Folds
@@ -76,6 +79,10 @@ module Streamly.Prelude
     , fromHandle
     , toHandle
 
+    -- * Deprecated
+    , scan
+    , foldl
+    , foldlM
     )
 where
 
@@ -154,9 +161,12 @@ fromHandle h = fromStream go
 -- Elimination
 ------------------------------------------------------------------------------
 
--- Parallel variants of folds?
-
--- | Right fold.
+-- | Lazy right associative fold. For example, to fold a stream into a list:
+--
+-- @
+-- >> runIdentity $ foldr (:) [] (serially $ each [1,2,3])
+-- [1,2,3]
+-- @
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc m = go (toStream m)
     where
@@ -166,7 +176,13 @@ foldr step acc m = go (toStream m)
             yield a (Just x) = go x >>= \b -> return (step a b)
         in (runStream m1) Nothing stop yield
 
--- | Right fold with a monadic step function.  See 'toList' for an example use.
+-- | Lazy right fold with a monadic step function. For example, to fold a
+-- stream into a list:
+--
+-- @
+-- >> runIdentity $ foldrM (\\x xs -> return (x : xs)) [] (serially $ each [1,2,3])
+-- [1,2,3]
+-- @
 {-# INLINE foldrM #-}
 foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
 foldrM step acc m = go (toStream m)
@@ -177,10 +193,13 @@ foldrM step acc m = go (toStream m)
             yield a (Just x) = (go x) >>= (step a)
         in (runStream m1) Nothing stop yield
 
--- | Scan left. A strict left fold which accumulates the result of its reduction steps inside a stream, from left.
-{-# INLINE scan #-}
-scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scan step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
+-- | Strict left scan with an extraction function. Like 'scanl'', but applies a
+-- user supplied extraction function (the third argument) at each step. This is
+-- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
+-- extraction.
+{-# INLINE scanx #-}
+scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
     where
     go m1 !acc = Stream $ \_ stp yld ->
         let stop = stp
@@ -190,12 +209,26 @@ scan step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
                 in yld (done s) (Just (go x s))
         in runStream m1 Nothing stop yield
 
--- | Strict left fold. This is typed to work with the foldl package. To use
--- it normally just pass 'id' as the third argument.
-{-# INLINE foldl #-}
-foldl :: (IsStream t, Monad m)
+{-# DEPRECATED scan "Please use scanx instead." #-}
+scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scan = scanx
+
+-- | Strict left scan. Like 'foldl'', but returns the folded value at each
+-- step, generating a stream of all intermediate fold results. The first
+-- element of the stream is the user supplied initial value, and the last
+-- element of the stream is the same as the result of 'foldl''.
+{-# INLINE scanl' #-}
+scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
+scanl' step begin m = scanx step begin id m
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+{-# INLINE foldx #-}
+foldx :: (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldl step begin done m = get $ go (toStream m) begin
+foldx step begin done m = get $ go (toStream m) begin
     where
     {-# NOINLINE get #-}
     get m1 =
@@ -216,18 +249,36 @@ foldl step begin done m = get $ go (toStream m) begin
                     Just x -> (runStream (go x s)) Nothing undefined yld
         in (runStream m1) Nothing stop yield
 
+{-# DEPRECATED foldl "Please use foldx instead." #-}
+foldl :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldl = foldx
+
+-- | Strict left associative fold.
+{-# INLINE foldl' #-}
+foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
+foldl' step begin m = foldx step begin id m
+
 -- XXX replace the recursive "go" with explicit continuations.
--- | Strict left fold, with monadic step function. This is typed to work
--- with the foldl package. To use directly pass 'id' as the third argument.
-foldlM :: (IsStream t, Monad m)
+-- | Like 'foldx', but with a monadic step function.
+foldxM :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
-foldlM step begin done m = go begin (toStream m)
+foldxM step begin done m = go begin (toStream m)
     where
     go !acc m1 =
         let stop = acc >>= done
             yield a Nothing  = acc >>= \b -> step b a >>= done
             yield a (Just x) = acc >>= \b -> go (step b a) x
          in (runStream m1) Nothing stop yield
+
+{-# DEPRECATED foldlM "Please use foldxM instead." #-}
+foldlM :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldlM = foldxM
+
+-- | Like 'foldl'' but with a monadic step function.
+foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
+foldlM' step begin m = foldxM step (return begin) return m
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is

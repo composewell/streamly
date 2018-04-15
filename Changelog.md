@@ -4,12 +4,22 @@
 * Change the type of `foldrM` to make it consistent with `foldrM` in base
 
 ### Deprecations
-* Deprecate `StreamT`, rename to `SerialT`
-* Deprecate `runStreamT`, rename to `runSerialT`
-* Deprecate `ZipStream`, rename to `ZipSerial`
-* Deprecate `runZipStream`, rename to `runZipSerial`
-* Deprecate `Streaming`, rename to `IsStream`
-* Deprecate `runStreaming`, rename to `runStream`
+* Deprecate and rename the following symbols:
+    * `StreamT` to `SerialT`
+    * `runStreamT` to `runSerialT`
+    * `ZipStream` to `ZipSerial`
+    * `runZipStream` to `runZipSerial`
+    * `Streaming` to `IsStream`
+    * `runStreaming` to `runStream`
+    * `scan` to `scanx`
+    * `foldl` to `foldx`
+    * `foldlM` to `foldxM`
+
+### Enhancements
+* Add the following functions:
+    * `scanl'` strict left scan
+    * `foldl'` strict left fold
+    * `foldlM'` strict left fold with a monadic fold function
 
 ## 0.1.2
 

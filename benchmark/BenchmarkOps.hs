@@ -8,7 +8,7 @@
 module BenchmarkOps where
 
 import Prelude
-       (Monad, Int, (+), id, ($), (.), return, fmap, even, (>), (<=),
+       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
         subtract, undefined, Maybe)
 
 import qualified Streamly          as S
@@ -73,7 +73,7 @@ runStream = S.runSerialT
 
 toNull = runStream
 toList = S.toList
-foldl  = S.foldl (+) 0 id
+foldl  = S.foldl' (+) 0
 last   = S.last
 
 -------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ last   = S.last
 transform :: Monad m => Stream m a -> m ()
 transform = runStream
 
-scan          = transform . S.scan (+) 0 id
+scan          = transform . S.scanl' (+) 0
 map           = transform . fmap (+1)
 mapM          = transform . S.mapM return
 filterEven    = transform . S.filter even

@@ -5,7 +5,7 @@ module Main (main) where
 import Control.Monad (when)
 import Control.Applicative (ZipList(..))
 import Control.Monad (replicateM)
-import Data.List (sort)
+import Data.List (sort, foldl', scanl')
 import GHC.Word (Word8)
 
 import Test.Hspec.QuickCheck (prop)
@@ -144,7 +144,7 @@ transformOps constr desc t eq = do
         transform (dropWhile (const False)) $ t . (A.dropWhile (const False))
     prop (desc ++ " dropWhile > 0") $
         transform (dropWhile (> 0)) $ t . (A.dropWhile (> 0))
-    prop (desc ++ " scan") $ transform (scanl (+) 0) $ t . (A.scan (+) 0 id)
+    prop (desc ++ " scan") $ transform (scanl' (+) 0) $ t . (A.scanl' (+) 0)
     prop (desc ++ "reverse") $ transform reverse $ t . A.reverse
 
 wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
@@ -164,7 +164,7 @@ eliminationOps constr desc t = do
     -- Elimination
     prop (desc ++ " null") $ eliminateOp constr null $ A.null . t
     prop (desc ++ " foldl") $
-        eliminateOp constr (foldl (+) 0) $ (A.foldl (+) 0 id) . t
+        eliminateOp constr (foldl' (+) 0) $ (A.foldl' (+) 0) . t
     prop (desc ++ " all") $ eliminateOp constr (all even) $ (A.all even) . t
     prop (desc ++ " any") $ eliminateOp constr (any even) $ (A.any even) . t
     prop (desc ++ " length") $ eliminateOp constr length $ A.length . t
