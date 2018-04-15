@@ -45,7 +45,7 @@ module Streamly.Streams
     , async
 
     -- * Stream Styles
-    , StreamT
+    , SerialT
     , InterleavedT
     , AsyncT
     , ParallelT
@@ -62,7 +62,7 @@ module Streamly.Streams
     , adapt
 
     -- * Running Streams
-    , runStreamT
+    , runSerialT
     , runInterleavedT
     , runAsyncT
     , runParallelT
@@ -230,14 +230,14 @@ async m = do
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------
--- StreamT
+-- SerialT
 ------------------------------------------------------------------------------
 
--- | The 'Monad' instance of 'StreamT' runs the /monadic continuation/ for each
+-- | The 'Monad' instance of 'SerialT' runs the /monadic continuation/ for each
 -- element of the stream, serially.
 --
 -- @
--- main = 'runStreamT' $ do
+-- main = 'runSerialT' $ do
 --     x <- return 1 \<\> return 2
 --     liftIO $ print x
 -- @
@@ -246,10 +246,10 @@ async m = do
 -- 2
 -- @
 --
--- 'StreamT' nests streams serially in a depth first manner.
+-- 'SerialT' nests streams serially in a depth first manner.
 --
 -- @
--- main = 'runStreamT' $ do
+-- main = 'runSerialT' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     liftIO $ print (x, y)
@@ -267,19 +267,19 @@ async m = do
 -- and the monadic continuation is the body of the loop. The loop iterates for
 -- all elements of the stream.
 --
-newtype StreamT m a = StreamT {getStreamT :: Stream m a}
+newtype SerialT m a = SerialT {getSerialT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
 
-deriving instance MonadAsync m => Alternative (StreamT m)
-deriving instance MonadAsync m => MonadPlus (StreamT m)
-deriving instance (MonadBase b m, Monad m) => MonadBase b (StreamT m)
-deriving instance MonadError e m => MonadError e (StreamT m)
-deriving instance MonadReader r m => MonadReader r (StreamT m)
-deriving instance MonadState s m => MonadState s (StreamT m)
+deriving instance MonadAsync m => Alternative (SerialT m)
+deriving instance MonadAsync m => MonadPlus (SerialT m)
+deriving instance (MonadBase b m, Monad m) => MonadBase b (SerialT m)
+deriving instance MonadError e m => MonadError e (SerialT m)
+deriving instance MonadReader r m => MonadReader r (SerialT m)
+deriving instance MonadState s m => MonadState s (SerialT m)
 
-instance Streaming StreamT where
-    toStream = getStreamT
-    fromStream = StreamT
+instance Streaming SerialT where
+    toStream = getSerialT
+    fromStream = SerialT
 
 -- XXX The Functor/Applicative/Num instances for all the types are exactly the
 -- same, how can we reduce this boilerplate (use TH)? We cannot derive them
@@ -290,39 +290,39 @@ instance Streaming StreamT where
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (StreamT m) where
+instance Monad m => Monad (SerialT m) where
     return = pure
-    (StreamT (Stream m)) >>= f = StreamT $ Stream $ \_ stp yld ->
+    (SerialT (Stream m)) >>= f = SerialT $ Stream $ \_ stp yld ->
         let run x = (runStream x) Nothing stp yld
-            yield a Nothing  = run $ getStreamT (f a)
-            yield a (Just r) = run $ getStreamT (f a)
-                                  <> getStreamT (StreamT r >>= f)
+            yield a Nothing  = run $ getSerialT (f a)
+            yield a (Just r) = run $ getSerialT (f a)
+                                  <> getSerialT (SerialT r >>= f)
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance Monad m => Applicative (StreamT m) where
-    pure a = StreamT $ scons a Nothing
+instance Monad m => Applicative (SerialT m) where
+    pure a = SerialT $ scons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Functor (StreamT m) where
-    fmap f (StreamT (Stream m)) = StreamT $ Stream $ \_ stp yld ->
+instance Monad m => Functor (SerialT m) where
+    fmap f (SerialT (Stream m)) = SerialT $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
             yield a (Just r) = yld (f a)
-                               (Just (getStreamT (fmap f (StreamT r))))
+                               (Just (getSerialT (fmap f (SerialT r))))
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Monad m, Num a) => Num (StreamT m a) where
+instance (Monad m, Num a) => Num (SerialT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -333,14 +333,14 @@ instance (Monad m, Num a) => Num (StreamT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (StreamT m a) where
+instance (Monad m, Fractional a) => Fractional (SerialT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (StreamT m a) where
+instance (Monad m, Floating a) => Floating (SerialT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -366,7 +366,7 @@ instance (Monad m, Floating a) => Floating (StreamT m a) where
 -- InterleavedT
 ------------------------------------------------------------------------------
 
--- | Like 'StreamT' but different in nesting behavior. It fairly interleaves
+-- | Like 'SerialT' but different in nesting behavior. It fairly interleaves
 -- the iterations of the inner and the outer loop, nesting loops in a breadth
 -- first manner.
 --
@@ -475,7 +475,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- AsyncT
 ------------------------------------------------------------------------------
 
--- | Like 'StreamT' but /may/ run each iteration concurrently using demand
+-- | Like 'SerialT' but /may/ run each iteration concurrently using demand
 -- driven concurrency.  More concurrent iterations are started only if the
 -- previous iterations are not able to produce enough output for the consumer.
 --
@@ -599,7 +599,7 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
 -- ParallelT
 ------------------------------------------------------------------------------
 
--- | Like 'StreamT' but runs /all/ iterations fairly concurrently using a round
+-- | Like 'SerialT' but runs /all/ iterations fairly concurrently using a round
 -- robin scheduling.
 --
 -- @
@@ -895,8 +895,8 @@ instance (MonadAsync m, Floating a) => Floating (ZipAsync m a) where
 adapt :: (Streaming t1, Streaming t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
--- | Interpret an ambiguously typed stream as 'StreamT'.
-serially :: StreamT m a -> StreamT m a
+-- | Interpret an ambiguously typed stream as 'SerialT'.
+serially :: SerialT m a -> SerialT m a
 serially x = x
 
 -- | Interpret an ambiguously typed stream as 'InterleavedT'.
@@ -924,8 +924,8 @@ zippingAsync x = x
 -------------------------------------------------------------------------------
 
 -- | Same as @runStreaming . serially@.
-runStreamT :: Monad m => StreamT m a -> m ()
-runStreamT = runStreaming
+runSerialT :: Monad m => SerialT m a -> m ()
+runSerialT = runStreaming
 
 -- | Same as @runStreaming . interleaving@.
 runInterleavedT :: Monad m => InterleavedT m a -> m ()

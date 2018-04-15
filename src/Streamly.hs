@@ -20,7 +20,7 @@ module Streamly
 
     -- * Product Style Composition
     -- $product
-    , StreamT
+    , SerialT
     , InterleavedT
     , AsyncT
     , ParallelT
@@ -50,7 +50,7 @@ module Streamly
 
     -- * Running Streams
     , runStreaming
-    , runStreamT
+    , runSerialT
     , runInterleavedT
     , runAsyncT
     , runParallelT
@@ -87,7 +87,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- functional programming equivalent of nested loops from imperative
 -- programming. Composing each element in one stream with each element in the
 -- other stream generalizes the monadic product of single elements. You can
--- think of the IO monad as a special case of the more general @StreamT IO@
+-- think of the IO monad as a special case of the more general @SerialT IO@
 -- monad; with single element streams.  List transformers and logic programming
 -- monads also provide a similar product style composition of streams, however
 -- streamly generalizes it with the time dimension; allowing streams to be
@@ -114,7 +114,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $overview
 --
--- Streamly provides six distinct stream types i.e. 'StreamT', 'InterleavedT',
+-- Streamly provides six distinct stream types i.e. 'SerialT', 'InterleavedT',
 -- 'AsyncT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
@@ -122,13 +122,13 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- which helps converting the specific type to and from the underlying generic
 -- stream type.
 --
--- The types 'StreamT', 'InterleavedT', 'AsyncT' and 'ParallelT' are 'Monad'
+-- The types 'SerialT', 'InterleavedT', 'AsyncT' and 'ParallelT' are 'Monad'
 -- transformers with the monadic bind operation combining streams in a product
 -- style in much the same way as a list monad or a list transformer i.e. each
 -- element from one stream is combined with every element of the other stream.
 -- However, the applicative and monadic composition of these types differ in
 -- terms of the ordering and time sequence in which the elements from two
--- streams are combined. 'StreamT' and 'InterleavedT' compose streams serially
+-- streams are combined. 'SerialT' and 'InterleavedT' compose streams serially
 -- whereas 'AsyncT' and 'ParallelT' are their concurrent counterparts. See the
 -- documentation of the respective types for more details.
 --
@@ -160,7 +160,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $product
 --
 -- Streams that compose serially or non-concurrently come in two flavors i.e.
--- 'StreamT' and 'InterleavedT'.  Both of these serial flavors have
+-- 'SerialT' and 'InterleavedT'.  Both of these serial flavors have
 -- corresponding concurrent equivalents, those are 'AsyncT' and 'ParallelT'
 -- respectively.
 
@@ -177,7 +177,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- composition.
 --
 -- The standard semigroup append '<>' operator appends two streams serially,
--- this style corresponds to the 'StreamT' style of monadic composition.
+-- this style corresponds to the 'SerialT' style of monadic composition.
 --
 -- @
 -- main = ('toList' . 'serially' $ (return 1 <> return 2) <> (return 3 <> return 4)) >>= print
@@ -236,7 +236,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- main = ('toList' $ 'serially' $ (return 1 <> return 2)) >>= print
 -- @
 -- @
--- main = ('toList' $ (return 1 <> return 2 :: StreamT IO Int)) >>= print
+-- main = ('toList' $ (return 1 <> return 2 :: SerialT IO Int)) >>= print
 -- @
 --
 -- Note that using the combinators is easier as you do not have to think about

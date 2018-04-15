@@ -11,7 +11,7 @@ import Test.Hspec
 import Streamly
 import qualified Streamly.Prelude as A
 
-toListSerial :: StreamT IO a -> IO [a]
+toListSerial :: SerialT IO a -> IO [a]
 toListSerial = A.toList . serially
 
 toListInterleaved :: InterleavedT IO a -> IO [a]
@@ -337,18 +337,18 @@ nestTwoParallelNum =
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 -}
 
-timed :: Int -> StreamT IO Int
+timed :: Int -> SerialT IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 interleaveCheck
-    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    :: (SerialT IO Int -> SerialT IO Int -> SerialT IO Int)
     -> Spec
 interleaveCheck f =
     it "Interleave four" $
         toListSerial ((return 0 <> return 1) `f` (return 100 <> return 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int) -> Spec
+parallelCheck :: (SerialT IO Int -> SerialT IO Int -> SerialT IO Int) -> Spec
 parallelCheck f = do
     it "Parallel ordering left associated" $
         toListSerial (((event 4 `f` event 3) `f` event 2) `f` event 1)
@@ -361,7 +361,7 @@ parallelCheck f = do
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
 
 compose
-    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    :: (SerialT IO Int -> SerialT IO Int -> SerialT IO Int)
     -> ([Int] -> [Int])
     -> Spec
 compose f srt = do
@@ -395,8 +395,8 @@ compose f srt = do
     where tl = toListSerial
 
 composeAndComposeSimple
-    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
-    -> (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    :: (SerialT IO Int -> SerialT IO Int -> SerialT IO Int)
+    -> (SerialT IO Int -> SerialT IO Int -> SerialT IO Int)
     -> [[Int]]
     -> Spec
 composeAndComposeSimple f g answer = do
@@ -422,7 +422,7 @@ composeAndComposeSimple f g answer = do
 
 
 loops
-    :: (StreamT IO Int -> StreamT IO Int -> StreamT IO Int)
+    :: (SerialT IO Int -> SerialT IO Int -> SerialT IO Int)
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
     -> Spec
@@ -505,7 +505,7 @@ mixedOps = do
                             ] :: [Int])
     where
 
-    composeMixed :: StreamT IO Int
+    composeMixed :: SerialT IO Int
     composeMixed = do
         liftIO $ return ()
         liftIO $ putStr ""
