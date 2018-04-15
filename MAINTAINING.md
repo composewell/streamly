@@ -30,6 +30,7 @@
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
+    * Add "Since" notations to the new APIs introduced in this release
     * Bump the package version in cabal file or package.yaml
 
 * _Upload_:
