@@ -50,7 +50,8 @@ module Streamly.Streams
     , InterleavedT
     , AsyncT
     , ParallelT
-    , ZipStream
+    , ZipSerial
+    , ZipStream         -- deprecated
     , ZipAsync
 
     -- * Type Adapters
@@ -68,7 +69,8 @@ module Streamly.Streams
     , runInterleavedT
     , runAsyncT
     , runParallelT
-    , runZipStream
+    , runZipSerial
+    , runZipStream     -- deprecated
     , runZipAsync
 
     -- * Zipping
@@ -728,10 +730,10 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
             yield1 a (Just ra) = merge a ra
         (runStream mx) Nothing stp yield1
 
--- | The applicative instance of 'ZipStream' zips a number of streams serially
+-- | The applicative instance of 'ZipSerial' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
 -- those elements. Note, for convenience we have used the 'zipping' combinator
--- in the following example instead of using a 'ZipStream' type annotation.
+-- in the following example instead of using a 'ZipSerial' type annotation.
 --
 -- @
 -- main = (toList . 'zipping' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
@@ -745,27 +747,31 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 --
 -- This applicative operation can be seen as the zipping equivalent of
 -- interleaving with '<=>'.
-newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
+newtype ZipSerial m a = ZipSerial {getZipSerial :: Stream m a}
         deriving (Semigroup, Monoid)
 
-deriving instance MonadAsync m => Alternative (ZipStream m)
+{-# Deprecated ZipStream "Please use ZipSerial instead." #-}
+-- | Same as ZipSerial.
+type ZipStream = ZipSerial
 
-instance Monad m => Functor (ZipStream m) where
-    fmap f (ZipStream (Stream m)) = ZipStream $ Stream $ \_ stp yld ->
+deriving instance MonadAsync m => Alternative (ZipSerial m)
+
+instance Monad m => Functor (ZipSerial m) where
+    fmap f (ZipSerial (Stream m)) = ZipSerial $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
             yield a (Just r) = yld (f a)
-                               (Just (getZipStream (fmap f (ZipStream r))))
+                               (Just (getZipSerial (fmap f (ZipSerial r))))
         in m Nothing stp yield
 
-instance Monad m => Applicative (ZipStream m) where
-    pure = ZipStream . srepeat
+instance Monad m => Applicative (ZipSerial m) where
+    pure = ZipSerial . srepeat
     (<*>) = zipWith id
 
-instance Streaming ZipStream where
-    toStream = getZipStream
-    fromStream = ZipStream
+instance Streaming ZipSerial where
+    toStream = getZipSerial
+    fromStream = ZipSerial
 
-instance (Monad m, Num a) => Num (ZipStream m a) where
+instance (Monad m, Num a) => Num (ZipSerial m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -776,14 +782,14 @@ instance (Monad m, Num a) => Num (ZipStream m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (ZipStream m a) where
+instance (Monad m, Fractional a) => Fractional (ZipSerial m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (ZipStream m a) where
+instance (Monad m, Floating a) => Floating (ZipSerial m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -818,7 +824,7 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     mb <- async m2
     (runStream (toStream (zipWith f ma mb))) Nothing stp yld
 
--- | Like 'ZipStream' but zips in parallel, it generates all the elements to
+-- | Like 'ZipSerial' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.
 --
 -- @
@@ -917,8 +923,8 @@ asyncly x = x
 parallely :: ParallelT m a -> ParallelT m a
 parallely x = x
 
--- | Interpret an ambiguously typed stream as 'ZipStream'.
-zipping :: ZipStream m a -> ZipStream m a
+-- | Interpret an ambiguously typed stream as 'ZipSerial'.
+zipping :: ZipSerial m a -> ZipSerial m a
 zipping x = x
 
 -- | Interpret an ambiguously typed stream as 'ZipAsync'.
@@ -936,7 +942,7 @@ runSerialT = runStreaming
 -- | Same as @runSerialT@.
 {-# Deprecated runStreamT "Please use runSerialT instead." #-}
 runStreamT :: Monad m => SerialT m a -> m ()
-runStreamT = runStreaming
+runStreamT = runSerialT
 
 -- | Same as @runStreaming . interleaving@.
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
@@ -951,8 +957,13 @@ runParallelT :: Monad m => ParallelT m a -> m ()
 runParallelT = runStreaming
 
 -- | Same as @runStreaming . zipping@.
-runZipStream :: Monad m => ZipStream m a -> m ()
-runZipStream = runStreaming
+runZipSerial :: Monad m => ZipSerial m a -> m ()
+runZipSerial = runStreaming
+
+{-# Deprecated runZipStream "Please use runZipSerial instead." #-}
+-- | Same as ZipSerial.
+runZipStream :: Monad m => ZipSerial m a -> m ()
+runZipStream = runZipSerial
 
 -- | Same as @runStreaming . zippingAsync@.
 runZipAsync :: Monad m => ZipAsync m a -> m ()

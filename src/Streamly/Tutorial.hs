@@ -637,7 +637,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $applicative
 --
 -- Applicative is precisely the same as the 'ap' operation of 'Monad'. For
--- zipping and parallel applicatives separate types 'ZipStream' and 'ZipAsync'
+-- zipping and parallel applicatives separate types 'ZipSerial' and 'ZipAsync'
 -- are provided.
 --
 -- The following example runs all iterations serially and takes a total 17
@@ -742,7 +742,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $serialzip
 --
--- 'ZipStream' zips streams serially:
+-- 'ZipSerial' zips streams serially:
 --
 -- @
 -- import "Streamly"
