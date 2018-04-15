@@ -9,7 +9,7 @@ import Streamly
 listDirRecursive :: IO ()
 listDirRecursive = do
     liftIO $ hSetBuffering stdout LineBuffering
-    runStreamT $ getCurrentDir >>= readdir
+    runSerialT $ getCurrentDir >>= readdir
     where readdir d = do
             (ds, fs) <- lift $ listDir d
             liftIO $ mapM_ putStrLn $ map show fs ++ map show ds

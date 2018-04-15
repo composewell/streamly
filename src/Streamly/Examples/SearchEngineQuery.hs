@@ -7,7 +7,7 @@ import Network.HTTP.Simple
 searchEngineQuery :: IO ()
 searchEngineQuery = do
     putStrLn "Using parallel alternative"
-    runStreamT $ google <|> bing <|> duckduckgo
+    runSerialT $ google <|> bing <|> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
     runZipAsync $ (,,) <$> pure google <*> pure bing <*> pure duckduckgo

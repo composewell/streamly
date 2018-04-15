@@ -135,7 +135,7 @@ streamly_function_style = do
 
 {-# INLINE streamly_serial #-}
 streamly_serial
-    :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
+    :: (A.SerialT IO Int -> A.SerialT IO Int -> A.SerialT IO Int)
     -> IO Int
 streamly_serial = streamly_basic (A.toList . A.serially)
 
@@ -158,7 +158,7 @@ streamly_parallel
 streamly_parallel = streamly_basic (A.toList . A.parallely)
 
 {-# INLINE streamly_nil #-}
-streamly_nil :: (A.StreamT IO Int -> A.StreamT IO Int -> A.StreamT IO Int)
+streamly_nil :: (A.SerialT IO Int -> A.SerialT IO Int -> A.SerialT IO Int)
     -> IO Int
 streamly_nil f = do
     xs <- (A.toList . A.serially) $ do

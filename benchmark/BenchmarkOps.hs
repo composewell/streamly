@@ -58,14 +58,14 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.StreamT m a
+type Stream m a = S.SerialT m a
 
 source :: Int -> Stream m Int
 source n = S.each [n..n+value]
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStreamT
+runStream = S.runSerialT
 
 -------------------------------------------------------------------------------
 -- Elimination
