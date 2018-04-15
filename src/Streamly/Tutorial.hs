@@ -174,7 +174,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- 'toList' runs a stream computation and collects the result stream in a list
 -- in the underlying monad.  'toList' is a polymorphic function that works on
--- multiple stream types belonging to the class 'Streaming'. Therefore, before
+-- multiple stream types belonging to the class 'IsStream'. Therefore, before
 -- you run a stream you need to tell how you want to interpret the stream by
 -- using one of the stream type combinators ('serially', 'asyncly', 'parallely'
 -- etc.). The combinator 'serially' is equivalent to annotating the type as @::
@@ -386,7 +386,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The previous section discussed ways to merge the elements of two streams
 -- without doing any transformation on them. In this section we will explore
 -- how to transform streams using 'Functor', 'Applicative' or 'Monad' style
--- compositions. The applicative and monad composition of all 'Streaming' types
+-- compositions. The applicative and monad compositions of all 'IsStream' types
 -- behave exactly the same way as a list transformer.  For simplicity of
 -- illustration we are using streams of pure values in the following examples.
 -- However, the real application of streams arises when these streams are
@@ -394,7 +394,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $monad
 --
--- In functional programmer's parlance the 'Monad' instance of 'Streaming'
+-- In functional programmer's parlance the 'Monad' instance of 'IsStream'
 -- types implement non-determinism, exploring all possible combination of
 -- choices from both the streams. From an imperative programmer's point of view
 -- it behaves like nested loops i.e.  for each element in the first stream and
@@ -573,7 +573,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- The streamly code is usually written in a way that is agnostic of the
 -- specific monadic composition type. We use a polymorphic type with a
--- 'Streaming' type class constraint. When running the stream we can choose the
+-- 'IsStream' type class constraint. When running the stream we can choose the
 -- specific mode of composition. For example look at the following code.
 --
 -- @
@@ -581,7 +581,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 --
--- composed :: 'Streaming' t => t m a
+-- composed :: 'IsStream' t => t m a
 -- composed = do
 --     sz <- sizes
 --     cl <- colors
@@ -608,10 +608,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- this:
 --
 -- @
--- main = 'runStreaming' $ 'serially'     $ composed
--- main = 'runStreaming' $ 'asyncly'      $ composed
--- main = 'runStreaming' $ 'interleaving' $ composed
--- main = 'runStreaming' $ 'parallely'    $ composed
+-- main = 'runStream' $ 'serially'     $ composed
+-- main = 'runStream' $ 'asyncly'      $ composed
+-- main = 'runStream' $ 'interleaving' $ composed
+-- main = 'runStream' $ 'parallely'    $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of

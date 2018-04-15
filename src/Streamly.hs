@@ -16,7 +16,7 @@ module Streamly
     -- $overview
 
       MonadAsync
-    , Streaming
+    , IsStream
 
     -- * Product Style Composition
     -- $product
@@ -49,7 +49,7 @@ module Streamly
     , adapt
 
     -- * Running Streams
-    , runStreaming
+    , runStream
     , runSerialT
     , runInterleavedT
     , runAsyncT
@@ -72,6 +72,8 @@ module Streamly
     , MonadTrans (..)
 
     -- * Deprecated
+    , Streaming
+    , runStreaming
     , runStreamT
     , runZipStream
     , StreamT
@@ -124,7 +126,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- 'AsyncT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
--- described later. Each of these types belongs to the 'Streaming' type class
+-- described later. Each of these types belongs to the 'IsStream' type class
 -- which helps converting the specific type to and from the underlying generic
 -- stream type.
 --
@@ -213,7 +215,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 --
 -- Code using streamly is usually written such that it is agnostic of any
 -- specific streaming type.  We use a type variable (polymorphic type) with the
--- 'Streaming' class constraint. Finally, when running the monad we can specify
+-- 'IsStream' class constraint. Finally, when running the monad we can specify
 -- the actual type that we want to use to interpret the code. However, in
 -- certain cases we may want to use a specific type to force a certain type of
 -- composition. These combinators can be used to convert the stream types from
