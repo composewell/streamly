@@ -5,32 +5,32 @@ main = do
     liftIO $ hSetBuffering stdout LineBuffering
 
     putStrLn $ "\nloopTail:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- loopTail 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHead:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- loopHead 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopTailA:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- loopTailA 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHeadA:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- loopHeadA 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\ninterleave:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- return 0 <> return 1 <=> return 100 <> return 101
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
-    runStreamT $ do
+    runSerialT $ do
         x <- return 0 <> return 1 <|> return 100 <> return 101
         liftIO $ print (x :: Int)
 
@@ -46,7 +46,7 @@ main = do
 
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
-    loopTail :: Int -> StreamT IO Int
+    loopTail :: Int -> SerialT IO Int
     loopTail x = do
         liftIO $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else empty)
@@ -54,7 +54,7 @@ main = do
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
     -- at all.
-    loopHead :: Int -> StreamT IO Int
+    loopHead :: Int -> SerialT IO Int
     loopHead x = do
         liftIO $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else empty) <> return x
@@ -68,12 +68,12 @@ main = do
     -- then the action on the right is also spawned concurrently. In other
     -- words, both actions may run concurrently based on the need.
 
-    loopTailA :: Int -> StreamT IO Int
+    loopTailA :: Int -> SerialT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
         return x <| (if x < 3 then loopTailA (x + 1) else empty)
 
-    loopHeadA :: Int -> StreamT IO Int
+    loopHeadA :: Int -> SerialT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
         (if x < 3 then loopHeadA (x + 1) else empty) <| return x

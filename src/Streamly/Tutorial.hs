@@ -72,7 +72,7 @@ module Streamly.Tutorial
     -- ** Monad
     -- $monad
 
-    -- *** Serial Composition ('StreamT')
+    -- *** Serial Composition ('SerialT')
     -- $regularSerial
 
     -- *** Async Composition ('AsyncT')
@@ -133,9 +133,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $streams
 --
 -- Streamly provides many different stream types depending on the desired
--- composition style. The simplest type is 'StreamT'. 'StreamT' is a monad
--- transformer, the type @StreamT m a@ represents a stream of values of type
--- 'a' in some underlying monad 'm'. For example, @StreamT IO Int@ is a stream
+-- composition style. The simplest type is 'SerialT'. 'SerialT' is a monad
+-- transformer, the type @SerialT m a@ represents a stream of values of type
+-- 'a' in some underlying monad 'm'. For example, @SerialT IO Int@ is a stream
 -- of 'Int' in 'IO' monad.
 
 -- $generating
@@ -146,16 +146,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- using the 'lift' combinator. Some examples of streams with a single element:
 --
 -- @
---  return 1 :: 'StreamT' IO Int
+--  return 1 :: 'SerialT' IO Int
 -- @
 -- @
---  liftIO $ putStrLn "Hello world!" :: 'StreamT' IO ()
+--  liftIO $ putStrLn "Hello world!" :: 'SerialT' IO ()
 -- @
 --
 -- We can combine streams using '<>' to create streams of many elements:
 --
 -- @
---  return 1 <> return 2 <> return 3 :: 'StreamT' IO Int
+--  return 1 <> return 2 <> return 3 :: 'SerialT' IO Int
 -- @
 --
 -- For more ways to construct or generate a stream see the module
@@ -163,13 +163,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $eliminating
 --
--- 'runStreamT' runs a composed 'StreamT' computation, lowering the type into
+-- 'runSerialT' runs a composed 'SerialT' computation, lowering the type into
 -- the underlying monad and discarding the result stream:
 --
 -- @
 -- import "Streamly"
 --
--- main = 'runStreamT' $ liftIO $ putStrLn "Hello world!"
+-- main = 'runSerialT' $ liftIO $ putStrLn "Hello world!"
 -- @
 --
 -- 'toList' runs a stream computation and collects the result stream in a list
@@ -178,7 +178,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- you run a stream you need to tell how you want to interpret the stream by
 -- using one of the stream type combinators ('serially', 'asyncly', 'parallely'
 -- etc.). The combinator 'serially' is equivalent to annotating the type as @::
--- StreamT@.
+-- SerialT@.
 --
 -- @
 -- import "Streamly"
@@ -196,7 +196,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Streams of the same type can be combined into a composite stream in many
 -- different ways using one of the semigroup style binary composition operators
 -- i.e. '<>', '<=>', '<|', '<|>', 'mplus'. These operators work on all stream
--- types ('StreamT', 'AsyncT' etc.) uniformly.
+-- types ('SerialT', 'AsyncT' etc.) uniformly.
 --
 -- To illustrate the concurrent aspects, we will use the following @delay@
 -- function to introduce a delay specified in seconds.
@@ -219,7 +219,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- total of 6 seconds because everything is serial:
 --
 -- @
--- main = 'runStreamT' $ delay 3 <> delay 2 <> delay 1
+-- main = 'runSerialT' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -234,7 +234,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 3, 2, 4 and takes a total of 10 seconds because everything is serial:
 --
 -- @
--- main = 'runStreamT' $ (delay 1 <> delay 2) '<=>' (delay 3 <> delay 4)
+-- main = 'runSerialT' $ (delay 1 <> delay 2) '<=>' (delay 3 <> delay 4)
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -254,7 +254,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- next one in a separate thread and so on:
 --
 -- @
--- main = 'runStreamT' $ delay 3 '<|' delay 2 '<|' delay 1
+-- main = 'runSerialT' $ delay 3 '<|' delay 2 '<|' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -268,7 +268,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- traversed in DFS style just like '<>'.
 --
 -- @
--- main = 'runStreamT' $ (p 1 '<|' p 2) '<|' (p 3 '<|' p 4)
+-- main = 'runSerialT' $ (p 1 '<|' p 2) '<|' (p 3 '<|' p 4)
 --  where p = liftIO . print
 -- @
 -- @
@@ -291,7 +291,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- of them blocks:
 --
 -- @
--- main = 'runStreamT' $ traced (sqrt 9) '<|' traced (sqrt 16) '<|' traced (sqrt 25)
+-- main = 'runSerialT' $ traced (sqrt 9) '<|' traced (sqrt 16) '<|' traced (sqrt 25)
 --  where traced m = liftIO (myThreadId >>= print) >> m
 -- @
 -- @
@@ -333,7 +333,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import Network.HTTP.Simple
 --
--- main = 'runStreamT' $ google \<|> bing \<|> duckduckgo
+-- main = 'runSerialT' $ google \<|> bing \<|> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -408,14 +408,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $regularSerial
 --
--- When we interpret the monadic composition as 'StreamT' we get a standard
+-- When we interpret the monadic composition as 'SerialT' we get a standard
 -- list transformer like serial composition.
 --
 -- @
 -- import "Streamly"
 -- import "Streamly.Prelude"
 --
--- main = 'runStreamT' $ do
+-- main = 'runSerialT' $ do
 --     x <- 'each' [3,2,1]
 --     delay x
 -- @
@@ -437,7 +437,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import Data.Semigroup (cycle1)
 --
--- main = 'runStreamT' $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
+-- main = 'runSerialT' $ cycle1 (liftIO getLine) >>= liftIO . putStrLn
 -- @
 --
 -- When multiple streams are composed using this style they nest in a DFS
@@ -449,7 +449,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import "Streamly.Prelude"
 --
--- main = 'runStreamT' $ do
+-- main = 'runSerialT' $ do
 --     x <- 'each' [1,2]
 --     y <- 'each' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
@@ -471,7 +471,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- iterations) may be started concurrently. Concurrency is demand driven
 -- i.e. more concurrent iterations are started only if the previous iterations
 -- are not able to produce enough output for the consumer of the output stream.
--- This is the concurrent version of 'StreamT'.
+-- This is the concurrent version of 'SerialT'.
 --
 -- @
 -- import "Streamly"
@@ -495,8 +495,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- Concurrency is demand driven just as in the case of '<|'. When multiple
 -- streams are composed using this style the iterations are triggered in a DFS
--- manner just like 'StreamT' i.e. nested iterations are executed before we
--- proceed to the next iteration at higher level. However, unlike 'StreamT'
+-- manner just like 'SerialT' i.e. nested iterations are executed before we
+-- proceed to the next iteration at higher level. However, unlike 'SerialT'
 -- more than one iterations may be started concurrently, and based on the
 -- demand from the consumer.
 --
@@ -598,7 +598,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = 'runStreamT'      composed
+-- main = 'runSerialT'      composed
 -- main = 'runAsyncT'       composed
 -- main = 'runInterleavedT' composed
 -- main = 'runParallelT'    composed
@@ -722,7 +722,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- +-----+--------------+------------+
 -- |     | Serial       | Concurrent |
 -- +=====+==============+============+
--- | DFS | 'StreamT'      | 'AsyncT'     |
+-- | DFS | 'SerialT'      | 'AsyncT'     |
 -- |     +--------------+------------+
 -- |     | '<>'           | '<|'         |
 -- +-----+--------------+------------+
@@ -865,7 +865,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- data Event = Harm Int | Heal Int | Quit deriving (Show)
 --
--- userAction :: MonadIO m => 'StreamT' m Event
+-- userAction :: MonadIO m => 'SerialT' m Event
 -- userAction = cycle1 $ liftIO askUser
 --     where
 --     askUser = do
@@ -875,10 +875,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             "quit"   -> return  Quit
 --             _        -> putStrLn "What?" >> askUser
 --
--- acidRain :: MonadIO m => 'StreamT' m Event
+-- acidRain :: MonadIO m => 'SerialT' m Event
 -- acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 --
--- game :: ('MonadAsync' m, MonadState Int m) => 'StreamT' m ()
+-- game :: ('MonadAsync' m, MonadState Int m) => 'SerialT' m ()
 -- game = do
 --     event \<- userAction \<|> acidRain
 --     case event of
@@ -893,7 +893,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- main = do
 --     putStrLn "Your health is deteriorating due to acid rain,\\
 --              \\ type \\"potion\\" or \\"quit\\""
---     _ <- runStateT ('runStreamT' game) 60
+--     _ <- runStateT ('runSerialT' game) 60
 --     return ()
 -- @
 --
@@ -945,7 +945,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     -- pipe to streamly
 --     -- Adapt P.next to return a Maybe instead of Either
 --     let nextM p = P.next p >>= either (\\_ -> return Nothing) (return . Just)
---     'runStreamT' $ 'unfoldrM' nextM P.stdinLn >>= lift . putStrLn
+--     'runSerialT' $ 'unfoldrM' nextM P.stdinLn >>= lift . putStrLn
 -- @
 --
 -- Interop with @streaming@:
@@ -959,7 +959,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --     S.stdoutLn $ S.unfoldr unconsE stdinLn
 --
 --     -- streaming to streamly
---     'runStreamT' $ unfoldrM S.uncons S.stdinLn >>= lift . putStrLn
+--     'runSerialT' $ unfoldrM S.uncons S.stdinLn >>= lift . putStrLn
 --
 -- @
 --

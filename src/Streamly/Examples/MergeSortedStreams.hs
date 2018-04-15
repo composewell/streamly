@@ -8,20 +8,20 @@ import Data.List (sort)
 import Streamly
 import qualified Streamly.Prelude as A
 
-getSorted :: MonadIO m => StreamT m Word16
+getSorted :: MonadIO m => SerialT m Word16
 getSorted = do
     g <- liftIO getStdGen
     let ls = take 100000 (randoms g) :: [Word16]
     foldMapWith (<>) return (sort ls)
 
 mergeAsync :: (Ord a, MonadAsync m)
-    => StreamT m a -> StreamT m a -> StreamT m a
+    => SerialT m a -> SerialT m a -> SerialT m a
 mergeAsync a b = do
     x <- lift $ async a
     y <- lift $ async b
     merge x y
 
-merge :: (Ord a, MonadAsync m) => StreamT m a -> StreamT m a -> StreamT m a
+merge :: (Ord a, MonadAsync m) => SerialT m a -> SerialT m a -> SerialT m a
 merge a b = do
     a1 <- lift $ A.uncons a
     case a1 of
