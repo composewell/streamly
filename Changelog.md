@@ -1,8 +1,13 @@
-## Unrelased
+## Unreleased
 
-### Breaking change
-* Change the type of `foldrM` to take a pure seed and pure second argument in the step function
+### Breaking changes
+* Change the type of `foldrM` to make it consistent with `foldrM` in base
 
+### Deprecations
+* Deprecate `StreamT`, rename to `SerialT`
+* Deprecate `runStreamT`, rename to `runSerialT`
+* Deprecate `ZipStream`, rename to `ZipSerial`
+* Deprecate `runZipStream`, rename to `runZipSerial`
 
 ## 0.1.2
 
