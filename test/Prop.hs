@@ -66,57 +66,51 @@ foldFromList
 foldFromList constr op eq a = transformFromList constr eq id op a
 
 eliminateOp
-    :: (Streaming t, Show a, Eq a)
-    => ([Int] -> a)
+    :: (Show a, Eq a)
+    => ([Int] -> t IO Int)
+    -> ([Int] -> a)
     -> (t IO Int -> IO a)
     -> [Int]
     -> Property
-eliminateOp listOp op a =
+eliminateOp constr listOp op a =
     monadicIO $ do
-        stream <- run $ op (A.each a)
+        stream <- run $ op (constr a)
         let list = listOp a
         equals (==) stream list
 
 elemOp
-    :: (Streaming t)
-    => (t IO Word8 -> t IO Word8)
+    :: ([Word8] -> t IO Word8)
+    -> (t IO Word8 -> t IO Word8)
     -> (Word8 -> t IO Word8 -> IO Bool)
     -> (Word8 -> [Word8] -> Bool)
     -> (Word8, [Word8])
     -> Property
-elemOp op streamOp listOp (x, xs) =
+elemOp constr op streamOp listOp (x, xs) =
     monadicIO $ do
-        stream <- run $ (streamOp x . op) (A.each xs)
+        stream <- run $ (streamOp x . op) (constr xs)
         let list = listOp x xs
         equals (==) stream list
 
-transformOp
-    :: (Streaming t)
-    => ([Int] -> [Int] -> Bool)
-    -> ([Int] -> [Int])
-    -> (t IO Int -> t IO Int)
-    -> [Int]
-    -> Property
-transformOp = transformFromList (A.each)
-
 functorOps
     :: (Streaming t, Functor (t IO))
-    => String
+    => ([Int] -> t IO Int)
+    -> String
     -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Spec
-functorOps desc t eq = do
-    prop (desc ++ " id") $ transformOp eq id $ t
-    prop (desc ++ " fmap (+1)") $ transformOp eq (fmap (+1)) $ t . (fmap (+1))
+functorOps constr desc t eq = do
+    prop (desc ++ " id") $ transformFromList constr eq id $ t
+    prop (desc ++ " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . (fmap (+1))
 
 transformOps
     :: Streaming t
-    => String
+    => ([Int] -> t IO Int)
+    -> String
     -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Spec
-transformOps desc t eq = do
-    let transform = transformOp eq
+transformOps constr desc t eq = do
+    let transform = transformFromList constr eq
     -- Filtering
     prop (desc ++ " filter False") $
         transform (filter (const False)) $ t . (A.filter (const False))
@@ -162,45 +156,50 @@ wrapMaybe f =
 
 eliminationOps
     :: Streaming t
-    => String
+    => ([Int] -> t IO Int)
+    -> String
     -> (t IO Int -> t IO Int)
     -> Spec
-eliminationOps desc t = do
+eliminationOps constr desc t = do
     -- Elimination
-    prop (desc ++ " null") $ eliminateOp null $ A.null . t
+    prop (desc ++ " null") $ eliminateOp constr null $ A.null . t
     prop (desc ++ " foldl") $
-        eliminateOp (foldl (+) 0) $ (A.foldl (+) 0 id) . t
-    prop (desc ++ " all") $ eliminateOp (all even) $ (A.all even) . t
-    prop (desc ++ " any") $ eliminateOp (any even) $ (A.any even) . t
-    prop (desc ++ " length") $ eliminateOp length $ A.length . t
-    prop (desc ++ " sum") $ eliminateOp sum $ A.sum . t
-    prop (desc ++ " product") $ eliminateOp product $ A.product . t
+        eliminateOp constr (foldl (+) 0) $ (A.foldl (+) 0 id) . t
+    prop (desc ++ " all") $ eliminateOp constr (all even) $ (A.all even) . t
+    prop (desc ++ " any") $ eliminateOp constr (any even) $ (A.any even) . t
+    prop (desc ++ " length") $ eliminateOp constr length $ A.length . t
+    prop (desc ++ " sum") $ eliminateOp constr sum $ A.sum . t
+    prop (desc ++ " product") $ eliminateOp constr product $ A.product . t
 
-    prop (desc ++ " maximum") $ eliminateOp (wrapMaybe maximum) $ A.maximum . t
-    prop (desc ++ " minimum") $ eliminateOp (wrapMaybe minimum) $ A.minimum . t
+    prop (desc ++ " maximum") $ eliminateOp constr (wrapMaybe maximum) $ A.maximum . t
+    prop (desc ++ " minimum") $ eliminateOp constr (wrapMaybe minimum) $ A.minimum . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
 serialEliminationOps
     :: Streaming t
-    => String
+    => ([Int] -> t IO Int)
+    -> String
     -> (t IO Int -> t IO Int)
     -> Spec
-serialEliminationOps desc t = do
-    prop (desc ++ " head") $ eliminateOp (wrapMaybe head) $ A.head . t
-    prop (desc ++ " tail") $ eliminateOp (wrapMaybe tail) $ \x -> do
+serialEliminationOps constr desc t = do
+    prop (desc ++ " head") $ eliminateOp constr (wrapMaybe head) $ A.head . t
+    prop (desc ++ " tail") $ eliminateOp constr (wrapMaybe tail) $ \x -> do
         r <- A.tail (t x)
         case r of
             Nothing -> return Nothing
             Just s -> A.toList s >>= return . Just
-    prop (desc ++ " last") $ eliminateOp (wrapMaybe last) $ A.last . t
+    prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ A.last . t
 
 transformOpsWord8
     :: Streaming t
-    => String -> (t IO Word8 -> t IO Word8) -> Spec
-transformOpsWord8 desc t = do
-    prop (desc ++ " elem") $ elemOp t A.elem elem
-    prop (desc ++ " elem") $ elemOp t A.notElem notElem
+    => ([Word8] -> t IO Word8)
+    -> String
+    -> (t IO Word8 -> t IO Word8)
+    -> Spec
+transformOpsWord8 constr desc t = do
+    prop (desc ++ " elem") $ elemOp constr t A.elem elem
+    prop (desc ++ " elem") $ elemOp constr t A.notElem notElem
 
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
@@ -221,25 +220,27 @@ semigroupOps desc t = do
 
 applicativeOps
     :: (Streaming t, Applicative (t IO))
-    => (t IO (Int, Int) -> t IO (Int, Int))
+    => ([Int] -> t IO Int)
+    -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-applicativeOps t eq (a, b) = monadicIO $ do
-    stream <- run ((A.toList . t) ((,) <$> (A.each a) <*> (A.each b)))
+applicativeOps constr t eq (a, b) = monadicIO $ do
+    stream <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
     let list = (,) <$> a <*> b
     equals eq stream list
 
 zipApplicative
     :: (Streaming t, Applicative (t IO))
-    => (t IO (Int, Int) -> t IO (Int, Int))
+    => ([Int] -> t IO Int)
+    -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-zipApplicative t eq (a, b) = monadicIO $ do
-    stream1 <- run ((A.toList . t) ((,) <$> (A.each a) <*> (A.each b)))
-    stream2 <- run ((A.toList . t) (pure (,) <*> (A.each a) <*> (A.each b)))
-    stream3 <- run ((A.toList . t) (A.zipWith (,) (A.each a) (A.each b)))
+zipApplicative constr t eq (a, b) = monadicIO $ do
+    stream1 <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
+    stream2 <- run ((A.toList . t) (pure (,) <*> (constr a) <*> (constr b)))
+    stream3 <- run ((A.toList . t) (A.zipWith (,) (constr a) (constr b)))
     let list = getZipList $ (,) <$> ZipList a <*> ZipList b
     equals eq stream1 list
     equals eq stream2 list
@@ -247,42 +248,50 @@ zipApplicative t eq (a, b) = monadicIO $ do
 
 zipMonadic
     :: (Streaming t, Monad (t IO))
-    => (t IO (Int, Int) -> t IO (Int, Int))
+    => ([Int] -> t IO Int)
+    -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-zipMonadic t eq (a, b) =
+zipMonadic constr t eq (a, b) =
     monadicIO $ do
-        stream <-
+        stream1 <-
             run
                 ((A.toList . t)
-                     (A.zipWithM (\x y -> return (x, y)) (A.each a) (A.each b)))
+                     (A.zipWithM (\x y -> return (x, y)) (constr a) (constr b)))
+        stream2 <-
+            run
+                ((A.toList . t)
+                     (A.zipAsyncWithM (\x y -> return (x, y)) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-        equals eq stream list
+        equals eq stream1 list
+        equals eq stream2 list
 
 monadThen
     :: (Streaming t, Monad (t IO))
-    => (t IO Int -> t IO Int)
+    => ([Int] -> t IO Int)
+    -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
-monadThen t eq (a, b) = monadicIO $ do
-    stream <- run ((A.toList . t) ((A.each a) >> (A.each b)))
+monadThen constr t eq (a, b) = monadicIO $ do
+    stream <- run ((A.toList . t) ((constr a) >> (constr b)))
     let list = a >> b
     equals eq stream list
 
 monadBind
     :: (Streaming t, Monad (t IO))
-    => (t IO Int -> t IO Int)
+    => ([Int] -> t IO Int)
+    -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
-monadBind t eq (a, b) =
+monadBind constr t eq (a, b) =
     monadicIO $ do
         stream <-
             run
                 ((A.toList . t)
-                     ((A.each a) >>= \x -> (A.each b) >>= return . (+ x)))
+                     ((constr a) >>= \x -> (constr b) >>= return . (+ x)))
         let list = a >>= \x -> b >>= return . (+ x)
         equals eq stream list
 
@@ -300,13 +309,21 @@ main = hspec $ do
             A.toList . serially . (A.take 100) $ A.iterateM addM (0 :: Int)
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
+    let folded :: Streaming t => [a] -> t IO a
+        folded = adapt . serially . (foldMapWith (<>) return)
     describe "Functor operations" $ do
-        functorOps "serially" serially (==)
-        functorOps "interleaving" interleaving (==)
-        functorOps "zipping" zipping (==)
-        functorOps "asyncly" asyncly sortEq
-        functorOps "parallely" parallely sortEq
-        functorOps "zippingAsync" zippingAsync (==)
+        functorOps A.each "serially" serially (==)
+        functorOps folded "serially folded" serially (==)
+        functorOps A.each "interleaving" interleaving (==)
+        functorOps folded "interleaving folded" interleaving (==)
+        functorOps A.each "asyncly" asyncly sortEq
+        functorOps folded "asyncly folded" asyncly sortEq
+        functorOps A.each "parallely" parallely sortEq
+        functorOps folded "parallely folded" parallely sortEq
+        functorOps A.each "zipping" zipping (==)
+        functorOps folded "zipping folded" zipping (==)
+        functorOps A.each "zippingAsync" zippingAsync (==)
+        functorOps folded "zippingAsync folded" zippingAsync (==)
 
     describe "Semigroup operations" $ do
         semigroupOps "serially" serially
@@ -316,56 +333,94 @@ main = hspec $ do
         -- The tests using sorted equality are weaker tests
         -- We need to have stronger unit tests for all those
         -- XXX applicative with three arguments
-        prop "serially applicative" $ applicativeOps serially (==)
-        prop "interleaving applicative" $ applicativeOps interleaving sortEq
-        prop "asyncly applicative" $ applicativeOps asyncly sortEq
-        prop "parallely applicative" $ applicativeOps parallely sortEq
+        prop "serially applicative" $ applicativeOps A.each serially (==)
+        prop "serially applicative folded" $ applicativeOps folded serially (==)
+        prop "interleaving applicative" $ applicativeOps A.each interleaving sortEq
+        prop "interleaving applicative folded" $ applicativeOps folded interleaving sortEq
+        prop "asyncly applicative" $ applicativeOps A.each asyncly sortEq
+        prop "asyncly applicative folded" $ applicativeOps folded asyncly sortEq
+        prop "parallely applicative folded" $ applicativeOps folded parallely sortEq
 
     describe "Zip operations" $ do
-        prop "zipping applicative" $ zipApplicative zipping (==)
+        prop "zipping applicative" $ zipApplicative A.each zipping (==)
         -- XXX this hangs
         -- prop "zippingAsync applicative" $ zipApplicative zippingAsync (==)
-        prop "zip monadic serially" $ zipMonadic serially (==)
-        prop "zip monadic interleaving" $ zipMonadic interleaving (==)
-        prop "zip monadic asyncly" $ zipMonadic asyncly (==)
-        prop "zip monadic parallely" $ zipMonadic parallely (==)
+        prop "zip monadic serially" $ zipMonadic A.each serially (==)
+        prop "zip monadic serially folded" $ zipMonadic folded serially (==)
+        prop "zip monadic interleaving" $ zipMonadic A.each interleaving (==)
+        prop "zip monadic interleaving folded" $ zipMonadic folded interleaving (==)
+        prop "zip monadic asyncly" $ zipMonadic A.each asyncly (==)
+        prop "zip monadic asyncly folded" $ zipMonadic folded asyncly (==)
+        prop "zip monadic parallely" $ zipMonadic A.each parallely (==)
+        prop "zip monadic parallely folded" $ zipMonadic folded parallely (==)
 
     describe "Monad operations" $ do
-        prop "serially monad then" $ monadThen serially (==)
-        prop "interleaving monad then" $ monadThen interleaving sortEq
-        prop "asyncly monad then" $ monadThen asyncly sortEq
-        prop "parallely monad then" $ monadThen parallely sortEq
+        prop "serially monad then" $ monadThen A.each serially (==)
+        prop "interleaving monad then" $ monadThen A.each interleaving sortEq
+        prop "asyncly monad then" $ monadThen A.each asyncly sortEq
+        prop "parallely monad then" $ monadThen A.each parallely sortEq
 
-        prop "serially monad bind" $ monadBind serially (==)
-        prop "interleaving monad bind" $ monadBind interleaving sortEq
-        prop "asyncly monad bind" $ monadBind asyncly sortEq
-        prop "parallely monad bind" $ monadBind parallely sortEq
+        prop "serially monad then folded" $ monadThen folded serially (==)
+        prop "interleaving monad then folded" $ monadThen folded interleaving sortEq
+        prop "asyncly monad then folded" $ monadThen folded asyncly sortEq
+        prop "parallely monad then folded" $ monadThen folded parallely sortEq
+
+        prop "serially monad bind" $ monadBind A.each serially (==)
+        prop "interleaving monad bind" $ monadBind A.each interleaving sortEq
+        prop "asyncly monad bind" $ monadBind A.each asyncly sortEq
+        prop "parallely monad bind" $ monadBind A.each parallely sortEq
 
     describe "Stream transform operations" $ do
-        transformOps "serially" serially (==)
-        transformOps "interleaving" interleaving (==)
-        transformOps "zipping" zipping (==)
-        transformOps "zippingAsync" zippingAsync (==)
-        transformOps "asyncly" asyncly sortEq
-        transformOps "parallely" parallely sortEq
+        transformOps A.each "serially" serially (==)
+        transformOps A.each "interleaving" interleaving (==)
+        transformOps A.each "zipping" zipping (==)
+        transformOps A.each "zippingAsync" zippingAsync (==)
+        transformOps A.each "asyncly" asyncly sortEq
+        transformOps A.each "parallely" parallely sortEq
 
-        transformOpsWord8 "serially" serially
-        transformOpsWord8 "interleaving" interleaving
-        transformOpsWord8 "zipping" zipping
-        transformOpsWord8 "zippingAsync" zippingAsync
-        transformOpsWord8 "asyncly" asyncly
-        transformOpsWord8 "parallely" parallely
+        transformOps folded "serially folded" serially (==)
+        transformOps folded "interleaving folded" interleaving (==)
+        transformOps folded "zipping folded" zipping (==)
+        transformOps folded "zippingAsync folded" zippingAsync (==)
+        transformOps folded "asyncly folded" asyncly sortEq
+        transformOps folded "parallely folded" parallely sortEq
+
+        transformOpsWord8 A.each "serially" serially
+        transformOpsWord8 A.each "interleaving" interleaving
+        transformOpsWord8 A.each "zipping" zipping
+        transformOpsWord8 A.each "zippingAsync" zippingAsync
+        transformOpsWord8 A.each "asyncly" asyncly
+        transformOpsWord8 A.each "parallely" parallely
+
+        transformOpsWord8 folded "serially folded" serially
+        transformOpsWord8 folded "interleaving folded" interleaving
+        transformOpsWord8 folded "zipping folded" zipping
+        transformOpsWord8 folded "zippingAsync folded" zippingAsync
+        transformOpsWord8 folded "asyncly folded" asyncly
+        transformOpsWord8 folded "parallely folded" parallely
 
     describe "Stream elimination operations" $ do
-        eliminationOps "serially" serially
-        eliminationOps "interleaving" interleaving
-        eliminationOps "zipping" zipping
-        eliminationOps "zippingAsync" zippingAsync
-        eliminationOps "asyncly" asyncly
-        eliminationOps "parallely" parallely
+        eliminationOps A.each "serially" serially
+        eliminationOps A.each "interleaving" interleaving
+        eliminationOps A.each "zipping" zipping
+        eliminationOps A.each "zippingAsync" zippingAsync
+        eliminationOps A.each "asyncly" asyncly
+        eliminationOps A.each "parallely" parallely
+
+        eliminationOps folded "serially folded" serially
+        eliminationOps folded "interleaving folded" interleaving
+        eliminationOps folded "zipping folded" zipping
+        eliminationOps folded "zippingAsync folded" zippingAsync
+        eliminationOps folded "asyncly folded" asyncly
+        eliminationOps folded "parallely folded" parallely
 
     describe "Stream elimination operations" $ do
-        serialEliminationOps "serially" serially
-        serialEliminationOps "interleaving" interleaving
-        serialEliminationOps "zipping" zipping
-        serialEliminationOps "zippingAsync" zippingAsync
+        serialEliminationOps A.each "serially" serially
+        serialEliminationOps A.each "interleaving" interleaving
+        serialEliminationOps A.each "zipping" zipping
+        serialEliminationOps A.each "zippingAsync" zippingAsync
+
+        serialEliminationOps folded "serially folded" serially
+        serialEliminationOps folded "interleaving folded" interleaving
+        serialEliminationOps folded "zipping folded" zipping
+        serialEliminationOps folded "zippingAsync folded" zippingAsync
