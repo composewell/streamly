@@ -28,9 +28,9 @@ main = hspec $ do
     describe "Runners" $ do
         -- XXX move these to property tests
         it "simple serially" $
-            (runStreaming . serially) (return (0 :: Int)) `shouldReturn` ()
+            (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (runStreaming . serially) (liftIO $ putStrLn "hello") `shouldReturn` ()
+            (runStream . serially) (liftIO $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ do
         it "Monoid - mempty" $
@@ -445,7 +445,7 @@ loops f tsrt hsrt = do
             return x `f` (if x < 3 then loopTail (x + 1) else empty)
 
 bindAndComposeSimple
-    :: (Streaming t, Alternative (t IO), Monad (t IO))
+    :: (IsStream t, Alternative (t IO), Monad (t IO))
     => (forall a. Ord a => t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec

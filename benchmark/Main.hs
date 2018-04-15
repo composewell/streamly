@@ -107,7 +107,7 @@ afilter = Main.filter
 
 {-# INLINE streamly_basic #-}
 streamly_basic
-    :: (Alternative (t IO), Monad (t IO), A.Streaming t)
+    :: (Alternative (t IO), Monad (t IO), A.IsStream t)
     => (forall a. t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> IO Int

@@ -8,6 +8,8 @@
 * Deprecate `runStreamT`, rename to `runSerialT`
 * Deprecate `ZipStream`, rename to `ZipSerial`
 * Deprecate `runZipStream`, rename to `runZipSerial`
+* Deprecate `Streaming`, rename to `IsStream`
+* Deprecate `runStreaming`, rename to `runStream`
 
 ## 0.1.2
 

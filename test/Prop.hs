@@ -31,7 +31,7 @@ equals eq stream list = do
     assert (stream `eq` list)
 
 constructWithReplicateM
-    :: (Streaming t)
+    :: IsStream t
     => (t IO Int -> t IO Int)
     -> Word8
     -> Property
@@ -43,7 +43,7 @@ constructWithReplicateM op len =
         equals (==) stream list
 
 transformFromList
-    :: (Streaming t)
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int] -> [Int])
@@ -57,7 +57,7 @@ transformFromList constr eq listOp op a =
         equals eq stream list
 
 foldFromList
-    :: (Streaming t)
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
@@ -92,7 +92,7 @@ elemOp constr op streamOp listOp (x, xs) =
         equals (==) stream list
 
 functorOps
-    :: (Streaming t, Functor (t IO))
+    :: (IsStream t, Functor (t IO))
     => ([Int] -> t IO Int)
     -> String
     -> (t IO Int -> t IO Int)
@@ -103,7 +103,7 @@ functorOps constr desc t eq = do
     prop (desc ++ " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . (fmap (+1))
 
 transformOps
-    :: Streaming t
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> String
     -> (t IO Int -> t IO Int)
@@ -155,7 +155,7 @@ wrapMaybe f =
             else Just (f x)
 
 eliminationOps
-    :: Streaming t
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> String
     -> (t IO Int -> t IO Int)
@@ -177,7 +177,7 @@ eliminationOps constr desc t = do
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
 serialEliminationOps
-    :: Streaming t
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> String
     -> (t IO Int -> t IO Int)
@@ -192,7 +192,7 @@ serialEliminationOps constr desc t = do
     prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ A.last . t
 
 transformOpsWord8
-    :: Streaming t
+    :: IsStream t
     => ([Word8] -> t IO Word8)
     -> String
     -> (t IO Word8 -> t IO Word8)
@@ -203,7 +203,7 @@ transformOpsWord8 constr desc t = do
 
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
-    :: ( Streaming t, MonadPlus (t IO)
+    :: (IsStream t, MonadPlus (t IO)
 
 #if __GLASGOW_HASKELL__ < 804
        , Semigroup (t IO Int)
@@ -219,7 +219,7 @@ semigroupOps desc t = do
     prop (desc ++ " <|") $ foldFromList (foldMapWith (<|) return) t sortEq
 
 applicativeOps
-    :: (Streaming t, Applicative (t IO))
+    :: (IsStream t, Applicative (t IO))
     => ([Int] -> t IO Int)
     -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
@@ -231,7 +231,7 @@ applicativeOps constr t eq (a, b) = monadicIO $ do
     equals eq stream list
 
 zipApplicative
-    :: (Streaming t, Applicative (t IO))
+    :: (IsStream t, Applicative (t IO))
     => ([Int] -> t IO Int)
     -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
@@ -247,7 +247,7 @@ zipApplicative constr t eq (a, b) = monadicIO $ do
     equals eq stream3 list
 
 zipMonadic
-    :: (Streaming t, Monad (t IO))
+    :: (IsStream t, Monad (t IO))
     => ([Int] -> t IO Int)
     -> (t IO (Int, Int) -> t IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
@@ -268,7 +268,7 @@ zipMonadic constr t eq (a, b) =
         equals eq stream2 list
 
 monadThen
-    :: (Streaming t, Monad (t IO))
+    :: (IsStream t, Monad (t IO))
     => ([Int] -> t IO Int)
     -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
@@ -280,7 +280,7 @@ monadThen constr t eq (a, b) = monadicIO $ do
     equals eq stream list
 
 monadBind
-    :: (Streaming t, Monad (t IO))
+    :: (IsStream t, Monad (t IO))
     => ([Int] -> t IO Int)
     -> (t IO Int -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
@@ -309,7 +309,7 @@ main = hspec $ do
             A.toList . serially . (A.take 100) $ A.iterateM addM (0 :: Int)
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
-    let folded :: Streaming t => [a] -> t IO a
+    let folded :: IsStream t => [a] -> t IO a
         folded = adapt . serially . (\xs ->
             case xs of
                 [x] -> return x -- singleton stream case
