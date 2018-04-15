@@ -70,6 +70,10 @@ module Streamly
     , MonadPlus (..)
     , MonadIO (..)
     , MonadTrans (..)
+
+    -- * Deprecated
+    , runStreamT
+    , StreamT
     )
 where
 
