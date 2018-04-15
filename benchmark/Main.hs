@@ -124,7 +124,7 @@ streamly_basic tl g = do
 streamly_function_style :: IO Int
 streamly_function_style = do
     xs <- A.toList $ A.serially $
-          A.each [1..100000 :: Int]
+          A.fromFoldable [1..100000 :: Int]
         & A.filter even
         & fmap (+1)
         & A.drop 100

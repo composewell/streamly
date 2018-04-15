@@ -365,8 +365,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- * 'foldMapWith' folds like foldWith but also maps a function before folding.
 -- * 'forEachWith' is like foldMapwith but the container argument comes before
 -- the function argument.
--- * The 'each' primitive from "Streamly.Prelude" folds a 'Foldable' container
--- using the '<>' operator:
 --
 -- All of the following are equivalent:
 --
@@ -378,7 +376,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --  'toList' . 'serially' $ 'foldWith'    (<>) (map return [1..10]) >>= print
 --  'toList' . 'serially' $ 'foldMapWith' (<>) return [1..10]       >>= print
 --  'toList' . 'serially' $ 'forEachWith' (<>) [1..10] return       >>= print
---  'toList' . 'serially' $ 'each' [1..10]                          >>= print
 -- @
 
 -- $transforming
@@ -416,7 +413,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runSerialT' $ do
---     x <- 'each' [3,2,1]
+--     x <- 'fromFoldable' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -425,10 +422,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 30: Delay 1
 -- @
 --
--- As you can see the code after the @each@ statement is run three times, once
--- for each value of @x@. All the three iterations are serial and run in the
--- same thread one after another. When compared to imperative programming, this
--- can also be viewed as a @for@ loop with three iterations.
+-- As you can see the code after the @fromFoldable@ statement is run three
+-- times, once for each value of @x@. All the three iterations are serial and
+-- run in the same thread one after another. When compared to imperative
+-- programming, this can also be viewed as a @for@ loop with three iterations.
 --
 -- A console echo loop copying standard input to standard output can simply be
 -- written like this:
@@ -450,8 +447,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runSerialT' $ do
---     x <- 'each' [1,2]
---     y <- 'each' [3,4]
+--     x <- 'fromFoldable' [1,2]
+--     y <- 'fromFoldable' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -478,7 +475,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runAsyncT' $ do
---     x <- 'each' [3,2,1]
+--     x <- 'fromFoldable' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -487,10 +484,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 38: Delay 3
 -- @
 --
--- As you can see the code after the @each@ statement is run three times, once
--- for each value of @x@. All the three iterations are concurrent and run in
--- different threads. The iteration with least delay finishes first. When
--- compared to imperative programming, this can be viewed as a @for@ loop
+-- As you can see the code after the @fromFoldable'@ statement is run three
+-- times, once for each value of @x@. All the three iterations are concurrent
+-- and run in different threads. The iteration with least delay finishes first.
+-- When compared to imperative programming, this can be viewed as a @for@ loop
 -- with three concurrent iterations.
 --
 -- Concurrency is demand driven just as in the case of '<|'. When multiple
@@ -505,8 +502,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runAsyncT' $ do
---     x <- 'each' [1,2]
---     y <- 'each' [3,4]
+--     x <- 'fromFoldable' [1,2]
+--     y <- 'fromFoldable' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -531,8 +528,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runInterleavedT' $ do
---     x <- 'each' [1,2]
---     y <- 'each' [3,4]
+--     x <- 'fromFoldable' [1,2]
+--     y <- 'fromFoldable' [3,4]
 --     liftIO $ putStrLn $ show (x, y)
 -- @
 -- @
@@ -557,7 +554,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runParallelT' $ do
---     x <- 'each' [3,2,1]
+--     x <- 'fromFoldable' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -590,9 +587,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 --     where
 --
---     sizes  = 'each' [1, 2, 3]
---     colors = 'each' ["red", "green", "blue"]
---     shapes = 'each' ["triangle", "square", "circle"]
+--     sizes  = 'fromFoldable' [1, 2, 3]
+--     colors = 'fromFoldable' ["red", "green", "blue"]
+--     shapes = 'fromFoldable' ["triangle", "square", "circle"]
 -- @
 --
 -- Now we can interpret this in whatever way we want:
@@ -628,7 +625,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 -- import "Streamly"
 --
--- main = ('toList' $ 'serially' $ fmap show $ 'each' [1..10]) >>= print
+-- main = ('toList' $ 'serially' $ fmap show $ 'fromFoldable' [1..10]) >>= print
 -- @
 --
 -- Also see the 'mapM' and 'sequence' functions for mapping actions, in the

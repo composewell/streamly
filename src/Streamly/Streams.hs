@@ -750,9 +750,9 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 --
 -- @
 -- main = (toList . 'zipping' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
---     where s1 = each [1, 2]
---           s2 = each [3, 4]
---           s3 = each [5, 6]
+--     where s1 = fromFoldable [1, 2]
+--           s2 = fromFoldable [3, 4]
+--           s3 = fromFoldable [5, 6]
 -- @
 -- @
 -- [(1,3,5),(2,4,6)]
@@ -842,9 +842,9 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
 --
 -- @
 -- main = (toList . 'zippingAsync' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
---     where s1 = each [1, 2]
---           s2 = each [3, 4]
---           s3 = each [5, 6]
+--     where s1 = fromFoldable [1, 2]
+--           s2 = fromFoldable [3, 4]
+--           s3 = fromFoldable [5, 6]
 -- @
 -- @
 -- [(1,3,5),(2,4,6)]

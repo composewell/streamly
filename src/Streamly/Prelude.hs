@@ -23,7 +23,7 @@ module Streamly.Prelude
     , (.:)
     , unfoldr
     , unfoldrM
-    , each
+    , fromFoldable
     , iterate
     , iterateM
 
@@ -80,6 +80,7 @@ module Streamly.Prelude
     , toHandle
 
     -- * Deprecated
+    , each
     , scan
     , foldl
     , foldlM
@@ -125,11 +126,16 @@ unfoldrM step = fromStream . go
             Nothing -> stp
             Just (a, b) -> yld a (Just (go b))
 
--- XXX need eachInterleaved, eachAsync, eachParallel
--- | Same as @foldWith (<>)@ but more efficient.
+-- | Construct a stream from a 'Foldable' container.
+{-# INLINE fromFoldable #-}
+fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
+fromFoldable = Prelude.foldr cons nil
+
+-- | Same as 'fromFoldable'.
+{-# DEPRECATED each "Please use fromFoldable instead." #-}
 {-# INLINE each #-}
 each :: (IsStream t, Foldable f) => f a -> t m a
-each = Prelude.foldr cons nil
+each = fromFoldable
 
 -- | Iterate a pure function from a seed value, streaming the results forever
 iterate :: IsStream t => (a -> a) -> a -> t m a
@@ -164,7 +170,7 @@ fromHandle h = fromStream go
 -- | Lazy right associative fold. For example, to fold a stream into a list:
 --
 -- @
--- >> runIdentity $ foldr (:) [] (serially $ each [1,2,3])
+-- >> runIdentity $ foldr (:) [] (serially $ fromFoldable [1,2,3])
 -- [1,2,3]
 -- @
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
@@ -180,7 +186,7 @@ foldr step acc m = go (toStream m)
 -- stream into a list:
 --
 -- @
--- >> runIdentity $ foldrM (\\x xs -> return (x : xs)) [] (serially $ each [1,2,3])
+-- >> runIdentity $ foldrM (\\x xs -> return (x : xs)) [] (serially $ fromFoldable [1,2,3])
 -- [1,2,3]
 -- @
 {-# INLINE foldrM #-}

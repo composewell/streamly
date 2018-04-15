@@ -11,6 +11,7 @@
     * `runZipStream` to `runZipSerial`
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
+    * `each` to `fromFoldable`
     * `scan` to `scanx`
     * `foldl` to `foldx`
     * `foldlM` to `foldxM`

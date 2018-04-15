@@ -61,7 +61,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 type Stream m a = S.SerialT m a
 
 source :: Int -> Stream m Int
-source n = S.each [n..n+value]
+source n = S.fromFoldable [n..n+value]
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
