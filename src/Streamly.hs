@@ -27,7 +27,7 @@ module Streamly
 
     -- * Zip Style Composition
     -- $zipping
-    , ZipStream
+    , ZipSerial
     , ZipAsync
 
     -- * Sum Style Composition
@@ -54,7 +54,7 @@ module Streamly
     , runInterleavedT
     , runAsyncT
     , runParallelT
-    , runZipStream
+    , runZipSerial
     , runZipAsync
 
     -- * Fold Utilities
@@ -73,7 +73,9 @@ module Streamly
 
     -- * Deprecated
     , runStreamT
+    , runZipStream
     , StreamT
+    , ZipStream
     )
 where
 
