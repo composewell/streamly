@@ -15,7 +15,11 @@ import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 import Test.Hspec
 
 import Streamly
+import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as A
+
+singleton :: IsStream t => a -> t m a
+singleton a = a .: nil
 
 sortEq :: Ord a => [a] -> [a] -> Bool
 sortEq a b = sort a == sort b
@@ -203,20 +207,19 @@ transformOpsWord8 constr desc t = do
 
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
-    :: (IsStream t, MonadPlus (t IO)
+    :: (IsStream t
 
 #if __GLASGOW_HASKELL__ < 804
        , Semigroup (t IO Int)
 #endif
        , Monoid (t IO Int))
-    => String -> (t IO Int -> t IO Int) -> Spec
-semigroupOps desc t = do
-    prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) return) t (==)
-    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend return) t (==)
-    prop (desc ++ " <=>") $ foldFromList (foldMapWith (<=>) return) t (==)
-    prop (desc ++ " <|>") $ foldFromList (foldMapWith (<|>) return) t sortEq
-    prop (desc ++ " mplus") $ foldFromList (foldMapWith mplus return) t sortEq
-    prop (desc ++ " <|") $ foldFromList (foldMapWith (<|) return) t sortEq
+    => String
+    -> (t IO Int -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Spec
+semigroupOps desc t eq = do
+    prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) singleton) t eq
+    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend singleton) t eq
 
 applicativeOps
     :: (IsStream t, Applicative (t IO))
@@ -330,8 +333,12 @@ main = hspec $ do
         functorOps folded "zippingAsync folded" zippingAsync (==)
 
     describe "Semigroup operations" $ do
-        semigroupOps "serially" serially
-        semigroupOps "interleaving" interleaving
+        semigroupOps "serially" serially (==)
+        semigroupOps "interleaving" interleaving (==)
+        semigroupOps "asyncly" asyncly sortEq
+        semigroupOps "parallely" parallely sortEq
+        semigroupOps "zipping" zipping (==)
+        semigroupOps "zippingAsync" zippingAsync (==)
 
     describe "Applicative operations" $ do
         -- The tests using sorted equality are weaker tests

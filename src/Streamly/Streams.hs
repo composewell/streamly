@@ -28,7 +28,7 @@ module Streamly.Streams
     , SVarTag (..)
     , SVarStyle (..)
     , SVar
-    , newEmptySVar
+    , S.newEmptySVar
 
     -- * Construction
     , nil
@@ -46,6 +46,14 @@ module Streamly.Streams
 
     -- * Transformation
     , async
+
+    -- * Merging Streams
+    , append
+    , interleave
+    , asyncmerge
+    , parmerge
+    , (<=>)            --deprecated
+    , (<|)             --deprecated
 
     -- * Stream Styles
     , SerialT
@@ -80,10 +88,6 @@ module Streamly.Streams
     , zipWith
     , zipAsyncWith
 
-    -- * Sum Style Composition
-    , (<=>)
-    , (<|)
-
     -- * Fold Utilities
     -- $foldutils
     , foldWith
@@ -103,8 +107,10 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
-import           Streamly.Core hiding        (runStream)
-import qualified Streamly.Core as SC
+import           Streamly.Core               ( MonadAsync, Stream(Stream)
+                                             , SVar, SVarStyle(..)
+                                             , SVarTag(..), SVarSched(..))
+import qualified Streamly.Core as S
 
 ------------------------------------------------------------------------------
 -- Types that can behave as a Stream
@@ -126,7 +132,7 @@ type Streaming = IsStream
 
 -- | Represesnts an empty stream just like @[]@ represents an empty list.
 nil :: IsStream t => t m a
-nil = fromStream snil
+nil = fromStream S.nil
 
 infixr 5 `cons`
 
@@ -139,7 +145,7 @@ infixr 5 `cons`
 -- [1,2,3]
 -- @
 cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ scons a (Just (toStream r))
+cons a r = fromStream $ S.cons a (Just (toStream r))
 
 infixr 5 .:
 
@@ -194,7 +200,7 @@ fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 
 -- | Read an SVar to get a stream.
 fromSVar :: (MonadAsync m, IsStream t) => SVar m a -> t m a
-fromSVar sv = fromStream $ fromStreamVar sv
+fromSVar sv = fromStream $ S.fromStreamVar sv
 
 ------------------------------------------------------------------------------
 -- Destroying a stream
@@ -208,7 +214,7 @@ streamFold :: IsStream t
 streamFold sv step blank m =
     let yield a Nothing = step a Nothing
         yield a (Just x) = step a (Just (fromStream x))
-     in (SC.runStream (toStream m)) sv blank yield
+     in (S.runStream (toStream m)) sv blank yield
 
 -- | Run a streaming composition, discard the results.
 runStream :: (Monad m, IsStream t) => t m a -> m ()
@@ -218,7 +224,7 @@ runStream m = go (toStream m)
         let stop = return ()
             yield _ Nothing  = stop
             yield _ (Just x) = go x
-         in (SC.runStream m1) Nothing stop yield
+         in (S.runStream m1) Nothing stop yield
 
 -- | Same as 'runStream'
 {-# Deprecated runStreaming "Please use runStream instead." #-}
@@ -228,7 +234,7 @@ runStreaming = runStream
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 toSVar :: (IsStream t, MonadAsync m) => SVar m a -> t m a -> m ()
-toSVar sv m = toStreamVar sv (toStream m)
+toSVar sv m = S.toStreamVar sv (toStream m)
 
 ------------------------------------------------------------------------------
 -- Transformation
@@ -243,14 +249,25 @@ toSVar sv m = toStreamVar sv (toStream m)
 
 async :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 async m = do
-    sv <- newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
+    sv <- S.newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------
 -- SerialT
 ------------------------------------------------------------------------------
 
--- | The 'Monad' instance of 'SerialT' runs the /monadic continuation/ for each
+-- | The 'Semigroup' instance of 'SerialT' appends two streams sequentially,
+-- yielding all elements from the first stream, and then all elements from the
+-- second stream.
+--
+-- @
+-- main = ('toList' . 'serially' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- @
+-- @
+-- [1,2,3,4]
+-- @
+--
+-- The 'Monad' instance runs the /monadic continuation/ for each
 -- element of the stream, serially.
 --
 -- @
@@ -278,11 +295,14 @@ async m = do
 -- (2,4)
 -- @
 --
--- This behavior is exactly like a list transformer. We call the monadic code
--- being run for each element of the stream a monadic continuation. In
--- imperative paradigm we can think of this composition as nested @for@ loops
--- and the monadic continuation is the body of the loop. The loop iterates for
--- all elements of the stream.
+-- This behavior of 'SerialT' is exactly like a list transformer. We call the
+-- monadic code being run for each element of the stream a monadic
+-- continuation. In imperative paradigm we can think of this composition as
+-- nested @for@ loops and the monadic continuation is the body of the loop. The
+-- loop iterates for all elements of the stream.
+--
+-- Note that serial composition can be used to combine an infinite number of
+-- streams as it explores only one stream at a time.
 --
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
@@ -308,16 +328,26 @@ type StreamT = SerialT
 -- different for each type.
 
 ------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Same as the 'Semigroup' instance of 'SerialT'. Appends two streams
+-- sequentially, yielding all elements from the first stream, and then all
+-- elements from the second stream.
+{-# INLINE append #-}
+append :: IsStream t => t m a -> t m a -> t m a
+append m1 m2 = fromStream $ S.append (toStream m1) (toStream m2)
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
 instance Monad m => Monad (SerialT m) where
     return = pure
     (SerialT (Stream m)) >>= f = SerialT $ Stream $ \_ stp yld ->
-        let run x = (SC.runStream x) Nothing stp yld
-            yield a Nothing  = run $ getSerialT (f a)
-            yield a (Just r) = run $ getSerialT (f a)
-                                  <> getSerialT (SerialT r >>= f)
+        let run x = (S.runStream x) Nothing stp yld
+            yield a Nothing  = run $ toStream (f a)
+            yield a (Just r) = run $ toStream $ f a <> (fromStream r >>= f)
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
@@ -325,7 +355,7 @@ instance Monad m => Monad (SerialT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (SerialT m) where
-    pure a = SerialT $ scons a Nothing
+    pure a = SerialT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -387,9 +417,18 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- InterleavedT
 ------------------------------------------------------------------------------
 
--- | Like 'SerialT' but different in nesting behavior. It fairly interleaves
--- the iterations of the inner and the outer loop, nesting loops in a breadth
--- first manner.
+-- | The 'Semigroup' instance of 'InterleavedT' interleaves two streams,
+-- yielding one element from each stream alternately.
+--
+-- @
+-- main = ('toList' . 'interleaving $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- @
+-- @
+-- [1,3,2,4]
+-- @
+--
+-- Similarly, the 'Monad' instance fairly interleaves the iterations of the
+-- inner and the outer loop, nesting loops in a breadth first manner.
 --
 --
 -- @
@@ -405,8 +444,11 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- (2,4)
 -- @
 --
+-- Note that interleaving composition can only combine a finite number of
+-- streams as it needs to retain state for each unfinished stream.
+--
 newtype InterleavedT m a = InterleavedT {getInterleavedT :: Stream m a}
-    deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
+    deriving (Monoid, MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadAsync m => Alternative (InterleavedT m)
 deriving instance MonadAsync m => MonadPlus (InterleavedT m)
@@ -419,14 +461,37 @@ instance IsStream InterleavedT where
     toStream = getInterleavedT
     fromStream = InterleavedT
 
+------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Same as the 'Semigroup' instance of 'InterleavedT'.  Interleaves two
+-- streams, yielding one element from each stream alternately.
+{-# INLINE interleave #-}
+interleave :: IsStream t => t m a -> t m a -> t m a
+interleave m1 m2 = fromStream $ S.interleave (toStream m1) (toStream m2)
+
+instance Semigroup (InterleavedT m a) where
+    (<>) = interleave
+
+infixr 5 <=>
+
+-- | Same as 'interleave'.
+{-# Deprecated (<=>) "Please use '<>' of InterleavedT or 'interleave' instead." #-}
+{-# INLINE (<=>) #-}
+(<=>) :: IsStream t => t m a -> t m a -> t m a
+(<=>) = interleave
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
 instance Monad m => Monad (InterleavedT m) where
     return = pure
     (InterleavedT (Stream m)) >>= f = InterleavedT $ Stream $ \_ stp yld ->
-        let run x = (SC.runStream x) Nothing stp yld
-            yield a Nothing  = run $ getInterleavedT (f a)
-            yield a (Just r) = run $ getInterleavedT (f a)
-                                     `interleave`
-                                     getInterleavedT (InterleavedT r >>= f)
+        let run x = (S.runStream x) Nothing stp yld
+            yield a Nothing  = run $ toStream (f a)
+            yield a (Just r) = run $ toStream $ f a <> (fromStream r >>= f)
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
@@ -434,7 +499,7 @@ instance Monad m => Monad (InterleavedT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (InterleavedT m) where
-    pure a = InterleavedT $ scons a Nothing
+    pure a = InterleavedT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -496,9 +561,24 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- AsyncT
 ------------------------------------------------------------------------------
 
--- | Like 'SerialT' but /may/ run each iteration concurrently using demand
--- driven concurrency.  More concurrent iterations are started only if the
--- previous iterations are not able to produce enough output for the consumer.
+-- | Left biased concurrent composition.
+--
+-- The Semigroup instance of 'AsyncT' concurrently /merges/ streams in a left
+-- biased manner.  It keeps yielding elements from the left stream as long as
+-- it can. If the left stream blocks or cannot keep up with the pace of the
+-- consumer it can concurrently yield from the stream on the right as well.
+--
+-- @
+-- main = ('toList' . 'asyncly' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- @
+-- @
+-- [1,2,3,4]
+-- @
+--
+-- Similarly, the monad instance of 'AsyncT' /may/ run each iteration
+-- concurrently using demand driven concurrency.  More concurrent iterations
+-- are started only if the previous iterations are not able to produce enough
+-- output for the consumer.
 --
 -- @
 -- import "Streamly"
@@ -517,8 +597,12 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- @
 --
 -- All iterations may run in the same thread if they do not block.
+--
+-- Note that this composition can be used to combine infinite number of streams
+-- as it explores only a bounded number of streams at a time.
+--
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (Semigroup, Monoid, MonadTrans)
+    deriving (Monoid, MonadTrans)
 
 deriving instance MonadAsync m => Alternative (AsyncT m)
 deriving instance MonadAsync m => MonadPlus (AsyncT m)
@@ -533,6 +617,29 @@ instance IsStream AsyncT where
     toStream = getAsyncT
     fromStream = AsyncT
 
+------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Same as the 'Semigroup' instance of 'AsyncT'.  Merges two streams
+-- concurrently, preferring the elements from the left one when available.
+{-# INLINE asyncmerge #-}
+asyncmerge :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+asyncmerge m1 m2 = fromStream $ S.asyncmerge (toStream m1) (toStream m2)
+
+instance MonadAsync m => Semigroup (AsyncT m a) where
+    (<>) = asyncmerge
+
+-- | Same as 'asyncmerge'.
+{-# DEPRECATED (<|) "Please use '<>' of AsyncT or 'asyncmerge' instead." #-}
+{-# INLINE (<|) #-}
+(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+(<|) = asyncmerge
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
 {-# INLINE parbind #-}
 parbind
     :: (forall c. Stream m c -> Stream m c -> Stream m c)
@@ -543,7 +650,7 @@ parbind par m f = go m
     where
         go (Stream g) =
             Stream $ \ctx stp yld ->
-            let run x = (SC.runStream x) ctx stp yld
+            let run x = (S.runStream x) ctx stp yld
                 yield a Nothing  = run $ f a
                 yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
@@ -552,14 +659,14 @@ instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (AsyncT m) >>= f = AsyncT $ parbind par m g
         where g x = getAsyncT (f x)
-              par = joinStreamVar2 (SVarStyle Conjunction LIFO)
+              par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (AsyncT m) where
-    pure a = AsyncT $ scons a Nothing
+    pure a = AsyncT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -620,8 +727,20 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
 -- ParallelT
 ------------------------------------------------------------------------------
 
--- | Like 'SerialT' but runs /all/ iterations fairly concurrently using a round
--- robin scheduling.
+-- | Round robin concurrent composition.
+--
+-- The Semigroup instance of 'ParallelT' concurrently /merges/ streams in a
+-- round robin fashion, yielding elements from both streams alternately.
+--
+-- @
+-- main = ('toList' . 'parallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- @
+-- @
+-- [1,3,2,4]
+-- @
+--
+-- Similarly, the 'Monad' instance of 'ParallelT' runs /all/ iterations fairly
+-- concurrently using a round robin scheduling.
 --
 -- @
 -- import "Streamly"
@@ -641,8 +760,12 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
 --
 -- Unlike 'AsyncT' all iterations are guaranteed to run fairly concurrently,
 -- unconditionally.
+--
+-- Note that round robin composition can only combine a finite number of
+-- streams as it needs to retain state for each unfinished stream.
+--
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (Semigroup, Monoid, MonadTrans)
+    deriving (Monoid, MonadTrans)
 
 deriving instance MonadAsync m => Alternative (ParallelT m)
 deriving instance MonadAsync m => MonadPlus (ParallelT m)
@@ -657,18 +780,35 @@ instance IsStream ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
 
+------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Same as the 'Semigroup' instance of 'ParallelT'.  Merges two streams
+-- concurrently choosing elements from both fairly.
+{-# INLINE parmerge #-}
+parmerge :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parmerge m1 m2 = fromStream $ S.parmerge (toStream m1) (toStream m2)
+
+instance MonadAsync m => Semigroup (ParallelT m a) where
+    (<>) = parmerge
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
-              par = joinStreamVar2 (SVarStyle Conjunction FIFO)
+              par = S.joinStreamVar2 (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Applicative (ParallelT m) where
-    pure a = ParallelT $ scons a Nothing
+    pure a = ParallelT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -738,10 +878,10 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         let merge a ra =
                 let yield2 b Nothing   = yld (f a b) Nothing
                     yield2 b (Just rb) = yld (f a b) (Just (go ra rb))
-                 in (SC.runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a snil
+                 in (S.runStream my) Nothing stp yield2
+        let yield1 a Nothing   = merge a S.nil
             yield1 a (Just ra) = merge a ra
-        (SC.runStream mx) Nothing stp yield1
+        (S.runStream mx) Nothing stp yield1
 
 -- | The applicative instance of 'ZipSerial' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
@@ -758,8 +898,9 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- [(1,3,5),(2,4,6)]
 -- @
 --
--- This applicative operation can be seen as the zipping equivalent of
--- interleaving with '<=>'.
+-- The 'Semigroup' instance of this type works the same way as that of
+-- 'SerialT'.
+--
 newtype ZipSerial m a = ZipSerial {getZipSerial :: Stream m a}
         deriving (Semigroup, Monoid)
 
@@ -777,7 +918,7 @@ instance Monad m => Functor (ZipSerial m) where
         in m Nothing stp yield
 
 instance Monad m => Applicative (ZipSerial m) where
-    pure = ZipSerial . srepeat
+    pure = ZipSerial . S.repeat
     (<*>) = zipWith id
 
 instance IsStream ZipSerial where
@@ -835,7 +976,7 @@ zipAsyncWith :: (IsStream t, MonadAsync m)
 zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     ma <- async m1
     mb <- async m2
-    (SC.runStream (toStream (zipWith f ma mb))) Nothing stp yld
+    (S.runStream (toStream (zipWith f ma mb))) Nothing stp yld
 
 -- | Like 'ZipSerial' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.
@@ -850,8 +991,9 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
 -- [(1,3,5),(2,4,6)]
 -- @
 --
--- This applicative operation can be seen as the zipping equivalent of
--- parallel composition with '<|>'.
+-- The 'Semigroup' instance of this type works the same way as that of
+-- 'SerialT'.
+--
 newtype ZipAsync m a = ZipAsync {getZipAsync :: Stream m a}
         deriving (Semigroup, Monoid)
 
@@ -865,7 +1007,7 @@ instance Monad m => Functor (ZipAsync m) where
         in m Nothing stp yield
 
 instance MonadAsync m => Applicative (ZipAsync m) where
-    pure = ZipAsync . srepeat
+    pure = ZipAsync . S.repeat
     (<*>) = zipAsyncWith id
 
 instance IsStream ZipAsync where
@@ -981,51 +1123,6 @@ runZipStream = runZipSerial
 -- | Same as @runStream . zippingAsync@.
 runZipAsync :: Monad m => ZipAsync m a -> m ()
 runZipAsync = runStream
-
-------------------------------------------------------------------------------
--- Sum Style Composition
-------------------------------------------------------------------------------
-
-infixr 5 <=>
-
--- | Sequential interleaved composition, in contrast to '<>' this operator
--- fairly interleaves two streams instead of appending them; yielding one
--- element from each stream alternately.
---
--- @
--- main = ('toList' . 'serially' $ (return 1 <> return 2) \<=\> (return 3 <> return 4)) >>= print
--- @
--- @
--- [1,3,2,4]
--- @
---
--- This operator corresponds to the 'InterleavedT' style. Unlike '<>', this
--- operator cannot be used to fold infinite containers since that might
--- accumulate too many partially drained streams.  To be clear, it can combine
--- infinite streams but not infinite number of streams.
-{-# INLINE (<=>) #-}
-(<=>) :: IsStream t => t m a -> t m a -> t m a
-m1 <=> m2 = fromStream $ interleave (toStream m1) (toStream m2)
-
--- | Demand driven concurrent composition. In contrast to '<|>' this operator
--- concurrently "merges" streams in a left biased manner rather than fairly
--- interleaving them.  It keeps yielding from the stream on the left as long as
--- it can. If the left stream blocks or cannot keep up with the pace of the
--- consumer it can concurrently yield from the stream on the right in parallel.
---
--- @
--- main = ('toList' . 'serially' $ (return 1 <> return 2) \<| (return 3 <> return 4)) >>= print
--- @
--- @
--- [1,2,3,4]
--- @
---
--- Unlike '<|>' it can be used to fold infinite containers of streams. This
--- operator corresponds to the 'AsyncT' type for product style composition.
---
-{-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-m1 <| m2 = fromStream $ parLeft (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Fold Utilities

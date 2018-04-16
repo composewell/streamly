@@ -1,6 +1,15 @@
 ## Unreleased
 
 ### Breaking changes
+* Change the semantics of the Semigroup instance for `InterleavedT`, `AsyncT`
+  and `ParallelT`. Now the `<>` operation interleaves two streams for
+  `InterleavedT` (just like the now deprecated `<=>` operation which has been
+  renamed to `interleave`). For `AsyncT` `<>` now concurrently merges two
+  streams (just like the now deprecated `<|` operation which has been renamed
+  to `asyncmerge`). For `ParallelT` the `<>` operation now behaves like the
+  earlier `Alternative` operator `<|>`.
+* Change the semantics of `Alternative` instance. The `<|>` operator now has a
+  different behavior for each type. See the documentation for more details.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base
 
 ### Deprecations
@@ -11,6 +20,8 @@
     * `runZipStream` to `runZipSerial`
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
+    * `<=>` to `interleave`
+    * `<|` to `asyncmerge`
     * `each` to `fromFoldable`
     * `scan` to `scanx`
     * `foldl` to `foldx`
