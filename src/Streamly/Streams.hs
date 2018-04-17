@@ -602,8 +602,9 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- as it explores only a bounded number of streams at a time.
 --
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (Monoid, MonadTrans)
+    deriving (MonadTrans)
 
+deriving instance MonadAsync m => Monoid (AsyncT m a)
 deriving instance MonadAsync m => Alternative (AsyncT m)
 deriving instance MonadAsync m => MonadPlus (AsyncT m)
 deriving instance MonadAsync m => MonadIO (AsyncT m)
@@ -765,8 +766,9 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
 -- streams as it needs to retain state for each unfinished stream.
 --
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (Monoid, MonadTrans)
+    deriving (MonadTrans)
 
+deriving instance MonadAsync m => Monoid (ParallelT m a)
 deriving instance MonadAsync m => Alternative (ParallelT m)
 deriving instance MonadAsync m => MonadPlus (ParallelT m)
 deriving instance MonadAsync m => MonadIO (ParallelT m)
