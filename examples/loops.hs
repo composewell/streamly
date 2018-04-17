@@ -26,12 +26,12 @@ main = do
 
     putStrLn $ "\ninterleave:\n"
     runSerialT $ do
-        x <- return 0 <> return 1 <=> return 100 <> return 101
+        x <- (return 0 <> return 1) `interleave` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
     runSerialT $ do
-        x <- return 0 <> return 1 <|> return 100 <> return 101
+        x <- (return 0 <> return 1) `parmerge` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
     where
@@ -71,12 +71,12 @@ main = do
     loopTailA :: Int -> SerialT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
-        return x <| (if x < 3 then loopTailA (x + 1) else empty)
+        return x `asyncmerge` (if x < 3 then loopTailA (x + 1) else empty)
 
     loopHeadA :: Int -> SerialT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else empty) <| return x
+        (if x < 3 then loopHeadA (x + 1) else empty) `asyncmerge` return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops
