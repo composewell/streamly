@@ -28,7 +28,7 @@ acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 
 game :: (MonadAsync m, MonadState Int m) => SerialT m ()
 game = do
-    event <- userAction `parmerge` acidRain
+    event <- userAction `parallel` acidRain
     case event of
         Harm n -> modify $ \h -> h - n
         Heal n -> modify $ \h -> h + n

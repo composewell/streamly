@@ -50,8 +50,8 @@ module Streamly.Streams
     -- * Merging Streams
     , append
     , interleave
-    , asyncmerge
-    , parmerge
+    , aparallel
+    , parallel
     , (<=>)            --deprecated
     , (<|)             --deprecated
 
@@ -59,7 +59,8 @@ module Streamly.Streams
     , SerialT
     , StreamT           -- deprecated
     , InterleavedT
-    , AsyncT
+    , AParallelT
+    , AsyncT            -- deprecated
     , ParallelT
     , ZipSerial
     , ZipStream         -- deprecated
@@ -68,7 +69,8 @@ module Streamly.Streams
     -- * Type Adapters
     , serially
     , interleaving
-    , asyncly
+    , aparallely
+    , asyncly          -- deprecated
     , parallely
     , zipping
     , zippingAsync
@@ -78,7 +80,8 @@ module Streamly.Streams
     , runSerialT
     , runStreamT       -- deprecated
     , runInterleavedT
-    , runAsyncT
+    , runAParallelT
+    , runAsyncT        -- deprecated
     , runParallelT
     , runZipSerial
     , runZipStream     -- deprecated
@@ -421,7 +424,7 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- yielding one element from each stream alternately.
 --
 -- @
--- main = ('toList' . 'interleaving $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- main = ('toList' . 'interleaving' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -558,33 +561,32 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- AsyncT
+-- AParallelT
 ------------------------------------------------------------------------------
 
--- | Left biased concurrent composition.
---
--- The Semigroup instance of 'AsyncT' concurrently /merges/ streams in a left
--- biased manner.  It keeps yielding elements from the left stream as long as
--- it can. If the left stream blocks or cannot keep up with the pace of the
--- consumer it can concurrently yield from the stream on the right as well.
+-- | Adaptive parallel, in a left to right 'Semigroup' composition it tries to
+-- yield elements from the left stream as long as it can, but it can run the
+-- right stream in parallel if it needs to based on demand. The right stream
+-- can be run if the left stream blocks on IO or cannot produce elements fast
+-- enough for the consumer.
 --
 -- @
--- main = ('toList' . 'asyncly' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- main = ('toList' . 'aparallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
 -- @
 -- @
 -- [1,2,3,4]
 -- @
 --
--- Similarly, the monad instance of 'AsyncT' /may/ run each iteration
--- concurrently using demand driven concurrency.  More concurrent iterations
--- are started only if the previous iterations are not able to produce enough
--- output for the consumer.
+-- Similarly, the monad instance of 'ParallelT' /may/ run each iteration
+-- concurrently based on demand.  More concurrent iterations are started only
+-- if the previous iterations are not able to produce enough output for the
+-- consumer.
 --
 -- @
 -- import "Streamly"
 -- import Control.Concurrent
 --
--- main = 'runAsyncT' $ do
+-- main = 'runAParallelT' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     liftIO $ do
 --          threadDelay (n * 1000000)
@@ -601,41 +603,45 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- Note that this composition can be used to combine infinite number of streams
 -- as it explores only a bounded number of streams at a time.
 --
-newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
+newtype AParallelT m a = AParallelT {getAParallelT :: Stream m a}
     deriving (MonadTrans)
 
-deriving instance MonadAsync m => Monoid (AsyncT m a)
-deriving instance MonadAsync m => Alternative (AsyncT m)
-deriving instance MonadAsync m => MonadPlus (AsyncT m)
-deriving instance MonadAsync m => MonadIO (AsyncT m)
-deriving instance MonadAsync m => MonadThrow (AsyncT m)
-deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (AsyncT m)
-deriving instance (MonadError e m, MonadAsync m) => MonadError e (AsyncT m)
-deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (AsyncT m)
-deriving instance (MonadState s m, MonadAsync m) => MonadState s (AsyncT m)
+deriving instance MonadAsync m => Monoid (AParallelT m a)
+deriving instance MonadAsync m => Alternative (AParallelT m)
+deriving instance MonadAsync m => MonadPlus (AParallelT m)
+deriving instance MonadAsync m => MonadIO (AParallelT m)
+deriving instance MonadAsync m => MonadThrow (AParallelT m)
+deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (AParallelT m)
+deriving instance (MonadError e m, MonadAsync m) => MonadError e (AParallelT m)
+deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (AParallelT m)
+deriving instance (MonadState s m, MonadAsync m) => MonadState s (AParallelT m)
 
-instance IsStream AsyncT where
-    toStream = getAsyncT
-    fromStream = AsyncT
+{-# DEPRECATED AsyncT "Please use 'AParallelT' instead." #-}
+type AsyncT = AParallelT
+
+instance IsStream AParallelT where
+    toStream = getAParallelT
+    fromStream = AParallelT
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Same as the 'Semigroup' instance of 'AsyncT'.  Merges two streams
--- concurrently, preferring the elements from the left one when available.
-{-# INLINE asyncmerge #-}
-asyncmerge :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-asyncmerge m1 m2 = fromStream $ S.asyncmerge (toStream m1) (toStream m2)
+-- | Same as the 'Semigroup' operation of 'AParallelT', but polymorphic.
+-- Merges two streams possibly concurrently, preferring the elements from the
+-- left one when available.
+{-# INLINE aparallel #-}
+aparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+aparallel m1 m2 = fromStream $ S.aparallel (toStream m1) (toStream m2)
 
-instance MonadAsync m => Semigroup (AsyncT m a) where
-    (<>) = asyncmerge
+instance MonadAsync m => Semigroup (AParallelT m a) where
+    (<>) = aparallel
 
--- | Same as 'asyncmerge'.
-{-# DEPRECATED (<|) "Please use '<>' of AsyncT or 'asyncmerge' instead." #-}
+-- | Same as 'aparallel'.
+{-# DEPRECATED (<|) "Please use 'aparallel' instead." #-}
 {-# INLINE (<|) #-}
 (<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-(<|) = asyncmerge
+(<|) = aparallel
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -656,35 +662,35 @@ parbind par m f = go m
                 yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
 
-instance MonadAsync m => Monad (AsyncT m) where
+instance MonadAsync m => Monad (AParallelT m) where
     return = pure
-    (AsyncT m) >>= f = AsyncT $ parbind par m g
-        where g x = getAsyncT (f x)
+    (AParallelT m) >>= f = AParallelT $ parbind par m g
+        where g x = getAParallelT (f x)
               par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Applicative (AsyncT m) where
-    pure a = AsyncT $ S.cons a Nothing
+instance MonadAsync m => Applicative (AParallelT m) where
+    pure a = AParallelT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Functor (AsyncT m) where
-    fmap f (AsyncT (Stream m)) = AsyncT $ Stream $ \_ stp yld ->
+instance Monad m => Functor (AParallelT m) where
+    fmap f (AParallelT (Stream m)) = AParallelT $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a) (Just (getAsyncT (fmap f (AsyncT r))))
+            yield a (Just r) = yld (f a) (Just (getAParallelT (fmap f (AParallelT r))))
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (MonadAsync m, Num a) => Num (AsyncT m a) where
+instance (MonadAsync m, Num a) => Num (AParallelT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -695,14 +701,14 @@ instance (MonadAsync m, Num a) => Num (AsyncT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (MonadAsync m, Fractional a) => Fractional (AsyncT m a) where
+instance (MonadAsync m, Fractional a) => Fractional (AParallelT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
+instance (MonadAsync m, Floating a) => Floating (AParallelT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -759,8 +765,8 @@ instance (MonadAsync m, Floating a) => Floating (AsyncT m a) where
 -- ThreadId 38: Delay 3
 -- @
 --
--- Unlike 'AsyncT' all iterations are guaranteed to run fairly concurrently,
--- unconditionally.
+-- Unlike 'AParallelT' all iterations are guaranteed to run fairly
+-- concurrently, unconditionally.
 --
 -- Note that round robin composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
@@ -788,12 +794,12 @@ instance IsStream ParallelT where
 
 -- | Same as the 'Semigroup' instance of 'ParallelT'.  Merges two streams
 -- concurrently choosing elements from both fairly.
-{-# INLINE parmerge #-}
-parmerge :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parmerge m1 m2 = fromStream $ S.parmerge (toStream m1) (toStream m2)
+{-# INLINE parallel #-}
+parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (ParallelT m a) where
-    (<>) = parmerge
+    (<>) = parallel
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -1072,9 +1078,14 @@ serially x = x
 interleaving :: InterleavedT m a -> InterleavedT m a
 interleaving x = x
 
--- | Interpret an ambiguously typed stream as 'AsyncT'.
-asyncly :: AsyncT m a -> AsyncT m a
-asyncly x = x
+-- | Interpret an ambiguously typed stream as 'AParallelT'.
+aparallely :: AParallelT m a -> AParallelT m a
+aparallely x = x
+
+-- | Same as 'aparallely'.
+{-# DEPRECATED asyncly "Please use aparallely instead." #-}
+asyncly :: AParallelT m a -> AParallelT m a
+asyncly = aparallely
 
 -- | Interpret an ambiguously typed stream as 'ParallelT'.
 parallely :: ParallelT m a -> ParallelT m a
@@ -1105,9 +1116,14 @@ runStreamT = runSerialT
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
 runInterleavedT = runStream
 
--- | Same as @runStream . asyncly@.
-runAsyncT :: Monad m => AsyncT m a -> m ()
-runAsyncT = runStream
+-- | Same as @runStream . aparallely@.
+runAParallelT :: Monad m => AParallelT m a -> m ()
+runAParallelT = runStream
+
+-- | Same as @runAParallelT@.
+{-# Deprecated runAsyncT "Please use runAParallelT instead." #-}
+runAsyncT :: Monad m => AParallelT m a -> m ()
+runAsyncT = runAParallelT
 
 -- | Same as @runStream . parallely@.
 runParallelT :: Monad m => ParallelT m a -> m ()

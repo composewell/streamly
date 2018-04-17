@@ -31,8 +31,8 @@ module Streamly.Core
     -- * Semigroup Style Composition
     , append
     , interleave
-    , asyncmerge
-    , parmerge
+    , aparallel
+    , parallel
 
     -- * Alternative
     , alt
@@ -608,13 +608,13 @@ joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-{-# INLINE asyncmerge #-}
-asyncmerge :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-asyncmerge = joinStreamVar2 (SVarStyle Disjunction LIFO)
+{-# INLINE aparallel #-}
+aparallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+aparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
-{-# INLINE parmerge #-}
-parmerge :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parmerge = joinStreamVar2 (SVarStyle Disjunction FIFO)
+{-# INLINE parallel #-}
+parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -------------------------------------------------------------------------------
 -- Instances (only used for deriving newtype instances)

@@ -6,7 +6,7 @@ import Streamly
 
 main = runSerialT $ do
     liftIO $ hSetBuffering stdout LineBuffering
-    x <- loop "A" `parmerge` loop "B"
+    x <- loop "A" `parallel` loop "B"
     liftIO $ myThreadId >>= putStr . show
              >> putStr " "
              >> print x
@@ -17,4 +17,4 @@ main = runSerialT $ do
     loop name = do
         liftIO $ threadDelay 1000000
         rnd <- liftIO (randomIO :: IO Int)
-        return (name, rnd) `parmerge` loop name
+        return (name, rnd) `parallel` loop name

@@ -20,4 +20,4 @@ main = runSerialT $ do
         rnd <- liftIO (randomIO :: IO Int)
         let result = (name ++ show rnd)
             repeat = if n > 1 then loop name (n - 1) else nil
-         in (return result) `parmerge` repeat
+         in (return result) `parallel` repeat
