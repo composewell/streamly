@@ -313,7 +313,7 @@ toHandle h m = go (toStream m)
 
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
-toList :: (IsStream t, Monad m) => t m a -> m [a]
+toList :: Monad m => SerialT m a -> m [a]
 toList = foldrM (\a xs -> return (a : xs)) []
 
 -- | Take first 'n' elements from the stream and discard the rest.

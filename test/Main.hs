@@ -139,8 +139,8 @@ main = hspec $ do
 
     describe "Nested parallel and serial compositions" $ do
         let t = timed
-            p = adapt . parallely
-            s = adapt . serially
+            p = parallely
+            s = serially
         {-
         -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
         -- because of parallelism of [8,0] and [8,0].
@@ -375,14 +375,14 @@ timed :: MonadIO (t IO) => Int -> t IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> t IO Int) -> Spec
+    => (t IO Int -> SerialT IO Int) -> Spec
 interleaveCheck t =
     it "Interleave four" $
         (A.toList . t) ((singleton 0 <> singleton 1) <> (singleton 100 <> singleton 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: (IsStream t, Semigroup (t IO Int), MonadIO (t IO))
-    => (t IO Int -> t IO Int) -> Spec
+parallelCheck :: (Semigroup (t IO Int), MonadIO (t IO))
+    => (t IO Int -> SerialT IO Int) -> Spec
 parallelCheck t = do
     it "Parallel ordering left associated" $
         (A.toList . t) (((event 4 <> event 3) <> event 2) <> event 1)
@@ -395,7 +395,7 @@ parallelCheck t = do
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> t IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
+    => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
 compose t z srt = do
     -- XXX these should get covered by the property tests
     it "Compose mempty, mempty" $
@@ -434,13 +434,13 @@ composeAndComposeSimple
        , Semigroup (t2 IO Int)
 #endif
        )
-    => (t1 IO Int -> t1 IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> [[Int]] -> Spec
 composeAndComposeSimple t1 t2 answer = do
     let rfold = adapt . t2 . foldMapWith (<>) return
     it "Compose right associated outer expr, right folded inner" $
-         ((A.toList. t1) (rfold [1,2,3] <> (rfold [4,5,6] <> rfold [7,8,9])))
+         ((A.toList . t1) (rfold [1,2,3] <> (rfold [4,5,6] <> rfold [7,8,9])))
             `shouldReturn` (answer !! 0)
 
     it "Compose left associated outer expr, right folded inner" $
@@ -463,10 +463,10 @@ loops
     -> ([Int] -> [Int])
     -> Spec
 loops t tsrt hsrt = do
-    it "Tail recursive loop" $ (A.toList (loopTail 0) >>= return . tsrt)
+    it "Tail recursive loop" $ ((A.toList . adapt) (loopTail 0) >>= return . tsrt)
             `shouldReturn` [0..3]
 
-    it "Head recursive loop" $ (A.toList (loopHead 0) >>= return . hsrt)
+    it "Head recursive loop" $ ((A.toList . adapt) (loopHead 0) >>= return . hsrt)
             `shouldReturn` [0..3]
 
     where
@@ -482,7 +482,7 @@ loops t tsrt hsrt = do
 
 bindAndComposeSimple
     :: ( IsStream t1, IsStream t2, Semigroup (t2 IO Int), Monad (t2 IO))
-    => (t1 IO Int -> t1 IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> Spec
 bindAndComposeSimple t1 t2 = do
@@ -499,7 +499,7 @@ bindAndComposeSimple t1 t2 = do
 bindAndComposeHierarchy
     :: ( IsStream t1, Monad (t1 IO)
        , IsStream t2, Monad (t2 IO))
-    => (t1 IO Int -> t1 IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> ([t2 IO Int] -> t2 IO Int)
     -> Spec
@@ -550,14 +550,14 @@ mixedOps = do
         x <- return 1
         y <- return 2
         z <- do
-                x1 <- adapt . parallely $ return 1 <> return 2
+                x1 <- parallely $ return 1 <> return 2
                 liftIO $ return ()
                 liftIO $ putStr ""
-                y1 <- adapt . aparallely $ return 1 <> return 2
+                y1 <- aparallely $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
-                    y11 <- adapt . aparallely $ return 1 <> return 2
-                    z11 <- adapt . interleaving $ return 1 <> return 2
+                    y11 <- aparallely $ return 1 <> return 2
+                    z11 <- interleaving $ return 1 <> return 2
                     liftIO $ return ()
                     liftIO $ putStr ""
                     return (x11 + y11 + z11)

@@ -16,6 +16,14 @@
   different behavior for each type. See the documentation for more details. To
   adapt to this change replace any usage of `<|>` with `parallel` and
   `empty` with `nil`.
+* Streams now default to the `SerialT` type unless explicitly specified using a
+  type combinator. This also means that you do not have to explicitly specify a
+  stream type now, the default will be used. This changes reduces puzzling type
+  errors for beginners. It includes the following two changes:
+  * Change the type of all stream elimination functions to `SerialT`. This
+    makes sure that the stream type is always fixed at all exits.
+  * Change the type combinators to only fix the argument stream type and
+    the resulting stream type remains polymorphic.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base.
 
 ### Deprecations

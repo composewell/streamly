@@ -220,7 +220,7 @@ streamFold sv step blank m =
      in (S.runStream (toStream m)) sv blank yield
 
 -- | Run a streaming composition, discard the results.
-runStream :: (Monad m, IsStream t) => t m a -> m ()
+runStream :: Monad m => SerialT m a -> m ()
 runStream m = go (toStream m)
     where
     go m1 =
@@ -232,7 +232,7 @@ runStream m = go (toStream m)
 -- | Same as 'runStream'
 {-# Deprecated runStreaming "Please use runStream instead." #-}
 runStreaming :: (Monad m, IsStream t) => t m a -> m ()
-runStreaming = runStream
+runStreaming = runStream . adapt
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
@@ -1071,33 +1071,33 @@ adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
 -- | Interpret an ambiguously typed stream as 'SerialT'.
-serially :: SerialT m a -> SerialT m a
-serially x = x
+serially :: IsStream t => SerialT m a -> t m a
+serially = adapt
 
 -- | Interpret an ambiguously typed stream as 'InterleavedT'.
-interleaving :: InterleavedT m a -> InterleavedT m a
-interleaving x = x
+interleaving :: IsStream t => InterleavedT m a -> t m a
+interleaving = adapt
 
 -- | Interpret an ambiguously typed stream as 'AParallelT'.
-aparallely :: AParallelT m a -> AParallelT m a
-aparallely x = x
+aparallely :: IsStream t => AParallelT m a -> t m a
+aparallely = adapt
 
 -- | Same as 'aparallely'.
 {-# DEPRECATED asyncly "Please use aparallely instead." #-}
-asyncly :: AParallelT m a -> AParallelT m a
+asyncly :: IsStream t => AParallelT m a -> t m a
 asyncly = aparallely
 
 -- | Interpret an ambiguously typed stream as 'ParallelT'.
-parallely :: ParallelT m a -> ParallelT m a
-parallely x = x
+parallely :: IsStream t => ParallelT m a -> t m a
+parallely = adapt
 
 -- | Interpret an ambiguously typed stream as 'ZipSerial'.
-zipping :: ZipSerial m a -> ZipSerial m a
-zipping x = x
+zipping :: IsStream t => ZipSerial m a -> t m a
+zipping = adapt
 
 -- | Interpret an ambiguously typed stream as 'ZipAsync'.
-zippingAsync :: ZipAsync m a -> ZipAsync m a
-zippingAsync x = x
+zippingAsync :: IsStream t => ZipAsync m a -> t m a
+zippingAsync = adapt
 
 -------------------------------------------------------------------------------
 -- Running Streams, convenience functions specialized to types
@@ -1114,11 +1114,11 @@ runStreamT = runSerialT
 
 -- | Same as @runStream . interleaving@.
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
-runInterleavedT = runStream
+runInterleavedT = runStream . interleaving
 
 -- | Same as @runStream . aparallely@.
 runAParallelT :: Monad m => AParallelT m a -> m ()
-runAParallelT = runStream
+runAParallelT = runStream . aparallely
 
 -- | Same as @runAParallelT@.
 {-# Deprecated runAsyncT "Please use runAParallelT instead." #-}
@@ -1127,11 +1127,11 @@ runAsyncT = runAParallelT
 
 -- | Same as @runStream . parallely@.
 runParallelT :: Monad m => ParallelT m a -> m ()
-runParallelT = runStream
+runParallelT = runStream . parallely
 
 -- | Same as @runStream . zipping@.
 runZipSerial :: Monad m => ZipSerial m a -> m ()
-runZipSerial = runStream
+runZipSerial = runStream . zipping
 
 {-# Deprecated runZipStream "Please use runZipSerial instead." #-}
 -- | Same as ZipSerial.
@@ -1140,7 +1140,7 @@ runZipStream = runZipSerial
 
 -- | Same as @runStream . zippingAsync@.
 runZipAsync :: Monad m => ZipAsync m a -> m ()
-runZipAsync = runStream
+runZipAsync = runStream . zippingAsync
 
 ------------------------------------------------------------------------------
 -- Fold Utilities
