@@ -22,7 +22,7 @@ toListSerial = A.toList . serially
 toListInterleaved :: InterleavedT IO a -> IO [a]
 toListInterleaved = A.toList . interleaving
 
-toListAsync :: aparallelT IO a -> IO [a]
+toListAsync :: AParallelT IO a -> IO [a]
 toListAsync = A.toList . aparallely
 
 toListParallel :: ParallelT IO a -> IO [a]
@@ -516,7 +516,7 @@ bindAndComposeHierarchy t1 t2 g = do
 
     where
 
-    -- bindComposeNested :: aparallelT IO Int
+    -- bindComposeNested :: AParallelT IO Int
     bindComposeNested =
         let c1 = tripleCompose (return 1) (return 2) (return 3)
             c2 = tripleCompose (return 4) (return 5) (return 6)
