@@ -18,22 +18,24 @@ module Streamly
       MonadAsync
     , IsStream
 
-    -- * Product Style Composition
+    -- * General Stream Styles
     -- $product
     , SerialT
     , InterleavedT
-    , AsyncT
+    , AParallelT
     , ParallelT
 
-    -- * Zip Style Composition
+    -- * Zip Style Streams
     -- $zipping
     , ZipSerial
     , ZipAsync
 
-    -- * Sum Style Composition
+    -- * Type Independent Sum Operations
     -- $sum
-    , (<=>)
-    , (<|)
+    , append
+    , interleave
+    , aparallel
+    , parallel
 
     -- * Transformation
     , async
@@ -42,7 +44,7 @@ module Streamly
     -- $adapters
     , serially
     , interleaving
-    , asyncly
+    , aparallely
     , parallely
     , zipping
     , zippingAsync
@@ -52,7 +54,7 @@ module Streamly
     , runStream
     , runSerialT
     , runInterleavedT
-    , runAsyncT
+    , runAParallelT
     , runParallelT
     , runZipSerial
     , runZipAsync
@@ -75,9 +77,14 @@ module Streamly
     , Streaming
     , runStreaming
     , runStreamT
+    , runAsyncT
     , runZipStream
     , StreamT
+    , AsyncT
     , ZipStream
+    , asyncly
+    , (<=>)
+    , (<|)
     )
 where
 
@@ -123,21 +130,21 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $overview
 --
 -- Streamly provides six distinct stream types i.e. 'SerialT', 'InterleavedT',
--- 'AsyncT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
+-- 'AParallelT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
 -- described later. Each of these types belongs to the 'IsStream' type class
 -- which helps converting the specific type to and from the underlying generic
 -- stream type.
 --
--- The types 'SerialT', 'InterleavedT', 'AsyncT' and 'ParallelT' are 'Monad'
+-- The types 'SerialT', 'InterleavedT', 'AParallelT' and 'ParallelT' are 'Monad'
 -- transformers with the monadic bind operation combining streams in a product
 -- style in much the same way as a list monad or a list transformer i.e. each
 -- element from one stream is combined with every element of the other stream.
 -- However, the applicative and monadic composition of these types differ in
 -- terms of the ordering and time sequence in which the elements from two
 -- streams are combined. 'SerialT' and 'InterleavedT' compose streams serially
--- whereas 'AsyncT' and 'ParallelT' are their concurrent counterparts. See the
+-- whereas 'AParallelT' and 'ParallelT' are their concurrent counterparts. See the
 -- documentation of the respective types for more details.
 --
 -- The types 'ZipStream' and 'ZipAsync' provide 'Applicative' instances to zip
@@ -146,18 +153,14 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- being zipped serially whereas 'ZipAsync' produces both the elements being
 -- zipped concurrently.
 --
--- Two streams of the same type can be combined using a sum style composition
--- to generate a stream of the same type where the output stream would contain
--- all elements of both the streams. However, the sequence in which the
--- elements in the resulting stream are produced depends on the combining
--- operator. Four distinct sum style operators, '<>', '<=>', '<|' and '<|>'
--- combine two streams in different ways, each corresponding to the one of the
--- four ways of combining monadically. See the respective section below for
--- more details.
+-- Two streams of the same type can be merged using a sum style composition to
+-- generate a stream of the same type where the output stream would contain all
+-- elements of both the streams. However, the sequence or the manner
+-- (concurrent or serial) in which the elements in the resulting stream are
+-- produced depends on the type of the stream.
 --
--- Concurrent composition types 'AsyncT', 'ParallelT', 'ZipAsync' and
--- concurrent composition operators '<|' and '<|>' require the underlying monad
--- of the streaming monad transformer to be 'MonadAsync'.
+-- Concurrent composition types 'AParallelT', 'ParallelT', 'ZipAsync' require the
+-- underlying monad of the streaming monad transformer to be 'MonadAsync'.
 --
 -- For more details please see the "Streamly.Tutorial" and "Streamly.Examples"
 -- (the latter is available only when built with the 'examples' build flag).
@@ -169,7 +172,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 --
 -- Streams that compose serially or non-concurrently come in two flavors i.e.
 -- 'SerialT' and 'InterleavedT'.  Both of these serial flavors have
--- corresponding concurrent equivalents, those are 'AsyncT' and 'ParallelT'
+-- corresponding concurrent equivalents, those are 'AParallelT' and 'ParallelT'
 -- respectively.
 
 -- $zipping
@@ -179,37 +182,11 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- not monads.
 
 -- $sum
---
--- Just like product style composition there are four distinct ways to combine
--- streams in sum style each directly corresponding to one of the product style
--- composition.
---
--- The standard semigroup append '<>' operator appends two streams serially,
--- this style corresponds to the 'SerialT' style of monadic composition.
---
--- @
--- main = ('toList' . 'serially' $ (return 1 <> return 2) <> (return 3 <> return 4)) >>= print
--- @
--- @
--- [1,2,3,4]
--- @
---
--- The standard 'Alternative' operator '<|>'  fairly interleaves two streams in
--- parallel, this operator corresponds to the 'ParallelT' style.
---
--- @
--- main = ('toList' . 'serially' $ (return 1 <> return 2) \<|\> (return 3 <> return 4)) >>= print
--- @
--- @
--- [1,3,2,4]
--- @
---
--- Unlike '<|', this operator cannot be used to fold infinite containers since
--- that might accumulate too many partially drained streams.  To be clear, it
--- can combine infinite streams but not infinite number of streams.
---
--- Two additional sum style composition operators that streamly introduces are
--- described below.
+-- Each stream style provides its own way of merging streams. The 'Semigroup'
+-- '<>' operation can be used to merge streams in the style of the current
+-- type. In case you want to merge streams in a particular style you can either
+-- use a type adapter to force that type of composition or alternatively use
+-- the type independent merge operations described in this section.
 
 -- $adapters
 --

@@ -7,13 +7,15 @@ import Network.HTTP.Simple
 searchEngineQuery :: IO ()
 searchEngineQuery = do
     putStrLn "Using parallel alternative"
-    runSerialT $ google <|> bing <|> duckduckgo
+    runParallelT $ google <> bing <> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runZipAsync $ (,,) <$> pure google <*> pure bing <*> pure duckduckgo
+    runZipAsync $ (,,) <$> google <*> bing <*> duckduckgo
 
     where
-        get s = liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+        get :: IsStream t => String -> t IO ()
+        google, bing, duckduckgo :: IsStream t => t IO ()
+        get s = adapt . serially $ liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
         google     = get "https://www.google.com/search?q=haskell"
         bing       = get "https://www.bing.com/search?q=haskell"
         duckduckgo = get "https://www.duckduckgo.com/?q=haskell"

@@ -24,12 +24,18 @@ module Streamly.Core
     , Stream (..)
 
     -- * Construction
-    , scons
-    , srepeat
-    , snil
+    , cons
+    , repeat
+    , nil
 
-    -- * Composition
+    -- * Semigroup Style Composition
+    , append
     , interleave
+    , aparallel
+    , parallel
+
+    -- * Alternative
+    , alt
 
     -- * Concurrent Stream Vars (SVars)
     , SVar
@@ -42,10 +48,6 @@ module Streamly.Core
     , joinStreamVar2
     , fromStreamVar
     , toStreamVar
-
-    -- * Concurrent Streams
-    , parAlt
-    , parLeft
     )
 where
 
@@ -76,6 +78,7 @@ import           Data.Maybe                  (isNothing)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
+import           Prelude                     hiding (repeat)
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication type
@@ -215,14 +218,14 @@ newtype Stream m a =
 -- 'MonadAsync'.
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
-scons :: a -> Maybe (Stream m a) -> Stream m a
-scons a r = Stream $ \_ _ yld -> yld a r
+cons :: a -> Maybe (Stream m a) -> Stream m a
+cons a r = Stream $ \_ _ yld -> yld a r
 
-srepeat :: a -> Stream m a
-srepeat a = let x = scons a (Just x) in x
+repeat :: a -> Stream m a
+repeat a = let x = cons a (Just x) in x
 
-snil :: Stream m a
-snil = Stream $ \_ stp _ -> stp
+nil :: Stream m a
+nil = Stream $ \_ stp _ -> stp
 
 ------------------------------------------------------------------------------
 -- Composing streams
@@ -237,30 +240,32 @@ snil = Stream $ \_ stp _ -> stp
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | '<>' concatenates two streams sequentially i.e. the first stream is
+-- | Concatenates two streams sequentially i.e. the first stream is
 -- exhausted completely before yielding any element from the second stream.
+append :: Stream m a -> Stream m a -> Stream m a
+append m1 m2 = go m1
+    where
+    go (Stream m) = Stream $ \_ stp yld ->
+            let stop = (runStream m2) Nothing stp yld
+                yield a Nothing  = yld a (Just m2)
+                yield a (Just r) = yld a (Just (go r))
+            in m Nothing stop yield
+
 instance Semigroup (Stream m a) where
-    m1 <> m2 = go m1
-        where
-        go (Stream m) = Stream $ \_ stp yld ->
-                let stop = (runStream m2) Nothing stp yld
-                    yield a Nothing  = yld a (Just m2)
-                    yield a (Just r) = yld a (Just (go r))
-                in m Nothing stop yield
+    (<>) = append
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
 instance Monoid (Stream m a) where
-    mempty = Stream $ \_ stp _ -> stp
+    mempty = nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
 -- Interleave
 ------------------------------------------------------------------------------
 
--- | Same as '<=>'.
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = Stream $ \_ stp yld -> do
     let stop = (runStream m2) Nothing stp yld
@@ -603,32 +608,13 @@ joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-{-
--- | Same as '<>|'.
-parAhead :: Stream m a -> Stream m a -> Stream m a
-parAhead = undefined
+{-# INLINE aparallel #-}
+aparallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+aparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
--- | Sequential composition similar to '<>' except that it can execute the
--- action on the right in parallel ahead of time. Returns the results in
--- sequential order like '<>' from left to right.
-(<>|) :: Stream m a -> Stream m a -> Stream m a
-(<>|) = parAhead
--}
-
--- | Same as '<|>'. Since this schedules all the composed streams fairly you
--- cannot fold infinite number of streams using this operation.
-{-# INLINE parAlt #-}
-parAlt :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parAlt = joinStreamVar2 (SVarStyle Disjunction FIFO)
-
--- | Same as '<|'. Since this schedules the left side computation first you can
--- right fold an infinite container using this operator. However a left fold
--- will not work well as it first unpeels the whole structure before scheduling
--- a computation requiring an amount of memory proportional to the size of the
--- structure.
-{-# INLINE parLeft #-}
-parLeft :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parLeft = joinStreamVar2 (SVarStyle Disjunction LIFO)
+{-# INLINE parallel #-}
+parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -------------------------------------------------------------------------------
 -- Instances (only used for deriving newtype instances)
@@ -655,17 +641,18 @@ instance Monad m => Monad (Stream m) where
 -- Alternative & MonadPlus
 ------------------------------------------------------------------------------
 
--- | `empty` represents an action that takes non-zero time to complete.  Since
--- all actions take non-zero time, an `Alternative` composition ('<|>') is a
--- monoidal composition executing all actions in parallel, it is similar to
--- '<>' except that it runs all the actions in parallel and interleaves their
--- results fairly.
+alt :: Stream m a -> Stream m a -> Stream m a
+alt m1 m2 = Stream $ \_ stp yld ->
+    let stop  = runStream m2 Nothing stp yld
+        yield = yld
+    in runStream m1 Nothing stop yield
+
 instance MonadAsync m => Alternative (Stream m) where
-    empty = mempty
-    (<|>) = parAlt
+    empty = nil
+    (<|>) = alt
 
 instance MonadAsync m => MonadPlus (Stream m) where
-    mzero = empty
+    mzero = nil
     mplus = (<|>)
 
 -------------------------------------------------------------------------------

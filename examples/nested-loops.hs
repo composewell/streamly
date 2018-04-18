@@ -1,9 +1,9 @@
-import Control.Applicative ((<|>), empty)
 import Control.Concurrent (myThreadId)
 import Control.Monad.IO.Class (liftIO)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Streamly
+import Streamly.Prelude (nil)
 
 main = runSerialT $ do
     liftIO $ hSetBuffering stdout LineBuffering
@@ -15,8 +15,9 @@ main = runSerialT $ do
 
     where
 
+    loop :: String -> Int -> SerialT IO String
     loop name n = do
         rnd <- liftIO (randomIO :: IO Int)
         let result = (name ++ show rnd)
-            repeat = if n > 1 then loop name (n - 1) else empty
-         in (return result) <|> repeat
+            repeat = if n > 1 then loop name (n - 1) else nil
+         in (return result) `parallel` repeat

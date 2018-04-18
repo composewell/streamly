@@ -100,8 +100,9 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
 import qualified Prelude
 import qualified System.IO as IO
 
-import           Streamly.Core
-import           Streamly.Streams hiding (runStream)
+import qualified Streamly.Core as S
+import           Streamly.Core (Stream(Stream))
+import           Streamly.Streams
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -141,7 +142,7 @@ each = fromFoldable
 iterate :: IsStream t => (a -> a) -> a -> t m a
 iterate step = fromStream . go
     where
-    go s = scons s (Just (go (step s)))
+    go s = S.cons s (Just (go (step s)))
 
 -- | Iterate a monadic function from a seed value, streaming the results forever
 iterateM :: (IsStream t, Monad m) => (a -> m a) -> a -> t m a
@@ -180,7 +181,7 @@ foldr step acc m = go (toStream m)
         let stop = return acc
             yield a Nothing  = return (step a acc)
             yield a (Just x) = go x >>= \b -> return (step a b)
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
 -- | Lazy right fold with a monadic step function. For example, to fold a
 -- stream into a list:
@@ -197,7 +198,7 @@ foldrM step acc m = go (toStream m)
         let stop = return acc
             yield a Nothing  = step a acc
             yield a (Just x) = (go x) >>= (step a)
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
 -- | Strict left scan with an extraction function. Like 'scanl'', but applies a
 -- user supplied extraction function (the third argument) at each step. This is
@@ -213,7 +214,7 @@ scanx step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
             yield a (Just x) =
                 let s = step acc a
                 in yld (done s) (Just (go x s))
-        in runStream m1 Nothing stop yield
+        in S.runStream m1 Nothing stop yield
 
 {-# DEPRECATED scan "Please use scanx instead." #-}
 scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
@@ -240,7 +241,7 @@ foldx step begin done m = get $ go (toStream m) begin
     get m1 =
         let yield a Nothing  = return $ done a
             yield _ _ = undefined
-         in (runStream m1) Nothing undefined yield
+         in (S.runStream m1) Nothing undefined yield
 
     -- Note, this can be implemented by making a recursive call to "go",
     -- however that is more expensive because of unnecessary recursion
@@ -252,8 +253,8 @@ foldx step begin done m = get $ go (toStream m) begin
                 let s = step acc a
                 in case r of
                     Nothing -> yld s Nothing
-                    Just x -> (runStream (go x s)) Nothing undefined yld
-        in (runStream m1) Nothing stop yield
+                    Just x -> (S.runStream (go x s)) Nothing undefined yld
+        in (S.runStream m1) Nothing stop yield
 
 {-# DEPRECATED foldl "Please use foldx instead." #-}
 foldl :: (IsStream t, Monad m)
@@ -275,7 +276,7 @@ foldxM step begin done m = go begin (toStream m)
         let stop = acc >>= done
             yield a Nothing  = acc >>= \b -> step b a >>= done
             yield a (Just x) = acc >>= \b -> go (step b a) x
-         in (runStream m1) Nothing stop yield
+         in (S.runStream m1) Nothing stop yield
 
 {-# DEPRECATED foldlM "Please use foldxM instead." #-}
 foldlM :: (IsStream t, Monad m)
@@ -294,7 +295,7 @@ uncons m =
     let stop = return Nothing
         yield a Nothing  = return (Just (a, nil))
         yield a (Just x) = return (Just (a, fromStream x))
-    in (runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Write a stream of Strings to an IO Handle.
 toHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String -> m ()
@@ -304,7 +305,7 @@ toHandle h m = go (toStream m)
         let stop = return ()
             yield a Nothing  = liftIO (IO.hPutStrLn h a)
             yield a (Just x) = liftIO (IO.hPutStrLn h a) >> go x
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
 -- Special folds
@@ -323,7 +324,7 @@ take n m = fromStream $ go n (toStream m)
     go n1 m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  = yld a Nothing
             yield a (Just x) = yld a (Just (go (n1 - 1) x))
-        in if n1 <= 0 then stp else (runStream m1) ctx stp yield
+        in if n1 <= 0 then stp else (S.runStream m1) ctx stp yield
 
 -- | Include only those elements that pass a predicate.
 {-# INLINE filter #-}
@@ -334,8 +335,8 @@ filter p m = fromStream $ go (toStream m)
         let yield a Nothing  | p a       = yld a Nothing
                              | otherwise = stp
             yield a (Just x) | p a       = yld a (Just (go x))
-                             | otherwise = (runStream x) ctx stp yield
-         in (runStream m1) ctx stp yield
+                             | otherwise = (S.runStream x) ctx stp yield
+         in (S.runStream m1) ctx stp yield
 
 -- | End the stream as soon as the predicate fails on an element.
 {-# INLINE takeWhile #-}
@@ -347,7 +348,7 @@ takeWhile p m = fromStream $ go (toStream m)
                              | otherwise = stp
             yield a (Just x) | p a       = yld a (Just (go x))
                              | otherwise = stp
-         in (runStream m1) ctx stp yield
+         in (S.runStream m1) ctx stp yield
 
 -- | Discard first 'n' elements from the stream and take the rest.
 drop :: IsStream t => Int -> t m a -> t m a
@@ -355,11 +356,11 @@ drop n m = fromStream $ go n (toStream m)
     where
     go n1 m1 = Stream $ \ctx stp yld ->
         let yield _ Nothing  = stp
-            yield _ (Just x) = (runStream $ go (n1 - 1) x) ctx stp yld
+            yield _ (Just x) = (S.runStream $ go (n1 - 1) x) ctx stp yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then (runStream m1) ctx stp yld
-           else (runStream m1) ctx stp yield
+           then (S.runStream m1) ctx stp yld
+           else (S.runStream m1) ctx stp yield
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -370,9 +371,9 @@ dropWhile p m = fromStream $ go (toStream m)
     go m1 = Stream $ \ctx stp yld ->
         let yield a Nothing  | p a       = stp
                              | otherwise = yld a Nothing
-            yield a (Just x) | p a       = (runStream x) ctx stp yield
+            yield a (Just x) | p a       = (S.runStream x) ctx stp yield
                              | otherwise = yld a (Just x)
-         in (runStream m1) ctx stp yield
+         in (S.runStream m1) ctx stp yield
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
@@ -383,7 +384,7 @@ all p m = go (toStream m)
                              | otherwise = return False
             yield a (Just x) | p a       = go x
                              | otherwise = return False
-         in (runStream m1) Nothing (return True) yield
+         in (S.runStream m1) Nothing (return True) yield
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
@@ -394,7 +395,7 @@ any p m = go (toStream m)
                              | otherwise = return False
             yield a (Just x) | p a       = return True
                              | otherwise = go x
-         in (runStream m1) Nothing (return False) yield
+         in (S.runStream m1) Nothing (return False) yield
 
 -- | Determine the sum of all elements of a stream of numbers
 sum :: (IsStream t, Monad m, Num a) => t m a -> m a
@@ -409,7 +410,7 @@ head :: (IsStream t, Monad m) => t m a -> m (Maybe a)
 head m =
     let stop      = return Nothing
         yield a _ = return (Just a)
-    in (runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Extract all but the first element of the stream, if any.
 tail :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
@@ -417,7 +418,7 @@ tail m =
     let stop             = return Nothing
         yield _ Nothing  = return $ Just nil
         yield _ (Just t) = return $ Just $ fromStream t
-    in (runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
@@ -429,7 +430,7 @@ null :: (IsStream t, Monad m) => t m a -> m Bool
 null m =
     let stop      = return True
         yield _ _ = return False
-    in (runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Determine whether an element is present in the stream.
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -439,7 +440,7 @@ elem e m = go (toStream m)
         let stop            = return False
             yield a Nothing = return (a == e)
             yield a (Just x) = if a == e then return True else go x
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
 -- | Determine whether an element is not present in the stream.
 notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -449,7 +450,7 @@ notElem e m = go (toStream m)
         let stop            = return True
             yield a Nothing = return (a /= e)
             yield a (Just x) = if a == e then return False else go x
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
 -- | Determine the length of the stream.
 length :: (IsStream t, Monad m) => t m a -> m Int
@@ -463,10 +464,10 @@ reverse m = fromStream $ go Nothing (toStream m)
     go rev rest = Stream $ \svr stp yld ->
         let stop = case rev of
                 Nothing ->  stp
-                Just str -> runStream str svr stp yld
-            yield a Nothing  = runStream (a `scons` rev) svr stp yld
-            yield a (Just x) = runStream (go (Just $ a `scons` rev) x) svr stp yld
-         in runStream rest svr stop yield
+                Just str -> S.runStream str svr stp yld
+            yield a Nothing  = S.runStream (a `S.cons` rev) svr stp yld
+            yield a (Just x) = S.runStream (go (Just $ a `S.cons` rev) x) svr stp yld
+         in S.runStream rest svr stop yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
@@ -477,7 +478,7 @@ minimum m = go Nothing (toStream m)
         let stop            = return r
             yield a Nothing = return $ min_ a r
             yield a (Just x) = go (min_ a r) x
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
     min_ a r = case r of
         Nothing -> Just a
@@ -492,7 +493,7 @@ maximum m = go Nothing (toStream m)
         let stop            = return r
             yield a Nothing = return $ max_ a r
             yield a (Just x) = go (max_ a r) x
-        in (runStream m1) Nothing stop yield
+        in (S.runStream m1) Nothing stop yield
 
     max_ a r = case r of
         Nothing -> Just a
@@ -514,7 +515,7 @@ mapM f m = fromStream $ go (toStream m)
         let stop = stp
             yield a Nothing  = f a >>= \b -> yld b Nothing
             yield a (Just x) = f a >>= \b -> yld b (Just (go x))
-         in (runStream m1) Nothing stop yield
+         in (S.runStream m1) Nothing stop yield
 
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
@@ -525,7 +526,7 @@ mapM_ f m = go (toStream m)
         let stop = return ()
             yield a Nothing  = void (f a)
             yield a (Just x) = f a >> go x
-         in (runStream m1) Nothing stop yield
+         in (S.runStream m1) Nothing stop yield
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
@@ -536,7 +537,7 @@ sequence m = fromStream $ go (toStream m)
         let stop = stp
             yield a Nothing  = a >>= \b -> yld b Nothing
             yield a (Just x) = a >>= \b -> yld b (Just (go x))
-         in (runStream m1) Nothing stop yield
+         in (S.runStream m1) Nothing stop yield
 
 -- | Generate a stream by performing an action @n@ times.
 replicateM :: (IsStream t, Monad m) => Int -> m a -> t m a
@@ -557,13 +558,13 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
     go mx my = Stream $ \_ stp yld -> do
         let merge a ra =
-                let yield2 b Nothing   = (runStream (g a b)) Nothing stp yld
+                let yield2 b Nothing   = (S.runStream (g a b)) Nothing stp yld
                     yield2 b (Just rb) =
-                        (runStream (g a b <> go ra rb)) Nothing stp yld
-                 in (runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a snil
+                        (S.runStream (g a b <> go ra rb)) Nothing stp yld
+                 in (S.runStream my) Nothing stp yield2
+        let yield1 a Nothing   = merge a S.nil
             yield1 a (Just ra) = merge a ra
-        (runStream mx) Nothing stp yield1
+        (S.runStream mx) Nothing stp yield1
     g a b = toStream $ f a b
 
 ------------------------------------------------------------------------------
@@ -577,4 +578,4 @@ zipAsyncWithM :: (IsStream t, MonadAsync m)
 zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     ma <- async m1
     mb <- async m2
-    (runStream (toStream (zipWithM f ma mb))) Nothing stp yld
+    (S.runStream (toStream (zipWithM f ma mb))) Nothing stp yld
