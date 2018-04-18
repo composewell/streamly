@@ -10,7 +10,7 @@ searchEngineQuery = do
     runStream . parallely $ google <> bing <> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runStream . zippingAsync $ (,,) <$> google <*> bing <*> duckduckgo
+    runStream . zipParallely $ (,,) <$> google <*> bing <*> duckduckgo
 
     where
         get :: IsStream t => String -> t IO ()

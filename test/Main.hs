@@ -19,11 +19,11 @@ singleton a = a .: nil
 toListSerial :: SerialT IO a -> IO [a]
 toListSerial = A.toList . serially
 
-toListInterleaved :: InterleavedT IO a -> IO [a]
-toListInterleaved = A.toList . interleaving
+toListInterleaved :: CoserialT IO a -> IO [a]
+toListInterleaved = A.toList . coserially
 
-toListAsync :: AParallelT IO a -> IO [a]
-toListAsync = A.toList . aparallely
+toListAsync :: CoparallelT IO a -> IO [a]
+toListAsync = A.toList . coparallely
 
 toListParallel :: ParallelT IO a -> IO [a]
 toListParallel = A.toList . parallely
@@ -88,19 +88,19 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Serial Composition" $ compose serially mempty id
-    describe "Interleaved Composition" $ compose interleaving mempty sort
-    describe "Left biased parallel Composition" $ compose aparallely mempty sort
+    describe "Interleaved Composition" $ compose coserially mempty sort
+    describe "Left biased parallel Composition" $ compose coparallely mempty sort
     describe "Fair parallel Composition" $ compose parallely mempty sort
-    describe "Semigroup Composition for ZipSerial" $ compose zipping mempty id
-    describe "Semigroup Composition for ZipAsync" $ compose zippingAsync mempty id
+    describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
+    describe "Semigroup Composition for ZipAsync" $ compose zipParallely mempty id
     -- XXX need to check alternative compositions as well
     ---------------------------------------------------------------------------
     -- Monoidal Composition ordering checks
     ---------------------------------------------------------------------------
 
-    describe "Serial interleaved ordering check" $ interleaveCheck interleaving
+    describe "Serial interleaved ordering check" $ interleaveCheck coserially
     describe "Parallel interleaved ordering check" $ interleaveCheck parallely
-    describe "Left biased parallel time order check" $ parallelCheck aparallely
+    describe "Left biased parallel time order check" $ parallelCheck coparallely
     describe "Fair parallel time order check" $ parallelCheck parallely
 
     ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ main = hspec $ do
 
     describe "<> and <=>" $ composeAndComposeSimple
       serially
-      interleaving
+      coserially
       ([ [1 .. 9]
        , [1 .. 9]
        , [1, 3, 2, 4, 6, 5, 7, 9, 8]
@@ -120,8 +120,8 @@ main = hspec $ do
        ])
 
     describe "<=> and <=>" $ composeAndComposeSimple
-      interleaving
-      interleaving
+      coserially
+      coserially
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 3, 7, 2, 6, 9, 5, 8]
@@ -129,7 +129,7 @@ main = hspec $ do
        ])
 
     describe "<=> and <>" $ composeAndComposeSimple
-      interleaving
+      coserially
       serially
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
@@ -183,7 +183,7 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Serial loops (<>)" $ loops serially id reverse
-    describe "Left biased parallel loops (<|)" $ loops aparallely sort sort
+    describe "Left biased parallel loops (<|)" $ loops coparallely sort sort
     describe "Fair parallel loops (<|>)" $ loops parallely sort sort
 
     ---------------------------------------------------------------------------
@@ -191,23 +191,23 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Bind and compose1" $ bindAndComposeSimple serially serially
-    describe "Bind and compose2" $ bindAndComposeSimple serially interleaving
-    describe "Bind and compose3" $ bindAndComposeSimple serially aparallely
+    describe "Bind and compose2" $ bindAndComposeSimple serially coserially
+    describe "Bind and compose3" $ bindAndComposeSimple serially coparallely
     describe "Bind and compose4" $ bindAndComposeSimple serially parallely
 
-    describe "Bind and compose1" $ bindAndComposeSimple interleaving serially
-    describe "Bind and compose2" $ bindAndComposeSimple interleaving interleaving
-    describe "Bind and compose3" $ bindAndComposeSimple interleaving aparallely
-    describe "Bind and compose4" $ bindAndComposeSimple interleaving parallely
+    describe "Bind and compose1" $ bindAndComposeSimple coserially serially
+    describe "Bind and compose2" $ bindAndComposeSimple coserially coserially
+    describe "Bind and compose3" $ bindAndComposeSimple coserially coparallely
+    describe "Bind and compose4" $ bindAndComposeSimple coserially parallely
 
-    describe "Bind and compose1" $ bindAndComposeSimple aparallely serially
-    describe "Bind and compose2" $ bindAndComposeSimple aparallely interleaving
-    describe "Bind and compose3" $ bindAndComposeSimple aparallely aparallely
-    describe "Bind and compose4" $ bindAndComposeSimple aparallely parallely
+    describe "Bind and compose1" $ bindAndComposeSimple coparallely serially
+    describe "Bind and compose2" $ bindAndComposeSimple coparallely coserially
+    describe "Bind and compose3" $ bindAndComposeSimple coparallely coparallely
+    describe "Bind and compose4" $ bindAndComposeSimple coparallely parallely
 
     describe "Bind and compose1" $ bindAndComposeSimple parallely serially
-    describe "Bind and compose2" $ bindAndComposeSimple parallely interleaving
-    describe "Bind and compose3" $ bindAndComposeSimple parallely aparallely
+    describe "Bind and compose2" $ bindAndComposeSimple parallely coserially
+    describe "Bind and compose3" $ bindAndComposeSimple parallely coparallely
     describe "Bind and compose4" $ bindAndComposeSimple parallely parallely
 
     let fldr, fldl :: (IsStream t, Semigroup (t IO Int)) => [t IO Int] -> t IO Int
@@ -217,36 +217,36 @@ main = hspec $ do
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy serially serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially interleaving k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially coserially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially aparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially coparallely k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy serially parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy interleaving serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy coserially serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy interleaving interleaving k
+        describe "Bind and compose" $ bindAndComposeHierarchy coserially coserially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy interleaving aparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy coserially coparallely k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy interleaving parallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy coserially parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy aparallely serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy aparallely interleaving k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely coserially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy aparallely aparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely coparallely k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy aparallely parallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely parallely k
 
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy parallely serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy parallely interleaving k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely coserially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy parallely aparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely coparallely k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy parallely parallely k
 
@@ -553,11 +553,11 @@ mixedOps = do
                 x1 <- parallely $ return 1 <> return 2
                 liftIO $ return ()
                 liftIO $ putStr ""
-                y1 <- aparallely $ return 1 <> return 2
+                y1 <- coparallely $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
-                    y11 <- aparallely $ return 1 <> return 2
-                    z11 <- interleaving $ return 1 <> return 2
+                    y11 <- coparallely $ return 1 <> return 2
+                    z11 <- coserially $ return 1 <> return 2
                     liftIO $ return ()
                     liftIO $ putStr ""
                     return (x11 + y11 + z11)

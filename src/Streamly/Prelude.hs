@@ -72,8 +72,8 @@ module Streamly.Prelude
     -- * Zipping
     , zipWith
     , zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
+    , zipParallelWith
+    , zipParallelWithM
 
     -- * IO
     , fromHandle
@@ -84,6 +84,8 @@ module Streamly.Prelude
     , scan
     , foldl
     , foldlM
+    , zipAsyncWith
+    , zipAsyncWithM
     )
 where
 
@@ -569,9 +571,14 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 
 -- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
-zipAsyncWithM :: (IsStream t, MonadAsync m)
+zipParallelWithM :: (IsStream t, MonadParallel m)
     => (a -> b -> t m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
+zipParallelWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     ma <- async m1
     mb <- async m2
     (S.runStream (toStream (zipWithM f ma mb))) Nothing stp yld
+
+{-# DEPRECATED zipAsyncWithM "Please use zipParallelWithM instead." #-}
+zipAsyncWithM :: (IsStream t, MonadParallel m)
+    => (a -> b -> t m c) -> t m a -> t m b -> t m c
+zipAsyncWithM = zipParallelWithM

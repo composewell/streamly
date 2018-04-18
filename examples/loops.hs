@@ -24,9 +24,9 @@ main = do
         x <- loopHeadA 0
         liftIO $ print (x :: Int)
 
-    putStrLn $ "\ninterleave:\n"
+    putStrLn $ "\ncoserial:\n"
     runStream $ do
-        x <- (return 0 <> return 1) `interleave` (return 100 <> return 101)
+        x <- (return 0 <> return 1) `coserial` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
@@ -71,12 +71,12 @@ main = do
     loopTailA :: Int -> SerialT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
-        return x `aparallel` (if x < 3 then loopTailA (x + 1) else empty)
+        return x `coparallel` (if x < 3 then loopTailA (x + 1) else empty)
 
     loopHeadA :: Int -> SerialT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else empty) `aparallel` return x
+        (if x < 3 then loopHeadA (x + 1) else empty) `coparallel` return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops

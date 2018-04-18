@@ -26,7 +26,7 @@ userAction = cycle1 $ liftIO askUser
 acidRain :: MonadIO m => SerialT m Event
 acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 
-game :: (MonadAsync m, MonadState Int m) => SerialT m ()
+game :: (MonadParallel m, MonadState Int m) => SerialT m ()
 game = do
     event <- userAction `parallel` acidRain
     case event of

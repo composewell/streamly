@@ -41,38 +41,38 @@ main = do
             [ bench "function style all serial" $ nfIO streamly_function_style
 
             , bgroup "serial bind"
-                [ bench "serial"        $ nfIO (as (A.append))
-                , bench "fair serial"   $ nfIO (as (A.interleave))
-                , bench "left parallel" $ nfIO (as (A.aparallel))
+                [ bench "serial"        $ nfIO (as (A.serial))
+                , bench "fair serial"   $ nfIO (as (A.coserial))
+                , bench "left parallel" $ nfIO (as (A.coparallel))
                 , bench "fair parallel" $ nfIO (as (A.parallel))
                 ]
 
             , bgroup "interleaved bind"
-                [ bench "serial"        $ nfIO (ai (A.append))
-                , bench "fair serial"   $ nfIO (ai (A.interleave))
-                , bench "left parallel" $ nfIO (ai (A.aparallel))
+                [ bench "serial"        $ nfIO (ai (A.serial))
+                , bench "fair serial"   $ nfIO (ai (A.coserial))
+                , bench "left parallel" $ nfIO (ai (A.coparallel))
                 , bench "fair parallel" $ nfIO (ai (A.parallel))
                 ]
 
             , bgroup "async bind"
-                [ bench "serial"        $ nfIO (aa (A.append))
-                , bench "fair serial"   $ nfIO (aa (A.interleave))
-                , bench "left parallel" $ nfIO (aa (A.aparallel))
+                [ bench "serial"        $ nfIO (aa (A.serial))
+                , bench "fair serial"   $ nfIO (aa (A.coserial))
+                , bench "left parallel" $ nfIO (aa (A.coparallel))
                 , bench "fair parallel" $ nfIO (aa (A.parallel))
                 ]
 
             , bgroup "parallel bind"
-                [ bench "serial"        $ nfIO (ap (A.append))
-                , bench "fair serial"   $ nfIO (ap (A.interleave))
-                , bench "left parallel" $ nfIO (ap (A.aparallel))
+                [ bench "serial"        $ nfIO (ap (A.serial))
+                , bench "fair serial"   $ nfIO (ap (A.coserial))
+                , bench "left parallel" $ nfIO (ap (A.coparallel))
                 , bench "fair parallel" $ nfIO (ap (A.parallel))
                 ]
 
             -- Benchmark smallest possible actions composed together
             , bgroup "serial bind nil"
-                [ bench "serial"        $ nfIO (streamly_nil (A.append))
-                , bench "fair serial"   $ nfIO (streamly_nil (A.interleave))
-                , bench "left parallel" $ nfIO (streamly_nil (A.aparallel))
+                [ bench "serial"        $ nfIO (streamly_nil (A.serial))
+                , bench "fair serial"   $ nfIO (streamly_nil (A.coserial))
+                , bench "left parallel" $ nfIO (streamly_nil (A.coparallel))
                 , bench "fair parallel" $ nfIO (streamly_nil (A.parallel))
                 ]
             ]
@@ -141,15 +141,15 @@ streamly_serial = streamly_basic (A.toList . A.serially)
 
 {-# INLINE streamly_interleaved #-}
 streamly_interleaved
-    :: (A.InterleavedT IO Int -> A.InterleavedT IO Int -> A.InterleavedT IO Int)
+    :: (A.CoserialT IO Int -> A.CoserialT IO Int -> A.CoserialT IO Int)
     -> IO Int
-streamly_interleaved = streamly_basic (A.toList . A.interleaving)
+streamly_interleaved = streamly_basic (A.toList . A.coserially)
 
 {-# INLINE streamly_async #-}
 streamly_async
-    :: (A.AParallelT IO Int -> A.AParallelT IO Int -> A.AParallelT IO Int)
+    :: (A.CoparallelT IO Int -> A.CoparallelT IO Int -> A.CoparallelT IO Int)
     -> IO Int
-streamly_async = streamly_basic (A.toList . A.aparallely)
+streamly_async = streamly_basic (A.toList . A.coparallely)
 
 {-# INLINE streamly_parallel #-}
 streamly_parallel
