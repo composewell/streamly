@@ -141,13 +141,13 @@ streamly_serial = streamly_basic (A.toList . A.serially)
 
 {-# INLINE streamly_interleaved #-}
 streamly_interleaved
-    :: (A.InterleavedT IO Int -> A.InterleavedT IO Int -> A.InterleavedT IO Int)
+    :: (A.CoserialT IO Int -> A.CoserialT IO Int -> A.CoserialT IO Int)
     -> IO Int
 streamly_interleaved = streamly_basic (A.toList . A.coserially)
 
 {-# INLINE streamly_async #-}
 streamly_async
-    :: (A.AParallelT IO Int -> A.AParallelT IO Int -> A.AParallelT IO Int)
+    :: (A.CoparallelT IO Int -> A.CoparallelT IO Int -> A.CoparallelT IO Int)
     -> IO Int
 streamly_async = streamly_basic (A.toList . A.coparallely)
 

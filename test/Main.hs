@@ -19,10 +19,10 @@ singleton a = a .: nil
 toListSerial :: SerialT IO a -> IO [a]
 toListSerial = A.toList . serially
 
-toListInterleaved :: InterleavedT IO a -> IO [a]
+toListInterleaved :: CoserialT IO a -> IO [a]
 toListInterleaved = A.toList . coserially
 
-toListAsync :: AParallelT IO a -> IO [a]
+toListAsync :: CoparallelT IO a -> IO [a]
 toListAsync = A.toList . coparallely
 
 toListParallel :: ParallelT IO a -> IO [a]

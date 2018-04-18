@@ -21,8 +21,8 @@ module Streamly
     -- * General Stream Styles
     -- $product
     , SerialT
-    , InterleavedT
-    , AParallelT
+    , CoserialT
+    , CoparallelT
     , ParallelT
 
     -- * Zip Style Streams
@@ -77,8 +77,10 @@ module Streamly
     , runAsyncT
     , runZipStream
     , StreamT
+    , InterleavedT
     , AsyncT
     , ZipStream
+    , interleaving
     , asyncly
     , (<=>)
     , (<|)
@@ -126,22 +128,22 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $overview
 --
--- Streamly provides six distinct stream types i.e. 'SerialT', 'InterleavedT',
--- 'AParallelT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
+-- Streamly provides six distinct stream types i.e. 'SerialT', 'CoserialT',
+-- 'CoparallelT' and 'ParallelT', 'ZipStream' and 'ZipAsync', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
 -- described later. Each of these types belongs to the 'IsStream' type class
 -- which helps converting the specific type to and from the underlying generic
 -- stream type.
 --
--- The types 'SerialT', 'InterleavedT', 'AParallelT' and 'ParallelT' are 'Monad'
+-- The types 'SerialT', 'CoserialT', 'CoparallelT' and 'ParallelT' are 'Monad'
 -- transformers with the monadic bind operation combining streams in a product
 -- style in much the same way as a list monad or a list transformer i.e. each
 -- element from one stream is combined with every element of the other stream.
 -- However, the applicative and monadic composition of these types differ in
 -- terms of the ordering and time sequence in which the elements from two
--- streams are combined. 'SerialT' and 'InterleavedT' compose streams serially
--- whereas 'AParallelT' and 'ParallelT' are their concurrent counterparts. See the
+-- streams are combined. 'SerialT' and 'CoserialT' compose streams serially
+-- whereas 'CoparallelT' and 'ParallelT' are their concurrent counterparts. See the
 -- documentation of the respective types for more details.
 --
 -- The types 'ZipStream' and 'ZipAsync' provide 'Applicative' instances to zip
@@ -156,7 +158,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- (concurrent or serial) in which the elements in the resulting stream are
 -- produced depends on the type of the stream.
 --
--- Concurrent composition types 'AParallelT', 'ParallelT', 'ZipAsync' require the
+-- Concurrent composition types 'CoparallelT', 'ParallelT', 'ZipAsync' require the
 -- underlying monad of the streaming monad transformer to be 'MonadAsync'.
 --
 -- For more details please see the "Streamly.Tutorial" and "Streamly.Examples"
@@ -168,8 +170,8 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $product
 --
 -- Streams that compose serially or non-concurrently come in two flavors i.e.
--- 'SerialT' and 'InterleavedT'.  Both of these serial flavors have
--- corresponding concurrent equivalents, those are 'AParallelT' and 'ParallelT'
+-- 'SerialT' and 'CoserialT'.  Both of these serial flavors have
+-- corresponding concurrent equivalents, those are 'CoparallelT' and 'ParallelT'
 -- respectively.
 
 -- $zipping

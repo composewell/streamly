@@ -58,8 +58,9 @@ module Streamly.Streams
     -- * Stream Styles
     , SerialT
     , StreamT           -- deprecated
-    , InterleavedT
-    , AParallelT
+    , CoserialT
+    , InterleavedT      -- deprecated
+    , CoparallelT
     , AsyncT            -- deprecated
     , ParallelT
     , ZipSerial
@@ -69,6 +70,7 @@ module Streamly.Streams
     -- * Type Adapters
     , serially
     , coserially
+    , interleaving     -- deprecated
     , coparallely
     , asyncly          -- deprecated
     , parallely
@@ -416,10 +418,10 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- InterleavedT
+-- CoserialT
 ------------------------------------------------------------------------------
 
--- | The 'Semigroup' instance of 'InterleavedT' interleaves two streams,
+-- | The 'Semigroup' instance of 'CoserialT' interleaves two streams,
 -- yielding one element from each stream alternately.
 --
 -- @
@@ -449,31 +451,34 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- Note that interleaving composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
-newtype InterleavedT m a = InterleavedT {getInterleavedT :: Stream m a}
+newtype CoserialT m a = CoserialT {getCoserialT :: Stream m a}
     deriving (Monoid, MonadTrans, MonadIO, MonadThrow)
 
-deriving instance MonadAsync m => Alternative (InterleavedT m)
-deriving instance MonadAsync m => MonadPlus (InterleavedT m)
-deriving instance (MonadBase b m, Monad m) => MonadBase b (InterleavedT m)
-deriving instance MonadError e m => MonadError e (InterleavedT m)
-deriving instance MonadReader r m => MonadReader r (InterleavedT m)
-deriving instance MonadState s m => MonadState s (InterleavedT m)
+deriving instance MonadAsync m => Alternative (CoserialT m)
+deriving instance MonadAsync m => MonadPlus (CoserialT m)
+deriving instance (MonadBase b m, Monad m) => MonadBase b (CoserialT m)
+deriving instance MonadError e m => MonadError e (CoserialT m)
+deriving instance MonadReader r m => MonadReader r (CoserialT m)
+deriving instance MonadState s m => MonadState s (CoserialT m)
 
-instance IsStream InterleavedT where
-    toStream = getInterleavedT
-    fromStream = InterleavedT
+{-# DEPRECATED InterleavedT "Please use 'CoserialT' instead." #-}
+type InterleavedT = CoserialT
+
+instance IsStream CoserialT where
+    toStream = getCoserialT
+    fromStream = CoserialT
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'InterleavedT'.
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'CoserialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
 {-# INLINE coserial #-}
 coserial :: IsStream t => t m a -> t m a -> t m a
 coserial m1 m2 = fromStream $ S.coserial (toStream m1) (toStream m2)
 
-instance Semigroup (InterleavedT m a) where
+instance Semigroup (CoserialT m a) where
     (<>) = coserial
 
 infixr 5 <=>
@@ -488,9 +493,9 @@ infixr 5 <=>
 -- Monad
 ------------------------------------------------------------------------------
 
-instance Monad m => Monad (InterleavedT m) where
+instance Monad m => Monad (CoserialT m) where
     return = pure
-    (InterleavedT (Stream m)) >>= f = InterleavedT $ Stream $ \_ stp yld ->
+    (CoserialT (Stream m)) >>= f = CoserialT $ Stream $ \_ stp yld ->
         let run x = (S.runStream x) Nothing stp yld
             yield a Nothing  = run $ toStream (f a)
             yield a (Just r) = run $ toStream $ f a <> (fromStream r >>= f)
@@ -500,26 +505,26 @@ instance Monad m => Monad (InterleavedT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance Monad m => Applicative (InterleavedT m) where
-    pure a = InterleavedT $ S.cons a Nothing
+instance Monad m => Applicative (CoserialT m) where
+    pure a = CoserialT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Functor (InterleavedT m) where
-    fmap f (InterleavedT (Stream m)) = InterleavedT $ Stream $ \_ stp yld ->
+instance Monad m => Functor (CoserialT m) where
+    fmap f (CoserialT (Stream m)) = CoserialT $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
             yield a (Just r) =
-                yld (f a) (Just (getInterleavedT (fmap f (InterleavedT r))))
+                yld (f a) (Just (getCoserialT (fmap f (CoserialT r))))
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (Monad m, Num a) => Num (InterleavedT m a) where
+instance (Monad m, Num a) => Num (CoserialT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -530,14 +535,14 @@ instance (Monad m, Num a) => Num (InterleavedT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional a) => Fractional (InterleavedT m a) where
+instance (Monad m, Fractional a) => Fractional (CoserialT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (Monad m, Floating a) => Floating (InterleavedT m a) where
+instance (Monad m, Floating a) => Floating (CoserialT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -560,7 +565,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
     logBase = liftA2 logBase
 
 ------------------------------------------------------------------------------
--- AParallelT
+-- CoparallelT
 ------------------------------------------------------------------------------
 
 -- | Adaptive parallel, in a left to right 'Semigroup' composition it tries to
@@ -602,38 +607,38 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- Note that this composition can be used to combine infinite number of streams
 -- as it explores only a bounded number of streams at a time.
 --
-newtype AParallelT m a = AParallelT {getAParallelT :: Stream m a}
+newtype CoparallelT m a = CoparallelT {getCoparallelT :: Stream m a}
     deriving (MonadTrans)
 
-deriving instance MonadAsync m => Monoid (AParallelT m a)
-deriving instance MonadAsync m => Alternative (AParallelT m)
-deriving instance MonadAsync m => MonadPlus (AParallelT m)
-deriving instance MonadAsync m => MonadIO (AParallelT m)
-deriving instance MonadAsync m => MonadThrow (AParallelT m)
-deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (AParallelT m)
-deriving instance (MonadError e m, MonadAsync m) => MonadError e (AParallelT m)
-deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (AParallelT m)
-deriving instance (MonadState s m, MonadAsync m) => MonadState s (AParallelT m)
+deriving instance MonadAsync m => Monoid (CoparallelT m a)
+deriving instance MonadAsync m => Alternative (CoparallelT m)
+deriving instance MonadAsync m => MonadPlus (CoparallelT m)
+deriving instance MonadAsync m => MonadIO (CoparallelT m)
+deriving instance MonadAsync m => MonadThrow (CoparallelT m)
+deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (CoparallelT m)
+deriving instance (MonadError e m, MonadAsync m) => MonadError e (CoparallelT m)
+deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (CoparallelT m)
+deriving instance (MonadState s m, MonadAsync m) => MonadState s (CoparallelT m)
 
-{-# DEPRECATED AsyncT "Please use 'AParallelT' instead." #-}
-type AsyncT = AParallelT
+{-# DEPRECATED AsyncT "Please use 'CoparallelT' instead." #-}
+type AsyncT = CoparallelT
 
-instance IsStream AParallelT where
-    toStream = getAParallelT
-    fromStream = AParallelT
+instance IsStream CoparallelT where
+    toStream = getCoparallelT
+    fromStream = CoparallelT
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'AParallelT', but
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'CoparallelT', but
 -- polymorphic.  Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
 {-# INLINE coparallel #-}
 coparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 coparallel m1 m2 = fromStream $ S.coparallel (toStream m1) (toStream m2)
 
-instance MonadAsync m => Semigroup (AParallelT m a) where
+instance MonadAsync m => Semigroup (CoparallelT m a) where
     (<>) = coparallel
 
 -- | Same as 'coparallel'.
@@ -661,35 +666,35 @@ parbind par m f = go m
                 yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
 
-instance MonadAsync m => Monad (AParallelT m) where
+instance MonadAsync m => Monad (CoparallelT m) where
     return = pure
-    (AParallelT m) >>= f = AParallelT $ parbind par m g
-        where g x = getAParallelT (f x)
+    (CoparallelT m) >>= f = CoparallelT $ parbind par m g
+        where g x = getCoparallelT (f x)
               par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Applicative (AParallelT m) where
-    pure a = AParallelT $ S.cons a Nothing
+instance MonadAsync m => Applicative (CoparallelT m) where
+    pure a = CoparallelT $ S.cons a Nothing
     (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Functor
 ------------------------------------------------------------------------------
 
-instance Monad m => Functor (AParallelT m) where
-    fmap f (AParallelT (Stream m)) = AParallelT $ Stream $ \_ stp yld ->
+instance Monad m => Functor (CoparallelT m) where
+    fmap f (CoparallelT (Stream m)) = CoparallelT $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a) (Just (getAParallelT (fmap f (AParallelT r))))
+            yield a (Just r) = yld (f a) (Just (getCoparallelT (fmap f (CoparallelT r))))
         in m Nothing stp yield
 
 ------------------------------------------------------------------------------
 -- Num
 ------------------------------------------------------------------------------
 
-instance (MonadAsync m, Num a) => Num (AParallelT m a) where
+instance (MonadAsync m, Num a) => Num (CoparallelT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -700,14 +705,14 @@ instance (MonadAsync m, Num a) => Num (AParallelT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (MonadAsync m, Fractional a) => Fractional (AParallelT m a) where
+instance (MonadAsync m, Fractional a) => Fractional (CoparallelT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (MonadAsync m, Floating a) => Floating (AParallelT m a) where
+instance (MonadAsync m, Floating a) => Floating (CoparallelT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -764,7 +769,7 @@ instance (MonadAsync m, Floating a) => Floating (AParallelT m a) where
 -- ThreadId 38: Delay 3
 -- @
 --
--- Unlike 'AParallelT' all iterations are guaranteed to run fairly
+-- Unlike 'CoparallelT' all iterations are guaranteed to run fairly
 -- concurrently, unconditionally.
 --
 -- Note that round robin composition can only combine a finite number of
@@ -1073,17 +1078,22 @@ adapt = fromStream . toStream
 serially :: IsStream t => SerialT m a -> t m a
 serially = adapt
 
--- | Fix the type of a polymorphic stream as 'InterleavedT'.
-coserially :: IsStream t => InterleavedT m a -> t m a
+-- | Fix the type of a polymorphic stream as 'CoserialT'.
+coserially :: IsStream t => CoserialT m a -> t m a
 coserially = adapt
 
--- | Fix the type of a polymorphic stream as 'AParallelT'.
-coparallely :: IsStream t => AParallelT m a -> t m a
+-- | Same as 'coserially'.
+{-# DEPRECATED interleaving "Please use coserially instead." #-}
+interleaving :: IsStream t => CoserialT m a -> t m a
+interleaving = coserially
+
+-- | Fix the type of a polymorphic stream as 'CoparallelT'.
+coparallely :: IsStream t => CoparallelT m a -> t m a
 coparallely = adapt
 
 -- | Same as 'coparallely'.
 {-# DEPRECATED asyncly "Please use coparallely instead." #-}
-asyncly :: IsStream t => AParallelT m a -> t m a
+asyncly :: IsStream t => CoparallelT m a -> t m a
 asyncly = coparallely
 
 -- | Fix the type of a polymorphic stream as 'ParallelT'.
@@ -1114,7 +1124,7 @@ runInterleavedT = runStream . coserially
 
 -- | Same as @runStream . coparallely@.
 {-# DEPRECATED runAsyncT "Please use 'runStream . coparallely' instead." #-}
-runAsyncT :: Monad m => AParallelT m a -> m ()
+runAsyncT :: Monad m => CoparallelT m a -> m ()
 runAsyncT = runStream . coparallely
 
 -- | Same as @runStream . parallely@.
