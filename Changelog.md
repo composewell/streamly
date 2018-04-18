@@ -16,14 +16,16 @@
   different behavior for each type. See the documentation for more details. To
   adapt to this change replace any usage of `<|>` with `parallel` and
   `empty` with `nil`.
-* Streams now default to the `SerialT` type unless explicitly specified using a
-  type combinator. This also means that you do not have to explicitly specify a
-  stream type now, the default will be used. This changes reduces puzzling type
-  errors for beginners. It includes the following two changes:
+* Stream type now defaults to the `SerialT` type unless explicitly specified
+  using a type combinator or a monomorphic type.  This change reduces puzzling
+  type errors for beginners. It includes the following two changes:
   * Change the type of all stream elimination functions to `SerialT`. This
     makes sure that the stream type is always fixed at all exits.
   * Change the type combinators to only fix the argument stream type and
     the resulting stream type remains polymorphic.
+
+  Stream types may have to be changed or type combinators may have to added or
+  removed to adapt to this change.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base.
 
 ### Deprecations
@@ -50,7 +52,7 @@
     * `foldl'` strict left fold
     * `foldlM'` strict left fold with a monadic fold function
     * `append` run two streams serially one after the other
-    * `parallel` run two streams in parallel
+    * `parallel` run two streams in parallel (replaces `<|>`)
 
 ## 0.1.2
 

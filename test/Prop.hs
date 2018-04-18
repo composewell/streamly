@@ -82,8 +82,8 @@ eliminateOp constr listOp op a =
 
 elemOp
     :: ([Word8] -> t IO Word8)
-    -> (t IO Word8 -> t IO Word8)
-    -> (Word8 -> t IO Word8 -> IO Bool)
+    -> (t IO Word8 -> SerialT IO Word8)
+    -> (Word8 -> SerialT IO Word8 -> IO Bool)
     -> (Word8 -> [Word8] -> Bool)
     -> (Word8, [Word8])
     -> Property
@@ -160,7 +160,7 @@ eliminationOps
     :: IsStream t
     => ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> Spec
 eliminationOps constr desc t = do
     -- Elimination
@@ -196,7 +196,7 @@ transformOpsWord8
     :: IsStream t
     => ([Word8] -> t IO Word8)
     -> String
-    -> (t IO Word8 -> t IO Word8)
+    -> (t IO Word8 -> SerialT IO Word8)
     -> Spec
 transformOpsWord8 constr desc t = do
     prop (desc ++ " elem") $ elemOp constr t A.elem elem
