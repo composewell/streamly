@@ -174,7 +174,7 @@ fromHandle h = fromStream go
 -- >> runIdentity $ foldr (:) [] (serially $ fromFoldable [1,2,3])
 -- [1,2,3]
 -- @
-foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
+foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 foldr step acc m = go (toStream m)
     where
     go m1 =
@@ -191,7 +191,7 @@ foldr step acc m = go (toStream m)
 -- [1,2,3]
 -- @
 {-# INLINE foldrM #-}
-foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
 foldrM step acc m = go (toStream m)
     where
     go m1 =
@@ -233,8 +233,7 @@ scanl' step begin m = scanx step begin id m
 -- argument) to the folded value at the end. This is designed to work with the
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
 {-# INLINE foldx #-}
-foldx :: (IsStream t, Monad m)
-    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
 foldx step begin done m = get $ go (toStream m) begin
     where
     {-# NOINLINE get #-}
@@ -257,19 +256,17 @@ foldx step begin done m = get $ go (toStream m) begin
         in (S.runStream m1) Nothing stop yield
 
 {-# DEPRECATED foldl "Please use foldx instead." #-}
-foldl :: (IsStream t, Monad m)
-    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
 foldl = foldx
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
-foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
+foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
 foldl' step begin m = foldx step begin id m
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
-foldxM :: (IsStream t, Monad m)
-    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldxM step begin done m = go begin (toStream m)
     where
     go !acc m1 =
@@ -279,18 +276,17 @@ foldxM step begin done m = go begin (toStream m)
          in (S.runStream m1) Nothing stop yield
 
 {-# DEPRECATED foldlM "Please use foldxM instead." #-}
-foldlM :: (IsStream t, Monad m)
-    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldlM = foldxM
 
 -- | Like 'foldl'' but with a monadic step function.
-foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
+foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
 foldlM' step begin m = foldxM step (return begin) return m
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
 -- the head of the stream and 'ma' its tail.
-uncons :: (IsStream t, Monad m) => t m a -> m (Maybe (a, t m a))
+uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
         yield a Nothing  = return (Just (a, nil))
@@ -298,7 +294,7 @@ uncons m =
     in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Write a stream of Strings to an IO Handle.
-toHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String -> m ()
+toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go (toStream m)
     where
     go m1 =
@@ -313,7 +309,7 @@ toHandle h m = go (toStream m)
 
 -- | Convert a stream into a list in the underlying monad.
 {-# INLINABLE toList #-}
-toList :: (IsStream t, Monad m) => t m a -> m [a]
+toList :: Monad m => SerialT m a -> m [a]
 toList = foldrM (\a xs -> return (a : xs)) []
 
 -- | Take first 'n' elements from the stream and discard the rest.
@@ -376,7 +372,7 @@ dropWhile p m = fromStream $ go (toStream m)
          in (S.runStream m1) ctx stp yield
 
 -- | Determine whether all elements of a stream satisfy a predicate.
-all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
+all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 all p m = go (toStream m)
     where
     go m1 =
@@ -387,7 +383,7 @@ all p m = go (toStream m)
          in (S.runStream m1) Nothing (return True) yield
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
-any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
+any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 any p m = go (toStream m)
     where
     go m1 =
@@ -398,22 +394,22 @@ any p m = go (toStream m)
          in (S.runStream m1) Nothing (return False) yield
 
 -- | Determine the sum of all elements of a stream of numbers
-sum :: (IsStream t, Monad m, Num a) => t m a -> m a
+sum :: (Monad m, Num a) => SerialT m a -> m a
 sum = foldl (+) 0 id
 
 -- | Determine the product of all elements of a stream of numbers
-product :: (IsStream t, Monad m, Num a) => t m a -> m a
+product :: (Monad m, Num a) => SerialT m a -> m a
 product = foldl (*) 1 id
 
 -- | Extract the first element of the stream, if any.
-head :: (IsStream t, Monad m) => t m a -> m (Maybe a)
+head :: Monad m => SerialT m a -> m (Maybe a)
 head m =
     let stop      = return Nothing
         yield a _ = return (Just a)
     in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Extract all but the first element of the stream, if any.
-tail :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
+tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m =
     let stop             = return Nothing
         yield _ Nothing  = return $ Just nil
@@ -422,18 +418,18 @@ tail m =
 
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
-last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
+last :: Monad m => SerialT m a -> m (Maybe a)
 last = foldl (\_ y -> Just y) Nothing id
 
 -- | Determine whether the stream is empty.
-null :: (IsStream t, Monad m) => t m a -> m Bool
+null :: Monad m => SerialT m a -> m Bool
 null m =
     let stop      = return True
         yield _ _ = return False
     in (S.runStream (toStream m)) Nothing stop yield
 
 -- | Determine whether an element is present in the stream.
-elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
+elem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
 elem e m = go (toStream m)
     where
     go m1 =
@@ -443,7 +439,7 @@ elem e m = go (toStream m)
         in (S.runStream m1) Nothing stop yield
 
 -- | Determine whether an element is not present in the stream.
-notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
+notElem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
 notElem e m = go (toStream m)
     where
     go m1 =
@@ -453,7 +449,7 @@ notElem e m = go (toStream m)
         in (S.runStream m1) Nothing stop yield
 
 -- | Determine the length of the stream.
-length :: (IsStream t, Monad m) => t m a -> m Int
+length :: Monad m => SerialT m a -> m Int
 length = foldl (\n _ -> n + 1) 0 id
 
 -- | Returns the elements of the stream in reverse order.
@@ -471,7 +467,7 @@ reverse m = fromStream $ go Nothing (toStream m)
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
-minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 minimum m = go Nothing (toStream m)
     where
     go r m1 =
@@ -486,7 +482,7 @@ minimum m = go Nothing (toStream m)
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the maximum element in a stream.
-maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = go Nothing (toStream m)
     where
     go r m1 =
@@ -519,7 +515,7 @@ mapM f m = fromStream $ go (toStream m)
 
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
-mapM_ :: (IsStream t, Monad m) => (a -> m b) -> t m a -> m ()
+mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
 mapM_ f m = go (toStream m)
     where
     go m1 =

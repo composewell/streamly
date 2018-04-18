@@ -5,7 +5,7 @@ import System.Random (randomIO)
 import Streamly
 import Streamly.Prelude (nil)
 
-main = runSerialT $ do
+main = runStream $ do
     liftIO $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
     y <- loop "B " 2

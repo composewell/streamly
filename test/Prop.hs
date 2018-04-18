@@ -36,7 +36,7 @@ equals eq stream list = do
 
 constructWithReplicateM
     :: IsStream t
-    => (t IO Int -> t IO Int)
+    => (t IO Int -> SerialT IO Int)
     -> Word8
     -> Property
 constructWithReplicateM op len =
@@ -47,11 +47,10 @@ constructWithReplicateM op len =
         equals (==) stream list
 
 transformFromList
-    :: IsStream t
-    => ([Int] -> t IO Int)
+    :: ([Int] -> t IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int] -> [Int])
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> [Int]
     -> Property
 transformFromList constr eq listOp op a =
@@ -61,9 +60,8 @@ transformFromList constr eq listOp op a =
         equals eq stream list
 
 foldFromList
-    :: IsStream t
-    => ([Int] -> t IO Int)
-    -> (t IO Int -> t IO Int)
+    :: ([Int] -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> [Int]
     -> Property
@@ -84,8 +82,8 @@ eliminateOp constr listOp op a =
 
 elemOp
     :: ([Word8] -> t IO Word8)
-    -> (t IO Word8 -> t IO Word8)
-    -> (Word8 -> t IO Word8 -> IO Bool)
+    -> (t IO Word8 -> SerialT IO Word8)
+    -> (Word8 -> SerialT IO Word8 -> IO Bool)
     -> (Word8 -> [Word8] -> Bool)
     -> (Word8, [Word8])
     -> Property
@@ -96,10 +94,10 @@ elemOp constr op streamOp listOp (x, xs) =
         equals (==) stream list
 
 functorOps
-    :: (IsStream t, Functor (t IO))
+    :: Functor (t IO)
     => ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Spec
 functorOps constr desc t eq = do
@@ -110,7 +108,7 @@ transformOps
     :: IsStream t
     => ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Spec
 transformOps constr desc t eq = do
@@ -159,10 +157,9 @@ wrapMaybe f =
             else Just (f x)
 
 eliminationOps
-    :: IsStream t
-    => ([Int] -> t IO Int)
+    :: ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> Spec
 eliminationOps constr desc t = do
     -- Elimination
@@ -181,10 +178,9 @@ eliminationOps constr desc t = do
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
 serialEliminationOps
-    :: IsStream t
-    => ([Int] -> t IO Int)
+    :: ([Int] -> t IO Int)
     -> String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> Spec
 serialEliminationOps constr desc t = do
     prop (desc ++ " head") $ eliminateOp constr (wrapMaybe head) $ A.head . t
@@ -196,10 +192,9 @@ serialEliminationOps constr desc t = do
     prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ A.last . t
 
 transformOpsWord8
-    :: IsStream t
-    => ([Word8] -> t IO Word8)
+    :: ([Word8] -> t IO Word8)
     -> String
-    -> (t IO Word8 -> t IO Word8)
+    -> (t IO Word8 -> SerialT IO Word8)
     -> Spec
 transformOpsWord8 constr desc t = do
     prop (desc ++ " elem") $ elemOp constr t A.elem elem
@@ -214,7 +209,7 @@ semigroupOps
 #endif
        , Monoid (t IO Int))
     => String
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> Spec
 semigroupOps desc t eq = do
@@ -222,9 +217,9 @@ semigroupOps desc t eq = do
     prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend singleton) t eq
 
 applicativeOps
-    :: (IsStream t, Applicative (t IO))
+    :: Applicative (t IO)
     => ([Int] -> t IO Int)
-    -> (t IO (Int, Int) -> t IO (Int, Int))
+    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
@@ -236,7 +231,7 @@ applicativeOps constr t eq (a, b) = monadicIO $ do
 zipApplicative
     :: (IsStream t, Applicative (t IO))
     => ([Int] -> t IO Int)
-    -> (t IO (Int, Int) -> t IO (Int, Int))
+    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
@@ -252,7 +247,7 @@ zipApplicative constr t eq (a, b) = monadicIO $ do
 zipMonadic
     :: (IsStream t, Monad (t IO))
     => ([Int] -> t IO Int)
-    -> (t IO (Int, Int) -> t IO (Int, Int))
+    -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
@@ -271,9 +266,9 @@ zipMonadic constr t eq (a, b) =
         equals eq stream2 list
 
 monadThen
-    :: (IsStream t, Monad (t IO))
+    :: Monad (t IO)
     => ([Int] -> t IO Int)
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
@@ -283,9 +278,9 @@ monadThen constr t eq (a, b) = monadicIO $ do
     equals eq stream list
 
 monadBind
-    :: (IsStream t, Monad (t IO))
+    :: Monad (t IO)
     => ([Int] -> t IO Int)
-    -> (t IO Int -> t IO Int)
+    -> (t IO Int -> SerialT IO Int)
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
@@ -313,7 +308,7 @@ main = hspec $ do
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
     let folded :: IsStream t => [a] -> t IO a
-        folded = adapt . serially . (\xs ->
+        folded = serially . (\xs ->
             case xs of
                 [x] -> return x -- singleton stream case
                 _ -> foldMapWith (<>) return xs

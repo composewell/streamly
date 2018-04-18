@@ -5,32 +5,32 @@ main = do
     liftIO $ hSetBuffering stdout LineBuffering
 
     putStrLn $ "\nloopTail:\n"
-    runSerialT $ do
+    runStream $ do
         x <- loopTail 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHead:\n"
-    runSerialT $ do
+    runStream $ do
         x <- loopHead 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopTailA:\n"
-    runSerialT $ do
+    runStream $ do
         x <- loopTailA 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nloopHeadA:\n"
-    runSerialT $ do
+    runStream $ do
         x <- loopHeadA 0
         liftIO $ print (x :: Int)
 
     putStrLn $ "\ninterleave:\n"
-    runSerialT $ do
+    runStream $ do
         x <- (return 0 <> return 1) `interleave` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
-    runSerialT $ do
+    runStream $ do
         x <- (return 0 <> return 1) `parallel` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
