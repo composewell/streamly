@@ -65,7 +65,7 @@ source n = S.fromFoldable [n..n+value]
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runSerialT
+runStream = S.runStream
 
 -------------------------------------------------------------------------------
 -- Elimination
