@@ -48,9 +48,9 @@ module Streamly.Streams
     , async
 
     -- * Merging Streams
-    , append
-    , interleave
-    , aparallel
+    , serial
+    , coserial
+    , coparallel
     , parallel
     , (<=>)            --deprecated
     , (<|)             --deprecated
@@ -68,8 +68,8 @@ module Streamly.Streams
 
     -- * Type Adapters
     , serially
-    , interleaving
-    , aparallely
+    , coserially
+    , coparallely
     , asyncly          -- deprecated
     , parallely
     , zipping
@@ -336,9 +336,9 @@ type StreamT = SerialT
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'SerialT'.
 -- Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
-{-# INLINE append #-}
-append :: IsStream t => t m a -> t m a -> t m a
-append m1 m2 = fromStream $ S.append (toStream m1) (toStream m2)
+{-# INLINE serial #-}
+serial :: IsStream t => t m a -> t m a -> t m a
+serial m1 m2 = fromStream $ S.serial (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -469,20 +469,20 @@ instance IsStream InterleavedT where
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'InterleavedT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
-{-# INLINE interleave #-}
-interleave :: IsStream t => t m a -> t m a -> t m a
-interleave m1 m2 = fromStream $ S.interleave (toStream m1) (toStream m2)
+{-# INLINE coserial #-}
+coserial :: IsStream t => t m a -> t m a -> t m a
+coserial m1 m2 = fromStream $ S.coserial (toStream m1) (toStream m2)
 
 instance Semigroup (InterleavedT m a) where
-    (<>) = interleave
+    (<>) = coserial
 
 infixr 5 <=>
 
--- | Same as 'interleave'.
-{-# Deprecated (<=>) "Please use '<>' of InterleavedT or 'interleave' instead." #-}
+-- | Same as 'coserial'.
+{-# DEPRECATED (<=>) "Please use 'coserial' instead." #-}
 {-# INLINE (<=>) #-}
 (<=>) :: IsStream t => t m a -> t m a -> t m a
-(<=>) = interleave
+(<=>) = coserial
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -570,7 +570,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- enough for the consumer.
 --
 -- @
--- main = ('toList' . 'aparallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- main = ('toList' . 'coparallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
 -- @
 -- @
 -- [1,2,3,4]
@@ -585,7 +585,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- import "Streamly"
 -- import Control.Concurrent
 --
--- main = 'runStream' . 'aparallely' $ do
+-- main = 'runStream' . 'coparallely' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     liftIO $ do
 --          threadDelay (n * 1000000)
@@ -629,18 +629,18 @@ instance IsStream AParallelT where
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AParallelT', but
 -- polymorphic.  Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
-{-# INLINE aparallel #-}
-aparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-aparallel m1 m2 = fromStream $ S.aparallel (toStream m1) (toStream m2)
+{-# INLINE coparallel #-}
+coparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+coparallel m1 m2 = fromStream $ S.coparallel (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (AParallelT m a) where
-    (<>) = aparallel
+    (<>) = coparallel
 
--- | Same as 'aparallel'.
-{-# DEPRECATED (<|) "Please use 'aparallel' instead." #-}
+-- | Same as 'coparallel'.
+{-# DEPRECATED (<|) "Please use 'coparallel' instead." #-}
 {-# INLINE (<|) #-}
 (<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-(<|) = aparallel
+(<|) = coparallel
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -1074,17 +1074,17 @@ serially :: IsStream t => SerialT m a -> t m a
 serially = adapt
 
 -- | Fix the type of a polymorphic stream as 'InterleavedT'.
-interleaving :: IsStream t => InterleavedT m a -> t m a
-interleaving = adapt
+coserially :: IsStream t => InterleavedT m a -> t m a
+coserially = adapt
 
 -- | Fix the type of a polymorphic stream as 'AParallelT'.
-aparallely :: IsStream t => AParallelT m a -> t m a
-aparallely = adapt
+coparallely :: IsStream t => AParallelT m a -> t m a
+coparallely = adapt
 
--- | Same as 'aparallely'.
-{-# DEPRECATED asyncly "Please use aparallely instead." #-}
+-- | Same as 'coparallely'.
+{-# DEPRECATED asyncly "Please use coparallely instead." #-}
 asyncly :: IsStream t => AParallelT m a -> t m a
-asyncly = aparallely
+asyncly = coparallely
 
 -- | Fix the type of a polymorphic stream as 'ParallelT'.
 parallely :: IsStream t => ParallelT m a -> t m a
@@ -1107,15 +1107,15 @@ zippingAsync = adapt
 runStreamT :: Monad m => SerialT m a -> m ()
 runStreamT = runStream
 
--- | Same as @runStream . interleaving@.
+-- | Same as @runStream . coserially@.
 {-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
-runInterleavedT = runStream . interleaving
+runInterleavedT = runStream . coserially
 
--- | Same as @runStream . aparallely@.
-{-# DEPRECATED runAsyncT "Please use 'runStream . aparallely' instead." #-}
+-- | Same as @runStream . coparallely@.
+{-# DEPRECATED runAsyncT "Please use 'runStream . coparallely' instead." #-}
 runAsyncT :: Monad m => AParallelT m a -> m ()
-runAsyncT = runStream . aparallely
+runAsyncT = runStream . coparallely
 
 -- | Same as @runStream . parallely@.
 {-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}

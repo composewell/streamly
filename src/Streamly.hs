@@ -32,9 +32,9 @@ module Streamly
 
     -- * Polymorphic Sum Operations
     -- $sum
-    , append
-    , interleave
-    , aparallel
+    , serial
+    , coserial
+    , coparallel
     , parallel
 
     -- * Transformation
@@ -43,8 +43,8 @@ module Streamly
     -- * Stream Type Adapters
     -- $adapters
     , serially
-    , interleaving
-    , aparallely
+    , coserially
+    , coparallely
     , parallely
     , zipping
     , zippingAsync
@@ -193,7 +193,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- To adapt from one monomorphic type (e.g. 'ParallelT') to another monomorphic
 -- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
--- use the type specific combinators e.g. 'parallely' or 'interleaving'. You
+-- use the type specific combinators e.g. 'parallely' or 'coserially'. You
 -- cannot adapt polymorphic code to polymorphic code, as it would not know
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'

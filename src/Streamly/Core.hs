@@ -29,9 +29,9 @@ module Streamly.Core
     , nil
 
     -- * Semigroup Style Composition
-    , append
-    , interleave
-    , aparallel
+    , serial
+    , coserial
+    , coparallel
     , parallel
 
     -- * Alternative
@@ -242,8 +242,8 @@ nil = Stream $ \_ stp _ -> stp
 
 -- | Concatenates two streams sequentially i.e. the first stream is
 -- exhausted completely before yielding any element from the second stream.
-append :: Stream m a -> Stream m a -> Stream m a
-append m1 m2 = go m1
+serial :: Stream m a -> Stream m a -> Stream m a
+serial m1 m2 = go m1
     where
     go (Stream m) = Stream $ \_ stp yld ->
             let stop = (runStream m2) Nothing stp yld
@@ -252,7 +252,7 @@ append m1 m2 = go m1
             in m Nothing stop yield
 
 instance Semigroup (Stream m a) where
-    (<>) = append
+    (<>) = serial
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -266,11 +266,11 @@ instance Monoid (Stream m a) where
 -- Interleave
 ------------------------------------------------------------------------------
 
-interleave :: Stream m a -> Stream m a -> Stream m a
-interleave m1 m2 = Stream $ \_ stp yld -> do
+coserial :: Stream m a -> Stream m a -> Stream m a
+coserial m1 m2 = Stream $ \_ stp yld -> do
     let stop = (runStream m2) Nothing stp yld
         yield a Nothing  = yld a (Just m2)
-        yield a (Just r) = yld a (Just (interleave m2 r))
+        yield a (Just r) = yld a (Just (coserial m2 r))
     (runStream m1) Nothing stop yield
 
 ------------------------------------------------------------------------------
@@ -608,9 +608,9 @@ joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-{-# INLINE aparallel #-}
-aparallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-aparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
+{-# INLINE coparallel #-}
+coparallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+coparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a

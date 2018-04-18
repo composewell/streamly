@@ -316,10 +316,10 @@ main = hspec $ do
     describe "Functor operations" $ do
         functorOps A.fromFoldable "serially" serially (==)
         functorOps folded "serially folded" serially (==)
-        functorOps A.fromFoldable "interleaving" interleaving (==)
-        functorOps folded "interleaving folded" interleaving (==)
-        functorOps A.fromFoldable "aparallely" aparallely sortEq
-        functorOps folded "aparallely folded" aparallely sortEq
+        functorOps A.fromFoldable "coserially" coserially (==)
+        functorOps folded "coserially folded" coserially (==)
+        functorOps A.fromFoldable "coparallely" coparallely sortEq
+        functorOps folded "coparallely folded" coparallely sortEq
         functorOps A.fromFoldable "parallely" parallely sortEq
         functorOps folded "parallely folded" parallely sortEq
         functorOps A.fromFoldable "zipping" zipping (==)
@@ -329,8 +329,8 @@ main = hspec $ do
 
     describe "Semigroup operations" $ do
         semigroupOps "serially" serially (==)
-        semigroupOps "interleaving" interleaving (==)
-        semigroupOps "aparallely" aparallely sortEq
+        semigroupOps "coserially" coserially (==)
+        semigroupOps "coparallely" coparallely sortEq
         semigroupOps "parallely" parallely sortEq
         semigroupOps "zipping" zipping (==)
         semigroupOps "zippingAsync" zippingAsync (==)
@@ -341,10 +341,10 @@ main = hspec $ do
         -- XXX applicative with three arguments
         prop "serially applicative" $ applicativeOps A.fromFoldable serially (==)
         prop "serially applicative folded" $ applicativeOps folded serially (==)
-        prop "interleaving applicative" $ applicativeOps A.fromFoldable interleaving sortEq
-        prop "interleaving applicative folded" $ applicativeOps folded interleaving sortEq
-        prop "aparallely applicative" $ applicativeOps A.fromFoldable aparallely sortEq
-        prop "aparallely applicative folded" $ applicativeOps folded aparallely sortEq
+        prop "coserially applicative" $ applicativeOps A.fromFoldable coserially sortEq
+        prop "coserially applicative folded" $ applicativeOps folded coserially sortEq
+        prop "coparallely applicative" $ applicativeOps A.fromFoldable coparallely sortEq
+        prop "coparallely applicative folded" $ applicativeOps folded coparallely sortEq
         prop "parallely applicative folded" $ applicativeOps folded parallely sortEq
 
     describe "Zip operations" $ do
@@ -353,80 +353,80 @@ main = hspec $ do
         -- prop "zippingAsync applicative" $ zipApplicative zippingAsync (==)
         prop "zip monadic serially" $ zipMonadic A.fromFoldable serially (==)
         prop "zip monadic serially folded" $ zipMonadic folded serially (==)
-        prop "zip monadic interleaving" $ zipMonadic A.fromFoldable interleaving (==)
-        prop "zip monadic interleaving folded" $ zipMonadic folded interleaving (==)
-        prop "zip monadic aparallely" $ zipMonadic A.fromFoldable aparallely (==)
-        prop "zip monadic aparallely folded" $ zipMonadic folded aparallely (==)
+        prop "zip monadic coserially" $ zipMonadic A.fromFoldable coserially (==)
+        prop "zip monadic coserially folded" $ zipMonadic folded coserially (==)
+        prop "zip monadic coparallely" $ zipMonadic A.fromFoldable coparallely (==)
+        prop "zip monadic coparallely folded" $ zipMonadic folded coparallely (==)
         prop "zip monadic parallely" $ zipMonadic A.fromFoldable parallely (==)
         prop "zip monadic parallely folded" $ zipMonadic folded parallely (==)
 
     describe "Monad operations" $ do
         prop "serially monad then" $ monadThen A.fromFoldable serially (==)
-        prop "interleaving monad then" $ monadThen A.fromFoldable interleaving sortEq
-        prop "aparallely monad then" $ monadThen A.fromFoldable aparallely sortEq
+        prop "coserially monad then" $ monadThen A.fromFoldable coserially sortEq
+        prop "coparallely monad then" $ monadThen A.fromFoldable coparallely sortEq
         prop "parallely monad then" $ monadThen A.fromFoldable parallely sortEq
 
         prop "serially monad then folded" $ monadThen folded serially (==)
-        prop "interleaving monad then folded" $ monadThen folded interleaving sortEq
-        prop "aparallely monad then folded" $ monadThen folded aparallely sortEq
+        prop "coserially monad then folded" $ monadThen folded coserially sortEq
+        prop "coparallely monad then folded" $ monadThen folded coparallely sortEq
         prop "parallely monad then folded" $ monadThen folded parallely sortEq
 
         prop "serially monad bind" $ monadBind A.fromFoldable serially (==)
-        prop "interleaving monad bind" $ monadBind A.fromFoldable interleaving sortEq
-        prop "aparallely monad bind" $ monadBind A.fromFoldable aparallely sortEq
+        prop "coserially monad bind" $ monadBind A.fromFoldable coserially sortEq
+        prop "coparallely monad bind" $ monadBind A.fromFoldable coparallely sortEq
         prop "parallely monad bind" $ monadBind A.fromFoldable parallely sortEq
 
     describe "Stream transform operations" $ do
         transformOps A.fromFoldable "serially" serially (==)
-        transformOps A.fromFoldable "interleaving" interleaving (==)
+        transformOps A.fromFoldable "coserially" coserially (==)
         transformOps A.fromFoldable "zipping" zipping (==)
         transformOps A.fromFoldable "zippingAsync" zippingAsync (==)
-        transformOps A.fromFoldable "aparallely" aparallely sortEq
+        transformOps A.fromFoldable "coparallely" coparallely sortEq
         transformOps A.fromFoldable "parallely" parallely sortEq
 
         transformOps folded "serially folded" serially (==)
-        transformOps folded "interleaving folded" interleaving (==)
+        transformOps folded "coserially folded" coserially (==)
         transformOps folded "zipping folded" zipping (==)
         transformOps folded "zippingAsync folded" zippingAsync (==)
-        transformOps folded "aparallely folded" aparallely sortEq
+        transformOps folded "coparallely folded" coparallely sortEq
         transformOps folded "parallely folded" parallely sortEq
 
         transformOpsWord8 A.fromFoldable "serially" serially
-        transformOpsWord8 A.fromFoldable "interleaving" interleaving
+        transformOpsWord8 A.fromFoldable "coserially" coserially
         transformOpsWord8 A.fromFoldable "zipping" zipping
         transformOpsWord8 A.fromFoldable "zippingAsync" zippingAsync
-        transformOpsWord8 A.fromFoldable "aparallely" aparallely
+        transformOpsWord8 A.fromFoldable "coparallely" coparallely
         transformOpsWord8 A.fromFoldable "parallely" parallely
 
         transformOpsWord8 folded "serially folded" serially
-        transformOpsWord8 folded "interleaving folded" interleaving
+        transformOpsWord8 folded "coserially folded" coserially
         transformOpsWord8 folded "zipping folded" zipping
         transformOpsWord8 folded "zippingAsync folded" zippingAsync
-        transformOpsWord8 folded "aparallely folded" aparallely
+        transformOpsWord8 folded "coparallely folded" coparallely
         transformOpsWord8 folded "parallely folded" parallely
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "serially" serially
-        eliminationOps A.fromFoldable "interleaving" interleaving
+        eliminationOps A.fromFoldable "coserially" coserially
         eliminationOps A.fromFoldable "zipping" zipping
         eliminationOps A.fromFoldable "zippingAsync" zippingAsync
-        eliminationOps A.fromFoldable "aparallely" aparallely
+        eliminationOps A.fromFoldable "coparallely" coparallely
         eliminationOps A.fromFoldable "parallely" parallely
 
         eliminationOps folded "serially folded" serially
-        eliminationOps folded "interleaving folded" interleaving
+        eliminationOps folded "coserially folded" coserially
         eliminationOps folded "zipping folded" zipping
         eliminationOps folded "zippingAsync folded" zippingAsync
-        eliminationOps folded "aparallely folded" aparallely
+        eliminationOps folded "coparallely folded" coparallely
         eliminationOps folded "parallely folded" parallely
 
     describe "Stream elimination operations" $ do
         serialEliminationOps A.fromFoldable "serially" serially
-        serialEliminationOps A.fromFoldable "interleaving" interleaving
+        serialEliminationOps A.fromFoldable "coserially" coserially
         serialEliminationOps A.fromFoldable "zipping" zipping
         serialEliminationOps A.fromFoldable "zippingAsync" zippingAsync
 
         serialEliminationOps folded "serially folded" serially
-        serialEliminationOps folded "interleaving folded" interleaving
+        serialEliminationOps folded "coserially folded" coserially
         serialEliminationOps folded "zipping folded" zipping
         serialEliminationOps folded "zippingAsync folded" zippingAsync
