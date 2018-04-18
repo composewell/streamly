@@ -157,8 +157,7 @@ wrapMaybe f =
             else Just (f x)
 
 eliminationOps
-    :: IsStream t
-    => ([Int] -> t IO Int)
+    :: ([Int] -> t IO Int)
     -> String
     -> (t IO Int -> SerialT IO Int)
     -> Spec
@@ -193,8 +192,7 @@ serialEliminationOps constr desc t = do
     prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ A.last . t
 
 transformOpsWord8
-    :: IsStream t
-    => ([Word8] -> t IO Word8)
+    :: ([Word8] -> t IO Word8)
     -> String
     -> (t IO Word8 -> SerialT IO Word8)
     -> Spec
