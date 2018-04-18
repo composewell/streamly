@@ -91,8 +91,8 @@ main = hspec $ do
     describe "Interleaved Composition" $ compose coserially mempty sort
     describe "Left biased parallel Composition" $ compose coparallely mempty sort
     describe "Fair parallel Composition" $ compose parallely mempty sort
-    describe "Semigroup Composition for ZipSerial" $ compose zipping mempty id
-    describe "Semigroup Composition for ZipAsync" $ compose zippingAsync mempty id
+    describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
+    describe "Semigroup Composition for ZipAsync" $ compose zipParallely mempty id
     -- XXX need to check alternative compositions as well
     ---------------------------------------------------------------------------
     -- Monoidal Composition ordering checks

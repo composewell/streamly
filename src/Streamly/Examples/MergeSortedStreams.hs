@@ -14,14 +14,14 @@ getSorted = do
     let ls = take 100000 (randoms g) :: [Word16]
     foldMapWith (<>) return (sort ls)
 
-mergeAsync :: (Ord a, MonadAsync m)
+mergeAsync :: (Ord a, MonadParallel m)
     => SerialT m a -> SerialT m a -> SerialT m a
 mergeAsync a b = do
     x <- lift $ async a
     y <- lift $ async b
     merge x y
 
-merge :: (Ord a, MonadAsync m) => SerialT m a -> SerialT m a -> SerialT m a
+merge :: (Ord a, MonadParallel m) => SerialT m a -> SerialT m a -> SerialT m a
 merge a b = do
     a1 <- lift $ A.uncons a
     case a1 of

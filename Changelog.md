@@ -31,19 +31,24 @@
 
 ### Deprecations
 * Deprecate and rename the following symbols:
-    * `StreamT` to `SerialT`
-    * `ZipStream` to `ZipSerial`
-    * `AsyncT` to `CoparallelT`
-    * `interleaving` to `coserially`
-    * `asyncly` to `coparallely`
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
+    * `StreamT` to `SerialT`
+    * `AsyncT` to `CoparallelT`
+    * `ZipStream` to `ZipSerial`
+    * `ZipAsync` to `ZipParallel`
+    * `interleaving` to `coserially`
+    * `asyncly` to `coparallely`
+    * `zipping` to `zipSerially`
+    * `zippingAsync` to `zipParallely`
     * `<=>` to `coserial`
     * `<|` to `coparallel`
     * `each` to `fromFoldable`
     * `scan` to `scanx`
     * `foldl` to `foldx`
     * `foldlM` to `foldxM`
+    * `zipAsyncWith` to `zipParallelWith`
+    * `zipAsyncWithM` to `zipParallelWithM`
 * Deprecate and remove the following symbols:
     * `runStreamT`
     * `runInterleavedT`

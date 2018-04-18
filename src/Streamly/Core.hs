@@ -18,7 +18,8 @@
 --
 module Streamly.Core
     (
-      MonadAsync
+      MonadParallel
+    , MonadAsync      -- deprecated
 
     -- * Streams
     , Stream (..)
@@ -213,10 +214,13 @@ newtype Stream m a =
             -> m r
     }
 
--- | A monad that can perform asynchronous/concurrent IO operations. Streams
+-- | A monad that can perform concurrent or parallel IO operations. Streams
 -- that can be composed concurrently require the underlying monad to be
--- 'MonadAsync'.
-type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+-- 'MonadParallel'.
+type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+
+{-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
+type MonadAsync m = MonadParallel m
 
 cons :: a -> Maybe (Stream m a) -> Stream m a
 cons a r = Stream $ \_ _ yld -> yld a r
@@ -377,7 +381,7 @@ handleChildException sv e = do
     send sv (ChildStop tid (Just e))
 
 {-# NOINLINE pushWorker #-}
-pushWorker :: MonadAsync m => SVar m a -> m ()
+pushWorker :: MonadParallel m => SVar m a -> m ()
 pushWorker sv =
     doFork (runqueue sv) (handleChildException sv) >>= addThread sv
 
@@ -386,7 +390,7 @@ pushWorker sv =
 -- block or make it go away entirely, depending on the number of workers and
 -- the type of the queue.
 {-# INLINE sendWorkerWait #-}
-sendWorkerWait :: MonadAsync m => SVar m a -> m ()
+sendWorkerWait :: MonadParallel m => SVar m a -> m ()
 sendWorkerWait sv = do
     case svarStyle sv of
         SVarStyle _ LIFO -> liftIO $ threadDelay 200
@@ -401,7 +405,7 @@ sendWorkerWait sv = do
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
-fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
+fromStreamVar :: MonadParallel m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp yld -> do
     -- XXX if reading the IORef is costly we can use a flag in the SVar to
     -- indicate we are done.
@@ -479,7 +483,7 @@ getLifoSVar ctype = do
      in return sv
 
 -- | Create a new empty SVar.
-newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
+newEmptySVar :: MonadParallel m => SVarStyle -> m (SVar m a)
 newEmptySVar style = do
     liftIO $
         case style of
@@ -487,7 +491,7 @@ newEmptySVar style = do
             SVarStyle _ LIFO -> getLifoSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
-newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
+newStreamVar1 :: MonadParallel m => SVarStyle -> Stream m a -> m (SVar m a)
 newStreamVar1 style m = do
     sv <- newEmptySVar style
     -- Note: We must have all the work on the queue before sending the
@@ -498,7 +502,7 @@ newStreamVar1 style m = do
     return sv
 
 -- | Create a new SVar and enqueue two stream computations on it.
-newStreamVar2 :: MonadAsync m
+newStreamVar2 :: MonadParallel m
     => SVarStyle -> Stream m a -> Stream m a -> m (SVar m a)
 newStreamVar2 style m1 m2 = do
     -- Note: We must have all the work on the queue before sending the
@@ -519,7 +523,7 @@ newStreamVar2 style m1 m2 = do
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toStreamVar :: MonadAsync m => SVar m a -> Stream m a -> m ()
+toStreamVar :: MonadParallel m => SVar m a -> Stream m a -> m ()
 toStreamVar sv m = do
     liftIO $ (enqueue sv) m
     done <- allThreadsDone sv
@@ -561,7 +565,7 @@ toStreamVar sv m = do
 -- just the number of CPUs.
 
 {-# NOINLINE withNewSVar2 #-}
-withNewSVar2 :: MonadAsync m
+withNewSVar2 :: MonadParallel m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
     sv <- newStreamVar2 style m1 m2
@@ -596,7 +600,7 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 --   of the two.
 --
 {-# INLINE joinStreamVar2 #-}
-joinStreamVar2 :: MonadAsync m
+joinStreamVar2 :: MonadParallel m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
     case st of
@@ -609,11 +613,11 @@ joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
 ------------------------------------------------------------------------------
 
 {-# INLINE coparallel #-}
-coparallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+coparallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
 coparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
 {-# INLINE parallel #-}
-parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+parallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
 parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -------------------------------------------------------------------------------
@@ -647,11 +651,11 @@ alt m1 m2 = Stream $ \_ stp yld ->
         yield = yld
     in runStream m1 Nothing stop yield
 
-instance MonadAsync m => Alternative (Stream m) where
+instance MonadParallel m => Alternative (Stream m) where
     empty = nil
     (<|>) = alt
 
-instance MonadAsync m => MonadPlus (Stream m) where
+instance MonadParallel m => MonadPlus (Stream m) where
     mzero = nil
     mplus = (<|>)
 

@@ -21,7 +21,8 @@ module Streamly.Streams
     (
       IsStream (..)
     , Streaming         -- deprecated
-    , MonadAsync
+    , MonadParallel
+    , S.MonadAsync      -- deprecated
 
     -- * SVars
     , SVarSched (..)
@@ -65,7 +66,8 @@ module Streamly.Streams
     , ParallelT
     , ZipSerial
     , ZipStream         -- deprecated
-    , ZipAsync
+    , ZipParallel
+    , ZipAsync          -- deprecated
 
     -- * Type Adapters
     , serially
@@ -74,8 +76,10 @@ module Streamly.Streams
     , coparallely
     , asyncly          -- deprecated
     , parallely
-    , zipping
-    , zippingAsync
+    , zipSerially
+    , zipping          -- deprecated
+    , zipParallely
+    , zippingAsync     -- deprecated
     , adapt
 
     -- * Running Streams
@@ -88,10 +92,10 @@ module Streamly.Streams
 
     -- * Zipping
     , zipWith
-    , zipAsyncWith
+    , zipParallelWith
+    , zipAsyncWith    -- deprecated
 
     -- * Fold Utilities
-    -- $foldutils
     , foldWith
     , foldMapWith
     , forEachWith
@@ -109,7 +113,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
-import           Streamly.Core               ( MonadAsync, Stream(Stream)
+import           Streamly.Core               ( MonadParallel, Stream(Stream)
                                              , SVar, SVarStyle(..)
                                              , SVarTag(..), SVarSched(..))
 import qualified Streamly.Core as S
@@ -201,7 +205,7 @@ fromCallback :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
 fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
 
 -- | Read an SVar to get a stream.
-fromSVar :: (MonadAsync m, IsStream t) => SVar m a -> t m a
+fromSVar :: (MonadParallel m, IsStream t) => SVar m a -> t m a
 fromSVar sv = fromStream $ S.fromStreamVar sv
 
 ------------------------------------------------------------------------------
@@ -218,7 +222,9 @@ streamFold sv step blank m =
         yield a (Just x) = step a (Just (fromStream x))
      in (S.runStream (toStream m)) sv blank yield
 
--- | Run a streaming composition, discard the results.
+-- | Run a streaming composition, discard the results. By default it interprets
+-- the stream as 'SerialT', to run other types of streams use the type adapting
+-- combinators for example @runStream . 'parallely'@.
 runStream :: Monad m => SerialT m a -> m ()
 runStream m = go (toStream m)
     where
@@ -235,7 +241,7 @@ runStreaming = runStream . adapt
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toSVar :: (IsStream t, MonadAsync m) => SVar m a -> t m a -> m ()
+toSVar :: (IsStream t, MonadParallel m) => SVar m a -> t m a -> m ()
 toSVar sv m = S.toStreamVar sv (toStream m)
 
 ------------------------------------------------------------------------------
@@ -249,7 +255,7 @@ toSVar sv m = S.toStreamVar sv (toStream m)
 -- not drained fully we may have a thread blocked forever and once exhausted it
 -- will always return 'empty'.
 
-async :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
+async :: (IsStream t, MonadParallel m) => t m a -> m (t m a)
 async m = do
     sv <- S.newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
     return $ fromSVar sv
@@ -311,8 +317,8 @@ async m = do
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
     deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
 
-deriving instance MonadAsync m => Alternative (SerialT m)
-deriving instance MonadAsync m => MonadPlus (SerialT m)
+deriving instance MonadParallel m => Alternative (SerialT m)
+deriving instance MonadParallel m => MonadPlus (SerialT m)
 deriving instance (MonadBase b m, Monad m) => MonadBase b (SerialT m)
 deriving instance MonadError e m => MonadError e (SerialT m)
 deriving instance MonadReader r m => MonadReader r (SerialT m)
@@ -454,8 +460,8 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 newtype CoserialT m a = CoserialT {getCoserialT :: Stream m a}
     deriving (Monoid, MonadTrans, MonadIO, MonadThrow)
 
-deriving instance MonadAsync m => Alternative (CoserialT m)
-deriving instance MonadAsync m => MonadPlus (CoserialT m)
+deriving instance MonadParallel m => Alternative (CoserialT m)
+deriving instance MonadParallel m => MonadPlus (CoserialT m)
 deriving instance (MonadBase b m, Monad m) => MonadBase b (CoserialT m)
 deriving instance MonadError e m => MonadError e (CoserialT m)
 deriving instance MonadReader r m => MonadReader r (CoserialT m)
@@ -610,15 +616,15 @@ instance (Monad m, Floating a) => Floating (CoserialT m a) where
 newtype CoparallelT m a = CoparallelT {getCoparallelT :: Stream m a}
     deriving (MonadTrans)
 
-deriving instance MonadAsync m => Monoid (CoparallelT m a)
-deriving instance MonadAsync m => Alternative (CoparallelT m)
-deriving instance MonadAsync m => MonadPlus (CoparallelT m)
-deriving instance MonadAsync m => MonadIO (CoparallelT m)
-deriving instance MonadAsync m => MonadThrow (CoparallelT m)
-deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (CoparallelT m)
-deriving instance (MonadError e m, MonadAsync m) => MonadError e (CoparallelT m)
-deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (CoparallelT m)
-deriving instance (MonadState s m, MonadAsync m) => MonadState s (CoparallelT m)
+deriving instance MonadParallel m => Monoid (CoparallelT m a)
+deriving instance MonadParallel m => Alternative (CoparallelT m)
+deriving instance MonadParallel m => MonadPlus (CoparallelT m)
+deriving instance MonadParallel m => MonadIO (CoparallelT m)
+deriving instance MonadParallel m => MonadThrow (CoparallelT m)
+deriving instance (MonadBase b m, MonadParallel m) => MonadBase b (CoparallelT m)
+deriving instance (MonadError e m, MonadParallel m) => MonadError e (CoparallelT m)
+deriving instance (MonadReader r m, MonadParallel m) => MonadReader r (CoparallelT m)
+deriving instance (MonadState s m, MonadParallel m) => MonadState s (CoparallelT m)
 
 {-# DEPRECATED AsyncT "Please use 'CoparallelT' instead." #-}
 type AsyncT = CoparallelT
@@ -635,16 +641,16 @@ instance IsStream CoparallelT where
 -- polymorphic.  Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
 {-# INLINE coparallel #-}
-coparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+coparallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
 coparallel m1 m2 = fromStream $ S.coparallel (toStream m1) (toStream m2)
 
-instance MonadAsync m => Semigroup (CoparallelT m a) where
+instance MonadParallel m => Semigroup (CoparallelT m a) where
     (<>) = coparallel
 
 -- | Same as 'coparallel'.
 {-# DEPRECATED (<|) "Please use 'coparallel' instead." #-}
 {-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+(<|) :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
 (<|) = coparallel
 
 ------------------------------------------------------------------------------
@@ -666,7 +672,7 @@ parbind par m f = go m
                 yield a (Just r) = run $ f a `par` go r
             in g Nothing stp yield
 
-instance MonadAsync m => Monad (CoparallelT m) where
+instance MonadParallel m => Monad (CoparallelT m) where
     return = pure
     (CoparallelT m) >>= f = CoparallelT $ parbind par m g
         where g x = getCoparallelT (f x)
@@ -676,7 +682,7 @@ instance MonadAsync m => Monad (CoparallelT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Applicative (CoparallelT m) where
+instance MonadParallel m => Applicative (CoparallelT m) where
     pure a = CoparallelT $ S.cons a Nothing
     (<*>) = ap
 
@@ -694,7 +700,7 @@ instance Monad m => Functor (CoparallelT m) where
 -- Num
 ------------------------------------------------------------------------------
 
-instance (MonadAsync m, Num a) => Num (CoparallelT m a) where
+instance (MonadParallel m, Num a) => Num (CoparallelT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -705,14 +711,14 @@ instance (MonadAsync m, Num a) => Num (CoparallelT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (MonadAsync m, Fractional a) => Fractional (CoparallelT m a) where
+instance (MonadParallel m, Fractional a) => Fractional (CoparallelT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (MonadAsync m, Floating a) => Floating (CoparallelT m a) where
+instance (MonadParallel m, Floating a) => Floating (CoparallelT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -778,15 +784,15 @@ instance (MonadAsync m, Floating a) => Floating (CoparallelT m a) where
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
     deriving (MonadTrans)
 
-deriving instance MonadAsync m => Monoid (ParallelT m a)
-deriving instance MonadAsync m => Alternative (ParallelT m)
-deriving instance MonadAsync m => MonadPlus (ParallelT m)
-deriving instance MonadAsync m => MonadIO (ParallelT m)
-deriving instance MonadAsync m => MonadThrow (ParallelT m)
-deriving instance (MonadBase b m, MonadAsync m) => MonadBase b (ParallelT m)
-deriving instance (MonadError e m, MonadAsync m) => MonadError e (ParallelT m)
-deriving instance (MonadReader r m, MonadAsync m) => MonadReader r (ParallelT m)
-deriving instance (MonadState s m, MonadAsync m) => MonadState s (ParallelT m)
+deriving instance MonadParallel m => Monoid (ParallelT m a)
+deriving instance MonadParallel m => Alternative (ParallelT m)
+deriving instance MonadParallel m => MonadPlus (ParallelT m)
+deriving instance MonadParallel m => MonadIO (ParallelT m)
+deriving instance MonadParallel m => MonadThrow (ParallelT m)
+deriving instance (MonadBase b m, MonadParallel m) => MonadBase b (ParallelT m)
+deriving instance (MonadError e m, MonadParallel m) => MonadError e (ParallelT m)
+deriving instance (MonadReader r m, MonadParallel m) => MonadReader r (ParallelT m)
+deriving instance (MonadState s m, MonadParallel m) => MonadState s (ParallelT m)
 
 instance IsStream ParallelT where
     toStream = getParallelT
@@ -799,17 +805,17 @@ instance IsStream ParallelT where
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'.
 -- Merges two streams concurrently choosing elements from both fairly.
 {-# INLINE parallel #-}
-parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
 parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
 
-instance MonadAsync m => Semigroup (ParallelT m a) where
+instance MonadParallel m => Semigroup (ParallelT m a) where
     (<>) = parallel
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Monad (ParallelT m) where
+instance MonadParallel m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f = ParallelT $ parbind par m g
         where g x = getParallelT (f x)
@@ -819,7 +825,7 @@ instance MonadAsync m => Monad (ParallelT m) where
 -- Applicative
 ------------------------------------------------------------------------------
 
-instance MonadAsync m => Applicative (ParallelT m) where
+instance MonadParallel m => Applicative (ParallelT m) where
     pure a = ParallelT $ S.cons a Nothing
     (<*>) = ap
 
@@ -838,7 +844,7 @@ instance Monad m => Functor (ParallelT m) where
 -- Num
 ------------------------------------------------------------------------------
 
-instance (MonadAsync m, Num a) => Num (ParallelT m a) where
+instance (MonadParallel m, Num a) => Num (ParallelT m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -849,14 +855,14 @@ instance (MonadAsync m, Num a) => Num (ParallelT m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (MonadAsync m, Fractional a) => Fractional (ParallelT m a) where
+instance (MonadParallel m, Fractional a) => Fractional (ParallelT m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (MonadAsync m, Floating a) => Floating (ParallelT m a) where
+instance (MonadParallel m, Floating a) => Floating (ParallelT m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -897,11 +903,10 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 
 -- | The applicative instance of 'ZipSerial' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
--- those elements. Note, for convenience we have used the 'zipping' combinator
--- in the following example instead of using a 'ZipSerial' type annotation.
+-- those elements.
 --
 -- @
--- main = (toList . 'zipping' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
+-- main = (toList . 'zipSerially' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
 --     where s1 = fromFoldable [1, 2]
 --           s2 = fromFoldable [3, 4]
 --           s3 = fromFoldable [5, 6]
@@ -920,7 +925,7 @@ newtype ZipSerial m a = ZipSerial {getZipSerial :: Stream m a}
 -- | Same as ZipSerial.
 type ZipStream = ZipSerial
 
-deriving instance MonadAsync m => Alternative (ZipSerial m)
+deriving instance MonadParallel m => Alternative (ZipSerial m)
 
 instance Monad m => Functor (ZipSerial m) where
     fmap f (ZipSerial (Stream m)) = ZipSerial $ Stream $ \_ stp yld ->
@@ -981,20 +986,25 @@ instance (Monad m, Floating a) => Floating (ZipSerial m a) where
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
 
--- | Zip two streams asyncly (i.e. both the elements being zipped are generated
--- concurrently) using a pure zipping function.
-zipAsyncWith :: (IsStream t, MonadAsync m)
+-- | Zip two streams concurrently (i.e. both the elements being zipped are
+-- generated concurrently) using a pure zipping function.
+zipParallelWith :: (IsStream t, MonadParallel m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
+zipParallelWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
     ma <- async m1
     mb <- async m2
     (S.runStream (toStream (zipWith f ma mb))) Nothing stp yld
+
+{-# DEPRECATED zipAsyncWith "Please use zipParallelWith instead." #-}
+zipAsyncWith :: (IsStream t, MonadParallel m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith = zipParallelWith
 
 -- | Like 'ZipSerial' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.
 --
 -- @
--- main = (toList . 'zippingAsync' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
+-- main = (toList . 'zipParallely' $ (,,) \<$\> s1 \<*\> s2 \<*\> s3) >>= print
 --     where s1 = fromFoldable [1, 2]
 --           s2 = fromFoldable [3, 4]
 --           s3 = fromFoldable [5, 6]
@@ -1006,27 +1016,30 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'SerialT'.
 --
-newtype ZipAsync m a = ZipAsync {getZipAsync :: Stream m a}
+newtype ZipParallel m a = ZipParallel {getZipParallel :: Stream m a}
         deriving (Semigroup, Monoid)
 
-deriving instance MonadAsync m => Alternative (ZipAsync m)
+{-# DEPRECATED ZipAsync "Please use ZipParallel instead." #-}
+type ZipAsync = ZipParallel
 
-instance Monad m => Functor (ZipAsync m) where
-    fmap f (ZipAsync (Stream m)) = ZipAsync $ Stream $ \_ stp yld ->
+deriving instance MonadParallel m => Alternative (ZipParallel m)
+
+instance Monad m => Functor (ZipParallel m) where
+    fmap f (ZipParallel (Stream m)) = ZipParallel $ Stream $ \_ stp yld ->
         let yield a Nothing  = yld (f a) Nothing
             yield a (Just r) = yld (f a)
-                               (Just (getZipAsync (fmap f (ZipAsync r))))
+                               (Just (getZipParallel (fmap f (ZipParallel r))))
         in m Nothing stp yield
 
-instance MonadAsync m => Applicative (ZipAsync m) where
-    pure = ZipAsync . S.repeat
-    (<*>) = zipAsyncWith id
+instance MonadParallel m => Applicative (ZipParallel m) where
+    pure = ZipParallel . S.repeat
+    (<*>) = zipParallelWith id
 
-instance IsStream ZipAsync where
-    toStream = getZipAsync
-    fromStream = ZipAsync
+instance IsStream ZipParallel where
+    toStream = getZipParallel
+    fromStream = ZipParallel
 
-instance (MonadAsync m, Num a) => Num (ZipAsync m a) where
+instance (MonadParallel m, Num a) => Num (ZipParallel m a) where
     fromInteger n = pure (fromInteger n)
 
     negate = fmap negate
@@ -1037,14 +1050,14 @@ instance (MonadAsync m, Num a) => Num (ZipAsync m a) where
     (*) = liftA2 (*)
     (-) = liftA2 (-)
 
-instance (MonadAsync m, Fractional a) => Fractional (ZipAsync m a) where
+instance (MonadParallel m, Fractional a) => Fractional (ZipParallel m a) where
     fromRational n = pure (fromRational n)
 
     recip = fmap recip
 
     (/) = liftA2 (/)
 
-instance (MonadAsync m, Floating a) => Floating (ZipAsync m a) where
+instance (MonadParallel m, Floating a) => Floating (ZipParallel m a) where
     pi = pure pi
 
     exp  = fmap exp
@@ -1101,12 +1114,22 @@ parallely :: IsStream t => ParallelT m a -> t m a
 parallely = adapt
 
 -- | Fix the type of a polymorphic stream as 'ZipSerial'.
-zipping :: IsStream t => ZipSerial m a -> t m a
-zipping = adapt
+zipSerially :: IsStream t => ZipSerial m a -> t m a
+zipSerially = adapt
 
--- | Fix the type of a polymorphic stream as 'ZipAsync'.
-zippingAsync :: IsStream t => ZipAsync m a -> t m a
-zippingAsync = adapt
+-- | Same as 'zipParallely'.
+{-# DEPRECATED zipping "Please use zipSerially instead." #-}
+zipping :: IsStream t => ZipSerial m a -> t m a
+zipping = zipSerially
+
+-- | Fix the type of a polymorphic stream as 'ZipParallel'.
+zipParallely :: IsStream t => ZipParallel m a -> t m a
+zipParallely = adapt
+
+-- | Same as 'zipParallely'.
+{-# DEPRECATED zippingAsync "Please use zipParallely instead." #-}
+zippingAsync :: IsStream t => ZipParallel m a -> t m a
+zippingAsync = zipParallely
 
 -------------------------------------------------------------------------------
 -- Running Streams, convenience functions specialized to types
@@ -1133,38 +1156,33 @@ runParallelT :: Monad m => ParallelT m a -> m ()
 runParallelT = runStream . parallely
 
 -- | Same as @runStream . zipping@.
-{-# DEPRECATED runZipStream "Please use 'runStream . zipping instead." #-}
+{-# DEPRECATED runZipStream "Please use 'runStream . zipSerially instead." #-}
 runZipStream :: Monad m => ZipSerial m a -> m ()
-runZipStream = runStream . zipping
+runZipStream = runStream . zipSerially
 
 -- | Same as @runStream . zippingAsync@.
-{-# DEPRECATED runZipAsync "Please use 'runStream . zippingAsync instead." #-}
-runZipAsync :: Monad m => ZipAsync m a -> m ()
-runZipAsync = runStream . zippingAsync
+{-# DEPRECATED runZipAsync "Please use 'runStream . zipParallely instead." #-}
+runZipAsync :: Monad m => ZipParallel m a -> m ()
+runZipAsync = runStream . zipParallely
 
 ------------------------------------------------------------------------------
 -- Fold Utilities
 ------------------------------------------------------------------------------
 
--- $foldutils
--- These utilities are designed to pass the first argument as one of the sum
--- style composition operators (i.e. '<>', '<=>', '<|', '<|>') to conveniently
--- fold a container using any style of stream composition.
-
--- | Like the 'Prelude' 'fold' but allows you to specify a binary sum style
--- stream composition operator to fold a container of streams.
+-- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
+-- container of streams using the specified stream sum operation.
 --
--- @foldWith (<>) $ map return [1..3]@
+-- @foldWith 'parallel' $ map return [1..3]@
 {-# INLINABLE foldWith #-}
 foldWith :: (IsStream t, Foldable f)
     => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
 foldWith f = foldr f nil
 
--- | Like 'foldMap' but allows you to specify a binary sum style composition
--- operator to fold a container of streams. Maps a monadic streaming action on
--- the container before folding it.
+-- | A variant of 'foldMap' that allows you to map a monadic streaming action
+-- on a 'Foldable' container and then fold it using the specified stream sum
+-- operation.
 --
--- @foldMapWith (<>) return [1..3]@
+-- @foldMapWith 'parallel' return [1..3]@
 {-# INLINABLE foldMapWith #-}
 foldMapWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
