@@ -42,5 +42,5 @@ acidRainGame :: IO ()
 acidRainGame = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
-    _ <- runStateT (runSerialT game) 60
+    _ <- runStateT (runStream game) 60
     return ()

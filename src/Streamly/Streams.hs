@@ -77,15 +77,12 @@ module Streamly.Streams
     , adapt
 
     -- * Running Streams
-    , runSerialT
     , runStreamT       -- deprecated
-    , runInterleavedT
-    , runAParallelT
+    , runInterleavedT  -- deprecated
     , runAsyncT        -- deprecated
-    , runParallelT
-    , runZipSerial
+    , runParallelT     -- deprecated
     , runZipStream     -- deprecated
-    , runZipAsync
+    , runZipAsync      -- deprecated
 
     -- * Zipping
     , zipWith
@@ -274,7 +271,7 @@ async m = do
 -- element of the stream, serially.
 --
 -- @
--- main = 'runSerialT' $ do
+-- main = 'runStream' . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     liftIO $ print x
 -- @
@@ -286,7 +283,7 @@ async m = do
 -- 'SerialT' nests streams serially in a depth first manner.
 --
 -- @
--- main = 'runSerialT' $ do
+-- main = 'runStream' . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     liftIO $ print (x, y)
@@ -304,6 +301,8 @@ async m = do
 -- nested @for@ loops and the monadic continuation is the body of the loop. The
 -- loop iterates for all elements of the stream.
 --
+-- The 'serially' combinator can be omitted as the default stream type is
+-- 'SerialT'.
 -- Note that serial composition can be used to combine an infinite number of
 -- streams as it explores only one stream at a time.
 --
@@ -334,9 +333,9 @@ type StreamT = SerialT
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Same as the 'Semigroup' instance of 'SerialT'. Appends two streams
--- sequentially, yielding all elements from the first stream, and then all
--- elements from the second stream.
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'SerialT'.
+-- Appends two streams sequentially, yielding all elements from the first
+-- stream, and then all elements from the second stream.
 {-# INLINE append #-}
 append :: IsStream t => t m a -> t m a -> t m a
 append m1 m2 = fromStream $ S.append (toStream m1) (toStream m2)
@@ -435,7 +434,7 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 --
 --
 -- @
--- main = 'runInterleavedT' $ do
+-- main = 'runStream' . 'interleaving' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     liftIO $ print (x, y)
@@ -468,8 +467,8 @@ instance IsStream InterleavedT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Same as the 'Semigroup' instance of 'InterleavedT'.  Interleaves two
--- streams, yielding one element from each stream alternately.
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'InterleavedT'.
+-- Interleaves two streams, yielding one element from each stream alternately.
 {-# INLINE interleave #-}
 interleave :: IsStream t => t m a -> t m a -> t m a
 interleave m1 m2 = fromStream $ S.interleave (toStream m1) (toStream m2)
@@ -586,7 +585,7 @@ instance (Monad m, Floating a) => Floating (InterleavedT m a) where
 -- import "Streamly"
 -- import Control.Concurrent
 --
--- main = 'runAParallelT' $ do
+-- main = 'runStream' . 'aparallely' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     liftIO $ do
 --          threadDelay (n * 1000000)
@@ -627,9 +626,9 @@ instance IsStream AParallelT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Same as the 'Semigroup' operation of 'AParallelT', but polymorphic.
--- Merges two streams possibly concurrently, preferring the elements from the
--- left one when available.
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'AParallelT', but
+-- polymorphic.  Merges two streams possibly concurrently, preferring the
+-- elements from the left one when available.
 {-# INLINE aparallel #-}
 aparallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 aparallel m1 m2 = fromStream $ S.aparallel (toStream m1) (toStream m2)
@@ -753,7 +752,7 @@ instance (MonadAsync m, Floating a) => Floating (AParallelT m a) where
 -- import "Streamly"
 -- import Control.Concurrent
 --
--- main = 'runParallelT' $ do
+-- main = 'runStream' . 'parallely' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     liftIO $ do
 --          threadDelay (n * 1000000)
@@ -792,8 +791,8 @@ instance IsStream ParallelT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Same as the 'Semigroup' instance of 'ParallelT'.  Merges two streams
--- concurrently choosing elements from both fairly.
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'.
+-- Merges two streams concurrently choosing elements from both fairly.
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
@@ -1066,19 +1065,19 @@ instance (MonadAsync m, Floating a) => Floating (ZipAsync m a) where
 -- Type adapting combinators
 -------------------------------------------------------------------------------
 
--- | Adapt one streaming type to another.
+-- | Adapt any specific stream type to any other specific stream type.
 adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
--- | Interpret an ambiguously typed stream as 'SerialT'.
+-- | Fix the type of a polymorphic stream as 'SerialT'.
 serially :: IsStream t => SerialT m a -> t m a
 serially = adapt
 
--- | Interpret an ambiguously typed stream as 'InterleavedT'.
+-- | Fix the type of a polymorphic stream as 'InterleavedT'.
 interleaving :: IsStream t => InterleavedT m a -> t m a
 interleaving = adapt
 
--- | Interpret an ambiguously typed stream as 'AParallelT'.
+-- | Fix the type of a polymorphic stream as 'AParallelT'.
 aparallely :: IsStream t => AParallelT m a -> t m a
 aparallely = adapt
 
@@ -1087,15 +1086,15 @@ aparallely = adapt
 asyncly :: IsStream t => AParallelT m a -> t m a
 asyncly = aparallely
 
--- | Interpret an ambiguously typed stream as 'ParallelT'.
+-- | Fix the type of a polymorphic stream as 'ParallelT'.
 parallely :: IsStream t => ParallelT m a -> t m a
 parallely = adapt
 
--- | Interpret an ambiguously typed stream as 'ZipSerial'.
+-- | Fix the type of a polymorphic stream as 'ZipSerial'.
 zipping :: IsStream t => ZipSerial m a -> t m a
 zipping = adapt
 
--- | Interpret an ambiguously typed stream as 'ZipAsync'.
+-- | Fix the type of a polymorphic stream as 'ZipAsync'.
 zippingAsync :: IsStream t => ZipAsync m a -> t m a
 zippingAsync = adapt
 
@@ -1103,42 +1102,33 @@ zippingAsync = adapt
 -- Running Streams, convenience functions specialized to types
 -------------------------------------------------------------------------------
 
--- | Same as @runStream . serially@.
-runSerialT :: Monad m => SerialT m a -> m ()
-runSerialT = runStream
-
--- | Same as @runSerialT@.
-{-# Deprecated runStreamT "Please use runSerialT instead." #-}
+-- | Same as @runStream@.
+{-# DEPRECATED runStreamT "Please use runStream instead." #-}
 runStreamT :: Monad m => SerialT m a -> m ()
-runStreamT = runSerialT
+runStreamT = runStream
 
 -- | Same as @runStream . interleaving@.
+{-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
 runInterleavedT = runStream . interleaving
 
 -- | Same as @runStream . aparallely@.
-runAParallelT :: Monad m => AParallelT m a -> m ()
-runAParallelT = runStream . aparallely
-
--- | Same as @runAParallelT@.
-{-# Deprecated runAsyncT "Please use runAParallelT instead." #-}
+{-# DEPRECATED runAsyncT "Please use 'runStream . aparallely' instead." #-}
 runAsyncT :: Monad m => AParallelT m a -> m ()
-runAsyncT = runAParallelT
+runAsyncT = runStream . aparallely
 
 -- | Same as @runStream . parallely@.
+{-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
 runParallelT = runStream . parallely
 
 -- | Same as @runStream . zipping@.
-runZipSerial :: Monad m => ZipSerial m a -> m ()
-runZipSerial = runStream . zipping
-
-{-# Deprecated runZipStream "Please use runZipSerial instead." #-}
--- | Same as ZipSerial.
+{-# DEPRECATED runZipStream "Please use 'runStream . zipping instead." #-}
 runZipStream :: Monad m => ZipSerial m a -> m ()
-runZipStream = runZipSerial
+runZipStream = runStream . zipping
 
 -- | Same as @runStream . zippingAsync@.
+{-# DEPRECATED runZipAsync "Please use 'runStream . zippingAsync instead." #-}
 runZipAsync :: Monad m => ZipAsync m a -> m ()
 runZipAsync = runStream . zippingAsync
 

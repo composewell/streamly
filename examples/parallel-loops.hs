@@ -4,7 +4,7 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Streamly
 
-main = runSerialT $ do
+main = runStream $ do
     liftIO $ hSetBuffering stdout LineBuffering
     x <- loop "A" `parallel` loop "B"
     liftIO $ myThreadId >>= putStr . show

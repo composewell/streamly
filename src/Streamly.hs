@@ -30,7 +30,7 @@ module Streamly
     , ZipSerial
     , ZipAsync
 
-    -- * Type Independent Sum Operations
+    -- * Polymorphic Sum Operations
     -- $sum
     , append
     , interleave
@@ -52,12 +52,6 @@ module Streamly
 
     -- * Running Streams
     , runStream
-    , runSerialT
-    , runInterleavedT
-    , runAParallelT
-    , runParallelT
-    , runZipSerial
-    , runZipAsync
 
     -- * Fold Utilities
     -- $foldutils
@@ -77,6 +71,9 @@ module Streamly
     , Streaming
     , runStreaming
     , runStreamT
+    , runInterleavedT
+    , runParallelT
+    , runZipAsync
     , runAsyncT
     , runZipStream
     , StreamT
@@ -182,50 +179,25 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- not monads.
 
 -- $sum
--- Each stream style provides its own way of merging streams. The 'Semigroup'
--- '<>' operation can be used to merge streams in the style of the current
--- type. In case you want to merge streams in a particular style you can either
--- use a type adapter to force that type of composition or alternatively use
--- the type independent merge operations described in this section.
+-- The 'Semigroup' operation '<>' of each stream type combines two streams in a
+-- type specific manner. This section provides polymorphic versions of '<>'
+-- which can be used to combine two streams in a predetermined way irrespective
+-- of the type.
 
 -- $adapters
 --
--- Code using streamly is usually written such that it is agnostic of any
--- specific streaming type.  We use a type variable (polymorphic type) with the
--- 'IsStream' class constraint. Finally, when running the monad we can specify
--- the actual type that we want to use to interpret the code. However, in
--- certain cases we may want to use a specific type to force a certain type of
--- composition. These combinators can be used to convert the stream types from
--- one to another at no cost as all the types have the same underlying
--- representation.
+-- You may want to use different stream types at different points in your
+-- program. Stream types can be converted or adapted from one type to another
+-- to make them interwork with each other.
 --
--- If you see an @ambiguous type variable@ error then most likely it is because
--- you have not specified the stream type. You either need a type annotation or
--- one of the following combinators to specify what type of stream you mean.
---
--- This code:
---
--- @
--- main = ('toList' $ (return 1 <> return 2)) >>= print
--- @
---
--- will result in a type error like this:
---
--- @
--- Ambiguous type variable ‘t0’ arising from a use of ...
--- @
---
---  To fix the error just tell 'toList' what kind of stream are we feeding it:
---
--- @
--- main = ('toList' $ 'serially' $ (return 1 <> return 2)) >>= print
--- @
--- @
--- main = ('toList' $ (return 1 <> return 2 :: SerialT IO Int)) >>= print
--- @
---
--- Note that using the combinators is easier as you do not have to think about
--- the specific types, they are just inferred.
+-- To adapt from one monomorphic type (e.g. 'ParallelT') to another monomorphic
+-- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
+-- a specific interpretation or to adapt a specific type to a polymorphic type
+-- use the type specific combinators e.g. 'parallely' or 'interleaving'. You
+-- cannot adapt polymorphic code to polymorphic code, as it would not know
+-- which specific type you are converting from or to. If you see a an
+-- @ambiguous type variable@ error then most likely you are using 'adapt'
+-- unnecessarily on polymorphic code.
 --
 
 -- $foldutils
