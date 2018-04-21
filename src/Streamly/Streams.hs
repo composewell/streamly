@@ -321,7 +321,7 @@ async m = do
 -- streams as it explores only one stream at a time.
 --
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
-    deriving (Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
+    deriving (Functor, Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadParallel m => Alternative (SerialT m)
 deriving instance MonadParallel m => MonadPlus (SerialT m)
@@ -373,16 +373,6 @@ instance Monad m => Monad (SerialT m) where
 instance Monad m => Applicative (SerialT m) where
     pure = SerialT . singleton
     (<*>) = ap
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (SerialT m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (SerialT r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -463,7 +453,7 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- streams as it needs to retain state for each unfinished stream.
 --
 newtype CoserialT m a = CoserialT {getCoserialT :: Stream m a}
-    deriving (Monoid, MonadTrans, MonadIO, MonadThrow)
+    deriving (Functor, Monoid, MonadTrans, MonadIO, MonadThrow)
 
 deriving instance MonadParallel m => Alternative (CoserialT m)
 deriving instance MonadParallel m => MonadPlus (CoserialT m)
@@ -519,16 +509,6 @@ instance Monad m => Monad (CoserialT m) where
 instance Monad m => Applicative (CoserialT m) where
     pure = CoserialT . singleton
     (<*>) = ap
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (CoserialT m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (CoserialT r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -618,7 +598,7 @@ instance (Monad m, Floating a) => Floating (CoserialT m a) where
 -- as it explores only a bounded number of streams at a time.
 --
 newtype CoparallelT m a = CoparallelT {getCoparallelT :: Stream m a}
-    deriving (MonadTrans)
+    deriving (Functor, MonadTrans)
 
 deriving instance MonadParallel m => Monoid (CoparallelT m a)
 deriving instance MonadParallel m => Alternative (CoparallelT m)
@@ -688,16 +668,6 @@ instance MonadParallel m => Monad (CoparallelT m) where
 instance MonadParallel m => Applicative (CoparallelT m) where
     pure = CoparallelT . singleton
     (<*>) = ap
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (CoparallelT m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (CoparallelT r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -785,7 +755,7 @@ instance (MonadParallel m, Floating a) => Floating (CoparallelT m a) where
 -- streams as it needs to retain state for each unfinished stream.
 --
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (MonadTrans)
+    deriving (Functor, MonadTrans)
 
 deriving instance MonadParallel m => Monoid (ParallelT m a)
 deriving instance MonadParallel m => Alternative (ParallelT m)
@@ -830,16 +800,6 @@ instance MonadParallel m => Monad (ParallelT m) where
 instance MonadParallel m => Applicative (ParallelT m) where
     pure = ParallelT . singleton
     (<*>) = ap
-
-------------------------------------------------------------------------------
--- Functor
-------------------------------------------------------------------------------
-
-instance Monad m => Functor (ParallelT m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (ParallelT r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -920,19 +880,13 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- 'SerialT'.
 --
 newtype ZipSerial m a = ZipSerial {getZipSerial :: Stream m a}
-        deriving (Semigroup, Monoid)
+        deriving (Functor, Semigroup, Monoid)
 
 {-# Deprecated ZipStream "Please use ZipSerial instead." #-}
 -- | Same as ZipSerial.
 type ZipStream = ZipSerial
 
 deriving instance MonadParallel m => Alternative (ZipSerial m)
-
-instance Monad m => Functor (ZipSerial m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (ZipSerial r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 instance Monad m => Applicative (ZipSerial m) where
     pure = ZipSerial . S.repeat
@@ -1017,18 +971,12 @@ zipAsyncWith = zipParallelWith
 -- 'SerialT'.
 --
 newtype ZipParallel m a = ZipParallel {getZipParallel :: Stream m a}
-        deriving (Semigroup, Monoid)
+        deriving (Functor, Semigroup, Monoid)
 
 {-# DEPRECATED ZipAsync "Please use ZipParallel instead." #-}
 type ZipAsync = ZipParallel
 
 deriving instance MonadParallel m => Alternative (ZipParallel m)
-
-instance Monad m => Functor (ZipParallel m) where
-    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
-        let single    = sng . f
-            yield a r = yld (f a) (toStream $ fmap f (ZipParallel r))
-        in (S.runStream (toStream m)) Nothing stp single yield
 
 instance MonadParallel m => Applicative (ZipParallel m) where
     pure = ZipParallel . S.repeat

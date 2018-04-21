@@ -592,7 +592,10 @@ parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
 -- require a Monad constraint.  Must be defined by the newtypes.
 
 instance Monad m => Functor (Stream m) where
-    fmap = undefined
+    fmap f m = Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (fmap f r)
+        in (runStream m) Nothing stp single yield
 
 instance Monad m => Applicative (Stream m) where
     pure = undefined
