@@ -114,20 +114,20 @@ import           Streamly.Streams
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step = fromStream . go
     where
-    go s = Stream $ \_ stp yld ->
+    go s = Stream $ \_ stp _ yld ->
         case step s of
             Nothing -> stp
-            Just (a, b) -> yld a (Just (go b))
+            Just (a, b) -> yld a (go b)
 
 -- | Build a Stream by unfolding monadic steps starting from a seed.
 unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = fromStream . go
     where
-    go s = Stream $ \_ stp yld -> do
+    go s = Stream $ \_ stp _ yld -> do
         mayb <- step s
         case mayb of
             Nothing -> stp
-            Just (a, b) -> yld a (Just (go b))
+            Just (a, b) -> yld a (go b)
 
 -- | Construct a stream from a 'Foldable' container.
 {-# INLINE fromFoldable #-}
@@ -144,27 +144,27 @@ each = fromFoldable
 iterate :: IsStream t => (a -> a) -> a -> t m a
 iterate step = fromStream . go
     where
-    go s = S.cons s (Just (go (step s)))
+    go s = S.cons s (go (step s))
 
 -- | Iterate a monadic function from a seed value, streaming the results forever
 iterateM :: (IsStream t, Monad m) => (a -> m a) -> a -> t m a
 iterateM step = fromStream . go
     where
-    go s = Stream $ \_ _ yld -> do
+    go s = Stream $ \_ _ _ yld -> do
        a <- step s
-       yld s (Just (go a))
+       yld s (go a)
 
 -- | Read lines from an IO Handle into a stream of Strings.
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = fromStream go
   where
-  go = Stream $ \_ stp yld -> do
+  go = Stream $ \_ stp _ yld -> do
         eof <- liftIO $ IO.hIsEOF h
         if eof
         then stp
         else do
             str <- liftIO $ IO.hGetLine h
-            yld str (Just go)
+            yld str go
 
 ------------------------------------------------------------------------------
 -- Elimination
@@ -181,9 +181,9 @@ foldr step acc m = go (toStream m)
     where
     go m1 =
         let stop = return acc
-            yield a Nothing  = return (step a acc)
-            yield a (Just x) = go x >>= \b -> return (step a b)
-        in (S.runStream m1) Nothing stop yield
+            single a = return (step a acc)
+            yield a r = go r >>= \b -> return (step a b)
+        in (S.runStream m1) Nothing stop single yield
 
 -- | Lazy right fold with a monadic step function. For example, to fold a
 -- stream into a list:
@@ -198,9 +198,9 @@ foldrM step acc m = go (toStream m)
     where
     go m1 =
         let stop = return acc
-            yield a Nothing  = step a acc
-            yield a (Just x) = (go x) >>= (step a)
-        in (S.runStream m1) Nothing stop yield
+            single a = step a acc
+            yield a r = go r >>= step a
+        in (S.runStream m1) Nothing stop single yield
 
 -- | Strict left scan with an extraction function. Like 'scanl'', but applies a
 -- user supplied extraction function (the third argument) at each step. This is
@@ -210,13 +210,12 @@ foldrM step acc m = go (toStream m)
 scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
     where
-    go m1 !acc = Stream $ \_ stp yld ->
-        let stop = stp
-            yield a Nothing = yld (done $ step acc a) Nothing
-            yield a (Just x) =
+    go m1 !acc = Stream $ \_ stp sng yld ->
+        let single a = sng (done $ step acc a)
+            yield a r =
                 let s = step acc a
-                in yld (done s) (Just (go x s))
-        in S.runStream m1 Nothing stop yield
+                in yld (done s) (go r s)
+        in S.runStream m1 Nothing stp single yield
 
 {-# DEPRECATED scan "Please use scanx instead." #-}
 scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
@@ -240,22 +239,20 @@ foldx step begin done m = get $ go (toStream m) begin
     where
     {-# NOINLINE get #-}
     get m1 =
-        let yield a Nothing  = return $ done a
-            yield _ _ = undefined
-         in (S.runStream m1) Nothing undefined yield
+        let single = return . done
+         in (S.runStream m1) Nothing undefined single undefined
 
     -- Note, this can be implemented by making a recursive call to "go",
     -- however that is more expensive because of unnecessary recursion
     -- that cannot be tail call optimized. Unfolding recursion explicitly via
     -- continuations is much more efficient.
-    go m1 !acc = Stream $ \_ _ yld ->
-        let stop = yld acc Nothing
+    go m1 !acc = Stream $ \_ _ sng yld ->
+        let stop = sng acc
+            single a = sng $ step acc a
             yield a r =
-                let s = step acc a
-                in case r of
-                    Nothing -> yld s Nothing
-                    Just x -> (S.runStream (go x s)) Nothing undefined yld
-        in (S.runStream m1) Nothing stop yield
+                let stream = go r (step acc a)
+                in (S.runStream stream) Nothing undefined sng yld
+        in (S.runStream m1) Nothing stop single yield
 
 {-# DEPRECATED foldl "Please use foldx instead." #-}
 foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
@@ -273,9 +270,9 @@ foldxM step begin done m = go begin (toStream m)
     where
     go !acc m1 =
         let stop = acc >>= done
-            yield a Nothing  = acc >>= \b -> step b a >>= done
-            yield a (Just x) = acc >>= \b -> go (step b a) x
-         in (S.runStream m1) Nothing stop yield
+            single a = acc >>= \b -> step b a >>= done
+            yield a r = acc >>= \b -> go (step b a) r
+         in (S.runStream m1) Nothing stop single yield
 
 {-# DEPRECATED foldlM "Please use foldxM instead." #-}
 foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
@@ -291,9 +288,9 @@ foldlM' step begin m = foldxM step (return begin) return m
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
-        yield a Nothing  = return (Just (a, nil))
-        yield a (Just x) = return (Just (a, fromStream x))
-    in (S.runStream (toStream m)) Nothing stop yield
+        single a = return (Just (a, nil))
+        yield a r = return (Just (a, fromStream r))
+    in (S.runStream (toStream m)) Nothing stop single yield
 
 -- | Write a stream of Strings to an IO Handle.
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
@@ -301,9 +298,9 @@ toHandle h m = go (toStream m)
     where
     go m1 =
         let stop = return ()
-            yield a Nothing  = liftIO (IO.hPutStrLn h a)
-            yield a (Just x) = liftIO (IO.hPutStrLn h a) >> go x
-        in (S.runStream m1) Nothing stop yield
+            single a = liftIO (IO.hPutStrLn h a)
+            yield a r = liftIO (IO.hPutStrLn h a) >> go r
+        in (S.runStream m1) Nothing stop single yield
 
 ------------------------------------------------------------------------------
 -- Special folds
@@ -319,46 +316,45 @@ toList = foldrM (\a xs -> return (a : xs)) []
 take :: IsStream t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp yld ->
-        let yield a Nothing  = yld a Nothing
-            yield a (Just x) = yld a (Just (go (n1 - 1) x))
-        in if n1 <= 0 then stp else (S.runStream m1) ctx stp yield
+    go n1 m1 = Stream $ \ctx stp sng yld ->
+        let yield a r = yld a (go (n1 - 1) r)
+        in if n1 <= 0 then stp else (S.runStream m1) ctx stp sng yield
 
 -- | Include only those elements that pass a predicate.
 {-# INLINE filter #-}
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp yld ->
-        let yield a Nothing  | p a       = yld a Nothing
-                             | otherwise = stp
-            yield a (Just x) | p a       = yld a (Just (go x))
-                             | otherwise = (S.runStream x) ctx stp yield
-         in (S.runStream m1) ctx stp yield
+    go m1 = Stream $ \ctx stp sng yld ->
+        let single a  | p a       = sng a
+                      | otherwise = stp
+            yield a r | p a       = yld a (go r)
+                      | otherwise = (S.runStream r) ctx stp single yield
+         in (S.runStream m1) ctx stp single yield
 
 -- | End the stream as soon as the predicate fails on an element.
 {-# INLINE takeWhile #-}
 takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp yld ->
-        let yield a Nothing  | p a       = yld a Nothing
-                             | otherwise = stp
-            yield a (Just x) | p a       = yld a (Just (go x))
-                             | otherwise = stp
-         in (S.runStream m1) ctx stp yield
+    go m1 = Stream $ \ctx stp sng yld ->
+        let single a  | p a       = sng a
+                      | otherwise = stp
+            yield a r | p a       = yld a (go r)
+                      | otherwise = stp
+         in (S.runStream m1) ctx stp single yield
 
 -- | Discard first 'n' elements from the stream and take the rest.
 drop :: IsStream t => Int -> t m a -> t m a
 drop n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp yld ->
-        let yield _ Nothing  = stp
-            yield _ (Just x) = (S.runStream $ go (n1 - 1) x) ctx stp yld
+    go n1 m1 = Stream $ \ctx stp sng yld ->
+        let single _ = stp
+            yield _ r = (S.runStream $ go (n1 - 1) r) ctx stp sng yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then (S.runStream m1) ctx stp yld
-           else (S.runStream m1) ctx stp yield
+           then (S.runStream m1) ctx stp sng yld
+           else (S.runStream m1) ctx stp single yield
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -366,34 +362,34 @@ drop n m = fromStream $ go n (toStream m)
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 dropWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp yld ->
-        let yield a Nothing  | p a       = stp
-                             | otherwise = yld a Nothing
-            yield a (Just x) | p a       = (S.runStream x) ctx stp yield
-                             | otherwise = yld a (Just x)
-         in (S.runStream m1) ctx stp yield
+    go m1 = Stream $ \ctx stp sng yld ->
+        let single a  | p a       = stp
+                      | otherwise = sng a
+            yield a r | p a       = (S.runStream r) ctx stp single yield
+                      | otherwise = yld a r
+         in (S.runStream m1) ctx stp single yield
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 all p m = go (toStream m)
     where
     go m1 =
-        let yield a Nothing  | p a       = return True
-                             | otherwise = return False
-            yield a (Just x) | p a       = go x
-                             | otherwise = return False
-         in (S.runStream m1) Nothing (return True) yield
+        let single a  | p a       = return True
+                      | otherwise = return False
+            yield a r | p a       = go r
+                      | otherwise = return False
+         in (S.runStream m1) Nothing (return True) single yield
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 any p m = go (toStream m)
     where
     go m1 =
-        let yield a Nothing  | p a       = return True
-                             | otherwise = return False
-            yield a (Just x) | p a       = return True
-                             | otherwise = go x
-         in (S.runStream m1) Nothing (return False) yield
+        let single a  | p a       = return True
+                      | otherwise = return False
+            yield a r | p a       = return True
+                      | otherwise = go r
+         in (S.runStream m1) Nothing (return False) single yield
 
 -- | Determine the sum of all elements of a stream of numbers
 sum :: (Monad m, Num a) => SerialT m a -> m a
@@ -407,16 +403,17 @@ product = foldl (*) 1 id
 head :: Monad m => SerialT m a -> m (Maybe a)
 head m =
     let stop      = return Nothing
+        single a  = return (Just a)
         yield a _ = return (Just a)
-    in (S.runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop single yield
 
 -- | Extract all but the first element of the stream, if any.
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m =
-    let stop             = return Nothing
-        yield _ Nothing  = return $ Just nil
-        yield _ (Just t) = return $ Just $ fromStream t
-    in (S.runStream (toStream m)) Nothing stop yield
+    let stop      = return Nothing
+        single _  = return $ Just nil
+        yield _ r = return $ Just $ fromStream r
+    in (S.runStream (toStream m)) Nothing stop single yield
 
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
@@ -427,28 +424,29 @@ last = foldl (\_ y -> Just y) Nothing id
 null :: Monad m => SerialT m a -> m Bool
 null m =
     let stop      = return True
+        single _  = return False
         yield _ _ = return False
-    in (S.runStream (toStream m)) Nothing stop yield
+    in (S.runStream (toStream m)) Nothing stop single yield
 
 -- | Determine whether an element is present in the stream.
 elem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
 elem e m = go (toStream m)
     where
     go m1 =
-        let stop            = return False
-            yield a Nothing = return (a == e)
-            yield a (Just x) = if a == e then return True else go x
-        in (S.runStream m1) Nothing stop yield
+        let stop      = return False
+            single a  = return (a == e)
+            yield a r = if a == e then return True else go r
+        in (S.runStream m1) Nothing stop single yield
 
 -- | Determine whether an element is not present in the stream.
 notElem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
 notElem e m = go (toStream m)
     where
     go m1 =
-        let stop            = return True
-            yield a Nothing = return (a /= e)
-            yield a (Just x) = if a == e then return False else go x
-        in (S.runStream m1) Nothing stop yield
+        let stop      = return True
+            single a  = return (a /= e)
+            yield a r = if a == e then return False else go r
+        in (S.runStream m1) Nothing stop single yield
 
 -- | Determine the length of the stream.
 length :: Monad m => SerialT m a -> m Int
@@ -457,28 +455,27 @@ length = foldl (\n _ -> n + 1) 0 id
 -- | Returns the elements of the stream in reverse order.
 -- The stream must be finite.
 reverse :: (IsStream t) => t m a -> t m a
-reverse m = fromStream $ go Nothing (toStream m)
+reverse m = fromStream $ go S.nil (toStream m)
     where
-    go rev rest = Stream $ \svr stp yld ->
-        let stop = case rev of
-                Nothing ->  stp
-                Just str -> S.runStream str svr stp yld
-            yield a Nothing  = S.runStream (a `S.cons` rev) svr stp yld
-            yield a (Just x) = S.runStream (go (Just $ a `S.cons` rev) x) svr stp yld
-         in S.runStream rest svr stop yield
+    go rev rest = Stream $ \svr stp sng yld ->
+        let run x = S.runStream x svr stp sng yld
+            stop = run rev
+            single a = run $ a `S.cons` rev
+            yield a r = run $ go (a `S.cons` rev) r
+         in S.runStream rest svr stop single yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
 minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 minimum m = go Nothing (toStream m)
     where
-    go r m1 =
-        let stop            = return r
-            yield a Nothing = return $ min_ a r
-            yield a (Just x) = go (min_ a r) x
-        in (S.runStream m1) Nothing stop yield
+    go res m1 =
+        let stop      = return res
+            single a  = return $ min_ a res
+            yield a r = go (min_ a res) r
+        in (S.runStream m1) Nothing stop single yield
 
-    min_ a r = case r of
+    min_ a res = case res of
         Nothing -> Just a
         Just e  -> Just $ min a e
 
@@ -487,13 +484,13 @@ minimum m = go Nothing (toStream m)
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = go Nothing (toStream m)
     where
-    go r m1 =
-        let stop            = return r
-            yield a Nothing = return $ max_ a r
-            yield a (Just x) = go (max_ a r) x
-        in (S.runStream m1) Nothing stop yield
+    go res m1 =
+        let stop      = return res
+            single a  = return $ max_ a res
+            yield a r = go (max_ a res) r
+        in (S.runStream m1) Nothing stop single yield
 
-    max_ a r = case r of
+    max_ a res = case res of
         Nothing -> Just a
         Just e  -> Just $ max a e
 
@@ -509,11 +506,10 @@ maximum m = go Nothing (toStream m)
 mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
 mapM f m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \_ stp yld ->
-        let stop = stp
-            yield a Nothing  = f a >>= \b -> yld b Nothing
-            yield a (Just x) = f a >>= \b -> yld b (Just (go x))
-         in (S.runStream m1) Nothing stop yield
+    go m1 = Stream $ \_ stp sng yld ->
+        let single a  = f a >>= sng
+            yield a r = f a >>= \b -> yld b (go r)
+         in (S.runStream m1) Nothing stp single yield
 
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
@@ -522,29 +518,28 @@ mapM_ f m = go (toStream m)
     where
     go m1 =
         let stop = return ()
-            yield a Nothing  = void (f a)
-            yield a (Just x) = f a >> go x
-         in (S.runStream m1) Nothing stop yield
+            single a = void (f a)
+            yield a r = f a >> go r
+         in (S.runStream m1) Nothing stop single yield
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
 sequence :: (IsStream t, Monad m) => t m (m a) -> t m a
 sequence m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \_ stp yld ->
-        let stop = stp
-            yield a Nothing  = a >>= \b -> yld b Nothing
-            yield a (Just x) = a >>= \b -> yld b (Just (go x))
-         in (S.runStream m1) Nothing stop yield
+    go m1 = Stream $ \_ stp sng yld ->
+        let single ma = ma >>= sng
+            yield ma r = ma >>= \b -> yld b (go r)
+         in (S.runStream m1) Nothing stp single yield
 
 -- | Generate a stream by performing an action @n@ times.
 replicateM :: (IsStream t, Monad m) => Int -> m a -> t m a
 replicateM n m = fromStream $ go n
     where
-    go cnt = Stream $ \_ stp yld ->
+    go cnt = Stream $ \_ stp _ yld ->
         if cnt <= 0
         then stp
-        else m >>= \a -> yld a (Just $ go (cnt - 1))
+        else m >>= \a -> yld a (go (cnt - 1))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -554,16 +549,15 @@ replicateM n m = fromStream $ go n
 zipWithM :: IsStream t => (a -> b -> t m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
-    go mx my = Stream $ \_ stp yld -> do
+    go mx my = Stream $ \_ stp sng yld -> do
         let merge a ra =
-                let yield2 b Nothing   = (S.runStream (g a b)) Nothing stp yld
-                    yield2 b (Just rb) =
-                        (S.runStream (g a b <> go ra rb)) Nothing stp yld
-                 in (S.runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a S.nil
-            yield1 a (Just ra) = merge a ra
-        (S.runStream mx) Nothing stp yield1
-    g a b = toStream $ f a b
+                let run x = S.runStream x Nothing stp sng yld
+                    single2 b   = run $ toStream (f a b)
+                    yield2 b rb = run $ toStream (f a b) <> go ra rb
+                 in (S.runStream my) Nothing stp single2 yield2
+        let single1 a  = merge a S.nil
+            yield1 a ra = merge a ra
+        (S.runStream mx) Nothing stp single1 yield1
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -573,10 +567,10 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- concurrently) using a monadic zipping function.
 zipParallelWithM :: (IsStream t, MonadParallel m)
     => (a -> b -> t m c) -> t m a -> t m b -> t m c
-zipParallelWithM f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
+zipParallelWithM f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
     ma <- async m1
     mb <- async m2
-    (S.runStream (toStream (zipWithM f ma mb))) Nothing stp yld
+    (S.runStream (toStream (zipWithM f ma mb))) Nothing stp sng yld
 
 {-# DEPRECATED zipAsyncWithM "Please use zipParallelWithM instead." #-}
 zipAsyncWithM :: (IsStream t, MonadParallel m)

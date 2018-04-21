@@ -114,6 +114,7 @@ import           Control.Monad.Trans.Class   (MonadTrans)
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
 import           Streamly.Core               ( MonadParallel, Stream(Stream)
+                                             , singleton
                                              , SVar, SVarStyle(..)
                                              , SVarTag(..), SVarSched(..))
 import qualified Streamly.Core as S
@@ -151,7 +152,7 @@ infixr 5 `cons`
 -- [1,2,3]
 -- @
 cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ S.cons a (Just (toStream r))
+cons a r = fromStream $ S.cons a (toStream r)
 
 infixr 5 .:
 
@@ -191,18 +192,18 @@ infixr 5 .:
 -- represent an "empty" stream.
 streamBuild :: IsStream t
     => (forall r. Maybe (SVar m a)
-        -> (a -> Maybe (t m a) -> m r)
+        -> (a -> t m a -> m r)
+        -> (a -> m r)
         -> m r
         -> m r)
     -> t m a
-streamBuild k = fromStream $ Stream $ \sv stp yld ->
-    let yield a Nothing = yld a Nothing
-        yield a (Just r) = yld a (Just (toStream r))
-     in k sv yield stp
+streamBuild k = fromStream $ Stream $ \svr stp sng yld ->
+    let yield a r = yld a (toStream r)
+     in k svr yield sng stp
 
 -- | Build a singleton stream from a callback function.
 fromCallback :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-fromCallback k = fromStream $ Stream $ \_ _ yld -> k (\a -> yld a Nothing)
+fromCallback k = fromStream $ Stream $ \_ _ sng _ -> k sng
 
 -- | Read an SVar to get a stream.
 fromSVar :: (MonadParallel m, IsStream t) => SVar m a -> t m a
@@ -215,12 +216,17 @@ fromSVar sv = fromStream $ S.fromStreamVar sv
 -- | Fold a stream using its church encoding. The second argument is the "step"
 -- function consuming an element and the remaining stream, if any. The third
 -- argument is for consuming an "empty" stream that yields nothing.
-streamFold :: IsStream t
-    => Maybe (SVar m a) -> (a -> Maybe (t m a) -> m r) -> m r -> t m a -> m r
-streamFold sv step blank m =
-    let yield a Nothing = step a Nothing
-        yield a (Just x) = step a (Just (fromStream x))
-     in (S.runStream (toStream m)) sv blank yield
+streamFold
+    :: IsStream t
+    => Maybe (SVar m a)
+    -> (a -> t m a -> m r)
+    -> (a -> m r)
+    -> m r
+    -> t m a
+    -> m r
+streamFold svr step single blank m =
+    let yield a x = step a (fromStream x)
+     in (S.runStream (toStream m)) svr blank single yield
 
 -- | Run a streaming composition, discard the results. By default it interprets
 -- the stream as 'SerialT', to run other types of streams use the type adapting
@@ -230,9 +236,9 @@ runStream m = go (toStream m)
     where
     go m1 =
         let stop = return ()
-            yield _ Nothing  = stop
-            yield _ (Just x) = go x
-         in (S.runStream m1) Nothing stop yield
+            single _ = return ()
+            yield _ r = go r
+         in (S.runStream m1) Nothing stop single yield
 
 -- | Same as 'runStream'
 {-# Deprecated runStreaming "Please use runStream instead." #-}
@@ -354,18 +360,18 @@ serial m1 m2 = fromStream $ S.serial (toStream m1) (toStream m2)
 
 instance Monad m => Monad (SerialT m) where
     return = pure
-    (SerialT (Stream m)) >>= f = SerialT $ Stream $ \_ stp yld ->
-        let run x = (S.runStream x) Nothing stp yld
-            yield a Nothing  = run $ toStream (f a)
-            yield a (Just r) = run $ toStream $ f a <> (fromStream r >>= f)
-        in m Nothing stp yield
+    (SerialT (Stream m)) >>= f = SerialT $ Stream $ \_ stp sng yld ->
+        let run x = (S.runStream x) Nothing stp sng yld
+            single a  = run $ toStream (f a)
+            yield a r = run $ toStream $ f a <> (fromStream r >>= f)
+        in m Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (SerialT m) where
-    pure a = SerialT $ S.cons a Nothing
+    pure = SerialT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -373,11 +379,10 @@ instance Monad m => Applicative (SerialT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (SerialT m) where
-    fmap f (SerialT (Stream m)) = SerialT $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a)
-                               (Just (getSerialT (fmap f (SerialT r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (SerialT r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -501,18 +506,18 @@ infixr 5 <=>
 
 instance Monad m => Monad (CoserialT m) where
     return = pure
-    (CoserialT (Stream m)) >>= f = CoserialT $ Stream $ \_ stp yld ->
-        let run x = (S.runStream x) Nothing stp yld
-            yield a Nothing  = run $ toStream (f a)
-            yield a (Just r) = run $ toStream $ f a <> (fromStream r >>= f)
-        in m Nothing stp yield
+    (CoserialT (Stream m)) >>= f = CoserialT $ Stream $ \_ stp sng yld ->
+        let run x = (S.runStream x) Nothing stp sng yld
+            single a  = run $ toStream (f a)
+            yield a r = run $ toStream $ f a <> (fromStream r >>= f)
+        in m Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance Monad m => Applicative (CoserialT m) where
-    pure a = CoserialT $ S.cons a Nothing
+    pure = CoserialT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -520,11 +525,10 @@ instance Monad m => Applicative (CoserialT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (CoserialT m) where
-    fmap f (CoserialT (Stream m)) = CoserialT $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) =
-                yld (f a) (Just (getCoserialT (fmap f (CoserialT r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (CoserialT r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -666,24 +670,23 @@ parbind
 parbind par m f = go m
     where
         go (Stream g) =
-            Stream $ \ctx stp yld ->
-            let run x = (S.runStream x) ctx stp yld
-                yield a Nothing  = run $ f a
-                yield a (Just r) = run $ f a `par` go r
-            in g Nothing stp yield
+            Stream $ \ctx stp sng yld ->
+            let run x = (S.runStream x) ctx stp sng yld
+                single a  = run $ f a
+                yield a r = run $ f a `par` go r
+            in g Nothing stp single yield
 
 instance MonadParallel m => Monad (CoparallelT m) where
     return = pure
-    (CoparallelT m) >>= f = CoparallelT $ parbind par m g
-        where g x = getCoparallelT (f x)
-              par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
+    (CoparallelT m) >>= f = CoparallelT $ parbind par m (getCoparallelT . f)
+        where par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadParallel m => Applicative (CoparallelT m) where
-    pure a = CoparallelT $ S.cons a Nothing
+    pure = CoparallelT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -691,10 +694,10 @@ instance MonadParallel m => Applicative (CoparallelT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (CoparallelT m) where
-    fmap f (CoparallelT (Stream m)) = CoparallelT $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a) (Just (getCoparallelT (fmap f (CoparallelT r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (CoparallelT r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -817,16 +820,15 @@ instance MonadParallel m => Semigroup (ParallelT m a) where
 
 instance MonadParallel m => Monad (ParallelT m) where
     return = pure
-    (ParallelT m) >>= f = ParallelT $ parbind par m g
-        where g x = getParallelT (f x)
-              par = S.joinStreamVar2 (SVarStyle Conjunction FIFO)
+    (ParallelT m) >>= f = ParallelT $ parbind par m (getParallelT . f)
+        where par = S.joinStreamVar2 (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
 -- Applicative
 ------------------------------------------------------------------------------
 
 instance MonadParallel m => Applicative (ParallelT m) where
-    pure a = ParallelT $ S.cons a Nothing
+    pure = ParallelT . singleton
     (<*>) = ap
 
 ------------------------------------------------------------------------------
@@ -834,11 +836,10 @@ instance MonadParallel m => Applicative (ParallelT m) where
 ------------------------------------------------------------------------------
 
 instance Monad m => Functor (ParallelT m) where
-    fmap f (ParallelT (Stream m)) = ParallelT $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a)
-                                   (Just (getParallelT (fmap f (ParallelT r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (ParallelT r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 ------------------------------------------------------------------------------
 -- Num
@@ -892,14 +893,14 @@ instance (MonadParallel m, Floating a) => Floating (ParallelT m a) where
 zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
-    go mx my = Stream $ \_ stp yld -> do
+    go mx my = Stream $ \_ stp sng yld -> do
         let merge a ra =
-                let yield2 b Nothing   = yld (f a b) Nothing
-                    yield2 b (Just rb) = yld (f a b) (Just (go ra rb))
-                 in (S.runStream my) Nothing stp yield2
-        let yield1 a Nothing   = merge a S.nil
-            yield1 a (Just ra) = merge a ra
-        (S.runStream mx) Nothing stp yield1
+                let single2 b = sng (f a b)
+                    yield2 b rb = yld (f a b) (go ra rb)
+                 in (S.runStream my) Nothing stp single2 yield2
+        let single1 a   = merge a S.nil
+            yield1 a ra = merge a ra
+        (S.runStream mx) Nothing stp single1 yield1
 
 -- | The applicative instance of 'ZipSerial' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
@@ -928,11 +929,10 @@ type ZipStream = ZipSerial
 deriving instance MonadParallel m => Alternative (ZipSerial m)
 
 instance Monad m => Functor (ZipSerial m) where
-    fmap f (ZipSerial (Stream m)) = ZipSerial $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a)
-                               (Just (getZipSerial (fmap f (ZipSerial r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (ZipSerial r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 instance Monad m => Applicative (ZipSerial m) where
     pure = ZipSerial . S.repeat
@@ -990,10 +990,10 @@ instance (Monad m, Floating a) => Floating (ZipSerial m a) where
 -- generated concurrently) using a pure zipping function.
 zipParallelWith :: (IsStream t, MonadParallel m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipParallelWith f m1 m2 = fromStream $ Stream $ \_ stp yld -> do
+zipParallelWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
     ma <- async m1
     mb <- async m2
-    (S.runStream (toStream (zipWith f ma mb))) Nothing stp yld
+    (S.runStream (toStream (zipWith f ma mb))) Nothing stp sng yld
 
 {-# DEPRECATED zipAsyncWith "Please use zipParallelWith instead." #-}
 zipAsyncWith :: (IsStream t, MonadParallel m)
@@ -1025,11 +1025,10 @@ type ZipAsync = ZipParallel
 deriving instance MonadParallel m => Alternative (ZipParallel m)
 
 instance Monad m => Functor (ZipParallel m) where
-    fmap f (ZipParallel (Stream m)) = ZipParallel $ Stream $ \_ stp yld ->
-        let yield a Nothing  = yld (f a) Nothing
-            yield a (Just r) = yld (f a)
-                               (Just (getZipParallel (fmap f (ZipParallel r))))
-        in m Nothing stp yield
+    fmap f m = fromStream $ Stream $ \_ stp sng yld ->
+        let single    = sng . f
+            yield a r = yld (f a) (toStream $ fmap f (ZipParallel r))
+        in (S.runStream (toStream m)) Nothing stp single yield
 
 instance MonadParallel m => Applicative (ZipParallel m) where
     pure = ZipParallel . S.repeat

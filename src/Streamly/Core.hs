@@ -25,6 +25,7 @@ module Streamly.Core
     , Stream (..)
 
     -- * Construction
+    , singleton
     , cons
     , repeat
     , nil
@@ -145,91 +146,43 @@ data SVar m a =
 -- The stream type
 ------------------------------------------------------------------------------
 
--- TBD use a functor instead of the bare type a?
-
 -- | The type 'Stream m a' represents a monadic stream of values of type 'a'
--- constructed using actions in monad 'm'. It uses a stop continuation and a
--- yield continuation. You can consider it a rough equivalent of direct style
--- type:
+-- constructed using actions in monad 'm'. It uses stop, singleton and yield
+-- continuations equivalent to the following direct style type:
 --
--- data Stream m a = Stop | Yield a (Maybe (Stream m a))
+-- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
 --
--- Our goal is to be able to represent finite as well as infinite streams and
--- being able to compose a large number of small streams efficiently. In
--- addition we want to compose streams in parallel, to facilitate that we
--- maintain a local state in an SVar that is shared across and is used for
--- synchronization of the streams being composed.
+-- To facilitate parallel composition we maintain a local state in an SVar that
+-- is shared across and is used for synchronization of the streams being
+-- composed.
 --
--- Using this type, there are two ways to indicate the end of a stream, one is
--- by calling the stop continuation and the other one is by yielding the last
--- value along with 'Nothing' as the rest of the stream.
---
--- Why do we have this redundancy? Why can't we use (a -> Stream m a -> m r) as
--- the type of the yield continuation and always use the stop continuation to
--- indicate the end of the stream? The reason is that when we compose a large
--- number of short or singleton streams then using the stop continuation
--- becomes expensive, just to know that there is no next element we have to
--- call the continuation, introducing an indirection, it seems when using CPS
--- GHC is not able to optimize this out as efficiently as it can be in direct
--- style because of the function call involved. In direct style it will just be
--- a constructor check and a memory access instead of a function call. So we
--- could use:
---
--- data Stream m a = Stop | Yield a (Stream m a)
---
--- In CPS style, when we use the 'Maybe' argument of yield to indicate the end
--- then just like direct style we can figure out that there is no next element
--- without a function call.
---
--- Then why not get rid of the stop continuation and use only yield to indicate
--- the end of stream? The answer is, in that case to indicate the end of the
--- stream we would have to yield at least one element so there is no way to
--- represent an empty stream.
---
--- Whenever we make a singleton stream or in general when we build a stream
--- strictly i.e. when we know all the elements of the stream in advance we can
--- use the last yield to indicate the end of the stream, because we know in
--- advance at the time of the last yield that the stream is ending.  We build
--- singleton streams in the implementation of 'pure' for Applicative and Monad,
--- and in 'lift' for MonadTrans, in these places we use yield with 'Nothing' to
--- indicate the end of the stream. Note that, the only advantage of Maybe is
--- when we have to build a large number of singleton or short streams. For
--- larger streams anyway the overhead of a separate stop continuation is not
--- significant. This could be significant when we breakdown a large stream into
--- its elements, process them in some way and then recompose it from the
--- pieces. Zipping streams is one such example. Zipping with streamly is the
--- fastest among all streaming libraries.
---
--- However in a lazy computation we cannot know in advance that the stream is
--- ending therefore we cannot use 'Maybe', we use the stop continuation in that
--- case. For example when building a stream from a lazy container using a right
--- fold.
+-- The singleton case can be expressed in terms of stop and yield but we have
+-- it as a separate case to optimize composition operations for streams with
+-- single element.  We build singleton streams in the implementation of 'pure'
+-- for Applicative and Monad, and in 'lift' for MonadTrans.
 --
 newtype Stream m a =
     Stream {
         runStream :: forall r.
-               Maybe (SVar m a)               -- local state
-            -> m r                               -- stop
-            -> (a -> Maybe (Stream m a) -> m r)  -- yield
+               Maybe (SVar m a)          -- local state
+            -> m r                       -- stop
+            -> (a -> m r)                -- singleton
+            -> (a -> Stream m a -> m r)  -- yield
             -> m r
     }
 
--- | A monad that can perform concurrent or parallel IO operations. Streams
--- that can be composed concurrently require the underlying monad to be
--- 'MonadParallel'.
-type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+nil :: Stream m a
+nil = Stream $ \_ stp _ _ -> stp
 
-{-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
-type MonadAsync m = MonadParallel m
+{-# INLINE singleton #-}
+singleton :: a -> Stream m a
+singleton a = Stream $ \_ _ single _ -> single a
 
-cons :: a -> Maybe (Stream m a) -> Stream m a
-cons a r = Stream $ \_ _ yld -> yld a r
+cons :: a -> Stream m a -> Stream m a
+cons a r = Stream $ \_ _ _ yld -> yld a r
 
 repeat :: a -> Stream m a
-repeat a = let x = cons a (Just x) in x
-
-nil :: Stream m a
-nil = Stream $ \_ stp _ -> stp
+repeat a = let x = cons a x in x
 
 ------------------------------------------------------------------------------
 -- Composing streams
@@ -249,11 +202,11 @@ nil = Stream $ \_ stp _ -> stp
 serial :: Stream m a -> Stream m a -> Stream m a
 serial m1 m2 = go m1
     where
-    go (Stream m) = Stream $ \_ stp yld ->
-            let stop = (runStream m2) Nothing stp yld
-                yield a Nothing  = yld a (Just m2)
-                yield a (Just r) = yld a (Just (go r))
-            in m Nothing stop yield
+    go (Stream m) = Stream $ \_ stp sng yld ->
+            let stop      = (runStream m2) Nothing stp sng yld
+                single a  = yld a m2
+                yield a r = yld a (go r)
+            in m Nothing stop single yield
 
 instance Semigroup (Stream m a) where
     (<>) = serial
@@ -271,15 +224,23 @@ instance Monoid (Stream m a) where
 ------------------------------------------------------------------------------
 
 coserial :: Stream m a -> Stream m a -> Stream m a
-coserial m1 m2 = Stream $ \_ stp yld -> do
-    let stop = (runStream m2) Nothing stp yld
-        yield a Nothing  = yld a (Just m2)
-        yield a (Just r) = yld a (Just (coserial m2 r))
-    (runStream m1) Nothing stop yield
+coserial m1 m2 = Stream $ \_ stp sng yld -> do
+    let stop      = (runStream m2) Nothing stp sng yld
+        single a  = yld a m2
+        yield a r = yld a (coserial m2 r)
+    (runStream m1) Nothing stop single yield
 
 ------------------------------------------------------------------------------
 -- Spawning threads and collecting result in streamed fashion
 ------------------------------------------------------------------------------
+
+-- | A monad that can perform concurrent or parallel IO operations. Streams
+-- that can be composed concurrently require the underlying monad to be
+-- 'MonadParallel'.
+type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
+
+{-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
+type MonadAsync m = MonadParallel m
 
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
@@ -322,11 +283,11 @@ runqueueLIFO sv q = run
         work <- dequeue
         case work of
             Nothing -> sendStop sv
-            Just m -> (runStream m) (Just sv) run yield
+            Just m -> (runStream m) (Just sv) run single yield
 
     sendit a = send sv (ChildYield a)
-    yield a Nothing  = sendit a >> run
-    yield a (Just r) = sendit a >> (runStream r) (Just sv) run yield
+    single a = sendit a >> run
+    yield a r = sendit a >> (runStream r) (Just sv) run single yield
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
                 [] -> ([], Nothing)
@@ -345,12 +306,12 @@ runqueueFIFO sv q = run
         work <- dequeue
         case work of
             Nothing -> sendStop sv
-            Just m -> (runStream m) (Just sv) run yield
+            Just m -> (runStream m) (Just sv) run single yield
 
     dequeue = liftIO $ tryPopR q
     sendit a = send sv (ChildYield a)
-    yield a Nothing  = sendit a >> run
-    yield a (Just r) = sendit a >> liftIO (enqueueFIFO q r) >> run
+    single a = sendit a >> run
+    yield a r = sendit a >> liftIO (enqueueFIFO q r) >> run
 
 -- Thread tracking is needed for two reasons:
 --
@@ -406,7 +367,7 @@ sendWorkerWait sv = do
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadParallel m => SVar m a -> Stream m a
-fromStreamVar sv = Stream $ \_ stp yld -> do
+fromStreamVar sv = Stream $ \_ stp sng yld -> do
     -- XXX if reading the IORef is costly we can use a flag in the SVar to
     -- indicate we are done.
     done <- allThreadsDone sv
@@ -419,7 +380,7 @@ fromStreamVar sv = Stream $ \_ stp yld -> do
         -- To avoid lock overhead we read all events at once instead of reading
         -- one at a time. We just reverse the list to process the events in the
         -- order they arrived. Maybe we can use a queue instead?
-        (runStream $ processEvents (reverse list)) Nothing stp yld
+        (runStream $ processEvents (reverse list)) Nothing stp sng yld
 
     where
 
@@ -430,15 +391,15 @@ fromStreamVar sv = Stream $ \_ stp yld -> do
         throwM e
 
     {-# INLINE processEvents #-}
-    processEvents [] = Stream $ \_ stp yld -> do
+    processEvents [] = Stream $ \_ stp sng yld -> do
         done <- allThreadsDone sv
         if not done
-        then (runStream (fromStreamVar sv)) Nothing stp yld
+        then (runStream (fromStreamVar sv)) Nothing stp sng yld
         else stp
 
-    processEvents (ev : es) = Stream $ \_ stp yld -> do
-        let continue = (runStream (processEvents es)) Nothing stp yld
-            yield a  = yld a (Just (processEvents es))
+    processEvents (ev : es) = Stream $ \_ stp sng yld -> do
+        let continue = (runStream (processEvents es)) Nothing stp sng yld
+            yield a  = yld a (processEvents es)
 
         case ev of
             ChildYield a -> yield a
@@ -567,9 +528,9 @@ toStreamVar sv m = do
 {-# NOINLINE withNewSVar2 #-}
 withNewSVar2 :: MonadParallel m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
+withNewSVar2 style m1 m2 = Stream $ \_ stp sng yld -> do
     sv <- newStreamVar2 style m1 m2
-    (runStream (fromStreamVar sv)) Nothing stp yld
+    (runStream (fromStreamVar sv)) Nothing stp sng yld
 
 -- | Join two computations on the currently running 'SVar' queue for concurrent
 -- execution. The 'SVarStyle' required by the current composition context is
@@ -602,11 +563,11 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp yld -> do
 {-# INLINE joinStreamVar2 #-}
 joinStreamVar2 :: MonadParallel m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVar2 style m1 m2 = Stream $ \st stp yld ->
-    case st of
+joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
+    case svr of
         Just sv | svarStyle sv == style ->
-            liftIO ((enqueue sv) m2) >> (runStream m1) st stp yld
-        _ -> (runStream (withNewSVar2 style m1 m2)) Nothing stp yld
+            liftIO ((enqueue sv) m2) >> (runStream m1) svr stp sng yld
+        _ -> (runStream (withNewSVar2 style m1 m2)) Nothing stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -646,10 +607,9 @@ instance Monad m => Monad (Stream m) where
 ------------------------------------------------------------------------------
 
 alt :: Stream m a -> Stream m a -> Stream m a
-alt m1 m2 = Stream $ \_ stp yld ->
-    let stop  = runStream m2 Nothing stp yld
-        yield = yld
-    in runStream m1 Nothing stop yield
+alt m1 m2 = Stream $ \_ stp sng yld ->
+    let stop  = runStream m2 Nothing stp sng yld
+    in runStream m1 Nothing stop sng yld
 
 instance MonadParallel m => Alternative (Stream m) where
     empty = nil
@@ -664,7 +624,7 @@ instance MonadParallel m => MonadPlus (Stream m) where
 -------------------------------------------------------------------------------
 
 instance MonadTrans Stream where
-    lift mx = Stream $ \_ _ yld -> mx >>= (\a -> (yld a Nothing))
+    lift mx = Stream $ \_ _ single _ -> mx >>= single
 
 instance (MonadBase b m, Monad m) => MonadBase b (Stream m) where
     liftBase = liftBaseDefault
@@ -682,18 +642,17 @@ instance MonadThrow m => MonadThrow (Stream m) where
 -- XXX handle and test cross thread state transfer
 instance MonadError e m => MonadError e (Stream m) where
     throwError     = lift . throwError
-    catchError m h = Stream $ \st stp yld ->
-        let handle r = r `catchError` \e -> (runStream (h e)) st stp yld
-            yield a Nothing = yld a Nothing
-            yield a (Just r) = yld a (Just (catchError r h))
-        in handle $ (runStream m) st stp yield
+    catchError m h = Stream $ \svr stp sng yld ->
+        let handle r = r `catchError` \e -> (runStream (h e)) svr stp sng yld
+            yield a r = yld a (catchError r h)
+        in handle $ (runStream m) svr stp sng yield
 
 instance MonadReader r m => MonadReader r (Stream m) where
     ask = lift ask
-    local f m = Stream $ \st stp yld ->
-        let yield a Nothing  = local f $ yld a Nothing
-            yield a (Just r) = local f $ yld a (Just (local f r))
-        in (runStream m) st (local f stp) yield
+    local f m = Stream $ \svr stp sng yld ->
+        let single = local f . sng
+            yield a r = local f $ yld a (local f r)
+        in (runStream m) svr (local f stp) single yield
 
 instance MonadState s m => MonadState s (Stream m) where
     get     = lift get
