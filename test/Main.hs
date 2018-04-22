@@ -277,11 +277,6 @@ main = hspec $ do
     it "Nests two streams using applicative async composition" nestTwoAsyncApp
     it "Nests two streams using applicative parallel composition" nestTwoParallelApp
 
-    it "Nests two streams using Num serial composition" nestTwoSerialNum
-    it "Nests two streams using Num interleaved composition" nestTwoInterleavedNum
-    it "Nests two streams using Num async composition" nestTwoAsyncNum
-    it "Nests two streams using Num parallel composition" nestTwoParallelNum
-
     ---------------------------------------------------------------------------
     -- TBD Bind and Bind combinations
     ---------------------------------------------------------------------------
@@ -402,13 +397,6 @@ nestTwoSerialApp =
     in toListSerial ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
-nestTwoSerialNum :: Expectation
-nestTwoSerialNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in toListSerial (s1 + s2)
-        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
-
 nestTwoInterleaved :: Expectation
 nestTwoInterleaved =
     let s1 = foldMapWith (<>) return [1..4]
@@ -424,13 +412,6 @@ nestTwoInterleavedApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in toListInterleaved ((+) <$> s1 <*> s2)
-        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
-
-nestTwoInterleavedNum :: Expectation
-nestTwoInterleavedNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in toListInterleaved (s1 + s2)
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoAsync :: Expectation
@@ -451,13 +432,6 @@ nestTwoAsyncApp =
     in (toListAsync ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
-nestTwoAsyncNum :: Expectation
-nestTwoAsyncNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in (toListAsync (s1 + s2) >>= return . sort)
-        `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
-
 nestTwoParallel :: Expectation
 nestTwoParallel =
     let s1 = foldMapWith (<>) return [1..4]
@@ -474,13 +448,6 @@ nestTwoParallelApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in (toListParallel ((+) <$> s1 <*> s2) >>= return . sort)
-        `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
-
-nestTwoParallelNum :: Expectation
-nestTwoParallelNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in (toListParallel (s1 + s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 timed :: MonadIO (t IO) => Int -> t IO Int

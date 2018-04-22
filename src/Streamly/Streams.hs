@@ -103,7 +103,6 @@ module Streamly.Streams
     )
 where
 
-import           Control.Applicative         (liftA2)
 import           Control.Monad               (ap)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -307,47 +306,6 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     put x   = lift (put x);                                                   \
     state k = lift (state k) }
 
-#define NUMERIC_COMMON_INSTANCES(STREAM,CONSTRAINT)                           \
-instance (Monad m, Num a CONSTRAINT) => Num (STREAM m a) where {              \
-    fromInteger n = pure (fromInteger n);                                     \
-                                                                              \
-    negate = fmap negate;                                                     \
-    abs    = fmap abs;                                                        \
-    signum = fmap signum;                                                     \
-                                                                              \
-    (+) = liftA2 (+);                                                         \
-    (*) = liftA2 (*);                                                         \
-    (-) = liftA2 (-) };                                                       \
-                                                                              \
-instance (Monad m, Fractional a CONSTRAINT) => Fractional (STREAM m a) where {\
-    fromRational n = pure (fromRational n);                                   \
-                                                                              \
-    recip = fmap recip;                                                       \
-                                                                              \
-    (/) = liftA2 (/) };                                                       \
-                                                                              \
-instance (Monad m, Floating a CONSTRAINT) => Floating (STREAM m a) where {    \
-    pi = pure pi;                                                             \
-                                                                              \
-    exp  = fmap exp;                                                          \
-    sqrt = fmap sqrt;                                                         \
-    log  = fmap log;                                                          \
-    sin  = fmap sin;                                                          \
-    tan  = fmap tan;                                                          \
-    cos  = fmap cos;                                                          \
-    asin = fmap asin;                                                         \
-    atan = fmap atan;                                                         \
-    acos = fmap acos;                                                         \
-    sinh = fmap sinh;                                                         \
-    tanh = fmap tanh;                                                         \
-    cosh = fmap cosh;                                                         \
-    asinh = fmap asinh;                                                       \
-    atanh = fmap atanh;                                                       \
-    acosh = fmap acosh;                                                       \
-                                                                              \
-    (**)    = liftA2 (**);                                                    \
-    logBase = liftA2 logBase }
-
 ------------------------------------------------------------------------------
 -- SerialT
 ------------------------------------------------------------------------------
@@ -442,7 +400,6 @@ instance Monad m => Monad (SerialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(SerialT,)
 MONAD_COMMON_INSTANCES(SerialT,)
-NUMERIC_COMMON_INSTANCES(SerialT,)
 
 ------------------------------------------------------------------------------
 -- CoserialT
@@ -535,7 +492,6 @@ instance Monad m => Monad (CoserialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(CoserialT,)
 MONAD_COMMON_INSTANCES(CoserialT,)
-NUMERIC_COMMON_INSTANCES(CoserialT,)
 
 ------------------------------------------------------------------------------
 -- CoparallelT
@@ -648,7 +604,6 @@ instance MonadParallel m => Monad (CoparallelT m) where
 
 MONAD_APPLICATIVE_INSTANCE(CoparallelT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
-NUMERIC_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- ParallelT
@@ -734,7 +689,6 @@ instance MonadParallel m => Monad (ParallelT m) where
 
 MONAD_APPLICATIVE_INSTANCE(ParallelT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
-NUMERIC_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -785,8 +739,6 @@ instance IsStream ZipSerial where
     toStream = getZipSerial
     fromStream = ZipSerial
 
-NUMERIC_COMMON_INSTANCES(ZipSerial,)
-
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
@@ -834,8 +786,6 @@ instance MonadParallel m => Applicative (ZipParallel m) where
 instance IsStream ZipParallel where
     toStream = getZipParallel
     fromStream = ZipParallel
-
-NUMERIC_COMMON_INSTANCES(ZipParallel,MONADPARALLEL)
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators
