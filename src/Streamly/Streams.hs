@@ -107,7 +107,7 @@ import           Control.Applicative         (liftA2)
 import           Control.Monad               (ap)
 import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
 import           Control.Monad.Catch         (MonadThrow, throwM)
-import           Control.Monad.Error.Class   (MonadError(..))
+-- import           Control.Monad.Error.Class   (MonadError(..))
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
@@ -291,10 +291,12 @@ instance (MonadIO m CONSTRAINT) => MonadIO (STREAM m) where {                 \
 instance (MonadThrow m CONSTRAINT) => MonadThrow (STREAM m) where {           \
     throwM = lift . throwM };                                                 \
                                                                               \
+{- \
 instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
     throwError = lift . throwError;                                           \
     catchError m h =                                                          \
         fromStream $ S.withCatchError (toStream m) (\e -> toStream $ h e) };  \
+-} \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     ask = lift ask;                                                           \

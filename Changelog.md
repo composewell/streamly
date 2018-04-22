@@ -28,6 +28,8 @@
   Stream types may have to be changed or type combinators may have to be added
   or removed to adapt to this change.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base.
+* Remove the MonadError instance as it was not working correctly for the
+  parallel compositions. Use MonadThrow instead for error propagation.
 
 ### Deprecations
 * Deprecate and rename the following symbols:

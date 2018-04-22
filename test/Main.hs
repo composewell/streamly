@@ -5,6 +5,10 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
+import Control.Exception (Exception, try)
+import Control.Monad.Catch (throwM, MonadThrow)
+import Control.Monad.Error.Class (throwError, MonadError)
+import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_)
 import Data.List (sort)
 import Test.Hspec
@@ -32,6 +36,7 @@ main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
         -- XXX move these to property tests
+        -- XXX use an IORef to store and check the side effects
         it "simple serially" $
             (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
@@ -283,6 +288,102 @@ main = hspec $ do
 
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
+    describe "Simple MonadError and MonadThrow" simpleMonadError
+
+    {-
+    describe "Composed MonadError serially" $ composeWithMonadError serially
+    describe "Composed MonadError coserially" $ composeWithMonadError coserially
+    describe "Composed MonadError coparallely" $ composeWithMonadError coparallely
+    describe "Composed MonadError parallely" $ composeWithMonadError parallely
+    -}
+
+    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
+    describe "Composed MonadThrow coserially" $ composeWithMonadThrow coserially
+    describe "Composed MonadThrow coparallely" $ composeWithMonadThrow coparallely
+    describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
+
+-- XXX need to test that we have promptly cleaned up everything after the error
+-- XXX We can also check the output that we are expected to get before the
+-- error occurs.
+
+data ExampleException = ExampleException String deriving (Eq, Show)
+
+instance Exception ExampleException
+
+simpleMonadError :: Spec
+simpleMonadError = do
+{-
+    it "simple runExceptT" $ do
+        (runExceptT $ runStream $ return ())
+        `shouldReturn` (Right () :: Either String ())
+    it "simple runExceptT with error" $ do
+        (runExceptT $ runStream $ throwError "E") `shouldReturn` Left "E"
+        -}
+    it "simple try" $ do
+        (try $ runStream $ return ())
+        `shouldReturn` (Right () :: Either ExampleException ())
+    it "simple try with throw error" $ do
+        (try $ runStream $ throwM $ ExampleException "E")
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException ())
+
+composeWithMonadThrow
+    :: ( IsStream t
+       , Semigroup (t IO Int)
+       , MonadThrow (t IO)
+       )
+    => (t IO Int -> SerialT IO Int) -> Spec
+composeWithMonadThrow t = do
+    it "Compose throwM, nil" $
+        (try $ tl (throwM (ExampleException "E") <> A.nil))
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+    it "Compose nil, throwM" $
+        (try $ tl (A.nil <> throwM (ExampleException "E")))
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+    oneLevelNestedSum "serially" serially
+    oneLevelNestedSum "coserially" coserially
+    oneLevelNestedSum "coparallely" coparallely
+    oneLevelNestedSum "parallely" parallely
+    -- XXX add two level nesting
+
+    oneLevelNestedProduct "serially"   serially
+    oneLevelNestedProduct "coserially" coserially
+    oneLevelNestedProduct "coparallely" coparallely
+    oneLevelNestedProduct "parallely"  parallely
+
+    where
+    tl = A.toList . t
+    oneLevelNestedSum desc t1 =
+        it ("One level nested sum " ++ desc) $ do
+            let nested = (A.fromFoldable [1..10] <> throwM (ExampleException "E")
+                         <> A.fromFoldable [1..10])
+            (try $ tl (A.nil <> t1 nested <> A.fromFoldable [1..10]))
+            `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+
+    oneLevelNestedProduct desc t1 =
+        it ("One level nested product" ++ desc) $ do
+            let s1 = t $ foldMapWith (<>) return [1..4]
+                s2 = t1 $ foldMapWith (<>) return [5..8]
+            try $ tl (do
+                x <- adapt s1
+                y <- s2
+                if (x + y > 10)
+                then throwM (ExampleException "E")
+                else return (x + y)
+                )
+            `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+
+_composeWithMonadError
+    :: ( IsStream t
+       , Semigroup (t (ExceptT String IO) Int)
+       , MonadError String (t (ExceptT String IO))
+       )
+    => (t (ExceptT String IO) Int -> SerialT (ExceptT String IO) Int) -> Spec
+_composeWithMonadError t = do
+    let tl = A.toList . t
+    it "Compose throwError, nil" $
+        (runExceptT $ tl (throwError "E" <> A.nil)) `shouldReturn` Left "E"
+    it "Compose nil, error" $
+        (runExceptT $ tl (A.nil <> throwError "E")) `shouldReturn` Left "E"
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
