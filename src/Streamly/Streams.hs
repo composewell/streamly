@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -102,15 +103,15 @@ module Streamly.Streams
     )
 where
 
-import           Control.Applicative         (Alternative (..), liftA2)
-import           Control.Monad               (MonadPlus(..), ap)
-import           Control.Monad.Base          (MonadBase (..))
-import           Control.Monad.Catch         (MonadThrow)
+import           Control.Applicative         (liftA2)
+import           Control.Monad               (ap)
+import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
+import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.Error.Class   (MonadError(..))
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
-import           Control.Monad.Trans.Class   (MonadTrans)
+import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
 import           Streamly.Core               ( MonadParallel, Stream(Stream)
@@ -267,6 +268,85 @@ async m = do
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------
+-- CPP macros for common instances
+------------------------------------------------------------------------------
+
+-- XXX use template haskell instead and include Monoid and IsStream instances
+-- as well.
+
+#define MONADPARALLEL , MonadParallel m
+
+#define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
+instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
+    pure = STREAM . singleton;                     \
+    (<*>) = ap }
+
+#define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
+instance (MonadBase b m, Monad m CONSTRAINT) => MonadBase b (STREAM m) where {\
+    liftBase = liftBaseDefault };                                             \
+                                                                              \
+instance (MonadIO m CONSTRAINT) => MonadIO (STREAM m) where {                 \
+    liftIO = lift . liftIO };                                                 \
+                                                                              \
+instance (MonadThrow m CONSTRAINT) => MonadThrow (STREAM m) where {           \
+    throwM = lift . throwM };                                                 \
+                                                                              \
+instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
+    throwError = lift . throwError;                                           \
+    catchError m h =                                                          \
+        fromStream $ S.withCatchError (toStream m) (\e -> toStream $ h e) };  \
+                                                                              \
+instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
+    ask = lift ask;                                                           \
+    local f m = fromStream $ S.withLocal f (toStream m) };                    \
+                                                                              \
+instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
+    get     = lift get;                                                       \
+    put x   = lift (put x);                                                   \
+    state k = lift (state k) }
+
+#define NUMERIC_COMMON_INSTANCES(STREAM,CONSTRAINT)                           \
+instance (Monad m, Num a CONSTRAINT) => Num (STREAM m a) where {              \
+    fromInteger n = pure (fromInteger n);                                     \
+                                                                              \
+    negate = fmap negate;                                                     \
+    abs    = fmap abs;                                                        \
+    signum = fmap signum;                                                     \
+                                                                              \
+    (+) = liftA2 (+);                                                         \
+    (*) = liftA2 (*);                                                         \
+    (-) = liftA2 (-) };                                                       \
+                                                                              \
+instance (Monad m, Fractional a CONSTRAINT) => Fractional (STREAM m a) where {\
+    fromRational n = pure (fromRational n);                                   \
+                                                                              \
+    recip = fmap recip;                                                       \
+                                                                              \
+    (/) = liftA2 (/) };                                                       \
+                                                                              \
+instance (Monad m, Floating a CONSTRAINT) => Floating (STREAM m a) where {    \
+    pi = pure pi;                                                             \
+                                                                              \
+    exp  = fmap exp;                                                          \
+    sqrt = fmap sqrt;                                                         \
+    log  = fmap log;                                                          \
+    sin  = fmap sin;                                                          \
+    tan  = fmap tan;                                                          \
+    cos  = fmap cos;                                                          \
+    asin = fmap asin;                                                         \
+    atan = fmap atan;                                                         \
+    acos = fmap acos;                                                         \
+    sinh = fmap sinh;                                                         \
+    tanh = fmap tanh;                                                         \
+    cosh = fmap cosh;                                                         \
+    asinh = fmap asinh;                                                       \
+    atanh = fmap atanh;                                                       \
+    acosh = fmap acosh;                                                       \
+                                                                              \
+    (**)    = liftA2 (**);                                                    \
+    logBase = liftA2 logBase }
+
+------------------------------------------------------------------------------
 -- SerialT
 ------------------------------------------------------------------------------
 
@@ -321,14 +401,7 @@ async m = do
 -- streams as it explores only one stream at a time.
 --
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
-    deriving (Functor, Semigroup, Monoid, MonadTrans, MonadIO, MonadThrow)
-
-deriving instance MonadParallel m => Alternative (SerialT m)
-deriving instance MonadParallel m => MonadPlus (SerialT m)
-deriving instance (MonadBase b m, Monad m) => MonadBase b (SerialT m)
-deriving instance MonadError e m => MonadError e (SerialT m)
-deriving instance MonadReader r m => MonadReader r (SerialT m)
-deriving instance MonadState s m => MonadState s (SerialT m)
+    deriving (Semigroup, Monoid, Functor, MonadTrans)
 
 instance IsStream SerialT where
     toStream = getSerialT
@@ -337,11 +410,6 @@ instance IsStream SerialT where
 -- | Same as SerialT.
 {-# Deprecated StreamT "Please use SerialT instead." #-}
 type StreamT = SerialT
-
--- XXX The Functor/Applicative/Num instances for all the types are exactly the
--- same, how can we reduce this boilerplate (use TH)? We cannot derive them
--- from a single base type because they depend on the Monad instance which is
--- different for each type.
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -367,56 +435,12 @@ instance Monad m => Monad (SerialT m) where
         in m Nothing stp single yield
 
 ------------------------------------------------------------------------------
--- Applicative
+-- Other instances
 ------------------------------------------------------------------------------
 
-instance Monad m => Applicative (SerialT m) where
-    pure = SerialT . singleton
-    (<*>) = ap
-
-------------------------------------------------------------------------------
--- Num
-------------------------------------------------------------------------------
-
-instance (Monad m, Num a) => Num (SerialT m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (Monad m, Fractional a) => Fractional (SerialT m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (Monad m, Floating a) => Floating (SerialT m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+MONAD_APPLICATIVE_INSTANCE(SerialT,)
+MONAD_COMMON_INSTANCES(SerialT,)
+NUMERIC_COMMON_INSTANCES(SerialT,)
 
 ------------------------------------------------------------------------------
 -- CoserialT
@@ -453,14 +477,7 @@ instance (Monad m, Floating a) => Floating (SerialT m a) where
 -- streams as it needs to retain state for each unfinished stream.
 --
 newtype CoserialT m a = CoserialT {getCoserialT :: Stream m a}
-    deriving (Functor, Monoid, MonadTrans, MonadIO, MonadThrow)
-
-deriving instance MonadParallel m => Alternative (CoserialT m)
-deriving instance MonadParallel m => MonadPlus (CoserialT m)
-deriving instance (MonadBase b m, Monad m) => MonadBase b (CoserialT m)
-deriving instance MonadError e m => MonadError e (CoserialT m)
-deriving instance MonadReader r m => MonadReader r (CoserialT m)
-deriving instance MonadState s m => MonadState s (CoserialT m)
+    deriving (Functor, MonadTrans)
 
 {-# DEPRECATED InterleavedT "Please use 'CoserialT' instead." #-}
 type InterleavedT = CoserialT
@@ -491,6 +508,14 @@ infixr 5 <=>
 (<=>) = coserial
 
 ------------------------------------------------------------------------------
+-- Monoid
+------------------------------------------------------------------------------
+
+instance Monoid (CoserialT m a) where
+    mempty = nil
+    mappend = (<>)
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -503,56 +528,12 @@ instance Monad m => Monad (CoserialT m) where
         in m Nothing stp single yield
 
 ------------------------------------------------------------------------------
--- Applicative
+-- Other instances
 ------------------------------------------------------------------------------
 
-instance Monad m => Applicative (CoserialT m) where
-    pure = CoserialT . singleton
-    (<*>) = ap
-
-------------------------------------------------------------------------------
--- Num
-------------------------------------------------------------------------------
-
-instance (Monad m, Num a) => Num (CoserialT m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (Monad m, Fractional a) => Fractional (CoserialT m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (Monad m, Floating a) => Floating (CoserialT m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+MONAD_APPLICATIVE_INSTANCE(CoserialT,)
+MONAD_COMMON_INSTANCES(CoserialT,)
+NUMERIC_COMMON_INSTANCES(CoserialT,)
 
 ------------------------------------------------------------------------------
 -- CoparallelT
@@ -600,16 +581,6 @@ instance (Monad m, Floating a) => Floating (CoserialT m a) where
 newtype CoparallelT m a = CoparallelT {getCoparallelT :: Stream m a}
     deriving (Functor, MonadTrans)
 
-deriving instance MonadParallel m => Monoid (CoparallelT m a)
-deriving instance MonadParallel m => Alternative (CoparallelT m)
-deriving instance MonadParallel m => MonadPlus (CoparallelT m)
-deriving instance MonadParallel m => MonadIO (CoparallelT m)
-deriving instance MonadParallel m => MonadThrow (CoparallelT m)
-deriving instance (MonadBase b m, MonadParallel m) => MonadBase b (CoparallelT m)
-deriving instance (MonadError e m, MonadParallel m) => MonadError e (CoparallelT m)
-deriving instance (MonadReader r m, MonadParallel m) => MonadReader r (CoparallelT m)
-deriving instance (MonadState s m, MonadParallel m) => MonadState s (CoparallelT m)
-
 {-# DEPRECATED AsyncT "Please use 'CoparallelT' instead." #-}
 type AsyncT = CoparallelT
 
@@ -638,6 +609,14 @@ instance MonadParallel m => Semigroup (CoparallelT m a) where
 (<|) = coparallel
 
 ------------------------------------------------------------------------------
+-- Monoid
+------------------------------------------------------------------------------
+
+instance MonadParallel m => Monoid (CoparallelT m a) where
+    mempty = nil
+    mappend = (<>)
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -662,56 +641,12 @@ instance MonadParallel m => Monad (CoparallelT m) where
         where par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
 
 ------------------------------------------------------------------------------
--- Applicative
+-- Other instances
 ------------------------------------------------------------------------------
 
-instance MonadParallel m => Applicative (CoparallelT m) where
-    pure = CoparallelT . singleton
-    (<*>) = ap
-
-------------------------------------------------------------------------------
--- Num
-------------------------------------------------------------------------------
-
-instance (MonadParallel m, Num a) => Num (CoparallelT m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (MonadParallel m, Fractional a) => Fractional (CoparallelT m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (MonadParallel m, Floating a) => Floating (CoparallelT m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+MONAD_APPLICATIVE_INSTANCE(CoparallelT,MONADPARALLEL)
+MONAD_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
+NUMERIC_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- ParallelT
@@ -757,16 +692,6 @@ instance (MonadParallel m, Floating a) => Floating (CoparallelT m a) where
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
     deriving (Functor, MonadTrans)
 
-deriving instance MonadParallel m => Monoid (ParallelT m a)
-deriving instance MonadParallel m => Alternative (ParallelT m)
-deriving instance MonadParallel m => MonadPlus (ParallelT m)
-deriving instance MonadParallel m => MonadIO (ParallelT m)
-deriving instance MonadParallel m => MonadThrow (ParallelT m)
-deriving instance (MonadBase b m, MonadParallel m) => MonadBase b (ParallelT m)
-deriving instance (MonadError e m, MonadParallel m) => MonadError e (ParallelT m)
-deriving instance (MonadReader r m, MonadParallel m) => MonadReader r (ParallelT m)
-deriving instance (MonadState s m, MonadParallel m) => MonadState s (ParallelT m)
-
 instance IsStream ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
@@ -785,6 +710,14 @@ instance MonadParallel m => Semigroup (ParallelT m a) where
     (<>) = parallel
 
 ------------------------------------------------------------------------------
+-- Monoid
+------------------------------------------------------------------------------
+
+instance MonadParallel m => Monoid (ParallelT m a) where
+    mempty = nil
+    mappend = (<>)
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -794,56 +727,12 @@ instance MonadParallel m => Monad (ParallelT m) where
         where par = S.joinStreamVar2 (SVarStyle Conjunction FIFO)
 
 ------------------------------------------------------------------------------
--- Applicative
+-- Other instances
 ------------------------------------------------------------------------------
 
-instance MonadParallel m => Applicative (ParallelT m) where
-    pure = ParallelT . singleton
-    (<*>) = ap
-
-------------------------------------------------------------------------------
--- Num
-------------------------------------------------------------------------------
-
-instance (MonadParallel m, Num a) => Num (ParallelT m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (MonadParallel m, Fractional a) => Fractional (ParallelT m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (MonadParallel m, Floating a) => Floating (ParallelT m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+MONAD_APPLICATIVE_INSTANCE(ParallelT,MONADPARALLEL)
+MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
+NUMERIC_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -886,8 +775,6 @@ newtype ZipSerial m a = ZipSerial {getZipSerial :: Stream m a}
 -- | Same as ZipSerial.
 type ZipStream = ZipSerial
 
-deriving instance MonadParallel m => Alternative (ZipSerial m)
-
 instance Monad m => Applicative (ZipSerial m) where
     pure = ZipSerial . S.repeat
     (<*>) = zipWith id
@@ -896,45 +783,7 @@ instance IsStream ZipSerial where
     toStream = getZipSerial
     fromStream = ZipSerial
 
-instance (Monad m, Num a) => Num (ZipSerial m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (Monad m, Fractional a) => Fractional (ZipSerial m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (Monad m, Floating a) => Floating (ZipSerial m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+NUMERIC_COMMON_INSTANCES(ZipSerial,)
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -976,8 +825,6 @@ newtype ZipParallel m a = ZipParallel {getZipParallel :: Stream m a}
 {-# DEPRECATED ZipAsync "Please use ZipParallel instead." #-}
 type ZipAsync = ZipParallel
 
-deriving instance MonadParallel m => Alternative (ZipParallel m)
-
 instance MonadParallel m => Applicative (ZipParallel m) where
     pure = ZipParallel . S.repeat
     (<*>) = zipParallelWith id
@@ -986,45 +833,7 @@ instance IsStream ZipParallel where
     toStream = getZipParallel
     fromStream = ZipParallel
 
-instance (MonadParallel m, Num a) => Num (ZipParallel m a) where
-    fromInteger n = pure (fromInteger n)
-
-    negate = fmap negate
-    abs    = fmap abs
-    signum = fmap signum
-
-    (+) = liftA2 (+)
-    (*) = liftA2 (*)
-    (-) = liftA2 (-)
-
-instance (MonadParallel m, Fractional a) => Fractional (ZipParallel m a) where
-    fromRational n = pure (fromRational n)
-
-    recip = fmap recip
-
-    (/) = liftA2 (/)
-
-instance (MonadParallel m, Floating a) => Floating (ZipParallel m a) where
-    pi = pure pi
-
-    exp  = fmap exp
-    sqrt = fmap sqrt
-    log  = fmap log
-    sin  = fmap sin
-    tan  = fmap tan
-    cos  = fmap cos
-    asin = fmap asin
-    atan = fmap atan
-    acos = fmap acos
-    sinh = fmap sinh
-    tanh = fmap tanh
-    cosh = fmap cosh
-    asinh = fmap asinh
-    atanh = fmap atanh
-    acosh = fmap acosh
-
-    (**)    = liftA2 (**)
-    logBase = liftA2 logBase
+NUMERIC_COMMON_INSTANCES(ZipParallel,MONADPARALLEL)
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators

@@ -95,6 +95,10 @@ main = do
 map :: Monad m => (a -> Int) -> a -> m Int
 map f x = return $ f x
 
+guard'           :: (A.IsStream t, Applicative (t m)) => Bool -> t m ()
+guard' True      =  pure ()
+guard' False     =  A.nil
+
 {-# INLINABLE filter #-}
 filter :: (Monad m, Alternative m) => (a -> Bool) -> a -> m a
 filter cond x = guard (not $ cond x) >> return x
@@ -102,12 +106,12 @@ filter cond x = guard (not $ cond x) >> return x
 amap :: Monad (s IO) => (Int -> Int) -> Int -> s IO Int
 amap = Main.map
 
-afilter :: (Alternative (s IO), Monad (s IO)) => (Int -> Bool) -> Int -> s IO Int
-afilter = Main.filter
+afilter :: (A.IsStream s, Monad (s IO)) => (Int -> Bool) -> Int -> s IO Int
+afilter cond x = guard' (not $ cond x) >> return x
 
 {-# INLINE streamly_basic #-}
 streamly_basic
-    :: (Alternative (t IO), Monad (t IO), A.IsStream t)
+    :: (Monad (t IO), A.IsStream t)
     => (forall a. t IO a -> IO [a])
     -> (t IO Int -> t IO Int -> t IO Int)
     -> IO Int

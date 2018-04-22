@@ -39,6 +39,10 @@ module Streamly.Core
     -- * Alternative
     , alt
 
+    -- * Transformers
+    , withLocal
+    , withCatchError
+
     -- * Concurrent Stream Vars (SVars)
     , SVar
     , SVarSched (..)
@@ -53,20 +57,17 @@ module Streamly.Core
     )
 where
 
-import           Control.Applicative         (Alternative (..))
 import           Control.Concurrent          (ThreadId, forkIO,
                                               myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
-import           Control.Monad               (MonadPlus(..), mzero, when)
-import           Control.Monad.Base          (MonadBase (..), liftBaseDefault)
+import           Control.Monad               (when)
 import           Control.Monad.Catch         (MonadThrow, throwM)
 import           Control.Monad.Error.Class   (MonadError(..))
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Reader.Class  (MonadReader(..))
-import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
 import           Data.Atomics                (atomicModifyIORefCAS,
@@ -183,15 +184,6 @@ cons a r = Stream $ \_ _ _ yld -> yld a r
 
 repeat :: a -> Stream m a
 repeat a = let x = cons a x in x
-
-------------------------------------------------------------------------------
--- Composing streams
-------------------------------------------------------------------------------
-
--- Streams can be composed sequentially or in parallel; in product style
--- compositions (monadic bind multiplies streams in a ListT fashion) or in sum
--- style compositions like 'Semigroup', 'Monoid', 'Alternative' or variants of
--- these.
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -582,28 +574,14 @@ parallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
 parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -------------------------------------------------------------------------------
--- Instances (only used for deriving newtype instances)
+-- Functor instace is the same for all types
 -------------------------------------------------------------------------------
-
--- Stream type is not exposed, these instances are only for deriving instances
--- for the newtype wrappers based on Stream.
-
--- Dummy Instances, defined to enable the definition of other instances that
--- require a Monad constraint.  Must be defined by the newtypes.
 
 instance Monad m => Functor (Stream m) where
     fmap f m = Stream $ \_ stp sng yld ->
         let single    = sng . f
             yield a r = yld (f a) (fmap f r)
         in (runStream m) Nothing stp single yield
-
-instance Monad m => Applicative (Stream m) where
-    pure = undefined
-    (<*>) = undefined
-
-instance Monad m => Monad (Stream m) where
-    return = pure
-    (>>=) = undefined
 
 ------------------------------------------------------------------------------
 -- Alternative & MonadPlus
@@ -614,50 +592,27 @@ alt m1 m2 = Stream $ \_ stp sng yld ->
     let stop  = runStream m2 Nothing stp sng yld
     in runStream m1 Nothing stop sng yld
 
-instance MonadParallel m => Alternative (Stream m) where
-    empty = nil
-    (<|>) = alt
-
-instance MonadParallel m => MonadPlus (Stream m) where
-    mzero = nil
-    mplus = (<|>)
-
 -------------------------------------------------------------------------------
--- Transformer
+-- Transformers
 -------------------------------------------------------------------------------
 
 instance MonadTrans Stream where
     lift mx = Stream $ \_ _ single _ -> mx >>= single
 
-instance (MonadBase b m, Monad m) => MonadBase b (Stream m) where
-    liftBase = liftBaseDefault
-
-------------------------------------------------------------------------------
--- Standard transformer instances
-------------------------------------------------------------------------------
-
-instance MonadIO m => MonadIO (Stream m) where
-    liftIO = lift . liftIO
-
-instance MonadThrow m => MonadThrow (Stream m) where
-    throwM = lift . throwM
-
--- XXX handle and test cross thread state transfer
-instance MonadError e m => MonadError e (Stream m) where
-    throwError     = lift . throwError
-    catchError m h = Stream $ \svr stp sng yld ->
-        let handle r = r `catchError` \e -> (runStream (h e)) svr stp sng yld
-            yield a r = yld a (catchError r h)
-        in handle $ (runStream m) svr stp sng yield
-
-instance MonadReader r m => MonadReader r (Stream m) where
-    ask = lift ask
-    local f m = Stream $ \svr stp sng yld ->
+withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
+withLocal f m =
+    Stream $ \svr stp sng yld ->
         let single = local f . sng
-            yield a r = local f $ yld a (local f r)
+            yield a r = local f $ yld a (withLocal f r)
         in (runStream m) svr (local f stp) single yield
 
-instance MonadState s m => MonadState s (Stream m) where
-    get     = lift get
-    put x   = lift (put x)
-    state k = lift (state k)
+-- XXX handle and test cross thread state transfer
+withCatchError
+    :: MonadError e m
+    => Stream m a -> (e -> Stream m a) -> Stream m a
+withCatchError m h =
+    Stream $ \svr stp sng yld ->
+        let run x = runStream x svr stp sng yield
+            handle r = r `catchError` \e -> run $ h e
+            yield a r = yld a (withCatchError r h)
+        in handle $ run m

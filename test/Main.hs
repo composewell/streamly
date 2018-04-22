@@ -40,10 +40,10 @@ main = hspec $ do
     describe "Empty" $ do
         it "Monoid - mempty" $
             (toListSerial mempty) `shouldReturn` ([] :: [Int])
-        it "Alternative - empty" $
-            (toListSerial empty) `shouldReturn` ([] :: [Int])
-        it "MonadPlus - mzero" $
-            (toListSerial mzero) `shouldReturn` ([] :: [Int])
+        -- it "Alternative - empty" $
+        --     (toListSerial empty) `shouldReturn` ([] :: [Int])
+        -- it "MonadPlus - mzero" $
+        --     (toListSerial mzero) `shouldReturn` ([] :: [Int])
 
     ---------------------------------------------------------------------------
     -- Functor
@@ -84,7 +84,26 @@ main = hspec $ do
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
     ---------------------------------------------------------------------------
-    -- Monoidal Compositions
+    -- Semigroup/Monoidal Composition strict ordering checks
+    ---------------------------------------------------------------------------
+
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "Serial interleaved (<>) ordering check" $ interleaveCheck coserially (<>)
+    describe "Serial interleaved mappend ordering check" $ interleaveCheck coserially mappend
+
+    describe "Parallel interleaved (<>) ordering check" $ interleaveCheck parallely (<>)
+    describe "Parallel interleaved mappend ordering check" $ interleaveCheck parallely mappend
+
+    describe "Coparallel (<>) time order check" $ parallelCheck coparallely (<>)
+    describe "Coparallel mappend time order check" $ parallelCheck coparallely mappend
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+
+    ---------------------------------------------------------------------------
+    -- Monoidal Compositions, multiset equality checks
     ---------------------------------------------------------------------------
 
     describe "Serial Composition" $ compose serially mempty id
@@ -94,14 +113,6 @@ main = hspec $ do
     describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
     describe "Semigroup Composition for ZipAsync" $ compose zipParallely mempty id
     -- XXX need to check alternative compositions as well
-    ---------------------------------------------------------------------------
-    -- Monoidal Composition ordering checks
-    ---------------------------------------------------------------------------
-
-    describe "Serial interleaved ordering check" $ interleaveCheck coserially
-    describe "Parallel interleaved ordering check" $ interleaveCheck parallely
-    describe "Left biased parallel time order check" $ parallelCheck coparallely
-    describe "Fair parallel time order check" $ parallelCheck parallely
 
     ---------------------------------------------------------------------------
     -- TBD Monoidal composition combinations
@@ -374,22 +385,26 @@ nestTwoParallelNum =
 timed :: MonadIO (t IO) => Int -> t IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
-interleaveCheck :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> SerialT IO Int) -> Spec
-interleaveCheck t =
+interleaveCheck :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int -> t IO Int)
+    -> Spec
+interleaveCheck t f =
     it "Interleave four" $
-        (A.toList . t) ((singleton 0 <> singleton 1) <> (singleton 100 <> singleton 101))
+        (A.toList . t) ((singleton 0 `f` singleton 1) `f` (singleton 100 `f` singleton 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: (Semigroup (t IO Int), MonadIO (t IO))
-    => (t IO Int -> SerialT IO Int) -> Spec
-parallelCheck t = do
+parallelCheck :: MonadIO (t IO)
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int -> t IO Int)
+    -> Spec
+parallelCheck t f = do
     it "Parallel ordering left associated" $
-        (A.toList . t) (((event 4 <> event 3) <> event 2) <> event 1)
+        (A.toList . t) (((event 4 `f` event 3) `f` event 2) `f` event 1)
             `shouldReturn` ([1..4])
 
     it "Parallel ordering right associated" $
-        (A.toList . t) (event 4 <> (event 3 <> (event 2 <> event 1)))
+        (A.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
