@@ -1,5 +1,6 @@
 import Streamly
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
+import Streamly.Prelude (nil)
 
 main = do
     liftIO $ hSetBuffering stdout LineBuffering
@@ -49,7 +50,7 @@ main = do
     loopTail :: Int -> SerialT IO Int
     loopTail x = do
         liftIO $ putStrLn "LoopTail..."
-        return x <> (if x < 3 then loopTail (x + 1) else empty)
+        return x <> (if x < 3 then loopTail (x + 1) else nil)
 
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
@@ -57,7 +58,7 @@ main = do
     loopHead :: Int -> SerialT IO Int
     loopHead x = do
         liftIO $ putStrLn "LoopHead..."
-        (if x < 3 then loopHead (x + 1) else empty) <> return x
+        (if x < 3 then loopHead (x + 1) else nil) <> return x
 
 -------------------------------------------------------------------------------
 -- Concurrent (multi-threaded) adaptive demand-based stream generator loops
@@ -71,12 +72,12 @@ main = do
     loopTailA :: Int -> SerialT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
-        return x `coparallel` (if x < 3 then loopTailA (x + 1) else empty)
+        return x `coparallel` (if x < 3 then loopTailA (x + 1) else nil)
 
     loopHeadA :: Int -> SerialT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else empty) `coparallel` return x
+        (if x < 3 then loopHeadA (x + 1) else nil) `coparallel` return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops

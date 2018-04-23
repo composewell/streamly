@@ -5,6 +5,10 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
+import Control.Exception (Exception, try)
+import Control.Monad.Catch (throwM, MonadThrow)
+import Control.Monad.Error.Class (throwError, MonadError)
+import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_)
 import Data.List (sort)
 import Test.Hspec
@@ -32,6 +36,7 @@ main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
         -- XXX move these to property tests
+        -- XXX use an IORef to store and check the side effects
         it "simple serially" $
             (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
@@ -40,10 +45,10 @@ main = hspec $ do
     describe "Empty" $ do
         it "Monoid - mempty" $
             (toListSerial mempty) `shouldReturn` ([] :: [Int])
-        it "Alternative - empty" $
-            (toListSerial empty) `shouldReturn` ([] :: [Int])
-        it "MonadPlus - mzero" $
-            (toListSerial mzero) `shouldReturn` ([] :: [Int])
+        -- it "Alternative - empty" $
+        --     (toListSerial empty) `shouldReturn` ([] :: [Int])
+        -- it "MonadPlus - mzero" $
+        --     (toListSerial mzero) `shouldReturn` ([] :: [Int])
 
     ---------------------------------------------------------------------------
     -- Functor
@@ -84,7 +89,26 @@ main = hspec $ do
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
     ---------------------------------------------------------------------------
-    -- Monoidal Compositions
+    -- Semigroup/Monoidal Composition strict ordering checks
+    ---------------------------------------------------------------------------
+
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "Serial interleaved (<>) ordering check" $ interleaveCheck coserially (<>)
+    describe "Serial interleaved mappend ordering check" $ interleaveCheck coserially mappend
+
+    describe "Parallel interleaved (<>) ordering check" $ interleaveCheck parallely (<>)
+    describe "Parallel interleaved mappend ordering check" $ interleaveCheck parallely mappend
+
+    describe "Coparallel (<>) time order check" $ parallelCheck coparallely (<>)
+    describe "Coparallel mappend time order check" $ parallelCheck coparallely mappend
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+
+    ---------------------------------------------------------------------------
+    -- Monoidal Compositions, multiset equality checks
     ---------------------------------------------------------------------------
 
     describe "Serial Composition" $ compose serially mempty id
@@ -94,14 +118,6 @@ main = hspec $ do
     describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
     describe "Semigroup Composition for ZipAsync" $ compose zipParallely mempty id
     -- XXX need to check alternative compositions as well
-    ---------------------------------------------------------------------------
-    -- Monoidal Composition ordering checks
-    ---------------------------------------------------------------------------
-
-    describe "Serial interleaved ordering check" $ interleaveCheck coserially
-    describe "Parallel interleaved ordering check" $ interleaveCheck parallely
-    describe "Left biased parallel time order check" $ parallelCheck coparallely
-    describe "Fair parallel time order check" $ parallelCheck parallely
 
     ---------------------------------------------------------------------------
     -- TBD Monoidal composition combinations
@@ -261,17 +277,108 @@ main = hspec $ do
     it "Nests two streams using applicative async composition" nestTwoAsyncApp
     it "Nests two streams using applicative parallel composition" nestTwoParallelApp
 
-    it "Nests two streams using Num serial composition" nestTwoSerialNum
-    it "Nests two streams using Num interleaved composition" nestTwoInterleavedNum
-    it "Nests two streams using Num async composition" nestTwoAsyncNum
-    it "Nests two streams using Num parallel composition" nestTwoParallelNum
-
     ---------------------------------------------------------------------------
     -- TBD Bind and Bind combinations
     ---------------------------------------------------------------------------
 
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
+    describe "Simple MonadError and MonadThrow" simpleMonadError
+
+    {-
+    describe "Composed MonadError serially" $ composeWithMonadError serially
+    describe "Composed MonadError coserially" $ composeWithMonadError coserially
+    describe "Composed MonadError coparallely" $ composeWithMonadError coparallely
+    describe "Composed MonadError parallely" $ composeWithMonadError parallely
+    -}
+
+    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
+    describe "Composed MonadThrow coserially" $ composeWithMonadThrow coserially
+    describe "Composed MonadThrow coparallely" $ composeWithMonadThrow coparallely
+    describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
+
+-- XXX need to test that we have promptly cleaned up everything after the error
+-- XXX We can also check the output that we are expected to get before the
+-- error occurs.
+
+data ExampleException = ExampleException String deriving (Eq, Show)
+
+instance Exception ExampleException
+
+simpleMonadError :: Spec
+simpleMonadError = do
+{-
+    it "simple runExceptT" $ do
+        (runExceptT $ runStream $ return ())
+        `shouldReturn` (Right () :: Either String ())
+    it "simple runExceptT with error" $ do
+        (runExceptT $ runStream $ throwError "E") `shouldReturn` Left "E"
+        -}
+    it "simple try" $ do
+        (try $ runStream $ return ())
+        `shouldReturn` (Right () :: Either ExampleException ())
+    it "simple try with throw error" $ do
+        (try $ runStream $ throwM $ ExampleException "E")
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException ())
+
+composeWithMonadThrow
+    :: ( IsStream t
+       , Semigroup (t IO Int)
+       , MonadThrow (t IO)
+       )
+    => (t IO Int -> SerialT IO Int) -> Spec
+composeWithMonadThrow t = do
+    it "Compose throwM, nil" $
+        (try $ tl (throwM (ExampleException "E") <> A.nil))
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+    it "Compose nil, throwM" $
+        (try $ tl (A.nil <> throwM (ExampleException "E")))
+        `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+    oneLevelNestedSum "serially" serially
+    oneLevelNestedSum "coserially" coserially
+    oneLevelNestedSum "coparallely" coparallely
+    oneLevelNestedSum "parallely" parallely
+    -- XXX add two level nesting
+
+    oneLevelNestedProduct "serially"   serially
+    oneLevelNestedProduct "coserially" coserially
+    oneLevelNestedProduct "coparallely" coparallely
+    oneLevelNestedProduct "parallely"  parallely
+
+    where
+    tl = A.toList . t
+    oneLevelNestedSum desc t1 =
+        it ("One level nested sum " ++ desc) $ do
+            let nested = (A.fromFoldable [1..10] <> throwM (ExampleException "E")
+                         <> A.fromFoldable [1..10])
+            (try $ tl (A.nil <> t1 nested <> A.fromFoldable [1..10]))
+            `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+
+    oneLevelNestedProduct desc t1 =
+        it ("One level nested product" ++ desc) $ do
+            let s1 = t $ foldMapWith (<>) return [1..4]
+                s2 = t1 $ foldMapWith (<>) return [5..8]
+            try $ tl (do
+                x <- adapt s1
+                y <- s2
+                if (x + y > 10)
+                then throwM (ExampleException "E")
+                else return (x + y)
+                )
+            `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
+
+_composeWithMonadError
+    :: ( IsStream t
+       , Semigroup (t (ExceptT String IO) Int)
+       , MonadError String (t (ExceptT String IO))
+       )
+    => (t (ExceptT String IO) Int -> SerialT (ExceptT String IO) Int) -> Spec
+_composeWithMonadError t = do
+    let tl = A.toList . t
+    it "Compose throwError, nil" $
+        (runExceptT $ tl (throwError "E" <> A.nil)) `shouldReturn` Left "E"
+    it "Compose nil, error" $
+        (runExceptT $ tl (A.nil <> throwError "E")) `shouldReturn` Left "E"
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
@@ -290,13 +397,6 @@ nestTwoSerialApp =
     in toListSerial ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
-nestTwoSerialNum :: Expectation
-nestTwoSerialNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in toListSerial (s1 + s2)
-        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
-
 nestTwoInterleaved :: Expectation
 nestTwoInterleaved =
     let s1 = foldMapWith (<>) return [1..4]
@@ -312,13 +412,6 @@ nestTwoInterleavedApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in toListInterleaved ((+) <$> s1 <*> s2)
-        `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
-
-nestTwoInterleavedNum :: Expectation
-nestTwoInterleavedNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in toListInterleaved (s1 + s2)
         `shouldReturn` ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoAsync :: Expectation
@@ -339,13 +432,6 @@ nestTwoAsyncApp =
     in (toListAsync ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
-nestTwoAsyncNum :: Expectation
-nestTwoAsyncNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in (toListAsync (s1 + s2) >>= return . sort)
-        `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
-
 nestTwoParallel :: Expectation
 nestTwoParallel =
     let s1 = foldMapWith (<>) return [1..4]
@@ -364,32 +450,29 @@ nestTwoParallelApp =
     in (toListParallel ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
-nestTwoParallelNum :: Expectation
-nestTwoParallelNum =
-    let s1 = foldMapWith (<>) return [1..4]
-        s2 = foldMapWith (<>) return [5..8]
-    in (toListParallel (s1 + s2) >>= return . sort)
-        `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
-
 timed :: MonadIO (t IO) => Int -> t IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
-interleaveCheck :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> SerialT IO Int) -> Spec
-interleaveCheck t =
+interleaveCheck :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int -> t IO Int)
+    -> Spec
+interleaveCheck t f =
     it "Interleave four" $
-        (A.toList . t) ((singleton 0 <> singleton 1) <> (singleton 100 <> singleton 101))
+        (A.toList . t) ((singleton 0 `f` singleton 1) `f` (singleton 100 `f` singleton 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: (Semigroup (t IO Int), MonadIO (t IO))
-    => (t IO Int -> SerialT IO Int) -> Spec
-parallelCheck t = do
+parallelCheck :: MonadIO (t IO)
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int -> t IO Int)
+    -> Spec
+parallelCheck t f = do
     it "Parallel ordering left associated" $
-        (A.toList . t) (((event 4 <> event 3) <> event 2) <> event 1)
+        (A.toList . t) (((event 4 `f` event 3) `f` event 2) `f` event 1)
             `shouldReturn` ([1..4])
 
     it "Parallel ordering right associated" $
-        (A.toList . t) (event 4 <> (event 3 <> (event 2 <> event 1)))
+        (A.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
