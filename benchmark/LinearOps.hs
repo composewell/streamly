@@ -5,7 +5,7 @@
 -- License     : MIT
 -- Maintainer  : harendra.kumar@gmail.com
 
-module BenchmarkOps where
+module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),

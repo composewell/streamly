@@ -7,7 +7,7 @@
 
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module BenchmarkNestedLoopOps where
+module NestedOps where
 
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)

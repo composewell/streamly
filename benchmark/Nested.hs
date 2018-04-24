@@ -8,7 +8,7 @@
 import Control.DeepSeq (NFData)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import qualified BenchmarkNestedLoopOps as Ops
+import qualified NestedOps as Ops
 import Streamly
 import Gauge
 

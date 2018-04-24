@@ -176,8 +176,8 @@ test-suite properties
 benchmark linear
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
-  main-is: Benchmarks.hs
-  other-modules: BenchmarkOps
+  main-is: Linear.hs
+  other-modules: LinearOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall
   if flag(dev)
@@ -203,8 +203,8 @@ benchmark linear
 benchmark nested
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
-  main-is: BenchmarkNestedLoops.hs
-  other-modules: BenchmarkNestedLoopOps
+  main-is: Nested.hs
+  other-modules: NestedOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall
   if flag(dev)
