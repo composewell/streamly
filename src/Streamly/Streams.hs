@@ -64,8 +64,8 @@ module Streamly.Streams
     , CoparallelT
     , AsyncT            -- deprecated
     , ParallelT
-    , ZipStream
-    , ZipParallel
+    , ZipStreamM
+    , ZipParallelM
     , ZipAsync          -- deprecated
 
     -- * Type Adapters
@@ -701,7 +701,7 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
             yield1 a ra = merge a ra
         (S.runStream mx) Nothing stp single1 yield1
 
--- | The applicative instance of 'ZipStream' zips a number of streams serially
+-- | The applicative instance of 'ZipStreamM' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
 -- those elements.
 --
@@ -718,16 +718,16 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
-newtype ZipStream m a = ZipStream {getZipStream :: Stream m a}
+newtype ZipStreamM m a = ZipStreamM {getZipStreamM :: Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
-instance Monad m => Applicative (ZipStream m) where
-    pure = ZipStream . S.repeat
+instance Monad m => Applicative (ZipStreamM m) where
+    pure = ZipStreamM . S.repeat
     (<*>) = zipWith id
 
-instance IsStream ZipStream where
-    toStream = getZipStream
-    fromStream = ZipStream
+instance IsStream ZipStreamM where
+    toStream = getZipStreamM
+    fromStream = ZipStreamM
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -747,7 +747,7 @@ zipAsyncWith :: (IsStream t, MonadParallel m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
 zipAsyncWith = zipParallelWith
 
--- | Like 'ZipStream' but zips in parallel, it generates all the elements to
+-- | Like 'ZipStreamM' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.
 --
 -- @
@@ -763,19 +763,19 @@ zipAsyncWith = zipParallelWith
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
-newtype ZipParallel m a = ZipParallel {getZipParallel :: Stream m a}
+newtype ZipParallelM m a = ZipParallelM {getZipParallelM :: Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
-{-# DEPRECATED ZipAsync "Please use ZipParallel instead." #-}
-type ZipAsync = ZipParallel
+{-# DEPRECATED ZipAsync "Please use ZipParallelM instead." #-}
+type ZipAsync = ZipParallelM
 
-instance MonadParallel m => Applicative (ZipParallel m) where
-    pure = ZipParallel . S.repeat
+instance MonadParallel m => Applicative (ZipParallelM m) where
+    pure = ZipParallelM . S.repeat
     (<*>) = zipParallelWith id
 
-instance IsStream ZipParallel where
-    toStream = getZipParallel
-    fromStream = ZipParallel
+instance IsStream ZipParallelM where
+    toStream = getZipParallelM
+    fromStream = ZipParallelM
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators
@@ -811,22 +811,22 @@ asyncly = coparallely
 parallely :: IsStream t => ParallelT m a -> t m a
 parallely = adapt
 
--- | Fix the type of a polymorphic stream as 'ZipStream'.
-zipStreamly :: IsStream t => ZipStream m a -> t m a
+-- | Fix the type of a polymorphic stream as 'ZipStreamM'.
+zipStreamly :: IsStream t => ZipStreamM m a -> t m a
 zipStreamly = adapt
 
 -- | Same as 'zipStreamly'.
 {-# DEPRECATED zipping "Please use zipStreamly instead." #-}
-zipping :: IsStream t => ZipStream m a -> t m a
+zipping :: IsStream t => ZipStreamM m a -> t m a
 zipping = zipStreamly
 
--- | Fix the type of a polymorphic stream as 'ZipParallel'.
-zipParallely :: IsStream t => ZipParallel m a -> t m a
+-- | Fix the type of a polymorphic stream as 'ZipParallelM'.
+zipParallely :: IsStream t => ZipParallelM m a -> t m a
 zipParallely = adapt
 
 -- | Same as 'zipParallely'.
 {-# DEPRECATED zippingAsync "Please use zipParallely instead." #-}
-zippingAsync :: IsStream t => ZipParallel m a -> t m a
+zippingAsync :: IsStream t => ZipParallelM m a -> t m a
 zippingAsync = zipParallely
 
 -------------------------------------------------------------------------------
@@ -855,12 +855,12 @@ runParallelT = runStream . parallely
 
 -- | Same as @runStream . zipping@.
 {-# DEPRECATED runZipStream "Please use 'runStream . zipStreamly instead." #-}
-runZipStream :: Monad m => ZipStream m a -> m ()
+runZipStream :: Monad m => ZipStreamM m a -> m ()
 runZipStream = runStream . zipStreamly
 
 -- | Same as @runStream . zippingAsync@.
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipParallely instead." #-}
-runZipAsync :: Monad m => ZipParallel m a -> m ()
+runZipAsync :: Monad m => ZipParallelM m a -> m ()
 runZipAsync = runStream . zipParallely
 
 ------------------------------------------------------------------------------

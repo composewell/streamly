@@ -27,6 +27,9 @@
 
   Stream types may have to be changed or type combinators may have to be added
   or removed to adapt to this change.
+* The type `ZipStream` has been redefined to be specialized to IO monad.
+  `ZipStreamM` is now the same as the original `ZipStream` type. You will have
+  to change all occurrences of `ZipStream` to `ZipStreamM`.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base.
 * Remove the `MonadError` instance as it was not working correctly for
   parallel compositions. Use `MonadThrow` instead for error propagation.
@@ -38,7 +41,7 @@
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
     * `AsyncT` to `CoparallelT`
-    * `ZipAsync` to `ZipParallel`
+    * `ZipAsync` to `ZipParallelM`
     * `interleaving` to `costreamly`
     * `asyncly` to `coparallely`
     * `zipping` to `zipStreamly`

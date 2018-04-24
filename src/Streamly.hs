@@ -30,8 +30,8 @@ module Streamly
 
     -- * Zipping Streams
     -- $zipping
-    , ZipStream
-    , ZipParallel
+    , ZipStreamM
+    , ZipParallelM
 
     -- * Stream Type Adapters
     -- $adapters
@@ -134,7 +134,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $overview
 --
 -- Streamly provides six distinct stream types i.e. 'StreamT', 'CostreamT',
--- 'CoparallelT' and 'ParallelT', 'ZipStream' and 'ZipParallel', each representing a
+-- 'CoparallelT' and 'ParallelT', 'ZipStreamM' and 'ZipParallelM', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
 -- described later. Each of these types belongs to the 'IsStream' type class
@@ -151,10 +151,10 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- whereas 'CoparallelT' and 'ParallelT' are their concurrent counterparts. See the
 -- documentation of the respective types for more details.
 --
--- The types 'ZipStream' and 'ZipParallel' provide 'Applicative' instances to zip
+-- The types 'ZipStreamM' and 'ZipParallelM' provide 'Applicative' instances to zip
 -- two streams together i.e.  each element in one stream is combined with the
--- corresponding element in the other stream. 'ZipStream' generates the streams
--- being zipped serially whereas 'ZipParallel' produces both the elements being
+-- corresponding element in the other stream. 'ZipStreamM' generates the streams
+-- being zipped serially whereas 'ZipParallelM' produces both the elements being
 -- zipped concurrently.
 --
 -- Two streams of the same type can be merged using a sum style composition to
@@ -193,7 +193,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $zipping
 --
--- 'ZipStream' and 'ZipParallel', provide 'Applicative' instances for zipping the
+-- 'ZipStreamM' and 'ZipParallelM', provide 'Applicative' instances for zipping the
 -- corresponding elements of two streams together. Note that these types are
 -- not monads.
 
