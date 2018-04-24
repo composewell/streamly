@@ -87,4 +87,4 @@ circlingSquare :: IO ()
 circlingSquare = do
   sdlInit
   cref <- newIORef (0,0)
-  runStream $ liftIO (updateController cref) `parallel` liftIO (updateDisplay cref)
+  runStream $ fromIO (updateController cref) `parallel` fromIO (updateDisplay cref)

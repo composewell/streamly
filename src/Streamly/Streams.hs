@@ -57,7 +57,17 @@ module Streamly.Streams
     , (<=>)            --deprecated
     , (<|)             --deprecated
 
-    -- * Stream Styles
+    -- * IO Streams
+    , Stream
+    , Costream
+    , Coparallel
+    , Parallel
+    , ZipStream
+    , ZipParallel
+    , fromIO
+    , fromM
+
+    -- * Stream Transformers
     , StreamT
     , CostreamT
     , InterleavedT      -- deprecated
@@ -111,7 +121,7 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
-import           Streamly.Core               ( MonadParallel, Stream(Stream)
+import           Streamly.Core               ( MonadParallel
                                              , singleton
                                              , SVar, SVarStyle(..)
                                              , SVarTag(..), SVarSched(..))
@@ -124,8 +134,8 @@ import qualified Streamly.Core as S
 -- | Class of types that can represent a stream of elements of some type 'a' in
 -- some monad 'm'.
 class IsStream t where
-    toStream :: t m a -> Stream m a
-    fromStream :: Stream m a -> t m a
+    toStream :: t m a -> S.Stream m a
+    fromStream :: S.Stream m a -> t m a
 
 -- | Same as 'IsStream'.
 {-# Deprecated Streaming "Please use IsStream instead." #-}
@@ -195,13 +205,13 @@ streamBuild :: IsStream t
         -> m r
         -> m r)
     -> t m a
-streamBuild k = fromStream $ Stream $ \svr stp sng yld ->
+streamBuild k = fromStream $ S.Stream $ \svr stp sng yld ->
     let yield a r = yld a (toStream r)
      in k svr yield sng stp
 
 -- | Build a singleton stream from a callback function.
 fromCallback :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-fromCallback k = fromStream $ Stream $ \_ _ sng _ -> k sng
+fromCallback k = fromStream $ S.Stream $ \_ _ sng _ -> k sng
 
 -- | Read an SVar to get a stream.
 fromSVar :: (MonadParallel m, IsStream t) => SVar m a -> t m a
@@ -358,7 +368,7 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
 -- Note that serial composition can be used to combine an infinite number of
 -- streams as it explores only one stream at a time.
 --
-newtype StreamT m a = StreamT {getStreamT :: Stream m a}
+newtype StreamT m a = StreamT {getStreamT :: S.Stream m a}
     deriving (Semigroup, Monoid, Functor, MonadTrans)
 
 instance IsStream StreamT where
@@ -382,7 +392,7 @@ splice m1 m2 = fromStream $ S.splice (toStream m1) (toStream m2)
 
 instance Monad m => Monad (StreamT m) where
     return = pure
-    (StreamT (Stream m)) >>= f = StreamT $ Stream $ \_ stp sng yld ->
+    (StreamT (S.Stream m)) >>= f = StreamT $ S.Stream $ \_ stp sng yld ->
         let run x = (S.runStream x) Nothing stp sng yld
             single a  = run $ toStream (f a)
             yield a r = run $ toStream $ f a <> (fromStream r >>= f)
@@ -429,7 +439,7 @@ MONAD_COMMON_INSTANCES(StreamT,)
 -- Note that interleaving composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
-newtype CostreamT m a = CostreamT {getCostreamT :: Stream m a}
+newtype CostreamT m a = CostreamT {getCostreamT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
 {-# DEPRECATED InterleavedT "Please use 'CostreamT' instead." #-}
@@ -474,7 +484,7 @@ instance Monoid (CostreamT m a) where
 
 instance Monad m => Monad (CostreamT m) where
     return = pure
-    (CostreamT (Stream m)) >>= f = CostreamT $ Stream $ \_ stp sng yld ->
+    (CostreamT (S.Stream m)) >>= f = CostreamT $ S.Stream $ \_ stp sng yld ->
         let run x = (S.runStream x) Nothing stp sng yld
             single a  = run $ toStream (f a)
             yield a r = run $ toStream $ f a <> (fromStream r >>= f)
@@ -530,7 +540,7 @@ MONAD_COMMON_INSTANCES(CostreamT,)
 -- Note that this composition can be used to combine infinite number of streams
 -- as it explores only a bounded number of streams at a time.
 --
-newtype CoparallelT m a = CoparallelT {getCoparallelT :: Stream m a}
+newtype CoparallelT m a = CoparallelT {getCoparallelT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
 {-# DEPRECATED AsyncT "Please use 'CoparallelT' instead." #-}
@@ -574,14 +584,14 @@ instance MonadParallel m => Monoid (CoparallelT m a) where
 
 {-# INLINE parbind #-}
 parbind
-    :: (forall c. Stream m c -> Stream m c -> Stream m c)
-    -> Stream m a
-    -> (a -> Stream m b)
-    -> Stream m b
+    :: (forall c. S.Stream m c -> S.Stream m c -> S.Stream m c)
+    -> S.Stream m a
+    -> (a -> S.Stream m b)
+    -> S.Stream m b
 parbind par m f = go m
     where
-        go (Stream g) =
-            Stream $ \ctx stp sng yld ->
+        go (S.Stream g) =
+            S.Stream $ \ctx stp sng yld ->
             let run x = (S.runStream x) ctx stp sng yld
                 single a  = run $ f a
                 yield a r = run $ f a `par` go r
@@ -640,7 +650,7 @@ MONAD_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
 -- Note that round robin composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
-newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
+newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
 instance IsStream ParallelT where
@@ -692,7 +702,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
-    go mx my = Stream $ \_ stp sng yld -> do
+    go mx my = S.Stream $ \_ stp sng yld -> do
         let merge a ra =
                 let single2 b = sng (f a b)
                     yield2 b rb = yld (f a b) (go ra rb)
@@ -718,7 +728,7 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
-newtype ZipStreamM m a = ZipStreamM {getZipStreamM :: Stream m a}
+newtype ZipStreamM m a = ZipStreamM {getZipStreamM :: S.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
 instance Monad m => Applicative (ZipStreamM m) where
@@ -737,7 +747,7 @@ instance IsStream ZipStreamM where
 -- generated concurrently) using a pure zipping function.
 zipParallelWith :: (IsStream t, MonadParallel m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipParallelWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
+zipParallelWith f m1 m2 = fromStream $ S.Stream $ \_ stp sng yld -> do
     ma <- async m1
     mb <- async m2
     (S.runStream (toStream (zipWith f ma mb))) Nothing stp sng yld
@@ -763,7 +773,7 @@ zipAsyncWith = zipParallelWith
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
-newtype ZipParallelM m a = ZipParallelM {getZipParallelM :: Stream m a}
+newtype ZipParallelM m a = ZipParallelM {getZipParallelM :: S.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
 {-# DEPRECATED ZipAsync "Please use ZipParallelM instead." #-}
@@ -862,6 +872,41 @@ runZipStream = runStream . zipStreamly
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipParallely instead." #-}
 runZipAsync :: Monad m => ZipParallelM m a -> m ()
 runZipAsync = runStream . zipParallely
+
+------------------------------------------------------------------------------
+-- IO Streams
+------------------------------------------------------------------------------
+
+-- | A serial IO stream of elements of type @a@. See 'StreamT' documentation
+-- for more details.
+type Stream a = StreamT IO a
+
+-- | An interleaving serial IO stream of elements of type @a@. See 'CostreamT'
+-- documentation for more details.
+type Costream a = CostreamT IO a
+
+-- | A demand driven left biased parallelly composing IO stream of elements of
+-- type @a@.  See 'CoparallelT' documentation for more details.
+type Coparallel a = CoparallelT IO a
+
+-- | A round robin parallelly composing IO stream of elements of type @a@.
+-- See 'ParallelT' documentation for more details.
+type Parallel a = ParallelT IO a
+
+-- | An IO stream whose applicative instance zips streams serially.
+type ZipStream a = ZipStreamM IO a
+
+-- | An IO stream whose applicative instance zips streams parallely.
+type ZipParallel a = ZipParallelM IO a
+
+-- | Lift a value from IO monad to any of the stream types. This works for all
+-- stream types including those that are not monads e.g. 'ZipStream' and
+-- 'ZipParallel'.
+fromIO :: (IsStream t, MonadIO m) => IO a -> t m a
+fromIO = streamly . liftIO
+
+fromM :: (IsStream t, Monad m) => m a -> t m a
+fromM = streamly . lift
 
 ------------------------------------------------------------------------------
 -- Fold Utilities

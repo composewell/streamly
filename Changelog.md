@@ -69,6 +69,7 @@
     * `foldlM'` strict left fold with a monadic fold function
     * `splice` run two streams serially one after the other
     * `parallel` run two streams in parallel (replaces `<|>`)
+* Add simpler stream types that are specialized to the IO monad
 
 ## 0.1.2
 

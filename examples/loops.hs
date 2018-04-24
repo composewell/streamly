@@ -3,37 +3,37 @@ import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Streamly.Prelude (nil)
 
 main = do
-    liftIO $ hSetBuffering stdout LineBuffering
+    hSetBuffering stdout LineBuffering
 
     putStrLn $ "\nloopTail:\n"
     runStream $ do
         x <- loopTail 0
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     putStrLn $ "\nloopHead:\n"
     runStream $ do
         x <- loopHead 0
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     putStrLn $ "\nloopTailA:\n"
     runStream $ do
         x <- loopTailA 0
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     putStrLn $ "\nloopHeadA:\n"
     runStream $ do
         x <- loopHeadA 0
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     putStrLn $ "\ncosplice:\n"
     runStream $ do
         x <- (return 0 <> return 1) `cosplice` (return 100 <> return 101)
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
     runStream $ do
         x <- (return 0 <> return 1) `parallel` (return 100 <> return 101)
-        liftIO $ print (x :: Int)
+        fromIO $ print (x :: Int)
 
     where
 
@@ -47,17 +47,17 @@ main = do
 
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
-    loopTail :: Int -> StreamT IO Int
+    loopTail :: Int -> Stream Int
     loopTail x = do
-        liftIO $ putStrLn "LoopTail..."
+        fromIO $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else nil)
 
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
     -- at all.
-    loopHead :: Int -> StreamT IO Int
+    loopHead :: Int -> Stream Int
     loopHead x = do
-        liftIO $ putStrLn "LoopHead..."
+        fromIO $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else nil) <> return x
 
 -------------------------------------------------------------------------------
@@ -69,14 +69,14 @@ main = do
     -- then the action on the right is also spawned concurrently. In other
     -- words, both actions may run concurrently based on the need.
 
-    loopTailA :: Int -> StreamT IO Int
+    loopTailA :: Int -> Stream Int
     loopTailA x = do
-        liftIO $ putStrLn "LoopTailA..."
+        fromIO $ putStrLn "LoopTailA..."
         return x `coparallel` (if x < 3 then loopTailA (x + 1) else nil)
 
-    loopHeadA :: Int -> StreamT IO Int
+    loopHeadA :: Int -> Stream Int
     loopHeadA x = do
-        liftIO $ putStrLn "LoopHeadA..."
+        fromIO $ putStrLn "LoopHeadA..."
         (if x < 3 then loopHeadA (x + 1) else nil) `coparallel` return x
 
 -------------------------------------------------------------------------------

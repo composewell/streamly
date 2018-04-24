@@ -14,7 +14,7 @@ searchEngineQuery = do
 
     where
         get :: IsStream t => String -> t IO ()
-        get s = streamly $ liftIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+        get s = fromIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
 
         google, bing, duckduckgo :: IsStream t => t IO ()
         google     = get "https://www.google.com/search?q=haskell"

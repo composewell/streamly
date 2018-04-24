@@ -16,19 +16,31 @@ module Streamly
     -- $overview
 
       MonadParallel
+
+    -- * IO Streams
+    , Stream
+    , Costream
+    , Coparallel
+    , Parallel
+    , ZipStream
+    , ZipParallel
+    , fromIO
+    , fromM
+
+    -- * Stream transformers
     , IsStream
 
-    -- * Serial Streams
+    -- ** Serial Streams
     -- $serial
     , StreamT
     , CostreamT
 
-    -- * Parallel Streams
+    -- ** Parallel Streams
     -- $parallel
     , CoparallelT
     , ParallelT
 
-    -- * Zipping Streams
+    -- ** Zipping Streams
     -- $zipping
     , ZipStreamM
     , ZipParallelM
