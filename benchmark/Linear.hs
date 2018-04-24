@@ -8,7 +8,7 @@
 import Control.DeepSeq (NFData)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import qualified BenchmarkOps as Ops
+import qualified LinearOps as Ops
 
 import Gauge
 
