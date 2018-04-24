@@ -31,8 +31,8 @@ module Streamly.Core
     , nil
 
     -- * Semigroup Style Composition
-    , serial
-    , coserial
+    , splice
+    , cosplice
     , coparallel
     , parallel
 
@@ -191,8 +191,8 @@ repeat a = let x = cons a x in x
 
 -- | Concatenates two streams sequentially i.e. the first stream is
 -- exhausted completely before yielding any element from the second stream.
-serial :: Stream m a -> Stream m a -> Stream m a
-serial m1 m2 = go m1
+splice :: Stream m a -> Stream m a -> Stream m a
+splice m1 m2 = go m1
     where
     go (Stream m) = Stream $ \_ stp sng yld ->
             let stop      = (runStream m2) Nothing stp sng yld
@@ -201,7 +201,7 @@ serial m1 m2 = go m1
             in m Nothing stop single yield
 
 instance Semigroup (Stream m a) where
-    (<>) = serial
+    (<>) = splice
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -215,11 +215,11 @@ instance Monoid (Stream m a) where
 -- Interleave
 ------------------------------------------------------------------------------
 
-coserial :: Stream m a -> Stream m a -> Stream m a
-coserial m1 m2 = Stream $ \_ stp sng yld -> do
+cosplice :: Stream m a -> Stream m a -> Stream m a
+cosplice m1 m2 = Stream $ \_ stp sng yld -> do
     let stop      = (runStream m2) Nothing stp sng yld
         single a  = yld a m2
-        yield a r = yld a (coserial m2 r)
+        yield a r = yld a (cosplice m2 r)
     (runStream m1) Nothing stop single yield
 
 ------------------------------------------------------------------------------

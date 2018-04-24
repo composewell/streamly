@@ -25,7 +25,7 @@ prodCount = 1000
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.SerialT m a
+type Stream m a = S.StreamT m a
 
 {-# INLINE source #-}
 source :: S.IsStream t => Int -> Int -> t m Int
@@ -54,13 +54,13 @@ toListLinear start = runToList $ source start sumCount
 {-# INLINE append #-}
 append
     :: (Monoid (t m Int), Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
 append t start = runStream $ t $ foldMap return [start..start+sumCount]
 
 {-# INLINE toNull0 #-}
 toNull0
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m (Int, Int) -> S.SerialT m (Int, Int)) -> Int -> m ()
+    => (t m (Int, Int) -> S.StreamT m (Int, Int)) -> Int -> m ()
 toNull0 t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -69,7 +69,7 @@ toNull0 t start = runStream . t $ do
 {-# INLINE toList0 #-}
 toList0
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m (Int, Int) -> S.SerialT m (Int, Int)) -> Int -> m [(Int, Int)]
+    => (t m (Int, Int) -> S.StreamT m (Int, Int)) -> Int -> m [(Int, Int)]
 toList0 t start = runToList . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -78,7 +78,7 @@ toList0 t start = runToList . t $ do
 {-# INLINE toNull #-}
 toNull
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
 toNull t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -87,7 +87,7 @@ toNull t start = runStream . t $ do
 {-# INLINE toList #-}
 toList
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+    => (t m Int -> S.StreamT m Int) -> Int -> m [Int]
 toList t start = runToList . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -96,7 +96,7 @@ toList t start = runToList . t $ do
 {-# INLINE toListSome #-}
 toListSome
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+    => (t m Int -> S.StreamT m Int) -> Int -> m [Int]
 toListSome t start =
     runToList . t $ S.take 1000 $ do
         x <- source start prodCount
@@ -106,7 +106,7 @@ toListSome t start =
 {-# INLINE filterAllOut #-}
 filterAllOut
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
 filterAllOut t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -118,7 +118,7 @@ filterAllOut t start = runStream . t $ do
 {-# INLINE filterAllIn #-}
 filterAllIn
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
 filterAllIn t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -130,7 +130,7 @@ filterAllIn t start = runStream . t $ do
 {-# INLINE filterSome #-}
 filterSome
     :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
 filterSome t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
@@ -142,7 +142,7 @@ filterSome t start = runStream . t $ do
 {-# INLINE breakAfterSome #-}
 breakAfterSome
     :: (S.IsStream t, Monad (t IO))
-    => (t IO Int -> S.SerialT IO Int) -> Int -> IO ()
+    => (t IO Int -> S.StreamT IO Int) -> Int -> IO ()
 breakAfterSome t start = do
     (_ :: Either ErrorCall ()) <- try $ runStream . t $ do
         x <- source start prodCount

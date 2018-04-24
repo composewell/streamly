@@ -20,8 +20,8 @@ module Streamly
 
     -- * Serial Streams
     -- $serial
-    , SerialT
-    , CoserialT
+    , StreamT
+    , CostreamT
 
     -- * Parallel Streams
     -- $parallel
@@ -30,16 +30,16 @@ module Streamly
 
     -- * Zipping Streams
     -- $zipping
-    , ZipSerial
+    , ZipStream
     , ZipParallel
 
     -- * Stream Type Adapters
     -- $adapters
-    , serially
-    , coserially
+    , streamly
+    , costreamly
     , coparallely
     , parallely
-    , zipSerially
+    , zipStreamly
     , zipParallely
     , adapt
 
@@ -51,8 +51,8 @@ module Streamly
 
     -- * Polymorphic Sum Operations
     -- $sum
-    , serial
-    , coserial
+    , splice
+    , cosplice
     , coparallel
     , parallel
 
@@ -80,10 +80,8 @@ module Streamly
     , runZipAsync
     , runAsyncT
     , runZipStream
-    , StreamT
     , InterleavedT
     , AsyncT
-    , ZipStream
     , ZipAsync
     , interleaving
     , asyncly
@@ -108,7 +106,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- functional programming equivalent of nested loops from imperative
 -- programming. Composing each element in one stream with each element in the
 -- other stream generalizes the monadic product of single elements. You can
--- think of the IO monad as a special case of the more general @SerialT IO@
+-- think of the IO monad as a special case of the more general @StreamT IO@
 -- monad; with single element streams.  List transformers and logic programming
 -- monads also provide a similar product style composition of streams, however
 -- streamly generalizes it with the time dimension; allowing streams to be
@@ -135,27 +133,27 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $overview
 --
--- Streamly provides six distinct stream types i.e. 'SerialT', 'CoserialT',
--- 'CoparallelT' and 'ParallelT', 'ZipSerial' and 'ZipParallel', each representing a
+-- Streamly provides six distinct stream types i.e. 'StreamT', 'CostreamT',
+-- 'CoparallelT' and 'ParallelT', 'ZipStream' and 'ZipParallel', each representing a
 -- stream of elements.  All these types have the same underlying representation
 -- and can be adapted from one to another using type adaptor combinators
 -- described later. Each of these types belongs to the 'IsStream' type class
 -- which helps converting the specific type to and from the underlying generic
 -- stream type.
 --
--- The types 'SerialT', 'CoserialT', 'CoparallelT' and 'ParallelT' are 'Monad'
+-- The types 'StreamT', 'CostreamT', 'CoparallelT' and 'ParallelT' are 'Monad'
 -- transformers with the monadic bind operation combining streams in a product
 -- style in much the same way as a list monad or a list transformer i.e. each
 -- element from one stream is combined with every element of the other stream.
 -- However, the applicative and monadic composition of these types differ in
 -- terms of the ordering and time sequence in which the elements from two
--- streams are combined. 'SerialT' and 'CoserialT' compose streams serially
+-- streams are combined. 'StreamT' and 'CostreamT' compose streams streamly
 -- whereas 'CoparallelT' and 'ParallelT' are their concurrent counterparts. See the
 -- documentation of the respective types for more details.
 --
--- The types 'ZipSerial' and 'ZipParallel' provide 'Applicative' instances to zip
+-- The types 'ZipStream' and 'ZipParallel' provide 'Applicative' instances to zip
 -- two streams together i.e.  each element in one stream is combined with the
--- corresponding element in the other stream. 'ZipSerial' generates the streams
+-- corresponding element in the other stream. 'ZipStream' generates the streams
 -- being zipped serially whereas 'ZipParallel' produces both the elements being
 -- zipped concurrently.
 --
@@ -175,7 +173,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 --
 -- Serial streams compose serially or non-concurrently. In a composed stream,
 -- at any point of time only one constituent stream runs and yields an element.
--- The two serial stream types 'SerialT' and 'CoserialT' differ in how they
+-- The two serial stream types 'StreamT' and 'CostreamT' differ in how they
 -- merge streams together in a 'Semigroup' or 'Monad' composition. As these
 -- streams are serial, the sequence of items in a composed stream can be solely
 -- determined by the position of elements in the consituent streams.
@@ -195,7 +193,7 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $zipping
 --
--- 'ZipSerial' and 'ZipParallel', provide 'Applicative' instances for zipping the
+-- 'ZipStream' and 'ZipParallel', provide 'Applicative' instances for zipping the
 -- corresponding elements of two streams together. Note that these types are
 -- not monads.
 
@@ -212,9 +210,9 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- to make them interwork with each other.
 --
 -- To adapt from one monomorphic type (e.g. 'ParallelT') to another monomorphic
--- type (e.g. 'SerialT') use the 'adapt' combinator. To give a polymorphic code
+-- type (e.g. 'StreamT') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
--- use the type specific combinators e.g. 'parallely' or 'coserially'. You
+-- use the type specific combinators e.g. 'parallely' or 'costreamly'. You
 -- cannot adapt polymorphic code to polymorphic code, as it would not know
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'
@@ -224,5 +222,5 @@ import Control.Monad.Trans.Class (MonadTrans (..))
 -- $foldutils
 --
 -- These are variants of standard 'Foldable' fold functions that use a
--- polymorphic stream sum operation (e.g. 'parallel' or 'coserial') to fold a
+-- polymorphic stream sum operation (e.g. 'parallel' or 'cosplice') to fold a
 -- container of streams.

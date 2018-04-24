@@ -13,7 +13,7 @@ main = runStream $ do
 
     where
 
-    loop :: String -> SerialT IO (String, Int)
+    loop :: String -> StreamT IO (String, Int)
     loop name = do
         liftIO $ threadDelay 1000000
         rnd <- liftIO (randomIO :: IO Int)

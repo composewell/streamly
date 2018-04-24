@@ -27,30 +27,30 @@ main = do
       , benchIO "toListLinear" Ops.toListLinear
       ]
 
-    , bgroup "Serially"
-      [ benchIO "append"         $ Ops.append         serially
-      , benchIO "toNull0"        $ Ops.toNull0        serially
-      , benchIO "toList0"        $ Ops.toList0        serially
-      , benchIO "toNull"         $ Ops.toNull         serially
-      , benchIO "toList"         $ Ops.toList         serially
-      , benchIO "toListSome"     $ Ops.toListSome     serially
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   serially
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    serially
-      , benchIO "filterSome"     $ Ops.filterSome     serially
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome serially
+    , bgroup "streamly"
+      [ benchIO "append"         $ Ops.append         streamly
+      , benchIO "toNull0"        $ Ops.toNull0        streamly
+      , benchIO "toList0"        $ Ops.toList0        streamly
+      , benchIO "toNull"         $ Ops.toNull         streamly
+      , benchIO "toList"         $ Ops.toList         streamly
+      , benchIO "toListSome"     $ Ops.toListSome     streamly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut   streamly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn    streamly
+      , benchIO "filterSome"     $ Ops.filterSome     streamly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome streamly
       ]
 
-    , bgroup "Coserially"
-      [ benchIO "append"         $ Ops.append         coserially
-      , benchIO "toNull0"        $ Ops.toNull0        coserially
-      , benchIO "toList0"        $ Ops.toList0        coserially
-      , benchIO "toNull"         $ Ops.toNull         coserially
-      , benchIO "toList"         $ Ops.toList         coserially
-      , benchIO "toListSome"     $ Ops.toListSome     coserially
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   coserially
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    coserially
-      , benchIO "filterSome"     $ Ops.filterSome     coserially
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome coserially
+    , bgroup "costreamly"
+      [ benchIO "append"         $ Ops.append         costreamly
+      , benchIO "toNull0"        $ Ops.toNull0        costreamly
+      , benchIO "toList0"        $ Ops.toList0        costreamly
+      , benchIO "toNull"         $ Ops.toNull         costreamly
+      , benchIO "toList"         $ Ops.toList         costreamly
+      , benchIO "toListSome"     $ Ops.toListSome     costreamly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut   costreamly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn    costreamly
+      , benchIO "filterSome"     $ Ops.filterSome     costreamly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome costreamly
       ]
 
     , bgroup "Coparallely"

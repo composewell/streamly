@@ -25,9 +25,9 @@ main = do
         x <- loopHeadA 0
         liftIO $ print (x :: Int)
 
-    putStrLn $ "\ncoserial:\n"
+    putStrLn $ "\ncosplice:\n"
     runStream $ do
-        x <- (return 0 <> return 1) `coserial` (return 100 <> return 101)
+        x <- (return 0 <> return 1) `cosplice` (return 100 <> return 101)
         liftIO $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
@@ -47,7 +47,7 @@ main = do
 
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
-    loopTail :: Int -> SerialT IO Int
+    loopTail :: Int -> StreamT IO Int
     loopTail x = do
         liftIO $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else nil)
@@ -55,7 +55,7 @@ main = do
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
     -- at all.
-    loopHead :: Int -> SerialT IO Int
+    loopHead :: Int -> StreamT IO Int
     loopHead x = do
         liftIO $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else nil) <> return x
@@ -69,12 +69,12 @@ main = do
     -- then the action on the right is also spawned concurrently. In other
     -- words, both actions may run concurrently based on the need.
 
-    loopTailA :: Int -> SerialT IO Int
+    loopTailA :: Int -> StreamT IO Int
     loopTailA x = do
         liftIO $ putStrLn "LoopTailA..."
         return x `coparallel` (if x < 3 then loopTailA (x + 1) else nil)
 
-    loopHeadA :: Int -> SerialT IO Int
+    loopHeadA :: Int -> StreamT IO Int
     loopHeadA x = do
         liftIO $ putStrLn "LoopHeadA..."
         (if x < 3 then loopHeadA (x + 1) else nil) `coparallel` return x

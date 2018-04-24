@@ -15,7 +15,7 @@ main = runStream $ do
 
     where
 
-    loop :: String -> Int -> SerialT IO String
+    loop :: String -> Int -> StreamT IO String
     loop name n = do
         rnd <- liftIO (randomIO :: IO Int)
         let result = (name ++ show rnd)

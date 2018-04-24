@@ -58,7 +58,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.SerialT m a
+type Stream m a = S.StreamT m a
 
 source :: Int -> Stream m Int
 source n = S.fromFoldable [n..n+value]

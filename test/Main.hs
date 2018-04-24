@@ -20,11 +20,11 @@ import qualified Streamly.Prelude as A
 singleton :: IsStream t => a -> t m a
 singleton a = a .: nil
 
-toListSerial :: SerialT IO a -> IO [a]
-toListSerial = A.toList . serially
+toListSerial :: StreamT IO a -> IO [a]
+toListSerial = A.toList . streamly
 
-toListInterleaved :: CoserialT IO a -> IO [a]
-toListInterleaved = A.toList . coserially
+toListInterleaved :: CostreamT IO a -> IO [a]
+toListInterleaved = A.toList . costreamly
 
 toListAsync :: CoparallelT IO a -> IO [a]
 toListAsync = A.toList . coparallely
@@ -37,10 +37,10 @@ main = hspec $ do
     describe "Runners" $ do
         -- XXX move these to property tests
         -- XXX use an IORef to store and check the side effects
-        it "simple serially" $
-            (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
-        it "simple serially with IO" $
-            (runStream . serially) (liftIO $ putStrLn "hello") `shouldReturn` ()
+        it "simple streamly" $
+            (runStream . streamly) (return (0 :: Int)) `shouldReturn` ()
+        it "simple streamly with IO" $
+            (runStream . streamly) (liftIO $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ do
         it "Monoid - mempty" $
@@ -96,8 +96,8 @@ main = hspec $ do
     -- for Monoid that is using the right version of semigroup. Instance
     -- deriving can cause us to pick wrong instances sometimes.
 
-    describe "Serial interleaved (<>) ordering check" $ interleaveCheck coserially (<>)
-    describe "Serial interleaved mappend ordering check" $ interleaveCheck coserially mappend
+    describe "Serial interleaved (<>) ordering check" $ interleaveCheck costreamly (<>)
+    describe "Serial interleaved mappend ordering check" $ interleaveCheck costreamly mappend
 
     describe "Parallel interleaved (<>) ordering check" $ interleaveCheck parallely (<>)
     describe "Parallel interleaved mappend ordering check" $ interleaveCheck parallely mappend
@@ -111,11 +111,11 @@ main = hspec $ do
     -- Monoidal Compositions, multiset equality checks
     ---------------------------------------------------------------------------
 
-    describe "Serial Composition" $ compose serially mempty id
-    describe "Interleaved Composition" $ compose coserially mempty sort
+    describe "Serial Composition" $ compose streamly mempty id
+    describe "Interleaved Composition" $ compose costreamly mempty sort
     describe "Left biased parallel Composition" $ compose coparallely mempty sort
     describe "Fair parallel Composition" $ compose parallely mempty sort
-    describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
+    describe "Semigroup Composition for ZipSerial" $ compose zipStreamly mempty id
     describe "Semigroup Composition for ZipAsync" $ compose zipParallely mempty id
     -- XXX need to check alternative compositions as well
 
@@ -124,11 +124,11 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     -- TBD need more such combinations to be tested.
-    describe "<> and <>" $ composeAndComposeSimple serially serially (cycle [[1 .. 9]])
+    describe "<> and <>" $ composeAndComposeSimple streamly streamly (cycle [[1 .. 9]])
 
     describe "<> and <=>" $ composeAndComposeSimple
-      serially
-      coserially
+      streamly
+      costreamly
       ([ [1 .. 9]
        , [1 .. 9]
        , [1, 3, 2, 4, 6, 5, 7, 9, 8]
@@ -136,8 +136,8 @@ main = hspec $ do
        ])
 
     describe "<=> and <=>" $ composeAndComposeSimple
-      coserially
-      coserially
+      costreamly
+      costreamly
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 3, 7, 2, 6, 9, 5, 8]
@@ -145,8 +145,8 @@ main = hspec $ do
        ])
 
     describe "<=> and <>" $ composeAndComposeSimple
-      coserially
-      serially
+      costreamly
+      streamly
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 2, 7, 3, 5, 8, 6, 9]
@@ -156,7 +156,7 @@ main = hspec $ do
     describe "Nested parallel and serial compositions" $ do
         let t = timed
             p = parallely
-            s = serially
+            s = streamly
         {-
         -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
         -- because of parallelism of [8,0] and [8,0].
@@ -198,7 +198,7 @@ main = hspec $ do
     -- Monoidal composition recursion loops
     ---------------------------------------------------------------------------
 
-    describe "Serial loops (<>)" $ loops serially id reverse
+    describe "Serial loops (<>)" $ loops streamly id reverse
     describe "Left biased parallel loops (<|)" $ loops coparallely sort sort
     describe "Fair parallel loops (<|>)" $ loops parallely sort sort
 
@@ -206,23 +206,23 @@ main = hspec $ do
     -- Bind and monoidal composition combinations
     ---------------------------------------------------------------------------
 
-    describe "Bind and compose1" $ bindAndComposeSimple serially serially
-    describe "Bind and compose2" $ bindAndComposeSimple serially coserially
-    describe "Bind and compose3" $ bindAndComposeSimple serially coparallely
-    describe "Bind and compose4" $ bindAndComposeSimple serially parallely
+    describe "Bind and compose1" $ bindAndComposeSimple streamly streamly
+    describe "Bind and compose2" $ bindAndComposeSimple streamly costreamly
+    describe "Bind and compose3" $ bindAndComposeSimple streamly coparallely
+    describe "Bind and compose4" $ bindAndComposeSimple streamly parallely
 
-    describe "Bind and compose1" $ bindAndComposeSimple coserially serially
-    describe "Bind and compose2" $ bindAndComposeSimple coserially coserially
-    describe "Bind and compose3" $ bindAndComposeSimple coserially coparallely
-    describe "Bind and compose4" $ bindAndComposeSimple coserially parallely
+    describe "Bind and compose1" $ bindAndComposeSimple costreamly streamly
+    describe "Bind and compose2" $ bindAndComposeSimple costreamly costreamly
+    describe "Bind and compose3" $ bindAndComposeSimple costreamly coparallely
+    describe "Bind and compose4" $ bindAndComposeSimple costreamly parallely
 
-    describe "Bind and compose1" $ bindAndComposeSimple coparallely serially
-    describe "Bind and compose2" $ bindAndComposeSimple coparallely coserially
+    describe "Bind and compose1" $ bindAndComposeSimple coparallely streamly
+    describe "Bind and compose2" $ bindAndComposeSimple coparallely costreamly
     describe "Bind and compose3" $ bindAndComposeSimple coparallely coparallely
     describe "Bind and compose4" $ bindAndComposeSimple coparallely parallely
 
-    describe "Bind and compose1" $ bindAndComposeSimple parallely serially
-    describe "Bind and compose2" $ bindAndComposeSimple parallely coserially
+    describe "Bind and compose1" $ bindAndComposeSimple parallely streamly
+    describe "Bind and compose2" $ bindAndComposeSimple parallely costreamly
     describe "Bind and compose3" $ bindAndComposeSimple parallely coparallely
     describe "Bind and compose4" $ bindAndComposeSimple parallely parallely
 
@@ -231,36 +231,36 @@ main = hspec $ do
         fldl = foldl (<>) nil
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy streamly streamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially coserially k
+        describe "Bind and compose" $ bindAndComposeHierarchy streamly costreamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially coparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy streamly coparallely k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy serially parallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy streamly parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coserially serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy costreamly streamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coserially coserially k
+        describe "Bind and compose" $ bindAndComposeHierarchy costreamly costreamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coserially coparallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy costreamly coparallely k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coserially parallely k
+        describe "Bind and compose" $ bindAndComposeHierarchy costreamly parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coparallely serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely streamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy coparallely coserially k
+        describe "Bind and compose" $ bindAndComposeHierarchy coparallely costreamly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy coparallely coparallely k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy coparallely parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy parallely serially k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely streamly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy parallely coserially k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely costreamly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy parallely coparallely k
     forM_ [fldr, fldl] $ \k ->
@@ -286,14 +286,14 @@ main = hspec $ do
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
     {-
-    describe "Composed MonadError serially" $ composeWithMonadError serially
-    describe "Composed MonadError coserially" $ composeWithMonadError coserially
+    describe "Composed MonadError streamly" $ composeWithMonadError streamly
+    describe "Composed MonadError costreamly" $ composeWithMonadError costreamly
     describe "Composed MonadError coparallely" $ composeWithMonadError coparallely
     describe "Composed MonadError parallely" $ composeWithMonadError parallely
     -}
 
-    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
-    describe "Composed MonadThrow coserially" $ composeWithMonadThrow coserially
+    describe "Composed MonadThrow streamly" $ composeWithMonadThrow streamly
+    describe "Composed MonadThrow costreamly" $ composeWithMonadThrow costreamly
     describe "Composed MonadThrow coparallely" $ composeWithMonadThrow coparallely
     describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
 
@@ -326,7 +326,7 @@ composeWithMonadThrow
        , Semigroup (t IO Int)
        , MonadThrow (t IO)
        )
-    => (t IO Int -> SerialT IO Int) -> Spec
+    => (t IO Int -> StreamT IO Int) -> Spec
 composeWithMonadThrow t = do
     it "Compose throwM, nil" $
         (try $ tl (throwM (ExampleException "E") <> A.nil))
@@ -334,14 +334,14 @@ composeWithMonadThrow t = do
     it "Compose nil, throwM" $
         (try $ tl (A.nil <> throwM (ExampleException "E")))
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
-    oneLevelNestedSum "serially" serially
-    oneLevelNestedSum "coserially" coserially
+    oneLevelNestedSum "streamly" streamly
+    oneLevelNestedSum "costreamly" costreamly
     oneLevelNestedSum "coparallely" coparallely
     oneLevelNestedSum "parallely" parallely
     -- XXX add two level nesting
 
-    oneLevelNestedProduct "serially"   serially
-    oneLevelNestedProduct "coserially" coserially
+    oneLevelNestedProduct "streamly"   streamly
+    oneLevelNestedProduct "costreamly" costreamly
     oneLevelNestedProduct "coparallely" coparallely
     oneLevelNestedProduct "parallely"  parallely
 
@@ -372,7 +372,7 @@ _composeWithMonadError
        , Semigroup (t (ExceptT String IO) Int)
        , MonadError String (t (ExceptT String IO))
        )
-    => (t (ExceptT String IO) Int -> SerialT (ExceptT String IO) Int) -> Spec
+    => (t (ExceptT String IO) Int -> StreamT (ExceptT String IO) Int) -> Spec
 _composeWithMonadError t = do
     let tl = A.toList . t
     it "Compose throwError, nil" $
@@ -454,7 +454,7 @@ timed :: MonadIO (t IO) => Int -> t IO Int
 timed x = liftIO (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> StreamT IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 interleaveCheck t f =
@@ -463,7 +463,7 @@ interleaveCheck t f =
             `shouldReturn` ([0, 100, 1, 101])
 
 parallelCheck :: MonadIO (t IO)
-    => (t IO Int -> SerialT IO Int)
+    => (t IO Int -> StreamT IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 parallelCheck t f = do
@@ -478,7 +478,7 @@ parallelCheck t f = do
     where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
+    => (t IO Int -> StreamT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
 compose t z srt = do
     -- XXX these should get covered by the property tests
     it "Compose mempty, mempty" $
@@ -517,7 +517,7 @@ composeAndComposeSimple
        , Semigroup (t2 IO Int)
 #endif
        )
-    => (t1 IO Int -> SerialT IO Int)
+    => (t1 IO Int -> StreamT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> [[Int]] -> Spec
 composeAndComposeSimple t1 t2 answer = do
@@ -565,7 +565,7 @@ loops t tsrt hsrt = do
 
 bindAndComposeSimple
     :: ( IsStream t1, IsStream t2, Semigroup (t2 IO Int), Monad (t2 IO))
-    => (t1 IO Int -> SerialT IO Int)
+    => (t1 IO Int -> StreamT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> Spec
 bindAndComposeSimple t1 t2 = do
@@ -582,7 +582,7 @@ bindAndComposeSimple t1 t2 = do
 bindAndComposeHierarchy
     :: ( IsStream t1, Monad (t1 IO)
        , IsStream t2, Monad (t2 IO))
-    => (t1 IO Int -> SerialT IO Int)
+    => (t1 IO Int -> StreamT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> ([t2 IO Int] -> t2 IO Int)
     -> Spec
@@ -626,7 +626,7 @@ mixedOps = do
                             ] :: [Int])
     where
 
-    composeMixed :: SerialT IO Int
+    composeMixed :: StreamT IO Int
     composeMixed = do
         liftIO $ return ()
         liftIO $ putStr ""
@@ -640,7 +640,7 @@ mixedOps = do
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- coparallely $ return 1 <> return 2
-                    z11 <- coserially $ return 1 <> return 2
+                    z11 <- costreamly $ return 1 <> return 2
                     liftIO $ return ()
                     liftIO $ putStr ""
                     return (x11 + y11 + z11)
