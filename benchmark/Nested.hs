@@ -22,7 +22,7 @@ main :: IO ()
 main = do
   -- TBD Study scaling with 10, 100, 1000 loop iterations
   defaultMain
-    [ bgroup "Linear"
+    [ bgroup "linear"
       [ benchIO "toNullLinear" Ops.toNullLinear
       , benchIO "toListLinear" Ops.toListLinear
       ]

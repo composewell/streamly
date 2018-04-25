@@ -1,13 +1,16 @@
 #!/bin/bash
 
 print_help () {
-  echo "Usage: $0 [--quick] [--append] [--no-graphs] [--no-measure] \
-[--no-compare] [--base commit] [--candidate commit] -- <gauge options>"
+  echo "Usage: $0 "
+  echo "       [--quick] [--append] "
+  echo "       [--no-graphs] [--no-measure]"
+  echo "       [--benchmark]"
+  echo "       [--compare] [--base commit] [--candidate commit]"
+  echo "       -- <gauge options>"
   echo
-  echo "Default generates comparative chart of HEAD^ vs HEAD commit, "
-  echo "in the 'charts' directory. Use --base and --candidate to select "
-  echo "the commits to compare. Use --no-compare to just benchmark the "
-  echo "current workspace only."
+  echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
+  echo "commit is generated, in the 'charts' directory."
+  echo "Use --base and --candidate to select the commits to compare."
   echo
   echo "Any arguments after a '--' are passed directly to guage"
   echo "You can omit '--' if the gauge args used do not start with a '-'."
@@ -20,7 +23,8 @@ die () {
   exit 1
 }
 
-COMPARE=1
+DEFAULT_BENCHMARK=linear
+COMPARE=0
 
 while test -n "$1"
 do
@@ -28,9 +32,10 @@ do
     -h|--help|help) print_help ;;
     --quick) QUICK=1; shift ;;
     --append) APPEND=1; shift ;;
+    --benchmark) shift; BENCHMARK=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
-    --no-compare) COMPARE=0; shift ;;
+    --compare) COMPARE=1; shift ;;
     --no-graphs) GRAPH=0; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;
@@ -48,18 +53,21 @@ echo "Using stack command [$STACK]"
 # for benchmarking.
 if test "$GRAPH" != "0"
 then
-  CHARTS=$($STACK exec which charts)
-  if test ! -x $CHARTS
+  CHART_PROG="chart-$BENCHMARK"
+  prog=$($STACK exec which $CHART_PROG)
+  if test ! -x "$prog"
   then
-    echo "Building charts executable"
+    echo "Building charting executable"
     $STACK build --flag "streamly:dev" || die "build failed"
   fi
 
-  CHARTS=$($STACK exec which charts)
-  if test ! -x $CHARTS
+  prog=$($STACK exec which $CHART_PROG)
+  if test ! -x "$prog"
   then
-    die "Could not find 'charts' executable"
+    die "Could not find [$CHART_PROG] executable"
   fi
+  CHART_PROG=$prog
+  echo "Using chart executable [$CHART_PROG]"
 fi
 
 # We run the benchmarks in isolation in a separate process so that different
@@ -72,7 +80,14 @@ fi
 # find .stack-work/ -type f -name "benchmarks"
 
 find_bench_prog () {
-  BENCH_PROG=`$STACK path --dist-dir`/build/benchOps/benchOps
+  if test -z "$BENCHMARK"
+  then
+    BENCHMARK=$DEFAULT_BENCHMARK
+    echo "Using default benchmark suite [$BENCHMARK], use --benchmark to specify another"
+  else
+    echo "Using benchmark suite [$BENCHMARK]"
+  fi
+  BENCH_PROG=`$STACK path --dist-dir`/build/$BENCHMARK/$BENCHMARK
   if test ! -x "$BENCH_PROG"
   then
     echo
@@ -154,7 +169,7 @@ if test "$GRAPH" != "0"
 then
   echo
   echo "Generating charts from ${OUTPUT_FILE}..."
-  $CHARTS
+  $CHART_PROG
 fi
 
 # XXX reset back to the original commit
