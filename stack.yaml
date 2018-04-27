@@ -10,6 +10,9 @@ extra-deps:
     - git: https://github.com/composewell/bench-graph
       commit: b6d6c69f76c0d951aecd257866cede9467bd166d
 
+    - git: https://github.com/harendra-kumar/hs-gauge
+      commit: f3bb4a1fc801c581224843759b7e6dabb0aef3dc
+
     - Chart-diagrams-1.8.3
     - SVGFonts-1.6.0.3
     - diagrams-core-1.4.0.1
