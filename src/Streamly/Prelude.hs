@@ -17,29 +17,39 @@
 --
 module Streamly.Prelude
     (
-    -- * Construction
+    -- * Construction and Deconstruction
+    -- | Primitives to construct or inspect a stream.
       nil
     , cons
     , (.:)
+    , uncons
+
+    -- * Generation
+    -- | Generate a monadic stream from an input structure, a seed or a
+    -- generation function.
     , unfoldr
     , unfoldrM
-    , fromFoldable
     , iterate
     , iterateM
+    , replicateM
+    , fromFoldable
 
-    -- * Elimination
+    -- * Folding
+    -- | Folds accept a 'StreamT' type instead of a polymorphic type to ensure
+    -- that streams have a monomorphic type by default. In case you want to use
+    -- any other type of stream you can use one of the type combinators to
+    -- convert the stream type before passing to a fold function.
+
     -- ** General Folds
     , foldr
     , foldrM
     , foldl'
     , foldlM'
-    , scanl'
-    , scanx
     , foldx
     , foldxM
-    , uncons
 
     -- ** Special Folds
+    , mapM_
     , toList
     , all
     , any
@@ -50,11 +60,14 @@ module Streamly.Prelude
     , length
     , elem
     , notElem
-    , reverse
     , maximum
     , minimum
     , sum
     , product
+
+    -- * Scans
+    , scanl'
+    , scanx
 
     -- * Filtering
     , filter
@@ -63,11 +76,12 @@ module Streamly.Prelude
     , drop
     , dropWhile
 
-    -- * Transformation
+    -- * Reordering
+    , reverse
+
+    -- * Mapping
     , mapM
-    , mapM_
     , sequence
-    , replicateM
 
     -- * Zipping
     , zipWith
