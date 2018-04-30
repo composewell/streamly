@@ -24,19 +24,6 @@ See the haddock documentation for full reference.  It is recommended that you
 read `Streamly.Tutorial` first. Also see `Streamly.Examples` for some working
 examples.
 
-`Streamly` has best in class performance even though it generalizes streaming
-to concurrent composition that does not mean it sacrifices non-concurrent
-performance. See
-[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
-detailed performance comparison with regular streaming libraries and the
-explanation of the benchmarks. The following graphs show a summary, the first
-one measures how four pipeline stages in a series perform, the second one
-measures the performance of individual stream operations; in both cases the
-stream processes a million elements:
-
-![Composing Pipeline Stages](charts/ComposingPipelineStages.svg)
-![All Operations at a Glance](charts/AllOperationsataGlance.svg)
-
 ## Non-determinism
 
 The monad instance composes like a list monad.
@@ -46,11 +33,11 @@ import Streamly
 import qualified Streamly.Prelude as S
 
 loops = do
-    x <- S.each [1,2]
-    y <- S.each [3,4]
+    x <- S.fromFoldable [1,2]
+    y <- S.fromFoldable [3,4]
     liftIO $ putStrLn $ show (x, y)
 
-main = runStreaming $ serially $ loops
+main = runStream loops
 ```
 ```
 (1,3)
@@ -65,66 +52,65 @@ To run the above code with demand-driven concurrency i.e. each iteration in the
 loops can run concurrently depending on the consumer rate:
 
 ``` haskell
-main = runStreaming $ asyncly $ loops
+main = runStream $ coparallely $ loops
 ```
 
-To run it with full parallelism irrespective of demand:
+To run it with round-robin parallelism:
 
 ``` haskell
-main = runStreaming $ parallely $ loops
+main = runStream $ parallely $ loops
 ```
 
 To run it serially but interleaving the outer and inner loop iterations:
 
 ``` haskell
-main = runStreaming $ interleaving $ loops
+main = runStream $ costreamly $ loops
 ```
 
-You can fold multiple streams or IO actions using parallel combinators like
-`<|`, `<|>`. For example, to concurrently generate the squares and then
-concurrently sum the square roots of all combinations:
+Streams can perform semigroup (<>) and monadic bind (>>=) operations
+concurrently using combinators like `coparallelly`, `parallelly`. For example,
+to concurrently generate squares of a stream of numbers and then concurrently
+sum the square roots of all combinations of two streams:
 
 ``` haskell
 import Streamly
 import qualified Streamly.Prelude as S
 
 main = do
-    s <- S.sum $ asyncly $ do
-        -- Squaring is concurrent (<|)
-        x2 <- forEachWith (<|) [1..100] $ \x -> return $ x * x
-        y2 <- forEachWith (<|) [1..100] $ \y -> return $ y * y
-        -- sqrt is concurrent (asyncly)
+    s <- S.sum $ coparallely $ do
+        -- Each square is performed concurrently, (<>) is concurrent
+        x2 <- foldMap (\x -> return $ x * x) [1..100]
+        y2 <- foldMap (\y -> return $ x * x) [1..100]
+        -- Each addition is performed concurrently, monadic bind is concurrent
         return $ sqrt (x2 + y2)
     print s
 ```
 
-Of course, the actions running in parallel could be arbitrary IO actions.  To
-concurrently list the contents of a directory tree recursively:
+Of course, the actions running in parallel could be arbitrary IO actions.  For
+example, to concurrently list the contents of a directory tree recursively:
 
 ``` haskell
 import Path.IO (listDir, getCurrentDir)
 import Streamly
 
-main = runStreaming $ serially $ getCurrentDir >>= readdir
+main = runStream $ coparallely $ getCurrentDir >>= readdir
    where readdir d = do
-            (dirs, files) <- lift $ listDir d
+            (dirs, files) <- liftIO $ listDir d
             liftIO $ mapM_ putStrLn $ map show files
-            -- read the subdirs concurrently
-            foldMapWith (<|>) readdir dirs
+            -- read the subdirs concurrently, (<>) is concurrent
+            foldMap readdir dirs
 ```
 
 In the above examples we do not think in terms of threads, locking or
 synchronization, rather we think in terms of what can run in parallel, the rest
-is taken care of automatically. With `asyncly` and `<|` the programmer does not
-have to worry about how many threads are to be created they are automatically
-adjusted based on the demand of the consumer.
+is taken care of automatically. When using `coparallely` the programmer does
+not have to worry about how many threads are to be created they are
+automatically adjusted based on the demand of the consumer.
 
 The concurrency facilities provided by streamly can be compared with
 [OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
-expression.  Concurrency support does not compromise performance in
-non-concurrent cases, the performance of the library is at par or better than
-most of the existing streaming libraries.
+expression.
 
 ## Streaming
 
@@ -140,14 +126,14 @@ import Streamly
 import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
-main = S.each [1..10]
+main = S.fromFoldable [1..10]
      & fmap (+ 1)
      & S.drop 2
      & S.filter even
      & fmap (* 3)
      & S.takeWhile (< 25)
      & S.mapM (\x -> putStrLn ("saw " ++ show x) >> return x)
-     & S.toList . serially
+     & S.toList
      >>= print
 ```
 
@@ -155,8 +141,7 @@ Fold style combinators can be used to fold purely or monadically. You can also
 use the beautiful `foldl` library for folding.
 
 ```haskell
-main = S.each [1..10]
-     & serially
+main = S.fromFoldable [1..10]
      & S.foldl (+) 0 id
      >>= print
 ```
@@ -165,12 +150,15 @@ Streams can be combined together in multiple ways:
 
 ```haskell
 main = do
-    let p s = (toList . serially) s >>= print
-    p $ return 1 <> return 2               -- serial, combine atoms
-    p $ S.each [1..10] <> S.each [11..20]  -- serial
-    p $ S.each [1..10] <| S.each [11..20]  -- demand driven parallel
-    p $ S.each [1..10] <=> S.each [11..20] -- serial but interleaved
-    p $ S.each [1..10] <|> S.each [11..20] -- fully parallel
+    let p s = toList s >>= print
+    -- serial, this is the default even if you omit the `streamly` combinator
+    p $ streamly    $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
+    -- serial but interleaved
+    p $ costreamly  $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
+    -- left-biased, demand driven parallel
+    p $ coparallely $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
+    -- round-robin parallel
+    p $ parallely   $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
 ```
 
 As we have already seen streams can be combined using monadic composition in a
@@ -183,6 +171,21 @@ example.
 Streamly is a foundation for first class reactive programming as well by virtue
 of integrating concurrency and streaming. See `Streamly.Examples.AcidRainGame`
 and `Streamly.Examples.CirclingSquare` for an SDL based animation example.
+
+## Performance
+
+`Streamly` has best in class performance even though it generalizes streaming
+to concurrent composition that does not mean it sacrifices non-concurrent
+performance. See
+[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
+detailed performance comparison with regular streaming libraries and the
+explanation of the benchmarks. The following graphs show a summary, the first
+one measures how four pipeline stages in a series perform, the second one
+measures the performance of individual stream operations; in both cases the
+stream processes a million elements:
+
+![Composing Pipeline Stages](charts/comparative/ComposingPipelineStages.svg)
+![All Operations at a Glance](charts/comparative/AllOperationsataGlance.svg)
 
 ## Contributing
 
