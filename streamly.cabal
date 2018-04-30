@@ -35,6 +35,8 @@ cabal-version:       >= 1.10
 extra-source-files:
     Changelog.md
     README.md
+    charts/comparative/AllOperationsataGlance.svg
+    charts/comparative/ComposingPipelineStages.svg
     stack-7.10.yaml
     stack.yaml
 
