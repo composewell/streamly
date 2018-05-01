@@ -20,6 +20,9 @@ module Streamly.Prelude
     -- * Construction and Deconstruction
     -- | Primitives to construct or inspect a stream.
       nil
+    , once
+    , consM
+    , (|:)
     , cons
     , (.:)
     , uncons

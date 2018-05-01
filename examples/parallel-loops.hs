@@ -2,11 +2,12 @@ import Control.Concurrent (myThreadId, threadDelay)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Streamly
+import Streamly.Prelude (once)
 
 main = runStream $ do
-    fromIO $ hSetBuffering stdout LineBuffering
+    once $ hSetBuffering stdout LineBuffering
     x <- loop "A" `parallel` loop "B"
-    fromIO $ myThreadId >>= putStr . show
+    once $ myThreadId >>= putStr . show
              >> putStr " "
              >> print x
 
@@ -14,6 +15,6 @@ main = runStream $ do
 
     loop :: String -> Stream (String, Int)
     loop name = do
-        fromIO $ threadDelay 1000000
-        rnd <- fromIO (randomIO :: IO Int)
+        once $ threadDelay 1000000
+        rnd <- once (randomIO :: IO Int)
         return (name, rnd) `parallel` loop name
