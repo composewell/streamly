@@ -154,7 +154,8 @@ type Streaming = IsStream
 nil :: IsStream t => t m a
 nil = fromStream S.nil
 
--- | Create a single element (singleton) stream from a monadic action.
+-- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
+-- but more efficient.
 --
 -- @
 -- > toList $ once getLine
@@ -193,8 +194,8 @@ infixr 5 |:
 
 infixr 5 `cons`
 
--- | Same as @consM . return@. Constructs a stream by adding a pure value at
--- the head of an existing stream. For example:
+-- | Construct a stream by adding a pure value at the head of an existing
+-- stream. Same as @consM . return@. For example:
 --
 -- @
 -- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil
