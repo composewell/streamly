@@ -41,6 +41,10 @@ module Streamly.Core
     -- * Alternative
     , alt
 
+    -- * zip
+    , zipWith
+    , zipParallelWith
+
     -- * Transformers
     , withLocal
     , withCatchError
@@ -83,7 +87,7 @@ import           Data.Maybe                  (isNothing)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
-import           Prelude                     hiding (repeat)
+import           Prelude                     hiding (repeat, zipWith)
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication type
@@ -601,6 +605,33 @@ alt :: Stream m a -> Stream m a -> Stream m a
 alt m1 m2 = Stream $ \_ stp sng yld ->
     let stop  = runStream m2 Nothing stp sng yld
     in runStream m1 Nothing stop sng yld
+
+------------------------------------------------------------------------------
+-- Zipping
+------------------------------------------------------------------------------
+
+zipWith :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipWith f m1 m2 = go m1 m2
+    where
+    go mx my = Stream $ \_ stp sng yld -> do
+        let merge a ra =
+                let single2 b = sng (f a b)
+                    yield2 b rb = yld (f a b) (go ra rb)
+                 in (runStream my) Nothing stp single2 yield2
+        let single1 a   = merge a nil
+            yield1 a ra = merge a ra
+        (runStream mx) Nothing stp single1 yield1
+
+async :: MonadParallel m => Stream m a -> m (Stream m a)
+async m = newStreamVar1 (SVarStyle Disjunction LIFO) m
+    >>= return . fromStreamVar
+
+zipParallelWith :: MonadParallel m
+    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipParallelWith f m1 m2 = Stream $ \_ stp sng yld -> do
+    ma <- async m1
+    mb <- async m2
+    (runStream (zipWith f ma mb)) Nothing stp sng yld
 
 -------------------------------------------------------------------------------
 -- Transformers

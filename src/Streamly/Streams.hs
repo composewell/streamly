@@ -577,8 +577,8 @@ instance IsStream CoparallelT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'CoparallelT', but
--- polymorphic.  Merges two streams possibly concurrently, preferring the
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'CoparallelT'.
+-- Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
 {-# INLINE coparallel #-}
 coparallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
@@ -723,16 +723,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 
 -- | Zip two streams serially using a pure zipping function.
 zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
-    where
-    go mx my = S.Stream $ \_ stp sng yld -> do
-        let merge a ra =
-                let single2 b = sng (f a b)
-                    yield2 b rb = yld (f a b) (go ra rb)
-                 in (S.runStream my) Nothing stp single2 yield2
-        let single1 a   = merge a S.nil
-            yield1 a ra = merge a ra
-        (S.runStream mx) Nothing stp single1 yield1
+zipWith f m1 m2 = fromStream $ S.zipWith f (toStream m1) (toStream m2)
 
 -- | The applicative instance of 'ZipStreamM' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
@@ -754,13 +745,13 @@ zipWith f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 newtype ZipStreamM m a = ZipStreamM {getZipStreamM :: S.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
-instance Monad m => Applicative (ZipStreamM m) where
-    pure = ZipStreamM . S.repeat
-    (<*>) = zipWith id
-
 instance IsStream ZipStreamM where
     toStream = getZipStreamM
     fromStream = ZipStreamM
+
+instance Monad m => Applicative (ZipStreamM m) where
+    pure = ZipStreamM . S.repeat
+    m1 <*> m2 = fromStream $ S.zipWith id (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -770,10 +761,8 @@ instance IsStream ZipStreamM where
 -- generated concurrently) using a pure zipping function.
 zipParallelWith :: (IsStream t, MonadParallel m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipParallelWith f m1 m2 = fromStream $ S.Stream $ \_ stp sng yld -> do
-    ma <- async m1
-    mb <- async m2
-    (S.runStream (toStream (zipWith f ma mb))) Nothing stp sng yld
+zipParallelWith f m1 m2 =
+    fromStream $ S.zipParallelWith f (toStream m1) (toStream m2)
 
 {-# DEPRECATED zipAsyncWith "Please use zipParallelWith instead." #-}
 zipAsyncWith :: (IsStream t, MonadParallel m)
@@ -802,13 +791,13 @@ newtype ZipParallelM m a = ZipParallelM {getZipParallelM :: S.Stream m a}
 {-# DEPRECATED ZipAsync "Please use ZipParallelM instead." #-}
 type ZipAsync = ZipParallelM
 
-instance MonadParallel m => Applicative (ZipParallelM m) where
-    pure = ZipParallelM . S.repeat
-    (<*>) = zipParallelWith id
-
 instance IsStream ZipParallelM where
     toStream = getZipParallelM
     fromStream = ZipParallelM
+
+instance MonadParallel m => Applicative (ZipParallelM m) where
+    pure = ZipParallelM . S.repeat
+    m1 <*> m2 = fromStream $ S.zipParallelWith id (toStream m1) (toStream m2)
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators
