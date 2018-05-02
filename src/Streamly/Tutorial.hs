@@ -236,7 +236,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- forever:
 --
 -- @
--- > runStream $ cycle1 (S.once getLine) & S.mapM putStrLn
+-- > runStream $ S.repeatM getLine & S.mapM putStrLn
 -- @
 --
 -- The following code snippet reads lines from standard input, filters blank
@@ -248,9 +248,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streamly.Prelude as S
 -- import Data.Char (toUpper)
 -- import Data.Function ((&))
--- import Data.Semigroup (cycle1)
 --
--- main = runStream $ cycle1 (S.once getLine)
+-- main = runStream $
+--        S.repeatM getLine
 --      & S.filter (not . null)
 --      & S.drop 1
 --      & S.take 2
