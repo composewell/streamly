@@ -35,7 +35,7 @@ import qualified Streamly.Prelude as S
 loops = do
     x <- S.fromFoldable [1,2]
     y <- S.fromFoldable [3,4]
-    liftIO $ putStrLn $ show (x, y)
+    S.once $ putStrLn $ show (x, y)
 
 main = runStream loops
 ```
@@ -95,8 +95,8 @@ import Streamly
 
 main = runStream $ coparallely $ getCurrentDir >>= readdir
    where readdir d = do
-            (dirs, files) <- liftIO $ listDir d
-            liftIO $ mapM_ putStrLn $ map show files
+            (dirs, files) <- S.once $ listDir d
+            S.once $ mapM_ putStrLn $ map show files
             -- read the subdirs concurrently, (<>) is concurrent
             foldMap readdir dirs
 ```
