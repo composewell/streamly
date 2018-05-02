@@ -14,35 +14,45 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Functions with the suffix @M@ are general functions that work on monadic
+-- arguments. The corresponding functions without the suffix @M@ work on pure
+-- arguments and can in general be derived from their monadic versions but are
+-- provided for convenience and for consistency with other pure APIs in the
+-- @base@ package.
 --
+-- Deconstruction and folds accept a 'StreamT' type instead of a polymorphic
+-- type to ensure that streams always have a concrete monomorphic type by
+-- default, reducing type errors. In case you want to use any other type of
+-- stream you can use one of the type combinators provided in the "Streamly"
+-- module to convert the stream type.
+
 module Streamly.Prelude
     (
-    -- * Construction and Deconstruction
+    -- * Construction
     -- | Primitives to construct or inspect a stream.
       nil
     , consM
     , (|:)
-    , once
     , cons
     , (.:)
-    , uncons
 
-    -- * Generation
-    -- | Generate a monadic stream from an input structure, a seed or a
-    -- generation function.
+    -- * General Unfold
     , unfoldr
     , unfoldrM
+
+    -- * Special Generation
+    -- | Generate a monadic stream from an input structure, a seed or a
+    -- generation function.
+    , once
+    , replicateM
     , iterate
     , iterateM
-    , replicateM
     , fromFoldable
 
-    -- * Folding
-    -- | Folds accept a 'StreamT' type instead of a polymorphic type to ensure
-    -- that streams have a monomorphic type by default. In case you want to use
-    -- any other type of stream you can use one of the type combinators to
-    -- convert the stream type before passing to a fold function.
+    -- * Deconstruction
+    , uncons
 
+    -- * Folding
     -- ** General Folds
     , foldr
     , foldrM
