@@ -45,6 +45,7 @@ module Streamly.Prelude
     -- generation function.
     , once
     , replicateM
+    , repeatM
     , iterate
     , iterateM
     , fromFoldable
@@ -167,13 +168,41 @@ fromFoldable = Prelude.foldr cons nil
 each :: (IsStream t, Foldable f) => f a -> t m a
 each = fromFoldable
 
--- | Iterate a pure function from a seed value, streaming the results forever
+-- | Create a singleton stream by executing a monadic action once. Same as
+-- @m \`consM` nil@ but more efficient.
+--
+-- @
+-- > toList $ once getLine
+-- hello
+-- ["hello"]
+-- @
+once :: (IsStream t, Monad m) => m a -> t m a
+once = fromStream . S.once
+
+-- | Generate a stream by performing a monadic action @n@ times.
+replicateM :: (IsStream t, Monad m) => Int -> m a -> t m a
+replicateM n m = fromStream $ go n
+    where
+    go cnt = Stream $ \_ stp _ yld ->
+        if cnt <= 0
+        then stp
+        else m >>= \a -> yld a (go (cnt - 1))
+
+-- | Generate a stream by repeatedly executing a monadic action forever.
+repeatM :: (IsStream t, Monad m) => m a -> t m a
+repeatM = fromStream . go
+    where
+    go m = Stream $ \_ _ _ yld ->
+        m >>= \a -> yld a (go m)
+
+-- | Iterate a pure function from a seed value, streaming the results forever.
 iterate :: IsStream t => (a -> a) -> a -> t m a
 iterate step = fromStream . go
     where
     go s = S.cons s (go (step s))
 
--- | Iterate a monadic function from a seed value, streaming the results forever
+-- | Iterate a monadic function from a seed value, streaming the results
+-- forever.
 iterateM :: (IsStream t, Monad m) => (a -> m a) -> a -> t m a
 iterateM step = fromStream . go
     where
@@ -558,15 +587,6 @@ sequence m = fromStream $ go (toStream m)
         let single ma = ma >>= sng
             yield ma r = ma >>= \b -> yld b (go r)
          in (S.runStream m1) Nothing stp single yield
-
--- | Generate a stream by performing an action @n@ times.
-replicateM :: (IsStream t, Monad m) => Int -> m a -> t m a
-replicateM n m = fromStream $ go n
-    where
-    go cnt = Stream $ \_ stp _ yld ->
-        if cnt <= 0
-        then stp
-        else m >>= \a -> yld a (go (cnt - 1))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams

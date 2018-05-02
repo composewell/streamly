@@ -34,7 +34,6 @@ module Streamly.Streams
 
     -- * Construction
     , nil
-    , once
     , cons
     , (.:)
     , consM
@@ -147,17 +146,6 @@ type Streaming = IsStream
 -- @
 nil :: IsStream t => t m a
 nil = fromStream S.nil
-
--- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
--- but more efficient.
---
--- @
--- > toList $ once getLine
--- hello
--- ["hello"]
--- @
-once :: (IsStream t, Monad m) => m a -> t m a
-once = fromStream . S.once
 
 infixr 5 `consM`
 
