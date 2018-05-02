@@ -100,11 +100,6 @@ module Streamly.Streams
     , runZipStream     -- deprecated
     , runZipAsync      -- deprecated
 
-    -- * Zipping
-    , zipWith
-    , zipParallelWith
-    , zipAsyncWith    -- deprecated
-
     -- * Fold Utilities
     , foldWith
     , foldMapWith
@@ -121,7 +116,6 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
-import           Prelude hiding              (zipWith)
 import           Streamly.Core               ( MonadParallel
                                              , SVar, SVarStyle(..)
                                              , SVarTag(..), SVarSched(..))
@@ -721,10 +715,6 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- Serially Zipping Streams
 ------------------------------------------------------------------------------
 
--- | Zip two streams serially using a pure zipping function.
-zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStream $ S.zipWith f (toStream m1) (toStream m2)
-
 -- | The applicative instance of 'ZipStreamM' zips a number of streams serially
 -- i.e. it produces one element from each stream serially and then zips all
 -- those elements.
@@ -756,18 +746,6 @@ instance Monad m => Applicative (ZipStreamM m) where
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
-
--- | Zip two streams concurrently (i.e. both the elements being zipped are
--- generated concurrently) using a pure zipping function.
-zipParallelWith :: (IsStream t, MonadParallel m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipParallelWith f m1 m2 =
-    fromStream $ S.zipParallelWith f (toStream m1) (toStream m2)
-
-{-# DEPRECATED zipAsyncWith "Please use zipParallelWith instead." #-}
-zipAsyncWith :: (IsStream t, MonadParallel m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith = zipParallelWith
 
 -- | Like 'ZipStreamM' but zips in parallel, it generates all the elements to
 -- be zipped concurrently.

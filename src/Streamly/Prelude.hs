@@ -562,6 +562,10 @@ replicateM n m = fromStream $ go n
 -- Serially Zipping Streams
 ------------------------------------------------------------------------------
 
+-- | Zip two streams serially using a pure zipping function.
+zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 = fromStream $ S.zipWith f (toStream m1) (toStream m2)
+
 -- | Zip two streams serially using a monadic zipping function.
 zipWithM :: IsStream t => (a -> b -> t m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
@@ -579,6 +583,18 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
 ------------------------------------------------------------------------------
+
+-- | Zip two streams concurrently (i.e. both the elements being zipped are
+-- generated concurrently) using a pure zipping function.
+zipParallelWith :: (IsStream t, MonadParallel m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipParallelWith f m1 m2 =
+    fromStream $ S.zipParallelWith f (toStream m1) (toStream m2)
+
+{-# DEPRECATED zipAsyncWith "Please use zipParallelWith instead." #-}
+zipAsyncWith :: (IsStream t, MonadParallel m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith = zipParallelWith
 
 -- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
