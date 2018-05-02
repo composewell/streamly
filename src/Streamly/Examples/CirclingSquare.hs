@@ -10,6 +10,7 @@ module Streamly.Examples.CirclingSquare where
 import Data.IORef
 import Graphics.UI.SDL as SDL
 import Streamly
+import Streamly.Prelude (once)
 import Streamly.Time
 
 ------------------------------------------------------------------------------
@@ -87,4 +88,5 @@ circlingSquare :: IO ()
 circlingSquare = do
   sdlInit
   cref <- newIORef (0,0)
-  runStream $ fromIO (updateController cref) `parallel` fromIO (updateDisplay cref)
+  runStream $ once (updateController cref)
+    `parallel` once (updateDisplay cref)

@@ -1,6 +1,7 @@
 module Streamly.Examples.SearchEngineQuery where
 
 import Streamly
+import Streamly.Prelude (once)
 import Network.HTTP.Simple
 
 -- Runs three search engine queries in parallel.
@@ -14,7 +15,7 @@ searchEngineQuery = do
 
     where
         get :: IsStream t => String -> t IO ()
-        get s = fromIO (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+        get s = once (httpNoBody (parseRequest_ s) >> putStrLn (show s))
 
         google, bing, duckduckgo :: IsStream t => t IO ()
         google     = get "https://www.google.com/search?q=haskell"

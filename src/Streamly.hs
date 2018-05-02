@@ -24,8 +24,6 @@ module Streamly
     , Parallel
     , ZipStream
     , ZipParallel
-    , fromIO
-    , fromM
 
     -- * Stream transformers
     , IsStream

@@ -34,8 +34,11 @@ module Streamly.Streams
 
     -- * Construction
     , nil
+    , once
     , cons
     , (.:)
+    , consM
+    , (|:)
     , streamBuild
     , fromCallback
     , fromSVar
@@ -64,8 +67,6 @@ module Streamly.Streams
     , Parallel
     , ZipStream
     , ZipParallel
-    , fromIO
-    , fromM
 
     -- * Stream Transformers
     , StreamT
@@ -122,7 +123,6 @@ import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
 import           Prelude hiding              (zipWith)
 import           Streamly.Core               ( MonadParallel
-                                             , singleton
                                              , SVar, SVarStyle(..)
                                              , SVarTag(..), SVarSched(..))
 import qualified Streamly.Core as S
@@ -145,18 +145,60 @@ type Streaming = IsStream
 -- Constructing a stream
 ------------------------------------------------------------------------------
 
--- | Represesnts an empty stream just like @[]@ represents an empty list.
+-- | An empty stream.
+--
+-- @
+-- > toList nil
+-- []
+-- @
 nil :: IsStream t => t m a
 nil = fromStream S.nil
 
-infixr 5 `cons`
-
--- | Constructs a stream by adding a pure value at the head of an existing
--- stream, just like ':' constructs lists. For example:
+-- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
+-- but more efficient.
 --
 -- @
--- > let stream = 1 \`cons` 2 \`cons` 3 \`cons` nil
--- > (toList . streamly) stream
+-- > toList $ once getLine
+-- hello
+-- ["hello"]
+-- @
+once :: (IsStream t, Monad m) => m a -> t m a
+once = fromStream . S.once
+
+infixr 5 `consM`
+
+-- | Constructs a stream by adding a monadic action at the head of an existing
+-- stream. For example:
+--
+-- @
+-- > toList $ getLine \`consM` getLine \`consM` nil
+-- hello
+-- world
+-- ["hello","world"]
+-- @
+consM :: (IsStream t, Monad m) => m a -> t m a -> t m a
+consM m r = fromStream $ S.consM m (toStream r)
+
+infixr 5 |:
+
+-- | Operator equivalent of 'consM'.
+--
+-- @
+-- > toList $ getLine |: getLine |: nil
+-- hello
+-- world
+-- ["hello","world"]
+-- @
+(|:) :: (IsStream t, Monad m) => m a -> t m a -> t m a
+(|:) = consM
+
+infixr 5 `cons`
+
+-- | Construct a stream by adding a pure value at the head of an existing
+-- stream. Same as @consM . return@. For example:
+--
+-- @
+-- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil
 -- [1,2,3]
 -- @
 cons :: IsStream t => a -> t m a -> t m a
@@ -164,31 +206,12 @@ cons a r = fromStream $ S.cons a (toStream r)
 
 infixr 5 .:
 
--- | Operator equivalent of 'cons' so that you can construct a stream of pure
--- values more succinctly like this:
+-- | Operator equivalent of 'cons'.
 --
 -- @
--- > let stream = 1 .: 2 .: 3 .: nil
--- > (toList . streamly) stream
+-- > toList $ 1 .: 2 .: 3 .: nil
 -- [1,2,3]
 -- @
---
--- '.:' constructs a stream just like ':' constructs a list.
---
--- Also note that another equivalent way of building streams from pure values
--- is:
---
--- @
--- > let stream = pure 1 <> pure 2 <> pure 3
--- > (toList . streamly) stream
--- [1,2,3]
--- @
---
--- In the first method we construct a stream by adding one element at a time.
--- In the second method we first construct singleton streams using 'pure' and
--- then compose all those streams together using the 'Semigroup' style
--- composition of streams. The former method is a bit more efficient than the
--- latter.
 --
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
@@ -285,7 +308,7 @@ async m = do
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
 instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
-    pure = STREAM . singleton;                     \
+    pure = STREAM . S.singleton;                     \
     (<*>) = ap }
 
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
@@ -413,7 +436,7 @@ MONAD_COMMON_INSTANCES(StreamT,)
 -- yielding one element from each stream alternately.
 --
 -- @
--- main = ('toList' . 'interleaving' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- main = ('toList' . 'costreamly' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -424,7 +447,7 @@ MONAD_COMMON_INSTANCES(StreamT,)
 --
 --
 -- @
--- main = 'runStream' . 'interleaving' $ do
+-- main = 'runStream' . 'costreamly' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     liftIO $ print (x, y)
@@ -436,7 +459,7 @@ MONAD_COMMON_INSTANCES(StreamT,)
 -- (2,4)
 -- @
 --
--- Note that interleaving composition can only combine a finite number of
+-- Note that costreamly composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
 newtype CostreamT m a = CostreamT {getCostreamT :: S.Stream m a}
@@ -898,15 +921,6 @@ type ZipStream a = ZipStreamM IO a
 
 -- | An IO stream whose applicative instance zips streams parallely.
 type ZipParallel a = ZipParallelM IO a
-
--- | Lift a value from IO monad to any of the stream types. This works for all
--- stream types including those that are not monads e.g. 'ZipStream' and
--- 'ZipParallel'.
-fromIO :: (IsStream t, MonadIO m) => IO a -> t m a
-fromIO = streamly . liftIO
-
-fromM :: (IsStream t, Monad m) => m a -> t m a
-fromM = streamly . lift
 
 ------------------------------------------------------------------------------
 -- Fold Utilities

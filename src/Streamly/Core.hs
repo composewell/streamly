@@ -26,7 +26,9 @@ module Streamly.Core
 
     -- * Construction
     , singleton
+    , once
     , cons
+    , consM
     , repeat
     , nil
 
@@ -175,10 +177,18 @@ newtype Stream m a =
 nil :: Stream m a
 nil = Stream $ \_ stp _ _ -> stp
 
+once :: Monad m => m a -> Stream m a
+once m = Stream $ \_ _ single _ -> m >>= single
+
 {-# INLINE singleton #-}
+-- | Same as @once . return@
 singleton :: a -> Stream m a
 singleton a = Stream $ \_ _ single _ -> single a
 
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m r = Stream $ \_ _ _ yld -> m >>= \a -> yld a r
+
+-- | Same as @consM . return@
 cons :: a -> Stream m a -> Stream m a
 cons a r = Stream $ \_ _ _ yld -> yld a r
 
@@ -597,7 +607,7 @@ alt m1 m2 = Stream $ \_ stp sng yld ->
 -------------------------------------------------------------------------------
 
 instance MonadTrans Stream where
-    lift mx = Stream $ \_ _ single _ -> mx >>= single
+    lift = once
 
 withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
 withLocal f m =
