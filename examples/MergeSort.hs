@@ -1,7 +1,5 @@
 {-# LANGUAGE FlexibleContexts    #-}
 
-module Streamly.Examples.MergeSortedStreams where
-
 import Data.Word
 import System.Random (getStdGen, randoms)
 import Data.List (sort)
@@ -36,7 +34,7 @@ merge a b = do
                         then (return y) <> merge (return x <> ma) mb
                         else (return x) <> merge ma (return y <> mb)
 
-mergeSortedStreams :: IO ()
-mergeSortedStreams = do
+main :: IO ()
+main = do
     xs <- A.toList $ mergeAsync getSorted getSorted
     putStrLn $ show $ length xs

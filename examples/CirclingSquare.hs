@@ -1,11 +1,10 @@
 -- Adapted from the Yampa package.
--- Displays a square moving in a circle. To move the position drag the mouse.
+-- Displays a square moving in a circle. To move the position drag it with the
+-- mouse.
 --
 -- Requires the SDL package, assuming streamly has already been built, you can
 -- compile it like this:
--- stack ghc --package SDL circle-mouse.hs
-
-module Streamly.Examples.CirclingSquare where
+-- stack ghc --package SDL CirclingSquare.hs
 
 import Data.IORef
 import Graphics.UI.SDL as SDL
@@ -84,8 +83,8 @@ updateDisplay cref = withClock clock refreshRate displaySquare
         let t = (fromIntegral time) * speed / 1000000
          in display (x + cos t * radius, y + sin t * radius)
 
-circlingSquare :: IO ()
-circlingSquare = do
+main :: IO ()
+main = do
   sdlInit
   cref <- newIORef (0,0)
   runStream $ once (updateController cref)

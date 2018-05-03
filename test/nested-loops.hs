@@ -14,6 +14,8 @@ main = runStream $ do
 
     where
 
+    -- we can just use
+    -- parallely $ mconcat $ replicate n $ once (...)
     loop :: String -> Int -> StreamT IO String
     loop name n = do
         rnd <- once (randomIO :: IO Int)

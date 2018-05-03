@@ -35,6 +35,7 @@ cabal-version:       >= 1.10
 extra-source-files:
     Changelog.md
     README.md
+    bench.sh
     charts/comparative/AllOperationsataGlance.svg
     charts/comparative/ComposingPipelineStages.svg
     stack-7.10.yaml
@@ -59,6 +60,10 @@ flag examples-sdl
   manual: True
   default: False
 
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
 library
     hs-source-dirs:    src
     other-modules:     Streamly.Core
@@ -68,16 +73,6 @@ library
                      , Streamly.Time
                      , Streamly.Tutorial
                      , Streamly
-
-    if flag(examples) || flag(examples-sdl)
-      exposed-modules: Streamly.Examples
-                     , Streamly.Examples.SearchEngineQuery
-                     , Streamly.Examples.ListDirRecursive
-                     , Streamly.Examples.MergeSortedStreams
-                     , Streamly.Examples.AcidRainGame
-
-    if flag(examples-sdl)
-      exposed-modules: Streamly.Examples.CirclingSquare
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -95,8 +90,6 @@ library
                       -Wredundant-constraints
                       -Wnoncanonical-monad-instances
                       -Wnoncanonical-monadfail-instances
-    if flag(examples-sdl)
-      cpp-options:      -DEXAMPLES_SDL
 
     build-depends:     base              >= 4.8   &&  < 5
                      , atomic-primops    >= 0.8   && < 0.9
@@ -114,15 +107,9 @@ library
     build-depends:
         semigroups    >= 0.18   && < 0.19
 
-  if flag(examples) || flag(examples-sdl)
-    build-Depends:
-        http-conduit >= 2.2.2 && < 2.4
-      , path-io      >= 0.1.0 && < 1.4
-      , random       >= 1.0.0 && < 1.2
-
-  if flag(examples-sdl)
-    build-Depends:
-        SDL  >= 0.6.5 && < 0.7
+-------------------------------------------------------------------------------
+-- Test suites
+-------------------------------------------------------------------------------
 
 test-suite test
   type: exitcode-stdio-1.0
@@ -174,6 +161,39 @@ test-suite properties
     , QuickCheck        >= 2.8   && < 2.12
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
+
+test-suite loops
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is: loops.hs
+  hs-source-dirs:  test
+  build-Depends:
+      streamly
+    , base >= 4.8   && < 5
+
+test-suite nested-loops
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is: nested-loops.hs
+  hs-source-dirs:  test
+  build-Depends:
+      streamly
+    , base   >= 4.8   && < 5
+    , random >= 1.0.0 && < 1.2
+
+test-suite parallel-loops
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is: parallel-loops.hs
+  hs-source-dirs:  test
+  build-Depends:
+      streamly
+    , base   >= 4.8   && < 5
+    , random >= 1.0.0 && < 1.2
+
+-------------------------------------------------------------------------------
+-- Benchmarks
+-------------------------------------------------------------------------------
 
 benchmark linear
   type: exitcode-stdio-1.0
@@ -229,10 +249,6 @@ benchmark nested
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.1 && < 0.3
 
--------------------------------------------------------------------------------
--- Examples
--------------------------------------------------------------------------------
-
 executable chart-linear
   default-language: Haskell2010
   hs-source-dirs: benchmark
@@ -259,46 +275,71 @@ executable chart-nested
   else
     buildable: False
 
-executable loops
+-------------------------------------------------------------------------------
+-- Examples
+-------------------------------------------------------------------------------
+
+executable SearchQuery
   default-language: Haskell2010
-  main-is: loops.hs
+  main-is: SearchQuery.hs
   hs-source-dirs:  examples
   if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base         >= 4.8   && < 5
+      , http-conduit >= 2.2.2 && < 2.4
+  else
+    buildable: False
+
+executable ListDir
+  default-language: Haskell2010
+  main-is: ListDir.hs
+  hs-source-dirs:  examples
+  if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base    >= 4.8   && < 5
+      , path-io >= 0.1.0 && < 1.4
+  else
+    buildable: False
+
+executable MergeSort
+  default-language: Haskell2010
+  main-is: MergeSort.hs
+  hs-source-dirs:  examples
+  if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base   >= 4.8   && < 5
+      , random >= 1.0.0 && < 1.2
+  else
+    buildable: False
+
+executable AcidRain
+  default-language: Haskell2010
+  main-is: AcidRain.hs
+  hs-source-dirs:  examples
+  if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base         >= 4.8   && < 5
+      , mtl          >= 2.2   && < 3
+  else
+    buildable: False
+
+executable CirclingSquare
+  default-language: Haskell2010
+  main-is: CirclingSquare.hs
+  hs-source-dirs:  examples
+  if flag(examples-sdl)
     buildable: True
     build-Depends:
         streamly
       , base >= 4.8   && < 5
-  else
-    buildable: False
-
-executable nested-loops
-  default-language: Haskell2010
-  main-is: nested-loops.hs
-  hs-source-dirs:  examples
-  if flag(examples) || flag(examples-sdl)
-    buildable: True
-    build-Depends:
-        streamly
-      , base   >= 4.8   && < 5
-      , random >= 1.0.0 && < 1.2
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers    >= 0.4   && < 0.6
-  else
-    buildable: False
-
-executable parallel-loops
-  default-language: Haskell2010
-  main-is: parallel-loops.hs
-  hs-source-dirs:  examples
-  if flag(examples) || flag(examples-sdl)
-    buildable: True
-    build-Depends:
-        streamly
-      , base   >= 4.8   && < 5
-      , random >= 1.0.0 && < 1.2
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers    >= 0.4   && < 0.6
+      , SDL  >= 0.6.5 && < 0.7
   else
     buildable: False

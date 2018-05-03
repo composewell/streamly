@@ -1,13 +1,15 @@
-module Streamly.Examples.SearchEngineQuery where
-
 import Streamly
 import Streamly.Prelude (once)
 import Network.HTTP.Simple
 
--- Runs three search engine queries in parallel.
-searchEngineQuery :: IO ()
-searchEngineQuery = do
-    putStrLn "Using parallel alternative"
+-- | Runs three search engine queries in parallel and prints the search engine
+-- names in the fastest first order.
+--
+-- Does it twice using two different ways.
+--
+main :: IO ()
+main = do
+    putStrLn "Using parallel semigroup composition"
     runStream . parallely $ google <> bing <> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"

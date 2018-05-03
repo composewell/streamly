@@ -41,10 +41,6 @@ main = do
 -- Serial (single-threaded) stream generator loops
 -------------------------------------------------------------------------------
 
-    -- In a <> composition the action on the left is executed and only after it
-    -- finished then the action on the right is executed. In other words the
-    -- actions are run serially.
-
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
     loopTail :: Int -> Stream Int
@@ -64,11 +60,6 @@ main = do
 -- Concurrent (multi-threaded) adaptive demand-based stream generator loops
 -------------------------------------------------------------------------------
 
-    -- In a <| composition the action on the left is executed first. However,
-    -- if it is not fast enough to generate results at the consumer's speed
-    -- then the action on the right is also spawned concurrently. In other
-    -- words, both actions may run concurrently based on the need.
-
     loopTailA :: Int -> Stream Int
     loopTailA x = do
         once $ putStrLn "LoopTailA..."
@@ -82,8 +73,3 @@ main = do
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops
 -------------------------------------------------------------------------------
-
-    -- In a <|> composition both actions are run concurrently in a fair
-    -- manner, no one action is preferred over another. Both actions are
-    -- spawned right away in their own independent threads. In other words, the
-    -- actions will run concurrently.

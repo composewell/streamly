@@ -3,8 +3,6 @@
 -- This example is adapted from Gabriel Gonzalez's pipes-concurrency package.
 -- https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html
 
-module Streamly.Examples.AcidRainGame where
-
 import Streamly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
@@ -38,8 +36,8 @@ game = do
     when (h <= 0) $ fail "You die!"
     liftIO $ putStrLn $ "Health = " ++ show h
 
-acidRainGame :: IO ()
-acidRainGame = do
+main :: IO ()
+main = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
     _ <- runStateT (runStream game) 60
