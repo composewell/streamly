@@ -6,6 +6,7 @@
 import Streamly
 import Control.Concurrent (threadDelay)
 import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT)
 import Data.Semigroup (cycle1)
 

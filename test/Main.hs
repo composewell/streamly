@@ -40,7 +40,7 @@ main = hspec $ do
         it "simple streamly" $
             (runStream . streamly) (return (0 :: Int)) `shouldReturn` ()
         it "simple streamly with IO" $
-            (runStream . streamly) (liftIO $ putStrLn "hello") `shouldReturn` ()
+            (runStream . streamly) (A.once $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ do
         it "Monoid - mempty" $
@@ -450,8 +450,8 @@ nestTwoParallelApp =
     in (toListParallel ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
-timed :: MonadIO (t IO) => Int -> t IO Int
-timed x = liftIO (threadDelay (x * 100000)) >> return x
+timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
+timed x = A.once (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: IsStream t
     => (t IO Int -> StreamT IO Int)
@@ -462,7 +462,7 @@ interleaveCheck t f =
         (A.toList . t) ((singleton 0 `f` singleton 1) `f` (singleton 100 `f` singleton 101))
             `shouldReturn` ([0, 100, 1, 101])
 
-parallelCheck :: MonadIO (t IO)
+parallelCheck :: (IsStream t, Monad (t IO))
     => (t IO Int -> StreamT IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
@@ -475,7 +475,7 @@ parallelCheck t f = do
         (A.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
-    where event n = (liftIO $ threadDelay (n * 100000)) >> (return n)
+    where event n = (A.once $ threadDelay (n * 100000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
     => (t IO Int -> StreamT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
@@ -540,7 +540,7 @@ composeAndComposeSimple t1 t2 answer = do
             `shouldReturn` (answer !! 3)
 
 loops
-    :: (IsStream t, Semigroup (t IO Int), MonadIO (t IO))
+    :: (IsStream t, Semigroup (t IO Int), Monad (t IO))
     => (t IO Int -> t IO Int)
     -> ([Int] -> [Int])
     -> ([Int] -> [Int])
@@ -555,12 +555,12 @@ loops t tsrt hsrt = do
     where
         loopHead x = do
             -- this print line is important for the test (causes a bind)
-            liftIO $ putStrLn "LoopHead..."
+            A.once $ putStrLn "LoopHead..."
             t $ (if x < 3 then loopHead (x + 1) else nil) <> return x
 
         loopTail x = do
             -- this print line is important for the test (causes a bind)
-            liftIO $ putStrLn "LoopTail..."
+            A.once $ putStrLn "LoopTail..."
             t $ return x <> (if x < 3 then loopTail (x + 1) else nil)
 
 bindAndComposeSimple
@@ -628,21 +628,21 @@ mixedOps = do
 
     composeMixed :: StreamT IO Int
     composeMixed = do
-        liftIO $ return ()
-        liftIO $ putStr ""
+        A.once $ return ()
+        A.once $ putStr ""
         x <- return 1
         y <- return 2
         z <- do
                 x1 <- parallely $ return 1 <> return 2
-                liftIO $ return ()
-                liftIO $ putStr ""
+                A.once $ return ()
+                A.once $ putStr ""
                 y1 <- coparallely $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- coparallely $ return 1 <> return 2
                     z11 <- costreamly $ return 1 <> return 2
-                    liftIO $ return ()
-                    liftIO $ putStr ""
+                    A.once $ return ()
+                    A.once $ putStr ""
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)

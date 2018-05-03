@@ -73,13 +73,7 @@ module Streamly
     , forEachWith
 
     -- * Re-exports
-    , Monoid (..)
     , Semigroup (..)
-    , Alternative (..)
-    , MonadPlus (..)
-    , MonadIO (..)
-    , MonadTrans (..)
-
     -- * Deprecated
     , MonadAsync
     , Streaming
@@ -104,10 +98,6 @@ where
 
 import Streamly.Streams
 import Data.Semigroup (Semigroup(..))
-import Control.Applicative (Alternative(..))
-import Control.Monad (MonadPlus(..))
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.Trans.Class (MonadTrans (..))
 
 -- $background
 --
