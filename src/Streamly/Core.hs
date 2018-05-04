@@ -243,8 +243,12 @@ cosplice m1 m2 = Stream $ \_ stp sng yld -> do
 -- | A monad that can perform concurrent or parallel IO operations. Streams
 -- that can be composed concurrently require the underlying monad to be
 -- 'MonadParallel'.
+--
+-- @since 0.2.0
 type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
+-- |
+-- @since 0.1.0
 {-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
 type MonadAsync m = MonadParallel m
 

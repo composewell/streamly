@@ -1,5 +1,5 @@
 name:               streamly
-version:            0.1.2
+version:            0.2.0
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly, short for streaming concurrently, is a simple yet powerful
@@ -50,7 +50,7 @@ homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
 license:             BSD3
 license-file:        LICENSE
-tested-with:         GHC==7.10.3, GHC==8.0.2, GHC==8.2.2, GHC==8.4.1
+tested-with:         GHC==7.10.3, GHC==8.0.2, GHC==8.2.2, GHC==8.4.2
 author:              Harendra Kumar
 maintainer:          harendra.kumar@gmail.com
 copyright:           2017 Harendra Kumar

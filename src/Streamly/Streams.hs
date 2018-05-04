@@ -80,6 +80,7 @@ module Streamly.Streams
 
     -- * Type Adapters
     , streamly
+    , serially         -- deprecated
     , costreamly
     , interleaving     -- deprecated
     , coparallely
@@ -126,12 +127,16 @@ import qualified Streamly.Core as S
 
 -- | Class of types that can represent a stream of elements of some type 'a' in
 -- some monad 'm'.
+--
+-- @since 0.2.0
 class IsStream t where
     toStream :: t m a -> S.Stream m a
     fromStream :: S.Stream m a -> t m a
 
 -- | Same as 'IsStream'.
-{-# Deprecated Streaming "Please use IsStream instead." #-}
+--
+-- @since 0.1.0
+{-# DEPRECATED Streaming "Please use IsStream instead." #-}
 type Streaming = IsStream
 
 ------------------------------------------------------------------------------
@@ -144,6 +149,8 @@ type Streaming = IsStream
 -- > toList nil
 -- []
 -- @
+--
+-- @since 0.1.0
 nil :: IsStream t => t m a
 nil = fromStream S.nil
 
@@ -158,6 +165,8 @@ infixr 5 `consM`
 -- world
 -- ["hello","world"]
 -- @
+--
+-- @since 0.2.0
 consM :: (IsStream t, Monad m) => m a -> t m a -> t m a
 consM m r = fromStream $ S.consM m (toStream r)
 
@@ -171,6 +180,8 @@ infixr 5 |:
 -- world
 -- ["hello","world"]
 -- @
+--
+-- @since 0.2.0
 (|:) :: (IsStream t, Monad m) => m a -> t m a -> t m a
 (|:) = consM
 
@@ -183,6 +194,8 @@ infixr 5 `cons`
 -- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil
 -- [1,2,3]
 -- @
+--
+-- @since 0.1.0
 cons :: IsStream t => a -> t m a -> t m a
 cons a r = fromStream $ S.cons a (toStream r)
 
@@ -195,6 +208,7 @@ infixr 5 .:
 -- [1,2,3]
 -- @
 --
+-- @since 0.1.1
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
 
@@ -244,6 +258,8 @@ streamFold svr step single blank m =
 -- | Run a streaming composition, discard the results. By default it interprets
 -- the stream as 'StreamT', to run other types of streams use the type adapting
 -- combinators for example @runStream . 'parallely'@.
+--
+-- @since 0.2.0
 runStream :: Monad m => StreamT m a -> m ()
 runStream m = go (toStream m)
     where
@@ -254,7 +270,9 @@ runStream m = go (toStream m)
          in (S.runStream m1) Nothing stop single yield
 
 -- | Same as 'runStream'
-{-# Deprecated runStreaming "Please use runStream instead." #-}
+--
+-- @since 0.1.0
+{-# DEPRECATED runStreaming "Please use runStream instead." #-}
 runStreaming :: (Monad m, IsStream t) => t m a -> m ()
 runStreaming = runStream . adapt
 
@@ -273,7 +291,8 @@ toSVar sv m = S.toStreamVar sv (toStream m)
 -- computation. The returned action is exhaustible and must be drained once. If
 -- not drained fully we may have a thread blocked forever and once exhausted it
 -- will always return 'empty'.
-
+--
+-- @since 0.1.0
 async :: (IsStream t, MonadParallel m) => t m a -> m (t m a)
 async m = do
     sv <- S.newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
@@ -373,6 +392,7 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
 -- Note that serial composition can be used to combine an infinite number of
 -- streams as it explores only one stream at a time.
 --
+-- @since 0.1.0
 newtype StreamT m a = StreamT {getStreamT :: S.Stream m a}
     deriving (Semigroup, Monoid, Functor, MonadTrans)
 
@@ -387,6 +407,8 @@ instance IsStream StreamT where
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'StreamT'.
 -- Appends two streams sequentially, yielding all elements from the first
 -- stream, and then all elements from the second stream.
+--
+-- @since 0.2.0
 {-# INLINE splice #-}
 splice :: IsStream t => t m a -> t m a -> t m a
 splice m1 m2 = fromStream $ S.splice (toStream m1) (toStream m2)
@@ -444,9 +466,12 @@ MONAD_COMMON_INSTANCES(StreamT,)
 -- Note that costreamly composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
+-- @since 0.2.0
 newtype CostreamT m a = CostreamT {getCostreamT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
+-- |
+-- @since 0.1.0
 {-# DEPRECATED InterleavedT "Please use 'CostreamT' instead." #-}
 type InterleavedT = CostreamT
 
@@ -460,6 +485,8 @@ instance IsStream CostreamT where
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'CostreamT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
+--
+-- @since 0.2.0
 {-# INLINE cosplice #-}
 cosplice :: IsStream t => t m a -> t m a -> t m a
 cosplice m1 m2 = fromStream $ S.cosplice (toStream m1) (toStream m2)
@@ -470,6 +497,8 @@ instance Semigroup (CostreamT m a) where
 infixr 5 <=>
 
 -- | Same as 'cosplice'.
+--
+-- @since 0.1.0
 {-# DEPRECATED (<=>) "Please use 'cosplice' instead." #-}
 {-# INLINE (<=>) #-}
 (<=>) :: IsStream t => t m a -> t m a -> t m a
@@ -545,9 +574,12 @@ MONAD_COMMON_INSTANCES(CostreamT,)
 -- Note that this composition can be used to combine infinite number of streams
 -- as it explores only a bounded number of streams at a time.
 --
+-- @since 0.2.0
 newtype CoparallelT m a = CoparallelT {getCoparallelT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
+-- |
+-- @since 0.1.0
 {-# DEPRECATED AsyncT "Please use 'CoparallelT' instead." #-}
 type AsyncT = CoparallelT
 
@@ -562,6 +594,8 @@ instance IsStream CoparallelT where
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'CoparallelT'.
 -- Merges two streams possibly concurrently, preferring the
 -- elements from the left one when available.
+--
+-- @since 0.2.0
 {-# INLINE coparallel #-}
 coparallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
 coparallel m1 m2 = fromStream $ S.coparallel (toStream m1) (toStream m2)
@@ -570,6 +604,8 @@ instance MonadParallel m => Semigroup (CoparallelT m a) where
     (<>) = coparallel
 
 -- | Same as 'coparallel'.
+--
+-- @since 0.1.0
 {-# DEPRECATED (<|) "Please use 'coparallel' instead." #-}
 {-# INLINE (<|) #-}
 (<|) :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
@@ -655,6 +691,7 @@ MONAD_COMMON_INSTANCES(CoparallelT, MONADPARALLEL)
 -- Note that round robin composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
+-- @since 0.1.0
 newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
     deriving (Functor, MonadTrans)
 
@@ -668,6 +705,8 @@ instance IsStream ParallelT where
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'.
 -- Merges two streams concurrently choosing elements from both fairly.
+--
+-- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
 parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
@@ -720,6 +759,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
+-- @since 0.2.0
 newtype ZipStreamM m a = ZipStreamM {getZipStreamM :: S.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
@@ -751,9 +791,12 @@ instance Monad m => Applicative (ZipStreamM m) where
 -- The 'Semigroup' instance of this type works the same way as that of
 -- 'StreamT'.
 --
+-- @since 0.2.0
 newtype ZipParallelM m a = ZipParallelM {getZipParallelM :: S.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
+-- |
+-- @since 0.1.0
 {-# DEPRECATED ZipAsync "Please use ZipParallelM instead." #-}
 type ZipAsync = ZipParallelM
 
@@ -770,49 +813,78 @@ instance MonadParallel m => Applicative (ZipParallelM m) where
 -------------------------------------------------------------------------------
 
 -- | Adapt any specific stream type to any other specific stream type.
+--
+-- @since 0.1.0
 adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
 -- | Fix the type of a polymorphic stream as 'StreamT'.
+--
+-- @since 0.2.0
 streamly :: IsStream t => StreamT m a -> t m a
 streamly = adapt
 
+-- | Same as 'streamly'.
+--
+-- @since 0.1.0
+{-# DEPRECATED serially "Please use streamly instead." #-}
+serially :: IsStream t => StreamT m a -> t m a
+serially = streamly
+
 -- | Fix the type of a polymorphic stream as 'CostreamT'.
+--
+-- @since 0.2.0
 costreamly :: IsStream t => CostreamT m a -> t m a
 costreamly = adapt
 
 -- | Same as 'costreamly'.
+--
+-- @since 0.1.0
 {-# DEPRECATED interleaving "Please use costreamly instead." #-}
 interleaving :: IsStream t => CostreamT m a -> t m a
 interleaving = costreamly
 
 -- | Fix the type of a polymorphic stream as 'CoparallelT'.
+--
+-- @since 0.2.0
 coparallely :: IsStream t => CoparallelT m a -> t m a
 coparallely = adapt
 
 -- | Same as 'coparallely'.
+--
+-- @since 0.1.0
 {-# DEPRECATED asyncly "Please use coparallely instead." #-}
 asyncly :: IsStream t => CoparallelT m a -> t m a
 asyncly = coparallely
 
 -- | Fix the type of a polymorphic stream as 'ParallelT'.
+--
+-- @since 0.1.0
 parallely :: IsStream t => ParallelT m a -> t m a
 parallely = adapt
 
 -- | Fix the type of a polymorphic stream as 'ZipStreamM'.
+--
+-- @since 0.2.0
 zipStreamly :: IsStream t => ZipStreamM m a -> t m a
 zipStreamly = adapt
 
 -- | Same as 'zipStreamly'.
+--
+-- @since 0.1.0
 {-# DEPRECATED zipping "Please use zipStreamly instead." #-}
 zipping :: IsStream t => ZipStreamM m a -> t m a
 zipping = zipStreamly
 
 -- | Fix the type of a polymorphic stream as 'ZipParallelM'.
+--
+-- @since 0.2.0
 zipParallely :: IsStream t => ZipParallelM m a -> t m a
 zipParallely = adapt
 
 -- | Same as 'zipParallely'.
+--
+-- @since 0.1.0
 {-# DEPRECATED zippingAsync "Please use zipParallely instead." #-}
 zippingAsync :: IsStream t => ZipParallelM m a -> t m a
 zippingAsync = zipParallely
@@ -822,31 +894,43 @@ zippingAsync = zipParallely
 -------------------------------------------------------------------------------
 
 -- | Same as @runStream@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runStreamT "Please use runStream instead." #-}
 runStreamT :: Monad m => StreamT m a -> m ()
 runStreamT = runStream
 
 -- | Same as @runStream . costreamly@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
 runInterleavedT = runStream . costreamly
 
 -- | Same as @runStream . coparallely@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runAsyncT "Please use 'runStream . coparallely' instead." #-}
 runAsyncT :: Monad m => CoparallelT m a -> m ()
 runAsyncT = runStream . coparallely
 
 -- | Same as @runStream . parallely@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
 runParallelT = runStream . parallely
 
 -- | Same as @runStream . zipping@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runZipStream "Please use 'runStream . zipStreamly instead." #-}
 runZipStream :: Monad m => ZipStreamM m a -> m ()
 runZipStream = runStream . zipStreamly
 
 -- | Same as @runStream . zippingAsync@.
+--
+-- @since 0.1.0
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipParallely instead." #-}
 runZipAsync :: Monad m => ZipParallelM m a -> m ()
 runZipAsync = runStream . zipParallely
@@ -857,24 +941,36 @@ runZipAsync = runStream . zipParallely
 
 -- | A serial IO stream of elements of type @a@. See 'StreamT' documentation
 -- for more details.
+--
+-- @since 0.2.0
 type Stream a = StreamT IO a
 
 -- | An interleaving serial IO stream of elements of type @a@. See 'CostreamT'
 -- documentation for more details.
+--
+-- @since 0.2.0
 type Costream a = CostreamT IO a
 
 -- | A demand driven left biased parallelly composing IO stream of elements of
 -- type @a@.  See 'CoparallelT' documentation for more details.
+--
+-- @since 0.2.0
 type Coparallel a = CoparallelT IO a
 
 -- | A round robin parallelly composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.
+--
+-- @since 0.2.0
 type Parallel a = ParallelT IO a
 
 -- | An IO stream whose applicative instance zips streams serially.
+--
+-- @since 0.2.0
 type ZipStream a = ZipStreamM IO a
 
 -- | An IO stream whose applicative instance zips streams parallely.
+--
+-- @since 0.2.0
 type ZipParallel a = ZipParallelM IO a
 
 ------------------------------------------------------------------------------
@@ -885,6 +981,8 @@ type ZipParallel a = ZipParallelM IO a
 -- container of streams using the specified stream sum operation.
 --
 -- @foldWith 'parallel' $ map return [1..3]@
+--
+-- @since 0.1.0
 {-# INLINABLE foldWith #-}
 foldWith :: (IsStream t, Foldable f)
     => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
@@ -895,6 +993,8 @@ foldWith f = foldr f nil
 -- operation.
 --
 -- @foldMapWith 'parallel' return [1..3]@
+--
+-- @since 0.1.0
 {-# INLINABLE foldMapWith #-}
 foldMapWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
@@ -902,6 +1002,8 @@ foldMapWith f g = foldr (f . g) nil
 
 -- | Like 'foldMapWith' but with the last two arguments reversed i.e. the
 -- monadic streaming function is the last argument.
+--
+-- @since 0.1.0
 {-# INLINABLE forEachWith #-}
 forEachWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b

@@ -20,6 +20,8 @@ import Control.Concurrent (threadDelay)
 
 -- | Run an action forever periodically at the given frequency specified in per
 -- second (Hz).
+--
+-- @since 0.1.0
 periodic :: Int -> IO () -> IO ()
 periodic freq action = do
     action
@@ -33,6 +35,8 @@ periodic freq action = do
 -- of time in microseconds. The second argument is the frequency in per second
 -- (Hz). The third argument is the action to run, the action is provided the
 -- local time as an argument.
+--
+-- @since 0.1.0
 withClock :: IO Int -> Int -> (Int -> IO ()) -> IO ()
 withClock clock freq action = do
     t <- clock

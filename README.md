@@ -8,13 +8,13 @@
 
 ## Stream`ing` `Concurrent`ly
 
-Streamly, short for stream concurrently, is a simple yet powerful streaming
+Streamly, short for streaming concurrently, is a simple yet powerful streaming
 library with concurrent merging and concurrent nested looping support. A stream
 is just like a list except that it is a list of monadic actions rather than
 pure values.  Streamly streams can be generated, consumed, combined, or
 transformed serially or concurrently. We can loop over a stream serially or
 concurrently.  We can also have serial or concurrent nesting of loops. For
-those familiar with the list transformer concept this is a concurrent list
+those familiar with the list transformer concept streamly is a concurrent list
 transformer. Streamly uses standard composition abstractions. Concurrent
 composition is just the same as serial composition except that we use a simple
 combinator to request a concurrent composition instead of serial. The
@@ -37,10 +37,19 @@ and supports concurrency we can write FRP applications similar in concept to
 [Yampa](https://hackage.haskell.org/package/Yampa) or
 [reflex](https://hackage.haskell.org/package/reflex).
 
-Streamly has excellent performance, see
-[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
-for a comparison of popular streaming libraries on micro-benchmarks.  For
-more information:
+Why use streamly?
+
+  * Simple list like streaming API, if you know how to use lists then you know
+    how to use streamly.
+  * Powerful yet simple and scalable concurrency. There is no other package
+    that provides such high level and flexible concurrency support.
+  * Unifies the functionality of many other disparate packages in a single
+    concise and simple API.
+  * Best in class performance. See
+    [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
+    for a comparison of popular streaming libraries on micro-benchmarks.
+
+  For more information:
 
   * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly-0.1.2/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
   * [examples](https://github.com/composewell/streamly/tree/master/examples) directory in the package for some simple practical examples

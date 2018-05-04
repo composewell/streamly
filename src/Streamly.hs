@@ -129,6 +129,7 @@ module Streamly
     , InterleavedT
     , AsyncT
     , ZipAsync
+    , serially
     , interleaving
     , asyncly
     , zipping

@@ -1,4 +1,4 @@
-## Unreleased
+## 0.2.0
 
 ### Breaking changes
 * Change the semantics of the Semigroup instance for `InterleavedT`, `AsyncT`
@@ -12,10 +12,8 @@
   To adapt to the new changes, replace `<>` with `splice` wherever it is used
   for stream types other than `StreamT`.
 
-* Change the semantics of `Alternative` instance. The `<|>` operator now has a
-  different behavior for each type. See the documentation for more details. To
-  adapt to this change replace any usage of `<|>` with `parallel` and
-  `empty` with `nil`.
+* Remove the `Alternative` instance.  To adapt to this change replace any usage
+  of `<|>` with `parallel` and `empty` with `nil`.
 * Stream type now defaults to the `StreamT` type unless explicitly specified
   using a type combinator or a monomorphic type.  This change reduces puzzling
   type errors for beginners. It includes the following two changes:
@@ -38,6 +36,7 @@
 
 ### Deprecations
 * Deprecate and rename the following symbols:
+    * `MonadAsync` to `MonadParallel`
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
     * `AsyncT` to `CoparallelT`
