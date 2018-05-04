@@ -14,6 +14,12 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- This module is designed to be imported qualified:
+--
+-- @
+-- import qualified Streamly.Prelude as S
+-- @
+--
 -- Functions with the suffix @M@ are general functions that work on monadic
 -- arguments. The corresponding functions without the suffix @M@ work on pure
 -- arguments and can in general be derived from their monadic versions but are

@@ -64,6 +64,9 @@
 
 ### Enhancements
 * Add the following functions:
+    * `consM` and `|:` operator to construct streams from monadic actions
+    * `once` to create a singleton stream from a monadic action
+    * `repeatM` to construct a stream by repeating a monadic action
     * `scanl'` strict left scan
     * `foldl'` strict left fold
     * `foldlM'` strict left fold with a monadic fold function

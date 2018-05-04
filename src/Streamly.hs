@@ -6,28 +6,60 @@
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- The way a list represents a sequence of pure values, a stream represents a
+-- sequence of monadic actions. The monadic stream API offered by Streamly is
+-- very close to the Haskell "Prelude" pure lists' API, it can be considered as
+-- a natural extension of lists to monadic actions. Streamly streams provide
+-- concurrent composition and merging of streams. It can be considered as a
+-- concurrent list transformer. In contrast to the "Prelude" lists, merging or
+-- appending streams of arbitrary length is scalable and inexpensive.
+--
+-- The basic stream type is 'Stream', it represents a sequence of IO actions,
+-- and is a 'Monad'.  The type 'StreamT' is a monad transformer that can
+-- represent a sequence of actions in an arbitrary monad. The type 'Stream' is
+-- in fact a synonym for @StreamT IO@.  There are a few more types similar to
+-- 'StreamT', all of them represent a stream and differ only in the
+-- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Stream'
+-- and 'Costream' types compose serially whereas 'Coparallel' and 'Parallel'
+-- types compose concurrently. All these types can be freely inter-converted
+-- using type combinators without any cost. You can freely switch to any type
+-- of composition at any point in the program.  When no type annotation or
+-- explicit stream type combinators are used, the default stream type is
+-- inferred as 'Stream'.
+--
+-- Here is a simple console echo program example:
+--
+-- @
+-- > runStream $ S.repeatM getLine & S.mapM putStrLn
+-- @
+--
+-- For more details please see the "Streamly.Tutorial" module and the examples
+-- directory in this package.
+--
+-- This module exports stream types, instances and some basic operations.
+-- Functionality exported by this module include:
+--
+-- * Semigroup append ('<>') instances as well as explicit  operations for merging streams
+-- * Monad and Applicative instances for looping over streams
+-- * Zip Applicatives for zipping streams
+-- * Stream type combinators to convert between different composition styles
+-- * Some basic utilities to run and fold streams
+--
+-- See the "Streamly.Prelude" module for comprehensive APIs for construction,
+-- generation, elimination and transformation of streams.
+--
+-- This module is designed to be imported unqualified:
+--
+-- @
+-- import Streamly
+-- @
 
 module Streamly
     (
-    -- * Background
-    -- $background
-
-    -- * Overview
-    -- $overview
-
       MonadParallel
 
-    -- * IO Streams
-    , Stream
-    , Costream
-    , Coparallel
-    , Parallel
-    , ZipStream
-    , ZipParallel
-
     -- * Stream transformers
-    , IsStream
-
     -- ** Serial Streams
     -- $serial
     , StreamT
@@ -43,8 +75,17 @@ module Streamly
     , ZipStreamM
     , ZipParallelM
 
+    -- * Polymorphic Sum Operations
+    -- $sum
+    , splice
+    , cosplice
+    , coparallel
+    , parallel
+
     -- * Stream Type Adapters
     -- $adapters
+    , IsStream
+
     , streamly
     , costreamly
     , coparallely
@@ -53,18 +94,19 @@ module Streamly
     , zipParallely
     , adapt
 
+    -- * IO Streams
+    , Stream
+    , Costream
+    , Coparallel
+    , Parallel
+    , ZipStream
+    , ZipParallel
+
     -- * Running Streams
     , runStream
 
     -- * Transformation
     , async
-
-    -- * Polymorphic Sum Operations
-    -- $sum
-    , splice
-    , cosplice
-    , coparallel
-    , parallel
 
     -- * Polymorphic Fold Utilities
     -- $foldutils
@@ -98,76 +140,6 @@ where
 
 import Streamly.Streams
 import Data.Semigroup (Semigroup(..))
-
--- $background
---
--- Streamly provides a monad transformer that extends the product style
--- composition of monads to streams of many elements of the same type; it is a
--- functional programming equivalent of nested loops from imperative
--- programming. Composing each element in one stream with each element in the
--- other stream generalizes the monadic product of single elements. You can
--- think of the IO monad as a special case of the more general @StreamT IO@
--- monad; with single element streams.  List transformers and logic programming
--- monads also provide a similar product style composition of streams, however
--- streamly generalizes it with the time dimension; allowing streams to be
--- composed in an asynchronous and concurrent fashion in many different ways.
--- It also provides multiple alternative ways of composing streams e.g.
--- serial, interleaved or concurrent.
---
--- The seemingly simple addition of asynchronicity and concurrency to product
--- style streaming composition unifies a number of disparate abstractions into
--- one powerful and elegant abstraction.  A wide variety of programming
--- problems can be solved elegantly with this abstraction. In particular, it
--- unifies three major programming domains namely non-deterministic (logic)
--- programming, concurrent programming and functional reactive programming. In
--- other words, you can do everything with this one abstraction that you could
--- with list transformers (e.g.
--- <https://hackage.haskell.org/package/list-t list-t>), logic programming
--- monads (e.g.  <https://hackage.haskell.org/package/logict logict>),
--- streaming libraries (a lot of what
--- <https://hackage.haskell.org/package/conduit conduit> or
--- <https://hackage.haskell.org/package/pipes pipes> can do), concurrency
--- libraries (e.g. <https://hackage.haskell.org/package/async async>) and FRP
--- libraries (e.g. <https://hackage.haskell.org/package/Yampa Yampa> or
--- <https://hackage.haskell.org/package/reflex reflex>).
-
--- $overview
---
--- Streamly provides six distinct stream types i.e. 'StreamT', 'CostreamT',
--- 'CoparallelT' and 'ParallelT', 'ZipStreamM' and 'ZipParallelM', each representing a
--- stream of elements.  All these types have the same underlying representation
--- and can be adapted from one to another using type adaptor combinators
--- described later. Each of these types belongs to the 'IsStream' type class
--- which helps converting the specific type to and from the underlying generic
--- stream type.
---
--- The types 'StreamT', 'CostreamT', 'CoparallelT' and 'ParallelT' are 'Monad'
--- transformers with the monadic bind operation combining streams in a product
--- style in much the same way as a list monad or a list transformer i.e. each
--- element from one stream is combined with every element of the other stream.
--- However, the applicative and monadic composition of these types differ in
--- terms of the ordering and time sequence in which the elements from two
--- streams are combined. 'StreamT' and 'CostreamT' compose streams streamly
--- whereas 'CoparallelT' and 'ParallelT' are their concurrent counterparts. See the
--- documentation of the respective types for more details.
---
--- The types 'ZipStreamM' and 'ZipParallelM' provide 'Applicative' instances to zip
--- two streams together i.e.  each element in one stream is combined with the
--- corresponding element in the other stream. 'ZipStreamM' generates the streams
--- being zipped serially whereas 'ZipParallelM' produces both the elements being
--- zipped concurrently.
---
--- Two streams of the same type can be merged using a sum style composition to
--- generate a stream of the same type where the output stream would contain all
--- elements of both the streams. However, the sequence or the manner
--- (concurrent or serial) in which the elements in the resulting stream are
--- produced depends on the type of the stream.
---
--- For more details please see the "Streamly.Tutorial" and "Streamly.Examples"
--- (the latter is available only when built with the 'examples' build flag).
-
--- A simple inline example here illustrating applicative, monad and alternative
--- compositions.
 
 -- $serial
 --
@@ -205,9 +177,11 @@ import Data.Semigroup (Semigroup(..))
 
 -- $adapters
 --
--- You may want to use different stream types at different points in your
--- program. Stream types can be converted or adapted from one type to another
--- to make them interwork with each other.
+-- You may want to use different stream composition styles at different points
+-- in your program. Stream types can be freely converted or adapted from one
+-- type to another.  The 'IsStream' type class facilitates type conversion of
+-- one stream type to another. It is not used directly, instead the type
+-- combinators provided below are used for conversions.
 --
 -- To adapt from one monomorphic type (e.g. 'ParallelT') to another monomorphic
 -- type (e.g. 'StreamT') use the 'adapt' combinator. To give a polymorphic code

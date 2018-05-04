@@ -8,23 +8,118 @@
 
 ## Stream`ing` `Concurrent`ly
 
-Streamly is a monad transformer unifying non-determinism
-([list-t](https://hackage.haskell.org/package/list-t)/[logict](https://hackage.haskell.org/package/logict)),
-concurrency ([async](https://hackage.haskell.org/package/async)),
-streaming ([conduit](https://hackage.haskell.org/package/conduit)\/[pipes](https://hackage.haskell.org/package/pipes)),
-and FRP ([Yampa](https://hackage.haskell.org/package/Yampa)\/[reflex](https://hackage.haskell.org/package/reflex))
-functionality in a concise and intuitive API.
-High level concurrency makes concurrent applications almost indistinguishable
-from non-concurrent ones.  By changing a single combinator you can control
-whether the code runs serially or concurrently.  It naturally integrates
-concurrency with streaming rather than adding it as an afterthought.
-Moreover, it interworks with the popular streaming libraries.
+Streamly, short for stream concurrently, is a simple yet powerful streaming
+library with concurrent merging and concurrent nested looping support. A stream
+is just like a list except that it is a list of monadic actions rather than
+pure values.  Streamly streams can be generated, consumed, combined, or
+transformed serially or concurrently. We can loop over a stream serially or
+concurrently.  We can also have serial or concurrent nesting of loops. For
+those familiar with the list transformer concept this is a concurrent list
+transformer. Streamly uses standard composition abstractions. Concurrent
+composition is just the same as serial composition except that we use a simple
+combinator to request a concurrent composition instead of serial. The
+programmer does not have to be aware of threads, locking or synchronization to
+write scalable concurrent programs.
 
-See the haddock documentation for full reference.  It is recommended that you
-read `Streamly.Tutorial` first. Also see `Streamly.Examples` for some working
-examples.
+Streamly provides functionality that is equivalent to streaming libraries
+like [pipes](https://hackage.haskell.org/package/pipes) and
+[conduit](https://hackage.haskell.org/package/conduit) but with a list like
+API. The streaming API of streamly is close to the monadic streams API of the
+[vector](https://hackage.haskell.org/package/vector) package and similar in
+concept to the [streaming](https://hackage.haskell.org/package/streaming)
+package. In addition to streaming, streamly subsumes the functionality of list
+transformer libraries like `pipes` or
+[list-t](https://hackage.haskell.org/package/list-t) and also the logic
+programming library [logict](https://hackage.haskell.org/package/logict). On
+the concurrency side, it subsumes the functionality of the
+[async](https://hackage.haskell.org/package/async) package. Because it streams
+and supports concurrency we can write FRP applications similar in concept to
+[Yampa](https://hackage.haskell.org/package/Yampa) or
+[reflex](https://hackage.haskell.org/package/reflex).
 
-## Non-determinism
+Streamly has excellent performance, see
+[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
+for a comparison of popular streaming libraries on micro-benchmarks.  For
+more information:
+
+  * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly-0.1.2/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
+  * [examples](https://github.com/composewell/streamly/tree/master/examples) directory in the package for some simple practical examples
+
+## Streaming Pipelines
+
+Unlike `pipes` or `conduit` and like `vector` and `streaming` `streamly`
+composes stream data instead of stream processors (functions).  A stream is
+just like a list and is explicitly passed around to functions that process the
+stream.  Therefore, no special operator is needed to join stages in a streaming
+pipeline, just a forward (`$`) or reverse (`&`) function application operator
+is enough.  Combinators are provided in `Streamly.Prelude` to transform or fold
+streams.
+
+```haskell
+import Streamly
+import qualified Streamly.Prelude as S
+import Data.Function ((&))
+
+main = runStream $
+       S.repeatM getLine
+     & fmap read
+     & S.filter even
+     & S.takeWhile (<= 9)
+     & fmap (\x -> x * x)
+     & S.mapM print
+```
+
+## Serial and Concurrent Merging
+
+Semigroup and Monoid instances can be used to fold streams serially or
+concurrently. In the following example we are composing ten actions in the
+stream each with a delay of 1 to 10 seconds. Since all the actions are
+concurrent we see one output printed every second:
+
+``` haskell
+import Streamly
+import qualified Streamly.Prelude as S
+import Control.Concurrent (threadDelay)
+
+main = S.toList $ parallely $ foldMap delay [1..10]
+ where delay n = S.once $ threadDelay (n * 1000000) >> print n
+```
+
+Streams can be combined together in many ways (see the tutorial for more ways):
+
+``` haskell
+import Streamly
+import qualified Streamly.Prelude as S
+import Control.Concurrent
+
+delay n = S.once $ do
+ threadDelay (n * 1000000)
+  tid <- myThreadId
+   putStrLn (show tid ++ ": Delay " ++ show n)
+```
+### Serial
+
+```haskell
+main = runStream $ delay 3 <> delay 2 <> delay 1
+```
+```
+ThreadId 36: Delay 3
+ThreadId 36: Delay 2
+ThreadId 36: Delay 1
+```
+
+### Parallel
+
+```haskell
+main = runStream . parallely $ delay 3 <> delay 2 <> delay 1
+```
+```
+ThreadId 42: Delay 1
+ThreadId 41: Delay 2
+ThreadId 40: Delay 3
+```
+
+## Nested Loops (aka List Transformer)
 
 The monad instance composes like a list monad.
 
@@ -46,7 +141,7 @@ main = runStream loops
 (2,4)
 ```
 
-## Magical Concurrency
+## Concurrent Nested Loops
 
 To run the above code with demand-driven concurrency i.e. each iteration in the
 loops can run concurrently depending on the consumer rate:
@@ -66,6 +161,8 @@ To run it serially but interleaving the outer and inner loop iterations:
 ``` haskell
 main = runStream $ costreamly $ loops
 ```
+
+## Magical Concurrency
 
 Streams can perform semigroup (<>) and monadic bind (>>=) operations
 concurrently using combinators like `coparallelly`, `parallelly`. For example,
@@ -112,65 +209,14 @@ The concurrency facilities provided by streamly can be compared with
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
 expression.
 
-## Streaming
-
-Streaming is effortless, simple and straightforward. Streamly data type behaves
-just like a list and combinators are provided in `Streamly.Prelude` to
-transform or fold streamly streams. Unlike other libraries and like `streaming`
-library the combinators explicitly consume a stream and produce a stream,
-therefore, no special operator is needed to join stream stages, just a forward
-(`$`) or reverse (`&`) function application operator is enough.
-
-```haskell
-import Streamly
-import qualified Streamly.Prelude as S
-import Data.Function ((&))
-
-main = S.fromFoldable [1..10]
-     & fmap (+ 1)
-     & S.drop 2
-     & S.filter even
-     & fmap (* 3)
-     & S.takeWhile (< 25)
-     & S.mapM (\x -> putStrLn ("saw " ++ show x) >> return x)
-     & S.toList
-     >>= print
-```
-
-Fold style combinators can be used to fold purely or monadically. You can also
-use the beautiful `foldl` library for folding.
-
-```haskell
-main = S.fromFoldable [1..10]
-     & S.foldl (+) 0 id
-     >>= print
-```
-
-Streams can be combined together in multiple ways:
-
-```haskell
-main = do
-    let p s = toList s >>= print
-    -- serial, this is the default even if you omit the `streamly` combinator
-    p $ streamly    $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
-    -- serial but interleaved
-    p $ costreamly  $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
-    -- left-biased, demand driven parallel
-    p $ coparallely $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
-    -- round-robin parallel
-    p $ parallely   $ S.fromFoldable [1..10] <> S.fromFoldable [11..20]
-```
-
-As we have already seen streams can be combined using monadic composition in a
-non-deterministic manner. This allows arbitrary manipulation and combining of
-streams. See `Streamly.Examples.MergeSortedStreams` for a more complicated
-example.
-
 ## Reactive Programming (FRP)
 
 Streamly is a foundation for first class reactive programming as well by virtue
-of integrating concurrency and streaming. See `Streamly.Examples.AcidRainGame`
-and `Streamly.Examples.CirclingSquare` for an SDL based animation example.
+of integrating concurrency and streaming. See
+[AcidRain.hs](https://github.com/composewell/streamly/tree/master/examples/AcidRain.hs)
+for a console based FRP game example and
+[CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
+for an SDL based animation example.
 
 ## Performance
 

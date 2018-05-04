@@ -2,22 +2,49 @@ name:               streamly
 version:            0.1.2
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
-  Streamly is a monad transformer unifying non-determinism
-  (<https://hackage.haskell.org/package/list-t list-t>\/<https://hackage.haskell.org/package/logict logict>),
-  concurrency (<https://hackage.haskell.org/package/async async>),
-  streaming (<https://hackage.haskell.org/package/conduit conduit>\/<https://hackage.haskell.org/package/pipes pipes>),
-  and FRP (<https://hackage.haskell.org/package/Yampa Yampa>\/<https://hackage.haskell.org/package/reflex reflex>)
-  functionality in a concise and intuitive API.
-  High level concurrency makes concurrent applications almost indistinguishable
-  from non-concurrent ones.  By changing a single combinator you can control
-  whether the code runs serially or concurrently.  It naturally integrates
-  concurrency with streaming rather than adding it as an afterthought.
-  Moreover, it interworks with the popular streaming libraries.
+  Streamly, short for streaming concurrently, is a simple yet powerful
+  streaming library with concurrent merging and concurrent nested looping
+  support. A stream is just like a list except that it is a list of monadic
+  actions rather than pure values.  Streamly streams can be generated,
+  consumed, combined, or transformed serially or concurrently. We can loop over
+  a stream serially or concurrently.  We can also have serial or concurrent
+  nesting of loops. For those familiar with list transformer concept streamly
+  is a concurrent list transformer. Streamly uses standard composition
+  abstractions. Concurrent composition is just the same as serial composition
+  except that we use a simple combinator to request a concurrent composition
+  instead of serial. The programmer does not have to be aware of threads,
+  locking or synchronization to write scalable concurrent programs.
   .
-  See the README for an overview and the haddock documentation for full
-  reference.  It is recommended to read the comprehensive tutorial module
-  "Streamly.Tutorial" first. Also see "Streamly.Examples" for some working
-  examples.
+  Streamly provides functionality that is equivalent to streaming libraries
+  like <https://hackage.haskell.org/package/pipes pipes> and
+  <https://hackage.haskell.org/package/conduit conduit> but with a simple list
+  like API. The streaming API of streamly is close to the monadic streams API
+  of the <https://hackage.haskell.org/package/vector vector> package and
+  similar in concept to the
+  <https://hackage.haskell.org/package/streaming streaming> package. In
+  addition to the streaming functionality, streamly subsumes the functionality
+  of list transformer libraries like @pipes@ or
+  <https://hackage.haskell.org/package/list-t list-t> and also the logic
+  programming library <https://hackage.haskell.org/package/logict logict>. On
+  the concurrency side, it subsumes the functionality of the
+  <https://hackage.haskell.org/package/async async> package. Because it
+  supports streaming with concurrency we can write FRP applications similar in
+  concept to <https://hackage.haskell.org/package/Yampa Yampa> or
+  <https://hackage.haskell.org/package/reflex reflex>.
+  .
+  Streamly has excellent performance, see
+  <https://github.com/composewell/streaming-benchmarks streaming-benchmarks>
+  for a comparison of popular streaming libraries on micro-benchmarks.  For
+  file IO, currently the library provides only one API to stream the lines in
+  the file as Strings.  Future versions will provide better streaming file IO
+  options.  Streamly interworks with the popular streaming libraries, see the
+  interworking section in "Streamly.Tutorial".
+  .
+  Where to find more information:
+  .
+  * @README@ shipped with the package for a quick overview
+  * "Streamly.Tutorial" module in the haddock documentation for a detailed introduction
+  * @examples@ directory in the package for some simple practical examples
 
 homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
