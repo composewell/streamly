@@ -329,6 +329,9 @@ executable ListDir
         streamly
       , base    >= 4.8   && < 5
       , path-io >= 0.1.0 && < 1.4
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4    && < 0.6
   else
     buildable: False
 
@@ -358,6 +361,7 @@ executable AcidRain
     if impl(ghc < 8.0)
       build-depends:
           semigroups    >= 0.18   && < 0.19
+        , transformers  >= 0.4    && < 0.6
   else
     buildable: False
 
