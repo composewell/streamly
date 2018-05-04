@@ -27,31 +27,39 @@ like [pipes](https://hackage.haskell.org/package/pipes) and
 API. The streaming API of streamly is close to the monadic streams API of the
 [vector](https://hackage.haskell.org/package/vector) package and similar in
 concept to the [streaming](https://hackage.haskell.org/package/streaming)
-package. In addition to streaming, streamly subsumes the functionality of list
-transformer libraries like `pipes` or
+package. In addition to providing streaming functionality, streamly subsumes
+the functionality of list transformer libraries like `pipes` or
 [list-t](https://hackage.haskell.org/package/list-t) and also the logic
 programming library [logict](https://hackage.haskell.org/package/logict). On
 the concurrency side, it subsumes the functionality of the
 [async](https://hackage.haskell.org/package/async) package. Because it streams
 and supports concurrency we can write FRP applications similar in concept to
 [Yampa](https://hackage.haskell.org/package/Yampa) or
-[reflex](https://hackage.haskell.org/package/reflex).
+[reflex](https://hackage.haskell.org/package/reflex). To understand the
+streaming library ecosystem and where streamly fits in you may want to read
+[streaming libraries](https://github.com/composewell/streaming-benchmarks#streaming-libraries)
+as well. Also see the [Comparison with Existing
+Packages](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
+section in the streamly tutorial.
 
 Why use streamly?
 
   * Simple list like streaming API, if you know how to use lists then you know
     how to use streamly.
-  * Powerful yet simple and scalable concurrency. There is no other package
-    that provides such high level and flexible concurrency support.
-  * Unifies the functionality of many other disparate packages in a single
-    concise and simple API.
+  * Powerful yet simple and scalable concurrency. Concurrency is not intrusive,
+    concurrent programs are written exactly the same way as non-concurrent
+    ones. There is no other package that provides such high level, simple and
+    flexible concurrency support.
+  * It is a general programming framework providing you all the necessary tools
+    to solve a wide range of programming problems, unifying the functionality
+    provided by several disparate packages in a concise and simple API.
   * Best in class performance. See
     [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
     for a comparison of popular streaming libraries on micro-benchmarks.
 
   For more information:
 
-  * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly-0.1.2/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
+  * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
   * [examples](https://github.com/composewell/streamly/tree/master/examples) directory in the package for some simple practical examples
 
 ## Streaming Pipelines
