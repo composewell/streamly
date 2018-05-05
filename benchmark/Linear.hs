@@ -10,12 +10,16 @@ import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 import qualified LinearOps as Ops
 
+import Streamly
 import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
 benchIO :: (NFData b) => String -> (Ops.Stream m Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
+
+benchIOAppend :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIOAppend name f = bench name $ nfIO $ randomRIO (1,1000) >>= f
 
 _benchId :: (NFData b) => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
@@ -45,6 +49,12 @@ main = do
       , benchIO "dropWhile-true" Ops.dropWhileTrue
       ]
     , benchIO "zip" Ops.zip
+    , bgroup "append"
+      [ benchIOAppend "streamly"    $ Ops.append streamly
+      , benchIOAppend "costreamly"  $ Ops.append costreamly
+      , benchIOAppend "coparallely" $ Ops.append coparallely
+      , benchIOAppend "parallely"   $ Ops.append parallely
+      ]
     , bgroup "compose"
       [ benchIO "mapM" Ops.composeMapM
       , benchIO "map-with-all-in-filter" Ops.composeMapAllInFilter

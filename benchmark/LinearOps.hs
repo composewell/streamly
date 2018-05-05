@@ -9,7 +9,7 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe)
+        subtract, undefined, Maybe, Monoid, foldMap)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -102,6 +102,16 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 
 zip src       = transform $ (S.zipWith (,) src src)
 concat _n     = return ()
+
+-------------------------------------------------------------------------------
+-- Append
+-------------------------------------------------------------------------------
+
+{-# INLINE append #-}
+append
+    :: (Monoid (t m Int), Monad m, Monad (t m))
+    => (t m Int -> S.StreamT m Int) -> Int -> m ()
+append t n = runStream $ t $ foldMap return [n..n+value]
 
 -------------------------------------------------------------------------------
 -- Composition

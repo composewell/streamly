@@ -4,7 +4,7 @@ print_help () {
   echo "Usage: $0 "
   echo "       [--quick] [--append] "
   echo "       [--no-graphs] [--no-measure]"
-  echo "       [--benchmark]"
+  echo "       [--benchmark <linear|nested>]"
   echo "       [--compare] [--base commit] [--candidate commit]"
   echo "       -- <gauge options>"
   echo
