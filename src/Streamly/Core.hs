@@ -260,7 +260,6 @@ doFork :: MonadBaseControl IO m
 doFork action exHandler =
     EL.mask $ \restore ->
         liftBaseWith $ \runInIO -> forkIO $ do
-            -- XXX test the exception handling
             _ <- runInIO $ EL.catch (restore action) exHandler
             -- XXX restore state here?
             return ()
@@ -498,42 +497,48 @@ toStreamVar :: MonadParallel m => SVar m a -> Stream m a -> m ()
 toStreamVar sv m = do
     liftIO $ (enqueue sv) m
     done <- allThreadsDone sv
-    -- XXX there may be a race here unless we are running in the consumer
-    -- thread. This is safe only when called from the consumer thread or when
-    -- no consumer is present.
+    -- XXX This is safe only when called from the consumer thread or when no
+    -- consumer is present.  There may be a race if we are not running in the
+    -- consumer thread.
     when done $ pushWorker sv
 
 ------------------------------------------------------------------------------
 -- Running streams concurrently
 ------------------------------------------------------------------------------
 
--- Concurrency rate control. Our objective is to create more threads on demand
--- if the consumer is running faster than us. As soon as we encounter an
--- Alternative composition we create a push pull pair of threads. We use a
--- channel for communication between the consumer pulling from the channel and
--- the producer who is pushing to the channel. The producer creates more threads
--- if no output is seen on the channel, that is the consumer is running faster.
--- However this mechanism can be problematic if the initial production latency
--- is high, we may end up creating too many threads. So we need some way to
--- monitor and use the latency as well.
+-- Concurrency rate control.
 --
--- TBD We may run computations at the lower level of the composition tree
--- serially even if they are composed using a parallel combinator. We can use
--- <> in place of <| and <=> in place of <|>. If we find that a parallel
--- channel immediately above a computation becomes empty we can switch to
--- parallelizing the computation.  For that we can use a state flag to fork the
--- rest of the computation at any point of time inside the Monad bind operation
--- if the consumer is running at a faster speed.
+-- Our objective is to create more threads on demand if the consumer is running
+-- faster than us. As soon as we encounter a concurrent composition we create a
+-- push pull pair of threads. We use an SVar for communication between the
+-- consumer, pulling from the SVar and the producer who is pushing to the SVar.
+-- The producer creates more threads if the SVar drains and becomes empty, that
+-- is the consumer is running faster.
 --
--- TBD the alternative composition allows us to dispatch a chunkSize of only 1.
--- If we have to dispatch in arbitrary chunksizes we will need to compose the
--- parallel actions using a data constructor (Free Alternative) instead so that
--- we can divide it in chunks of arbitrary size before dispatching. If the stream
--- is composed of hierarchically composed grains of different sizes then we can
--- always switch to a desired granularity depending on the consumer speed.
+-- XXX Note 1: This mechanism can be problematic if the initial production
+-- latency is high, we may end up creating too many threads. So we need some
+-- way to monitor and use the latency as well. Having a limit on the dispatches
+-- (programmer controlled) may also help.
 --
--- TBD for pure work (when we are not in the IO monad) we can divide it into
--- just the number of CPUs.
+-- TBD Note 2: We may want to run computations at the lower level of the
+-- composition tree serially even when they are composed using a parallel
+-- combinator. We can use 'splice' in place of 'coparallel' and 'cosplice' in
+-- place of 'parallel'. If we find that an SVar immediately above a computation
+-- gets drained empty we can switch to parallelizing the computation.  For that
+-- we can use a state flag to fork the rest of the computation at any point of
+-- time inside the Monad bind operation if the consumer is running at a faster
+-- speed.
+--
+-- TBD Note 3: the binary operation ('parallel') composition allows us to
+-- dispatch a chunkSize of only 1.  If we have to dispatch in arbitrary
+-- chunksizes we will need to compose the parallel actions using a data
+-- constructor (A Free container) instead so that we can divide it in chunks of
+-- arbitrary size before dispatching. If the stream is composed of
+-- hierarchically composed grains of different sizes then we can always switch
+-- to a desired granularity depending on the consumer speed.
+--
+-- TBD Note 4: for pure work (when we are not in the IO monad) we can divide it
+-- into just the number of CPUs.
 
 {-# NOINLINE withNewSVar2 #-}
 withNewSVar2 :: MonadParallel m
@@ -543,29 +548,27 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp sng yld -> do
     (runStream (fromStreamVar sv)) Nothing stp sng yld
 
 -- | Join two computations on the currently running 'SVar' queue for concurrent
--- execution. The 'SVarStyle' required by the current composition context is
--- passed as one of the parameters. If the style does not match with the style
--- of the current 'SVar' we create a new 'SVar' and schedule the computations
--- on that. The newly created SVar joins as one of the computations on the
--- current SVar queue.
+-- execution.  When we are using parallel composition, an SVar is passed around
+-- as a state variable. We try to schedule a new parallel computation on the
+-- SVar passed to us. The first time, when no SVar exists, a new SVar is
+-- created.  Subsequently, 'joinStreamVar2' may get called when a computation
+-- already scheduled on the SVar is further evaluated. For example, when (a
+-- `parallel` b) is evaluated it calls a 'joinStreamVar2' to put 'a' and 'b' on
+-- the current scheduler queue.
 --
--- When we are using parallel composition, an SVar is passed around as a state
--- variable. We try to schedule a new parallel computation on the SVar passed
--- to us. The first time, when no SVar exists, a new SVar is created.
--- Subsequently, 'joinStreamVar2' may get called when a computation already
--- scheduled on the SVar is further evaluated. For example, when (a \<|> b) is
--- evaluated it calls a 'joinStreamVar2' to put 'a' and 'b' on the current scheduler
--- queue.  However, if the scheduling and composition style of the new
+-- The 'SVarStyle' required by the current composition context is passed as one
+-- of the parameters.  If the scheduling and composition style of the new
 -- computation being scheduled is different than the style of the current SVar,
--- then we create a new SVar and schedule it on that.
+-- then we create a new SVar and schedule it on that.  The newly created SVar
+-- joins as one of the computations on the current SVar queue.
 --
--- For example:
+-- Cases when we need to switch to a new SVar:
 --
--- * (x \<|> y) \<|> (t \<|> u) -- all of them get scheduled on the same SVar
--- * (x \<|> y) \<|> (t \<| u) -- @t@ and @u@ get scheduled on a new child SVar
+-- * (x `parallel` y) `parallel` (t `parallel` u) -- all of them get scheduled on the same SVar
+-- * (x `parallel` y) `parallel` (t `coparallel` u) -- @t@ and @u@ get scheduled on a new child SVar
 --   because of the scheduling policy change.
--- * if we 'adapt' a stream of type 'AsyncT' to a stream of type
---   'ParallelT', we create a new SVar at the transitioning bind.
+-- * if we 'adapt' a stream of type 'Coparallel' to a stream of type
+--   'Parallel', we create a new SVar at the transitioning bind.
 -- * When the stream is switching from disjunctive composition to conjunctive
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
