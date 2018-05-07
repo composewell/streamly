@@ -32,7 +32,7 @@ main = do
 
     putStrLn $ "\nParallel interleave:\n"
     runStream $ do
-        x <- (return 0 <> return 1) `parallel` (return 100 <> return 101)
+        x <- (return 0 <> return 1) `coparAhead` (return 100 <> return 101)
         once $ print (x :: Int)
 
     where
@@ -63,12 +63,12 @@ main = do
     loopTailA :: Int -> Stream Int
     loopTailA x = do
         once $ putStrLn "LoopTailA..."
-        return x `coparallel` (if x < 3 then loopTailA (x + 1) else nil)
+        return x `parAhead` (if x < 3 then loopTailA (x + 1) else nil)
 
     loopHeadA :: Int -> Stream Int
     loopHeadA x = do
         once $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else nil) `coparallel` return x
+        (if x < 3 then loopHeadA (x + 1) else nil) `parAhead` return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops

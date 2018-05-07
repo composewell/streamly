@@ -39,21 +39,24 @@
     * `MonadAsync` to `MonadParallel`
     * `Streaming` to `IsStream`
     * `runStreaming` to `runStream`
-    * `AsyncT` to `CoparallelT`
+    * `InterleavedT` to `CostreamT`
+    * `AsyncT` to `ParAheadT`
     * `ZipAsync` to `ZipParallelM`
-    * `interleaving` to `costreamly`
-    * `asyncly` to `coparallely`
-    * `zipping` to `zipStreamly`
-    * `zippingAsync` to `zipParallely`
+    * `serially` to `asStream`
+    * `interleaving` to `asCostream`
+    * `asyncly` to `asParAhead`
+    * `parallely` to `asParallel`
+    * `zipping` to `asZipStream`
+    * `zippingAsync` to `asZipParallel`
     * `<=>` to `cosplice`
-    * `<|` to `coparallel`
+    * `<|` to `parAhead`
     * `each` to `fromFoldable`
     * `scan` to `scanx`
     * `foldl` to `foldx`
     * `foldlM` to `foldxM`
     * `zipAsyncWith` to `zipParallelWith`
     * `zipAsyncWithM` to `zipParallelWithM`
-* Deprecate and remove the following symbols:
+* Deprecate the following symbols for future removal:
     * `runStreamT`
     * `runInterleavedT`
     * `runAsyncT`
@@ -71,6 +74,9 @@
     * `foldlM'` strict left fold with a monadic fold function
     * `splice` run two streams serially one after the other
     * `parallel` run two streams in parallel (replaces `<|>`)
+    * `CoparAhead` stream type for BFS version of ahead parallel composition
+    * `coparAhead` ahead parallel composition of two streams
+    * `asCoparAhead` type combinator for CoparAhead stream type
 * Add simpler stream types that are specialized to the IO monad
 
 ## 0.1.2

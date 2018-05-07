@@ -21,4 +21,4 @@ main = runStream $ do
         rnd <- once (randomIO :: IO Int)
         let result = (name ++ show rnd)
             repeat = if n > 1 then loop name (n - 1) else nil
-         in (return result) `parallel` repeat
+         in (return result) `coparAhead` repeat

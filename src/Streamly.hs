@@ -21,7 +21,7 @@
 -- in fact a synonym for @StreamT IO@.  There are a few more types similar to
 -- 'StreamT', all of them represent a stream and differ only in the
 -- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Stream'
--- and 'Costream' types compose serially whereas 'Coparallel' and 'Parallel'
+-- and 'Costream' types compose serially whereas 'ParAhead' and 'CoparAhead'
 -- types compose concurrently. All these types can be freely inter-converted
 -- using type combinators without any cost. You can freely switch to any type
 -- of composition at any point in the program.  When no type annotation or
@@ -65,10 +65,10 @@ module Streamly
     , StreamT
     , CostreamT
 
-    -- ** Parallel Streams
-    -- $parallel
-    , CoparallelT
-    , ParallelT
+    -- ** Parallel Ahead Streams
+    -- $parAhead
+    , ParAheadT
+    , CoparAheadT
 
     -- ** Zipping Streams
     -- $zipping
@@ -79,26 +79,26 @@ module Streamly
     -- $sum
     , splice
     , cosplice
-    , coparallel
-    , parallel
+    , parAhead
+    , coparAhead
 
     -- * Stream Type Adapters
     -- $adapters
     , IsStream
 
-    , streamly
-    , costreamly
-    , coparallely
-    , parallely
-    , zipStreamly
-    , zipParallely
+    , asStream
+    , asCostream
+    , asParAhead
+    , asCoparAhead
+    , asZipStream
+    , asZipParallel
     , adapt
 
     -- * IO Streams
     , Stream
     , Costream
-    , Coparallel
-    , Parallel
+    , ParAhead
+    , CoparAhead
     , ZipStream
     , ZipParallel
 
@@ -132,6 +132,7 @@ module Streamly
     , serially
     , interleaving
     , asyncly
+    , parallely
     , zipping
     , zippingAsync
     , (<=>)
@@ -151,12 +152,12 @@ import Data.Semigroup (Semigroup(..))
 -- streams are serial, the sequence of items in a composed stream can be solely
 -- determined by the position of elements in the consituent streams.
 
--- $parallel
+-- $parAhead
 --
--- Parallel streams compose parallely or concurrently. In a composed stream, at
+-- Parallel ahead streams compose in an ahead parallel manner. In a composed stream, at
 -- any point of time more than one stream can run concurrently and yield
--- elements. The two parallel types 'ParallelT' and 'CoparallelT' differ in how
--- they merge streams together in a 'Semigroup' or 'Monad' composition. As
+-- elements. The two parallel ahead types 'ParAheadT' and 'coParAheadT' differ in how
+-- they merge streams together in 'Semigroup' or 'Monad' compositions. As
 -- these streams compose concurrently, the sequence of items in a composed
 -- stream cannot be determined by the position of elements in the constituent
 -- streams.  The elements are yielded by the composed stream as they are
@@ -184,10 +185,10 @@ import Data.Semigroup (Semigroup(..))
 -- one stream type to another. It is not used directly, instead the type
 -- combinators provided below are used for conversions.
 --
--- To adapt from one monomorphic type (e.g. 'ParallelT') to another monomorphic
+-- To adapt from one monomorphic type (e.g. 'parAheadT') to another monomorphic
 -- type (e.g. 'StreamT') use the 'adapt' combinator. To give a polymorphic code
 -- a specific interpretation or to adapt a specific type to a polymorphic type
--- use the type specific combinators e.g. 'parallely' or 'costreamly'. You
+-- use the type specific combinators e.g. 'asParAhead' or 'asCostream'. You
 -- cannot adapt polymorphic code to polymorphic code, as it would not know
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'
@@ -197,5 +198,5 @@ import Data.Semigroup (Semigroup(..))
 -- $foldutils
 --
 -- These are variants of standard 'Foldable' fold functions that use a
--- polymorphic stream sum operation (e.g. 'parallel' or 'cosplice') to fold a
+-- polymorphic stream sum operation (e.g. 'parAhead' or 'cosplice') to fold a
 -- container of streams.

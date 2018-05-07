@@ -35,8 +35,8 @@ module Streamly.Core
     -- * Semigroup Style Composition
     , splice
     , cosplice
-    , coparallel
-    , parallel
+    , parAhead
+    , coparAhead
 
     -- * Alternative
     , alt
@@ -521,8 +521,8 @@ toStreamVar sv m = do
 --
 -- TBD Note 2: We may want to run computations at the lower level of the
 -- composition tree serially even when they are composed using a parallel
--- combinator. We can use 'splice' in place of 'coparallel' and 'cosplice' in
--- place of 'parallel'. If we find that an SVar immediately above a computation
+-- combinator. We can use 'splice' in place of 'parAhead' and 'cosplice' in
+-- place of 'coParAhead'. If we find that an SVar immediately above a computation
 -- gets drained empty we can switch to parallelizing the computation.  For that
 -- we can use a state flag to fork the rest of the computation at any point of
 -- time inside the Monad bind operation if the consumer is running at a faster
@@ -564,9 +564,9 @@ withNewSVar2 style m1 m2 = Stream $ \_ stp sng yld -> do
 -- Cases when we need to switch to a new SVar:
 --
 -- * (x `parallel` y) `parallel` (t `parallel` u) -- all of them get scheduled on the same SVar
--- * (x `parallel` y) `parallel` (t `coparallel` u) -- @t@ and @u@ get scheduled on a new child SVar
+-- * (x `parallel` y) `parallel` (t `parAhead` u) -- @t@ and @u@ get scheduled on a new child SVar
 --   because of the scheduling policy change.
--- * if we 'adapt' a stream of type 'Coparallel' to a stream of type
+-- * if we 'adapt' a stream of type 'parAhead' to a stream of type
 --   'Parallel', we create a new SVar at the transitioning bind.
 -- * When the stream is switching from disjunctive composition to conjunctive
 --   composition and vice-versa we create a new SVar to isolate the scheduling
@@ -585,13 +585,13 @@ joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-{-# INLINE coparallel #-}
-coparallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
-coparallel = joinStreamVar2 (SVarStyle Disjunction LIFO)
+{-# INLINE parAhead #-}
+parAhead :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
+parAhead = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
-{-# INLINE parallel #-}
-parallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
-parallel = joinStreamVar2 (SVarStyle Disjunction FIFO)
+{-# INLINE coparAhead #-}
+coparAhead :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
+coparAhead = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 -------------------------------------------------------------------------------
 -- Functor instace is the same for all types
