@@ -65,10 +65,11 @@ module Streamly
     , StreamT
     , CostreamT
 
-    -- ** Parallel Ahead Streams
+    -- ** Parallel Streams
     -- $parAhead
     , ParAheadT
     , CoparAheadT
+    , ParallelT
 
     -- ** Zipping Streams
     -- $zipping
@@ -81,6 +82,7 @@ module Streamly
     , cosplice
     , parAhead
     , coparAhead
+    , parallel
 
     -- * Stream Type Adapters
     -- $adapters
@@ -90,6 +92,7 @@ module Streamly
     , asCostream
     , asParAhead
     , asCoparAhead
+    , asParallel
     , asZipStream
     , asZipParallel
     , adapt
@@ -99,6 +102,7 @@ module Streamly
     , Costream
     , ParAhead
     , CoparAhead
+    , Parallel
     , ZipStream
     , ZipParallel
 

@@ -56,6 +56,7 @@ module Streamly.Streams
     , cosplice
     , parAhead
     , coparAhead
+    , parallel
     , (<=>)            --deprecated
     , (<|)             --deprecated
 
@@ -64,6 +65,7 @@ module Streamly.Streams
     , Costream
     , ParAhead
     , CoparAhead
+    , Parallel
     , ZipStream
     , ZipParallel
 
@@ -74,6 +76,7 @@ module Streamly.Streams
     , ParAheadT
     , AsyncT            -- deprecated
     , CoparAheadT
+    , ParallelT
     , ZipStreamM
     , ZipParallelM
     , ZipAsync          -- deprecated
@@ -86,6 +89,7 @@ module Streamly.Streams
     , asParAhead
     , asyncly          -- deprecated
     , asCoparAhead
+    , asParallel
     , parallely        -- deprecated
     , asZipStream
     , zipping          -- deprecated
@@ -648,8 +652,7 @@ parbind par m f = go m
 
 instance MonadParallel m => Monad (ParAheadT m) where
     return = pure
-    (ParAheadT m) >>= f = ParAheadT $ parbind par m (getParAheadT . f)
-        where par = S.joinStreamVar2 (SVarStyle Conjunction LIFO)
+    (ParAheadT m) >>= f = ParAheadT $ parbind S.parAhead m (getParAheadT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -743,8 +746,8 @@ instance MonadParallel m => Monoid (CoparAheadT m a) where
 
 instance MonadParallel m => Monad (CoparAheadT m) where
     return = pure
-    (CoparAheadT m) >>= f = CoparAheadT $ parbind par m (getCoparAheadT . f)
-        where par = S.joinStreamVar2 (SVarStyle Conjunction FIFO)
+    (CoparAheadT m) >>= f =
+        CoparAheadT $ parbind S.coparAhead m (getCoparAheadT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -752,6 +755,139 @@ instance MonadParallel m => Monad (CoparAheadT m) where
 
 MONAD_APPLICATIVE_INSTANCE(CoparAheadT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(CoparAheadT, MONADPARALLEL)
+
+------------------------------------------------------------------------------
+-- ParallelT
+------------------------------------------------------------------------------
+
+-- | Strictly parallel composition.
+--
+-- The Semigroup instance of 'ParallelT' concurrently /merges/ two streams,
+-- running both strictly concurrently and yielding elements from both streams
+-- as they arrive. When multiple streams are combined using 'ParallelT' each
+-- one is evaluated in its own thread and the results produced are presented in
+-- the combined stream on a first come first serve basis.
+--
+-- 'ParAheadT' and 'CoparAheadT' are /concurrent lookahead streams/ each with a
+-- specific type of consumption pattern (depth first or breadth first). Since
+-- they are lookahead, they may introduce certain default latency in starting
+-- more concurrent tasks for efficiency reasons or may put a default limitation
+-- on the resource consumption (e.g. number of concurrent threads for
+-- lookahead).  If we look at the implementation detail, they both can share a
+-- pool of worker threads to evaluate the streams in the desired pattern and at
+-- the desired rate. However, 'ParallelT' uses a separate runtime thread to
+-- evaluate each stream.
+--
+-- 'CoparAheadT' is similar to 'ParallelT', as both of them evaluate the
+-- constituent streams fairly in a round robin fashion.
+-- However, the key difference is that 'CoparAheadT' is lazy or pull driven
+-- whereas 'ParallelT' is strict or push driven.  'ParallelT' immediately
+-- starts concurrent evaluation of both the streams (in separate threads) and
+-- later picks the results whereas 'CoparAheadT' may wait for a certain latency
+-- threshold before initiating concurrent evaluation of the next stream. The
+-- concurrent scheduling of the next stream or the degree of concurrency is
+-- driven by the feedback from the consumer. In case of 'ParallelT' each stream
+-- is evaluated in a separate thread and results are /pushed/ to a shared
+-- output buffer, the evaluation rate is controlled by blocking when the buffer
+-- is full.
+--
+-- Concurrent lookahead streams are generally more efficient than
+-- 'ParallelT' and can work pretty efficiently even for smaller tasks because
+-- they do not necessarily use a separate thread for each task. So they should
+-- be preferred over 'ParallelT' especially when efficiency is a concern and
+-- simultaneous strict evaluation is not a requirement.  'ParallelT' is useful
+-- for cases when the streams are required to be evaluated simultaneously
+-- irrespective of how the consumer consumes them e.g.  when we want to race
+-- two tasks and want to start both strictly at the same time or if we have
+-- timers in the parallel tasks and our results depend on the timers being
+-- started at the same time.  We can say that 'ParallelT' is almost the same
+-- (modulo some implementation differences) as 'CoparAheadT' when the latter is
+-- used with unlimited lookahead and zero latency in initiating lookahead.
+--
+-- @
+-- main = ('toList' . 'asParallel' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- @
+-- @
+-- [1,3,2,4]
+-- @
+--
+-- When streams with more than one element are merged, it yields whichever
+-- stream yields first without any bias, unlike the 'ParAhead' style streams.
+--
+-- Any exceptions generated by a constituent stream are propagated to the
+-- output stream. The output and exceptions from a single stream are guaranteed
+-- to arrive in the same order in the resulting stream as they were generated
+-- in the input stream. However, the relative ordering of elements from
+-- different streams in the resulting stream can vary depending on scheduling
+-- and generation delays.
+--
+-- Similarly, the 'Monad' instance of 'ParallelT' runs /all/ iterations
+-- of the loop concurrently.
+--
+-- @
+-- import "Streamly"
+-- import Control.Concurrent
+--
+-- main = 'runStream' . 'asParallel' $ do
+--     n <- return 3 \<\> return 2 \<\> return 1
+--     liftIO $ do
+--          threadDelay (n * 1000000)
+--          myThreadId >>= \\tid -> putStrLn (show tid ++ ": Delay " ++ show n)
+-- @
+-- @
+-- ThreadId 40: Delay 1
+-- ThreadId 39: Delay 2
+-- ThreadId 38: Delay 3
+-- @
+--
+-- Note that parallel composition can only combine a finite number of
+-- streams as it needs to retain state for each unfinished stream.
+--
+-- @since 0.1.0
+newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
+    deriving (Functor, MonadTrans)
+
+instance IsStream ParallelT where
+    toStream = getParallelT
+    fromStream = ParallelT
+
+------------------------------------------------------------------------------
+-- Semigroup
+------------------------------------------------------------------------------
+
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
+-- Merges two streams concurrently.
+--
+-- @since 0.2.0
+{-# INLINE parallel #-}
+parallel :: (IsStream t, MonadParallel m) => t m a -> t m a -> t m a
+parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
+
+instance MonadParallel m => Semigroup (ParallelT m a) where
+    (<>) = parallel
+
+------------------------------------------------------------------------------
+-- Monoid
+------------------------------------------------------------------------------
+
+instance MonadParallel m => Monoid (ParallelT m a) where
+    mempty = nil
+    mappend = (<>)
+
+------------------------------------------------------------------------------
+-- Monad
+------------------------------------------------------------------------------
+
+instance MonadParallel m => Monad (ParallelT m) where
+    return = pure
+    (ParallelT m) >>= f = ParallelT $ parbind S.parallel m (getParallelT . f)
+
+------------------------------------------------------------------------------
+-- Other instances
+------------------------------------------------------------------------------
+
+MONAD_APPLICATIVE_INSTANCE(ParallelT,MONADPARALLEL)
+MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -878,12 +1014,18 @@ asyncly = asParAhead
 asCoparAhead :: IsStream t => CoparAheadT m a -> t m a
 asCoparAhead = adapt
 
--- | Same as 'asCoparAhead'.
+-- | Fix the type of a polymorphic stream as 'ParallelT'.
 --
 -- @since 0.1.0
-{-# DEPRECATED parallely "Please use asCoparAhead instead." #-}
-parallely :: IsStream t => CoparAheadT m a -> t m a
-parallely = asCoparAhead
+asParallel :: IsStream t => ParallelT m a -> t m a
+asParallel = adapt
+
+-- | Same as 'asParallel'.
+--
+-- @since 0.1.0
+{-# DEPRECATED parallely "Please use asParallel instead." #-}
+parallely :: IsStream t => ParallelT m a -> t m a
+parallely = asParallel
 
 -- | Fix the type of a polymorphic stream as 'ZipStreamM'.
 --
@@ -936,12 +1078,12 @@ runInterleavedT = runStream . asCostream
 runAsyncT :: Monad m => ParAheadT m a -> m ()
 runAsyncT = runStream . asParAhead
 
--- | Same as @runStream . asCoparAhead@.
+-- | Same as @runStream . asParallel@.
 --
 -- @since 0.1.0
-{-# DEPRECATED runParallelT "Please use 'runStream . asCoparAhead' instead." #-}
-runParallelT :: Monad m => CoparAheadT m a -> m ()
-runParallelT = runStream . asCoparAhead
+{-# DEPRECATED runParallelT "Please use 'runStream . asParallel' instead." #-}
+runParallelT :: Monad m => ParallelT m a -> m ()
+runParallelT = runStream . asParallel
 
 -- | Same as @runStream . zipping@.
 --
@@ -984,6 +1126,12 @@ type ParAhead a = ParAheadT IO a
 --
 -- @since 0.2.0
 type CoparAhead a = CoparAheadT IO a
+
+-- | A parallely composing IO stream of elements of type @a@.
+-- See 'ParallelT' documentation for more details.
+--
+-- @since 0.2.0
+type Parallel a = ParallelT IO a
 
 -- | An IO stream whose applicative instance zips streams serially.
 --

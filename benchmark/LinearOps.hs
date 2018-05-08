@@ -14,8 +14,9 @@ import Prelude
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
 
-value, maxValue :: Int
+value, appendValue, maxValue :: Int
 value = 1000000
+appendValue = 100000
 maxValue = value + 1000
 
 -------------------------------------------------------------------------------
@@ -111,7 +112,7 @@ concat _n     = return ()
 append
     :: (Monoid (t m Int), Monad m, Monad (t m))
     => (t m Int -> S.StreamT m Int) -> Int -> m ()
-append t n = runStream $ t $ foldMap return [n..n+value]
+append t n = runStream $ t $ foldMap return [n..n+appendValue]
 
 -------------------------------------------------------------------------------
 -- Composition

@@ -322,6 +322,8 @@ main = hspec $ do
         functorOps folded "asParAhead folded" asParAhead sortEq
         functorOps A.fromFoldable "asCoparAhead" asCoparAhead sortEq
         functorOps folded "asCoparAhead folded" asCoparAhead sortEq
+        functorOps A.fromFoldable "asParallel" asParallel sortEq
+        functorOps folded "asParallel folded" asParallel sortEq
         functorOps A.fromFoldable "asZipStream" asZipStream (==)
         functorOps folded "asZipStream folded" asZipStream (==)
         functorOps A.fromFoldable "asZipParallel" asZipParallel (==)
@@ -332,6 +334,7 @@ main = hspec $ do
         semigroupOps "asCostream" asCostream (==)
         semigroupOps "asParAhead" asParAhead sortEq
         semigroupOps "asCoparAhead" asCoparAhead sortEq
+        semigroupOps "asParallel" asParallel sortEq
         semigroupOps "asZipStream" asZipStream (==)
         semigroupOps "asZipParallel" asZipParallel (==)
 
@@ -346,6 +349,7 @@ main = hspec $ do
         prop "asParAhead applicative" $ applicativeOps A.fromFoldable asParAhead sortEq
         prop "asParAhead applicative folded" $ applicativeOps folded asParAhead sortEq
         prop "asCoparAhead applicative folded" $ applicativeOps folded asCoparAhead sortEq
+        prop "asParallel applicative folded" $ applicativeOps folded asParallel sortEq
 
     describe "Zip operations" $ do
         prop "asZipStream applicative" $ zipApplicative A.fromFoldable asZipStream (==)
@@ -359,22 +363,27 @@ main = hspec $ do
         prop "zip monadic asParAhead folded" $ zipMonadic folded asParAhead (==)
         prop "zip monadic asCoparAhead" $ zipMonadic A.fromFoldable asCoparAhead (==)
         prop "zip monadic asCoparAhead folded" $ zipMonadic folded asCoparAhead (==)
+        prop "zip monadic asParallel" $ zipMonadic A.fromFoldable asParallel (==)
+        prop "zip monadic asParallel folded" $ zipMonadic folded asParallel (==)
 
     describe "Monad operations" $ do
         prop "asStream monad then" $ monadThen A.fromFoldable asStream (==)
         prop "asCostream monad then" $ monadThen A.fromFoldable asCostream sortEq
         prop "asParAhead monad then" $ monadThen A.fromFoldable asParAhead sortEq
         prop "asCoparAhead monad then" $ monadThen A.fromFoldable asCoparAhead sortEq
+        prop "asParallel monad then" $ monadThen A.fromFoldable asParallel sortEq
 
         prop "asStream monad then folded" $ monadThen folded asStream (==)
         prop "asCostream monad then folded" $ monadThen folded asCostream sortEq
         prop "asParAhead monad then folded" $ monadThen folded asParAhead sortEq
         prop "asCoparAhead monad then folded" $ monadThen folded asCoparAhead sortEq
+        prop "asParallel monad then folded" $ monadThen folded asParallel sortEq
 
         prop "asStream monad bind" $ monadBind A.fromFoldable asStream (==)
         prop "asCostream monad bind" $ monadBind A.fromFoldable asCostream sortEq
         prop "asParAhead monad bind" $ monadBind A.fromFoldable asParAhead sortEq
         prop "asCoparAhead monad bind" $ monadBind A.fromFoldable asCoparAhead sortEq
+        prop "asParallel monad bind" $ monadBind A.fromFoldable asParallel sortEq
 
     describe "Stream transform operations" $ do
         transformOps A.fromFoldable "asStream" asStream (==)
@@ -383,6 +392,7 @@ main = hspec $ do
         transformOps A.fromFoldable "asZipParallel" asZipParallel (==)
         transformOps A.fromFoldable "asParAhead" asParAhead sortEq
         transformOps A.fromFoldable "asCoparAhead" asCoparAhead sortEq
+        transformOps A.fromFoldable "asParallel" asParallel sortEq
 
         transformOps folded "asStream folded" asStream (==)
         transformOps folded "asCostream folded" asCostream (==)
@@ -390,6 +400,7 @@ main = hspec $ do
         transformOps folded "asZipParallel folded" asZipParallel (==)
         transformOps folded "asParAhead folded" asParAhead sortEq
         transformOps folded "asCoparAhead folded" asCoparAhead sortEq
+        transformOps folded "asParallel folded" asParallel sortEq
 
         transformOpsWord8 A.fromFoldable "asStream" asStream
         transformOpsWord8 A.fromFoldable "asCostream" asCostream
@@ -397,6 +408,7 @@ main = hspec $ do
         transformOpsWord8 A.fromFoldable "asZipParallel" asZipParallel
         transformOpsWord8 A.fromFoldable "asParAhead" asParAhead
         transformOpsWord8 A.fromFoldable "asCoparAhead" asCoparAhead
+        transformOpsWord8 A.fromFoldable "asParallel" asParallel
 
         transformOpsWord8 folded "asStream folded" asStream
         transformOpsWord8 folded "asCostream folded" asCostream
@@ -404,6 +416,7 @@ main = hspec $ do
         transformOpsWord8 folded "asZipParallel folded" asZipParallel
         transformOpsWord8 folded "asParAhead folded" asParAhead
         transformOpsWord8 folded "asCoparAhead folded" asCoparAhead
+        transformOpsWord8 folded "asParallel folded" asParallel
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "asStream" asStream
@@ -412,6 +425,7 @@ main = hspec $ do
         eliminationOps A.fromFoldable "asZipParallel" asZipParallel
         eliminationOps A.fromFoldable "asParAhead" asParAhead
         eliminationOps A.fromFoldable "asCoparAhead" asCoparAhead
+        eliminationOps A.fromFoldable "asParallel" asParallel
 
         eliminationOps folded "asStream folded" asStream
         eliminationOps folded "asCostream folded" asCostream
@@ -419,6 +433,7 @@ main = hspec $ do
         eliminationOps folded "asZipParallel folded" asZipParallel
         eliminationOps folded "asParAhead folded" asParAhead
         eliminationOps folded "asCoparAhead folded" asCoparAhead
+        eliminationOps folded "asParallel folded" asParallel
 
     describe "Stream elimination operations" $ do
         serialEliminationOps A.fromFoldable "asStream" asStream
