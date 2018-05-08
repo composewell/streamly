@@ -2,8 +2,10 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE MagicHash                 #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -64,8 +66,7 @@ module Streamly.Core
     )
 where
 
-import           Control.Concurrent          (ThreadId, forkIO,
-                                              myThreadId, threadDelay)
+import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..))
@@ -89,6 +90,10 @@ import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
 import           Prelude                     hiding (repeat, zipWith)
+
+import GHC.Exts
+import GHC.Conc (ThreadId(..))
+import GHC.IO (IO(..))
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication type
@@ -255,6 +260,16 @@ type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 {-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
 type MonadAsync m = MonadParallel m
 
+-- Stolen from the async package. The perf improvement is modest, 2% on a
+-- thread heavy benchmark (parallel composition using noop computations).
+-- A version of forkIO that does not include the outer exception
+-- handler: saves a bit of time when we will be installing our own
+-- exception handler.
+{-# INLINE rawForkIO #-}
+rawForkIO :: IO () -> IO ThreadId
+rawForkIO action = IO $ \ s ->
+   case (fork# action s) of (# s1, tid #) -> (# s1, ThreadId tid #)
+
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
     => m ()
@@ -262,7 +277,7 @@ doFork :: MonadBaseControl IO m
     -> m ThreadId
 doFork action exHandler =
     EL.mask $ \restore ->
-        liftBaseWith $ \runInIO -> forkIO $ do
+        liftBaseWith $ \runInIO -> rawForkIO $ do
             _ <- runInIO $ EL.catch (restore action) exHandler
             -- XXX restore state here?
             return ()
