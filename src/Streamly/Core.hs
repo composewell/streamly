@@ -154,6 +154,7 @@ data SVar m a =
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
             , queueEmpty     :: m Bool
+            , activeWorkers  :: IORef Int
             , svarStyle      :: SVarStyle
             }
 
@@ -401,7 +402,8 @@ handleChildException sv e = do
 
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadParallel m => SVar m a -> m ()
-pushWorker sv =
+pushWorker sv = do
+    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
     doFork (runqueue sv) (handleChildException sv) >>= addThread sv
 
 -- | In contrast to pushWorker which always happens only from the consumer
@@ -455,6 +457,7 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
     where
 
     handleException e tid = do
+        liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n - 1
         modifyThread sv tid
         -- XXX implement kill async exception handling
         -- liftIO $ readIORef (runningThreads sv) >>= mapM_ killThread
@@ -475,13 +478,17 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
             ChildYield a -> yield a
             ChildStop tid e ->
                 case e of
-                    Nothing -> modifyThread sv tid >> continue
+                    Nothing -> do
+                        let active = activeWorkers sv
+                        liftIO $ atomicModifyIORefCAS_ active $ \n -> n - 1
+                        modifyThread sv tid >> continue
                     Just ex -> handleException ex tid
 
 getFifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
 getFifoSVar ctype = do
     outQ    <- newIORef []
     outQMv  <- newEmptyMVar
+    active  <- newIORef 0
     running <- newIORef S.empty
     q       <- newQ
     let sv =
@@ -492,6 +499,7 @@ getFifoSVar ctype = do
                  , enqueue        = pushL q
                  , queueEmpty     = liftIO $ nullQ q
                  , svarStyle      = ctype
+                 , activeWorkers  = active
                  }
      in return sv
 
@@ -499,6 +507,7 @@ getLifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
 getLifoSVar ctype = do
     outQ    <- newIORef []
     outQMv  <- newEmptyMVar
+    active  <- newIORef 0
     running <- newIORef S.empty
     q <- newIORef []
     let checkEmpty = null <$> liftIO (readIORef q)
@@ -510,6 +519,7 @@ getLifoSVar ctype = do
                  , enqueue        = enqueueLIFO q
                  , queueEmpty     = checkEmpty
                  , svarStyle      = ctype
+                 , activeWorkers  = active
                  }
      in return sv
 
@@ -517,6 +527,7 @@ getParSVar :: SVarStyle -> IO (SVar m a)
 getParSVar style = do
     outQ    <- newIORef []
     outQMv  <- newEmptyMVar
+    active  <- newIORef 0
     running <- newIORef S.empty
     let sv =
             SVar { outputQueue    = outQ
@@ -526,6 +537,7 @@ getParSVar style = do
                  , enqueue        = undefined
                  , queueEmpty     = undefined
                  , svarStyle      = style
+                 , activeWorkers  = active
                  }
      in return sv
 
