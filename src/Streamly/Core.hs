@@ -78,14 +78,14 @@ import           Control.Monad.IO.Class      (MonadIO(..))
 import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
-import           Data.Atomics                (atomicModifyIORefCAS,
-                                              atomicModifyIORefCAS_)
+import           Data.Atomics                (casIORef, readForCAS, peekTicket
+                                             ,atomicModifyIORefCAS_)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
                                                      tryPopR, nullQ)
 import           Data.Functor                (void)
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
-                                              readIORef)
-import           Data.Maybe                  (isNothing)
+                                              readIORef, atomicModifyIORef)
+import           Data.Maybe                  (isNothing, fromJust)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
@@ -157,6 +157,25 @@ data SVar m a =
             , activeWorkers  :: IORef Int
             , svarStyle      :: SVarStyle
             }
+
+-- Slightly faster version of CAS. Gained some improvement by avoiding the use
+-- of "evaluate" because we know we do not have exceptions in fn.
+{-# INLINE atomicModifyIORefCAS #-}
+atomicModifyIORefCAS :: IORef a -> (a -> (a,b)) -> IO b
+atomicModifyIORefCAS ref fn = do
+    tkt <- readForCAS ref
+    loop tkt retries
+
+    where
+
+    retries = 30 :: Int
+    loop _   0     = atomicModifyIORef ref fn
+    loop old tries = do
+        let (new, result) = fn $ peekTicket old
+        (success, tkt) <- casIORef ref old new
+        if success
+        then return result
+        else loop tkt (tries - 1)
 
 ------------------------------------------------------------------------------
 -- The stream type
@@ -376,14 +395,16 @@ delThread sv tid =
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
+-- This occurs when the forked thread is done even before the 'addThread' right
+-- after the fork is executed.
 {-# INLINE modifyThread #-}
 modifyThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 modifyThread sv tid = do
     changed <- liftIO $ atomicModifyIORefCAS (runningThreads sv) $ \old ->
         if (S.member tid old)
-        then let new = (S.delete tid old) in (new, null new)
-        else let new = (S.insert tid old) in (new, null old)
-    if changed
+        then let new = (S.delete tid old) in (new, new)
+        else let new = (S.insert tid old) in (new, old)
+    if null changed
     then liftIO $ void $ tryPutMVar (doorBell sv) True
     else return ()
 
@@ -631,13 +652,6 @@ toStreamVar sv m = do
 -- TBD Note 4: for pure work (when we are not in the IO monad) we can divide it
 -- into just the number of CPUs.
 
-{-# NOINLINE withNewSVar2 #-}
-withNewSVar2 :: MonadParallel m
-    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-withNewSVar2 style m1 m2 = Stream $ \_ stp sng yld -> do
-    sv <- newStreamVar2 style m1 m2
-    (runStream (fromStreamVar sv)) Nothing stp sng yld
-
 -- | Join two computations on the currently running 'SVar' queue for concurrent
 -- execution.  When we are using parallel composition, an SVar is passed around
 -- as a state variable. We try to schedule a new parallel computation on the
@@ -671,7 +685,13 @@ joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) svr stp sng yld
-        _ -> (runStream (withNewSVar2 style m1 m2)) Nothing stp sng yld
+        _ -> do
+            sv <- newStreamVar1 style (concurrently m1 m2)
+            (runStream (fromStreamVar sv)) Nothing stp sng yld
+    where
+    concurrently ma mb = Stream $ \svr stp sng yld -> do
+        liftIO $ (enqueue (fromJust svr)) mb
+        (runStream ma) svr stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadParallel m
