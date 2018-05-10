@@ -149,7 +149,7 @@ data SVarStyle = SVarStyle SVarTag SVarSched deriving Eq
 --
 data SVar m a =
        SVar { outputQueue    :: IORef [ChildEvent a]
-            , doorBell       :: MVar Bool -- wakeup mechanism for outQ
+            , doorBell       :: MVar () -- wakeup mechanism for outQ
             , enqueue        :: Stream m a -> IO ()
             , runqueue       :: m ()
             , runningThreads :: IORef (Set ThreadId)
@@ -311,7 +311,7 @@ send sv msg = liftIO $ do
     if null old
         -- XXX need a memory barrier? The wake up must happen only after the
         -- store has finished otherwise we can have lost wakeup problems.
-    then void $ tryPutMVar (doorBell sv) True
+    then void $ tryPutMVar (doorBell sv) ()
     else return ()
 
 {-# INLINE sendStop #-}
@@ -405,7 +405,7 @@ modifyThread sv tid = do
         then let new = (S.delete tid old) in (new, new)
         else let new = (S.insert tid old) in (new, old)
     if null changed
-    then liftIO $ void $ tryPutMVar (doorBell sv) True
+    then liftIO $ void $ tryPutMVar (doorBell sv) ()
     else return ()
 
 -- | This is safe even if we are adding more threads concurrently because if
@@ -456,7 +456,7 @@ sendWorkerWait sv = do
         done <- queueEmpty sv
         if not done
         then pushWorker sv >> sendWorkerWait sv
-        else void (liftIO $ takeMVar (doorBell sv))
+        else liftIO $ takeMVar (doorBell sv)
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
@@ -464,7 +464,7 @@ fromStreamVar :: MonadParallel m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
     let SVarStyle _ sched = svarStyle sv
     if sched == Par
-    then void $ liftIO $ takeMVar (doorBell sv)
+    then liftIO $ takeMVar (doorBell sv)
     else do
         res <- liftIO $ tryTakeMVar (doorBell sv)
         when (isNothing res) $ sendWorkerWait sv
