@@ -9,7 +9,7 @@ import Control.Exception (Exception, try)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.Error.Class (throwError, MonadError)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
-import Data.Foldable (forM_)
+import Data.Foldable (forM_, fold)
 import Data.List (sort)
 import Test.Hspec
 
@@ -333,6 +333,11 @@ main = hspec $ do
     describe "Composed MonadThrow asParAhead" $ composeWithMonadThrow asParAhead
     describe "Composed MonadThrow asCoparAhead" $ composeWithMonadThrow asCoparAhead
     describe "Composed MonadThrow asParallel" $ composeWithMonadThrow asParallel
+
+    it "Crosses thread limit (2000 threads)" $
+        runStream (asParAhead $ fold $
+                   replicate 2000 $ A.once $ threadDelay 1000000)
+        `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error
 -- XXX We can also check the output that we are expected to get before the

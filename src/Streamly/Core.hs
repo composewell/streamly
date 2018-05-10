@@ -486,7 +486,13 @@ sendWorkerWait sv = do
     when (n <= 0) $ do
         done <- queueEmpty sv
         if not done
-        then pushWorker sv >> sendWorkerWait sv
+        then do
+            cnt <- liftIO $ readIORef $ activeWorkers sv
+            if (cnt < 1500)
+            then do
+                pushWorker sv
+                sendWorkerWait sv
+            else liftIO $ takeMVar (doorBell sv)
         else liftIO $ takeMVar (doorBell sv)
 
 -- | Pull a stream from an SVar.
