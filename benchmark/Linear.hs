@@ -50,11 +50,11 @@ main = do
       ]
     , benchIO "zip" Ops.zip
     , bgroup "append"
-      [ benchIOAppend "stream"     $ Ops.append asStream
-      , benchIOAppend "costream"   $ Ops.append asCostream
-      , benchIOAppend "parAhead"   $ Ops.append asParAhead
-      , benchIOAppend "coparAhead" $ Ops.append asCoparAhead
-      , benchIOAppend "parallel"   $ Ops.append asParallel
+      [ benchIOAppend "serially"   $ Ops.append serially
+      , benchIOAppend "wSerially"  $ Ops.append wSerially
+      , benchIOAppend "asyncly"    $ Ops.append asyncly
+      , benchIOAppend "wAsyncly"   $ Ops.append wAsyncly
+      , benchIOAppend "parallely" $ Ops.append parallely
       ]
     , bgroup "compose"
       [ benchIO "mapM" Ops.composeMapM

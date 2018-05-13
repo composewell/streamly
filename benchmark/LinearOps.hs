@@ -59,7 +59,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.StreamT m a
+type Stream m a = S.SerialT m a
 
 source :: Int -> Stream m Int
 source n = S.fromFoldable [n..n+value]
@@ -111,7 +111,7 @@ concat _n     = return ()
 {-# INLINE append #-}
 append
     :: (Monoid (t m Int), Monad m, Monad (t m))
-    => (t m Int -> S.StreamT m Int) -> Int -> m ()
+    => (t m Int -> S.SerialT m Int) -> Int -> m ()
 append t n = runStream $ t $ foldMap return [n..n+appendValue]
 
 -------------------------------------------------------------------------------
