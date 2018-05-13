@@ -105,19 +105,19 @@ main = hspec $ do
     -- describe "Parallel (<>) ordering check" $ interleaveCheck parallely (<>)
     -- describe "Parallel mappend ordering check" $ interleaveCheck parallely mappend
 
-    describe "ParAhead (<>) time order check" $ parallelCheck asyncly (<>)
-    describe "ParAhead mappend time order check" $ parallelCheck asyncly mappend
-    describe "CoparAhead (<>) time order check" $ parallelCheck wAsyncly (<>)
-    describe "CoparAhead mappend time order check" $ parallelCheck wAsyncly mappend
+    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
+    describe "Async mappend time order check" $ parallelCheck asyncly mappend
+    describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
+    describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions, multiset equality checks
     ---------------------------------------------------------------------------
 
     describe "Serial Composition" $ compose serially mempty id
-    describe "Interleaved Composition" $ compose wSerially mempty sort
-    describe "ParAhead Composition" $ compose asyncly mempty sort
-    describe "CoparAhead Composition" $ compose wAsyncly mempty sort
+    describe "WSerial Composition" $ compose wSerially mempty sort
+    describe "Async Composition" $ compose asyncly mempty sort
+    describe "WAsync Composition" $ compose wAsyncly mempty sort
     describe "Parallel Composition" $ compose parallely mempty sort
     describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
     describe "Semigroup Composition for ZipAsync" $ compose zipAsyncly mempty id
@@ -203,8 +203,8 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Serial loops" $ loops serially id reverse
-    describe "ParAhead parallel loops" $ loops asyncly sort sort
-    describe "coparAhead loops" $ loops wAsyncly sort sort
+    describe "Async parallel loops" $ loops asyncly sort sort
+    describe "WAsync loops" $ loops wAsyncly sort sort
     describe "parallel loops" $ loops parallely sort sort
 
     ---------------------------------------------------------------------------
@@ -223,17 +223,17 @@ main = hspec $ do
     describe "Bind and compose Costream 4" $ bindAndComposeSimple wSerially wAsyncly
     describe "Bind and compose Costream 5" $ bindAndComposeSimple wSerially parallely
 
-    describe "Bind and compose ParAhead 1" $ bindAndComposeSimple asyncly serially
-    describe "Bind and compose ParAhead 2" $ bindAndComposeSimple asyncly wSerially
-    describe "Bind and compose ParAhead 3" $ bindAndComposeSimple asyncly asyncly
-    describe "Bind and compose ParAhead 4" $ bindAndComposeSimple asyncly wAsyncly
-    describe "Bind and compose ParAhead 5" $ bindAndComposeSimple asyncly parallely
+    describe "Bind and compose Async 1" $ bindAndComposeSimple asyncly serially
+    describe "Bind and compose Async 2" $ bindAndComposeSimple asyncly wSerially
+    describe "Bind and compose Async 3" $ bindAndComposeSimple asyncly asyncly
+    describe "Bind and compose Async 4" $ bindAndComposeSimple asyncly wAsyncly
+    describe "Bind and compose Async 5" $ bindAndComposeSimple asyncly parallely
 
-    describe "Bind and compose CoparAhead 1" $ bindAndComposeSimple wAsyncly serially
-    describe "Bind and compose CoparAhead 2" $ bindAndComposeSimple wAsyncly wSerially
-    describe "Bind and compose CoparAhead 3" $ bindAndComposeSimple wAsyncly asyncly
-    describe "Bind and compose CoparAhead 4" $ bindAndComposeSimple wAsyncly wAsyncly
-    describe "Bind and compose CoparAhead 5" $ bindAndComposeSimple wAsyncly parallely
+    describe "Bind and compose WAsync 1" $ bindAndComposeSimple wAsyncly serially
+    describe "Bind and compose WAsync 2" $ bindAndComposeSimple wAsyncly wSerially
+    describe "Bind and compose WAsync 3" $ bindAndComposeSimple wAsyncly asyncly
+    describe "Bind and compose WAsync 4" $ bindAndComposeSimple wAsyncly wAsyncly
+    describe "Bind and compose WAsync 5" $ bindAndComposeSimple wAsyncly parallely
 
     describe "Bind and compose Parallel 1" $ bindAndComposeSimple parallely serially
     describe "Bind and compose Parallel 2" $ bindAndComposeSimple parallely wSerially
@@ -303,14 +303,14 @@ main = hspec $ do
     -- Nest two lists using different styles of product compositions
     it "Nests two streams using monadic serial composition" nestTwoSerial
     it "Nests two streams using monadic interleaved composition" nestTwoInterleaved
-    it "Nests two streams using monadic parAhead composition" nestTwoAsync
-    it "Nests two streams using monadic CoparAhead composition" nestTwoCoparAhead
+    it "Nests two streams using monadic Async composition" nestTwoAsync
+    it "Nests two streams using monadic WAsync composition" nestTwoWAsync
     it "Nests two streams using monadic parallel composition" nestTwoParallel
 
     it "Nests two streams using applicative serial composition" nestTwoSerialApp
     it "Nests two streams using applicative interleaved composition" nestTwoInterleavedApp
-    it "Nests two streams using applicative parAhead composition" nestTwoAsyncApp
-    it "Nests two streams using applicative CoparAhead composition" nestTwoCoparAheadApp
+    it "Nests two streams using applicative Async composition" nestTwoAsyncApp
+    it "Nests two streams using applicative WAsync composition" nestTwoWAsyncApp
     it "Nests two streams using applicative parallel composition" nestTwoParallelApp
 
     ---------------------------------------------------------------------------
@@ -474,8 +474,8 @@ nestTwoAsyncApp =
     in (toListAsync ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
-nestTwoCoparAhead :: Expectation
-nestTwoCoparAhead =
+nestTwoWAsync :: Expectation
+nestTwoWAsync =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in ((A.toList . wAsyncly) (do
@@ -496,8 +496,8 @@ nestTwoParallel =
         ) >>= return . sort)
     `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
-nestTwoCoparAheadApp :: Expectation
-nestTwoCoparAheadApp =
+nestTwoWAsyncApp :: Expectation
+nestTwoWAsyncApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in ((A.toList . wAsyncly) ((+) <$> s1 <*> s2) >>= return . sort)

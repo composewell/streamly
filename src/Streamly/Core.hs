@@ -672,8 +672,8 @@ toStreamVar sv m = do
 --
 -- TBD Note 2: We may want to run computations at the lower level of the
 -- composition tree serially even when they are composed using a parallel
--- combinator. We can use 'splice' in place of 'async' and 'cosplice' in
--- place of 'coParAhead'. If we find that an SVar immediately above a computation
+-- combinator. We can use 'serial' in place of 'async' and 'wSerial' in
+-- place of 'wAsync'. If we find that an SVar immediately above a computation
 -- gets drained empty we can switch to parallelizing the computation.  For that
 -- we can use a state flag to fork the rest of the computation at any point of
 -- time inside the Monad bind operation if the consumer is running at a faster

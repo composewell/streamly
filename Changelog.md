@@ -22,6 +22,7 @@
     always fixed at all exits.
   * Change the type combinators (e.g. `parallely`) to only fix the argument
     stream type and the output stream type remains polymorphic.
+
   Stream types may have to be changed or type combinators may have to be added
   or removed to adapt to this change.
 * Change the type of `foldrM` to make it consistent with `foldrM` in base.
