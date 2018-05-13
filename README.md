@@ -72,6 +72,9 @@ pipeline, just the standard forward (`$`) or reverse (`&`) function application
 operator is enough.  Combinators are provided in `Streamly.Prelude` to
 transform or fold streams.
 
+This snippet reads numbers from stdin, prints the squares of even numbers and
+exits if an even number more than 9 is entered.
+
 ```haskell
 import Streamly
 import qualified Streamly.Prelude as S
@@ -112,9 +115,9 @@ import qualified Streamly.Prelude as S
 import Control.Concurrent
 
 delay n = S.once $ do
- threadDelay (n * 1000000)
-  tid <- myThreadId
-   putStrLn (show tid ++ ": Delay " ++ show n)
+    threadDelay (n * 1000000)
+    tid <- myThreadId
+    putStrLn (show tid ++ ": Delay " ++ show n)
 ```
 ### Serial
 
@@ -203,7 +206,7 @@ main = do
     s <- S.sum $ asyncly $ do
         -- Each square is performed concurrently, (<>) is concurrent
         x2 <- foldMap (\x -> return $ x * x) [1..100]
-        y2 <- foldMap (\y -> return $ x * x) [1..100]
+        y2 <- foldMap (\y -> return $ y * y) [1..100]
         -- Each addition is performed concurrently, monadic bind is concurrent
         return $ sqrt (x2 + y2)
     print s
@@ -215,6 +218,7 @@ example, to concurrently list the contents of a directory tree recursively:
 ``` haskell
 import Path.IO (listDir, getCurrentDir)
 import Streamly
+import qualified Streamly.Prelude as S
 
 main = runStream $ asyncly $ getCurrentDir >>= readdir
    where readdir d = do
@@ -226,7 +230,7 @@ main = runStream $ asyncly $ getCurrentDir >>= readdir
 
 In the above examples we do not think in terms of threads, locking or
 synchronization, rather we think in terms of what can run in parallel, the rest
-is taken care of automatically. When using `coparallely` the programmer does
+is taken care of automatically. When using `asyncly` the programmer does
 not have to worry about how many threads are to be created they are
 automatically adjusted based on the demand of the consumer.
 
