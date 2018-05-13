@@ -10,10 +10,10 @@ import Network.HTTP.Simple
 main :: IO ()
 main = do
     putStrLn "Using parallel semigroup composition"
-    runStream . asParallel $ google <> bing <> duckduckgo
+    runStream . parallely $ google <> bing <> duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runStream . asZipParallel $ (,,) <$> google <*> bing <*> duckduckgo
+    runStream . zipAsyncly $ (,,) <$> google <*> bing <*> duckduckgo
 
     where
         get :: IsStream t => String -> t IO ()

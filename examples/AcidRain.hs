@@ -12,7 +12,7 @@ import Data.Semigroup (cycle1)
 
 data Event = Harm Int | Heal Int | Quit deriving (Show)
 
-userAction :: MonadIO m => StreamT m Event
+userAction :: MonadIO m => SerialT m Event
 userAction = cycle1 $ liftIO askUser
     where
     askUser = do
@@ -22,10 +22,10 @@ userAction = cycle1 $ liftIO askUser
             "quit"   -> return  Quit
             _        -> putStrLn "What?" >> askUser
 
-acidRain :: MonadIO m => StreamT m Event
+acidRain :: MonadIO m => SerialT m Event
 acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 
-game :: (MonadParallel m, MonadState Int m) => StreamT m ()
+game :: (MonadAsync m, MonadState Int m) => SerialT m ()
 game = do
     event <- userAction `parallel` acidRain
     case event of

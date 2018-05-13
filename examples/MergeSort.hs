@@ -7,20 +7,20 @@ import Streamly
 import Streamly.Prelude (once)
 import qualified Streamly.Prelude as A
 
-getSorted :: Stream Word16
+getSorted :: Serial Word16
 getSorted = do
     g <- once getStdGen
     let ls = take 100000 (randoms g) :: [Word16]
     foldMap return (sort ls)
 
 -- | merge two streams generating the elements from each in parallel
-mergeAsync :: Ord a => Stream a -> Stream a -> Stream a
+mergeAsync :: Ord a => Serial a -> Serial a -> Serial a
 mergeAsync a b = do
-    x <- once $ async a
-    y <- once $ async b
+    x <- once $ mkAsync a
+    y <- once $ mkAsync b
     merge x y
 
-merge :: Ord a => Stream a -> Stream a -> Stream a
+merge :: Ord a => Serial a -> Serial a -> Serial a
 merge a b = do
     a1 <- once $ A.uncons a
     case a1 of
