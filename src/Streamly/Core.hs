@@ -20,8 +20,7 @@
 --
 module Streamly.Core
     (
-      MonadParallel
-    , MonadAsync      -- deprecated
+      MonadAsync
 
     -- * Streams
     , Stream (..)
@@ -35,10 +34,10 @@ module Streamly.Core
     , nil
 
     -- * Semigroup Style Composition
-    , splice
-    , cosplice
-    , parAhead
-    , coparAhead
+    , serial
+    , wSerial
+    , async
+    , wAsync
     , parallel
 
     -- * Alternative
@@ -46,7 +45,7 @@ module Streamly.Core
 
     -- * zip
     , zipWith
-    , zipParallelWith
+    , zipAsyncWith
 
     -- * Transformers
     , withLocal
@@ -234,8 +233,8 @@ repeat a = let x = cons a x in x
 
 -- | Concatenates two streams sequentially i.e. the first stream is
 -- exhausted completely before yielding any element from the second stream.
-splice :: Stream m a -> Stream m a -> Stream m a
-splice m1 m2 = go m1
+serial :: Stream m a -> Stream m a -> Stream m a
+serial m1 m2 = go m1
     where
     go (Stream m) = Stream $ \_ stp sng yld ->
             let stop      = (runStream m2) Nothing stp sng yld
@@ -244,7 +243,7 @@ splice m1 m2 = go m1
             in m Nothing stop single yield
 
 instance Semigroup (Stream m a) where
-    (<>) = splice
+    (<>) = serial
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -258,11 +257,11 @@ instance Monoid (Stream m a) where
 -- Interleave
 ------------------------------------------------------------------------------
 
-cosplice :: Stream m a -> Stream m a -> Stream m a
-cosplice m1 m2 = Stream $ \_ stp sng yld -> do
+wSerial :: Stream m a -> Stream m a -> Stream m a
+wSerial m1 m2 = Stream $ \_ stp sng yld -> do
     let stop      = (runStream m2) Nothing stp sng yld
         single a  = yld a m2
-        yield a r = yld a (cosplice m2 r)
+        yield a r = yld a (wSerial m2 r)
     (runStream m1) Nothing stop single yield
 
 ------------------------------------------------------------------------------
@@ -271,15 +270,10 @@ cosplice m1 m2 = Stream $ \_ stp sng yld -> do
 
 -- | A monad that can perform concurrent or parallel IO operations. Streams
 -- that can be composed concurrently require the underlying monad to be
--- 'MonadParallel'.
+-- 'MonadAsync'.
 --
--- @since 0.2.0
-type MonadParallel m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
-
--- |
 -- @since 0.1.0
-{-# DEPRECATED MonadAsync "Please use MonadParallel instead." #-}
-type MonadAsync m = MonadParallel m
+type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
 -- Stolen from the async package. The perf improvement is modest, 2% on a
 -- thread heavy benchmark (parallel composition using noop computations).
@@ -453,7 +447,7 @@ handleChildException sv e = do
     send sv (ChildStop tid (Just e))
 
 {-# NOINLINE pushWorker #-}
-pushWorker :: MonadParallel m => SVar m a -> m ()
+pushWorker :: MonadAsync m => SVar m a -> m ()
 pushWorker sv = do
     liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
     doFork (runqueue sv) (handleChildException sv) >>= addThread sv
@@ -464,7 +458,7 @@ pushWorker sv = do
 -- runningThreads. Alternatively, we can use a CreateThread event to avoid
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
-pushWorkerPar :: MonadParallel m => SVar m a -> Stream m a -> m ()
+pushWorkerPar :: MonadAsync m => SVar m a -> Stream m a -> m ()
 pushWorkerPar sv m =
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
 
@@ -473,7 +467,7 @@ pushWorkerPar sv m =
 -- block or make it go away entirely, depending on the number of workers and
 -- the type of the queue.
 {-# INLINE sendWorkerWait #-}
-sendWorkerWait :: MonadParallel m => SVar m a -> m ()
+sendWorkerWait :: MonadAsync m => SVar m a -> m ()
 sendWorkerWait sv = do
     -- When there is no output seen we dispatch more workers to help out if
     -- there is work pending in the work queue. But we wait a little while
@@ -497,7 +491,7 @@ sendWorkerWait sv = do
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
-fromStreamVar :: MonadParallel m => SVar m a -> Stream m a
+fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
     let SVarStyle _ sched = svarStyle sv
     if sched == Par
@@ -607,7 +601,7 @@ getParSVar style = do
      in return sv
 
 -- | Create a new empty SVar.
-newEmptySVar :: MonadParallel m => SVarStyle -> m (SVar m a)
+newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
 newEmptySVar style = do
     liftIO $
         case style of
@@ -616,7 +610,7 @@ newEmptySVar style = do
             SVarStyle _ Par -> getParSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
-newStreamVar1 :: MonadParallel m => SVarStyle -> Stream m a -> m (SVar m a)
+newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
 newStreamVar1 style m = do
     sv <- newEmptySVar style
     -- Note: We must have all the work on the queue before sending the
@@ -627,7 +621,7 @@ newStreamVar1 style m = do
     return sv
 
 -- | Create a new SVar and enqueue two stream computations on it.
-newStreamVar2 :: MonadParallel m
+newStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> m (SVar m a)
 newStreamVar2 style m1 m2 = do
     -- Note: We must have all the work on the queue before sending the
@@ -649,7 +643,7 @@ newStreamVar2 style m1 m2 = do
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toStreamVar :: MonadParallel m => SVar m a -> Stream m a -> m ()
+toStreamVar :: MonadAsync m => SVar m a -> Stream m a -> m ()
 toStreamVar sv m = do
     liftIO $ (enqueue sv) m
     done <- allThreadsDone sv
@@ -678,7 +672,7 @@ toStreamVar sv m = do
 --
 -- TBD Note 2: We may want to run computations at the lower level of the
 -- composition tree serially even when they are composed using a parallel
--- combinator. We can use 'splice' in place of 'parAhead' and 'cosplice' in
+-- combinator. We can use 'splice' in place of 'async' and 'cosplice' in
 -- place of 'coParAhead'. If we find that an SVar immediately above a computation
 -- gets drained empty we can switch to parallelizing the computation.  For that
 -- we can use a state flag to fork the rest of the computation at any point of
@@ -714,16 +708,16 @@ toStreamVar sv m = do
 -- Cases when we need to switch to a new SVar:
 --
 -- * (x `parallel` y) `parallel` (t `parallel` u) -- all of them get scheduled on the same SVar
--- * (x `parallel` y) `parallel` (t `parAhead` u) -- @t@ and @u@ get scheduled on a new child SVar
+-- * (x `parallel` y) `parallel` (t `async` u) -- @t@ and @u@ get scheduled on a new child SVar
 --   because of the scheduling policy change.
--- * if we 'adapt' a stream of type 'parAhead' to a stream of type
+-- * if we 'adapt' a stream of type 'async' to a stream of type
 --   'Parallel', we create a new SVar at the transitioning bind.
 -- * When the stream is switching from disjunctive composition to conjunctive
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
 --
 {-# INLINE joinStreamVar2 #-}
-joinStreamVar2 :: MonadParallel m
+joinStreamVar2 :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
@@ -738,7 +732,7 @@ joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
         (runStream ma) svr stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
-joinStreamVarPar :: MonadParallel m
+joinStreamVarPar :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
@@ -754,16 +748,16 @@ joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
 
-{-# INLINE parAhead #-}
-parAhead :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
-parAhead = joinStreamVar2 (SVarStyle Disjunction LIFO)
+{-# INLINE async #-}
+async :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+async = joinStreamVar2 (SVarStyle Disjunction LIFO)
 
-{-# INLINE coparAhead #-}
-coparAhead :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
-coparAhead = joinStreamVar2 (SVarStyle Disjunction FIFO)
+{-# INLINE wAsync #-}
+wAsync :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+wAsync = joinStreamVar2 (SVarStyle Disjunction FIFO)
 
 {-# INLINE parallel #-}
-parallel :: MonadParallel m => Stream m a -> Stream m a -> Stream m a
+parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 parallel = joinStreamVarPar (SVarStyle Disjunction Par)
 
 -------------------------------------------------------------------------------
@@ -801,15 +795,15 @@ zipWith f m1 m2 = go m1 m2
             yield1 a ra = merge a ra
         (runStream mx) Nothing stp single1 yield1
 
-async :: MonadParallel m => Stream m a -> m (Stream m a)
-async m = newStreamVar1 (SVarStyle Disjunction LIFO) m
+mkAsync :: MonadAsync m => Stream m a -> m (Stream m a)
+mkAsync m = newStreamVar1 (SVarStyle Disjunction LIFO) m
     >>= return . fromStreamVar
 
-zipParallelWith :: MonadParallel m
+zipAsyncWith :: MonadAsync m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipParallelWith f m1 m2 = Stream $ \_ stp sng yld -> do
-    ma <- async m1
-    mb <- async m2
+zipAsyncWith f m1 m2 = Stream $ \_ stp sng yld -> do
+    ma <- mkAsync m1
+    mb <- mkAsync m2
     (runStream (zipWith f ma mb)) Nothing stp sng yld
 
 -------------------------------------------------------------------------------

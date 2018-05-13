@@ -32,8 +32,8 @@ the functionality of list transformer libraries like `pipes` or
 [list-t](https://hackage.haskell.org/package/list-t) and also the logic
 programming library [logict](https://hackage.haskell.org/package/logict). On
 the concurrency side, it subsumes the functionality of the
-[async](https://hackage.haskell.org/package/async) package. Because it streams
-and supports concurrency we can write FRP applications similar in concept to
+[async](https://hackage.haskell.org/package/async) package. Because it supports
+streaming with concurrency we can write FRP applications similar in concept to
 [Yampa](https://hackage.haskell.org/package/Yampa) or
 [reflex](https://hackage.haskell.org/package/reflex). To understand the
 streaming library ecosystem and where streamly fits in you may want to read
@@ -57,7 +57,7 @@ Why use streamly?
     [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
     for a comparison of popular streaming libraries on micro-benchmarks.
 
-  For more information:
+  For more information, see:
 
   * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
   * [examples](https://github.com/composewell/streamly/tree/master/examples) directory in the package for some simple practical examples
@@ -68,9 +68,9 @@ Unlike `pipes` or `conduit` and like `vector` and `streaming` `streamly`
 composes stream data instead of stream processors (functions).  A stream is
 just like a list and is explicitly passed around to functions that process the
 stream.  Therefore, no special operator is needed to join stages in a streaming
-pipeline, just a forward (`$`) or reverse (`&`) function application operator
-is enough.  Combinators are provided in `Streamly.Prelude` to transform or fold
-streams.
+pipeline, just the standard forward (`$`) or reverse (`&`) function application
+operator is enough.  Combinators are provided in `Streamly.Prelude` to
+transform or fold streams.
 
 ```haskell
 import Streamly
@@ -90,8 +90,8 @@ main = runStream $
 
 Semigroup and Monoid instances can be used to fold streams serially or
 concurrently. In the following example we are composing ten actions in the
-stream each with a delay of 1 to 10 seconds. Since all the actions are
-concurrent we see one output printed every second:
+stream each with a delay of 1 to 10 seconds, respectively. Since all the
+actions are concurrent we see one output printed every second:
 
 ``` haskell
 import Streamly
@@ -102,7 +102,9 @@ main = S.toList $ parallely $ foldMap delay [1..10]
  where delay n = S.once $ threadDelay (n * 1000000) >> print n
 ```
 
-Streams can be combined together in many ways (see the tutorial for more ways):
+Streams can be combined together in many ways. We are providing some examples
+below, see the tutorial for more ways. We will use the following `delay`
+function in the examples to demonstrate the concurrency aspects:
 
 ``` haskell
 import Streamly
@@ -160,29 +162,36 @@ main = runStream loops
 
 ## Concurrent Nested Loops
 
-To run the above code with demand-driven concurrency i.e. each iteration in the
-loops can run concurrently depending on the consumer rate:
+To run the above code with demand-driven depth first concurrency i.e. each
+iteration in the loops can run concurrently depending on the consumer rate:
 
 ``` haskell
-main = runStream $ coparallely $ loops
+main = runStream $ asyncly $ loops
 ```
 
-To run it with round-robin parallelism:
+To run it with demand driven breadth first concurrency:
+
+``` haskell
+main = runStream $ wAsyncly $ loops
+```
+
+To run it with strict concurrency irrespective of demand:
 
 ``` haskell
 main = runStream $ parallely $ loops
 ```
 
-To run it serially but interleaving the outer and inner loop iterations:
+To run it serially but interleaving the outer and inner loop iterations
+(breadth first serial):
 
 ``` haskell
-main = runStream $ costreamly $ loops
+main = runStream $ wSerially $ loops
 ```
 
 ## Magical Concurrency
 
 Streams can perform semigroup (<>) and monadic bind (>>=) operations
-concurrently using combinators like `coparallelly`, `parallelly`. For example,
+concurrently using combinators like `asyncly`, `parallelly`. For example,
 to concurrently generate squares of a stream of numbers and then concurrently
 sum the square roots of all combinations of two streams:
 
@@ -191,7 +200,7 @@ import Streamly
 import qualified Streamly.Prelude as S
 
 main = do
-    s <- S.sum $ coparallely $ do
+    s <- S.sum $ asyncly $ do
         -- Each square is performed concurrently, (<>) is concurrent
         x2 <- foldMap (\x -> return $ x * x) [1..100]
         y2 <- foldMap (\y -> return $ x * x) [1..100]
@@ -207,7 +216,7 @@ example, to concurrently list the contents of a directory tree recursively:
 import Path.IO (listDir, getCurrentDir)
 import Streamly
 
-main = runStream $ coparallely $ getCurrentDir >>= readdir
+main = runStream $ asyncly $ getCurrentDir >>= readdir
    where readdir d = do
             (dirs, files) <- S.once $ listDir d
             S.once $ mapM_ putStrLn $ map show files

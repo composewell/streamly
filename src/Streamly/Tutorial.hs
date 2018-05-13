@@ -37,6 +37,9 @@ module Streamly.Tutorial
     -- * Streams
     -- $streams
 
+    -- * Flavors of Streams
+    -- $flavors
+
     -- * Generating Streams
     -- $generating
 
@@ -51,16 +54,19 @@ module Streamly.Tutorial
     -- ** Semigroup Style
     -- $semigroup
 
-    -- *** Serial Depth First Composition ('Stream')
+    -- *** Deep Serial Composition ('Serial')
     -- $serial
 
-    -- *** Serial Breadth First Composition ('Costream')
+    -- *** Wide Serial Composition ('WSerial')
     -- $interleaved
 
-    -- *** Concurrent Depth First Composition ('ParAhead')
-    -- $parAhead
+    -- *** Deep Asynchronous Composition ('Async')
+    -- $async
 
-    -- *** Concurrent Breadth First Composition ('CoParAhead')
+    -- *** Wide Asynchronous Composition ('WAsync')
+    -- $wasync
+
+    -- *** Parallel Asynchronous Composition ('Parallel')
     -- $parallel
 
     -- *** Custom composition
@@ -75,17 +81,20 @@ module Streamly.Tutorial
     -- ** Monad
     -- $monad
 
-    -- *** Serial Depth First Nesting ('Stream')
+    -- *** Deep Serial Nesting ('Serial')
     -- $regularSerial
 
-    -- *** Serial Breadth First Nesting ('Costream')
+    -- *** Wide Serial Nesting ('WSerial')
     -- $interleavedNesting
 
-    -- *** Concurrent Depth First Nesting ('ParAhead')
+    -- *** Deep Asynchronous Nesting ('Async')
     -- $concurrentNesting
 
-    -- *** Concurrent Breadth First Nesting ('CoparAhead')
-    -- $fairlyConcurrentNesting
+    -- *** Wide Asynchronous Nesting ('WAsync')
+    -- $wasyncNesting
+
+    -- *** Parallel Asynchronous Nesting ('Parallel')
+    -- $parallelNesting
 
     -- *** Exercise
     -- $monadExercise
@@ -104,9 +113,6 @@ module Streamly.Tutorial
 
     -- ** Parallel Zipping
     -- $parallelzip
-
-    -- * Summary of Compositions
-    -- $compositionSummary
 
     -- * Monad transformers
     -- $monadtransformers
@@ -149,47 +155,90 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- concurrent list transformer. In contrast to the "Prelude" lists, merging or
 -- appending streams of arbitrary length is scalable and inexpensive.
 --
--- The basic stream type is 'Stream', it represents a sequence of IO actions,
--- and is a 'Monad'.  The type 'StreamT' is a monad transformer that can
--- represent a sequence of actions in an arbitrary monad. The type 'Stream' is
--- in fact a synonym for @StreamT IO@.  There are a few more types similar to
--- 'StreamT' that all represent streams and differ only in the 'Semigroup',
--- 'Applicative' and 'Monad' compositions of the streams. 'Stream' and
--- 'Costream' types compose serially whereas 'ParAhead' and 'CoparAhead' types
--- compose concurrently. All these types can be freely inter-converted using
--- type combinators without any cost. You can freely switch to any type of
--- composition at any point in the program.  When no type annotation or
--- explicit stream type combinators are used, the default stream type is
--- inferred as 'Stream'.
+-- The basic stream type is 'Serial', it represents a sequence of IO actions,
+-- and is a 'Monad'.  The 'Serial' monad is almost a drop in replacement for
+-- the 'IO' monad, IO monad is a special case of the 'Serial' monad; IO monad
+-- represents a single IO action whereas the 'Serial' monad represents a series
+-- of IO actions.  The only change you need to make to go from 'IO' to 'Serial'
+-- is to use 'runStream' to run the monad and to prefix the IO actions with
+-- either 'once' or 'liftIO'.  If you use liftIO you can switch from 'Serial'
+-- to IO monad by simply removing the 'runStream' function; no other changes
+-- are needed unless you have used some stream specific composition or
+-- combinators.
 --
--- The 'Stream' monad is almost a drop in replacement for the 'IO' monad, IO
--- monad is a special case of the 'Stream' monad; IO monad represents a single
--- IO action whereas the 'Stream' monad represents a sequence of IO actions.
--- The only change you need to make to go from 'IO' to 'Stream' is to use
--- 'runStream' to run the monad and to prefix the IO actions with 'once'. You
--- can also use 'liftIO' instead of 'once'. In fact, if you use liftIO you can
--- switch from 'Stream' to IO monad by simply removing the 'runStream'
--- function; no other changes are needed unless you have used some stream
--- specific composition or combinators.
---
--- Similarly, the 'Stream' type is almost a drop in replacement for pure lists,
+-- Similarly, the 'Serial' type is almost a drop in replacement for pure lists,
 -- pure lists are a special case of monadic streams. If you use 'nil' in place
--- of '[]' and '|:' in place ':' you can replace a list with a 'Stream'. The
+-- of '[]' and '|:' in place ':' you can replace a list with a 'Serial' The
 -- only difference is that the elements must be monadic type and to operate on
 -- the streams we must use the corresponding functions from "Streamly.Prelude"
 -- instead of using the base "Prelude".
+
+-- $flavors
+--
+-- There are a few more types similar to 'Serial' that all represent streams
+-- and differ only in the 'Semigroup', 'Applicative' and 'Monad' compositions
+-- of the streams.
+--
+-- The composition of two or more streams is distinguished based on three
+-- characterstics, /traversal order/, /execution order/ and
+-- /consumption order/. Traversal of a composition of streams could be @deep@
+-- or @wide@.  Deep goes depth first i.e.  each stream is traversed fully
+-- before we traverse the next stream. Wide goes breadth first i.e. one element
+-- from each stream is traversed before coming back to the first stream again.
+-- Execution could be serial (i.e. synchronous) or asynchronous. In serial
+-- execution we execute an action in the next stream only after the first has
+-- finished executing. In asynchronous execution actions in both streams can be
+-- executed asynchronously i.e. the next action can start executing even before
+-- the first one has finished. The third parameter is consumption order that is
+-- in what order the output generated by the composition is consumed.
+-- Consumption could be serial or asynchronous. In serial consumption, the
+-- outputs are consumed in the traversal order, in asynchronous consumption the
+-- outputs are consumed as they arrive i.e. first come first serve order.
+--
+-- The following table summarizes different styles of streams based on how they
+-- compose. All these types are monads and they differ in 'Semigroup',
+-- 'Applicative' and 'Monad' compositions:
+--
+-- @
+-- +------------+-----------+--------------+--------------+
+-- | Type       | Traversal | Execution    | Consumption  |
+-- +============+===========+==============+==============+
+-- | 'Serial'     | Deep      | Serial       | Serial       |
+-- +------------+-----------+--------------+--------------+
+-- | 'WSerial'    | Wide      | Serial       | Serial       |
+-- +------------+-----------+--------------+--------------+
+-- | 'Async'      | Deep      | Asynchronous | Asynchronous |
+-- +------------+-----------+--------------+--------------+
+-- | 'WAsync'     | Wide      | Asynchronous | Asynchronous |
+-- +------------+-----------+--------------+--------------+
+-- | 'Parallel'   | Parallel  | Asynchronous | Asynchronous |
+-- +------------+-----------+--------------+--------------+
+-- @
+--
+-- Other than these types there are also 'ZipSerial' and 'ZipAsync' types that
+-- zip streams serially or concurrently using 'Applicative' operation. These
+-- types are not monads they are only applicatives and they do not differ in
+-- 'Semigroup' composition.
+--
+-- All these types can be freely inter-converted using type conversion
+-- combinators or type annotations without any cost, to acheive the desired
+-- composition style.  To force a particular type of composition we coerce the
+-- stream type using the corresponding type adapting combinator from
+-- 'serially', 'wSerially', 'asyncly', 'wAsyncly', 'parallely', 'zipSerially'
+-- or 'zipAsyncly'. The default stream type is inferred as 'Serial' unless you
+-- change it by using one of the combinators or using a type annotation.
 
 -- $monadtransformers
 --
 -- To represent streams in an arbitrary monad use the more general monad
 -- transformer types for example the monad transformer type corresponding to
--- the 'Stream' type is 'StreamT'.  @StreamT m a@ represents a stream of values
--- of type 'a' in some underlying monad 'm'. For example, @StreamT IO Int@ is a
--- stream of 'Int' in 'IO' monad.  In fact, the type 'Stream' is a synonym for
--- @StreamT IO@.
+-- the 'Serial' type is 'SerialT'.  @SerialT m a@ represents a stream of values
+-- of type 'a' in some underlying monad 'm'. For example, @SerialT IO Int@ is a
+-- stream of 'Int' in 'IO' monad.  In fact, the type 'Serial' is a synonym for
+-- @SerialT IO@.
 --
 -- Similarly we have monad transformer types for other stream types as well viz.
--- 'CostreamT', 'ParAheadT' and 'CoparAheadT'.
+-- 'WSerialT', 'AsyncT', 'WAsyncT' and 'ParallelT'.
 --
 -- To lift a value from an underlying monad in a monad transformer stack into a
 -- singleton stream use 'lift' and to lift from an IO action use 'liftIO'.
@@ -307,17 +356,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- We can combine two streams into a single stream using semigroup composition
 -- operation '<>'.  Streams can be combined in many different ways as described
 -- in the following sections, the '<>' operation behaves differently depending
--- on the stream type in effect.  Streamly streams can be of many
--- different types i.e. 'Stream', 'Costream', 'ParAhead', 'CoparAhead',
--- 'ZipStream', and 'ZipParallel'. The first four are monads whereas the last
--- two are applicatives. These types can be freely converted from one to
--- another to acheive the desired composition style.  To force a particular
--- type of composition we coerce the stream type using the corresponding type
--- adapting combinator from 'asStream', 'asCostream', 'asParAhead',
--- 'asCoparAhead', 'asZipStream' or 'asZipParallel'. The default stream type is
--- 'Stream' unless you change it by using one of the combinators.
+-- on the stream type in effect. The stream type and therefore the composition
+-- style can be changed at any point using one of the type combinators as
+-- discussed earlier.
 --
--- To illustrate the concurrent vs serial composition aspects, we will use the
+-- To illustrate concurrent vs serial composition aspects, we will use the
 -- following @delay@ function to introduce a delay specified in seconds.
 --
 -- @
@@ -334,11 +377,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $serial
 --
--- The 'Semigroup' operation '<>' of the 'Stream' type combines the two streams
--- in a /serial depth first/ manner. We use the 'asStream' type combinator to
--- effect 'Stream' style of composition. We can also use an explicit 'Stream'
+-- The 'Semigroup' operation '<>' of the 'Serial' type combines the two streams
+-- in a /serial depth first/ manner. We use the 'serially' type combinator to
+-- effect 'Serial' style of composition. We can also use an explicit 'Serial'
 -- type annotation for the stream to acheive the same effect.  However, since
--- 'Stream' is the default type unless explicitly specified by using a
+-- 'Serial' is the default type unless explicitly specified by using a
 -- combinator, we can omit using an explicit combinator or type annotation for
 -- this style of composition.
 --
@@ -362,7 +405,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- All actions in both the streams are performed serially in the same thread.
 -- In the following example we can see that all actions are performed in the
--- same thread and take a combined total of 6 seconds:
+-- same thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
 -- main = 'runStream' $ delay 3 <> delay 2 <> delay 1
@@ -373,20 +416,20 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 36: Delay 1
 -- @
 --
--- The polymorphic version of the 'Stream' binary operation '<>' is called
--- 'splice'. We can use 'splice' to join streams in a sequential manner
+-- The polymorphic version of the binary operation '<>' of the 'Serial' type is
+-- 'serial'. We can use 'serial' to join streams in a sequential manner
 -- irrespective of the type of stream:
 --
 -- @
--- main = 'runStream' $ (print 1 |: print 2 |: nil) \`splice` (print 3 |: print 4 |: nil)
+-- main = 'runStream' $ (print 1 |: print 2 |: nil) \`serial` (print 3 |: print 4 |: nil)
 -- @
 
 -- $interleaved
 --
--- The 'Semigroup' operation '<>' of the 'Costream' type combines the two
--- streams in a /serial breadth first/ manner. We use the 'asCostream' type
--- combinator to effect 'Costream' style of composition. We can also use the
--- 'Costream' type annotation for the stream to acheive the same effect.
+-- The 'Semigroup' operation '<>' of the 'WSerial' type combines the two
+-- streams in a /serial breadth first/ manner. We use the 'wSerially' type
+-- combinator to effect 'WSerial' style of composition. We can also use the
+-- 'WSerial' type annotation for the stream to acheive the same effect.
 --
 -- When two streams with multiple elements are combined in this manner, we
 -- traverse all the streams in a breadth first manner i.e. one action from each
@@ -395,7 +438,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The following example prints the sequence 1, 3, 2, 4
 --
 -- @
--- main = 'runStream' . 'asCostream' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = 'runStream' . 'wSerially' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -407,10 +450,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Even though the monadic actions of the two streams are performed in an
 -- interleaved manner they are all performed serially in the same thread. In
 -- the following example we can see that all actions are performed in the same
--- thread and take a combined total of 6 seconds:
+-- thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
--- main = 'runStream' . 'asCostream' $ delay 3 <> delay 2 <> delay 1
+-- main = 'runStream' . 'wSerially' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -418,13 +461,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 36: Delay 1
 -- @
 --
--- The polymorphic version of the 'Costream' binary operation '<>' is called
--- 'cosplice'. We can use 'cosplice' to join streams in an interleaved manner
--- irrespective of the type, notice that we have not used the 'asCostream'
+-- The polymorphic version of the 'WSerial' binary operation '<>' is called
+-- 'wSerial'. We can use 'wSerial' to join streams in an interleaved manner
+-- irrespective of the type, notice that we have not used the 'wSerially'
 -- combinator in the following example:
 --
 -- @
--- main = 'runStream' $ (print 1 |: print 2 |: nil) \`cosplice` (print 3 |: print 4 |: nil)
+-- main = 'runStream' $ (print 1 |: print 2 |: nil) \`wSerial` (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -436,16 +479,16 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Note that this composition cannot be used to fold infinite number of streams
 -- since it requires preserving the state until a stream is finished.
 
--- $parAhead
+-- $async
 --
--- The 'Semigroup' operation '<>' of the 'ParAhead' type combines the two
+-- The 'Semigroup' operation '<>' of the 'Async' type combines the two
 -- streams in a depth first manner with parallel look ahead. We use the
--- 'asParAhead' type combinator to effect 'ParAhead' style of composition. We
--- can also use the 'ParAhead' type annotation for the stream type to acheive
+-- 'asyncly' type combinator to effect 'Async' style of composition. We
+-- can also use the 'Async' type annotation for the stream type to acheive
 -- the same effect.
 --
 -- When two streams with multiple elements are combined in this manner, the
--- streams are traversed in depth first manner just like 'Stream', however it
+-- streams are traversed in depth first manner just like 'Serial', however it
 -- can execute the next stream concurrently and return the results from it
 -- as they arrive i.e. the results from the next stream may be yielded even
 -- before the results from the first stream. Concurrent execution of the next
@@ -456,7 +499,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- therefore the first stream is completely exhausted before the second.
 --
 -- @
--- main = 'runStream' . 'asParAhead' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = 'runStream' . 'asyncly' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -470,7 +513,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- and 3 would be yielded first and then 2 and 4 would be yielded.
 --
 -- @
--- main = 'runStream' . 'asParAhead' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
+-- main = 'runStream' . 'asyncly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
 --  where p n = threadDelay 1000000 >> print n
 -- @
 -- @
@@ -482,10 +525,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- In the following example we can see that new threads are started when a
 -- computation blocks.  Notice that the output from the stream with the
--- shortest delay is printed first:
+-- shortest delay is printed first. The whole computation takes @maximum of
+-- (3, 2, 1) = 3@ seconds:
 --
 -- @
--- main = 'runStream' . 'asParAhead' $ delay 3 '<>' delay 2 '<>' delay 1
+-- main = 'runStream' . 'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -494,7 +538,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- When we have a tree of computations composed using this style, the tree is
--- traversed in DFS style just like the serial style, the only difference is
+-- traversed in DFS style just like the 'Serial' style, the only difference is
 -- that here we can move on to executing the next stream if a stream blocks.
 -- However, we will not start new threads if we have sufficient output to
 -- saturate the consumer.  This is why we call it left-biased demand driven or
@@ -504,7 +548,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- second as all of the actions are concurrent.
 --
 -- @
--- main = 'runStream' . 'asParAhead' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
+-- main = 'runStream' . 'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
 -- @
 -- @
 -- 1
@@ -521,7 +565,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- even if none of them blocks:
 --
 -- @
--- main = 'runStream' . 'asParAhead' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
+-- main = 'runStream' . 'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
 --  where traced m = S.'once' (myThreadId >>= print) >> return m
 -- @
 -- @
@@ -533,13 +577,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Note that the order of printing in the above examples may change due to
 -- variations in scheduling latencies for concurrent threads.
 --
--- The polymorphic version of the 'ParAhead' binary operation '<>' is called
--- 'parAhead'. We can use 'parAhead' to join streams in a left biased
+-- The polymorphic version of the 'Async' binary operation '<>' is called
+-- 'async'. We can use 'async' to join streams in a left biased
 -- adaptively concurrent manner irrespective of the type, notice that we have
--- not used the 'asParAhead' combinator in the following example:
+-- not used the 'asyncly' combinator in the following example:
 --
 -- @
--- main = 'runStream' $ delay 3 \`parAhead` delay 2 \`parAhead` delay 1
+-- main = 'runStream' $ delay 3 \`async` delay 2 \`async` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -555,27 +599,80 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- all computations at once for any reason 'Parallel' style must be used
 -- instead.
 --
--- 'ParAhead' style should be preferred over 'CoparAhead' unless you really
--- need 'CoparAhead'. It utilizes the resources optimally. It should be used when
--- we know that the computations can run in parallel but we do not care if they
--- actually run in parallel or not, that decision can be left to the scheduler
--- based on demand. Also, note that this operator can be used to fold infinite
--- number of streams in contrast to the 'CoparAhead' style, because it does not
--- require us to run all of them at the same time in a fair manner.
+-- 'Async' style should be preferred over 'Parallel' or 'WAsync' unless you
+-- really need those. It utilizes the resources optimally. It should be used
+-- when we know that the computations can run in parallel but we do not care if
+-- they actually run in parallel or not, that decision can be left to the
+-- scheduler based on demand. Also, note that this operator can be used to fold
+-- infinite number of streams in contrast to the 'Parallel' or 'WAsync' styles,
+-- because it does not require us to run all of them at the same time in a fair
+-- manner.
+
+-- $wasync
+--
+-- The 'Semigroup' operation '<>' of the 'WAsync' type combines two streams in
+-- a concurrent manner using /breadth first traversal/. We use the 'wAsyncly'
+-- type combinator to effect 'WAsync' style of composition. We can also use the
+-- 'WAsync' type annotation for the stream to acheive the same effect.
+--
+-- When streams with multiple elements are combined in this manner, we traverse
+-- all the streams concurrently in a breadth first manner i.e. one action from
+-- each stream is peformed and yielded to the resulting stream before we come
+-- back to the first stream again and so on. Even though we execute the actions
+-- in a breadth first order the outputs may be consumed in a different order
+-- because they are consumed on a first come first serve basis.
+--
+-- In the following example we can see that outputs are produced in the breadth
+-- first travresal order but this is not guaranteed.
+--
+-- @
+-- main = 'runStream' . 'wAsyncly' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- @
+-- @
+-- 1
+-- 3
+-- 2
+-- 4
+-- @
+--
+-- The polymorphic version of the binary operation '<>' of the 'WAsync' type is
+-- 'wAsync'.  We can use 'wAsync' to join streams using a breadth first
+-- concurrent traversal irrespective of the type, notice that we have not used
+-- the 'wAsyncly' combinator in the following example:
+--
+-- @
+-- main = 'runStream' $ delay 3 \`wAsync` delay 2 \`wAsync` delay 1
+-- @
+-- @
+-- ThreadId 42: Delay 1
+-- ThreadId 41: Delay 2
+-- ThreadId 40: Delay 3
+-- @
+--
+-- Since the concurrency provided by this style is demand driven it may not
+-- be used when the composed computations start timers that are relative to
+-- each other because all computations may not be started at the same time and
+-- therefore timers in all of them may not start at the same time.  When
+-- relative timing among all computations is important or when we need to start
+-- all computations at once for any reason 'Parallel' style must be used
+-- instead.
+--
 
 -- $parallel
 --
 -- The 'Semigroup' operation '<>' of the 'Parallel' type combines the two
 -- streams in a fairly concurrent manner with round robin scheduling. We use
--- the 'parallel' type combinator to effect 'Parallel' style of composition. We
--- can also use the 'Parallel' type annotation for the stream type to acheive
--- the same effect.
+-- the 'parallely' type combinator to effect 'Parallel' style of composition.
+-- We can also use the 'Parallel' type annotation for the stream type to
+-- acheive the same effect.
 --
 -- When two streams with multiple elements are combined in this manner, the
 -- monadic actions in both the streams are performed concurrently with a fair
 -- round robin scheduling.  The outputs are yielded in the order in which the
--- actions complete.  This can be thought of as the concurrent analogue of the
--- 'Costream' style serial composition.
+-- actions complete. This is pretty similar to the 'WAsync' type, the
+-- difference is that 'WAsync' is adaptive to the consumer demand and may or
+-- may not execute all actions in parallel depending on the demand, whereas
+-- 'Parallel' runs all the streams in parallel irrespective of the demand.
 --
 -- The following example sends a query to all the three search engines in
 -- parallel and prints the name of the search engines in the order in which the
@@ -586,7 +683,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streamly.Prelude as S
 -- import Network.HTTP.Simple
 --
--- main = 'runStream' . 'asParallel' $ google \<> bing \<> duckduckgo
+-- main = 'runStream' . 'parallely' $ google \<> bing \<> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -594,27 +691,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --         get s = S.'once' (httpNoBody (parseRequest_ s) >> putStrLn (show s))
 -- @
 --
--- In the following example we can see that the co-ahead parallel composition
--- yields outputs in the same order as the 'Costream' composition, though this
--- is not always guaranteed because of thread scheduling variances.
+-- The polymorphic version of the binary operation '<>' of the 'Parallel' type
+-- is 'parallel'. We can use 'parallel' to join streams in a fairly concurrent
+-- manner irrespective of the type, notice that we have not used the
+-- 'parallely' combinator in the following example:
 --
 -- @
--- main = 'runStream' . 'asCoparAhead' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
--- @
--- @
--- 1
--- 3
--- 2
--- 4
--- @
---
--- The polymorphic version of the 'CoparAhead' binary operation '<>' is called
--- 'coparAhead'. We can use 'coparAhead' to join streams in a fairly
--- concurrent manner irrespective of the type, notice that we have
--- not used the 'asCoparAhead' combinator in the following example:
---
--- @
--- main = 'runStream' $ delay 3 \`coparAhead` delay 2 \`coparAhead` delay 1
+-- main = 'runStream' $ delay 3 \`parallel` delay 2 \`wAsync` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -628,7 +711,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $custom
 --
--- The 'async' API can be used to create references to asynchronously running
+-- The 'mkAsync' API can be used to create references to asynchronously running
 -- stream computations. We can then use 'uncons' to explore the streams
 -- arbitrarily and then recompose individual elements to create a new stream.
 -- This way we can dynamically decide which stream to explore at any given
@@ -660,10 +743,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Control.Concurrent
 --
 -- main = do
---  'runStream' $ 'asParAhead' $ foldMap delay [1..10]
---  'runStream' $ 'foldWith'    'parAhead' (map delay [1..10])
---  'runStream' $ 'foldMapWith' 'parAhead' delay [1..10]
---  'runStream' $ 'forEachWith' 'parAhead' [1..10] delay
+--  'runStream' $ 'asyncly' $ foldMap delay [1..10]
+--  'runStream' $ 'foldWith'    'async' (map delay [1..10])
+--  'runStream' $ 'foldMapWith' 'async' delay [1..10]
+--  'runStream' $ 'forEachWith' 'async' [1..10] delay
 --  where delay n = S.'once' $ threadDelay (n * 1000000) >> print n
 -- @
 
@@ -688,18 +771,18 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- element in the first stream and for each element in the second stream
 -- execute the body of the loop.
 --
--- The 'Monad' instances of 'Stream', 'Costream', 'ParAhead' and 'CoparAhead'
+-- The 'Monad' instances of 'Serial', 'WSerial', 'Async' and 'WAsync'
 -- stream types support different flavors of nested looping.  In other words,
 -- they are all variants of list transformer.  The nesting behavior of these
--- types exactly correspond to the way they merge streams as we discussed in
+-- types correspond exactly to the way they merge streams as we discussed in
 -- the previous section.
 --
 
 -- $regularSerial
 --
--- The 'Monad' composition of 'Stream' type behaves like a standard list
+-- The 'Monad' composition of the 'Serial' type behaves like a standard list
 -- transformer. This is the default when we do not use an explicit type
--- combinator. However, the 'streamly' type combinator can be used to switch to
+-- combinator. However, the 'serially' type combinator can be used to switch to
 -- this style of composition. We will see how this style of composition works
 -- in the following examples.
 --
@@ -722,7 +805,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 30: Delay 1
 -- @
 --
--- As you can see, the code after the @fromFoldable@ statement is run three
+-- As we can see, the code after the @fromFoldable@ statement is run three
 -- times, once for each value of @x@ drawn from the stream. All the three
 -- iterations are serial and run in the same thread one after another. In
 -- imperative terms this is equivalent to a @for@ loop with three iterations.
@@ -758,27 +841,27 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- (2,4)
 -- @
 --
--- Notice that this is analogous to merging streams of type 'Stream' or merging
--- streams using 'splice'.
+-- Notice that this is analogous to merging streams of type 'Serial' or merging
+-- streams using 'serial'.
 
 -- $concurrentNesting
 --
--- The 'Monad' composition of 'ParAhead' type can perform the iterations of a
+-- The 'Monad' composition of 'Async' type can perform the iterations of a
 -- loop concurrently.  Concurrency is demand driven i.e. more concurrent
 -- iterations are started only if the previous iterations are not able to
 -- produce enough output for the consumer of the output stream.  This works
--- exactly the same way as the merging of two streams 'asParAhead' works.
--- This is the concurrent analogue of 'Stream' style monadic composition.
+-- exactly the same way as the merging of two streams 'asyncly' works.
+-- This is the concurrent analogue of 'Serial' style monadic composition.
 --
--- The 'asParAhead' type combinator can be used to switch to this
--- style of composition. Alternatively, a type annotation can be used to
--- specify the type of the stream as 'ParAhead'.
+-- The 'asyncly' type combinator can be used to switch to this style of
+-- composition. Alternatively, a type annotation can be used to specify the
+-- type of the stream as 'Async'.
 --
 -- @
 -- import "Streamly"
 -- import "Streamly.Prelude"
 --
--- main = 'runStream' . 'asParAhead' $ do
+-- main = 'runStream' . 'asyncly' $ do
 --     x <- 'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -788,24 +871,24 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 38: Delay 3
 -- @
 --
--- As you can see the code after the @fromFoldable@ statement is run three
+-- As we can see the code after the @fromFoldable@ statement is run three
 -- times, once for each value of @x@. All the three iterations are concurrent
 -- and run in different threads. The iteration with least delay finishes first.
 -- When compared to imperative programming, this can be viewed as a @for@ loop
 -- with three concurrent iterations.
 --
--- Concurrency is demand driven just as in the case of 'parAhead' merging.
+-- Concurrency is demand driven just as in the case of 'async' merging.
 -- When multiple streams are composed using this style, the iterations are
--- triggered in a DFS manner just like 'Stream' i.e. nested iterations are
+-- triggered in a depth first manner just like 'Serial' i.e. nested iterations are
 -- executed before we proceed to the next iteration at higher level. However,
--- unlike 'Stream' more than one iterations may be started concurrently based
--- on the demand from the consumer.
+-- unlike 'Serial' more than one iterations may be started concurrently based
+-- on the demand from the consumer of the stream.
 --
 -- @
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'asParAhead' $ do
+-- main = 'runStream' . 'asyncly' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'once' $ putStrLn $ show (x, y)
@@ -819,18 +902,18 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $interleavedNesting
 --
--- The 'Monad' composition of 'Costream' type interleaves the iterations of
+-- The 'Monad' composition of 'WSerial' type interleaves the iterations of
 -- outer and inner loops in a nested loop composition. This works exactly the
--- same way as the merging of two streams in 'asCostream' fashion works.  The
--- 'asCostream' type combinator can be used to switch to this style of
+-- same way as the merging of two streams in 'wSerially' fashion works.  The
+-- 'wSerially' type combinator can be used to switch to this style of
 -- composition. Alternatively, a type annotation can be used to specify the
--- type of the stream as 'Costream'.
+-- type of the stream as 'WSerial'.
 --
 -- @
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'asCostream' $ do
+-- main = 'runStream' . 'wSerially' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.once $ putStrLn $ show (x, y)
@@ -843,14 +926,42 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 
--- $fairlyConcurrentNesting
+-- $wasyncNesting
 --
--- The 'Monad' composition of 'Parallel' type starts all the iterations of a
--- loop concurrently instead of demand driven as in the case of 'ParAhead'.
--- This works exactly the same way as the merging streams 'parallely' works.
--- The 'parallely' type combinator can be used to switch to this style of
--- composition. Alternatively, a type annotation can be used to specify the
--- type of the stream as 'Parallel'.
+-- Just like 'Async' the 'Monad' composition of 'WAsync' runs the iterations of
+-- a loop concurrently. The difference is in the nested loop behavior. The
+-- nested loops in this type are traversed and executed in a breadth first
+-- manner rather than the depth first manner of 'Async' style.
+-- The loop nesting works exactly the same way as the merging of streams
+-- 'wAsyncly' works.  The 'wAsyncly' type combinator can be used to switch to
+-- this style of composition. Alternatively, a type annotation can be used to
+-- specify the type of the stream as 'WAsync'.
+--
+-- @
+-- import "Streamly"
+-- import qualified "Streamly.Prelude" as S
+--
+-- main = 'runStream' . 'wAsyncly' $ do
+--     x <- S.'fromFoldable' [1,2]
+--     y <- S.'fromFoldable' [3,4]
+--     S.'once' $ putStrLn $ show (x, y)
+-- @
+-- @
+-- (1,3)
+-- (2,3)
+-- (1,4)
+-- (2,4)
+-- @
+
+-- $parallelNesting
+--
+-- Just like 'Async' or 'WAsync' the 'Monad' composition of 'Parallel' runs the
+-- iterations of a loop concurrently. The difference is in the nested loop
+-- behavior. The streams at each nest level is run fully concurrently
+-- irrespective of the demand.  The loop nesting works exactly the same way as
+-- the merging of streams 'parallely' works.  The 'parallely' type combinator
+-- can be used to switch to this style of composition. Alternatively, a type
+-- annotation can be used to specify the type of the stream as 'Parallel'.
 --
 -- @
 -- import "Streamly"
@@ -868,7 +979,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $monadExercise
 --
--- The streamly code is usually written in a way that is agnostic of the
+-- Streamly code is usually written in a way that is agnostic of the
 -- specific monadic composition type. We use a polymorphic type with a
 -- 'IsStream' type class constraint. When running the stream we can choose the
 -- specific mode of composition. For example take a look at the following code.
@@ -894,10 +1005,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = 'runStream' . 'asStream'    $ composed
--- main = 'runStream' . 'asCostream'  $ composed
--- main = 'runStream' . 'asParAhead' $ composed
--- main = 'runStream' . 'asCoparAhead'   $ composed
+-- main = 'runStream' . 'serially'  $ composed
+-- main = 'runStream' . 'wSerially' $ composed
+-- main = 'runStream' . 'asyncly'   $ composed
+-- main = 'runStream' . 'wAsyncly'  $ composed
+-- main = 'runStream' . 'parallely' $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of
@@ -922,10 +1034,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- $applicative
 --
 -- Applicative is precisely the same as the 'ap' operation of 'Monad'. For
--- zipping applicatives separate types 'ZipStream' and 'ZipParallel' are
+-- zipping applicatives separate types 'ZipSerial' and 'ZipAsync' are
 -- provided.
 --
--- The following example uses the 'Stream' applicative, it runs all iterations
+-- The following example uses the 'Serial' applicative, it runs all iterations
 -- serially and takes a total 17 seconds (1 + 3 + 4 + 2 + 3 + 4):
 --
 -- @
@@ -937,7 +1049,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- s2 = d 3 <> d 4
 -- d n = delay n >> return n
 --
--- main = (S.'toList' . 'asStream' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . 'serially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -949,11 +1061,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- [(1,3),(1,4),(2,3),(2,4)]
 -- @
 --
--- Similalrly 'Costream' applicative runs the iterations in an interleaved
+-- Similalrly 'WSerial' applicative runs the iterations in an interleaved
 -- order but since it is serial it takes a total of 17 seconds:
 --
 -- @
--- main = (S.'toList' . 'asCostream' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . 'wSerially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 36: Delay 1
@@ -965,11 +1077,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- [(1,3),(2,3),(1,4),(2,4)]
 -- @
 --
--- 'ParAhead' can run the iterations concurrently and therefore takes a total
+-- 'Async' can run the iterations concurrently and therefore takes a total
 -- of 10 seconds (1 + 2 + 3 + 4):
 --
 -- @
--- main = (S.'toList' . 'asParAhead' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . 'asyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -981,11 +1093,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- [(1,3),(2,3),(1,4),(2,4)]
 -- @
 --
--- Similalrly 'CoparAhead' as well can run the iterations concurrently and
+-- Similalrly 'WAsync' as well can run the iterations concurrently and
 -- therefore takes a total of 10 seconds (1 + 2 + 3 + 4):
 --
 -- @
--- main = (S.'toList' . 'asCoparAhead' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . 'wAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 -- @
 -- ThreadId 34: Delay 1
@@ -995,21 +1107,6 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- ThreadId 35: Delay 4
 -- ThreadId 36: Delay 4
 -- [(1,3),(2,3),(1,4),(2,4)]
--- @
-
--- $compositionSummary
---
--- The following table summarizes the types for monadic and sum style
--- compositions.
---
--- @
--- +-----+--------------+--------------+
--- |     | Serial       | Concurrent   |
--- +=====+==============+==============+
--- | DFS | 'Stream'       | 'ParAhead'     |
--- +-----+--------------+--------------+
--- | BFS | 'Costream'     | 'CoparAhead'   |
--- +-----+--------------+--------------+
 -- @
 
 -- $zipping
@@ -1023,8 +1120,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $serialzip
 --
--- The applicative instance of 'ZipStream' type zips streams serially.
--- 'asZipStream' type combinator can be used to switch to serial applicative
+-- The applicative instance of 'ZipSerial' type zips streams serially.
+-- 'zipSerially' type combinator can be used to switch to serial applicative
 -- zip composition:
 --
 -- @
@@ -1036,7 +1133,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- s1 = 'streamly' $ d 1 <> d 2
 -- s2 = 'streamly' $ d 3 <> d 4
 --
--- main = (S.'toList' . 'asZipStream' $ (,) \<$> s1 \<*> s2) >>= print
+-- main = (S.'toList' . 'zipSerially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes total 10 seconds to zip, which is (1 + 2 + 3 + 4) since
@@ -1052,8 +1149,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $parallelzip
 --
--- The applicative instance of 'ZipParallel' type zips streams concurrently.
--- 'asZipParallel' type combinator can be used to switch to parallel applicative
+-- The applicative instance of 'ZipAsync' type zips streams concurrently.
+-- 'zipAsyncly' type combinator can be used to switch to parallel applicative
 -- zip composition:
 --
 --
@@ -1069,7 +1166,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- main = do
 --     hSetBuffering stdout LineBuffering
---     (S.'toList' . 'asZipParallel' $ (,) \<$> s1 \<*> s2) >>= print
+--     (S.'toList' . 'zipAsyncly' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
 --
 -- This takes 7 seconds to zip, which is max (1,3) + max (2,4) because 1 and 3
@@ -1093,11 +1190,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- choose the desired type of concurrency.
 --
 -- In the following example the squares of @x@ and @y@ are computed
--- concurrently using the 'parAhead' operation and the square roots of their
+-- concurrently using the 'async' operation and the square roots of their
 -- sum are computed serially because of the 'streamly' combinator. We can
 -- choose different combinators for the monadic processing and the stream
--- generation, to control the concurrency.  We can also use the 'asParAhead'
--- combinator instead of explicitly folding with 'parAhead'.
+-- generation, to control the concurrency.  We can also use the 'asyncly'
+-- combinator instead of explicitly folding with 'async'.
 --
 -- @
 -- import "Streamly"
@@ -1106,17 +1203,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- main = do
 --     z \<-   S.'toList'
---          $ 'asStream'     -- Serial monadic processing (sqrt below)
+--          $ 'serially'     -- Serial monadic processing (sqrt below)
 --          $ do
---              x2 \<- 'forEachWith' 'parAhead' [1..100] $ -- Concurrent @"for"@ loop
+--              x2 \<- 'forEachWith' 'async' [1..100] $ -- Concurrent @"for"@ loop
 --                          \\x -> return $ x * x  -- body of the loop
---              y2 \<- 'forEachWith' 'parAhead' [1..100] $
+--              y2 \<- 'forEachWith' 'async' [1..100] $
 --                          \\y -> return $ y * y
 --              return $ sqrt (x2 + y2)
 --     print $ sum z
 -- @
 --
--- You can see how this directly maps to the imperative style
+-- We can see how this directly maps to the imperative style
 -- <https://en.wikipedia.org/wiki/OpenMP OpenMP> model, we use combinators
 -- and operators instead of the ugly pragmas.
 --
@@ -1151,7 +1248,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- data Event = Harm Int | Heal Int | Quit deriving (Show)
 --
--- userAction :: MonadIO m => 'StreamT' m Event
+-- userAction :: MonadIO m => 'SerialT' m Event
 -- userAction = cycle1 $ liftIO askUser
 --     where
 --     askUser = do
@@ -1161,10 +1258,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --             "quit"   -> return  Quit
 --             _        -> putStrLn "What?" >> askUser
 --
--- acidRain :: MonadIO m => 'StreamT' m Event
+-- acidRain :: MonadIO m => 'SerialT' m Event
 -- acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
 --
--- game :: ('MonadParallel' m, MonadState Int m) => 'StreamT' m ()
+-- game :: ('MonadAsync' m, MonadState Int m) => 'SerialT' m ()
 -- game = do
 --     event \<- userAction \`parallel` acidRain
 --     case event of
@@ -1356,7 +1453,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- When it comes to concurrency, streamly can do everything that the @async@
 -- package can do and more. async provides applicative concurrency whereas
 -- streamly provides both applicative and monadic concurrency. The
--- 'ZipParallel' type behaves like the applicative instance of async.  In
+-- 'ZipAsync' type behaves like the applicative instance of async.  In
 -- comparison to transient streamly has a first class streaming interface and
 -- is a monad transformer that can be used universally in any Haskell monad
 -- transformer stack.  Streamly was in fact originally inspired by the
