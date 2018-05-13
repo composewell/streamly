@@ -40,6 +40,9 @@ module Streamly.Tutorial
     -- * Flavors of Streams
     -- $flavors
 
+    -- * Imports and Supporting Code
+    -- $imports
+
     -- * Generating Streams
     -- $generating
 
@@ -258,7 +261,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > import "Streamly"
--- > import "Streamly.Prelude" (|:)
+-- > import "Streamly.Prelude" ((|:))
 -- > import qualified "Streamly.Prelude" as S
 -- @
 --
@@ -359,16 +362,26 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- on the stream type in effect. The stream type and therefore the composition
 -- style can be changed at any point using one of the type combinators as
 -- discussed earlier.
+
+-- $imports
 --
--- To illustrate concurrent vs serial composition aspects, we will use the
--- following @delay@ function to introduce a delay specified in seconds.
+-- In most of example snippets we do not repeat the imports. Where imports are
+-- not explicitly specified use the imports shown below.
 --
 -- @
 -- import "Streamly"
--- import "Streamly.Prelude" (nil)
+-- import "Streamly.Prelude" ((|:), nil)
 -- import qualified "Streamly.Prelude" as S
--- import Control.Concurrent
 --
+-- import Control.Concurrent
+-- import Control.Monad (forever)
+-- @
+--
+-- To illustrate concurrent vs serial composition aspects, we will use the
+-- following @delay@ function to introduce a sleep or delay specified in
+-- seconds. After the delay it prints the number of seconds it slept.
+--
+-- @
 -- delay n = S.'once' $ do
 --  threadDelay (n * 1000000)
 --  tid \<- myThreadId
@@ -862,7 +875,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly.Prelude"
 --
 -- main = 'runStream' . 'asyncly' $ do
---     x <- 'fromFoldable' [3,2,1]
+--     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
 -- @
@@ -988,7 +1001,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- composed :: 'IsStream' t => t m a
+-- composed :: (IsStream t, Monad (t IO)) => t IO ()
 -- composed = do
 --     sz <- sizes
 --     cl <- colors
@@ -1130,8 +1143,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Control.Concurrent
 --
 -- d n = delay n >> return n
--- s1 = 'streamly' $ d 1 <> d 2
--- s2 = 'streamly' $ d 3 <> d 4
+-- s1 = 'serially' $ d 1 <> d 2
+-- s2 = 'serially' $ d 3 <> d 4
 --
 -- main = (S.'toList' . 'zipSerially' $ (,) \<$> s1 \<*> s2) >>= print
 -- @
@@ -1161,8 +1174,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 --
 -- d n = delay n >> return n
--- s1 = 'streamly' $ d 1 <> d 2
--- s2 = 'streamly' $ d 3 <> d 4
+-- s1 = 'serially' $ d 1 <> d 2
+-- s2 = 'serially' $ d 3 <> d 4
 --
 -- main = do
 --     hSetBuffering stdout LineBuffering
@@ -1243,6 +1256,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import Control.Concurrent (threadDelay)
 -- import Control.Monad (when)
+-- import Control.Monad.IO.Class (MonadIO(..))
 -- import Control.Monad.State (MonadState, get, modify, runStateT)
 -- import Data.Semigroup (cycle1)
 --
