@@ -16,9 +16,9 @@ main = runStream $ do
 
     -- we can just use
     -- parallely $ mconcat $ replicate n $ once (...)
-    loop :: String -> Int -> StreamT IO String
+    loop :: String -> Int -> SerialT IO String
     loop name n = do
         rnd <- once (randomIO :: IO Int)
         let result = (name ++ show rnd)
             repeat = if n > 1 then loop name (n - 1) else nil
-         in (return result) `coparAhead` repeat
+         in (return result) `wAsync` repeat

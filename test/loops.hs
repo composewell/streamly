@@ -25,14 +25,14 @@ main = do
         x <- loopHeadA 0
         once $ print (x :: Int)
 
-    putStrLn $ "\ncosplice:\n"
+    putStrLn $ "\nwSerial:\n"
     runStream $ do
-        x <- (return 0 <> return 1) `cosplice` (return 100 <> return 101)
+        x <- (return 0 <> return 1) `wSerial` (return 100 <> return 101)
         once $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
     runStream $ do
-        x <- (return 0 <> return 1) `coparAhead` (return 100 <> return 101)
+        x <- (return 0 <> return 1) `wAsync` (return 100 <> return 101)
         once $ print (x :: Int)
 
     where
@@ -43,7 +43,7 @@ main = do
 
     -- Generates a value and then loops. Can be used to generate an infinite
     -- stream. Interleaves the generator and the consumer.
-    loopTail :: Int -> Stream Int
+    loopTail :: Int -> Serial Int
     loopTail x = do
         once $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else nil)
@@ -51,7 +51,7 @@ main = do
     -- Loops and then generates a value. The consumer can run only after the
     -- loop has finished.  An infinite generator will not let the consumer run
     -- at all.
-    loopHead :: Int -> Stream Int
+    loopHead :: Int -> Serial Int
     loopHead x = do
         once $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else nil) <> return x
@@ -60,15 +60,15 @@ main = do
 -- Concurrent (multi-threaded) adaptive demand-based stream generator loops
 -------------------------------------------------------------------------------
 
-    loopTailA :: Int -> Stream Int
+    loopTailA :: Int -> Serial Int
     loopTailA x = do
         once $ putStrLn "LoopTailA..."
-        return x `parAhead` (if x < 3 then loopTailA (x + 1) else nil)
+        return x `async` (if x < 3 then loopTailA (x + 1) else nil)
 
-    loopHeadA :: Int -> Stream Int
+    loopHeadA :: Int -> Serial Int
     loopHeadA x = do
         once $ putStrLn "LoopHeadA..."
-        (if x < 3 then loopHeadA (x + 1) else nil) `parAhead` return x
+        (if x < 3 then loopHeadA (x + 1) else nil) `async` return x
 
 -------------------------------------------------------------------------------
 -- Parallel (fairly scheduled, multi-threaded) stream generator loops

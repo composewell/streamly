@@ -20,27 +20,27 @@ import qualified Streamly.Prelude as A
 singleton :: IsStream t => a -> t m a
 singleton a = a .: nil
 
-toListSerial :: StreamT IO a -> IO [a]
-toListSerial = A.toList . asStream
+toListSerial :: SerialT IO a -> IO [a]
+toListSerial = A.toList . serially
 
-toListInterleaved :: CostreamT IO a -> IO [a]
-toListInterleaved = A.toList . asCostream
+toListInterleaved :: WSerialT IO a -> IO [a]
+toListInterleaved = A.toList . wSerially
 
-toListAsync :: ParAheadT IO a -> IO [a]
-toListAsync = A.toList . asParAhead
+toListAsync :: AsyncT IO a -> IO [a]
+toListAsync = A.toList . asyncly
 
-toListParallel :: CoparAheadT IO a -> IO [a]
-toListParallel = A.toList . asCoparAhead
+toListParallel :: WAsyncT IO a -> IO [a]
+toListParallel = A.toList . wAsyncly
 
 main :: IO ()
 main = hspec $ do
     describe "Runners" $ do
         -- XXX move these to property tests
         -- XXX use an IORef to store and check the side effects
-        it "simple asStream" $
-            (runStream . asStream) (return (0 :: Int)) `shouldReturn` ()
-        it "simple asStream with IO" $
-            (runStream . asStream) (A.once $ putStrLn "hello") `shouldReturn` ()
+        it "simple serially" $
+            (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
+        it "simple serially with IO" $
+            (runStream . serially) (A.once $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ do
         it "Monoid - mempty" $
@@ -96,31 +96,31 @@ main = hspec $ do
     -- for Monoid that is using the right version of semigroup. Instance
     -- deriving can cause us to pick wrong instances sometimes.
 
-    describe "Serial interleaved (<>) ordering check" $ interleaveCheck asCostream (<>)
-    describe "Serial interleaved mappend ordering check" $ interleaveCheck asCostream mappend
+    describe "Serial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
+    describe "Serial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
 
-    describe "Parallel interleaved (<>) ordering check" $ interleaveCheck asCoparAhead (<>)
-    describe "Parallel interleaved mappend ordering check" $ interleaveCheck asCoparAhead mappend
+    describe "Parallel interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
+    describe "Parallel interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
 
-    -- describe "Parallel (<>) ordering check" $ interleaveCheck asParallel (<>)
-    -- describe "Parallel mappend ordering check" $ interleaveCheck asParallel mappend
+    -- describe "Parallel (<>) ordering check" $ interleaveCheck parallely (<>)
+    -- describe "Parallel mappend ordering check" $ interleaveCheck parallely mappend
 
-    describe "ParAhead (<>) time order check" $ parallelCheck asParAhead (<>)
-    describe "ParAhead mappend time order check" $ parallelCheck asParAhead mappend
-    describe "CoparAhead (<>) time order check" $ parallelCheck asCoparAhead (<>)
-    describe "CoparAhead mappend time order check" $ parallelCheck asCoparAhead mappend
+    describe "ParAhead (<>) time order check" $ parallelCheck asyncly (<>)
+    describe "ParAhead mappend time order check" $ parallelCheck asyncly mappend
+    describe "CoparAhead (<>) time order check" $ parallelCheck wAsyncly (<>)
+    describe "CoparAhead mappend time order check" $ parallelCheck wAsyncly mappend
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions, multiset equality checks
     ---------------------------------------------------------------------------
 
-    describe "Serial Composition" $ compose asStream mempty id
-    describe "Interleaved Composition" $ compose asCostream mempty sort
-    describe "ParAhead Composition" $ compose asParAhead mempty sort
-    describe "CoparAhead Composition" $ compose asCoparAhead mempty sort
-    describe "Parallel Composition" $ compose asParallel mempty sort
-    describe "Semigroup Composition for ZipSerial" $ compose asZipStream mempty id
-    describe "Semigroup Composition for ZipAsync" $ compose asZipParallel mempty id
+    describe "Serial Composition" $ compose serially mempty id
+    describe "Interleaved Composition" $ compose wSerially mempty sort
+    describe "ParAhead Composition" $ compose asyncly mempty sort
+    describe "CoparAhead Composition" $ compose wAsyncly mempty sort
+    describe "Parallel Composition" $ compose parallely mempty sort
+    describe "Semigroup Composition for ZipSerial" $ compose zipSerially mempty id
+    describe "Semigroup Composition for ZipAsync" $ compose zipAsyncly mempty id
     -- XXX need to check alternative compositions as well
 
     ---------------------------------------------------------------------------
@@ -128,11 +128,11 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     -- TBD need more such combinations to be tested.
-    describe "<> and <>" $ composeAndComposeSimple asStream asStream (cycle [[1 .. 9]])
+    describe "<> and <>" $ composeAndComposeSimple serially serially (cycle [[1 .. 9]])
 
     describe "<> and <=>" $ composeAndComposeSimple
-      asStream
-      asCostream
+      serially
+      wSerially
       ([ [1 .. 9]
        , [1 .. 9]
        , [1, 3, 2, 4, 6, 5, 7, 9, 8]
@@ -140,8 +140,8 @@ main = hspec $ do
        ])
 
     describe "<=> and <=>" $ composeAndComposeSimple
-      asCostream
-      asCostream
+      wSerially
+      wSerially
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 3, 7, 2, 6, 9, 5, 8]
@@ -149,8 +149,8 @@ main = hspec $ do
        ])
 
     describe "<=> and <>" $ composeAndComposeSimple
-      asCostream
-      asStream
+      wSerially
+      serially
       ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 2, 7, 3, 5, 8, 6, 9]
@@ -159,8 +159,8 @@ main = hspec $ do
 
     describe "Nested parallel and serial compositions" $ do
         let t = timed
-            p = asCoparAhead
-            s = asStream
+            p = wAsyncly
+            s = serially
         {-
         -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
         -- because of parallelism of [8,0] and [8,0].
@@ -172,7 +172,7 @@ main = hspec $ do
             `shouldReturn` ([4,4,8,8,0,0,2,2])
         -}
         it "Nest <|>, <>, <|> (2)" $
-            (A.toList . asCoparAhead) (
+            (A.toList . wAsyncly) (
                    s (p (t 4 <> t 8) <> p (t 1 <> t 2))
                 <> s (p (t 4 <> t 8) <> p (t 1 <> t 2)))
             `shouldReturn` ([4,4,8,8,1,1,2,2])
@@ -193,7 +193,7 @@ main = hspec $ do
             `shouldReturn` ([4,4,1,1,8,2,9,2])
         -}
         it "Nest <|>, <|>, <|>" $
-            (A.toList . asCoparAhead) (
+            (A.toList . wAsyncly) (
                     ((t 4 <> t 8) <> (t 0 <> t 2))
                 <> ((t 4 <> t 8) <> (t 0 <> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])
@@ -202,103 +202,103 @@ main = hspec $ do
     -- Monoidal composition recursion loops
     ---------------------------------------------------------------------------
 
-    describe "Serial loops" $ loops asStream id reverse
-    describe "ParAhead parallel loops" $ loops asParAhead sort sort
-    describe "coparAhead loops" $ loops asCoparAhead sort sort
-    describe "parallel loops" $ loops asParallel sort sort
+    describe "Serial loops" $ loops serially id reverse
+    describe "ParAhead parallel loops" $ loops asyncly sort sort
+    describe "coparAhead loops" $ loops wAsyncly sort sort
+    describe "parallel loops" $ loops parallely sort sort
 
     ---------------------------------------------------------------------------
     -- Bind and monoidal composition combinations
     ---------------------------------------------------------------------------
 
-    describe "Bind and compose Stream 1" $ bindAndComposeSimple asStream asStream
-    describe "Bind and compose Stream 2" $ bindAndComposeSimple asStream asCostream
-    describe "Bind and compose Stream 3" $ bindAndComposeSimple asStream asParAhead
-    describe "Bind and compose Stream 4" $ bindAndComposeSimple asStream asCoparAhead
-    describe "Bind and compose Stream 5" $ bindAndComposeSimple asStream asParallel
+    describe "Bind and compose Stream 1" $ bindAndComposeSimple serially serially
+    describe "Bind and compose Stream 2" $ bindAndComposeSimple serially wSerially
+    describe "Bind and compose Stream 3" $ bindAndComposeSimple serially asyncly
+    describe "Bind and compose Stream 4" $ bindAndComposeSimple serially wAsyncly
+    describe "Bind and compose Stream 5" $ bindAndComposeSimple serially parallely
 
-    describe "Bind and compose Costream 1" $ bindAndComposeSimple asCostream asStream
-    describe "Bind and compose Costream 2" $ bindAndComposeSimple asCostream asCostream
-    describe "Bind and compose Costream 3" $ bindAndComposeSimple asCostream asParAhead
-    describe "Bind and compose Costream 4" $ bindAndComposeSimple asCostream asCoparAhead
-    describe "Bind and compose Costream 5" $ bindAndComposeSimple asCostream asParallel
+    describe "Bind and compose Costream 1" $ bindAndComposeSimple wSerially serially
+    describe "Bind and compose Costream 2" $ bindAndComposeSimple wSerially wSerially
+    describe "Bind and compose Costream 3" $ bindAndComposeSimple wSerially asyncly
+    describe "Bind and compose Costream 4" $ bindAndComposeSimple wSerially wAsyncly
+    describe "Bind and compose Costream 5" $ bindAndComposeSimple wSerially parallely
 
-    describe "Bind and compose ParAhead 1" $ bindAndComposeSimple asParAhead asStream
-    describe "Bind and compose ParAhead 2" $ bindAndComposeSimple asParAhead asCostream
-    describe "Bind and compose ParAhead 3" $ bindAndComposeSimple asParAhead asParAhead
-    describe "Bind and compose ParAhead 4" $ bindAndComposeSimple asParAhead asCoparAhead
-    describe "Bind and compose ParAhead 5" $ bindAndComposeSimple asParAhead asParallel
+    describe "Bind and compose ParAhead 1" $ bindAndComposeSimple asyncly serially
+    describe "Bind and compose ParAhead 2" $ bindAndComposeSimple asyncly wSerially
+    describe "Bind and compose ParAhead 3" $ bindAndComposeSimple asyncly asyncly
+    describe "Bind and compose ParAhead 4" $ bindAndComposeSimple asyncly wAsyncly
+    describe "Bind and compose ParAhead 5" $ bindAndComposeSimple asyncly parallely
 
-    describe "Bind and compose CoparAhead 1" $ bindAndComposeSimple asCoparAhead asStream
-    describe "Bind and compose CoparAhead 2" $ bindAndComposeSimple asCoparAhead asCostream
-    describe "Bind and compose CoparAhead 3" $ bindAndComposeSimple asCoparAhead asParAhead
-    describe "Bind and compose CoparAhead 4" $ bindAndComposeSimple asCoparAhead asCoparAhead
-    describe "Bind and compose CoparAhead 5" $ bindAndComposeSimple asCoparAhead asParallel
+    describe "Bind and compose CoparAhead 1" $ bindAndComposeSimple wAsyncly serially
+    describe "Bind and compose CoparAhead 2" $ bindAndComposeSimple wAsyncly wSerially
+    describe "Bind and compose CoparAhead 3" $ bindAndComposeSimple wAsyncly asyncly
+    describe "Bind and compose CoparAhead 4" $ bindAndComposeSimple wAsyncly wAsyncly
+    describe "Bind and compose CoparAhead 5" $ bindAndComposeSimple wAsyncly parallely
 
-    describe "Bind and compose Parallel 1" $ bindAndComposeSimple asParallel asStream
-    describe "Bind and compose Parallel 2" $ bindAndComposeSimple asParallel asCostream
-    describe "Bind and compose Parallel 3" $ bindAndComposeSimple asParallel asParAhead
-    describe "Bind and compose Parallel 4" $ bindAndComposeSimple asParallel asCoparAhead
-    describe "Bind and compose Parallel 5" $ bindAndComposeSimple asParallel asParallel
+    describe "Bind and compose Parallel 1" $ bindAndComposeSimple parallely serially
+    describe "Bind and compose Parallel 2" $ bindAndComposeSimple parallely wSerially
+    describe "Bind and compose Parallel 3" $ bindAndComposeSimple parallely asyncly
+    describe "Bind and compose Parallel 4" $ bindAndComposeSimple parallely wAsyncly
+    describe "Bind and compose Parallel 5" $ bindAndComposeSimple parallely parallely
 
     let fldr, fldl :: (IsStream t, Semigroup (t IO Int)) => [t IO Int] -> t IO Int
         fldr = foldr (<>) nil
         fldl = foldl (<>) nil
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asStream asStream k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asStream asCostream k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially wSerially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asStream asParAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially asyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asStream asCoparAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially wAsyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asStream asParallel k
+        describe "Bind and compose" $ bindAndComposeHierarchy serially parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCostream asStream k
+        describe "Bind and compose" $ bindAndComposeHierarchy wSerially serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCostream asCostream k
+        describe "Bind and compose" $ bindAndComposeHierarchy wSerially wSerially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCostream asParAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy wSerially asyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCostream asCoparAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy wSerially wAsyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCostream asParallel k
+        describe "Bind and compose" $ bindAndComposeHierarchy wSerially parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParAhead asStream k
+        describe "Bind and compose" $ bindAndComposeHierarchy asyncly serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParAhead asCostream k
+        describe "Bind and compose" $ bindAndComposeHierarchy asyncly wSerially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParAhead asParAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy asyncly asyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParAhead asCoparAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy asyncly wAsyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParAhead asParallel k
+        describe "Bind and compose" $ bindAndComposeHierarchy asyncly parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCoparAhead asStream k
+        describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCoparAhead asCostream k
+        describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly wSerially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCoparAhead asParAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly asyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCoparAhead asCoparAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly wAsyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asCoparAhead asParallel k
+        describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly parallely k
 
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParallel asStream k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely serially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParallel asCostream k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely wSerially k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParallel asParAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely asyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParallel asCoparAhead k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely wAsyncly k
     forM_ [fldr, fldl] $ \k ->
-        describe "Bind and compose" $ bindAndComposeHierarchy asParallel asParallel k
+        describe "Bind and compose" $ bindAndComposeHierarchy parallely parallely k
 
     -- Nest two lists using different styles of product compositions
     it "Nests two streams using monadic serial composition" nestTwoSerial
@@ -322,20 +322,20 @@ main = hspec $ do
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
     {-
-    describe "Composed MonadError asStream" $ composeWithMonadError asStream
-    describe "Composed MonadError asCostream" $ composeWithMonadError asCostream
-    describe "Composed MonadError asParAhead" $ composeWithMonadError asParAhead
-    describe "Composed MonadError asCoparAhead" $ composeWithMonadError asCoparAhead
+    describe "Composed MonadError serially" $ composeWithMonadError serially
+    describe "Composed MonadError wSerially" $ composeWithMonadError wSerially
+    describe "Composed MonadError asyncly" $ composeWithMonadError asyncly
+    describe "Composed MonadError wAsyncly" $ composeWithMonadError wAsyncly
     -}
 
-    describe "Composed MonadThrow asStream" $ composeWithMonadThrow asStream
-    describe "Composed MonadThrow asCostream" $ composeWithMonadThrow asCostream
-    describe "Composed MonadThrow asParAhead" $ composeWithMonadThrow asParAhead
-    describe "Composed MonadThrow asCoparAhead" $ composeWithMonadThrow asCoparAhead
-    describe "Composed MonadThrow asParallel" $ composeWithMonadThrow asParallel
+    describe "Composed MonadThrow serially" $ composeWithMonadThrow serially
+    describe "Composed MonadThrow wSerially" $ composeWithMonadThrow wSerially
+    describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
+    describe "Composed MonadThrow wAsyncly" $ composeWithMonadThrow wAsyncly
+    describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
 
     it "Crosses thread limit (2000 threads)" $
-        runStream (asParAhead $ fold $
+        runStream (asyncly $ fold $
                    replicate 2000 $ A.once $ threadDelay 1000000)
         `shouldReturn` ()
 
@@ -368,7 +368,7 @@ composeWithMonadThrow
        , Semigroup (t IO Int)
        , MonadThrow (t IO)
        )
-    => (t IO Int -> StreamT IO Int) -> Spec
+    => (t IO Int -> SerialT IO Int) -> Spec
 composeWithMonadThrow t = do
     it "Compose throwM, nil" $
         (try $ tl (throwM (ExampleException "E") <> A.nil))
@@ -376,16 +376,16 @@ composeWithMonadThrow t = do
     it "Compose nil, throwM" $
         (try $ tl (A.nil <> throwM (ExampleException "E")))
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
-    oneLevelNestedSum "asStream" asStream
-    oneLevelNestedSum "asCostream" asCostream
-    oneLevelNestedSum "asParAhead" asParAhead
-    oneLevelNestedSum "asCoparAhead" asCoparAhead
+    oneLevelNestedSum "serially" serially
+    oneLevelNestedSum "wSerially" wSerially
+    oneLevelNestedSum "asyncly" asyncly
+    oneLevelNestedSum "wAsyncly" wAsyncly
     -- XXX add two level nesting
 
-    oneLevelNestedProduct "asStream"   asStream
-    oneLevelNestedProduct "asCostream" asCostream
-    oneLevelNestedProduct "asParAhead" asParAhead
-    oneLevelNestedProduct "asCoparAhead"  asCoparAhead
+    oneLevelNestedProduct "serially"   serially
+    oneLevelNestedProduct "wSerially" wSerially
+    oneLevelNestedProduct "asyncly" asyncly
+    oneLevelNestedProduct "wAsyncly"  wAsyncly
 
     where
     tl = A.toList . t
@@ -414,7 +414,7 @@ _composeWithMonadError
        , Semigroup (t (ExceptT String IO) Int)
        , MonadError String (t (ExceptT String IO))
        )
-    => (t (ExceptT String IO) Int -> StreamT (ExceptT String IO) Int) -> Spec
+    => (t (ExceptT String IO) Int -> SerialT (ExceptT String IO) Int) -> Spec
 _composeWithMonadError t = do
     let tl = A.toList . t
     it "Compose throwError, nil" $
@@ -478,7 +478,7 @@ nestTwoCoparAhead :: Expectation
 nestTwoCoparAhead =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((A.toList . asCoparAhead) (do
+    in ((A.toList . wAsyncly) (do
         x <- s1
         y <- s2
         return (x + y)
@@ -489,7 +489,7 @@ nestTwoParallel :: Expectation
 nestTwoParallel =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((A.toList . asParallel) (do
+    in ((A.toList . parallely) (do
         x <- s1
         y <- s2
         return (x + y)
@@ -500,21 +500,21 @@ nestTwoCoparAheadApp :: Expectation
 nestTwoCoparAheadApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((A.toList . asCoparAhead) ((+) <$> s1 <*> s2) >>= return . sort)
+    in ((A.toList . wAsyncly) ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoParallelApp :: Expectation
 nestTwoParallelApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((A.toList . asParallel) ((+) <$> s1 <*> s2) >>= return . sort)
+    in ((A.toList . parallely) ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
 timed x = A.once (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: IsStream t
-    => (t IO Int -> StreamT IO Int)
+    => (t IO Int -> SerialT IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 interleaveCheck t f =
@@ -523,7 +523,7 @@ interleaveCheck t f =
             `shouldReturn` ([0, 100, 1, 101])
 
 parallelCheck :: (IsStream t, Monad (t IO))
-    => (t IO Int -> StreamT IO Int)
+    => (t IO Int -> SerialT IO Int)
     -> (t IO Int -> t IO Int -> t IO Int)
     -> Spec
 parallelCheck t f = do
@@ -538,7 +538,7 @@ parallelCheck t f = do
     where event n = (A.once $ threadDelay (n * 100000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
-    => (t IO Int -> StreamT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
+    => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
 compose t z srt = do
     -- XXX these should get covered by the property tests
     it "Compose mempty, mempty" $
@@ -577,7 +577,7 @@ composeAndComposeSimple
        , Semigroup (t2 IO Int)
 #endif
        )
-    => (t1 IO Int -> StreamT IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> [[Int]] -> Spec
 composeAndComposeSimple t1 t2 answer = do
@@ -625,7 +625,7 @@ loops t tsrt hsrt = do
 
 bindAndComposeSimple
     :: ( IsStream t1, IsStream t2, Semigroup (t2 IO Int), Monad (t2 IO))
-    => (t1 IO Int -> StreamT IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> Spec
 bindAndComposeSimple t1 t2 = do
@@ -642,7 +642,7 @@ bindAndComposeSimple t1 t2 = do
 bindAndComposeHierarchy
     :: ( IsStream t1, Monad (t1 IO)
        , IsStream t2, Monad (t2 IO))
-    => (t1 IO Int -> StreamT IO Int)
+    => (t1 IO Int -> SerialT IO Int)
     -> (t2 IO Int -> t2 IO Int)
     -> ([t2 IO Int] -> t2 IO Int)
     -> Spec
@@ -659,7 +659,7 @@ bindAndComposeHierarchy t1 t2 g = do
 
     where
 
-    -- bindComposeNested :: ACoparAheadT IO Int
+    -- bindComposeNested :: WAsyncT IO Int
     bindComposeNested =
         let c1 = tripleCompose (return 1) (return 2) (return 3)
             c2 = tripleCompose (return 4) (return 5) (return 6)
@@ -686,21 +686,21 @@ mixedOps = do
                             ] :: [Int])
     where
 
-    composeMixed :: StreamT IO Int
+    composeMixed :: SerialT IO Int
     composeMixed = do
         A.once $ return ()
         A.once $ putStr ""
         x <- return 1
         y <- return 2
         z <- do
-                x1 <- asCoparAhead $ return 1 <> return 2
+                x1 <- wAsyncly $ return 1 <> return 2
                 A.once $ return ()
                 A.once $ putStr ""
-                y1 <- asParAhead $ return 1 <> return 2
+                y1 <- asyncly $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
-                    y11 <- asParAhead $ return 1 <> return 2
-                    z11 <- asCostream $ return 1 <> return 2
+                    y11 <- asyncly $ return 1 <> return 2
+                    z11 <- wSerially $ return 1 <> return 2
                     A.once $ return ()
                     A.once $ putStr ""
                     return (x11 + y11 + z11)
