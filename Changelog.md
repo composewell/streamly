@@ -73,6 +73,8 @@
     * `parallel` run two streams in parallel (replaces `<|>`)
     * `WAsyncT` stream type for BFS version of `AsyncT` composition
 * Add simpler stream types that are specialized to the IO monad
+* Put a bound (1500) on the output buffer used for asynchronous tasks
+* Put a limit (1500) on the number of threads used for Async and WAsync types
 
 ## 0.1.2
 

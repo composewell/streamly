@@ -46,6 +46,14 @@ done
 
 GAUGE_ARGS=$*
 
+if test -z "$BENCHMARK"
+then
+  BENCHMARK=$DEFAULT_BENCHMARK
+  echo "Using default benchmark suite [$BENCHMARK], use --benchmark to specify another"
+else
+  echo "Using benchmark suite [$BENCHMARK]"
+fi
+
 STACK=stack
 echo "Using stack command [$STACK]"
 
@@ -80,13 +88,6 @@ fi
 # find .stack-work/ -type f -name "benchmarks"
 
 find_bench_prog () {
-  if test -z "$BENCHMARK"
-  then
-    BENCHMARK=$DEFAULT_BENCHMARK
-    echo "Using default benchmark suite [$BENCHMARK], use --benchmark to specify another"
-  else
-    echo "Using benchmark suite [$BENCHMARK]"
-  fi
   BENCH_PROG=`$STACK path --dist-dir`/build/$BENCHMARK/$BENCHMARK
   if test ! -x "$BENCH_PROG"
   then
