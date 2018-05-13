@@ -63,8 +63,6 @@ extra-source-files:
     Changelog.md
     README.md
     bench.sh
-    charts/comparative/AllOperationsataGlance.svg
-    charts/comparative/ComposingPipelineStages.svg
     stack-7.10.yaml
     stack.yaml
 

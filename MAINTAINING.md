@@ -38,7 +38,7 @@
     * Wait for final CI tests to pass:
 
         * Create a git tag corresponding to the release where X.Y.Z is the new
-          package version (`git tag vX.Y.Z && git push -f origin v.X.Y.Z`).
+          package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Mask out the build status lines from the README
         * Upload to hackage (`stack upload .`)
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
