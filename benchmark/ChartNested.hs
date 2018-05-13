@@ -35,11 +35,11 @@ main = do
         }
 
     ignoringErr $ bgraph "charts/results.csv" "nested-serial-comparative" "time" $ cfg
-        { chartTitle = Just "Nested serial comparative (time)"
+        { chartTitle = Just "Nested serial diff (time)"
         , classifyBenchmark = \b ->
             let ls = splitOn "/" b
             in case head ls of
-                "streamly" -> Just (head ls, last ls)
+                "serially" -> Just (head ls, last ls)
                 _ -> Nothing
         , sortBenchmarks = nub
         , comparisonStyle = CompareDelta
