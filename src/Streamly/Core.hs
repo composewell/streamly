@@ -58,7 +58,6 @@ module Streamly.Core
     , SVarStyle (..)
     , newEmptySVar
     , newStreamVar1
-    , newStreamVar2
     , joinStreamVar2
     , fromStreamVar
     , toStreamVar
@@ -147,15 +146,23 @@ data SVarStyle = SVarStyle SVarTag SVarSched deriving Eq
 -- already enqueued computations get evaluated. See 'joinStreamVar2'.
 --
 data SVar m a =
-       SVar { outputQueue    :: IORef ([ChildEvent a], Int)
-            , doorBell       :: MVar () -- signal the consumer about output
-            , siren          :: MVar () -- hooter for workers to begin work
+       SVar {
+            -- Read only state
+              svarStyle      :: SVarStyle
+
+            -- Shared output queue (events, length)
+            , outputQueue    :: IORef ([ChildEvent a], Int)
+            , doorBell       :: MVar ()  -- signal the consumer about output
+            , siren          :: MVar ()  -- hooter for workers to begin work
+
+            -- Shared work queue
             , enqueue        :: Stream m a -> IO ()
-            , runqueue       :: m ()
-            , runningThreads :: IORef (Set ThreadId)
             , queueEmpty     :: m Bool
+            , runqueue       :: m ()
+
+            -- Shared, thread tracking
+            , runningThreads :: IORef (Set ThreadId)
             , activeWorkers  :: IORef Int
-            , svarStyle      :: SVarStyle
             }
 
 -- Slightly faster version of CAS. Gained some improvement by avoiding the use
@@ -302,8 +309,8 @@ doFork action exHandler =
 -- TBD Each worker can have their own queue and the consumer can empty one
 -- queue at a time, that way contention can be reduced.
 {-# INLINE send #-}
-send :: MonadIO m => SVar m a -> ChildEvent a -> m ()
-send sv msg = liftIO $ do
+send :: SVar m a -> ChildEvent a -> IO ()
+send sv msg = do
     len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
         ((msg : es, n + 1), n)
     if (len <= 0) then do
@@ -340,10 +347,13 @@ send sv msg = liftIO $ do
      else return ()
 
 {-# INLINE sendStop #-}
-sendStop :: MonadIO m => SVar m a -> m ()
-sendStop sv = liftIO myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
+sendStop :: SVar m a -> IO ()
+sendStop sv = myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
 
--- Note: Left associated compositions can grow this queue to a large size
+-- Note: For purely right associated expressions this queue should have at most
+-- one element. It grows to more than one when we have left associcated
+-- expressions. Large left associated compositions can grow this to a
+-- large size
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO :: IORef [Stream m a] -> Stream m a -> IO ()
 enqueueLIFO q m = atomicModifyIORefCAS_ q $ \ ms -> m : ms
@@ -356,10 +366,10 @@ runqueueLIFO sv q = run
     run = do
         work <- dequeue
         case work of
-            Nothing -> sendStop sv
+            Nothing -> liftIO $ sendStop sv
             Just m -> (runStream m) (Just sv) run single yield
 
-    sendit a = send sv (ChildYield a)
+    sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> run
     yield a r = sendit a >> (runStream r) (Just sv) run single yield
 
@@ -379,11 +389,11 @@ runqueueFIFO sv q = run
     run = do
         work <- dequeue
         case work of
-            Nothing -> sendStop sv
+            Nothing -> liftIO $ sendStop sv
             Just m -> (runStream m) (Just sv) run single yield
 
     dequeue = liftIO $ tryPopR q
-    sendit a = send sv (ChildYield a)
+    sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> run
     yield a r = sendit a >> liftIO (enqueueFIFO q r) >> run
 
@@ -393,8 +403,8 @@ runOne sv m = (runStream m) (Just sv) stop single yield
 
     where
 
-    stop = sendStop sv
-    sendit a = send sv (ChildYield a)
+    stop = liftIO $ sendStop sv
+    sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> stop
     yield a r = sendit a >> runOne sv r
 
@@ -442,8 +452,8 @@ allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: MonadIO m => SVar m a -> SomeException -> m ()
-handleChildException sv e = do
-    tid <- liftIO myThreadId
+handleChildException sv e = liftIO $ do
+    tid <- myThreadId
     send sv (ChildStop tid (Just e))
 
 {-# NOINLINE pushWorker #-}
@@ -475,9 +485,13 @@ sendWorkerWait sv = do
     -- If there is no output pending to process and there is no worker to be
     -- sent then we block, so that we do not keep looping fruitlessly.
 
+    -- XXX we should wait in such a way so that we can be immediately
+    -- interrupted by a doorBell.
     liftIO $ threadDelay 200
     (_, n) <- liftIO $ readIORef (outputQueue sv)
     when (n <= 0) $ do
+        -- XXX the queue may be empty temporarily if the worker has dequeued
+        -- the work item but has not enqueued the remaining part yet.
         done <- queueEmpty sv
         if not done
         then do
@@ -620,27 +634,6 @@ newStreamVar1 style m = do
     pushWorker sv
     return sv
 
--- | Create a new SVar and enqueue two stream computations on it.
-newStreamVar2 :: MonadAsync m
-    => SVarStyle -> Stream m a -> Stream m a -> m (SVar m a)
-newStreamVar2 style m1 m2 = do
-    -- Note: We must have all the work on the queue before sending the
-    -- pushworker, otherwise the pushworker may exit before we even get a
-    -- chance to push.
-    sv <- liftIO $
-        case style of
-            SVarStyle _ FIFO -> do
-                c <- getFifoSVar style
-                (enqueue c) m1 >> (enqueue c) m2
-                return c
-            SVarStyle _ LIFO -> do
-                c <- getLifoSVar style
-                (enqueue c) m2 >> (enqueue c) m1
-                return c
-            SVarStyle _ Par -> undefined
-    pushWorker sv
-    return sv
-
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 toStreamVar :: MonadAsync m => SVar m a -> Stream m a -> m ()
@@ -728,7 +721,7 @@ joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
             (runStream (fromStreamVar sv)) Nothing stp sng yld
     where
     concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ (enqueue (fromJust svr)) mb
+        liftIO $ enqueue (fromJust svr) mb
         (runStream ma) svr stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
