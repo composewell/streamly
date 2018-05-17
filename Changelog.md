@@ -1,3 +1,7 @@
+## Unreleased
+
+* Add concurrent lookahead stream type `Ahead`
+
 ## 0.2.0
 
 ### Breaking changes
