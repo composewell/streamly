@@ -65,7 +65,11 @@ module Streamly
     , SerialT
     , WSerialT
 
-    -- ** Parallel Streams
+    -- ** Concurrent Lookahead Streams
+    -- $lookahead
+    , AheadT
+
+    -- ** Concurrent Asynchronous Streams
     -- $async
     , AsyncT
     , WAsyncT
@@ -80,6 +84,7 @@ module Streamly
     -- $sum
     , serial
     , wSerial
+    , ahead
     , async
     , wAsync
     , parallel
@@ -91,6 +96,7 @@ module Streamly
     , serially
     , wSerially
     , asyncly
+    , aheadly
     , wAsyncly
     , parallely
     , zipSerially
@@ -100,6 +106,7 @@ module Streamly
     -- * IO Streams
     , Serial
     , WSerial
+    , Ahead
     , Async
     , WAsync
     , Parallel

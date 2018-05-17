@@ -52,9 +52,10 @@ main = do
     , bgroup "append"
       [ benchIOAppend "serially"   $ Ops.append serially
       , benchIOAppend "wSerially"  $ Ops.append wSerially
+      , benchIOAppend "aheadly"    $ Ops.append aheadly
       , benchIOAppend "asyncly"    $ Ops.append asyncly
       , benchIOAppend "wAsyncly"   $ Ops.append wAsyncly
-      , benchIOAppend "parallely" $ Ops.append parallely
+      , benchIOAppend "parallely"  $ Ops.append parallely
       ]
     , bgroup "compose"
       [ benchIO "mapM" Ops.composeMapM

@@ -115,6 +115,7 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Serial Composition" $ compose serially mempty id
+    describe "Ahead Composition" $ compose aheadly mempty id
     describe "WSerial Composition" $ compose wSerially mempty sort
     describe "Async Composition" $ compose asyncly mempty sort
     describe "WAsync Composition" $ compose wAsyncly mempty sort
@@ -128,7 +129,10 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     -- TBD need more such combinations to be tested.
-    describe "<> and <>" $ composeAndComposeSimple serially serially (cycle [[1 .. 9]])
+    describe "serial <> and serial <>" $ composeAndComposeSimple serially serially (cycle [[1 .. 9]])
+    describe "ahead <> and ahead <>" $ composeAndComposeSimple aheadly aheadly (cycle [[1 .. 9]])
+    describe "ahead <> and serial <>" $ composeAndComposeSimple aheadly serially (cycle [[1 .. 9]])
+    describe "serial <> and ahead <>" $ composeAndComposeSimple serially aheadly (cycle [[1 .. 9]])
 
     describe "<> and <=>" $ composeAndComposeSimple
       serially
@@ -203,6 +207,7 @@ main = hspec $ do
     ---------------------------------------------------------------------------
 
     describe "Serial loops" $ loops serially id reverse
+    describe "Ahead loops" $ loops aheadly id reverse
     describe "Async parallel loops" $ loops asyncly sort sort
     describe "WAsync loops" $ loops wAsyncly sort sort
     describe "parallel loops" $ loops parallely sort sort
@@ -216,30 +221,42 @@ main = hspec $ do
     describe "Bind and compose Stream 3" $ bindAndComposeSimple serially asyncly
     describe "Bind and compose Stream 4" $ bindAndComposeSimple serially wAsyncly
     describe "Bind and compose Stream 5" $ bindAndComposeSimple serially parallely
+    describe "Bind and compose Stream 6" $ bindAndComposeSimple serially aheadly
+
+    describe "Bind and compose Ahead Stream 0" $ bindAndComposeSimple aheadly aheadly
+    describe "Bind and compose Ahead Stream 1" $ bindAndComposeSimple aheadly serially
+    describe "Bind and compose Ahead Stream 2" $ bindAndComposeSimple aheadly wSerially
+    describe "Bind and compose Ahead Stream 3" $ bindAndComposeSimple aheadly asyncly
+    describe "Bind and compose Ahead Stream 4" $ bindAndComposeSimple aheadly wAsyncly
+    describe "Bind and compose Ahead Stream 5" $ bindAndComposeSimple aheadly parallely
 
     describe "Bind and compose Costream 1" $ bindAndComposeSimple wSerially serially
     describe "Bind and compose Costream 2" $ bindAndComposeSimple wSerially wSerially
     describe "Bind and compose Costream 3" $ bindAndComposeSimple wSerially asyncly
     describe "Bind and compose Costream 4" $ bindAndComposeSimple wSerially wAsyncly
     describe "Bind and compose Costream 5" $ bindAndComposeSimple wSerially parallely
+    describe "Bind and compose Costream 6" $ bindAndComposeSimple wSerially aheadly
 
     describe "Bind and compose Async 1" $ bindAndComposeSimple asyncly serially
     describe "Bind and compose Async 2" $ bindAndComposeSimple asyncly wSerially
     describe "Bind and compose Async 3" $ bindAndComposeSimple asyncly asyncly
     describe "Bind and compose Async 4" $ bindAndComposeSimple asyncly wAsyncly
     describe "Bind and compose Async 5" $ bindAndComposeSimple asyncly parallely
+    describe "Bind and compose Async 6" $ bindAndComposeSimple asyncly aheadly
 
     describe "Bind and compose WAsync 1" $ bindAndComposeSimple wAsyncly serially
     describe "Bind and compose WAsync 2" $ bindAndComposeSimple wAsyncly wSerially
     describe "Bind and compose WAsync 3" $ bindAndComposeSimple wAsyncly asyncly
     describe "Bind and compose WAsync 4" $ bindAndComposeSimple wAsyncly wAsyncly
     describe "Bind and compose WAsync 5" $ bindAndComposeSimple wAsyncly parallely
+    describe "Bind and compose WAsync 6" $ bindAndComposeSimple wAsyncly aheadly
 
     describe "Bind and compose Parallel 1" $ bindAndComposeSimple parallely serially
     describe "Bind and compose Parallel 2" $ bindAndComposeSimple parallely wSerially
     describe "Bind and compose Parallel 3" $ bindAndComposeSimple parallely asyncly
     describe "Bind and compose Parallel 4" $ bindAndComposeSimple parallely wAsyncly
     describe "Bind and compose Parallel 5" $ bindAndComposeSimple parallely parallely
+    describe "Bind and compose Parallel 6" $ bindAndComposeSimple parallely aheadly
 
     let fldr, fldl :: (IsStream t, Semigroup (t IO Int)) => [t IO Int] -> t IO Int
         fldr = foldr (<>) nil
@@ -255,6 +272,21 @@ main = hspec $ do
         describe "Bind and compose" $ bindAndComposeHierarchy serially wAsyncly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy serially parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose serially aheadly" $ bindAndComposeHierarchy serially aheadly k
+
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose aheadly serially" $ bindAndComposeHierarchy aheadly serially k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose aheadly wSerially" $ bindAndComposeHierarchy aheadly wSerially k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose aheadly asyncly" $ bindAndComposeHierarchy aheadly asyncly k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose aheadly wAsyncly" $ bindAndComposeHierarchy aheadly wAsyncly k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose aheadly parallely" $ bindAndComposeHierarchy aheadly parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose serially aheadly" $ bindAndComposeHierarchy aheadly aheadly k
 
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy wSerially serially k
@@ -266,6 +298,8 @@ main = hspec $ do
         describe "Bind and compose" $ bindAndComposeHierarchy wSerially wAsyncly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy wSerially parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose wserially aheadly" $ bindAndComposeHierarchy wSerially aheadly k
 
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy asyncly serially k
@@ -277,6 +311,8 @@ main = hspec $ do
         describe "Bind and compose" $ bindAndComposeHierarchy asyncly wAsyncly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy asyncly parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose asyncly aheadly" $ bindAndComposeHierarchy asyncly aheadly k
 
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly serially k
@@ -288,6 +324,8 @@ main = hspec $ do
         describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly wAsyncly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy wAsyncly parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose wAsyncly aheadly" $ bindAndComposeHierarchy wAsyncly aheadly k
 
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy parallely serially k
@@ -299,15 +337,19 @@ main = hspec $ do
         describe "Bind and compose" $ bindAndComposeHierarchy parallely wAsyncly k
     forM_ [fldr, fldl] $ \k ->
         describe "Bind and compose" $ bindAndComposeHierarchy parallely parallely k
+    forM_ [fldr, fldl] $ \k ->
+        describe "Bind and compose parallely aheadly" $ bindAndComposeHierarchy parallely aheadly k
 
     -- Nest two lists using different styles of product compositions
     it "Nests two streams using monadic serial composition" nestTwoSerial
+    it "Nests two streams using monadic ahead composition" nestTwoAhead
     it "Nests two streams using monadic interleaved composition" nestTwoInterleaved
     it "Nests two streams using monadic Async composition" nestTwoAsync
     it "Nests two streams using monadic WAsync composition" nestTwoWAsync
     it "Nests two streams using monadic parallel composition" nestTwoParallel
 
     it "Nests two streams using applicative serial composition" nestTwoSerialApp
+    it "Nests two streams using applicative ahead composition" nestTwoAheadApp
     it "Nests two streams using applicative interleaved composition" nestTwoInterleavedApp
     it "Nests two streams using applicative Async composition" nestTwoAsyncApp
     it "Nests two streams using applicative WAsync composition" nestTwoWAsyncApp
@@ -319,6 +361,7 @@ main = hspec $ do
 
     -- TBD combine all binds and all compose in one example
     describe "Miscellaneous combined examples" mixedOps
+    describe "Miscellaneous combined examples aheadly" mixedOpsAheadly
     describe "Simple MonadError and MonadThrow" simpleMonadError
 
     {-
@@ -333,10 +376,16 @@ main = hspec $ do
     describe "Composed MonadThrow asyncly" $ composeWithMonadThrow asyncly
     describe "Composed MonadThrow wAsyncly" $ composeWithMonadThrow wAsyncly
     describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
+    describe "Composed MonadThrow aheadly" $ composeWithMonadThrow aheadly
 
-    it "Crosses thread limit (2000 threads)" $
+    it "asyncly crosses thread limit (2000 threads)" $
         runStream (asyncly $ fold $
                    replicate 2000 $ A.once $ threadDelay 1000000)
+        `shouldReturn` ()
+
+    it "aheadly crosses thread limit (4000 threads)" $
+        runStream (aheadly $ fold $
+                   replicate 4000 $ A.once $ threadDelay 1000000)
         `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error
@@ -432,11 +481,28 @@ nestTwoSerial =
         return (x + y)
         ) `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
+nestTwoAhead :: Expectation
+nestTwoAhead =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in (A.toList . aheadly) (do
+        x <- s1
+        y <- s2
+        return (x + y)
+        ) `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
 nestTwoSerialApp :: Expectation
 nestTwoSerialApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
     in toListSerial ((+) <$> s1 <*> s2)
+        `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
+
+nestTwoAheadApp :: Expectation
+nestTwoAheadApp =
+    let s1 = foldMapWith (<>) return [1..4]
+        s2 = foldMapWith (<>) return [5..8]
+    in (A.toList . aheadly) ((+) <$> s1 <*> s2)
         `shouldReturn` ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoInterleaved :: Expectation
@@ -701,6 +767,36 @@ mixedOps = do
                     x11 <- return 1 <> return 2
                     y11 <- asyncly $ return 1 <> return 2
                     z11 <- wSerially $ return 1 <> return 2
+                    A.once $ return ()
+                    A.once $ putStr ""
+                    return (x11 + y11 + z11)
+                return (x1 + y1 + z1)
+        return (x + y + z)
+
+mixedOpsAheadly :: Spec
+mixedOpsAheadly = do
+    it "Compose many ops" $
+        (toListSerial composeMixed >>= return . sort)
+            `shouldReturn` ([8,9,9,9,9,9,10,10,10,10,10,10,10,10,10,10,11,11
+                            ,11,11,11,11,11,11,11,11,12,12,12,12,12,13
+                            ] :: [Int])
+    where
+
+    composeMixed :: SerialT IO Int
+    composeMixed = do
+        A.once $ return ()
+        A.once $ putStr ""
+        x <- return 1
+        y <- return 2
+        z <- do
+                x1 <- wAsyncly $ return 1 <> return 2
+                A.once $ return ()
+                A.once $ putStr ""
+                y1 <- aheadly $ return 1 <> return 2
+                z1 <- do
+                    x11 <- return 1 <> return 2
+                    y11 <- aheadly $ return 1 <> return 2
+                    z11 <- parallely $ return 1 <> return 2
                     A.once $ return ()
                     A.once $ putStr ""
                     return (x11 + y11 + z11)

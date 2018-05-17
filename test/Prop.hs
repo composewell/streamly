@@ -318,6 +318,8 @@ main = hspec $ do
         functorOps folded "serially folded" serially (==)
         functorOps A.fromFoldable "wSerially" wSerially (==)
         functorOps folded "wSerially folded" wSerially (==)
+        functorOps A.fromFoldable "aheadly" aheadly (==)
+        functorOps folded "aheadly folded" aheadly (==)
         functorOps A.fromFoldable "asyncly" asyncly sortEq
         functorOps folded "asyncly folded" asyncly sortEq
         functorOps A.fromFoldable "wAsyncly" wAsyncly sortEq
@@ -332,6 +334,7 @@ main = hspec $ do
     describe "Semigroup operations" $ do
         semigroupOps "serially" serially (==)
         semigroupOps "wSerially" wSerially (==)
+        semigroupOps "aheadly" aheadly (==)
         semigroupOps "asyncly" asyncly sortEq
         semigroupOps "wAsyncly" wAsyncly sortEq
         semigroupOps "parallely" parallely sortEq
@@ -344,6 +347,8 @@ main = hspec $ do
         -- XXX applicative with three arguments
         prop "serially applicative" $ applicativeOps A.fromFoldable serially (==)
         prop "serially applicative folded" $ applicativeOps folded serially (==)
+        prop "aheadly applicative" $ applicativeOps A.fromFoldable aheadly (==)
+        prop "aheadly applicative folded" $ applicativeOps folded aheadly (==)
         prop "wSerially applicative" $ applicativeOps A.fromFoldable wSerially sortEq
         prop "wSerially applicative folded" $ applicativeOps folded wSerially sortEq
         prop "asyncly applicative" $ applicativeOps A.fromFoldable asyncly sortEq
@@ -357,6 +362,8 @@ main = hspec $ do
         -- prop "zipAsyncly applicative" $ zipApplicative zipAsyncly (==)
         prop "zip monadic serially" $ zipMonadic A.fromFoldable serially (==)
         prop "zip monadic serially folded" $ zipMonadic folded serially (==)
+        prop "zip monadic aheadly" $ zipMonadic A.fromFoldable aheadly (==)
+        prop "zip monadic aheadly folded" $ zipMonadic folded aheadly (==)
         prop "zip monadic wSerially" $ zipMonadic A.fromFoldable wSerially (==)
         prop "zip monadic wSerially folded" $ zipMonadic folded wSerially (==)
         prop "zip monadic asyncly" $ zipMonadic A.fromFoldable asyncly (==)
@@ -368,18 +375,21 @@ main = hspec $ do
 
     describe "Monad operations" $ do
         prop "serially monad then" $ monadThen A.fromFoldable serially (==)
+        prop "aheadly monad then" $ monadThen A.fromFoldable aheadly (==)
         prop "wSerially monad then" $ monadThen A.fromFoldable wSerially sortEq
         prop "asyncly monad then" $ monadThen A.fromFoldable asyncly sortEq
         prop "wAsyncly monad then" $ monadThen A.fromFoldable wAsyncly sortEq
         prop "parallely monad then" $ monadThen A.fromFoldable parallely sortEq
 
         prop "serially monad then folded" $ monadThen folded serially (==)
+        prop "aheadly monad then folded" $ monadThen folded aheadly (==)
         prop "wSerially monad then folded" $ monadThen folded wSerially sortEq
         prop "asyncly monad then folded" $ monadThen folded asyncly sortEq
         prop "wAsyncly monad then folded" $ monadThen folded wAsyncly sortEq
         prop "parallely monad then folded" $ monadThen folded parallely sortEq
 
         prop "serially monad bind" $ monadBind A.fromFoldable serially (==)
+        prop "aheadly monad bind" $ monadBind A.fromFoldable aheadly (==)
         prop "wSerially monad bind" $ monadBind A.fromFoldable wSerially sortEq
         prop "asyncly monad bind" $ monadBind A.fromFoldable asyncly sortEq
         prop "wAsyncly monad bind" $ monadBind A.fromFoldable wAsyncly sortEq
@@ -387,6 +397,7 @@ main = hspec $ do
 
     describe "Stream transform operations" $ do
         transformOps A.fromFoldable "serially" serially (==)
+        transformOps A.fromFoldable "aheadly" aheadly (==)
         transformOps A.fromFoldable "wSerially" wSerially (==)
         transformOps A.fromFoldable "zipSerially" zipSerially (==)
         transformOps A.fromFoldable "zipAsyncly" zipAsyncly (==)
@@ -395,6 +406,7 @@ main = hspec $ do
         transformOps A.fromFoldable "parallely" parallely sortEq
 
         transformOps folded "serially folded" serially (==)
+        transformOps folded "aheadly folded" aheadly (==)
         transformOps folded "wSerially folded" wSerially (==)
         transformOps folded "zipSerially folded" zipSerially (==)
         transformOps folded "zipAsyncly folded" zipAsyncly (==)
@@ -403,6 +415,7 @@ main = hspec $ do
         transformOps folded "parallely folded" parallely sortEq
 
         transformOpsWord8 A.fromFoldable "serially" serially
+        transformOpsWord8 A.fromFoldable "aheadly" aheadly
         transformOpsWord8 A.fromFoldable "wSerially" wSerially
         transformOpsWord8 A.fromFoldable "zipSerially" zipSerially
         transformOpsWord8 A.fromFoldable "zipAsyncly" zipAsyncly
@@ -411,6 +424,7 @@ main = hspec $ do
         transformOpsWord8 A.fromFoldable "parallely" parallely
 
         transformOpsWord8 folded "serially folded" serially
+        transformOpsWord8 folded "aheadly folded" aheadly
         transformOpsWord8 folded "wSerially folded" wSerially
         transformOpsWord8 folded "zipSerially folded" zipSerially
         transformOpsWord8 folded "zipAsyncly folded" zipAsyncly
@@ -420,6 +434,7 @@ main = hspec $ do
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "serially" serially
+        eliminationOps A.fromFoldable "aheadly" aheadly
         eliminationOps A.fromFoldable "wSerially" wSerially
         eliminationOps A.fromFoldable "zipSerially" zipSerially
         eliminationOps A.fromFoldable "zipAsyncly" zipAsyncly
@@ -428,6 +443,7 @@ main = hspec $ do
         eliminationOps A.fromFoldable "parallely" parallely
 
         eliminationOps folded "serially folded" serially
+        eliminationOps folded "aheadly folded" aheadly
         eliminationOps folded "wSerially folded" wSerially
         eliminationOps folded "zipSerially folded" zipSerially
         eliminationOps folded "zipAsyncly folded" zipAsyncly
@@ -435,13 +451,15 @@ main = hspec $ do
         eliminationOps folded "wAsyncly folded" wAsyncly
         eliminationOps folded "parallely folded" parallely
 
-    describe "Stream elimination operations" $ do
+    describe "Stream serial elimination operations" $ do
         serialEliminationOps A.fromFoldable "serially" serially
+        serialEliminationOps A.fromFoldable "aheadly" aheadly
         serialEliminationOps A.fromFoldable "wSerially" wSerially
         serialEliminationOps A.fromFoldable "zipSerially" zipSerially
         serialEliminationOps A.fromFoldable "zipAsyncly" zipAsyncly
 
         serialEliminationOps folded "serially folded" serially
+        serialEliminationOps folded "aheadly folded" aheadly
         serialEliminationOps folded "wSerially folded" wSerially
         serialEliminationOps folded "zipSerially folded" zipSerially
         serialEliminationOps folded "zipAsyncly folded" zipAsyncly

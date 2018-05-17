@@ -53,6 +53,19 @@ main = do
       , benchIO "breakAfterSome" $ Ops.breakAfterSome wSerially
       ]
 
+    , bgroup "aheadly"
+      [ benchIO "append"         $ Ops.append         aheadly
+      , benchIO "toNull0"        $ Ops.toNull0        aheadly
+      , benchIO "toList0"        $ Ops.toList0        aheadly
+      , benchIO "toNull"         $ Ops.toNull         aheadly
+      , benchIO "toList"         $ Ops.toList         aheadly
+      , benchIO "toListSome"     $ Ops.toListSome     aheadly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut   aheadly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn    aheadly
+      , benchIO "filterSome"     $ Ops.filterSome     aheadly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome aheadly
+      ]
+
     , bgroup "asyncly"
       [ benchIO "append"         $ Ops.append         asyncly
       , benchIO "toNull0"        $ Ops.toNull0        asyncly

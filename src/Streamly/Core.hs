@@ -36,6 +36,7 @@ module Streamly.Core
     -- * Semigroup Style Composition
     , serial
     , wSerial
+    , ahead
     , async
     , wAsync
     , parallel
@@ -66,7 +67,7 @@ where
 
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
-                                              tryPutMVar, takeMVar)
+                                              tryPutMVar, takeMVar, putMVar)
 import           Control.Exception           (SomeException (..))
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (when)
@@ -81,6 +82,8 @@ import           Data.Atomics                (casIORef, readForCAS, peekTicket
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
                                                      tryPopR, nullQ)
 import           Data.Functor                (void)
+import           Data.Heap                   (Heap, Entry(..))
+import qualified Data.Heap                   as H
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               readIORef, atomicModifyIORef)
 import           Data.Maybe                  (isNothing, fromJust)
@@ -102,19 +105,27 @@ data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
 
+-- | Sorting out of turn outputs in a heap for Ahead style streams
+data AheadHeapEntry a =
+      AheadYieldSingle a
+    | AheadYieldMany a (MVar ())  -- value, MVar to wakeup for more values
+
 ------------------------------------------------------------------------------
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
+-- XXX this is redundant as we always start a new SVar on bind
 -- | Conjunction is used for monadic/product style composition. Disjunction is
 -- used for fold/sum style composition. We need to distinguish the two types of
 -- SVars so that the scheduling of the two is independent.
 data SVarTag = Conjunction | Disjunction deriving Eq
 
+-- XXX use a separate data structure for each type of SVar
 data SVarSched =
       LIFO             -- depth first concurrent
     | FIFO             -- breadth first concurrent
     | Par              -- all parallel
+    | SVarAhead
     deriving Eq
 
 -- | Identify the type of the SVar. Two computations using the same style can
@@ -155,7 +166,18 @@ data SVar m a =
             , doorBell       :: MVar ()  -- signal the consumer about output
             , siren          :: MVar ()  -- hooter for workers to begin work
 
+            -- Output synchronization mechanism for Ahead streams (Ahead and
+            -- wAhead). We maintain a heap of out of sequence ahead of time
+            -- generated outputs and the sequence number of the task that is
+            -- currently at the head of the stream.  Concurrent execute ahead
+            -- tasks that have a sequence number greater than the task at the
+            -- head should add their output to the heap.
+            , outputHeap    :: IORef (Heap (Entry Int (AheadHeapEntry a)), Int)
+            , heapSiren     :: MVar ()  -- hooter for workers to continue
+                                        -- adding to the heap
+
             -- Shared work queue
+            , workQueue      :: IORef ([Stream m a], Int)
             , enqueue        :: Stream m a -> IO ()
             , queueEmpty     :: m Bool
             , runqueue       :: m ()
@@ -308,6 +330,9 @@ doFork action exHandler =
 
 -- TBD Each worker can have their own queue and the consumer can empty one
 -- queue at a time, that way contention can be reduced.
+
+-- | This function is used by the producer threads to queue output for the
+-- consumer thread to consume.
 {-# INLINE send #-}
 send :: SVar m a -> ChildEvent a -> IO ()
 send sv msg = do
@@ -340,6 +365,10 @@ send sv msg = do
 sendStop :: SVar m a -> IO ()
 sendStop sv = myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
 
+-------------------------------------------------------------------------------
+-- Async
+-------------------------------------------------------------------------------
+
 -- Note: For purely right associated expressions this queue should have at most
 -- one element. It grows to more than one when we have left associcated
 -- expressions. Large left associated compositions can grow this to a
@@ -367,6 +396,10 @@ runqueueLIFO sv q = run
                 [] -> ([], Nothing)
                 x : xs -> (xs, Just x)
 
+-------------------------------------------------------------------------------
+-- WAsync
+-------------------------------------------------------------------------------
+
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO = pushL
@@ -387,6 +420,10 @@ runqueueFIFO sv q = run
     single a = sendit a >> run
     yield a r = sendit a >> liftIO (enqueueFIFO q r) >> run
 
+-------------------------------------------------------------------------------
+-- Parallel
+-------------------------------------------------------------------------------
+
 {-# INLINE runOne #-}
 runOne :: MonadIO m => SVar m a -> Stream m a -> m ()
 runOne sv m = (runStream m) (Just sv) stop single yield
@@ -397,6 +434,226 @@ runOne sv m = (runStream m) (Just sv) stop single yield
     sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> stop
     yield a r = sendit a >> runOne sv r
+
+-------------------------------------------------------------------------------
+-- Ahead
+-------------------------------------------------------------------------------
+
+-- Lookahead streams can execute multiple tasks concurrently, ahead of time but
+-- always serves them in the same order as they appear in the stream. To
+-- implement lookahead streams efficiently we assign a sequence number to each
+-- task when the task is picked up for execution. When the task finishes the
+-- output is tagged with the same sequence number and we rearrange the outputs
+-- in sequence based on that number.
+--
+-- To explain the mechanism imagine that the current task at the head of the
+-- stream has a "token" to yield to the output. The ownership of the token is
+-- determined by the current sequence number maintained in outputHeap. Sequence
+-- number is assigned when a task is queued. When a thread dequeues a task it
+-- picks up the sequence number as well and when the output is ready it uses
+-- the sequence number to queue the output to the outputQueue.
+--
+-- The thread with current sequence number sends the output directly to the
+-- outputQueue. Other threads push the output to the outputHeap. When the task
+-- being queued on the heap is a stream of many elements we yield the first
+-- element on the heap and an MVar to wakeup for more elements. When such a
+-- task gets the "token" for outputQueue it can directly keep yielding all the
+-- elements to the outputQueue without checking for the "token".
+--
+-- Note that no two outputs in the heap can have the same sequence numbers and
+-- therefore we do not need a stable heap. We have also separated the buffer
+-- for the current task (outputQueue) and the pending tasks (outputHeap) so
+-- that the pending tasks cannot interfere with the current task. Note that for
+-- a single task just the outputQueue is enough and for the case of many
+-- threads just a heap is good enough. However we balance between these two
+-- cases, so that both are efficient.
+--
+-- For bigger streams it may make sense to have separate buffers for each
+-- stream. However, for singleton streams this may become inefficient. However,
+-- if we do not have separate buffers, then the streams that come later in
+-- sequence may hog the buffer, hindering the streams that are ahead. For this
+-- reason we have a single element buffer limitation for the streams being
+-- executed in advance.
+--
+-- This scheme works pretty efficiently with only 50% more overhead compared to
+-- the Async streams where we do not have any kind of sequencing of the
+-- outputs. It is especially devised so that we are most efficient when we have
+-- short tasks and need just a single thread. Also when a thread yields many
+-- items it can hold lockfree access to the outputQueue and do it efficiently.
+--
+-- XXX Maybe we can start the ahead threads at a lower cpu and IO priority so
+-- that they do not hog the resources and hinder the progress of the threads in
+-- front of them.
+
+{-# INLINE sendToHeap #-}
+sendToHeap :: SVar m a -> AheadHeapEntry a -> Int -> IO Bool
+sendToHeap sv msg seqNo  = do
+    let maxHeapSize = 1500
+
+    -- Maybe we can use a lock instead of using CAS
+    -- insertions in the heap may be expensive if the heap is big
+    -- Note: len is valid only when added is True
+    (len, added) <- atomicModifyIORefCAS (outputHeap sv) $
+        \ref@(h, snum) ->
+            if seqNo > snum
+            then ((H.insert (Entry seqNo msg) h, snum), (H.size h, True))
+            else (ref, (0, False))
+
+    -- this is only for the case when the consumer generated siren can get
+    -- missed due to race.
+    when (len < maxHeapSize) $ void $ tryPutMVar (heapSiren sv) ()
+
+    if added
+    then do
+        when (len + 1 >= maxHeapSize) $ do
+            takeMVar (heapSiren sv)
+            (h, _) <- readIORef (outputHeap sv)
+            when (H.size h <= maxHeapSize) $ void $ tryPutMVar (siren sv) ()
+        return False
+    else do
+        case msg of
+            AheadYieldSingle a -> send sv (ChildYield a)
+            AheadYieldMany a mv -> do
+                send sv (ChildYield a)
+                putMVar mv ()
+        return True
+
+popFromHeap
+    :: IORef (Heap (Entry Int (AheadHeapEntry a)), Int)
+    -> Int
+    -> IO (Maybe (AheadHeapEntry a))
+popFromHeap hp nextSeqNo =
+    atomicModifyIORefCAS hp $ \(h, snum) -> do
+        let r = H.uncons h
+        let n = max nextSeqNo snum
+        case r of
+            Nothing -> ((h, n), Nothing)
+            Just (Entry seqNo ev, hp') ->
+                if (seqNo <= n)
+                then ((hp', seqNo), Just ev)
+                else ((h, n), Nothing)
+
+-- | As soon as we set the nextSeqNo in outputHeap we have transferred the
+-- output "token" to the thread executing the task with that sequence number.
+-- We have to make sure that there is no entry in the heap that has nextSeqNo
+-- before we set nextSeqNo as the expected sequence number in the heap.  It is
+-- possible that when we are clearing the heap entry of the current sequence
+-- number the next sequence number gets added and then we have to clear that,
+-- this can keep going on and on.
+drainHeap :: SVar m a -> Int -> IO ()
+drainHeap sv nextSeqNo = do
+    r <- popFromHeap (outputHeap sv) nextSeqNo
+    case r of
+        Nothing -> return ()
+        Just ev -> do
+            case ev of
+                AheadYieldSingle a -> do
+                    send sv (ChildYield a)
+                    atomicModifyIORefCAS_ (outputHeap sv) $ \(h, snum) ->
+                        (h, snum + 1)
+                    drainHeap sv nextSeqNo
+                AheadYieldMany a mv -> do
+                    send sv (ChildYield a)
+                    putMVar mv ()
+
+-- | The thread that has the token has the responsibility to move any pending
+-- entries in the heap to the outputQueue. When the token is assigned to a
+-- sequence number we must not have any entries for that sequence number in the
+-- heap.
+releaseToken :: SVar m a -> Int -> IO ()
+releaseToken sv nextSeqNo = do
+    drainHeap sv nextSeqNo
+    void $ tryPutMVar (heapSiren sv) ()
+
+-- | When we have the output "token" we are allowed to append to the
+-- outputQueue otherwise we have to insert the output in the outputHeap.
+-- Returns whether we still have the token.
+handleOutput :: SVar m a
+             -> Bool
+             -> Int
+             -> Int
+             -> a
+             -> AheadHeapEntry a
+             -> IO Bool
+handleOutput sv haveToken prevSeqNo seqNo a ev = do
+    if haveToken
+    then do
+        let nextSeqNo = prevSeqNo + 1
+        if seqNo == nextSeqNo
+        then send sv (ChildYield a) >> return True
+        else do
+            releaseToken sv nextSeqNo
+            toHeap
+    else toHeap
+    where toHeap = sendToHeap sv ev seqNo
+
+-- Left associated ahead expressions are expensive. We start a new SVar for
+-- each left associative expression. The queue is used only for right
+-- associated expression, we queue the right expression and execute the left.
+-- Thererefore the queue never has more than on item in it.
+{-# INLINE enqueueAhead #-}
+enqueueAhead :: IORef ([Stream m a], Int) -> Stream m a -> IO ()
+enqueueAhead q m = do
+    atomicModifyIORefCAS_ q $ \ case
+        ([], n) -> ([m], n + 1)  -- increment sequence
+        _ -> error "not empty"
+
+runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
+runqueueAhead sv q = run False (-1)
+
+    where
+
+    run haveToken prevSeqNo = do
+        work <- dequeue
+        case work of
+            Nothing -> liftIO $ do
+                when haveToken $ releaseToken sv (prevSeqNo + 1)
+                sendStop sv
+            Just (m, seqNo) -> do
+                let tStatus = haveToken || seqNo == 0
+                let stop = do
+                        let nextSeqNo = prevSeqNo + 1
+                        if tStatus && seqNo /= nextSeqNo
+                        then do
+                            liftIO $ releaseToken sv nextSeqNo
+                            run False seqNo
+                        else run tStatus seqNo
+                let single a = do
+                        tokenStatus <- liftIO $
+                            handleOutput sv tStatus prevSeqNo seqNo a
+                                         (AheadYieldSingle a)
+                        run tokenStatus seqNo
+
+                -- If we are yielding more than one item and we do not have the
+                -- token then we insert the current item in the pending
+                -- outputHeap and wait for our turn.
+                let
+                    stopNext = run True seqNo
+                    singleNext a = do
+                        liftIO $ send sv (ChildYield a)
+                        run True seqNo
+                    yieldNext a r = do
+                        liftIO $ send sv (ChildYield a)
+                        (runStream r) (Just sv) stopNext singleNext yieldNext
+
+                    yield a r = do
+                        -- XXX we can allocate the MVar when actually inserting
+                        -- in the heap and then return it.
+                        liftIO $ do
+                            mv <- newEmptyMVar
+                            gotToken <-
+                                handleOutput sv tStatus prevSeqNo seqNo a
+                                             (AheadYieldMany a mv)
+                            when (not gotToken) $ void $ takeMVar mv
+                        (runStream r) (Just sv) stopNext singleNext yieldNext
+
+                (runStream m) (Just sv) stop single yield
+
+    dequeue = liftIO $ do
+        atomicModifyIORefCAS q $ \case
+                ([], n) -> (([], n), Nothing)
+                (x : [], n) -> (([], n), Just (x, n))
+                _ -> error "more than one item on queue"
 
 -- Thread tracking is needed for two reasons:
 --
@@ -481,7 +738,9 @@ sendWorkerWait sv = do
     (_, n) <- liftIO $ readIORef (outputQueue sv)
     when (n <= 0) $ do
         -- XXX the queue may be empty temporarily if the worker has dequeued
-        -- the work item but has not enqueued the remaining part yet.
+        -- the work item but has not enqueued the remaining part yet. For the
+        -- same reason, a worker may come back if it tries to dequeue when the
+        -- queue is empty, even though the whole work has not finished yet.
         done <- queueEmpty sv
         if not done
         then do
@@ -553,7 +812,10 @@ getFifoSVar ctype = do
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
                  , siren          = hooter
+                 , outputHeap     = undefined
+                 , heapSiren      = undefined
                  , runningThreads = running
+                 , workQueue      = undefined
                  , runqueue       = runqueueFIFO sv q
                  , enqueue        = pushL q
                  , queueEmpty     = liftIO $ nullQ q
@@ -575,7 +837,10 @@ getLifoSVar ctype = do
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
                  , siren          = hooter
+                 , outputHeap     = undefined
+                 , heapSiren      = undefined
                  , runningThreads = running
+                 , workQueue      = undefined
                  , runqueue       = runqueueLIFO sv q
                  , enqueue        = enqueueLIFO q
                  , queueEmpty     = checkEmpty
@@ -595,10 +860,42 @@ getParSVar style = do
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
                  , siren          = hooter
+                 , outputHeap     = undefined
+                 , heapSiren      = undefined
                  , runningThreads = running
+                 , workQueue      = undefined
                  , runqueue       = undefined
                  , enqueue        = undefined
                  , queueEmpty     = undefined
+                 , svarStyle      = style
+                 , activeWorkers  = active
+                 }
+     in return sv
+
+getAheadSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getAheadSVar style = do
+    outQ    <- newIORef ([], 0)
+    outH    <- newIORef (H.empty, 0)
+    outQMv  <- newEmptyMVar
+    hooter  <- newEmptyMVar
+    hsiren  <- newEmptyMVar
+    active  <- newIORef 0
+    running <- newIORef S.empty
+    q <- newIORef ([], -1)
+    let checkEmpty = liftIO $ do
+                        (xs, _) <- readIORef q
+                        return $ null xs
+    let sv =
+            SVar { outputQueue    = outQ
+                 , doorBell       = outQMv
+                 , siren          = hooter
+                 , outputHeap     = outH
+                 , heapSiren      = hsiren
+                 , runningThreads = running
+                 , workQueue      = q
+                 , runqueue       = runqueueAhead sv q
+                 , enqueue        = undefined
+                 , queueEmpty     = checkEmpty
                  , svarStyle      = style
                  , activeWorkers  = active
                  }
@@ -612,6 +909,7 @@ newEmptySVar style = do
             SVarStyle _ FIFO -> getFifoSVar style
             SVarStyle _ LIFO -> getLifoSVar style
             SVarStyle _ Par -> getParSVar style
+            SVarStyle _ SVarAhead -> getAheadSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
 newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
@@ -621,6 +919,17 @@ newStreamVar1 style m = do
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
     liftIO $ (enqueue sv) m
+    pushWorker sv
+    return sv
+
+-- | Create a new SVar and enqueue one stream computation on it.
+newStreamVarAhead :: MonadAsync m => Stream m a -> m (SVar m a)
+newStreamVarAhead m = do
+    sv <- newEmptySVar (SVarStyle Disjunction SVarAhead)
+    -- Note: We must have all the work on the queue before sending the
+    -- pushworker, otherwise the pushworker may exit before we even get a
+    -- chance to push.
+    liftIO $ enqueueAhead (workQueue sv) m
     pushWorker sv
     return sv
 
@@ -726,6 +1035,25 @@ joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
             pushWorkerPar sv m1
             pushWorkerPar sv m2
             (runStream (fromStreamVar sv)) Nothing stp sng yld
+
+{-# INLINE ahead #-}
+ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+ahead m1 m2 = Stream $ \svr stp sng yld -> do
+    let style = SVarStyle Disjunction SVarAhead
+    case svr of
+        Just sv | svarStyle sv == style -> do
+            liftIO $ enqueueAhead (workQueue sv) m2
+            -- Always run the left side on a new SVar to avoid complexity in
+            -- sequencing results. This means the left side cannot further
+            -- split into more ahead computations on the same SVar.
+            (runStream m1) Nothing stp sng yld
+        _ -> do
+            sv <- newStreamVarAhead (concurrently m1 m2)
+            (runStream (fromStreamVar sv)) Nothing stp sng yld
+    where
+    concurrently ma mb = Stream $ \svr stp sng yld -> do
+        liftIO $ enqueueAhead (workQueue (fromJust svr)) mb
+        (runStream ma) Nothing stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
