@@ -142,7 +142,7 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall
+  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N4
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -169,7 +169,7 @@ test-suite properties
   type: exitcode-stdio-1.0
   main-is: Prop.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall
+  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N4
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
