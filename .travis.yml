@@ -121,8 +121,8 @@ matrix:
 
   # Note COVERALLS (hpc-coveralls) works only with cabal build.
   # For this to succeed you have to add your project to coveralls.io first
-  - env: BUILD=cabal CABALVER=2.0 GHCVER=8.2.2 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops"
-    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal CABALVER=2.0 GHCVER=8.2.2 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops"
+  #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
   # Builds that are allowed to fail
