@@ -25,8 +25,6 @@ module Streamly.Streams
     , S.MonadAsync
 
     -- * SVars
-    , SVarSched (..)
-    , SVarTag (..)
     , SVarStyle (..)
     , SVar
     , S.newEmptySVar
@@ -121,9 +119,8 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
-import           Streamly.Core               ( MonadAsync
-                                             , SVar, SVarStyle(..)
-                                             , SVarTag(..), SVarSched(..))
+import           Streamly.Core               ( MonadAsync , SVar,
+                                               SVarStyle(..))
 import qualified Streamly.Core as S
 
 ------------------------------------------------------------------------------
@@ -300,7 +297,7 @@ toSVar sv m = S.toStreamVar sv (toStream m)
 -- @since 0.2.0
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync m = do
-    sv <- S.newStreamVar1 (SVarStyle Disjunction LIFO) (toStream m)
+    sv <- S.newStreamVar1 AsyncVar (toStream m)
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------

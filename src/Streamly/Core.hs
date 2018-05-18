@@ -54,8 +54,6 @@ module Streamly.Core
 
     -- * Concurrent Stream Vars (SVars)
     , SVar
-    , SVarSched (..)
-    , SVarTag (..)
     , SVarStyle (..)
     , newEmptySVar
     , newStreamVar1
@@ -114,23 +112,15 @@ data AheadHeapEntry a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
--- XXX this is redundant as we always start a new SVar on bind
--- | Conjunction is used for monadic/product style composition. Disjunction is
--- used for fold/sum style composition. We need to distinguish the two types of
--- SVars so that the scheduling of the two is independent.
-data SVarTag = Conjunction | Disjunction deriving Eq
-
 -- XXX use a separate data structure for each type of SVar
-data SVarSched =
-      LIFO             -- depth first concurrent
-    | FIFO             -- breadth first concurrent
-    | Par              -- all parallel
-    | SVarAhead
-    deriving Eq
-
 -- | Identify the type of the SVar. Two computations using the same style can
 -- be scheduled on the same SVar.
-data SVarStyle = SVarStyle SVarTag SVarSched deriving Eq
+data SVarStyle =
+      AsyncVar             -- depth first concurrent
+    | WAsyncVar            -- breadth first concurrent
+    | ParallelVar          -- all parallel
+    | AheadVar             -- Concurrent look ahead
+    deriving Eq
 
 -- | An SVar or a Stream Var is a conduit to the output from multiple streams
 -- running concurrently and asynchronously. An SVar can be thought of as an
@@ -756,8 +746,7 @@ sendWorkerWait sv = do
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
-    let SVarStyle _ sched = svarStyle sv
-    if sched == Par
+    if svarStyle sv == ParallelVar
     then liftIO $ takeMVar (doorBell sv)
     else do
         res <- liftIO $ tryTakeMVar (doorBell sv)
@@ -906,10 +895,10 @@ newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
 newEmptySVar style = do
     liftIO $
         case style of
-            SVarStyle _ FIFO -> getFifoSVar style
-            SVarStyle _ LIFO -> getLifoSVar style
-            SVarStyle _ Par -> getParSVar style
-            SVarStyle _ SVarAhead -> getAheadSVar style
+            WAsyncVar -> getFifoSVar style
+            AsyncVar -> getLifoSVar style
+            ParallelVar -> getParSVar style
+            AheadVar -> getAheadSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
 newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
@@ -925,7 +914,7 @@ newStreamVar1 style m = do
 -- | Create a new SVar and enqueue one stream computation on it.
 newStreamVarAhead :: MonadAsync m => Stream m a -> m (SVar m a)
 newStreamVarAhead m = do
-    sv <- newEmptySVar (SVarStyle Disjunction SVarAhead)
+    sv <- newEmptySVar AheadVar
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
@@ -1039,9 +1028,8 @@ joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
 {-# INLINE ahead #-}
 ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 ahead m1 m2 = Stream $ \svr stp sng yld -> do
-    let style = SVarStyle Disjunction SVarAhead
     case svr of
-        Just sv | svarStyle sv == style -> do
+        Just sv | svarStyle sv == AheadVar -> do
             liftIO $ enqueueAhead (workQueue sv) m2
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
@@ -1061,15 +1049,15 @@ ahead m1 m2 = Stream $ \svr stp sng yld -> do
 
 {-# INLINE async #-}
 async :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-async = joinStreamVar2 (SVarStyle Disjunction LIFO)
+async = joinStreamVar2 AsyncVar
 
 {-# INLINE wAsync #-}
 wAsync :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-wAsync = joinStreamVar2 (SVarStyle Disjunction FIFO)
+wAsync = joinStreamVar2 WAsyncVar
 
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallel = joinStreamVarPar (SVarStyle Disjunction Par)
+parallel = joinStreamVarPar ParallelVar
 
 -------------------------------------------------------------------------------
 -- Functor instace is the same for all types
@@ -1107,7 +1095,7 @@ zipWith f m1 m2 = go m1 m2
         (runStream mx) Nothing stp single1 yield1
 
 mkAsync :: MonadAsync m => Stream m a -> m (Stream m a)
-mkAsync m = newStreamVar1 (SVarStyle Disjunction LIFO) m
+mkAsync m = newStreamVar1 AsyncVar m
     >>= return . fromStreamVar
 
 zipAsyncWith :: MonadAsync m
