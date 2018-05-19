@@ -1324,13 +1324,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streamly.Prelude as S
 -- import qualified Data.Vector.Fusion.Stream.Monadic as V
 --
--- main = do
---     -- streamly to vector
---     V.toList (V.unfoldrM S.uncons (S.fromFoldable [1..3])) >>= print
---
---     -- vector to streamly
---     S.toList (S.unfoldrM unconsV (V.fromList [1..3])) >>= print
---
+-- -- | vector to streamly
+-- fromVector :: (IsStream t, Monad m) => V.Stream m a -> t m a
+-- fromVector = S.unfoldrM unconsV
 --     where
 --     unconsV v = do
 --         r <- V.null v
@@ -1339,6 +1335,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --         else do
 --             h <- V.head v
 --             return $ Just (h, V.tail v)
+--
+-- -- | streamly to vector
+-- toVector :: Monad m => SerialT m a -> V.Stream m a
+-- toVector = V.unfoldrM (S.uncons . adapt)
+--
+-- main = do
+--     S.toList (fromVector (V.fromList [1..3]))   >>= print
+--     V.toList (toVector (S.fromFoldable [1..3])) >>= print
 -- @
 --
 --  Interop with @pipes@:
@@ -1349,19 +1353,23 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Pipes as P
 -- import qualified Pipes.Prelude as P
 --
--- main = do
---     -- streamly to pipe
---     P.toListM (P.unfoldr unconsS (S.'fromFoldable' [1..3])) >>= print
---
---     -- pipe to streamly
---     S.'toList' (S.'unfoldrM' unconsP (P.each [1..3])) >>= print
---
+-- -- | pipes to streamly
+-- fromPipes :: (IsStream t, Monad m) => P.Producer a m r -> t m a
+-- fromPipes = S.'unfoldrM' unconsP
 --     where
 --     -- Adapt P.next to return a Maybe instead of Either
 --     unconsP p = P.next p >>= either (\\_ -> return Nothing) (return . Just)
 --
+-- -- | streamly to pipes
+-- toPipes :: Monad m => SerialT m a -> P.Producer a m ()
+-- toPipes = P.unfoldr unconsS
+--     where
 --     -- Adapt S.uncons to return an Either instead of Maybe
 --     unconsS s = S.'uncons' s >>= maybe (return $ Left ()) (return . Right)
+--
+-- main = do
+--     S.'toList' (fromPipes (P.each [1..3])) >>= print
+--     P.toListM (toPipes (S.'fromFoldable' [1..3])) >>= print
 -- @
 --
 -- Interop with @streaming@:
@@ -1372,17 +1380,20 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streaming as SG
 -- import qualified Streaming.Prelude as SG
 --
--- main = do
---     -- streamly to streaming
---     SG.toList (SG.unfoldr unconsS (S.'fromFoldable' [1..3])) >>= print
+-- -- | streaming to streamly
+-- fromStreaming :: (IsStream t, Monad m) => SG.Stream (SG.Of a) m r -> t m a
+-- fromStreaming = S.unfoldrM SG.uncons
 --
---     -- streaming to streamly
---     S.'toList' (S.unfoldrM SG.uncons (SG.each [1..3])) >>= print
---
+-- -- | streamly to streaming
+-- toStreaming :: Monad m => SerialT m a -> SG.Stream (SG.Of a) m ()
+-- toStreaming = SG.unfoldr unconsS
 --     where
---
 --     -- Adapt S.uncons to return an Either instead of Maybe
 --     unconsS s = S.'uncons' s >>= maybe (return $ Left ()) (return . Right)
+--
+-- main = do
+--     S.toList (fromStreaming (SG.each [1..3])) >>= print
+--     SG.toList (toStreaming (S.fromFoldable [1..3])) >>= print
 -- @
 --
 -- Interop with @conduit@:
@@ -1394,12 +1405,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Data.Conduit.List as C
 -- import qualified Data.Conduit.Combinators as C
 --
--- main = do
---  -- streamly to conduit
---  C.runConduit (C.unfoldM S.'uncons' (S.'fromFoldable' [1..3]) C..| C.sinkList) >>= print
+-- -- It seems there is no way out of a conduit as it does not provide an
+-- -- uncons or a tail function. We can convert streamly to conduit though.
 --
---  -- It seems there is no way out of a conduit as it does not provide an
---  -- uncons or a tail function.
+-- -- | streamly to conduit
+-- toConduit :: Monad m => SerialT m a -> C.ConduitT i a m ()
+-- toConduit s = C.unfoldM S.'uncons' s
+--
+-- main = do
+--  C.runConduit (toConduit (S.'fromFoldable' [1..3]) C..| C.sinkList) >>= print
 -- @
 
 -- $comparison
