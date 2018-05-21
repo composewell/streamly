@@ -55,6 +55,7 @@ module Streamly.Prelude
     , iterate
     , iterateM
     , fromFoldable
+    , fromFoldableM
 
     -- * Deconstruction
     , uncons
@@ -145,6 +146,7 @@ import           Streamly.Streams
 -- | Build a Stream by unfolding pure steps starting from a seed.
 --
 -- @since 0.1.0
+{-# INLINE unfoldr #-}
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step = fromStream . go
     where
@@ -156,6 +158,7 @@ unfoldr step = fromStream . go
 -- | Build a Stream by unfolding monadic steps starting from a seed.
 --
 -- @since 0.1.0
+{-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = fromStream . go
     where
@@ -165,12 +168,19 @@ unfoldrM step = fromStream . go
             Nothing -> stp
             Just (a, b) -> yld a (go b)
 
--- | Construct a stream from a 'Foldable' container.
+-- | Construct a stream from a 'Foldable' containing pure values.
 --
 -- @since 0.2.0
 {-# INLINE fromFoldable #-}
 fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = Prelude.foldr cons nil
+
+-- | Construct a stream from a 'Foldable' containing monadic actions.
+--
+-- @since 0.3.0
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: (IsStream t, Monad m, Foldable f) => f (m a) -> t m a
+fromFoldableM = Prelude.foldr consM nil
 
 -- | Same as 'fromFoldable'.
 --
@@ -294,7 +304,8 @@ foldrM step acc m = go (toStream m)
 -- @since 0.2.0
 {-# INLINE scanx #-}
 scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx step begin done m = cons (done begin) $ fromStream $ go (toStream m) begin
+scanx step begin done m =
+    cons (done begin) $ fromStream $ go (toStream m) begin
     where
     go m1 !acc = Stream $ \_ stp sng yld ->
         let single a = sng (done $ step acc a)

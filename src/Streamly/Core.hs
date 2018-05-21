@@ -228,20 +228,21 @@ newtype Stream m a =
 nil :: Stream m a
 nil = Stream $ \_ stp _ _ -> stp
 
-once :: Monad m => m a -> Stream m a
-once m = Stream $ \_ _ single _ -> m >>= single
+-- | faster than consM because there is no bind.
+cons :: a -> Stream m a -> Stream m a
+cons a r = Stream $ \_ _ _ yld -> yld a r
 
-{-# INLINE singleton #-}
--- | Same as @once . return@
+-- | Same as @once . return@ but may be faster because there is no bind
 singleton :: a -> Stream m a
 singleton a = Stream $ \_ _ single _ -> single a
 
+{-# INLINE once #-}
+once :: Monad m => m a -> Stream m a
+once m = Stream $ \_ _ single _ -> m >>= single
+
+{-# INLINE consM #-}
 consM :: Monad m => m a -> Stream m a -> Stream m a
 consM m r = Stream $ \_ _ _ yld -> m >>= \a -> yld a r
-
--- | Same as @consM . return@
-cons :: a -> Stream m a -> Stream m a
-cons a r = Stream $ \_ _ _ yld -> yld a r
 
 repeat :: a -> Stream m a
 repeat a = let x = cons a x in x
@@ -252,6 +253,7 @@ repeat a = let x = cons a x in x
 
 -- | Concatenates two streams sequentially i.e. the first stream is
 -- exhausted completely before yielding any element from the second stream.
+{-# INLINE serial #-}
 serial :: Stream m a -> Stream m a -> Stream m a
 serial m1 m2 = go m1
     where
@@ -276,6 +278,7 @@ instance Monoid (Stream m a) where
 -- Interleave
 ------------------------------------------------------------------------------
 
+{-# INLINE wSerial #-}
 wSerial :: Stream m a -> Stream m a -> Stream m a
 wSerial m1 m2 = Stream $ \_ stp sng yld -> do
     let stop      = (runStream m2) Nothing stp sng yld

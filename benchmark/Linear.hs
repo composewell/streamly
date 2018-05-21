@@ -15,13 +15,16 @@ import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
-benchIO :: (NFData b) => String -> (Ops.Stream m Int -> IO b) -> Benchmark
+benchIO :: NFData b => String -> (Ops.Stream m Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
+
+benchSrcIO :: String -> (Int -> Ops.Stream IO Int) -> Benchmark
+benchSrcIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= Ops.toNull . f
 
 benchIOAppend :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIOAppend name f = bench name $ nfIO $ randomRIO (1,1000) >>= f
 
-_benchId :: (NFData b) => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
+_benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 
 main :: IO ()
@@ -29,6 +32,10 @@ main = do
   defaultMain
     [ bgroup "elimination"
       [ benchIO "toNull" Ops.toNull
+      , benchSrcIO "fromFoldable" Ops.sourceFromFoldable
+      , benchSrcIO "fromFoldableM" Ops.sourceFromFoldableM
+      , benchSrcIO "foldMapWith" Ops.sourceFoldMapWith
+      , benchSrcIO "unfoldrM" Ops.sourceUnfoldrM
       , benchIO "toList" Ops.toList
       , benchIO "fold" Ops.foldl
       , benchIO "last" Ops.last

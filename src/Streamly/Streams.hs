@@ -190,7 +190,7 @@ infixr 5 |:
 infixr 5 `cons`
 
 -- | Construct a stream by adding a pure value at the head of an existing
--- stream. Same as @consM . return@. For example:
+-- stream. For pure values it can be faster than 'consM'. For example:
 --
 -- @
 -- > toList $ 1 \`cons` 2 \`cons` 3 \`cons` nil

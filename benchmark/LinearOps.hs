@@ -9,7 +9,7 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe, Monoid, foldMap)
+        subtract, undefined, Maybe(..), Monoid, foldMap)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -61,8 +61,33 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 
 type Stream m a = S.SerialT m a
 
+{-# INLINE source #-}
 source :: Int -> Stream m Int
-source n = S.fromFoldable [n..n+value]
+source n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + value
+        then Nothing
+        else (Just (cnt, cnt + 1))
+
+sourceFromFoldable :: Int -> Stream m Int
+sourceFromFoldable n = S.fromFoldable [n..n+value]
+
+{-# INLINE sourceFromFoldableM #-}
+sourceFromFoldableM :: Monad m => Int -> Stream m Int
+sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
+
+sourceFoldMapWith :: Monad m => Int -> Stream m Int
+sourceFoldMapWith n = S.foldMapWith S.serial return [n..n+value]
+
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: Monad m => Int -> Stream m Int
+sourceUnfoldrM n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()

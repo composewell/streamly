@@ -1,6 +1,7 @@
 ## Unreleased
 
 * Add concurrent lookahead stream type `Ahead`
+* Add `fromFoldableM` to create a stream from a container of monadic actions
 
 ## 0.2.0
 

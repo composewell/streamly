@@ -29,7 +29,12 @@ type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
 source :: S.IsStream t => Int -> Int -> t m Int
-source start n = S.fromFoldable [start..start+n]
+source start n = S.unfoldr step start
+    where
+    step cnt =
+        if cnt > start + n
+        then Nothing
+        else (Just (cnt, cnt + 1))
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
