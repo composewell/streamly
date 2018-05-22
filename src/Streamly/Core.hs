@@ -57,7 +57,7 @@ module Streamly.Core
     , SVarStyle (..)
     , newEmptySVar
     , newStreamVar1
-    , joinStreamVar2
+    , joinStreamVarAsync
     , fromStreamVar
     , toStreamVar
     )
@@ -144,7 +144,7 @@ data SVarStyle =
 --
 -- New work is enqueued either at the time of creation of the SVar or as a
 -- result of executing the parallel combinators i.e. '<|' and '<|>' when the
--- already enqueued computations get evaluated. See 'joinStreamVar2'.
+-- already enqueued computations get evaluated. See 'joinStreamVarAsync'.
 --
 data SVar m a =
        SVar {
@@ -978,9 +978,9 @@ toStreamVar sv m = do
 -- execution.  When we are using parallel composition, an SVar is passed around
 -- as a state variable. We try to schedule a new parallel computation on the
 -- SVar passed to us. The first time, when no SVar exists, a new SVar is
--- created.  Subsequently, 'joinStreamVar2' may get called when a computation
+-- created.  Subsequently, 'joinStreamVarAsync' may get called when a computation
 -- already scheduled on the SVar is further evaluated. For example, when (a
--- `parallel` b) is evaluated it calls a 'joinStreamVar2' to put 'a' and 'b' on
+-- `parallel` b) is evaluated it calls a 'joinStreamVarAsync' to put 'a' and 'b' on
 -- the current scheduler queue.
 --
 -- The 'SVarStyle' required by the current composition context is passed as one
@@ -1000,10 +1000,10 @@ toStreamVar sv m = do
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
 --
-{-# INLINE joinStreamVar2 #-}
-joinStreamVar2 :: MonadAsync m
+{-# INLINE joinStreamVarAsync #-}
+joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVar2 style m1 m2 = Stream $ \svr stp sng yld ->
+joinStreamVarAsync style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) svr stp sng yld
@@ -1052,11 +1052,11 @@ ahead m1 m2 = Stream $ \svr stp sng yld -> do
 
 {-# INLINE async #-}
 async :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-async = joinStreamVar2 AsyncVar
+async = joinStreamVarAsync AsyncVar
 
 {-# INLINE wAsync #-}
 wAsync :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-wAsync = joinStreamVar2 WAsyncVar
+wAsync = joinStreamVarAsync WAsyncVar
 
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
