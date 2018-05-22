@@ -31,9 +31,7 @@ module Streamly.Streams
 
     -- * Construction
     , nil
-    , cons
     , (.:)
-    , consM
     , (|:)
     , streamBuild
     , fromCallback
@@ -134,6 +132,8 @@ import qualified Streamly.Core as S
 class IsStream t where
     toStream :: t m a -> S.Stream m a
     fromStream :: S.Stream m a -> t m a
+    cons :: a -> t m a -> t m a
+    consM :: Monad m => m a -> t m a -> t m a
 
 -- | Same as 'IsStream'.
 --
@@ -169,8 +169,9 @@ infixr 5 `consM`
 -- @
 --
 -- @since 0.2.0
-consM :: (IsStream t, Monad m) => m a -> t m a -> t m a
-consM m r = fromStream $ S.consM m (toStream r)
+-- {-# INLINE consMSerial #-}
+consMSerial :: (IsStream t, Monad m) => m a -> t m a -> t m a
+consMSerial m r = fromStream $ S.consM m (toStream r)
 
 infixr 5 |:
 
@@ -198,8 +199,8 @@ infixr 5 `cons`
 -- @
 --
 -- @since 0.1.0
-cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ S.cons a (toStream r)
+consSerial :: IsStream t => a -> t m a -> t m a
+consSerial a r = fromStream $ S.cons a (toStream r)
 
 infixr 5 .:
 
@@ -411,6 +412,10 @@ type StreamT = SerialT
 instance IsStream SerialT where
     toStream = getSerialT
     fromStream = SerialT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -496,6 +501,10 @@ type InterleavedT = WSerialT
 instance IsStream WSerialT where
     toStream = getWSerialT
     fromStream = WSerialT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -603,6 +612,10 @@ newtype AheadT m a = AheadT {getAheadT :: S.Stream m a}
 instance IsStream AheadT where
     toStream = getAheadT
     fromStream = AheadT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -716,6 +729,10 @@ newtype AsyncT m a = AsyncT {getAsyncT :: S.Stream m a}
 instance IsStream AsyncT where
     toStream = getAsyncT
     fromStream = AsyncT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> AsyncT IO a -> AsyncT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -836,6 +853,10 @@ newtype WAsyncT m a = WAsyncT {getWAsyncT :: S.Stream m a}
 instance IsStream WAsyncT where
     toStream = getWAsyncT
     fromStream = WAsyncT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -971,6 +992,10 @@ newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
 instance IsStream ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> ParallelT IO a -> ParallelT IO a #-}
+    consM = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -1043,6 +1068,10 @@ type ZipStream = ZipSerialM
 instance IsStream ZipSerialM where
     toStream = getZipSerialM
     fromStream = ZipSerialM
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
+    consM = consMSerial
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . S.repeat
@@ -1075,6 +1104,10 @@ newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: S.Stream m a}
 instance IsStream ZipAsyncM where
     toStream = getZipAsyncM
     fromStream = ZipAsyncM
+    cons = consSerial
+    {-# INLINE consM #-}
+    {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
+    consM = consMSerial
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
     pure = ZipAsyncM . S.repeat
