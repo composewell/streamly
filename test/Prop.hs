@@ -7,7 +7,6 @@ import Control.Monad (when)
 import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
-import Control.Monad.IO.Class (liftIO)
 import Data.List (sort, foldl', scanl')
 import GHC.Word (Word8)
 
@@ -121,7 +120,7 @@ sourceUnfoldrM mv n = A.unfoldrM step 0
         if cnt > fromIntegral n
         then return Nothing
         else do
-            liftIO $ dbgMVar ("put sourceUnfoldrM " ++ msg) (putMVar mv ())
+            dbgMVar ("put sourceUnfoldrM " ++ msg) (putMVar mv ())
             return (Just (fromIntegral cnt, cnt + 1))
 
 concurrentUnfoldrM
@@ -142,15 +141,16 @@ concurrentUnfoldrM eq op n =
             A.toList $ do
                 x <- op (sourceUnfoldrM mv n)
                 let msg = show x ++ "/" ++ show n
-                if even x
-                then do
-                    liftIO $ dbgMVar ("first take concurrentUnfoldrM " ++ msg)
+                A.once $ do
+                    if even x
+                    then do
+                        dbgMVar ("first take concurrentUnfoldrM " ++ msg)
                                 (takeMVar mv)
-                    if n > x
-                    then liftIO $ dbgMVar ("second take concurrentUnfoldrM " ++ msg)
-                                (takeMVar mv)
+                        if n > x
+                        then dbgMVar ("second take concurrentUnfoldrM " ++ msg)
+                                     (takeMVar mv)
+                        else return ()
                     else return ()
-                else return ()
                 return x
         equals eq stream list
 
