@@ -186,7 +186,7 @@ test-suite properties
   build-depends:
       streamly
     , base              >= 4.8   && < 5
-    , QuickCheck        >= 2.8   && < 2.12
+    , QuickCheck        >= 2.10  && < 2.12
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
