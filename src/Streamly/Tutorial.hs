@@ -307,6 +307,15 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- For more ways to construct a stream see the module "Streamly.Prelude".
+--
+-- Note that monadic generation functions e.g. 'consM', 'unfoldrM',
+-- 'replicateM', 'repeatM', 'iterateM' and 'fromFoldableM' etc work
+-- concurrently when used with appropriate stream type combinator. The pure
+-- versions do not work concurrently, however you can use the monadic versions
+-- even for pure computations to get the concurrent generation capability where
+-- required.
+--
+-- TBD add more details and examples about concurrent generation.
 
 -- $eliminating
 --
@@ -353,6 +362,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --      & S.'zipWith' (\\n s -> show n ++ " " ++ s) (S.'fromFoldable' [1..])
 --      & S.'mapM' putStrLn
 -- @
+--
+-- Note that monadic transformation functions 'mapM' and 'sequence' work
+-- concurrently when used with appropriate stream type combinator. The pure
+-- versions do not work concurrently, however you can use the monadic versions
+-- even for pure computations to get the concurrent transformation capability
+-- where required.
+--
+-- TBD add more details and examples about concurrent transformation.
 
 -- $semigroup
 --

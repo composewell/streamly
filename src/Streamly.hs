@@ -91,7 +91,7 @@ module Streamly
 
     -- * Stream Type Adapters
     -- $adapters
-    , IsStream
+    , IsStream ()
 
     , serially
     , wSerially

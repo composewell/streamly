@@ -26,6 +26,9 @@
 -- provided for convenience and for consistency with other pure APIs in the
 -- @base@ package.
 --
+-- Functions having a 'MonadAsync' constraint work concurrently when used
+-- with appropriate stream type combinator.
+--
 -- Deconstruction and folds accept a 'SerialT' type instead of a polymorphic
 -- type to ensure that streams always have a concrete monomorphic type by
 -- default, reducing type errors. In case you want to use any other type of
@@ -159,14 +162,15 @@ unfoldr step = fromStream . go
 --
 -- @since 0.1.0
 {-# INLINE unfoldrM #-}
-unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldrM step = fromStream . go
+unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM step = go
     where
-    go s = Stream $ \_ stp _ yld -> do
+    go s = fromStream $ Stream $ \svr stp sng yld -> do
         mayb <- step s
         case mayb of
             Nothing -> stp
-            Just (a, b) -> yld a (go b)
+            Just (a, b) ->
+                S.runStream (toStream (return a |: go b)) svr stp sng yld
 
 -- | Construct a stream from a 'Foldable' containing pure values.
 --
@@ -179,7 +183,7 @@ fromFoldable = Prelude.foldr cons nil
 --
 -- @since 0.3.0
 {-# INLINE fromFoldableM #-}
-fromFoldableM :: (IsStream t, Monad m, Foldable f) => f (m a) -> t m a
+fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
 fromFoldableM = Prelude.foldr consM nil
 
 -- | Same as 'fromFoldable'.
@@ -206,22 +210,17 @@ once = fromStream . S.once
 -- | Generate a stream by performing a monadic action @n@ times.
 --
 -- @since 0.1.1
-replicateM :: (IsStream t, Monad m) => Int -> m a -> t m a
-replicateM n m = fromStream $ go n
+replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
+replicateM n m = go n
     where
-    go cnt = Stream $ \_ stp _ yld ->
-        if cnt <= 0
-        then stp
-        else m >>= \a -> yld a (go (cnt - 1))
+    go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
 
 -- | Generate a stream by repeatedly executing a monadic action forever.
 --
 -- @since 0.2.0
-repeatM :: (IsStream t, Monad m) => m a -> t m a
-repeatM = fromStream . go
-    where
-    go m = Stream $ \_ _ _ yld ->
-        m >>= \a -> yld a (go m)
+repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
+repeatM = go
+    where go m = m |: go m
 
 -- | Iterate a pure function from a seed value, streaming the results forever.
 --
@@ -235,12 +234,12 @@ iterate step = fromStream . go
 -- forever.
 --
 -- @since 0.1.2
-iterateM :: (IsStream t, Monad m) => (a -> m a) -> a -> t m a
-iterateM step = fromStream . go
+iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> a -> t m a
+iterateM step = go
     where
-    go s = Stream $ \_ _ _ yld -> do
-       a <- step s
-       yld s (go a)
+    go s = fromStream $ Stream $ \svr stp sng yld -> do
+       next <- step s
+       S.runStream (toStream (return s |: go next)) svr stp sng yld
 
 -- | Read lines from an IO Handle into a stream of Strings.
 --
@@ -396,8 +395,8 @@ foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
 foldlM' step begin m = foldxM step (return begin) return m
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
--- 'Nothing'. If the stream is non-empty, returns 'Just (a, ma)', where 'a' is
--- the head of the stream and 'ma' its tail.
+-- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
+-- the head of the stream and @ma@ its tail.
 --
 -- @since 0.1.0
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
@@ -655,21 +654,20 @@ maximum m = go Nothing (toStream m)
 -- Transformation
 ------------------------------------------------------------------------------
 
--- XXX Parallel variants of these? mapMWith et al. sequenceWith.
-
 -- | Replace each element of the stream with the result of a monadic action
 -- applied on the element.
 --
 -- @since 0.1.0
 {-# INLINE mapM #-}
-mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
-mapM f m = fromStream $ go (toStream m)
+mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
+mapM f m = go (toStream m)
     where
-    go m1 = Stream $ \_ stp sng yld ->
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
         let single a  = f a >>= sng
-            yield a r = f a >>= \b -> yld b (go r)
+            yield a r = S.runStream (toStream (f a |: (go r))) svr stp sng yld
          in (S.runStream m1) Nothing stp single yield
 
+-- XXX this can utilize parallel mapping if we implement it as runStream . mapM
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
 --
@@ -687,12 +685,12 @@ mapM_ f m = go (toStream m)
 -- actions.
 --
 -- @since 0.1.0
-sequence :: (IsStream t, Monad m) => t m (m a) -> t m a
-sequence m = fromStream $ go (toStream m)
+sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
+sequence m = go (toStream m)
     where
-    go m1 = Stream $ \_ stp sng yld ->
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
         let single ma = ma >>= sng
-            yield ma r = ma >>= \b -> yld b (go r)
+            yield ma r = S.runStream (toStream $ ma |: go r) svr stp sng yld
          in (S.runStream m1) Nothing stp single yield
 
 ------------------------------------------------------------------------------

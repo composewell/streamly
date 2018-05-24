@@ -5,6 +5,8 @@
 -- License     : MIT
 -- Maintainer  : harendra.kumar@gmail.com
 
+{-# LANGUAGE FlexibleContexts #-}
+
 module LinearOps where
 
 import Prelude
@@ -44,13 +46,14 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-toNull, scan, map, filterEven, mapM, filterAllOut,
+toNull, scan, map, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
-    concat, composeMapM, composeAllInFilters, composeAllOutFilters,
+    concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
     :: Monad m
     => Stream m Int -> m ()
 
+mapM, composeMapM :: S.MonadAsync m => Stream m Int -> m ()
 toList :: Monad m => Stream m Int -> m [Int]
 foldl :: Monad m => Stream m Int -> m Int
 last :: Monad m => Stream m Int -> m (Maybe Int)
@@ -74,14 +77,14 @@ sourceFromFoldable :: Int -> Stream m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: Monad m => Int -> Stream m Int
+sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
 sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 sourceFoldMapWith :: Monad m => Int -> Stream m Int
 sourceFoldMapWith n = S.foldMapWith S.serial return [n..n+value]
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: Monad m => Int -> Stream m Int
+sourceUnfoldrM :: S.MonadAsync m => Int -> Stream m Int
 sourceUnfoldrM n = S.unfoldrM step n
     where
     step cnt =

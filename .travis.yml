@@ -58,7 +58,9 @@ matrix:
   # (Linux) stack builds
   # --------------------------------------------------------------------------
 
-  - env: BUILD=stack CABALVER=1.22 GHCVER=7.10.3 RESOLVER=lts-6 STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
+  # warnings.
+  - env: BUILD=stack CABALVER=1.22 GHCVER=7.10.3 GHC_OPTIONS="" RESOLVER=lts-6 STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   - env: BUILD=stack CABALVER=1.24 GHCVER=8.0.2 RESOLVER=lts-9 STACK_YAML=stack-8.0.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
@@ -121,8 +123,8 @@ matrix:
 
   # Note COVERALLS (hpc-coveralls) works only with cabal build.
   # For this to succeed you have to add your project to coveralls.io first
-  #- env: BUILD=cabal CABALVER=2.0 GHCVER=8.2.2 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops"
-  #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+  - env: BUILD=cabal CABALVER=2.0 GHCVER=8.2.2 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops"
+    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
   # Builds that are allowed to fail

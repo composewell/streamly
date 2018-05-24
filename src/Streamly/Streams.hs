@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
+{-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE StandaloneDeriving        #-}
@@ -24,15 +25,10 @@ module Streamly.Streams
     , Streaming         -- deprecated
     , S.MonadAsync
 
-    -- * SVars
-    , SVarStyle (..)
-    , SVar
-    , S.newEmptySVar
-
     -- * Construction
     , nil
+    , cons
     , (.:)
-    , (|:)
     , streamBuild
     , fromCallback
     , fromSVar
@@ -125,6 +121,9 @@ import qualified Streamly.Core as S
 -- Types that can behave as a Stream
 ------------------------------------------------------------------------------
 
+infixr 5 `consM`
+infixr 5 |:
+
 -- | Class of types that can represent a stream of elements of some type 'a' in
 -- some monad 'm'.
 --
@@ -132,8 +131,29 @@ import qualified Streamly.Core as S
 class IsStream t where
     toStream :: t m a -> S.Stream m a
     fromStream :: S.Stream m a -> t m a
-    cons :: a -> t m a -> t m a
-    consM :: Monad m => m a -> t m a -> t m a
+    -- | Constructs a stream by adding a monadic action at the head of an existing
+    -- stream. For example:
+    --
+    -- @
+    -- > toList $ getLine \`consM` getLine \`consM` nil
+    -- hello
+    -- world
+    -- ["hello","world"]
+    -- @
+    --
+    -- @since 0.2.0
+    consM :: MonadAsync m => m a -> t m a -> t m a
+    -- | Operator equivalent of 'consM'.
+    --
+    -- @
+    -- > toList $ getLine |: getLine |: nil
+    -- hello
+    -- world
+    -- ["hello","world"]
+    -- @
+    --
+    -- @since 0.2.0
+    (|:) :: MonadAsync m => m a -> t m a -> t m a
 
 -- | Same as 'IsStream'.
 --
@@ -156,8 +176,6 @@ type Streaming = IsStream
 nil :: IsStream t => t m a
 nil = fromStream S.nil
 
-infixr 5 `consM`
-
 -- | Constructs a stream by adding a monadic action at the head of an existing
 -- stream. For example:
 --
@@ -169,24 +187,8 @@ infixr 5 `consM`
 -- @
 --
 -- @since 0.2.0
--- {-# INLINE consMSerial #-}
 consMSerial :: (IsStream t, Monad m) => m a -> t m a -> t m a
 consMSerial m r = fromStream $ S.consM m (toStream r)
-
-infixr 5 |:
-
--- | Operator equivalent of 'consM'.
---
--- @
--- > toList $ getLine |: getLine |: nil
--- hello
--- world
--- ["hello","world"]
--- @
---
--- @since 0.2.0
-(|:) :: (IsStream t, Monad m) => m a -> t m a -> t m a
-(|:) = consM
 
 infixr 5 `cons`
 
@@ -199,8 +201,8 @@ infixr 5 `cons`
 -- @
 --
 -- @since 0.1.0
-consSerial :: IsStream t => a -> t m a -> t m a
-consSerial a r = fromStream $ S.cons a (toStream r)
+cons :: IsStream t => a -> t m a -> t m a
+cons a r = fromStream $ S.cons a (toStream r)
 
 infixr 5 .:
 
@@ -412,10 +414,16 @@ type StreamT = SerialT
 instance IsStream SerialT where
     toStream = getSerialT
     fromStream = SerialT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
+    consM :: Monad m => m a -> SerialT m a -> SerialT m a
     consM = consMSerial
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
+    (|:) :: Monad m => m a -> SerialT m a -> SerialT m a
+    (|:) = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -501,10 +509,16 @@ type InterleavedT = WSerialT
 instance IsStream WSerialT where
     toStream = getWSerialT
     fromStream = WSerialT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
+    consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
     consM = consMSerial
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
+    (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
+    (|:) = consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -612,10 +626,14 @@ newtype AheadT m a = AheadT {getAheadT :: S.Stream m a}
 instance IsStream AheadT where
     toStream = getAheadT
     fromStream = AheadT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
-    consM = consMSerial
+    consM m r = fromStream $ S.consMAhead m (toStream r)
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> AheadT IO a -> AheadT IO a #-}
+    (|:) = consM
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -729,10 +747,14 @@ newtype AsyncT m a = AsyncT {getAsyncT :: S.Stream m a}
 instance IsStream AsyncT where
     toStream = getAsyncT
     fromStream = AsyncT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> AsyncT IO a -> AsyncT IO a #-}
-    consM = consMSerial
+    consM m r = fromStream $ S.consMAsync m (toStream r)
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> AsyncT IO a -> AsyncT IO a #-}
+    (|:) = consM
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -853,10 +875,14 @@ newtype WAsyncT m a = WAsyncT {getWAsyncT :: S.Stream m a}
 instance IsStream WAsyncT where
     toStream = getWAsyncT
     fromStream = WAsyncT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-    consM = consMSerial
+    consM m r = fromStream $ S.consMWAsync m (toStream r)
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+    (|:) = consM
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -992,10 +1018,14 @@ newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
 instance IsStream ParallelT where
     toStream = getParallelT
     fromStream = ParallelT
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ParallelT IO a -> ParallelT IO a #-}
-    consM = consMSerial
+    consM m r = fromStream $ S.consMParallel m (toStream r)
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> ParallelT IO a -> ParallelT IO a #-}
+    (|:) = consM
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -1068,10 +1098,16 @@ type ZipStream = ZipSerialM
 instance IsStream ZipSerialM where
     toStream = getZipSerialM
     fromStream = ZipSerialM
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
+    consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
     consM = consMSerial
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
+    (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
+    (|:) = consMSerial
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . S.repeat
@@ -1104,10 +1140,16 @@ newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: S.Stream m a}
 instance IsStream ZipAsyncM where
     toStream = getZipAsyncM
     fromStream = ZipAsyncM
-    cons = consSerial
+
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
+    consM :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
     consM = consMSerial
+
+    {-# INLINE (|:) #-}
+    {-# SPECIALIZE (|:) :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
+    (|:) :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
+    (|:) = consMSerial
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
     pure = ZipAsyncM . S.repeat

@@ -1,7 +1,27 @@
 ## Unreleased
 
-* Add concurrent lookahead stream type `Ahead`
-* Add `fromFoldableM` to create a stream from a container of monadic actions
+### Breaking changes
+
+* Some prelude functions, to which concurrency capability has been added, will
+  now require a `MonadAsync` constraint.
+
+### Bug Fixes
+
+* Fixed a race due to which, in a rare case, we might block indefinitely on
+  an MVar due to a lost wakeup.
+* Fixed an issue in adaptive concurrency. The issue caused us to stop creating
+  more worker threads in some cases due to a race. This would not cause any
+  functional issue but would reduce concurrency in some cases.
+
+### Enhancements
+* Added a concurrent lookahead stream type `Ahead`
+* Added `fromFoldableM` API that creates a stream from a container of monadic
+  actions
+* Monadic stream generation functions `consM`, `|:`, `unfoldrM`, `replicateM`,
+  `repeatM`, `iterateM` and `fromFoldableM` can now generate streams
+  concurrently when used with concurrent stream types.
+* Monad transformation functions `mapM` and `sequence` can now map actions
+  concurrently when used at appropriate stream types.
 
 ## 0.2.0
 

@@ -2,14 +2,17 @@
 
 module Main (main) where
 
+import Control.Exception (BlockedIndefinitelyOnMVar(..), catch)
 import Control.Monad (when)
 import Control.Applicative (ZipList(..))
-import Control.Monad (replicateM)
+import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
+import Control.Monad (replicateM, replicateM_)
+import Control.Monad.IO.Class (liftIO)
 import Data.List (sort, foldl', scanl')
 import GHC.Word (Word8)
 
 import Test.Hspec.QuickCheck (prop)
-import Test.QuickCheck (counterexample, Property)
+import Test.QuickCheck (counterexample, Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
 import Test.Hspec
@@ -17,6 +20,13 @@ import Test.Hspec
 import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as A
+
+maxTestCount :: Int
+#ifdef DEVBUILD
+maxTestCount = 100
+#else
+maxTestCount = 10
+#endif
 
 singleton :: IsStream t => a -> t m a
 singleton a = a .: nil
@@ -57,6 +67,91 @@ transformFromList constr eq listOp op a =
     monadicIO $ do
         stream <- run ((A.toList . op) (constr a))
         let list = listOp a
+        equals eq stream list
+
+dbgMVar :: String -> IO a -> IO a
+dbgMVar label action =
+    action `catch` \BlockedIndefinitelyOnMVar ->
+        error $ label ++ " " ++ "BlockedIndefinitelyOnMVar"
+
+-- | first n actions takeMVar and the last action performs putMVar n times
+mvarSequenceOp :: MVar () -> Word8 -> Word8 -> IO Word8
+mvarSequenceOp mv n x = do
+    let msg = show x ++ "/" ++ show n
+    if x < n
+    then dbgMVar ("take mvarSequenceOp " ++ msg) (takeMVar mv) >>  return x
+    else dbgMVar ("put mvarSequenceOp" ++ msg)
+            (replicateM_ (fromIntegral n) (putMVar mv ())) >> return x
+
+concurrentMapM
+    :: ([Word8] -> t IO Word8)
+    -> ([Word8] -> [Word8] -> Bool)
+    -> (Word8 -> MVar () -> t IO Word8 -> SerialT IO Word8)
+    -> Word8
+    -> Property
+concurrentMapM constr eq op n =
+    monadicIO $ do
+        let list = [0..n]
+        stream <- run $ do
+            mv <- newEmptyMVar :: IO (MVar ())
+            (A.toList . (op n mv)) (constr list)
+        equals eq stream list
+
+concurrentFromFoldable
+    :: IsStream t
+    => ([Word8] -> [Word8] -> Bool)
+    -> (t IO Word8 -> SerialT IO Word8)
+    -> Word8
+    -> Property
+concurrentFromFoldable eq op n =
+    monadicIO $ do
+        let list = [0..n]
+        stream <- run $ do
+            mv <- newEmptyMVar :: IO (MVar ())
+            (A.toList . op) (A.fromFoldableM (map (mvarSequenceOp mv n) list))
+        equals eq stream list
+
+sourceUnfoldrM :: IsStream t => MVar () -> Word8 -> t IO Word8
+sourceUnfoldrM mv n = A.unfoldrM step 0
+    where
+    -- argument must be integer to avoid overflow of word8 at 255
+    step :: Int -> IO (Maybe (Word8, Int))
+    step cnt = do
+        let msg = show cnt ++ "/" ++ show n
+        if cnt > fromIntegral n
+        then return Nothing
+        else do
+            liftIO $ dbgMVar ("put sourceUnfoldrM " ++ msg) (putMVar mv ())
+            return (Just (fromIntegral cnt, cnt + 1))
+
+concurrentUnfoldrM
+    :: IsStream t
+    => ([Word8] -> [Word8] -> Bool)
+    -> (t IO Word8 -> SerialT IO Word8)
+    -> Word8
+    -> Property
+concurrentUnfoldrM eq op n =
+    monadicIO $ do
+        let list = [0..n]
+        stream <- run $ do
+            -- putStrLn $ "concurrentUnfoldrM: " ++ show n
+            mv <- newEmptyMVar :: IO (MVar ())
+            -- since unfoldr happens in parallel with the stream processing we
+            -- can do two takeMVar in one iteration. If it is not parallel then
+            -- this will not work and the test will fail.
+            A.toList $ do
+                x <- op (sourceUnfoldrM mv n)
+                let msg = show x ++ "/" ++ show n
+                if even x
+                then do
+                    liftIO $ dbgMVar ("first take concurrentUnfoldrM " ++ msg)
+                                (takeMVar mv)
+                    if n > x
+                    then liftIO $ dbgMVar ("second take concurrentUnfoldrM " ++ msg)
+                                (takeMVar mv)
+                    else return ()
+                else return ()
+                return x
         equals eq stream list
 
 foldFromList
@@ -147,7 +242,29 @@ transformOps constr desc t eq = do
     prop (desc ++ " dropWhile > 0") $
         transform (dropWhile (> 0)) $ t . (A.dropWhile (> 0))
     prop (desc ++ " scan") $ transform (scanl' (+) 0) $ t . (A.scanl' (+) 0)
-    prop (desc ++ "reverse") $ transform reverse $ t . A.reverse
+    prop (desc ++ " reverse") $ transform reverse $ t . A.reverse
+
+concurrentOps
+    :: IsStream t
+    => ([Word8] -> t IO Word8)
+    -> String
+    -> (t IO Word8 -> SerialT IO Word8)
+    -> ([Word8] -> [Word8] -> Bool)
+    -> Spec
+concurrentOps constr desc t eq = do
+    prop (desc ++ " fromFoldableM") $ withMaxSuccess maxTestCount $
+        concurrentFromFoldable eq t
+    prop (desc ++ " unfoldrM") $ withMaxSuccess maxTestCount $
+        concurrentUnfoldrM eq t
+    -- we pass it the length of the stream n and an mvar mv.
+    -- The stream is [0..n]. The threads communicate in such a way that the
+    -- actions coming first in the stream are dependent on the last action. So
+    -- if the stream is not processed concurrently it will block forever.
+    -- Note that if the size of the stream is bigger than the thread limit
+    -- then it will block even if it is concurrent.
+    prop (desc ++ " mapM") $ withMaxSuccess maxTestCount $
+        concurrentMapM constr eq $ \n mv stream ->
+            t $ A.mapM (mvarSequenceOp mv n) stream
 
 wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
 wrapMaybe f =
@@ -223,10 +340,11 @@ applicativeOps
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-applicativeOps constr t eq (a, b) = monadicIO $ do
-    stream <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
-    let list = (,) <$> a <*> b
-    equals eq stream list
+applicativeOps constr t eq (a, b) = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
+        let list = (,) <$> a <*> b
+        equals eq stream list
 
 zipApplicative
     :: (IsStream t, Applicative (t IO))
@@ -235,14 +353,15 @@ zipApplicative
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-zipApplicative constr t eq (a, b) = monadicIO $ do
-    stream1 <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
-    stream2 <- run ((A.toList . t) (pure (,) <*> (constr a) <*> (constr b)))
-    stream3 <- run ((A.toList . t) (A.zipWith (,) (constr a) (constr b)))
-    let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-    equals eq stream1 list
-    equals eq stream2 list
-    equals eq stream3 list
+zipApplicative constr t eq (a, b) = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream1 <- run ((A.toList . t) ((,) <$> (constr a) <*> (constr b)))
+        stream2 <- run ((A.toList . t) (pure (,) <*> (constr a) <*> (constr b)))
+        stream3 <- run ((A.toList . t) (A.zipWith (,) (constr a) (constr b)))
+        let list = getZipList $ (,) <$> ZipList a <*> ZipList b
+        equals eq stream1 list
+        equals eq stream2 list
+        equals eq stream3 list
 
 zipMonadic
     :: (IsStream t, Monad (t IO))
@@ -251,7 +370,7 @@ zipMonadic
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)
     -> ([Int], [Int])
     -> Property
-zipMonadic constr t eq (a, b) =
+zipMonadic constr t eq (a, b) = withMaxSuccess maxTestCount $
     monadicIO $ do
         stream1 <-
             run
@@ -272,7 +391,7 @@ monadThen
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
-monadThen constr t eq (a, b) = monadicIO $ do
+monadThen constr t eq (a, b) = withMaxSuccess maxTestCount $ monadicIO $ do
     stream <- run ((A.toList . t) ((constr a) >> (constr b)))
     let list = a >> b
     equals eq stream list
@@ -284,7 +403,7 @@ monadBind
     -> ([Int] -> [Int] -> Bool)
     -> ([Int], [Int])
     -> Property
-monadBind constr t eq (a, b) =
+monadBind constr t eq (a, b) = withMaxSuccess maxTestCount $
     monadicIO $ do
         stream <-
             run
@@ -295,6 +414,12 @@ monadBind constr t eq (a, b) =
 
 main :: IO ()
 main = hspec $ do
+    let folded :: IsStream t => [a] -> t IO a
+        folded = serially . (\xs ->
+            case xs of
+                [x] -> return x -- singleton stream case
+                _ -> foldMapWith (<>) return xs
+            )
     describe "Construction" $ do
         -- XXX test for all types of streams
         prop "serially replicateM" $ constructWithReplicateM serially
@@ -307,12 +432,6 @@ main = hspec $ do
             A.toList . serially . (A.take 100) $ A.iterateM addM (0 :: Int)
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
-    let folded :: IsStream t => [a] -> t IO a
-        folded = serially . (\xs ->
-            case xs of
-                [x] -> return x -- singleton stream case
-                _ -> foldMapWith (<>) return xs
-            )
     describe "Functor operations" $ do
         functorOps A.fromFoldable "serially" serially (==)
         functorOps folded "serially folded" serially (==)
@@ -358,8 +477,10 @@ main = hspec $ do
 
     describe "Zip operations" $ do
         prop "zipSerially applicative" $ zipApplicative A.fromFoldable zipSerially (==)
-        -- XXX this hangs
-        -- prop "zipAsyncly applicative" $ zipApplicative zipAsyncly (==)
+        prop "zipSerially applicative folded" $ zipApplicative folded zipSerially (==)
+        prop "zipAsyncly applicative" $ zipApplicative A.fromFoldable zipAsyncly (==)
+        prop "zipAsyncly applicative folded" $ zipApplicative folded zipAsyncly (==)
+
         prop "zip monadic serially" $ zipMonadic A.fromFoldable serially (==)
         prop "zip monadic serially folded" $ zipMonadic folded serially (==)
         prop "zip monadic aheadly" $ zipMonadic A.fromFoldable aheadly (==)
@@ -431,6 +552,17 @@ main = hspec $ do
         transformOpsWord8 folded "asyncly folded" asyncly
         transformOpsWord8 folded "wAsyncly folded" wAsyncly
         transformOpsWord8 folded "parallely folded" parallely
+
+    describe "Stream concurrent operations" $ do
+        concurrentOps A.fromFoldable "aheadly" aheadly (==)
+        concurrentOps A.fromFoldable "asyncly" asyncly sortEq
+        concurrentOps A.fromFoldable "wAsyncly" wAsyncly sortEq
+        concurrentOps A.fromFoldable "parallely" parallely sortEq
+
+        concurrentOps folded "aheadly folded" aheadly (==)
+        concurrentOps folded "asyncly folded" asyncly sortEq
+        concurrentOps folded "wAsyncly folded" wAsyncly sortEq
+        concurrentOps folded "parallely folded" parallely sortEq
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "serially" serially

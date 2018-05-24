@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -25,13 +26,19 @@ module Streamly.Core
     -- * Streams
     , Stream (..)
 
-    -- * Construction
+    -- * Construction (pure)
+    , nil
+    , cons
     , singleton
     , once
-    , cons
-    , consM
     , repeat
-    , nil
+
+    -- * Construction (monadic)
+    , consM
+    , consMAhead
+    , consMAsync
+    , consMWAsync
+    , consMParallel
 
     -- * Semigroup Style Composition
     , serial
@@ -41,13 +48,11 @@ module Streamly.Core
     , wAsync
     , parallel
 
-    -- * Alternative
-    , alt
-
     -- * zip
     , zipWith
     , zipAsyncWith
 
+    -- XXX move to Streams.hs
     -- * Transformers
     , withLocal
     , withCatchError
@@ -55,18 +60,24 @@ module Streamly.Core
     -- * Concurrent Stream Vars (SVars)
     , SVar
     , SVarStyle (..)
-    , newEmptySVar
     , newStreamVar1
-    , joinStreamVarAsync
     , fromStreamVar
     , toStreamVar
     )
 where
 
+-- MVar diagnostics has some overhead - around 5% on asyncly null benchmark,
+-- but keep it on for now to debug problems quickly if and when they happen.
+-- define DIAGNOSTICS
+
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar, putMVar)
 import           Control.Exception           (SomeException (..))
+#ifdef DIAGNOSTICS
+import           Control.Exception           (catch,
+                                              BlockedIndefinitelyOnMVar(..))
+#endif
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (when)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -120,7 +131,7 @@ data SVarStyle =
     | WAsyncVar            -- breadth first concurrent
     | ParallelVar          -- all parallel
     | AheadVar             -- Concurrent look ahead
-    deriving Eq
+    deriving (Eq, Show)
 
 -- | An SVar or a Stream Var is a conduit to the output from multiple streams
 -- running concurrently and asynchronously. An SVar can be thought of as an
@@ -170,12 +181,57 @@ data SVar m a =
             , workQueue      :: IORef ([Stream m a], Int)
             , enqueue        :: Stream m a -> IO ()
             , queueEmpty     :: m Bool
+            , waitingForWork :: IORef Bool
             , runqueue       :: m ()
 
             -- Shared, thread tracking
             , runningThreads :: IORef (Set ThreadId)
             , activeWorkers  :: IORef Int
             }
+
+#ifdef DIAGNOSTICS
+{-# NOINLINE dumpSVar #-}
+dumpSVar :: SVar m a -> IO String
+dumpSVar sv = do
+    (oqList, oqLen) <- readIORef $ outputQueue sv
+    db <- tryTakeMVar $ doorBell sv
+    srn <- tryTakeMVar $ siren sv
+    (oheap, oheapSize) <- readIORef $ outputHeap sv
+    hsrn <- tryTakeMVar $ heapSiren sv
+    (wq, wqSize) <- readIORef $ workQueue sv
+    waiting <- readIORef $ waitingForWork sv
+    rthread <- readIORef $ runningThreads sv
+    workers <- readIORef $ activeWorkers sv
+    -- XXX queueEmpty should be made IO return type
+
+    return $ unlines
+        [ "style = " ++ show (svarStyle sv)
+        , "outputQueue length computed  = " ++ show (length oqList)
+        , "outputQueue length maintained = " ++ show oqLen
+        , "output doorBell = " ++ show db
+        , "worker siren = " ++ show srn
+        , "heap length computed = " ++ show (H.size oheap)
+        , "heap length maintained = " ++ show oheapSize
+        , "heap siren = " ++ show hsrn
+        , "work queue length computed = " ++ show (length wq)
+        , "work queue length maintained = " ++ show wqSize
+        , "waitingForWork = " ++ show waiting
+        , "running threads = " ++ show rthread
+        , "running thread count = " ++ show workers
+        ]
+
+{-# NOINLINE mvarExcHandler #-}
+mvarExcHandler :: SVar m a -> String -> BlockedIndefinitelyOnMVar -> IO ()
+mvarExcHandler sv label BlockedIndefinitelyOnMVar = do
+    svInfo <- dumpSVar sv
+    error $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n" ++ svInfo
+
+withDBGMVar :: SVar m a -> String -> IO () -> IO ()
+withDBGMVar sv label action = action `catch` mvarExcHandler sv label
+#else
+withDBGMVar :: SVar m a -> String -> IO () -> IO ()
+withDBGMVar _ _ action = action
+#endif
 
 -- Slightly faster version of CAS. Gained some improvement by avoiding the use
 -- of "evaluate" because we know we do not have exceptions in fn.
@@ -350,7 +406,7 @@ send sv msg = do
     -- we will be woken up by the consumer blowing the siren.
     -- Note: current length after adding our output is len + 1
     else when (len + 1 >= 1500) $ do
-            takeMVar (siren sv)
+            withDBGMVar sv "send: wait for siren" $ takeMVar (siren sv)
             (_, n) <- readIORef (outputQueue sv)
             when (n <= 1500) $ void $ tryPutMVar (siren sv) ()
 
@@ -367,8 +423,22 @@ sendStop sv = myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
 -- expressions. Large left associated compositions can grow this to a
 -- large size
 {-# INLINE enqueueLIFO #-}
-enqueueLIFO :: IORef [Stream m a] -> Stream m a -> IO ()
-enqueueLIFO q m = atomicModifyIORefCAS_ q $ \ ms -> m : ms
+enqueueLIFO :: SVar m a -> IORef [Stream m a] -> Stream m a -> IO ()
+enqueueLIFO sv q m = do
+    w <- readIORef $ waitingForWork sv
+    if w
+    then withDoorBell
+    else atomicModifyIORefCAS_ q $ \ms -> m : ms
+
+    where
+
+    withDoorBell = do
+        v <- atomicModifyIORefCAS q $ \ ms ->
+            case ms of
+                [] -> (m : ms, True)
+                _ -> (m : ms, False)
+        when v $ void $ tryPutMVar (doorBell sv) ()
+        atomicModifyIORefCAS_ (waitingForWork sv) (const False)
 
 runqueueLIFO :: MonadIO m => SVar m a -> IORef [Stream m a] -> m ()
 runqueueLIFO sv q = run
@@ -394,8 +464,19 @@ runqueueLIFO sv q = run
 -------------------------------------------------------------------------------
 
 {-# INLINE enqueueFIFO #-}
-enqueueFIFO :: LinkedQueue (Stream m a) -> Stream m a -> IO ()
-enqueueFIFO = pushL
+enqueueFIFO :: SVar m a -> LinkedQueue (Stream m a) -> Stream m a -> IO ()
+enqueueFIFO sv q m = do
+    w <- readIORef $ waitingForWork sv
+    if w
+    then withDoorBell
+    else pushL q m
+
+    where
+
+    withDoorBell = do
+        emp <- nullQ q
+        pushL q m
+        when emp $ void $ tryPutMVar (doorBell sv) ()
 
 runqueueFIFO :: MonadIO m => SVar m a -> LinkedQueue (Stream m a) -> m ()
 runqueueFIFO sv q = run
@@ -411,7 +492,7 @@ runqueueFIFO sv q = run
     dequeue = liftIO $ tryPopR q
     sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> run
-    yield a r = sendit a >> liftIO (enqueueFIFO q r) >> run
+    yield a r = sendit a >> liftIO (enqueueFIFO sv q r) >> run
 
 -------------------------------------------------------------------------------
 -- Parallel
@@ -499,7 +580,8 @@ sendToHeap sv msg seqNo  = do
     if added
     then do
         when (len + 1 >= maxHeapSize) $ do
-            takeMVar (heapSiren sv)
+            withDBGMVar sv "sendToHeap: wait for heapSiren"
+                        $ takeMVar (heapSiren sv)
             (h, _) <- readIORef (outputHeap sv)
             when (H.size h <= maxHeapSize) $ void $ tryPutMVar (siren sv) ()
         return False
@@ -508,7 +590,7 @@ sendToHeap sv msg seqNo  = do
             AheadYieldSingle a -> send sv (ChildYield a)
             AheadYieldMany a mv -> do
                 send sv (ChildYield a)
-                putMVar mv ()
+                withDBGMVar sv "sendToHeap: wakeup stream" $ putMVar mv ()
         return True
 
 popFromHeap
@@ -547,7 +629,7 @@ drainHeap sv nextSeqNo = do
                     drainHeap sv nextSeqNo
                 AheadYieldMany a mv -> do
                     send sv (ChildYield a)
-                    putMVar mv ()
+                    withDBGMVar sv "drainHeap: wakeup stream" $ putMVar mv ()
 
 -- | The thread that has the token has the responsibility to move any pending
 -- entries in the heap to the outputQueue. When the token is assigned to a
@@ -585,11 +667,15 @@ handleOutput sv haveToken prevSeqNo seqNo a ev = do
 -- associated expression, we queue the right expression and execute the left.
 -- Thererefore the queue never has more than on item in it.
 {-# INLINE enqueueAhead #-}
-enqueueAhead :: IORef ([Stream m a], Int) -> Stream m a -> IO ()
-enqueueAhead q m = do
+enqueueAhead :: SVar m a -> IORef ([Stream m a], Int) -> Stream m a -> IO ()
+enqueueAhead sv q m = do
+    w <- readIORef $ waitingForWork sv
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n + 1)  -- increment sequence
         _ -> error "not empty"
+    when w $ do
+        void $ tryPutMVar (doorBell sv) ()
+        atomicModifyIORefCAS_ (waitingForWork sv) (const False)
 
 runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
 runqueueAhead sv q = run False (-1)
@@ -637,7 +723,9 @@ runqueueAhead sv q = run False (-1)
                             gotToken <-
                                 handleOutput sv tStatus prevSeqNo seqNo a
                                              (AheadYieldMany a mv)
-                            when (not gotToken) $ void $ takeMVar mv
+                            when (not gotToken) $ void $
+                                withDBGMVar sv "runqueueAhead: stream waiting"
+                                            $ takeMVar mv
                         (runStream r) (Just sv) stopNext singleNext yieldNext
 
                 (runStream m) (Just sv) stop single yield
@@ -725,32 +813,76 @@ sendWorkerWait sv = do
     -- If there is no output pending to process and there is no worker to be
     -- sent then we block, so that we do not keep looping fruitlessly.
 
+    -- Note that we are guaranteed to have at least one outstanding worker when
+    -- we enter this function. So if we sleep we are guaranteed to be woken up.
+    -- Note that the worker count is only decremented during event processing
+    -- in fromStreamVar and therefore it is safe to read and use it without a
+    -- lock.
+
     -- XXX we should wait in such a way so that we can be immediately
-    -- interrupted by a doorBell.
+    -- interrupted by a doorBell. We can sleep on the doorbell and use a
+    -- monitor thread to send us a doorbell.
     liftIO $ threadDelay 200
     (_, n) <- liftIO $ readIORef (outputQueue sv)
     when (n <= 0) $ do
-        -- XXX the queue may be empty temporarily if the worker has dequeued
-        -- the work item but has not enqueued the remaining part yet. For the
-        -- same reason, a worker may come back if it tries to dequeue when the
-        -- queue is empty, even though the whole work has not finished yet.
+        -- The queue may be empty temporarily if the worker has dequeued the
+        -- work item but has not enqueued the remaining part yet. For the same
+        -- reason, a worker may come back if it tries to dequeue and finds the
+        -- queue empty, even though the whole work has not finished yet.
         done <- queueEmpty sv
         if not done
         then do
             cnt <- liftIO $ readIORef $ activeWorkers sv
+            -- Note that we may deadlock if the previous workers (tasks in the
+            -- stream) wait/depend on the future workers (tasks in the stream)
+            -- executing. In that case we should either configure the maxWorker
+            -- count to higher or use parallel style instead of ahead or async
+            -- style.
             if (cnt < 1500)
             then do
                 pushWorker sv
                 sendWorkerWait sv
-            else liftIO $ takeMVar (doorBell sv)
-        else liftIO $ takeMVar (doorBell sv)
+            else liftIO $ withDBGMVar sv "sendWorkerWait: wait for workers"
+                                      $ takeMVar (doorBell sv)
+        else do
+            -- We found that the queue was empty, but it may be empty
+            -- temporarily, when we checked it. If that's the case we might
+            -- sleep indefinitely unless the active workers produce some
+            -- output. We may deadlock specially if the otuput from the other
+            -- workers depends on the future workers that we may never send.
+            -- So in case the queue was temporarily empty set a flag to inform
+            -- the enqueue to send us a doorbell.
+
+            liftIO $ atomicModifyIORefCAS_ (waitingForWork sv) $ const True
+
+            -- check again, this time we have set the waitingForWork flag so we
+            -- are guaranteed to get a doorbell in case the status changed
+            -- before we could sleep.
+            --
+            -- Note that this is just a best effort mechanism to avoid a
+            -- deadlock. Deadlocks may still happen if for some weird reason
+            -- the consuming computation shares an MVar or some other resource
+            -- with the producing computation and gets blocked on that resource
+            -- and therefore cannot do any pushworker to add more threads to
+            -- the producer. In such cases the programmer should use a parallel
+            -- style so that all the producers are scheduled immediately and
+            -- unconditionally. We can also use a separate monitor thread to
+            -- push workers instead of pushing them from the consumer, but then
+            -- we are no longer using pull based concurrency rate adaptation.
+            --
+            -- XXX update this in the tutorial.
+            emp <- queueEmpty sv
+            when emp $
+                liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
+                                     $ takeMVar (doorBell sv)
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
     if svarStyle sv == ParallelVar
-    then liftIO $ takeMVar (doorBell sv)
+    then liftIO $ withDBGMVar sv "fromStreamVar: doorbell"
+                              $ takeMVar (doorBell sv)
     else do
         res <- liftIO $ tryTakeMVar (doorBell sv)
         when (isNothing res) $ sendWorkerWait sv
@@ -798,6 +930,7 @@ getFifoSVar ctype = do
     outQMv  <- newEmptyMVar
     hooter  <- newEmptyMVar
     active  <- newIORef 0
+    wfw     <- newIORef False
     running <- newIORef S.empty
     q       <- newQ
     let sv =
@@ -809,8 +942,9 @@ getFifoSVar ctype = do
                  , runningThreads = running
                  , workQueue      = undefined
                  , runqueue       = runqueueFIFO sv q
-                 , enqueue        = pushL q
+                 , enqueue        = enqueueFIFO sv q
                  , queueEmpty     = liftIO $ nullQ q
+                 , waitingForWork = wfw
                  , svarStyle      = ctype
                  , activeWorkers  = active
                  }
@@ -822,6 +956,7 @@ getLifoSVar ctype = do
     outQMv  <- newEmptyMVar
     hooter  <- newEmptyMVar
     active  <- newIORef 0
+    wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef []
     let checkEmpty = null <$> liftIO (readIORef q)
@@ -834,8 +969,9 @@ getLifoSVar ctype = do
                  , runningThreads = running
                  , workQueue      = undefined
                  , runqueue       = runqueueLIFO sv q
-                 , enqueue        = enqueueLIFO q
+                 , enqueue        = enqueueLIFO sv q
                  , queueEmpty     = checkEmpty
+                 , waitingForWork = wfw
                  , svarStyle      = ctype
                  , activeWorkers  = active
                  }
@@ -847,6 +983,7 @@ getParSVar style = do
     outQMv  <- newEmptyMVar
     hooter  <- newEmptyMVar
     active  <- newIORef 0
+    wfw     <- newIORef False
     running <- newIORef S.empty
     let sv =
             SVar { outputQueue    = outQ
@@ -859,6 +996,7 @@ getParSVar style = do
                  , runqueue       = undefined
                  , enqueue        = undefined
                  , queueEmpty     = undefined
+                 , waitingForWork = wfw
                  , svarStyle      = style
                  , activeWorkers  = active
                  }
@@ -872,6 +1010,7 @@ getAheadSVar style = do
     hooter  <- newEmptyMVar
     hsiren  <- newEmptyMVar
     active  <- newIORef 0
+    wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef ([], -1)
     let checkEmpty = liftIO $ do
@@ -888,6 +1027,7 @@ getAheadSVar style = do
                  , runqueue       = runqueueAhead sv q
                  , enqueue        = undefined
                  , queueEmpty     = checkEmpty
+                 , waitingForWork = wfw
                  , svarStyle      = style
                  , activeWorkers  = active
                  }
@@ -921,7 +1061,7 @@ newStreamVarAhead m = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    liftIO $ enqueueAhead (workQueue sv) m
+    liftIO $ enqueueAhead sv (workQueue sv) m
     pushWorker sv
     return sv
 
@@ -1033,7 +1173,7 @@ ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 ahead m1 m2 = Stream $ \svr stp sng yld -> do
     case svr of
         Just sv | svarStyle sv == AheadVar -> do
-            liftIO $ enqueueAhead (workQueue sv) m2
+            liftIO $ enqueueAhead sv (workQueue sv) m2
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
@@ -1043,8 +1183,14 @@ ahead m1 m2 = Stream $ \svr stp sng yld -> do
             (runStream (fromStreamVar sv)) Nothing stp sng yld
     where
     concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueueAhead (workQueue (fromJust svr)) mb
+        liftIO $ enqueueAhead (fromJust svr) (workQueue (fromJust svr)) mb
         (runStream ma) Nothing stp sng yld
+
+-- | XXX we can implement it more efficienty by directly implementing instead
+-- of combining streams using ahead.
+{-# INLINE consMAhead #-}
+consMAhead :: MonadAsync m => m a -> Stream m a -> Stream m a
+consMAhead m r = once m `ahead` r
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -1054,13 +1200,31 @@ ahead m1 m2 = Stream $ \svr stp sng yld -> do
 async :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 async = joinStreamVarAsync AsyncVar
 
+-- | XXX we can implement it more efficienty by directly implementing instead
+-- of combining streams using async.
+{-# INLINE consMAsync #-}
+consMAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
+consMAsync m r = once m `async` r
+
 {-# INLINE wAsync #-}
 wAsync :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 wAsync = joinStreamVarAsync WAsyncVar
 
+-- | XXX we can implement it more efficienty by directly implementing instead
+-- of combining streams using wAsync.
+{-# INLINE consMWAsync #-}
+consMWAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
+consMWAsync m r = once m `wAsync` r
+
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
 parallel = joinStreamVarPar ParallelVar
+
+-- | XXX we can implement it more efficienty by directly implementing instead
+-- of combining streams using parallel.
+{-# INLINE consMParallel #-}
+consMParallel :: MonadAsync m => m a -> Stream m a -> Stream m a
+consMParallel m r = once m `parallel` r
 
 -------------------------------------------------------------------------------
 -- Functor instace is the same for all types
@@ -1076,8 +1240,8 @@ instance Monad m => Functor (Stream m) where
 -- Alternative & MonadPlus
 ------------------------------------------------------------------------------
 
-alt :: Stream m a -> Stream m a -> Stream m a
-alt m1 m2 = Stream $ \_ stp sng yld ->
+_alt :: Stream m a -> Stream m a -> Stream m a
+_alt m1 m2 = Stream $ \_ stp sng yld ->
     let stop  = runStream m2 Nothing stp sng yld
     in runStream m1 Nothing stop sng yld
 
