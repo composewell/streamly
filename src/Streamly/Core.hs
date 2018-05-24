@@ -68,7 +68,7 @@ where
 
 -- MVar diagnostics has some overhead - around 5% on asyncly null benchmark,
 -- but keep it on for now to debug problems quickly if and when they happen.
--- define DIAGNOSTICS
+#define DIAGNOSTICS
 
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
