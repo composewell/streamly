@@ -40,6 +40,9 @@ module Streamly.Tutorial
     -- * Flavors of Streams
     -- $flavors
 
+    -- * Writing Concurrent Programs
+    -- $programs
+
     -- * Imports and Supporting Code
     -- $imports
 
@@ -230,6 +233,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'serially', 'wSerially', 'asyncly', 'wAsyncly', 'parallely', 'zipSerially'
 -- or 'zipAsyncly'. The default stream type is inferred as 'Serial' unless you
 -- change it by using one of the combinators or using a type annotation.
+
+-- $programs
+--
+-- When writing concurrent programs it is advised to not use the concurrent
+-- style stream combinators blindly at the top level. That might create too
+-- much concurrency where it is not even required and therefore degrade
+-- performance. Please be aware of what all APIs that you have used may become
+-- concurrent when you use a concurrency combinator. For example if you have a
+-- 'repeatM' somewhere in your program and you use 'parallely' on top, the
+-- 'repeatM' becomes fully parallel, resulting into an infinite parallel
+-- execution . Instead start with a default serial program and add concurrent
+-- combinators where necessary, and use the 'serially' combinator to suppress
+-- unnecessary concurrency.
 
 -- $monadtransformers
 --

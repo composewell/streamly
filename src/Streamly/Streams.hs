@@ -141,6 +141,8 @@ class IsStream t where
     -- ["hello","world"]
     -- @
     --
+    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
+    --
     -- @since 0.2.0
     consM :: MonadAsync m => m a -> t m a -> t m a
     -- | Operator equivalent of 'consM'.
@@ -151,6 +153,8 @@ class IsStream t where
     -- world
     -- ["hello","world"]
     -- @
+    --
+    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
     --
     -- @since 0.2.0
     (|:) :: MonadAsync m => m a -> t m a -> t m a

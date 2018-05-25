@@ -26,8 +26,9 @@
 -- provided for convenience and for consistency with other pure APIs in the
 -- @base@ package.
 --
--- Functions having a 'MonadAsync' constraint work concurrently when used
--- with appropriate stream type combinator.
+-- Functions having a 'MonadAsync' constraint work concurrently when used with
+-- appropriate stream type combinator. Please be careful to not use 'parallely'
+-- with infinite streams.
 --
 -- Deconstruction and folds accept a 'SerialT' type instead of a polymorphic
 -- type to ensure that streams always have a concrete monomorphic type by
@@ -45,7 +46,7 @@ module Streamly.Prelude
     , cons
     , (.:)
 
-    -- * General Unfold
+    -- * Generation by Unfolding
     , unfoldr
     , unfoldrM
 
@@ -63,7 +64,7 @@ module Streamly.Prelude
     -- * Deconstruction
     , uncons
 
-    -- * Folding
+    -- * Elimination by Folding
     -- ** General Folds
     , foldr
     , foldrM
@@ -146,7 +147,21 @@ import           Streamly.Streams
 -- Construction
 ------------------------------------------------------------------------------
 
--- | Build a Stream by unfolding pure steps starting from a seed.
+-- | Build a stream by unfolding a /pure/ step function starting from a seed.
+-- The step function returns the next element in the stream and the next seed
+-- value. When it is done it returns 'Nothing' and the stream ends. For
+-- example,
+--
+-- @
+-- let f b =
+--         if b > 3
+--         then Nothing
+--         else Just (b, b + 1)
+-- in toList $ unfoldr f 0
+-- @
+-- @
+-- [0,1,2,3]
+-- @
 --
 -- @since 0.1.0
 {-# INLINE unfoldr #-}
@@ -158,9 +173,28 @@ unfoldr step = fromStream . go
             Nothing -> stp
             Just (a, b) -> yld a (go b)
 
--- | Build a Stream by unfolding monadic steps starting from a seed.
+-- | Build a stream by unfolding a /monadic/ step function starting from a
+-- seed.  The step function returns the next element in the stream and the next
+-- seed value. When it is done it returns 'Nothing' and the stream ends. For
+-- example,
 --
--- @since 0.1.0
+-- @
+-- let f b =
+--         if b > 3
+--         then return Nothing
+--         else print b >> return (Just (b, b + 1))
+-- in runStream $ unfoldrM f 0
+-- @
+-- @
+--  0
+--  1
+--  2
+--  3
+-- @
+--
+-- /Concurrent/
+--
+-- /Since: 0.1.0/
 {-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = go
@@ -180,6 +214,8 @@ fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = Prelude.foldr cons nil
 
 -- | Construct a stream from a 'Foldable' containing monadic actions.
+--
+-- /Concurrent (do not use with 'parallely' on infinite containers)/
 --
 -- @since 0.3.0
 {-# INLINE fromFoldableM #-}
@@ -209,6 +245,8 @@ once = fromStream . S.once
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --
+-- /Concurrent/
+--
 -- @since 0.1.1
 replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
 replicateM n m = go n
@@ -216,6 +254,8 @@ replicateM n m = go n
     go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
 
 -- | Generate a stream by repeatedly executing a monadic action forever.
+--
+-- /Concurrent, infinite (do not use with 'parallely')/
 --
 -- @since 0.2.0
 repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
@@ -232,6 +272,8 @@ iterate step = fromStream . go
 
 -- | Iterate a monadic function from a seed value, streaming the results
 -- forever.
+--
+-- /Concurrent, infinite (do not use with 'parallely')/
 --
 -- @since 0.1.2
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> a -> t m a
@@ -657,6 +699,8 @@ maximum m = go Nothing (toStream m)
 -- | Replace each element of the stream with the result of a monadic action
 -- applied on the element.
 --
+-- /Concurrent (do not use with 'parallely' on infinite streams)/
+--
 -- @since 0.1.0
 {-# INLINE mapM #-}
 mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
@@ -683,6 +727,8 @@ mapM_ f m = go (toStream m)
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
+--
+-- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @since 0.1.0
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
