@@ -26,6 +26,7 @@
   concurrently when used at appropriate stream types.
 * Added concurrent function application operators to run stages of a
   stream processing function application pipeline concurrently.
+* Added two functions `mapMaybe` and `mapMaybeM`.
 
 ## 0.2.0
 

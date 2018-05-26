@@ -9,6 +9,7 @@ import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.List (sort, foldl', scanl')
+import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
 import Test.Hspec.QuickCheck (prop)
@@ -294,6 +295,9 @@ transformOps constr desc t eq = do
         transform (takeWhile (const False)) $ t . (A.takeWhile (const False))
     prop (desc ++ " takeWhile > 0") $
         transform (takeWhile (> 0)) $ t . (A.takeWhile (> 0))
+
+    let f x = if odd x then Just (x + 100) else Nothing
+    prop (desc ++ " mapMaybe") $ transform (mapMaybe f) $ t . (A.mapMaybe f)
 
     prop (desc ++ " drop maxBound") $
         transform (drop maxBound) $ t . (A.drop maxBound)
