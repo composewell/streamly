@@ -386,6 +386,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- where required.
 --
 -- TBD add more details and examples about concurrent transformation.
+-- TBD add details about concurrent function application.
 
 -- $semigroup
 --

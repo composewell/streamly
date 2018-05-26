@@ -2,8 +2,10 @@
 
 ### Breaking changes
 
-* Some prelude functions, to which concurrency capability has been added, will
+* Some prelude functions, to whom concurrency capability has been added, will
   now require a `MonadAsync` constraint.
+* Remove the deprecated "<|" operator and reuse it for reverse concurrent fold
+  application operator.
 
 ### Bug Fixes
 
@@ -22,6 +24,8 @@
   concurrently when used with concurrent stream types.
 * Monad transformation functions `mapM` and `sequence` can now map actions
   concurrently when used at appropriate stream types.
+* Added concurrent function application operators to run stages of a
+  stream processing function application pipeline concurrently.
 
 ## 0.2.0
 

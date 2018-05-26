@@ -2,7 +2,8 @@
 
 module Main (main) where
 
-import Control.Exception (BlockedIndefinitelyOnMVar(..), catch)
+import Control.Exception (BlockedIndefinitelyOnMVar(..), catches,
+                          BlockedIndefinitelyOnSTM(..), Handler(..))
 import Control.Monad (when)
 import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
@@ -68,10 +69,19 @@ transformFromList constr eq listOp op a =
         let list = listOp a
         equals eq stream list
 
-dbgMVar :: String -> IO a -> IO a
+mvarExcHandler :: String -> BlockedIndefinitelyOnMVar -> IO ()
+mvarExcHandler label BlockedIndefinitelyOnMVar = do
+    error $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n"
+
+stmExcHandler :: String -> BlockedIndefinitelyOnSTM -> IO ()
+stmExcHandler label BlockedIndefinitelyOnSTM = do
+    error $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n"
+
+dbgMVar :: String -> IO () -> IO ()
 dbgMVar label action =
-    action `catch` \BlockedIndefinitelyOnMVar ->
-        error $ label ++ " " ++ "BlockedIndefinitelyOnMVar"
+    action `catches` [ Handler (mvarExcHandler label)
+                     , Handler (stmExcHandler label)
+                     ]
 
 -- | first n actions takeMVar and the last action performs putMVar n times
 mvarSequenceOp :: MVar () -> Word8 -> Word8 -> IO Word8
@@ -131,6 +141,7 @@ concurrentUnfoldrM
     -> Property
 concurrentUnfoldrM eq op n =
     monadicIO $ do
+        -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $ do
             -- putStrLn $ "concurrentUnfoldrM: " ++ show n
@@ -153,6 +164,61 @@ concurrentUnfoldrM eq op n =
                     else return ()
                 return x
         equals eq stream list
+
+concurrentApplication :: Word8 -> Property
+concurrentApplication n =
+    monadicIO $ do
+        -- XXX we should test empty list case as well
+        let list = [0..n]
+        stream <- run $ do
+            -- putStrLn $ "concurrentApplication: " ++ show n
+            mv <- newEmptyMVar :: IO (MVar ())
+            -- since unfoldr happens in parallel with the stream processing we
+            -- can do two takeMVar in one iteration. If it is not parallel then
+            -- this will not work and the test will fail.
+            A.toList $ do
+                sourceUnfoldrM mv n |&
+                    (A.mapM $ \x -> do
+                        let msg = show x ++ "/" ++ show n
+                        if even x
+                        then do
+                            dbgMVar ("first take concurrentApp " ++ msg)
+                                    (takeMVar mv)
+                            if n > x
+                            then dbgMVar ("second take concurrentApp " ++ msg)
+                                         (takeMVar mv)
+                            else return ()
+                        else return ()
+                        return x)
+        equals (==) stream list
+
+sourceUnfoldrM1 :: IsStream t => Word8 -> t IO Word8
+sourceUnfoldrM1 n = A.unfoldrM step 0
+    where
+    -- argument must be integer to avoid overflow of word8 at 255
+    step :: Int -> IO (Maybe (Word8, Int))
+    step cnt = do
+        if cnt > fromIntegral n
+        then return Nothing
+        else return (Just (fromIntegral cnt, cnt + 1))
+
+concurrentFoldlApplication :: Word8 -> Property
+concurrentFoldlApplication n =
+    monadicIO $ do
+        -- XXX we should test empty list case as well
+        let list = [0..n]
+        stream <- run $ do
+            sourceUnfoldrM1 n |> A.foldlM' (\xs x -> return (x : xs)) []
+        equals (==) (reverse stream) list
+
+concurrentFoldrApplication :: Word8 -> Property
+concurrentFoldrApplication n =
+    monadicIO $ do
+        -- XXX we should test empty list case as well
+        let list = [0..n]
+        stream <- run $ do
+            sourceUnfoldrM1 n |> A.foldrM (\x xs -> return (x : xs)) []
+        equals (==) stream list
 
 foldFromList
     :: ([Int] -> t IO Int)
@@ -563,6 +629,13 @@ main = hspec $ do
         concurrentOps folded "asyncly folded" asyncly sortEq
         concurrentOps folded "wAsyncly folded" wAsyncly sortEq
         concurrentOps folded "parallely folded" parallely sortEq
+
+        prop "concurrent application" $ withMaxSuccess maxTestCount $
+            concurrentApplication
+        prop "concurrent foldr application" $ withMaxSuccess maxTestCount $
+            concurrentFoldrApplication
+        prop "concurrent foldl application" $ withMaxSuccess maxTestCount $
+            concurrentFoldlApplication
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "serially" serially

@@ -48,6 +48,10 @@ module Streamly.Core
     , wAsync
     , parallel
 
+    -- * applications
+    , applyWith
+    , runWith
+
     -- * zip
     , zipWith
     , zipAsyncWith
@@ -66,18 +70,10 @@ module Streamly.Core
     )
 where
 
--- MVar diagnostics has some overhead - around 5% on asyncly null benchmark,
--- but keep it on for now to debug problems quickly if and when they happen.
-#define DIAGNOSTICS
-
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar, putMVar)
 import           Control.Exception           (SomeException (..))
-#ifdef DIAGNOSTICS
-import           Control.Exception           (catch,
-                                              BlockedIndefinitelyOnMVar(..))
-#endif
 import qualified Control.Exception.Lifted    as EL
 import           Control.Monad               (when)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -104,6 +100,17 @@ import           Prelude                     hiding (repeat, zipWith)
 import GHC.Exts
 import GHC.Conc (ThreadId(..))
 import GHC.IO (IO(..))
+
+-- MVar diagnostics has some overhead - around 5% on asyncly null benchmark,
+-- but keep it on for now to debug problems quickly if and when they happen.
+#define DIAGNOSTICS
+
+#ifdef DIAGNOSTICS
+import           Control.Exception           (catches, throwIO, Handler(..),
+                                              BlockedIndefinitelyOnMVar(..),
+                                              BlockedIndefinitelyOnSTM(..))
+import System.IO (hPutStrLn, stderr)
+#endif
 
 ------------------------------------------------------------------------------
 -- Parent child thread communication type
@@ -193,41 +200,63 @@ data SVar m a =
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: SVar m a -> IO String
 dumpSVar sv = do
+    tid <- myThreadId
     (oqList, oqLen) <- readIORef $ outputQueue sv
     db <- tryTakeMVar $ doorBell sv
     srn <- tryTakeMVar $ siren sv
-    (oheap, oheapSize) <- readIORef $ outputHeap sv
-    hsrn <- tryTakeMVar $ heapSiren sv
-    (wq, wqSize) <- readIORef $ workQueue sv
+    aheadDump <-
+        if svarStyle sv == AheadVar
+        then do
+            (oheap, oheapSize) <- readIORef $ outputHeap sv
+            hsrn <- tryTakeMVar $ heapSiren sv
+            (wq, wqSize) <- readIORef $ workQueue sv
+            return $ unlines
+                [ "heap length computed = " ++ show (H.size oheap)
+                , "heap length maintained = " ++ show oheapSize
+                , "heap siren = " ++ show hsrn
+                , "work queue length computed = " ++ show (length wq)
+                , "work queue length maintained = " ++ show wqSize
+                ]
+        else return []
+
     waiting <- readIORef $ waitingForWork sv
     rthread <- readIORef $ runningThreads sv
     workers <- readIORef $ activeWorkers sv
     -- XXX queueEmpty should be made IO return type
 
     return $ unlines
-        [ "style = " ++ show (svarStyle sv)
+        [ "tid = " ++ show tid
+        , "style = " ++ show (svarStyle sv)
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
         , "output doorBell = " ++ show db
         , "worker siren = " ++ show srn
-        , "heap length computed = " ++ show (H.size oheap)
-        , "heap length maintained = " ++ show oheapSize
-        , "heap siren = " ++ show hsrn
-        , "work queue length computed = " ++ show (length wq)
-        , "work queue length maintained = " ++ show wqSize
-        , "waitingForWork = " ++ show waiting
+        ]
+        ++ aheadDump ++ unlines
+        [ "waitingForWork = " ++ show waiting
         , "running threads = " ++ show rthread
         , "running thread count = " ++ show workers
         ]
 
 {-# NOINLINE mvarExcHandler #-}
 mvarExcHandler :: SVar m a -> String -> BlockedIndefinitelyOnMVar -> IO ()
-mvarExcHandler sv label BlockedIndefinitelyOnMVar = do
+mvarExcHandler sv label e@BlockedIndefinitelyOnMVar = do
     svInfo <- dumpSVar sv
-    error $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n" ++ svInfo
+    hPutStrLn stderr $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n" ++ svInfo
+    throwIO e
+
+{-# NOINLINE stmExcHandler #-}
+stmExcHandler :: SVar m a -> String -> BlockedIndefinitelyOnSTM -> IO ()
+stmExcHandler sv label e@BlockedIndefinitelyOnSTM = do
+    svInfo <- dumpSVar sv
+    hPutStrLn stderr $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n" ++ svInfo
+    throwIO e
 
 withDBGMVar :: SVar m a -> String -> IO () -> IO ()
-withDBGMVar sv label action = action `catch` mvarExcHandler sv label
+withDBGMVar sv label action =
+    action `catches` [ Handler (mvarExcHandler sv label)
+                     , Handler (stmExcHandler sv label)
+                     ]
 #else
 withDBGMVar :: SVar m a -> String -> IO () -> IO ()
 withDBGMVar _ _ action = action
@@ -759,7 +788,7 @@ delThread sv tid =
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
 -- This occurs when the forked thread is done even before the 'addThread' right
--- after the fork is executed.
+-- after the fork gets a chance to run.
 {-# INLINE modifyThread #-}
 modifyThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 modifyThread sv tid = do
@@ -797,7 +826,10 @@ pushWorker sv = do
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
 pushWorkerPar :: MonadAsync m => SVar m a -> Stream m a -> m ()
-pushWorkerPar sv m =
+pushWorkerPar sv m = do
+    -- We do not use activeWorkers in case of ParallelVar but still there is no
+    -- harm in maintaining it correctly.
+    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
 
 -- XXX When the queue is LIFO we can put a limit on the number of dispatches.
@@ -1050,8 +1082,11 @@ newStreamVar1 style m = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    liftIO $ (enqueue sv) m
-    pushWorker sv
+    if style == ParallelVar
+    then pushWorkerPar sv m
+    else do
+        liftIO $ (enqueue sv) m
+        pushWorker sv
     return sv
 
 -- | Create a new SVar and enqueue one stream computation on it.
@@ -1246,6 +1281,26 @@ _alt m1 m2 = Stream $ \_ stp sng yld ->
     in runStream m1 Nothing stop sng yld
 
 ------------------------------------------------------------------------------
+-- Stream to stream function application
+------------------------------------------------------------------------------
+
+applyWith :: MonadAsync m
+    => SVarStyle -> (Stream m a -> Stream m b) -> Stream m a -> Stream m b
+applyWith style f m = Stream $ \svr stp sng yld -> do
+    sv <- newStreamVar1 style m
+    runStream (f $ fromStreamVar sv) svr stp sng yld
+
+------------------------------------------------------------------------------
+-- Stream runner function application
+------------------------------------------------------------------------------
+
+runWith :: MonadAsync m
+    => SVarStyle -> (Stream m a -> m b) -> Stream m a -> m b
+runWith style f m = do
+    sv <- newStreamVar1 style m
+    f $ fromStreamVar sv
+
+------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
 
@@ -1261,16 +1316,18 @@ zipWith f m1 m2 = go m1 m2
             yield1 a ra = merge a ra
         (runStream mx) Nothing stp single1 yield1
 
-mkAsync :: MonadAsync m => Stream m a -> m (Stream m a)
-mkAsync m = newStreamVar1 AsyncVar m
-    >>= return . fromStreamVar
-
 zipAsyncWith :: MonadAsync m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipAsyncWith f m1 m2 = Stream $ \_ stp sng yld -> do
     ma <- mkAsync m1
     mb <- mkAsync m2
     (runStream (zipWith f ma mb)) Nothing stp sng yld
+
+    where
+
+    mkAsync :: MonadAsync m => Stream m a -> m (Stream m a)
+    mkAsync m = newStreamVar1 AsyncVar m
+        >>= return . fromStreamVar
 
 -------------------------------------------------------------------------------
 -- Transformers

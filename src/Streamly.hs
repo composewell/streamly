@@ -80,7 +80,18 @@ module Streamly
     , ZipSerialM
     , ZipAsyncM
 
-    -- * Polymorphic Sum Operations
+    -- * Running Streams
+    , runStream
+
+    -- * Parallel Function Application
+    -- $application
+    , (|$)
+    , (|&)
+    , (<|)
+    , (|>)
+    , mkAsync
+
+    -- * Merging Streams
     -- $sum
     , serial
     , wSerial
@@ -88,6 +99,12 @@ module Streamly
     , async
     , wAsync
     , parallel
+
+    -- * Folding Containers of Streams
+    -- $foldutils
+    , foldWith
+    , foldMapWith
+    , forEachWith
 
     -- * Stream Type Adapters
     -- $adapters
@@ -113,18 +130,6 @@ module Streamly
     , ZipSerial
     , ZipAsync
 
-    -- * Running Streams
-    , runStream
-
-    -- * Transformation
-    , mkAsync
-
-    -- * Polymorphic Fold Utilities
-    -- $foldutils
-    , foldWith
-    , foldMapWith
-    , forEachWith
-
     -- * Re-exports
     , Semigroup (..)
     -- * Deprecated
@@ -143,7 +148,6 @@ module Streamly
     , zipping
     , zippingAsync
     , (<=>)
-    , (<|)
     )
 where
 
@@ -173,6 +177,22 @@ import Data.Semigroup (Semigroup(..))
 -- 'ZipSerialM' and 'ZipAsyncM', provide 'Applicative' instances for zipping the
 -- corresponding elements of two streams together. Note that these types are
 -- not monads.
+
+-- $application
+--
+-- Several stream processing functions can be called in a chain using regular
+-- function application, using the '$' operator or reverse function application
+-- operator '&'. This section provides corresponding operators that can apply
+-- stream processing functions such that ach stage of the stream can run in
+-- parallel.
+--
+-- Imports for the code snippets below:
+--
+-- @
+--  import Streamly
+--  import qualified Streamly.Prelude as S
+--  import Control.Concurrent
+-- @
 
 -- $sum
 -- The 'Semigroup' operation '<>' of each stream type combines two streams in a

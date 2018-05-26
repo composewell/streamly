@@ -191,6 +191,13 @@ unfoldr step = fromStream . go
 --  2
 --  3
 -- @
+-- When run concurrently, the next unfold can run concurrently while previously
+-- generated value is being processed by the next stream stage.
+--
+-- @
+-- (asyncly $ S.unfoldrM (\\n -> liftIO (threadDelay 1000000) >> return (Just (n, n + 1))) 0)
+--     & S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+-- @
 --
 -- /Concurrent/
 --
@@ -214,6 +221,11 @@ fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = Prelude.foldr cons nil
 
 -- | Construct a stream from a 'Foldable' containing monadic actions.
+--
+-- @
+-- runStream $ serially $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
+-- runStream $ asyncly  $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
+-- @
 --
 -- /Concurrent (do not use with 'parallely' on infinite containers)/
 --
@@ -245,6 +257,12 @@ once = fromStream . S.once
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --
+--
+-- @
+-- runStream $ serially $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- runStream $ asyncly  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- @
+--
 -- /Concurrent/
 --
 -- @since 0.1.1
@@ -254,6 +272,11 @@ replicateM n m = go n
     go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
 
 -- | Generate a stream by repeatedly executing a monadic action forever.
+--
+-- @
+-- runStream $ serially $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- runStream $ asyncly  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- @
 --
 -- /Concurrent, infinite (do not use with 'parallely')/
 --
@@ -272,6 +295,14 @@ iterate step = fromStream . go
 
 -- | Iterate a monadic function from a seed value, streaming the results
 -- forever.
+--
+-- @
+-- runStream $ serially $ S.take 10 $ S.iterateM
+--      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
+--
+-- runStream $ asyncly  $ S.take 10 $ S.iterateM
+--      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
+-- @
 --
 -- /Concurrent, infinite (do not use with 'parallely')/
 --
@@ -699,6 +730,14 @@ maximum m = go Nothing (toStream m)
 -- | Replace each element of the stream with the result of a monadic action
 -- applied on the element.
 --
+-- @
+-- runStream $ S.replicateM 10 (return 1)
+--           & (serially . S.mapM (\\x -> threadDelay 1000000 >> print x))
+--
+-- runStream $ S.replicateM 10 (return 1)
+--           & (asyncly . S.mapM (\\x -> threadDelay 1000000 >> print x))
+-- @
+--
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @since 0.1.0
@@ -727,6 +766,14 @@ mapM_ f m = go (toStream m)
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
+--
+-- @
+-- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--           & (serially . S.sequence)
+--
+-- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--           & (asyncly . S.sequence)
+-- @
 --
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --

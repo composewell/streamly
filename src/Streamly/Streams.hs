@@ -41,6 +41,10 @@ module Streamly.Streams
 
     -- * Transformation
     , mkAsync
+    , (|$)
+    , (|&)
+    , (|>)
+    , (<|)
 
     -- * Merging Streams
     , serial
@@ -50,7 +54,6 @@ module Streamly.Streams
     , wAsync
     , parallel
     , (<=>)            --deprecated
-    , (<|)             --deprecated
 
     -- * IO Streams
     , Serial
@@ -154,10 +157,18 @@ class IsStream t where
     -- ["hello","world"]
     -- @
     --
+    -- @
+    -- let delay = threadDelay 1000000 >> print 1
+    -- runStream $ serially  $ delay |: delay |: delay |: nil
+    -- runStream $ parallely $ delay |: delay |: delay |: nil
+    -- @
+    --
     -- /Concurrent (do not use 'parallely' to construct infinite streams)/
     --
     -- @since 0.2.0
     (|:) :: MonadAsync m => m a -> t m a -> t m a
+    -- We can define (|:) just as 'consM' but it is defined explicitly for each
+    -- type because we want to use SPECIALIZE pragma on the definition.
 
 -- | Same as 'IsStream'.
 --
@@ -306,6 +317,85 @@ mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync m = do
     sv <- S.newStreamVar1 AsyncVar (toStream m)
     return $ fromSVar sv
+
+{-# INLINE applyWith #-}
+applyWith :: (IsStream t, MonadAsync m)
+    => SVarStyle -> (t m a -> t m b) -> t m a -> t m b
+applyWith style f x = fromStream $
+    S.applyWith style (toStream . f . fromStream) (toStream x)
+
+{-# INLINE runWith #-}
+runWith :: (IsStream t, MonadAsync m)
+    => SVarStyle -> (t m a -> m b) -> t m a -> m b
+runWith style f x = S.runWith style (f . fromStream) (toStream x)
+
+-- | Parallel function application operator for streams; just like the regular
+-- function application operator '$' except that it is concurrent. The
+-- following code prints a value every second even though each stage adds a 1
+-- second delay.
+--
+--
+-- @
+-- runStream $
+--    S.mapM (\\x -> threadDelay 1000000 >> print x)
+--      |$ S.repeatM (threadDelay 1000000 >> return 1)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|$) #-}
+(|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
+f |$ x = applyWith ParallelVar f x
+
+-- | Parallel reverse function application operator for streams; just like the
+-- regular reverse function application operator '&' except that it is
+-- concurrent.
+--
+-- @
+-- runStream $
+--       S.repeatM (threadDelay 1000000 >> return 1)
+--    |& S.mapM (\\x -> threadDelay 1000000 >> print x)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|&) #-}
+(|&) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> t m b) -> t m b
+x |& f = f |$ x
+
+-- | Parallel function application operator; applies a @run@ or @fold@ function
+-- to a stream such that the fold consumer and the stream producer run in
+-- parallel. A @run@ or @fold@ function reduces the stream to a value in the
+-- underlying monad.
+--
+-- @
+--    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+--       <| S.repeatM (threadDelay 1000000 >> return 1)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (<|) #-}
+(<|) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+f <| x = runWith ParallelVar f x
+
+-- | Parallel reverse function application operator for applying a run or fold
+-- functions to a stream. Just like '<|' except that the operands are reversed.
+--
+-- @
+--       S.repeatM (threadDelay 1000000 >> return 1)
+--    |> S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|>) #-}
+(|>) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
+x |> f = f <| x
 
 ------------------------------------------------------------------------------
 -- CPP macros for common instances
@@ -775,14 +865,6 @@ async m1 m2 = fromStream $ S.async (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (AsyncT m a) where
     (<>) = async
-
--- | Same as 'async'.
---
--- @since 0.1.0
-{-# DEPRECATED (<|) "Please use 'async' instead." #-}
-{-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-(<|) = async
 
 ------------------------------------------------------------------------------
 -- Monoid
