@@ -1069,6 +1069,7 @@ newEmptySVar style = do
             AheadVar -> getAheadSVar style
 
 -- | Create a new SVar and enqueue one stream computation on it.
+{-# INLINABLE newStreamVar1 #-}
 newStreamVar1 :: MonadAsync m => SVarStyle -> Stream m a -> m (SVar m a)
 newStreamVar1 style m = do
     sv <- newEmptySVar style
@@ -1083,6 +1084,7 @@ newStreamVar1 style m = do
     return sv
 
 -- | Create a new SVar and enqueue one stream computation on it.
+{-# INLINABLE newStreamVarAhead #-}
 newStreamVarAhead :: MonadAsync m => Stream m a -> m (SVar m a)
 newStreamVarAhead m = do
     sv <- newEmptySVar AheadVar

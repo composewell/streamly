@@ -155,6 +155,7 @@ composeAllInFilters   = compose (S.filter (<= maxValue))
 composeAllOutFilters  = compose (S.filter (> maxValue))
 composeMapAllInFilter = compose (S.filter (<= maxValue) . fmap (subtract 1))
 
+{-# INLINABLE composeScaling #-}
 composeScaling :: Monad m => Int -> Stream m Int -> m ()
 composeScaling m =
     case m of
