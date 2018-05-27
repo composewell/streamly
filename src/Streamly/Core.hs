@@ -56,11 +56,6 @@ module Streamly.Core
     , zipWith
     , zipAsyncWith
 
-    -- XXX move to Streams.hs
-    -- * Transformers
-    , withLocal
-    , withCatchError
-
     -- * Concurrent Stream Vars (SVars)
     , SVar
     , SVarStyle (..)
@@ -73,15 +68,12 @@ where
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
                                               tryPutMVar, takeMVar, putMVar)
-import           Control.Exception           (SomeException (..))
-import qualified Control.Exception.Lifted    as EL
+import           Control.Exception           (SomeException (..), catch, mask)
 import           Control.Monad               (when)
 import           Control.Monad.Catch         (MonadThrow, throwM)
-import           Control.Monad.Error.Class   (MonadError(..))
 import           Control.Monad.IO.Class      (MonadIO(..))
-import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
-import           Control.Monad.Trans.Control (MonadBaseControl, liftBaseWith)
+import           Control.Monad.Trans.Control (MonadBaseControl, control)
 import           Data.Atomics                (casIORef, readForCAS, peekTicket
                                              ,atomicModifyIORefCAS_)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
@@ -395,14 +387,14 @@ rawForkIO action = IO $ \ s ->
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
     => m ()
-    -> (SomeException -> m ())
+    -> (SomeException -> IO ())
     -> m ThreadId
 doFork action exHandler =
-    EL.mask $ \restore ->
-        liftBaseWith $ \runInIO -> rawForkIO $ do
-            _ <- runInIO $ EL.catch (restore action) exHandler
-            -- XXX restore state here?
-            return ()
+    control $ \runInIO ->
+        mask $ \restore -> do
+                tid <- rawForkIO $ catch (restore $ void $ runInIO action)
+                                         exHandler
+                runInIO (return tid)
 
 -- XXX exception safety of all atomic/MVar operations
 
@@ -808,8 +800,8 @@ allThreadsDone :: MonadIO m => SVar m a -> m Bool
 allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
 
 {-# NOINLINE handleChildException #-}
-handleChildException :: MonadIO m => SVar m a -> SomeException -> m ()
-handleChildException sv e = liftIO $ do
+handleChildException :: SVar m a -> SomeException -> IO ()
+handleChildException sv e = do
     tid <- myThreadId
     send sv (ChildStop tid (Just e))
 
@@ -1335,21 +1327,3 @@ zipAsyncWith f m1 m2 = Stream $ \_ stp sng yld -> do
 
 instance MonadTrans Stream where
     lift = once
-
-withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
-withLocal f m =
-    Stream $ \svr stp sng yld ->
-        let single = local f . sng
-            yield a r = local f $ yld a (withLocal f r)
-        in (runStream m) svr (local f stp) single yield
-
--- XXX handle and test cross thread state transfer
-withCatchError
-    :: MonadError e m
-    => Stream m a -> (e -> Stream m a) -> Stream m a
-withCatchError m h =
-    Stream $ \svr stp sng yld ->
-        let run x = runStream x svr stp sng yield
-            handle r = r `catchError` \e -> run $ h e
-            yield a r = yld a (withCatchError r h)
-        in handle $ run m

@@ -118,14 +118,15 @@ library
                       -Wnoncanonical-monadfail-instances
 
     build-depends:     base              >= 4.8   &&  < 5
-                     , atomic-primops    >= 0.8   && < 0.9
                      , containers        >= 0.5   && < 0.6
                      , heaps             >= 0.3   && < 0.4
+
+                    -- concurrency
+                     , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
 
                     -- transfomers
                      , exceptions        >= 0.8   && < 0.11
-                     , lifted-base       >= 0.2   && < 0.3
                      , monad-control     >= 1.0   && < 2
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6

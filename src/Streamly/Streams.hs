@@ -404,6 +404,26 @@ x |> f = f <| x
 -- XXX use template haskell instead and include Monoid and IsStream instances
 -- as well.
 
+withLocal :: MonadReader r m => (r -> r) -> S.Stream m a -> S.Stream m a
+withLocal f m =
+    S.Stream $ \svr stp sng yld ->
+        let single = local f . sng
+            yield a r = local f $ yld a (withLocal f r)
+        in (S.runStream m) svr (local f stp) single yield
+
+{-
+-- XXX handle and test cross thread state transfer
+withCatchError
+    :: MonadError e m
+    => S.Stream m a -> (e -> S.Stream m a) -> S.Stream m a
+withCatchError m h =
+    S.Stream $ \svr stp sng yld ->
+        let run x = S.runStream x svr stp sng yield
+            handle r = r `catchError` \e -> run $ h e
+            yield a r = yld a (withCatchError r h)
+        in handle $ run m
+-}
+
 #define MONADPARALLEL , MonadAsync m
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
@@ -425,12 +445,12 @@ instance (MonadThrow m CONSTRAINT) => MonadThrow (STREAM m) where {           \
 instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
     throwError = lift . throwError;                                           \
     catchError m h =                                                          \
-        fromStream $ S.withCatchError (toStream m) (\e -> toStream $ h e) };  \
+        fromStream $ withCatchError (toStream m) (\e -> toStream $ h e) };  \
 -} \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     ask = lift ask;                                                           \
-    local f m = fromStream $ S.withLocal f (toStream m) };                    \
+    local f m = fromStream $ withLocal f (toStream m) };                    \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     get     = lift get;                                                       \
