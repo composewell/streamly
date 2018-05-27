@@ -1,33 +1,49 @@
-# See https://github.com/harendra-kumar/packcheck for all options and their
-# explanation.
+# You can use any of the options supported by packcheck as environment
+# variables here.  See https://github.com/harendra-kumar/packcheck for all
+# options and their explanation.
 environment:
+    # ------------------------------------------------------------------------
+    # Global options, you can use these per build as well
+    # ------------------------------------------------------------------------
   global:
     # ------------------------------------------------------------------------
-    # Global options used for all CI tests
+    # Common options
     # ------------------------------------------------------------------------
     GHC_OPTIONS: "-Werror"
+    CABAL_REINIT_CONFIG: "y"
+    LC_ALL: "C.UTF-8"
 
     # ------------------------------------------------------------------------
-    # Options for builds that need stack (note, cabal builds can use stack)
+    # What to build
+    # ------------------------------------------------------------------------
+    # DISABLE_TEST: "y"
+    # DISABLE_BENCH: "y"
+    # DISABLE_DOCS: "y"
+    # DISABLE_SDIST_BUILD: "y"
+    ENABLE_INSTALL: "y"
+
+    # ------------------------------------------------------------------------
+    # stack options
     # ------------------------------------------------------------------------
     # Note requiring a specific version of stack using STACKVER may fail due to
     # github API limit while checking and upgrading/downgrading to the specific
     # version.
     #STACKVER: "1.6.5"
     STACK_UPGRADE: "y"
-    RESOLVER: "lts-11.0"
+    RESOLVER: "lts-11"
+    STACK_ROOT: "c:\\sr"
 
     # ------------------------------------------------------------------------
-    # Normally you would not need to customize these params
+    # cabal options
     # ------------------------------------------------------------------------
-    CABAL_REINIT_CONFIG: "y"
     CABAL_CHECK_RELAX: "y"
     CABAL_NO_SANDBOX: "y"
     CABAL_HACKAGE_MIRROR: "hackage.haskell.org:http://hackage.fpcomplete.com"
-    TEST_INSTALL: "y"
-    LC_ALL: "C.UTF-8"
+
+    # ------------------------------------------------------------------------
+    # Where to find the required tools
+    # ------------------------------------------------------------------------
     PATH: "%PATH%;%APPDATA%\\local\\bin"
-    STACK_ROOT: "c:\\sr"
     LOCAL_BIN: "%APPDATA%\\local\\bin"
 
     # ------------------------------------------------------------------------
@@ -41,7 +57,7 @@ environment:
     # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
     # then it is automatically pulled from this URL.
     PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-    PACKCHECK_GITHUB_COMMIT: "437800a90f3b469b04768af068094d2ac582f351"
+    PACKCHECK_GITHUB_COMMIT: "1e44e612ce2af77c067aec489a254fdfbd6e589b"
 
 cache:
   - "%STACK_ROOT%"
@@ -57,9 +73,11 @@ before_test:
 - if not exist %PACKCHECK_LOCAL_PATH% curl -sSkL -o%PACKCHECK_LOCAL_PATH% %PACKCHECK_GITHUB_URL%/%PACKCHECK_GITHUB_COMMIT%/packcheck.sh
 - if not exist %LOCAL_BIN% mkdir %LOCAL_BIN%
 - where stack.exe || curl -sSkL -ostack.zip http://www.stackage.org/stack/windows-x86_64 && 7z x stack.zip stack.exe && move stack.exe %LOCAL_BIN%
-#- stack upgrade --binary-only --binary-version %STACKVER%
+- if defined STACKVER (stack upgrade --binary-only --binary-version %STACKVER%) else (stack upgrade --binary-only || ver > nul)
 - stack --version
 
 test_script:
 - stack setup > nul
-- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK_LOCAL_PATH%; %PACKCHECK_LOCAL_PATH% stack"
+- for /f "usebackq tokens=*" %%i in (`where 7z.exe`) do set PATH7Z=%%i\..
+- for /f "usebackq tokens=*" %%i in (`where git.exe`) do set PATHGIT=%%i\..
+- chcp 65001 && stack exec bash -- -c "chmod +x %PACKCHECK_LOCAL_PATH%; %PACKCHECK_LOCAL_PATH% stack PATH=/usr/bin:\"%PATH7Z%\":\"%PATHGIT%\""
