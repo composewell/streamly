@@ -46,7 +46,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-toNull, scan, map, filterEven, filterAllOut,
+scan, map, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
@@ -58,6 +58,8 @@ toList :: Monad m => Stream m Int -> m [Int]
 foldl :: Monad m => Stream m Int -> m Int
 last :: Monad m => Stream m Int -> m (Maybe Int)
 
+toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
@@ -65,7 +67,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
-source :: Int -> Stream m Int
+source :: S.IsStream t => Int -> t m Int
 source n = S.unfoldr step n
     where
     step cnt =
@@ -73,18 +75,26 @@ source n = S.unfoldr step n
         then Nothing
         else (Just (cnt, cnt + 1))
 
-sourceFromFoldable :: Int -> Stream m Int
+{-# INLINE sourceFromFoldable #-}
+sourceFromFoldable :: S.IsStream t => Int -> t m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
+sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
 sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
-sourceFoldMapWith :: Monad m => Int -> Stream m Int
-sourceFoldMapWith n = S.foldMapWith S.serial return [n..n+value]
+{-# INLINE sourceFoldMapWith #-}
+sourceFoldMapWith :: (S.IsStream t, Monad (t m), S.Semigroup (t m Int))
+    => Int -> t m Int
+sourceFoldMapWith n = S.foldMapWith (S.<>) return [n..n+value]
+
+{-# INLINE sourceFoldMapWithM #-}
+sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
+    => Int -> t m Int
+sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.once . return) [n..n+value]
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: S.MonadAsync m => Int -> Stream m Int
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
 sourceUnfoldrM n = S.unfoldrM step n
     where
     step cnt =
@@ -100,7 +110,7 @@ runStream = S.runStream
 -- Elimination
 -------------------------------------------------------------------------------
 
-toNull = runStream
+toNull t = runStream . t
 toList = S.toList
 foldl  = S.foldl' (+) 0
 last   = S.last

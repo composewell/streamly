@@ -15,11 +15,16 @@ import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
-benchIO :: NFData b => String -> (Ops.Stream m Int -> IO b) -> Benchmark
+benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
 
-benchSrcIO :: String -> (Int -> Ops.Stream IO Int) -> Benchmark
-benchSrcIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= Ops.toNull . f
+benchSrcIO
+    :: (t IO Int -> SerialT IO Int)
+    -> String
+    -> (Int -> t IO Int)
+    -> Benchmark
+benchSrcIO t name f
+    = bench name $ nfIO $ randomRIO (1,1000) >>= Ops.toNull t . f
 
 benchIOAppend :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIOAppend name f = bench name $ nfIO $ randomRIO (1,1000) >>= f
@@ -30,12 +35,57 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 main :: IO ()
 main = do
   defaultMain
-    [ bgroup "elimination"
-      [ benchIO "toNull" Ops.toNull
-      , benchSrcIO "fromFoldable" Ops.sourceFromFoldable
-      , benchSrcIO "fromFoldableM" Ops.sourceFromFoldableM
-      , benchSrcIO "foldMapWith" Ops.sourceFoldMapWith
-      , benchSrcIO "unfoldrM" Ops.sourceUnfoldrM
+    [ bgroup "generation"
+      [ bgroup "serially"
+          [ benchIO "unfoldr" $ Ops.toNull serially
+          , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
+          , benchSrcIO serially "foldMapWith" Ops.sourceFoldMapWith
+          , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
+          , benchSrcIO serially "fromFoldableM" Ops.sourceFromFoldableM
+          , benchSrcIO serially "foldMapWithM" Ops.sourceFoldMapWithM
+          ]
+      -- unfoldr and fromFoldable are always serial and thereofore the same for
+      -- all stream types.
+      , bgroup "aheadly"
+          [ -- benchIO "unfoldr" $ Ops.toNull aheadly
+          -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
+            benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
+          , benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
+          , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
+          , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
+          ]
+      , bgroup "asyncly"
+          [ -- benchIO "unfoldr" $ Ops.toNull asyncly
+          -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
+            benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
+          , benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
+          , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
+          , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
+          ]
+     -- XXX need to use smaller streams to finish in reasonable time
+      , bgroup "parallely"
+          [ --benchIO "unfoldr" $ Ops.toNull parallely
+          --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
+          --, benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
+          -- , benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
+          -- , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
+          -- , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
+          ]
+      ]
+    -- XXX this is the same foldMapWith in the above benchmarks, need to dedup
+    -- this one provides a single place comparsion of all types and uses
+    -- smaller stream size for faster benchmarking. We can use the same for
+    -- above benchmarks and remove this.
+    , bgroup "append"
+      [ benchIOAppend "serially"   $ Ops.append serially
+      , benchIOAppend "wSerially"  $ Ops.append wSerially
+      , benchIOAppend "aheadly"    $ Ops.append aheadly
+      , benchIOAppend "asyncly"    $ Ops.append asyncly
+      , benchIOAppend "wAsyncly"   $ Ops.append wAsyncly
+      , benchIOAppend "parallely"  $ Ops.append parallely
+      ]
+    , bgroup "elimination"
+      [ benchIO "toNull" $ Ops.toNull serially
       , benchIO "toList" Ops.toList
       , benchIO "fold" Ops.foldl
       , benchIO "last" Ops.last
@@ -56,14 +106,6 @@ main = do
       , benchIO "dropWhile-true" Ops.dropWhileTrue
       ]
     , benchIO "zip" Ops.zip
-    , bgroup "append"
-      [ benchIOAppend "serially"   $ Ops.append serially
-      , benchIOAppend "wSerially"  $ Ops.append wSerially
-      , benchIOAppend "aheadly"    $ Ops.append aheadly
-      , benchIOAppend "asyncly"    $ Ops.append asyncly
-      , benchIOAppend "wAsyncly"   $ Ops.append wAsyncly
-      , benchIOAppend "parallely"  $ Ops.append parallely
-      ]
     , bgroup "compose"
       [ benchIO "mapM" Ops.composeMapM
       , benchIO "map-with-all-in-filter" Ops.composeMapAllInFilter
