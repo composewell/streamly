@@ -93,9 +93,10 @@ import GHC.Exts
 import GHC.Conc (ThreadId(..))
 import GHC.IO (IO(..))
 
--- MVar diagnostics has some overhead - around 5% on asyncly null benchmark,
--- but keep it on for now to debug problems quickly if and when they happen.
-#define DIAGNOSTICS
+-- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
+-- can keep it on in production to debug problems quickly if and when they
+-- happen, but it may result in unexpected output when threads are left hanging
+-- until they are GCed because the consumer went away.
 
 #ifdef DIAGNOSTICS
 import           Control.Exception           (catches, throwIO, Handler(..),

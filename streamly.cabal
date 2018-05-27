@@ -71,18 +71,23 @@ source-repository head
     type: git
     location: https://github.com/composewell/streamly
 
+flag diag
+  description: Diagnostics build
+  manual: True
+  default: False
+
 flag dev
-  description: Build development version
+  description: Development build
   manual: True
   default: False
 
 flag examples
-  description: Build examples
+  description: Build including examples
   manual: True
   default: False
 
 flag examples-sdl
-  description: Include examples that use SDL dependency
+  description: Build including SDL examples
   manual: True
   default: False
 
@@ -103,7 +108,11 @@ library
     default-language: Haskell2010
     ghc-options:      -Wall
 
+    if flag(diag)
+      cpp-options:    -DDIAGNOSTICS
+
     if flag(dev)
+      cpp-options:    -DDIAGNOSTICS
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
                       -fno-ignore-asserts

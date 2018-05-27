@@ -69,6 +69,9 @@ matrix:
   - env: BUILD=stack CABALVER=2.0 GHCVER=8.2.2 RESOLVER=lts-11 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,libsdl1.2-dev], sources: [hvr-ghc]}}
 
+  - env: BUILD=stack CABALVER=2.0 GHCVER=8.2.2 RESOLVER=lts-11 STACK_BUILD_OPTIONS="--flag streamly:diag"
+    addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,libsdl1.2-dev], sources: [hvr-ghc]}}
+
   # Nightly
   - env: BUILD=stack RESOLVER=nightly
 
