@@ -40,9 +40,6 @@ module Streamly.Tutorial
     -- * Flavors of Streams
     -- $flavors
 
-    -- * Writing Concurrent Programs
-    -- $programs
-
     -- * Imports and Supporting Code
     -- $imports
 
@@ -128,6 +125,9 @@ module Streamly.Tutorial
 
     -- * Reactive Programming
     -- $reactive
+
+    -- * Writing Concurrent Programs
+    -- $programs
 
     -- * Performance
     -- $performance
@@ -238,14 +238,19 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- When writing concurrent programs it is advised to not use the concurrent
 -- style stream combinators blindly at the top level. That might create too
--- much concurrency where it is not even required and therefore degrade
--- performance. Please be aware of what all APIs that you have used may become
--- concurrent when you use a concurrency combinator. For example if you have a
--- 'repeatM' somewhere in your program and you use 'parallely' on top, the
--- 'repeatM' becomes fully parallel, resulting into an infinite parallel
--- execution . Instead start with a default serial program and add concurrent
--- combinators where necessary, and use the 'serially' combinator to suppress
--- unnecessary concurrency.
+-- much concurrency where it is not even required, and can even degrade
+-- performance in some cases. In some cases it can also lead to surprising
+-- behavior because of some code that is supposed to be serial becoming
+-- concurrent. Please be aware that all concurrency capable APIs that you may
+-- have used under the scope of a concurrent stream combinator will become
+-- concurrent. For example if you have a 'repeatM' somewhere in your program
+-- and you use 'parallely' on top, the 'repeatM' becomes fully parallel,
+-- resulting into an infinite parallel execution . Instead, use the
+-- /Keep It Serial and Stupid/ principle, start with the default serial
+-- composition and enable concurrent combinators only when and where necessary.
+-- When you use a concurrent combinator you can use an explicit 'serially'
+-- combinator to suppress any unnecessary concurrency under the scope of that
+-- combinator.
 
 -- $monadtransformers
 --

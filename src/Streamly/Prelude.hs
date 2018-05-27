@@ -191,8 +191,10 @@ unfoldr step = fromStream . go
 --  2
 --  3
 -- @
--- When run concurrently, the next unfold can run concurrently while previously
--- generated value is being processed by the next stream stage.
+-- When run concurrently, the next unfold step can run concurrently with the
+-- processing of the output of the previous step.  Note that more than one step
+-- cannot run concurrently as the next step depends on the output of the
+-- previous step.
 --
 -- @
 -- (asyncly $ S.unfoldrM (\\n -> liftIO (threadDelay 1000000) >> return (Just (n, n + 1))) 0)
@@ -296,6 +298,11 @@ iterate step = fromStream . go
 -- | Iterate a monadic function from a seed value, streaming the results
 -- forever.
 --
+-- When run concurrently, the next iteration can run concurrently with the
+-- processing of the previous iteration. Note that more than one iteration
+-- cannot run concurrently as the next iteration depends on the output of the
+-- previous iteration.
+--
 -- @
 -- runStream $ serially $ S.take 10 $ S.iterateM
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
@@ -304,7 +311,7 @@ iterate step = fromStream . go
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
 -- @
 --
--- /Concurrent, infinite (do not use with 'parallely')/
+-- /Concurrent/
 --
 -- @since 0.1.2
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> a -> t m a
