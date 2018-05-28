@@ -4,8 +4,6 @@
 
 * Some prelude functions, to whom concurrency capability has been added, will
   now require a `MonadAsync` constraint.
-* Remove the deprecated "<|" operator and reuse it for reverse concurrent fold
-  application operator.
 
 ### Bug Fixes
 

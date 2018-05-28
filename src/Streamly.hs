@@ -87,8 +87,8 @@ module Streamly
     -- $application
     , (|$)
     , (|&)
-    , (<|)
-    , (|>)
+    , (|$.)
+    , (|&.)
     , mkAsync
 
     -- * Merging Streams
@@ -148,6 +148,7 @@ module Streamly
     , zipping
     , zippingAsync
     , (<=>)
+    , (<|)
     )
 where
 

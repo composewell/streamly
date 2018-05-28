@@ -43,8 +43,8 @@ module Streamly.Streams
     , mkAsync
     , (|$)
     , (|&)
-    , (|>)
-    , (<|)
+    , (|$.)
+    , (|&.)
 
     -- * Merging Streams
     , serial
@@ -54,6 +54,7 @@ module Streamly.Streams
     , wAsync
     , parallel
     , (<=>)            --deprecated
+    , (<|)             --deprecated
 
     -- * IO Streams
     , Serial
@@ -330,6 +331,12 @@ runWith :: (IsStream t, MonadAsync m)
     => SVarStyle -> (t m a -> m b) -> t m a -> m b
 runWith style f x = S.runWith style (f . fromStream) (toStream x)
 
+infixr 0 |$
+infixr 0 |$.
+
+infixl 1 |&
+infixl 1 |&.
+
 -- | Parallel function application operator for streams; just like the regular
 -- function application operator '$' except that it is concurrent. The
 -- following code prints a value every second even though each stage adds a 1
@@ -369,34 +376,35 @@ x |& f = f |$ x
 -- | Parallel function application operator; applies a @run@ or @fold@ function
 -- to a stream such that the fold consumer and the stream producer run in
 -- parallel. A @run@ or @fold@ function reduces the stream to a value in the
--- underlying monad.
+-- underlying monad. The @.@ at the end of the operator is a mnemonic for
+-- termination of the stream.
 --
 -- @
 --    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
---       <| S.repeatM (threadDelay 1000000 >> return 1)
+--       |$. S.repeatM (threadDelay 1000000 >> return 1)
 -- @
 --
 -- /Concurrent/
 --
 -- @since 0.3.0
-{-# INLINE (<|) #-}
-(<|) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-f <| x = runWith ParallelVar f x
+{-# INLINE (|$.) #-}
+(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+f |$. x = runWith ParallelVar f x
 
 -- | Parallel reverse function application operator for applying a run or fold
--- functions to a stream. Just like '<|' except that the operands are reversed.
+-- functions to a stream. Just like '|$.' except that the operands are reversed.
 --
 -- @
---       S.repeatM (threadDelay 1000000 >> return 1)
---    |> S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+--        S.repeatM (threadDelay 1000000 >> return 1)
+--    |&. S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
 -- @
 --
 -- /Concurrent/
 --
 -- @since 0.3.0
-{-# INLINE (|>) #-}
-(|>) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
-x |> f = f <| x
+{-# INLINE (|&.) #-}
+(|&.) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
+x |&. f = f |$. x
 
 ------------------------------------------------------------------------------
 -- CPP macros for common instances
@@ -883,6 +891,14 @@ instance IsStream AsyncT where
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 async m1 m2 = fromStream $ S.async (toStream m1) (toStream m2)
+
+-- | Same as 'async'.
+--
+-- @since 0.1.0
+{-# DEPRECATED (<|) "Please use 'async' instead." #-}
+{-# INLINE (<|) #-}
+(<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+(<|) = async
 
 instance MonadAsync m => Semigroup (AsyncT m a) where
     (<>) = async
