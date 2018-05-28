@@ -89,6 +89,29 @@ main = runStream $
      & S.mapM print
 ```
 
+## Concurrent Stream Generation
+
+We can use standard monadic stream generation APIs like `repeatM`,
+`replicateM`, `unfoldrM`, `iterateM` etc. to generate streams in a concurrent
+manner by using an appropriate stream style combinator.
+
+## Concurrent Streaming Pipelines
+
+Use `|&` or `|$` to apply stream processing functions concurrently. In the
+following example "hello" is printed every second, if you use `&` instead of
+`|&` you will see that the delay doubles to 2 seconds instead because of serial
+application.
+
+```
+main = runStream $
+      S.repeatM (threadDelay 1000000 >> return "hello")
+   |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
+```
+
+## Concurrent transformation
+
+We can use `mapM` `sequence` concurrently on a stream.
+
 ## Serial and Concurrent Merging
 
 Semigroup and Monoid instances can be used to fold streams serially or
