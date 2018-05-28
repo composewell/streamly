@@ -180,11 +180,12 @@ import Data.Semigroup (Semigroup(..))
 
 -- $application
 --
--- Several stream processing functions can be called in a chain using regular
--- function application, using the '$' operator or reverse function application
--- operator '&'. This section provides corresponding operators that can apply
--- stream processing functions such that ach stage of the stream can run in
--- parallel.
+-- Stream processing functions can be composed in a chain using function
+-- application with or without the '$' operator, or with reverse function
+-- application operator '&'. Streamly provides concurrent versions of these
+-- operators applying stream processing functions such that each stage of the
+-- stream can run in parallel. The operators start with a @|@; we can read '|$'
+-- as "@parallel dollar@" to remember that @|@ comes before '$'.
 --
 -- Imports for the code snippets below:
 --

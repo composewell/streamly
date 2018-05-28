@@ -134,8 +134,8 @@ infixr 5 |:
 class IsStream t where
     toStream :: t m a -> S.Stream m a
     fromStream :: S.Stream m a -> t m a
-    -- | Constructs a stream by adding a monadic action at the head of an existing
-    -- stream. For example:
+    -- | Constructs a stream by adding a monadic action at the head of an
+    -- existing stream. For example:
     --
     -- @
     -- > toList $ getLine \`consM` getLine \`consM` nil
@@ -148,7 +148,8 @@ class IsStream t where
     --
     -- @since 0.2.0
     consM :: MonadAsync m => m a -> t m a -> t m a
-    -- | Operator equivalent of 'consM'.
+    -- | Operator equivalent of 'consM'. We can read it as "@parallel colon@"
+    -- to remember that @|@ comes before ':'.
     --
     -- @
     -- > toList $ getLine |: getLine |: nil
