@@ -100,12 +100,14 @@ module Streamly.Prelude
     , takeWhile
     , drop
     , dropWhile
+    , mapMaybe
 
     -- * Reordering
     , reverse
 
     -- * Mapping
     , mapM
+    , mapMaybeM
     , sequence
 
     -- * Zipping
@@ -129,6 +131,7 @@ where
 import           Control.Monad (void)
 import           Control.Monad.IO.Class      (MonadIO(..))
 import           Data.Semigroup              (Semigroup(..))
+import           Data.Maybe                  (isJust, fromJust)
 import           Prelude hiding              (filter, drop, dropWhile, take,
                                               takeWhile, zipWith, foldr, foldl,
                                               mapM, mapM_, sequence, all, any,
@@ -577,6 +580,24 @@ dropWhile p m = fromStream $ go (toStream m)
                       | otherwise = yld a r
          in (S.runStream m1) ctx stp single yield
 
+-- | Map + filter: compute a stream of b from a stream of a and filter out
+-- elements that are mapped to Nothing. It is similar to 'mapMaybe' in
+-- 'Data.Maybe' but applies to streams instead of list.
+--
+-- @since 0.2.1
+{-# INLINE mapMaybe #-}
+mapMaybe :: (IsStream t) => (a -> Maybe b) -> t m a -> t m b
+mapMaybe f m = go (toStream m)
+  where
+    go m1 = fromStream $ Stream $ \_ stp sng yld ->
+        let single a = case f a of
+                Just b  -> sng b
+                Nothing -> stp
+            yield a r = case f a of
+                Just b  -> yld b (toStream $ go r)
+                Nothing -> (S.runStream r) Nothing stp single yield
+        in (S.runStream m1) Nothing stp single yield
+
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
 -- @since 0.1.0
@@ -756,6 +777,14 @@ mapM f m = go (toStream m)
         let single a  = f a >>= sng
             yield a r = S.runStream (toStream (f a |: (go r))) svr stp sng yld
          in (S.runStream m1) Nothing stp single yield
+
+-- | Monadic version mapMaybe.
+--
+-- @since 0.2.1
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: (IsStream t, MonadAsync m, Functor (t m))
+          => (a -> m (Maybe b)) -> t m a -> t m b
+mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 -- XXX this can utilize parallel mapping if we implement it as runStream . mapM
 -- | Apply a monadic action to each element of the stream and discard the
