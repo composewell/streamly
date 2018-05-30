@@ -66,10 +66,10 @@ main = do
       , bgroup "parallely"
           [ --benchIO "unfoldr" $ Ops.toNull parallely
           --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
-          --, benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
-          -- , benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
-          -- , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
-          -- , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
+            benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
+          , benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
+          , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
+          , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
           ]
       ]
     -- XXX this is the same foldMapWith in the above benchmarks, need to dedup

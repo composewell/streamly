@@ -17,7 +17,7 @@ import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
 
 value, appendValue, maxValue :: Int
-value = 1000000
+value = 100000
 appendValue = 100000
 maxValue = value + 1000
 
