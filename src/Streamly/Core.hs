@@ -404,7 +404,7 @@ doFork action exHandler =
 
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume.
-{-# INLINE send #-}
+{-# NOINLINE send #-}
 send :: SVar m a -> ChildEvent a -> IO ()
 send sv msg = do
     len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
@@ -432,7 +432,7 @@ send sv msg = do
             (_, n) <- readIORef (outputQueue sv)
             when (n <= 1500) $ void $ tryPutMVar (siren sv) ()
 
-{-# INLINE sendStop #-}
+{-# NOINLINE sendStop #-}
 sendStop :: SVar m a -> IO ()
 sendStop sv = myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
 
@@ -520,7 +520,7 @@ runqueueFIFO sv q = run
 -- Parallel
 -------------------------------------------------------------------------------
 
-{-# INLINE runOne #-}
+{-# NOINLINE runOne #-}
 runOne :: MonadIO m => SVar m a -> Stream m a -> m ()
 runOne sv m = (runStream m) (Just sv) stop single yield
 
@@ -822,7 +822,7 @@ pushWorkerPar :: MonadAsync m => SVar m a -> Stream m a -> m ()
 pushWorkerPar sv m = do
     -- We do not use activeWorkers in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
-    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+    -- liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
 
 -- XXX When the queue is LIFO we can put a limit on the number of dispatches.
@@ -1169,7 +1169,16 @@ toStreamVar sv m = do
 -- * When the stream is switching from disjunctive composition to conjunctive
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
---
+
+forkSVarAsync :: MonadAsync m => SVarStyle -> Stream m a -> Stream m a -> Stream m a
+forkSVarAsync style m1 m2 = Stream $ \_ stp sng yld -> do
+    sv <- newStreamVar1 style (concurrently m1 m2)
+    (runStream (fromStreamVar sv)) Nothing stp sng yld
+    where
+    concurrently ma mb = Stream $ \svr stp sng yld -> do
+        liftIO $ enqueue (fromJust svr) mb
+        (runStream ma) svr stp sng yld
+
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
@@ -1177,13 +1186,15 @@ joinStreamVarAsync style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style ->
             liftIO ((enqueue sv) m2) >> (runStream m1) svr stp sng yld
-        _ -> do
-            sv <- newStreamVar1 style (concurrently m1 m2)
-            (runStream (fromStreamVar sv)) Nothing stp sng yld
-    where
-    concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueue (fromJust svr) mb
-        (runStream ma) svr stp sng yld
+        _ -> runStream (forkSVarAsync style m1 m2) Nothing stp sng yld
+
+{-# NOINLINE forkSVarPar #-}
+forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+forkSVarPar m r = Stream $ \_ stp sng yld -> do
+    sv <- newEmptySVar ParallelVar
+    pushWorkerPar sv m
+    pushWorkerPar sv r
+    (runStream (fromStreamVar sv)) Nothing stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadAsync m
@@ -1192,11 +1203,16 @@ joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style -> do
             pushWorkerPar sv m1 >> (runStream m2) svr stp sng yld
-        _ -> do
-            sv <- newEmptySVar style
-            pushWorkerPar sv m1
-            pushWorkerPar sv m2
-            (runStream (fromStreamVar sv)) Nothing stp sng yld
+        _ -> runStream (forkSVarPar m1 m2) Nothing stp sng yld
+
+forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+forkSVarAhead m1 m2 = Stream $ \_ stp sng yld -> do
+        sv <- newStreamVarAhead (concurrently m1 m2)
+        (runStream (fromStreamVar sv)) Nothing stp sng yld
+    where
+    concurrently ma mb = Stream $ \svr stp sng yld -> do
+        liftIO $ enqueueAhead (fromJust svr) (workQueue (fromJust svr)) mb
+        (runStream ma) Nothing stp sng yld
 
 {-# INLINE ahead #-}
 ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -1208,13 +1224,7 @@ ahead m1 m2 = Stream $ \svr stp sng yld -> do
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
             (runStream m1) Nothing stp sng yld
-        _ -> do
-            sv <- newStreamVarAhead (concurrently m1 m2)
-            (runStream (fromStreamVar sv)) Nothing stp sng yld
-    where
-    concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueueAhead (fromJust svr) (workQueue (fromJust svr)) mb
-        (runStream ma) Nothing stp sng yld
+        _ -> runStream (forkSVarAhead m1 m2) Nothing stp sng yld
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
