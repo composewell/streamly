@@ -281,7 +281,7 @@ atomicModifyIORefCAS ref fn = do
 
     where
 
-    retries = 30 :: Int
+    retries = 25 :: Int
     loop _   0     = atomicModifyIORef ref fn
     loop old tries = do
         let (new, result) = fn $ peekTicket old
