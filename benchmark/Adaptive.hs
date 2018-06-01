@@ -13,8 +13,15 @@ import Streamly
 import Streamly.Prelude as S
 import System.Random (randomRIO)
 
+-- Note that we should also compare the cpuTime especially when threaded
+-- runtime is used with this benchmark because thread scheduling is not
+-- predictable and can add non-deterministic delay to the total time measured.
+--
+-- Also, the worker dispatch depends on the worker dispatch latency which is
+-- set to fixed 200 us. We need to keep that in mind when designing tests.
+
 value :: Int
-value = 10000
+value = 1000
 
 {-# INLINE source #-}
 source :: IsStream t => (Int, Int) -> t IO Int

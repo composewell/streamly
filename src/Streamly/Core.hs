@@ -82,7 +82,11 @@ import           Data.Functor                (void)
 import           Data.Heap                   (Heap, Entry(..))
 import qualified Data.Heap                   as H
 import           Data.IORef                  (IORef, modifyIORef, newIORef,
-                                              readIORef, atomicModifyIORef)
+                                              readIORef, atomicModifyIORef
+#ifdef DIAGNOSTICS
+                                              , writeIORef
+#endif
+                                              )
 import           Data.Maybe                  (isNothing, fromJust)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
@@ -187,6 +191,12 @@ data SVar m a =
             -- Shared, thread tracking
             , runningThreads :: IORef (Set ThreadId)
             , activeWorkers  :: IORef Int
+#ifdef DIAGNOSTICS
+            , maxWorkers   :: IORef Int
+            , maxOutQSize  :: IORef Int
+            , maxHeapSize  :: IORef Int
+            , maxWorkQSize :: IORef Int
+#endif
             }
 
 #ifdef DIAGNOSTICS
@@ -200,21 +210,25 @@ dumpSVar sv = do
     aheadDump <-
         if svarStyle sv == AheadVar
         then do
-            (oheap, oheapSize) <- readIORef $ outputHeap sv
+            (oheap, oheapSeq) <- readIORef $ outputHeap sv
             hsrn <- tryTakeMVar $ heapSiren sv
-            (wq, wqSize) <- readIORef $ workQueue sv
+            (wq, wqSeq) <- readIORef $ workQueue sv
+            maxHp <- readIORef $ maxHeapSize sv
             return $ unlines
-                [ "heap length computed = " ++ show (H.size oheap)
-                , "heap length maintained = " ++ show oheapSize
+                [ "heap length = " ++ show (H.size oheap)
+                , "heap seqeunce = " ++ show oheapSeq
                 , "heap siren = " ++ show hsrn
-                , "work queue length computed = " ++ show (length wq)
-                , "work queue length maintained = " ++ show wqSize
+                , "work queue length = " ++ show (length wq)
+                , "work queue sequence = " ++ show wqSeq
+                , "heap max size = " ++ show maxHp
                 ]
         else return []
 
     waiting <- readIORef $ waitingForWork sv
     rthread <- readIORef $ runningThreads sv
     workers <- readIORef $ activeWorkers sv
+    maxWrk <- readIORef $ maxWorkers sv
+    maxOq <- readIORef $ maxOutQSize sv
     -- XXX queueEmpty should be made IO return type
 
     return $ unlines
@@ -224,6 +238,8 @@ dumpSVar sv = do
         , "outputQueue length maintained = " ++ show oqLen
         , "output doorBell = " ++ show db
         , "worker siren = " ++ show srn
+        , "max workers = " ++ show maxWrk
+        , "max outQSize = " ++ show maxOq
         ]
         ++ aheadDump ++ unlines
         [ "waitingForWork = " ++ show waiting
@@ -584,7 +600,7 @@ runOne sv m = (runStream m) (Just sv) stop single yield
 {-# INLINE sendToHeap #-}
 sendToHeap :: SVar m a -> AheadHeapEntry a -> Int -> IO Bool
 sendToHeap sv msg seqNo  = do
-    let maxHeapSize = 1500
+    let maxHeap = 1500
 
     -- Maybe we can use a lock instead of using CAS
     -- insertions in the heap may be expensive if the heap is big
@@ -597,15 +613,15 @@ sendToHeap sv msg seqNo  = do
 
     -- this is only for the case when the consumer generated siren can get
     -- missed due to race.
-    when (len < maxHeapSize) $ void $ tryPutMVar (heapSiren sv) ()
+    when (len < maxHeap) $ void $ tryPutMVar (heapSiren sv) ()
 
     if added
     then do
-        when (len + 1 >= maxHeapSize) $ do
+        when (len + 1 >= maxHeap) $ do
             withDBGMVar sv "sendToHeap: wait for heapSiren"
                         $ takeMVar (heapSiren sv)
             (h, _) <- readIORef (outputHeap sv)
-            when (H.size h <= maxHeapSize) $ void $ tryPutMVar (siren sv) ()
+            when (H.size h <= maxHeap) $ void $ tryPutMVar (siren sv) ()
         return False
     else do
         case msg of
@@ -659,6 +675,11 @@ drainHeap sv nextSeqNo = do
 -- heap.
 releaseToken :: SVar m a -> Int -> IO ()
 releaseToken sv nextSeqNo = do
+#ifdef DIAGNOSTICS
+    maxHp <- readIORef (maxHeapSize sv)
+    (hp, _) <- readIORef (outputHeap sv)
+    when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
+#endif
     drainHeap sv nextSeqNo
     void $ tryPutMVar (heapSiren sv) ()
 
@@ -806,10 +827,21 @@ handleChildException sv e = do
     tid <- myThreadId
     send sv (ChildStop tid (Just e))
 
+#ifdef DIAGNOSTICS
+recordMaxWorkers :: MonadIO m => SVar m a -> m ()
+recordMaxWorkers sv = liftIO $ do
+    active <- readIORef (activeWorkers sv)
+    maxWrk <- readIORef (maxWorkers sv)
+    when (active > maxWrk) $ writeIORef (maxWorkers sv) active
+#endif
+
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => SVar m a -> m ()
 pushWorker sv = do
     liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+#ifdef DIAGNOSTICS
+    recordMaxWorkers sv
+#endif
     doFork (runqueue sv) (handleChildException sv) >>= addThread sv
 
 -- | In contrast to pushWorker which always happens only from the consumer
@@ -822,7 +854,10 @@ pushWorkerPar :: MonadAsync m => SVar m a -> Stream m a -> m ()
 pushWorkerPar sv m = do
     -- We do not use activeWorkers in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
-    -- liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+#ifdef DIAGNOSTICS
+    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+    recordMaxWorkers sv
+#endif
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
 
 -- XXX When the queue is LIFO we can put a limit on the number of dispatches.
@@ -912,7 +947,13 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
         res <- liftIO $ tryTakeMVar (doorBell sv)
         when (isNothing res) $ sendWorkerWait sv
 
+#ifdef DIAGNOSTICS
+    (list, len) <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
+    oqLen <- liftIO $ readIORef (maxOutQSize sv)
+    when (len > oqLen) $ liftIO $ writeIORef (maxOutQSize sv) len
+#else
     (list, _) <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
+#endif
     void $ liftIO $ tryPutMVar (siren sv) ()
     -- Reversing the output is important to guarantee that we process the
     -- outputs in the same order as they were generated by the constituent
@@ -933,7 +974,14 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
         done <- allThreadsDone sv
         if not done
         then (runStream (fromStreamVar sv)) Nothing stp sng yld
+#ifdef DIAGNOSTICS
+        else do
+            svInfo <- liftIO $ dumpSVar sv
+            liftIO $ hPutStrLn stderr $ "fromStreamVar done\n" ++ svInfo
+            stp
+#else
         else stp
+#endif
 
     processEvents (ev : es) = Stream $ \_ stp sng yld -> do
         let continue = (runStream (processEvents es)) Nothing stp sng yld
@@ -958,6 +1006,12 @@ getFifoSVar ctype = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q       <- newQ
+#ifdef DIAGNOSTICS
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+#endif
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
@@ -972,6 +1026,12 @@ getFifoSVar ctype = do
                  , waitingForWork = wfw
                  , svarStyle      = ctype
                  , activeWorkers  = active
+#ifdef DIAGNOSTICS
+                 , maxWorkers   = maxWrk
+                 , maxOutQSize  = maxOq
+                 , maxHeapSize  = maxHs
+                 , maxWorkQSize = maxWq
+#endif
                  }
      in return sv
 
@@ -984,6 +1044,12 @@ getLifoSVar ctype = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef []
+#ifdef DIAGNOSTICS
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+#endif
     let checkEmpty = null <$> liftIO (readIORef q)
     let sv =
             SVar { outputQueue    = outQ
@@ -999,6 +1065,12 @@ getLifoSVar ctype = do
                  , waitingForWork = wfw
                  , svarStyle      = ctype
                  , activeWorkers  = active
+#ifdef DIAGNOSTICS
+                 , maxWorkers   = maxWrk
+                 , maxOutQSize  = maxOq
+                 , maxHeapSize  = maxHs
+                 , maxWorkQSize = maxWq
+#endif
                  }
      in return sv
 
@@ -1010,6 +1082,12 @@ getParSVar style = do
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
+#ifdef DIAGNOSTICS
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+#endif
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
@@ -1024,6 +1102,12 @@ getParSVar style = do
                  , waitingForWork = wfw
                  , svarStyle      = style
                  , activeWorkers  = active
+#ifdef DIAGNOSTICS
+                 , maxWorkers   = maxWrk
+                 , maxOutQSize  = maxOq
+                 , maxHeapSize  = maxHs
+                 , maxWorkQSize = maxWq
+#endif
                  }
      in return sv
 
@@ -1038,6 +1122,14 @@ getAheadSVar style = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef ([], -1)
+
+#ifdef DIAGNOSTICS
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+#endif
+
     let checkEmpty = liftIO $ do
                         (xs, _) <- readIORef q
                         return $ null xs
@@ -1055,6 +1147,13 @@ getAheadSVar style = do
                  , waitingForWork = wfw
                  , svarStyle      = style
                  , activeWorkers  = active
+
+#ifdef DIAGNOSTICS
+                 , maxWorkers   = maxWrk
+                 , maxOutQSize  = maxOq
+                 , maxHeapSize  = maxHs
+                 , maxWorkQSize = maxWq
+#endif
                  }
      in return sv
 
