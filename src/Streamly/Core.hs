@@ -67,7 +67,7 @@ where
 
 import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
 import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
-                                              tryPutMVar, takeMVar, putMVar)
+                                              tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..), catch, mask)
 import           Control.Monad               (when)
 import           Control.Monad.Catch         (MonadThrow, throwM)
@@ -118,10 +118,10 @@ data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
 
--- | Sorting out of turn outputs in a heap for Ahead style streams
-data AheadHeapEntry a =
-      AheadYieldSingle a
-    | AheadYieldMany a (MVar ())  -- value, MVar to wakeup for more values
+-- | Sorting out-of-turn outputs in a heap for Ahead style streams
+data AheadHeapEntry m a =
+      AheadEntryPure a
+    | AheadEntryStream (Stream m a)
 
 ------------------------------------------------------------------------------
 -- State threaded around the monad for thread management
@@ -169,7 +169,6 @@ data SVar m a =
             -- Shared output queue (events, length)
             , outputQueue    :: IORef ([ChildEvent a], Int)
             , doorBell       :: MVar ()  -- signal the consumer about output
-            , siren          :: MVar ()  -- hooter for workers to begin work
 
             -- Output synchronization mechanism for Ahead streams (Ahead and
             -- wAhead). We maintain a heap of out of sequence ahead of time
@@ -177,9 +176,9 @@ data SVar m a =
             -- currently at the head of the stream.  Concurrent execute ahead
             -- tasks that have a sequence number greater than the task at the
             -- head should add their output to the heap.
-            , outputHeap    :: IORef (Heap (Entry Int (AheadHeapEntry a)), Int)
-            , heapSiren     :: MVar ()  -- hooter for workers to continue
-                                        -- adding to the heap
+            , outputHeap    :: IORef (Heap (Entry Int (AheadHeapEntry m a))
+                                     , Int
+                                     )
 
             -- Shared work queue
             , workQueue      :: IORef ([Stream m a], Int)
@@ -192,6 +191,7 @@ data SVar m a =
             , runningThreads :: IORef (Set ThreadId)
             , activeWorkers  :: IORef Int
 #ifdef DIAGNOSTICS
+            , totalDispatches :: IORef Int
             , maxWorkers   :: IORef Int
             , maxOutQSize  :: IORef Int
             , maxHeapSize  :: IORef Int
@@ -206,18 +206,15 @@ dumpSVar sv = do
     tid <- myThreadId
     (oqList, oqLen) <- readIORef $ outputQueue sv
     db <- tryTakeMVar $ doorBell sv
-    srn <- tryTakeMVar $ siren sv
     aheadDump <-
         if svarStyle sv == AheadVar
         then do
             (oheap, oheapSeq) <- readIORef $ outputHeap sv
-            hsrn <- tryTakeMVar $ heapSiren sv
             (wq, wqSeq) <- readIORef $ workQueue sv
             maxHp <- readIORef $ maxHeapSize sv
             return $ unlines
                 [ "heap length = " ++ show (H.size oheap)
                 , "heap seqeunce = " ++ show oheapSeq
-                , "heap siren = " ++ show hsrn
                 , "work queue length = " ++ show (length wq)
                 , "work queue sequence = " ++ show wqSeq
                 , "heap max size = " ++ show maxHp
@@ -228,6 +225,7 @@ dumpSVar sv = do
     rthread <- readIORef $ runningThreads sv
     workers <- readIORef $ activeWorkers sv
     maxWrk <- readIORef $ maxWorkers sv
+    dispatches <- readIORef $ totalDispatches sv
     maxOq <- readIORef $ maxOutQSize sv
     -- XXX queueEmpty should be made IO return type
 
@@ -237,7 +235,7 @@ dumpSVar sv = do
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
         , "output doorBell = " ++ show db
-        , "worker siren = " ++ show srn
+        , "total dispatches = " ++ show dispatches
         , "max workers = " ++ show maxWrk
         , "max outQSize = " ++ show maxOq
         ]
@@ -419,13 +417,13 @@ doFork action exHandler =
 -- queue at a time, that way contention can be reduced.
 
 -- | This function is used by the producer threads to queue output for the
--- consumer thread to consume.
+-- consumer thread to consume. Returns whether the queue has more space.
 {-# NOINLINE send #-}
-send :: SVar m a -> ChildEvent a -> IO ()
+send :: SVar m a -> ChildEvent a -> IO Bool
 send sv msg = do
     len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
         ((msg : es, n + 1), n)
-    if (len <= 0) then do
+    when (len <= 0) $ do
         -- XXX need a memory barrier? The wake up must happen only after the
         -- store has finished otherwise we can have lost wakeup problems.
         --
@@ -436,21 +434,11 @@ send sv msg = do
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (doorBell sv) ()
-        -- those who were waiting because of buffer limit should now go ahead
-        void $ tryPutMVar (siren sv) ()
-    -- The only thread that reduces the length of the queue is the consumer
-    -- thread. It is possible that the queue may have been emptied in the
-    -- window when we acquired "len" and now when we are using it. In that case
-    -- we will be woken up by the consumer blowing the siren.
-    -- Note: current length after adding our output is len + 1
-    else when (len + 1 >= 1500) $ do
-            withDBGMVar sv "send: wait for siren" $ takeMVar (siren sv)
-            (_, n) <- readIORef (outputQueue sv)
-            when (n <= 1500) $ void $ tryPutMVar (siren sv) ()
+    return (len < 1500)
 
 {-# NOINLINE sendStop #-}
 sendStop :: SVar m a -> IO ()
-sendStop sv = myThreadId >>= \tid -> send sv (ChildStop tid Nothing)
+sendStop sv = myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
 -- Async
@@ -489,9 +477,14 @@ runqueueLIFO sv q = run
             Nothing -> liftIO $ sendStop sv
             Just m -> (runStream m) (Just sv) run single yield
 
-    sendit a = liftIO $ send sv (ChildYield a)
-    single a = sendit a >> run
-    yield a r = sendit a >> (runStream r) (Just sv) run single yield
+    single a = do
+        res <- liftIO $ send sv (ChildYield a)
+        if res then run else liftIO $ sendStop sv
+    yield a r = do
+        res <- liftIO $ send sv (ChildYield a)
+        if res
+        then (runStream r) (Just sv) run single yield
+        else liftIO $ enqueueLIFO sv q r >> sendStop sv
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
                 [] -> ([], Nothing)
@@ -528,9 +521,13 @@ runqueueFIFO sv q = run
             Just m -> (runStream m) (Just sv) run single yield
 
     dequeue = liftIO $ tryPopR q
-    sendit a = liftIO $ send sv (ChildYield a)
-    single a = sendit a >> run
-    yield a r = sendit a >> liftIO (enqueueFIFO sv q r) >> run
+    single a = do
+        res <- liftIO $ send sv (ChildYield a)
+        if res then run else liftIO $ sendStop sv
+    yield a r = do
+        res <- liftIO $ send sv (ChildYield a)
+        liftIO (enqueueFIFO sv q r)
+        if res then run else liftIO $ sendStop sv
 
 -------------------------------------------------------------------------------
 -- Parallel
@@ -545,32 +542,37 @@ runOne sv m = (runStream m) (Just sv) stop single yield
     stop = liftIO $ sendStop sv
     sendit a = liftIO $ send sv (ChildYield a)
     single a = sendit a >> stop
-    yield a r = sendit a >> runOne sv r
+    -- XXX there is no flow control in parallel case. We should perhaps use a
+    -- queue and queue it back on that and exit the thread when the outputQueue
+    -- overflows. Parallel is dangerous because it can accumulate unbounded
+    -- output in the buffer.
+    yield a r = void (sendit a) >> runOne sv r
 
 -------------------------------------------------------------------------------
 -- Ahead
 -------------------------------------------------------------------------------
 
--- Lookahead streams can execute multiple tasks concurrently, ahead of time but
--- always serves them in the same order as they appear in the stream. To
+-- Lookahead streams can execute multiple tasks concurrently, ahead of time,
+-- but always serve them in the same order as they appear in the stream. To
 -- implement lookahead streams efficiently we assign a sequence number to each
--- task when the task is picked up for execution. When the task finishes the
+-- task when the task is picked up for execution. When the task finishes, the
 -- output is tagged with the same sequence number and we rearrange the outputs
 -- in sequence based on that number.
 --
 -- To explain the mechanism imagine that the current task at the head of the
--- stream has a "token" to yield to the output. The ownership of the token is
--- determined by the current sequence number maintained in outputHeap. Sequence
--- number is assigned when a task is queued. When a thread dequeues a task it
--- picks up the sequence number as well and when the output is ready it uses
--- the sequence number to queue the output to the outputQueue.
+-- stream has a "token" to yield to the outputQueue. The ownership of the token
+-- is determined by the current sequence number is maintained in outputHeap.
+-- Sequence number is assigned when a task is queued. When a thread dequeues a
+-- task it picks up the sequence number as well and when the output is ready it
+-- uses the sequence number to queue the output to the outputQueue.
 --
 -- The thread with current sequence number sends the output directly to the
 -- outputQueue. Other threads push the output to the outputHeap. When the task
--- being queued on the heap is a stream of many elements we yield the first
--- element on the heap and an MVar to wakeup for more elements. When such a
--- task gets the "token" for outputQueue it can directly keep yielding all the
--- elements to the outputQueue without checking for the "token".
+-- being queued on the heap is a stream of many elements we evaluate only the
+-- first element and keep the rest of the unevaluated computation in the heap.
+-- When such a task gets the "token" for outputQueue it evaluates and directly
+-- yields all the elements to the outputQueue without checking for the
+-- "token".
 --
 -- Note that no two outputs in the heap can have the same sequence numbers and
 -- therefore we do not need a stable heap. We have also separated the buffer
@@ -587,123 +589,16 @@ runOne sv m = (runStream m) (Just sv) stop single yield
 -- reason we have a single element buffer limitation for the streams being
 -- executed in advance.
 --
--- This scheme works pretty efficiently with only 50% more overhead compared to
--- the Async streams where we do not have any kind of sequencing of the
--- outputs. It is especially devised so that we are most efficient when we have
--- short tasks and need just a single thread. Also when a thread yields many
--- items it can hold lockfree access to the outputQueue and do it efficiently.
+-- This scheme works pretty efficiently with less than 40% extra overhead
+-- compared to the Async streams where we do not have any kind of sequencing of
+-- the outputs. It is especially devised so that we are most efficient when we
+-- have short tasks and need just a single thread. Also when a thread yields
+-- many items it can hold lockfree access to the outputQueue and do it
+-- efficiently.
 --
 -- XXX Maybe we can start the ahead threads at a lower cpu and IO priority so
 -- that they do not hog the resources and hinder the progress of the threads in
 -- front of them.
-
-{-# INLINE sendToHeap #-}
-sendToHeap :: SVar m a -> AheadHeapEntry a -> Int -> IO Bool
-sendToHeap sv msg seqNo  = do
-    let maxHeap = 1500
-
-    -- Maybe we can use a lock instead of using CAS
-    -- insertions in the heap may be expensive if the heap is big
-    -- Note: len is valid only when added is True
-    (len, added) <- atomicModifyIORefCAS (outputHeap sv) $
-        \ref@(h, snum) ->
-            if seqNo > snum
-            then ((H.insert (Entry seqNo msg) h, snum), (H.size h, True))
-            else (ref, (0, False))
-
-    -- this is only for the case when the consumer generated siren can get
-    -- missed due to race.
-    when (len < maxHeap) $ void $ tryPutMVar (heapSiren sv) ()
-
-    if added
-    then do
-        when (len + 1 >= maxHeap) $ do
-            withDBGMVar sv "sendToHeap: wait for heapSiren"
-                        $ takeMVar (heapSiren sv)
-            (h, _) <- readIORef (outputHeap sv)
-            when (H.size h <= maxHeap) $ void $ tryPutMVar (siren sv) ()
-        return False
-    else do
-        case msg of
-            AheadYieldSingle a -> send sv (ChildYield a)
-            AheadYieldMany a mv -> do
-                send sv (ChildYield a)
-                withDBGMVar sv "sendToHeap: wakeup stream" $ putMVar mv ()
-        return True
-
-popFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry a)), Int)
-    -> Int
-    -> IO (Maybe (AheadHeapEntry a))
-popFromHeap hp nextSeqNo =
-    atomicModifyIORefCAS hp $ \(h, snum) -> do
-        let r = H.uncons h
-        let n = max nextSeqNo snum
-        case r of
-            Nothing -> ((h, n), Nothing)
-            Just (Entry seqNo ev, hp') ->
-                if (seqNo <= n)
-                then ((hp', seqNo), Just ev)
-                else ((h, n), Nothing)
-
--- | As soon as we set the nextSeqNo in outputHeap we have transferred the
--- output "token" to the thread executing the task with that sequence number.
--- We have to make sure that there is no entry in the heap that has nextSeqNo
--- before we set nextSeqNo as the expected sequence number in the heap.  It is
--- possible that when we are clearing the heap entry of the current sequence
--- number the next sequence number gets added and then we have to clear that,
--- this can keep going on and on.
-drainHeap :: SVar m a -> Int -> IO ()
-drainHeap sv nextSeqNo = do
-    r <- popFromHeap (outputHeap sv) nextSeqNo
-    case r of
-        Nothing -> return ()
-        Just ev -> do
-            case ev of
-                AheadYieldSingle a -> do
-                    send sv (ChildYield a)
-                    atomicModifyIORefCAS_ (outputHeap sv) $ \(h, snum) ->
-                        (h, snum + 1)
-                    drainHeap sv nextSeqNo
-                AheadYieldMany a mv -> do
-                    send sv (ChildYield a)
-                    withDBGMVar sv "drainHeap: wakeup stream" $ putMVar mv ()
-
--- | The thread that has the token has the responsibility to move any pending
--- entries in the heap to the outputQueue. When the token is assigned to a
--- sequence number we must not have any entries for that sequence number in the
--- heap.
-releaseToken :: SVar m a -> Int -> IO ()
-releaseToken sv nextSeqNo = do
-#ifdef DIAGNOSTICS
-    maxHp <- readIORef (maxHeapSize sv)
-    (hp, _) <- readIORef (outputHeap sv)
-    when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
-#endif
-    drainHeap sv nextSeqNo
-    void $ tryPutMVar (heapSiren sv) ()
-
--- | When we have the output "token" we are allowed to append to the
--- outputQueue otherwise we have to insert the output in the outputHeap.
--- Returns whether we still have the token.
-handleOutput :: SVar m a
-             -> Bool
-             -> Int
-             -> Int
-             -> a
-             -> AheadHeapEntry a
-             -> IO Bool
-handleOutput sv haveToken prevSeqNo seqNo a ev = do
-    if haveToken
-    then do
-        let nextSeqNo = prevSeqNo + 1
-        if seqNo == nextSeqNo
-        then send sv (ChildYield a) >> return True
-        else do
-            releaseToken sv nextSeqNo
-            toHeap
-    else toHeap
-    where toHeap = sendToHeap sv ev seqNo
 
 -- Left associated ahead expressions are expensive. We start a new SVar for
 -- each left associative expression. The queue is used only for right
@@ -720,64 +615,128 @@ enqueueAhead sv q m = do
         void $ tryPutMVar (doorBell sv) ()
         atomicModifyIORefCAS_ (waitingForWork sv) (const False)
 
+-- Normally the thread that has the token should never go away. The token gets
+-- handed over to another thread, but someone or the other has the token at any
+-- point of time. But if the task that has the token finds that the outputQueue
+-- is full, in that case it can go away without even handing over the token to
+-- another thread. In that case it sets the nextSequence number in the heap its
+-- own sequence number before going away. To handle this case, any task that
+-- does not have the token tries to dequeue from the heap first before
+-- dequeuing from the work queue. If it finds that the task at the top of the
+-- heap is the one that owns the current sequence number then it grabs the
+-- token and starts with that.
 runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
-runqueueAhead sv q = run False (-1)
+runqueueAhead sv q = runHeap
 
     where
 
-    run haveToken prevSeqNo = do
+    maxHeap = 1500
+
+    toHeap seqNo ent = do
+        hp <- liftIO $ atomicModifyIORefCAS (outputHeap sv) $ \(h, snum) ->
+            ((H.insert (Entry seqNo ent) h, snum), h)
+        if H.size hp <= maxHeap
+        then runHeap
+        else liftIO $ sendStop sv
+
+    singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
+    yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `cons` r))
+
+    singleOutput seqNo a = do
+        continue <- liftIO $ send sv (ChildYield a)
+        if continue
+        then runQueueToken seqNo
+        else liftIO $ do
+            atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) -> (h, seqNo + 1)
+            sendStop sv
+
+    yieldOutput seqNo a r = do
+        continue <- liftIO $ send sv (ChildYield a)
+        if continue
+        then (runStream r) (Just sv) (runQueueToken seqNo)
+                                     (singleOutput seqNo)
+                                     (yieldOutput seqNo)
+        else liftIO $ do
+            atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+                (H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo)
+            sendStop sv
+
+    {-# INLINE runQueueToken #-}
+    runQueueToken prevSeqNo = do
         work <- dequeue
         case work of
-            Nothing -> liftIO $ do
-                when haveToken $ releaseToken sv (prevSeqNo + 1)
-                sendStop sv
+            Nothing -> do
+                liftIO $ atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+                    (h, prevSeqNo + 1)
+                runHeap
             Just (m, seqNo) -> do
-                let tStatus = haveToken || seqNo == 0
-                let stop = do
-                        let nextSeqNo = prevSeqNo + 1
-                        if tStatus && seqNo /= nextSeqNo
-                        then do
-                            liftIO $ releaseToken sv nextSeqNo
-                            run False seqNo
-                        else run tStatus seqNo
-                let single a = do
-                        tokenStatus <- liftIO $
-                            handleOutput sv tStatus prevSeqNo seqNo a
-                                         (AheadYieldSingle a)
-                        run tokenStatus seqNo
+                if seqNo == prevSeqNo + 1
+                then
+                    (runStream m) (Just sv) (runQueueToken seqNo)
+                                            (singleOutput seqNo)
+                                            (yieldOutput seqNo)
+                else do
+                    liftIO $ atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+                        (h, prevSeqNo + 1)
+                    (runStream m) (Just sv) runHeap
+                                            (singleToHeap seqNo)
+                                            (yieldToHeap seqNo)
+    runQueueNoToken = do
+        work <- dequeue
+        case work of
+            Nothing -> runHeap
+            Just (m, seqNo) -> do
+                if seqNo == 0
+                then
+                    (runStream m) (Just sv) (runQueueToken seqNo)
+                                            (singleOutput seqNo)
+                                            (yieldOutput seqNo)
+                else
+                    (runStream m) (Just sv) runHeap
+                                            (singleToHeap seqNo)
+                                            (yieldToHeap seqNo)
 
-                -- If we are yielding more than one item and we do not have the
-                -- token then we insert the current item in the pending
-                -- outputHeap and wait for our turn.
-                let
-                    stopNext = run True seqNo
-                    singleNext a = do
-                        liftIO $ send sv (ChildYield a)
-                        run True seqNo
-                    yieldNext a r = do
-                        liftIO $ send sv (ChildYield a)
-                        (runStream r) (Just sv) stopNext singleNext yieldNext
-
-                    yield a r = do
-                        -- XXX we can allocate the MVar when actually inserting
-                        -- in the heap and then return it.
-                        liftIO $ do
-                            mv <- newEmptyMVar
-                            gotToken <-
-                                handleOutput sv tStatus prevSeqNo seqNo a
-                                             (AheadYieldMany a mv)
-                            when (not gotToken) $ void $
-                                withDBGMVar sv "runqueueAhead: stream waiting"
-                                            $ takeMVar mv
-                        (runStream r) (Just sv) stopNext singleNext yieldNext
-
-                (runStream m) (Just sv) stop single yield
+    {-# NOINLINE runHeap #-}
+    runHeap = do
+#ifdef DIAGNOSTICS
+        liftIO $ do
+            maxHp <- readIORef (maxHeapSize sv)
+            (hp, _) <- readIORef (outputHeap sv)
+            when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
+#endif
+        ent <- liftIO $ dequeueFromHeap (outputHeap sv)
+        case ent of
+            Nothing -> do
+                done <- queueEmpty sv
+                if done
+                then liftIO $ sendStop sv
+                else runQueueNoToken
+            Just (Entry seqNo hent) -> do
+                case hent of
+                    AheadEntryPure a -> singleOutput seqNo a
+                    AheadEntryStream r ->
+                        (runStream r) (Just sv) (runQueueToken seqNo)
+                                                (singleOutput seqNo)
+                                                (yieldOutput seqNo)
 
     dequeue = liftIO $ do
         atomicModifyIORefCAS q $ \case
                 ([], n) -> (([], n), Nothing)
                 (x : [], n) -> (([], n), Just (x, n))
                 _ -> error "more than one item on queue"
+
+    dequeueFromHeap
+        :: IORef (Heap (Entry Int (AheadHeapEntry m a)), Int)
+        -> IO (Maybe (Entry Int (AheadHeapEntry m a)))
+    dequeueFromHeap hpRef = do
+        atomicModifyIORefCAS hpRef $ \hp@(h, snum) -> do
+            let r = H.uncons h
+            case r of
+                Nothing -> (hp, Nothing)
+                Just (ent@(Entry seqNo _ev), hp') ->
+                    if (seqNo == snum)
+                    then ((hp', seqNo), Just ent)
+                    else (hp, Nothing)
 
 -- Thread tracking is needed for two reasons:
 --
@@ -825,7 +784,7 @@ allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
 handleChildException :: SVar m a -> SomeException -> IO ()
 handleChildException sv e = do
     tid <- myThreadId
-    send sv (ChildStop tid (Just e))
+    void $ send sv (ChildStop tid (Just e))
 
 #ifdef DIAGNOSTICS
 recordMaxWorkers :: MonadIO m => SVar m a -> m ()
@@ -833,6 +792,7 @@ recordMaxWorkers sv = liftIO $ do
     active <- readIORef (activeWorkers sv)
     maxWrk <- readIORef (maxWorkers sv)
     when (active > maxWrk) $ writeIORef (maxWorkers sv) active
+    modifyIORef (totalDispatches sv) (+1)
 #endif
 
 {-# NOINLINE pushWorker #-}
@@ -905,6 +865,10 @@ sendWorkerWait sv = do
             else liftIO $ withDBGMVar sv "sendWorkerWait: wait for workers"
                                       $ takeMVar (doorBell sv)
         else do
+            -- XXX Assert here that if the heap is not empty then there is at
+            -- least one outstanding worker. Otherwise we could be sleeping
+            -- forever.
+            --
             -- We found that the queue was empty, but it may be empty
             -- temporarily, when we checked it. If that's the case we might
             -- sleep indefinitely unless the active workers produce some
@@ -954,7 +918,6 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
 #else
     (list, _) <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
 #endif
-    void $ liftIO $ tryPutMVar (siren sv) ()
     -- Reversing the output is important to guarantee that we process the
     -- outputs in the same order as they were generated by the constituent
     -- streams.
@@ -969,19 +932,50 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
         -- liftIO $ readIORef (runningThreads sv) >>= mapM_ killThread
         throwM e
 
-    {-# INLINE processEvents #-}
-    processEvents [] = Stream $ \_ stp sng yld -> do
-        done <- allThreadsDone sv
-        if not done
-        then (runStream (fromStreamVar sv)) Nothing stp sng yld
+    allDone stp = do
 #ifdef DIAGNOSTICS
-        else do
+#ifdef DIAGNOSTICS_VERBOSE
             svInfo <- liftIO $ dumpSVar sv
             liftIO $ hPutStrLn stderr $ "fromStreamVar done\n" ++ svInfo
-            stp
-#else
-        else stp
 #endif
+#endif
+            stp
+
+    {-# INLINE processEvents #-}
+    processEvents [] = Stream $ \_ stp sng yld -> do
+        workersDone <- allThreadsDone sv
+        if not workersDone
+        then (runStream (fromStreamVar sv)) Nothing stp sng yld
+        else
+            if svarStyle sv == ParallelVar
+            then allDone stp
+            else do
+                -- All the workers may come back if the outputQueue is full.
+                -- So check if there is work pending and kick off a worker to
+                -- finish it.
+                -- XXX we should perhaps kickoff even before we start
+                -- processing if the active workers are zero, rather than at
+                -- the end of processing the outputQueue. But some thread stop
+                -- events may be in the outputQueue itself, so we may not be
+                -- able to determine the correct number of workers before we
+                -- process it.
+                -- XXX It is necessary to do this before the processing to keep
+                -- minimal concurrency always.
+                -- We should have a separate queue for Stop events so that we
+                -- can process them before the outputs and send workers
+                -- promptly when needed.
+                heapDone <-
+                    if (svarStyle sv == AheadVar)
+                    then do
+                        (hp, _) <- liftIO $ readIORef (outputHeap sv)
+                        return (H.size hp <= 0)
+                    else return True
+                queueDone <- queueEmpty sv
+                if queueDone && heapDone
+                then allDone stp
+                else do
+                    pushWorker sv
+                    (runStream (fromStreamVar sv)) Nothing stp sng yld
 
     processEvents (ev : es) = Stream $ \_ stp sng yld -> do
         let continue = (runStream (processEvents es)) Nothing stp sng yld
@@ -1001,12 +995,12 @@ getFifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
 getFifoSVar ctype = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
-    hooter  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
     q       <- newQ
 #ifdef DIAGNOSTICS
+    disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
@@ -1015,9 +1009,7 @@ getFifoSVar ctype = do
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
-                 , siren          = hooter
                  , outputHeap     = undefined
-                 , heapSiren      = undefined
                  , runningThreads = running
                  , workQueue      = undefined
                  , runqueue       = runqueueFIFO sv q
@@ -1027,6 +1019,7 @@ getFifoSVar ctype = do
                  , svarStyle      = ctype
                  , activeWorkers  = active
 #ifdef DIAGNOSTICS
+                 , totalDispatches = disp
                  , maxWorkers   = maxWrk
                  , maxOutQSize  = maxOq
                  , maxHeapSize  = maxHs
@@ -1039,12 +1032,12 @@ getLifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
 getLifoSVar ctype = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
-    hooter  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef []
 #ifdef DIAGNOSTICS
+    disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
@@ -1054,9 +1047,7 @@ getLifoSVar ctype = do
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
-                 , siren          = hooter
                  , outputHeap     = undefined
-                 , heapSiren      = undefined
                  , runningThreads = running
                  , workQueue      = undefined
                  , runqueue       = runqueueLIFO sv q
@@ -1067,6 +1058,7 @@ getLifoSVar ctype = do
                  , activeWorkers  = active
 #ifdef DIAGNOSTICS
                  , maxWorkers   = maxWrk
+                 , totalDispatches = disp
                  , maxOutQSize  = maxOq
                  , maxHeapSize  = maxHs
                  , maxWorkQSize = maxWq
@@ -1078,11 +1070,11 @@ getParSVar :: SVarStyle -> IO (SVar m a)
 getParSVar style = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
-    hooter  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
 #ifdef DIAGNOSTICS
+    disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
@@ -1091,9 +1083,7 @@ getParSVar style = do
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
-                 , siren          = hooter
                  , outputHeap     = undefined
-                 , heapSiren      = undefined
                  , runningThreads = running
                  , workQueue      = undefined
                  , runqueue       = undefined
@@ -1103,6 +1093,7 @@ getParSVar style = do
                  , svarStyle      = style
                  , activeWorkers  = active
 #ifdef DIAGNOSTICS
+                 , totalDispatches = disp
                  , maxWorkers   = maxWrk
                  , maxOutQSize  = maxOq
                  , maxHeapSize  = maxHs
@@ -1116,14 +1107,13 @@ getAheadSVar style = do
     outQ    <- newIORef ([], 0)
     outH    <- newIORef (H.empty, 0)
     outQMv  <- newEmptyMVar
-    hooter  <- newEmptyMVar
-    hsiren  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef ([], -1)
 
 #ifdef DIAGNOSTICS
+    disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
@@ -1136,9 +1126,7 @@ getAheadSVar style = do
     let sv =
             SVar { outputQueue    = outQ
                  , doorBell       = outQMv
-                 , siren          = hooter
                  , outputHeap     = outH
-                 , heapSiren      = hsiren
                  , runningThreads = running
                  , workQueue      = q
                  , runqueue       = runqueueAhead sv q
@@ -1149,6 +1137,7 @@ getAheadSVar style = do
                  , activeWorkers  = active
 
 #ifdef DIAGNOSTICS
+                 , totalDispatches = disp
                  , maxWorkers   = maxWrk
                  , maxOutQSize  = maxOq
                  , maxHeapSize  = maxHs

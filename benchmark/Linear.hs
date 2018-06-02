@@ -62,6 +62,14 @@ main = do
           , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
           , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
           ]
+      , bgroup "wAsyncly"
+          [ -- benchIO "unfoldr" $ Ops.toNull wAsyncly
+          -- , benchSrcIO wAsyncly "fromFoldable" Ops.sourceFromFoldable
+            benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
+          , benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
+          , benchSrcIO wAsyncly "fromFoldableM" Ops.sourceFromFoldableM
+          , benchSrcIO wAsyncly "foldMapWithM" Ops.sourceFoldMapWithM
+          ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
           [ --benchIO "unfoldr" $ Ops.toNull parallely
