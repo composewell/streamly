@@ -158,7 +158,7 @@ import Data.Semigroup (Semigroup(..))
 -- $serial
 --
 -- Serial streams compose serially or non-concurrently. In a composed stream,
--- each action is executed only after the prvious action has finished.  The two
+-- each action is executed only after the previous action has finished.  The two
 -- serial stream types 'SerialT' and 'WSerialT' differ in how they traverse the
 -- streams in a 'Semigroup' or 'Monad' composition.
 
