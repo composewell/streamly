@@ -1,3 +1,10 @@
+## 0.2.1
+
+### Bug Fixes
+* Fixed a bug that caused some transformation ops to return incorrect results
+  when used with concurrent streams. The affected ops are `take`, `filter`,
+  `takeWhile`, `drop`, `dropWhile`, and `reverse`.
+
 ## 0.2.0
 
 ### Breaking changes

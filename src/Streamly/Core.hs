@@ -815,18 +815,18 @@ instance MonadTrans Stream where
 
 withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
 withLocal f m =
-    Stream $ \svr stp sng yld ->
+    Stream $ \_ stp sng yld ->
         let single = local f . sng
             yield a r = local f $ yld a (withLocal f r)
-        in (runStream m) svr (local f stp) single yield
+        in (runStream m) Nothing (local f stp) single yield
 
 -- XXX handle and test cross thread state transfer
 withCatchError
     :: MonadError e m
     => Stream m a -> (e -> Stream m a) -> Stream m a
 withCatchError m h =
-    Stream $ \svr stp sng yld ->
-        let run x = runStream x svr stp sng yield
+    Stream $ \_ stp sng yld ->
+        let run x = runStream x Nothing stp sng yield
             handle r = r `catchError` \e -> run $ h e
             yield a r = yld a (withCatchError r h)
         in handle $ run m
