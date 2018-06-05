@@ -415,10 +415,10 @@ x |&. f = f |$. x
 
 withLocal :: MonadReader r m => (r -> r) -> S.Stream m a -> S.Stream m a
 withLocal f m =
-    S.Stream $ \svr stp sng yld ->
+    S.Stream $ \_ stp sng yld ->
         let single = local f . sng
             yield a r = local f $ yld a (withLocal f r)
-        in (S.runStream m) svr (local f stp) single yield
+        in (S.runStream m) Nothing (local f stp) single yield
 
 {-
 -- XXX handle and test cross thread state transfer
@@ -426,8 +426,8 @@ withCatchError
     :: MonadError e m
     => S.Stream m a -> (e -> S.Stream m a) -> S.Stream m a
 withCatchError m h =
-    S.Stream $ \svr stp sng yld ->
-        let run x = S.runStream x svr stp sng yield
+    S.Stream $ \_ stp sng yld ->
+        let run x = S.runStream x Nothing stp sng yield
             handle r = r `catchError` \e -> run $ h e
             yield a r = yld a (withCatchError r h)
         in handle $ run m

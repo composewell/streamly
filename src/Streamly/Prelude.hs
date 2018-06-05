@@ -519,9 +519,9 @@ toList = foldrM (\a xs -> return (a : xs)) []
 take :: IsStream t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp sng yld ->
+    go n1 m1 = Stream $ \_ stp sng yld ->
         let yield a r = yld a (go (n1 - 1) r)
-        in if n1 <= 0 then stp else (S.runStream m1) ctx stp sng yield
+        in if n1 <= 0 then stp else (S.runStream m1) Nothing stp sng yield
 
 -- | Include only those elements that pass a predicate.
 --
@@ -530,12 +530,12 @@ take n m = fromStream $ go n (toStream m)
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp sng yld ->
+    go m1 = Stream $ \_ stp sng yld ->
         let single a  | p a       = sng a
                       | otherwise = stp
             yield a r | p a       = yld a (go r)
-                      | otherwise = (S.runStream r) ctx stp single yield
-         in (S.runStream m1) ctx stp single yield
+                      | otherwise = (S.runStream r) Nothing stp single yield
+         in (S.runStream m1) Nothing stp single yield
 
 -- | End the stream as soon as the predicate fails on an element.
 --
@@ -544,12 +544,12 @@ filter p m = fromStream $ go (toStream m)
 takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp sng yld ->
+    go m1 = Stream $ \_ stp sng yld ->
         let single a  | p a       = sng a
                       | otherwise = stp
             yield a r | p a       = yld a (go r)
                       | otherwise = stp
-         in (S.runStream m1) ctx stp single yield
+         in (S.runStream m1) Nothing stp single yield
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
@@ -557,13 +557,13 @@ takeWhile p m = fromStream $ go (toStream m)
 drop :: IsStream t => Int -> t m a -> t m a
 drop n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \ctx stp sng yld ->
+    go n1 m1 = Stream $ \_ stp sng yld ->
         let single _ = stp
-            yield _ r = (S.runStream $ go (n1 - 1) r) ctx stp sng yld
+            yield _ r = (S.runStream $ go (n1 - 1) r) Nothing stp sng yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then (S.runStream m1) ctx stp sng yld
-           else (S.runStream m1) ctx stp single yield
+           then (S.runStream m1) Nothing stp sng yld
+           else (S.runStream m1) Nothing stp single yield
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -573,12 +573,12 @@ drop n m = fromStream $ go n (toStream m)
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 dropWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \ctx stp sng yld ->
+    go m1 = Stream $ \_ stp sng yld ->
         let single a  | p a       = stp
                       | otherwise = sng a
-            yield a r | p a       = (S.runStream r) ctx stp single yield
+            yield a r | p a       = (S.runStream r) Nothing stp single yield
                       | otherwise = yld a r
-         in (S.runStream m1) ctx stp single yield
+         in (S.runStream m1) Nothing stp single yield
 
 -- | Map + filter: compute a stream of b from a stream of a and filter out
 -- elements that are mapped to Nothing. It is similar to 'mapMaybe' in
@@ -710,12 +710,12 @@ length = foldl (\n _ -> n + 1) 0 id
 reverse :: (IsStream t) => t m a -> t m a
 reverse m = fromStream $ go S.nil (toStream m)
     where
-    go rev rest = Stream $ \svr stp sng yld ->
-        let run x = S.runStream x svr stp sng yld
+    go rev rest = Stream $ \_ stp sng yld ->
+        let run x = S.runStream x Nothing stp sng yld
             stop = run rev
             single a = run $ a `S.cons` rev
             yield a r = run $ go (a `S.cons` rev) r
-         in S.runStream rest svr stop single yield
+         in S.runStream rest Nothing stop single yield
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.

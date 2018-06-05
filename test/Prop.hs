@@ -221,6 +221,24 @@ concurrentFoldrApplication n =
             sourceUnfoldrM1 n |&. A.foldrM (\x xs -> return (x : xs)) []
         equals (==) stream list
 
+transformCombineFromList
+    :: Semigroup (t IO Int)
+    => ([Int] -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> ([Int] -> [Int])
+    -> (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int)
+    -> [Int]
+    -> [Int]
+    -> [Int]
+    -> Property
+transformCombineFromList constr eq listOp t op a b c =
+        monadicIO $ do
+            stream <- run ((A.toList . t) $
+                constr a <> op (constr b <> constr c))
+            let list = a <> listOp (b <> c)
+            equals eq stream list
+
 foldFromList
     :: ([Int] -> t IO Int)
     -> (t IO Int -> SerialT IO Int)
@@ -335,6 +353,69 @@ concurrentOps constr desc t eq = do
     prop (desc ++ " mapM") $ withMaxSuccess maxTestCount $
         concurrentMapM constr eq $ \n mv stream ->
             t $ A.mapM (mvarSequenceOp mv n) stream
+
+-- XXX add tests for MonadReader and MonadError etc. In case an SVar is
+-- accidentally passed through them.
+transformCombineOpsCommon
+    :: (IsStream t, Semigroup (t IO Int))
+    => ([Int] -> t IO Int)
+    -> String
+    -> (t IO Int -> SerialT IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Spec
+transformCombineOpsCommon constr desc t eq = do
+    let transform = transformCombineFromList constr eq
+    -- Filtering
+    prop (desc ++ " filter False") $
+        transform (filter (const False)) t (A.filter (const False))
+    prop (desc ++ " filter True") $
+        transform (filter (const True)) t (A.filter (const True))
+    prop (desc ++ " filter even") $
+        transform (filter even) t (A.filter even)
+
+    prop (desc ++ " take maxBound") $
+        transform (take maxBound) t (A.take maxBound)
+    prop (desc ++ " take 0") $ transform (take 0) t (A.take 0)
+
+    prop (desc ++ " takeWhile True") $
+        transform (takeWhile (const True)) t (A.takeWhile (const True))
+    prop (desc ++ " takeWhile False") $
+        transform (takeWhile (const False)) t (A.takeWhile (const False))
+
+    prop (desc ++ " drop maxBound") $
+        transform (drop maxBound) t (A.drop maxBound)
+    prop (desc ++ " drop 0") $ transform (drop 0) t (A.drop 0)
+
+    prop (desc ++ " dropWhile True") $
+        transform (dropWhile (const True)) t (A.dropWhile (const True))
+    prop (desc ++ " dropWhile False") $
+        transform (dropWhile (const False)) t (A.dropWhile (const False))
+    prop (desc ++ " scan") $ transform (scanl' (flip const) 0) t
+                                       (A.scanl' (flip const) 0)
+    prop (desc ++ " reverse") $ transform reverse t A.reverse
+
+transformCombineOpsOrdered
+    :: (IsStream t, Semigroup (t IO Int))
+    => ([Int] -> t IO Int)
+    -> String
+    -> (t IO Int -> SerialT IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Spec
+transformCombineOpsOrdered constr desc t eq = do
+    let transform = transformCombineFromList constr eq
+    -- Filtering
+    prop (desc ++ " take 1") $ transform (take 1) t (A.take 1)
+    prop (desc ++ " take 10") $ transform (take 10) t (A.take 10)
+
+    prop (desc ++ " takeWhile > 0") $
+        transform (takeWhile (> 0)) t (A.takeWhile (> 0))
+
+    prop (desc ++ " drop 1") $ transform (drop 1) t (A.drop 1)
+    prop (desc ++ " drop 10") $ transform (drop 10) t (A.drop 10)
+
+    prop (desc ++ " dropWhile > 0") $
+        transform (dropWhile (> 0)) t (A.dropWhile (> 0))
+    prop (desc ++ " scan") $ transform (scanl' (+) 0) t (A.scanl' (+) 0)
 
 wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
 wrapMaybe f =
@@ -640,6 +721,32 @@ main = hspec $ do
             concurrentFoldrApplication
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount $
             concurrentFoldlApplication
+
+    -- These tests are specifically targeted towards detecting illegal sharing
+    -- of SVar across conurrent streams.
+    describe "Stream transform and combine operations" $ do
+        transformCombineOpsCommon A.fromFoldable "serially" serially (==)
+        transformCombineOpsCommon A.fromFoldable "aheadly" aheadly (==)
+        transformCombineOpsCommon A.fromFoldable "wSerially" wSerially sortEq
+        transformCombineOpsCommon A.fromFoldable "zipSerially" zipSerially (==)
+        transformCombineOpsCommon A.fromFoldable "zipAsyncly" zipAsyncly (==)
+        transformCombineOpsCommon A.fromFoldable "asyncly" asyncly sortEq
+        transformCombineOpsCommon A.fromFoldable "wAsyncly" wAsyncly sortEq
+        transformCombineOpsCommon A.fromFoldable "parallely" parallely sortEq
+
+        transformCombineOpsCommon folded "serially" serially (==)
+        transformCombineOpsCommon folded "aheadly" aheadly (==)
+        transformCombineOpsCommon folded "wSerially" wSerially sortEq
+        transformCombineOpsCommon folded "zipSerially" zipSerially (==)
+        transformCombineOpsCommon folded "zipAsyncly" zipAsyncly (==)
+        transformCombineOpsCommon folded "asyncly" asyncly sortEq
+        transformCombineOpsCommon folded "wAsyncly" wAsyncly sortEq
+        transformCombineOpsCommon folded "parallely" parallely sortEq
+
+        transformCombineOpsOrdered A.fromFoldable "serially" serially (==)
+        transformCombineOpsOrdered A.fromFoldable "serially" aheadly (==)
+        transformCombineOpsOrdered A.fromFoldable "zipSerially" zipSerially (==)
+        transformCombineOpsOrdered A.fromFoldable "zipAsyncly" zipAsyncly (==)
 
     describe "Stream elimination operations" $ do
         eliminationOps A.fromFoldable "serially" serially
