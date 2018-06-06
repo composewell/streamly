@@ -496,6 +496,10 @@ runqueueLIFO sv q = run
 -- WAsync
 -------------------------------------------------------------------------------
 
+-- XXX we can use the Ahead style sequence/heap mechanism to make the best
+-- effort to always try to finish the streams on the left side of an expression
+-- first as long as possible.
+
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO :: SVar m a -> LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO sv q m = do
@@ -630,6 +634,13 @@ enqueueAhead sv q m = do
 -- dequeuing from the work queue. If it finds that the task at the top of the
 -- heap is the one that owns the current sequence number then it grabs the
 -- token and starts with that.
+--
+-- XXX instead of queueing just the head element and the remaining computation
+-- on the heap, evaluate as many as we can and place them on the heap. But we
+-- need to give higher priority to the lower sequence numbers so that lower
+-- priority tasks do not fill up the heap making higher priority tasks block
+-- due to full heap. Maybe we can have a weighted space for them in the heap.
+-- The weight is inversely proportional to the sequence number.
 runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
 runqueueAhead sv q = runHeap
 
@@ -742,6 +753,14 @@ runqueueAhead sv q = runHeap
                     if (seqNo == snum)
                     then ((hp', seqNo), Just ent)
                     else (hp, Nothing)
+
+-------------------------------------------------------------------------------
+-- WAhead
+-------------------------------------------------------------------------------
+
+-- XXX To be implemented. Use a linked queue like WAsync and put back the
+-- remaining computation at the back of the queue instead of the heap, and
+-- increment the sequence number.
 
 -- Thread tracking is needed for two reasons:
 --
