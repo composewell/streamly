@@ -1424,6 +1424,7 @@ runWith style f m = do
 -- Zipping
 ------------------------------------------------------------------------------
 
+{-# INLINE zipWith #-}
 zipWith :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f m1 m2 = go m1 m2
     where
@@ -1436,6 +1437,7 @@ zipWith f m1 m2 = go m1 m2
             yield1 a ra = merge a ra
         (runStream mx) Nothing stp single1 yield1
 
+{-# INLINE zipAsyncWith #-}
 zipAsyncWith :: MonadAsync m
     => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipAsyncWith f m1 m2 = Stream $ \_ stp sng yld -> do
