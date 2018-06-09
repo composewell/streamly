@@ -8,7 +8,7 @@ extra-deps:
     - SDL-0.6.5.1
 
     - git: https://github.com/composewell/bench-graph
-      commit: b6d6c69f76c0d951aecd257866cede9467bd166d
+      commit: 268a04061cca7eda448b8f741d8d0aa82cd6be3a
 
     - git: https://github.com/harendra-kumar/hs-gauge
       commit: f3bb4a1fc801c581224843759b7e6dabb0aef3dc
