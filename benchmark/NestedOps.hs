@@ -5,6 +5,7 @@
 -- License     : MIT
 -- Maintainer  : harendra.kumar@gmail.com
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module NestedOps where
@@ -28,8 +29,21 @@ prodCount = 1000
 type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
-source :: S.IsStream t => Int -> Int -> t m Int
-source start n = S.unfoldr step start
+source :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+source = sourceUnfoldrM
+
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM n value = S.serially $ S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: S.IsStream t => Int -> Int -> t m Int
+sourceUnfoldr start n = S.unfoldr step start
     where
     step cnt =
         if cnt > start + n
@@ -48,98 +62,66 @@ runToList = S.toList
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-{-# INLINE toNullLinear #-}
-toNullLinear :: Monad m => Int -> m ()
-toNullLinear start = runStream $ source start sumCount
-
-{-# INLINE toListLinear #-}
-toListLinear :: Monad m => Int -> m [Int]
-toListLinear start = runToList $ source start sumCount
-
-{-# INLINE append #-}
-append
-    :: (Monoid (t m Int), Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
-append t start = runStream $ t $ foldMap return [start..start+sumCount]
-
-{-# INLINE toNull0 #-}
-toNull0
-    :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m (Int, Int) -> S.SerialT m (Int, Int)) -> Int -> m ()
-toNull0 t start = runStream . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
-    return (x,y)
-
-{-# INLINE toList0 #-}
-toList0
-    :: (S.IsStream t, Monad m, Monad (t m))
-    => (t m (Int, Int) -> S.SerialT m (Int, Int)) -> Int -> m [(Int, Int)]
-toList0 t start = runToList . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
-    return (x,y)
-
 {-# INLINE toNull #-}
 toNull
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNull t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
-    return $ x * x + y * y
+    return $ x + y
 
 {-# INLINE toList #-}
 toList
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toList t start = runToList . t $ do
     x <- source start prodCount
     y <- source start prodCount
-    return $ x * x + y * y
+    return $ x + y
 
 {-# INLINE toListSome #-}
 toListSome
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toListSome t start =
     runToList . t $ S.take 1000 $ do
         x <- source start prodCount
         y <- source start prodCount
-        return $ x * x + y * y
+        return $ x + y
 
 {-# INLINE filterAllOut #-}
 filterAllOut
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllOut t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
-    let s = x * x + y * y
-    if (s < 1)
+    let s = x + y
+    if (s < 0)
     then return s
     else S.nil
 
 {-# INLINE filterAllIn #-}
 filterAllIn
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllIn t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
-    let s = x * x + y * y
-    if (s > 1)
+    let s = x + y
+    if (s > 0)
     then return s
     else S.nil
 
 {-# INLINE filterSome #-}
 filterSome
-    :: (S.IsStream t, Monad m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterSome t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
-    let s = x * x + y * y
+    let s = x + y
     if (s > 1100000)
     then return s
     else S.nil
@@ -152,7 +134,7 @@ breakAfterSome t start = do
     (_ :: Either ErrorCall ()) <- try $ runStream . t $ do
         x <- source start prodCount
         y <- source start prodCount
-        let s = x * x + y * y
+        let s = x + y
         if (s > 1100000)
         then error "break"
         else return s

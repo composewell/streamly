@@ -63,6 +63,7 @@ if test "$GRAPH" != "0"
 then
   CHART_PROG="chart-$BENCHMARK"
   prog=$($STACK exec which $CHART_PROG)
+  hash -r
   if test ! -x "$prog"
   then
     echo "Building charting executable"

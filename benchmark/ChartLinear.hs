@@ -6,7 +6,7 @@ module Main where
 import Data.List
 import Data.List.Split
 import BenchGraph (bgraph, defaultConfig, Config(..), ComparisonStyle(..))
-import Control.Exception (handle, catch, SomeException, ErrorCall)
+import Control.Exception (handle, catch, SomeException, ErrorCall(..))
 
 main :: IO ()
 main = do
@@ -15,8 +15,8 @@ main = do
             , comparisonStyle = CompareDelta
             }
 
-        ignoringErr a = catch a (\(_ :: ErrorCall) ->
-            putStrLn "Failed. Skipping.")
+        ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
+            putStrLn $ "Failed with error:\n" ++ err ++ "\nSkipping.")
     -- bgraph <input> <output> <field in csv file to be plotted>
     -- other interesting fields to plot are:
     -- allocated
@@ -26,18 +26,29 @@ main = do
     ignoringErr $ bgraph "charts/results.csv" "operations" "time" $ cfg
         { chartTitle = Just "Streamly operations (time)"
         , classifyBenchmark = \b ->
-                if "compose" `isPrefixOf` b || "/concat" `isSuffixOf` b
+                if (not $ "serially/" `isPrefixOf` b)
+                   || "/generation" `isInfixOf` b
+                   || "/compose" `isInfixOf` b
+                   || "/concat" `isSuffixOf` b
                 then Nothing
                 else Just ("Streamly", last $ splitOn "/" b)
         }
 
+    ignoringErr $ bgraph "charts/results.csv" "generation" "time" $ cfg
+        { chartTitle = Just "Stream generation (time)"
+        , classifyBenchmark = \b ->
+                if "serially/generation" `isPrefixOf` b
+                then Just ("Streamly", last $ splitOn "/" b)
+                else Nothing
+        }
+
     ignoringErr $ bgraph "charts/results.csv" "composition" "time" $ cfg
         { chartTitle = Just "Streamly composition performance (time)"
-        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "compose/"
+        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "serially/compose/"
         }
 
     ignoringErr $ bgraph "charts/results.csv" "composition-scaling" "time"
         $ cfg
         { chartTitle = Just "Streamly composition scaling (time)"
-        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "compose-"
+        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "serially/compose-"
         }

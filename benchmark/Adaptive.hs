@@ -38,35 +38,44 @@ run srange crange t = runStream $ do
     when (d /= 0) $ liftIO $ threadDelay d
     return n
 
+low, medium, high :: Int
+low = 10
+medium = 20
+high = 30
+
+{-# INLINE noDelay #-}
+noDelay :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
+noDelay = run (0,0) (0,0)
+
 {-# INLINE alwaysConstSlowSerial #-}
 alwaysConstSlowSerial :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-alwaysConstSlowSerial = run (0,0) (20,20)
+alwaysConstSlowSerial = run (0,0) (medium,medium)
 
 {-# INLINE alwaysConstSlow #-}
 alwaysConstSlow :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-alwaysConstSlow = run (10,10) (20,20)
+alwaysConstSlow = run (low,low) (medium,medium)
 
 {-# INLINE alwaysConstFast #-}
 alwaysConstFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-alwaysConstFast = run (30,30) (20,20)
+alwaysConstFast = run (high,high) (medium,medium)
 
 {-# INLINE alwaysVarSlow #-}
 alwaysVarSlow :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-alwaysVarSlow = run (10,10) (10,30)
+alwaysVarSlow = run (low,low) (low,high)
 
 {-# INLINE alwaysVarFast #-}
 alwaysVarFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-alwaysVarFast = run (30,30) (10,30)
+alwaysVarFast = run (high,high) (low,high)
 
 -- XXX add variable producer tests as well
 
 {-# INLINE runVarSometimesFast #-}
 runVarSometimesFast :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-runVarSometimesFast = run (20,20) (10,30)
+runVarSometimesFast = run (medium,medium) (low,high)
 
 {-# INLINE randomVar #-}
 randomVar :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
-randomVar = run (10,30) (10,30)
+randomVar = run (low,high) (low,high)
 
 main :: IO ()
 main = do
@@ -75,6 +84,14 @@ main = do
       bgroup "serialConstantSlowConsumer"
       [ bench "serially"    $ nfIO $ alwaysConstSlowSerial serially
       , bench "wSerially"   $ nfIO $ alwaysConstSlowSerial wSerially
+      ]
+    , bgroup "default"
+      [ bench "serially"   $ nfIO $ noDelay serially
+      , bench "wSerially"  $ nfIO $ noDelay wSerially
+      , bench "aheadly"    $ nfIO $ noDelay aheadly
+      , bench "asyncly"    $ nfIO $ noDelay asyncly
+      , bench "wAsyncly"   $ nfIO $ noDelay wAsyncly
+      , bench "parallely"  $ nfIO $ noDelay parallely
       ]
     , bgroup "constantSlowConsumer"
       [ bench "aheadly"    $ nfIO $ alwaysConstSlow aheadly

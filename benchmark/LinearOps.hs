@@ -53,12 +53,15 @@ scan, map, filterEven, filterAllOut,
     :: Monad m
     => Stream m Int -> m ()
 
-mapM, composeMapM :: S.MonadAsync m => Stream m Int -> m ()
+composeMapM :: S.MonadAsync m => Stream m Int -> m ()
 toList :: Monad m => Stream m Int -> m [Int]
 foldl :: Monad m => Stream m Int -> m Int
 last :: Monad m => Stream m Int -> m (Maybe Int)
 
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+mapM :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+zipAsync :: S.MonadAsync m => Stream m Int -> m ()
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -67,13 +70,8 @@ toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
 type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
-source :: S.IsStream t => Int -> t m Int
-source n = S.unfoldr step n
-    where
-    step cnt =
-        if cnt > n + value
-        then Nothing
-        else (Just (cnt, cnt + 1))
+source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+source n = S.serially $ sourceUnfoldrM n
 
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: S.IsStream t => Int -> t m Int
@@ -92,6 +90,15 @@ sourceFoldMapWith n = S.foldMapWith (S.<>) return [n..n+value]
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
     => Int -> t m Int
 sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.once . return) [n..n+value]
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: S.IsStream t => Int -> t m Int
+sourceUnfoldr n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + value
+        then Nothing
+        else (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
@@ -125,7 +132,7 @@ transform = runStream
 
 scan          = transform . S.scanl' (+) 0
 map           = transform . fmap (+1)
-mapM          = transform . S.mapM return
+mapM t        = transform . t . S.mapM return
 filterEven    = transform . S.filter even
 filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)
@@ -140,6 +147,7 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 -------------------------------------------------------------------------------
 
 zip src       = transform $ (S.zipWith (,) src src)
+zipAsync src  = transform $ (S.zipAsyncWith (,) src src)
 concat _n     = return ()
 
 -------------------------------------------------------------------------------
