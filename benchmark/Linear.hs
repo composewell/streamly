@@ -26,9 +26,6 @@ benchSrcIO
 benchSrcIO t name f
     = bench name $ nfIO $ randomRIO (1,1000) >>= Ops.toNull t . f
 
-benchIOAppend :: (NFData b) => String -> (Int -> IO b) -> Benchmark
-benchIOAppend name f = bench name $ nfIO $ randomRIO (1,1000) >>= f
-
 {-
 _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
@@ -40,10 +37,10 @@ main = do
     [ bgroup "serially"
       [ bgroup "generation"
         [ benchSrcIO serially "unfoldr" $ Ops.sourceUnfoldr
-        , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
-        , benchSrcIO serially "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
+        , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO serially "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO serially "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO serially "foldMapWithM" Ops.sourceFoldMapWithM
         ]
       , bgroup "elimination"
@@ -66,7 +63,6 @@ main = do
         , benchIO "drop-all" Ops.dropAll
         , benchIO "dropWhile-true" Ops.dropWhileTrue
         ]
-      , benchIOAppend "append" $ Ops.append serially
       , benchIO "zip" $ Ops.zip
       , bgroup "compose"
         [ benchIO "mapM" Ops.composeMapM
@@ -85,45 +81,41 @@ main = do
       , bgroup "asyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull asyncly
         -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
-          benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
+          benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
         , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM"   $ Ops.mapM asyncly
-        , benchIOAppend "append"    $ Ops.append asyncly
         ]
       , bgroup "wAsyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull wAsyncly
         -- , benchSrcIO wAsyncly "fromFoldable" Ops.sourceFromFoldable
-          benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
+          benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
         , benchSrcIO wAsyncly "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO wAsyncly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM"   $ Ops.mapM wAsyncly
-        , benchIOAppend "append" $ Ops.append wAsyncly
         ]
       -- unfoldr and fromFoldable are always serial and thereofore the same for
       -- all stream types.
       , bgroup "aheadly"
         [ -- benchIO "unfoldr" $ Ops.toNull aheadly
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
-          benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
+          benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
         , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO       "mapM"  $ Ops.mapM aheadly
-        , benchIOAppend "append" $ Ops.append aheadly
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
         [ --benchIO "unfoldr" $ Ops.toNull parallely
         --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
-          benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
+          benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
         , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM" $ Ops.mapM parallely
-        , benchIOAppend "append"  $ Ops.append parallely
         -- Zip has only one parallel flavor
         , benchIO "zip" $ Ops.zipAsync
         ]

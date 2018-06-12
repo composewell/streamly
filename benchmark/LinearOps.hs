@@ -11,14 +11,13 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..), Monoid, foldMap)
+        subtract, undefined, Maybe(..))
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
 
-value, appendValue, maxValue :: Int
+value, maxValue :: Int
 value = 100000
-appendValue = 100000
 maxValue = value + 1000
 
 -------------------------------------------------------------------------------
@@ -149,16 +148,6 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 zip src       = transform $ (S.zipWith (,) src src)
 zipAsync src  = transform $ (S.zipAsyncWith (,) src src)
 concat _n     = return ()
-
--------------------------------------------------------------------------------
--- Append
--------------------------------------------------------------------------------
-
-{-# INLINE append #-}
-append
-    :: (Monoid (t m Int), Monad m, Monad (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> m ()
-append t n = runStream $ t $ foldMap return [n..n+appendValue]
 
 -------------------------------------------------------------------------------
 -- Composition
