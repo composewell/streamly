@@ -100,13 +100,13 @@ module Streamly.Prelude
     , takeWhile
     , drop
     , dropWhile
-    , mapMaybe
 
     -- * Reordering
     , reverse
 
     -- * Mapping
     , mapM
+    , mapMaybe
     , mapMaybeM
     , sequence
 
@@ -580,24 +580,6 @@ dropWhile p m = fromStream $ go (toStream m)
                       | otherwise = yld a r
          in (S.runStream m1) Nothing stp single yield
 
--- | Map + filter: compute a stream of b from a stream of a and filter out
--- elements that are mapped to Nothing. It is similar to 'mapMaybe' in
--- 'Data.Maybe' but applies to streams instead of list.
---
--- @since 0.2.1
-{-# INLINE mapMaybe #-}
-mapMaybe :: (IsStream t) => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = go (toStream m)
-  where
-    go m1 = fromStream $ Stream $ \_ stp sng yld ->
-        let single a = case f a of
-                Just b  -> sng b
-                Nothing -> stp
-            yield a r = case f a of
-                Just b  -> yld b (toStream $ go r)
-                Nothing -> (S.runStream r) Nothing stp single yield
-        in (S.runStream m1) Nothing stp single yield
-
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
 -- @since 0.1.0
@@ -778,9 +760,28 @@ mapM f m = go (toStream m)
             yield a r = S.runStream (toStream (f a |: (go r))) svr stp sng yld
          in (S.runStream m1) Nothing stp single yield
 
--- | Monadic version mapMaybe.
+-- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
+-- elements, and return a stream of values extracted from 'Just'.
 --
--- @since 0.2.1
+-- @since 0.3.0
+{-# INLINE mapMaybe #-}
+mapMaybe :: (IsStream t) => (a -> Maybe b) -> t m a -> t m b
+mapMaybe f m = go (toStream m)
+  where
+    go m1 = fromStream $ Stream $ \_ stp sng yld ->
+        let single a = case f a of
+                Just b  -> sng b
+                Nothing -> stp
+            yield a r = case f a of
+                Just b  -> yld b (toStream $ go r)
+                Nothing -> (S.runStream r) Nothing stp single yield
+        in (S.runStream m1) Nothing stp single yield
+
+-- | Like 'mapMaybe' but maps a monadic function.
+--
+-- /Concurrent (do not use with 'parallely' on infinite streams)/
+--
+-- @since 0.3.0
 {-# INLINE mapMaybeM #-}
 mapMaybeM :: (IsStream t, MonadAsync m, Functor (t m))
           => (a -> m (Maybe b)) -> t m a -> t m b

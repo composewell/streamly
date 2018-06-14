@@ -1,5 +1,5 @@
 import Streamly
-import Streamly.Prelude (once)
+import Streamly.Prelude (nil, once, (|:))
 import Network.HTTP.Simple
 
 -- | Runs three search engine queries in parallel and prints the search engine
@@ -9,17 +9,20 @@ import Network.HTTP.Simple
 --
 main :: IO ()
 main = do
-    putStrLn "Using parallel semigroup composition"
-    runStream . parallely $ google <> bing <> duckduckgo
+    putStrLn "Using parallel stream construction"
+    runStream . parallely $ google |: bing |: duckduckgo |: nil
+
+    putStrLn "\nUsing parallel semigroup composition"
+    runStream . parallely $ once google <> once bing <> once duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runStream . zipAsyncly $ (,,) <$> google <*> bing <*> duckduckgo
+    runStream . zipAsyncly $ (,,) <$> once google <*> once bing <*> once duckduckgo
 
     where
-        get :: IsStream t => String -> t IO ()
-        get s = once (httpNoBody (parseRequest_ s) >> putStrLn (show s))
+        get :: String -> IO ()
+        get s = httpNoBody (parseRequest_ s) >> putStrLn (show s)
 
-        google, bing, duckduckgo :: IsStream t => t IO ()
+        google, bing, duckduckgo :: IO ()
         google     = get "https://www.google.com/search?q=haskell"
         bing       = get "https://www.bing.com/search?q=haskell"
         duckduckgo = get "https://www.duckduckgo.com/?q=haskell"

@@ -10,8 +10,8 @@
 * Fixed a race due to which, in a rare case, we might block indefinitely on
   an MVar due to a lost wakeup.
 * Fixed an issue in adaptive concurrency. The issue caused us to stop creating
-  more worker threads in some cases due to a race. This would not cause any
-  functional issue but would reduce concurrency in some cases.
+  more worker threads in some cases due to a race. This bug would not cause any
+  functional issue but may reduce concurrency in some cases.
 
 ### Enhancements
 * Added a concurrent lookahead stream type `Ahead`
@@ -24,7 +24,7 @@
   concurrently when used at appropriate stream types.
 * Added concurrent function application operators to run stages of a
   stream processing function application pipeline concurrently.
-* Added two functions `mapMaybe` and `mapMaybeM`.
+* Added `mapMaybe` and `mapMaybeM`.
 
 ## 0.2.1
 

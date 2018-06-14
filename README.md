@@ -91,9 +91,26 @@ main = runStream $
 
 ## Concurrent Stream Generation
 
-We can use standard monadic stream generation APIs like `repeatM`,
-`replicateM`, `unfoldrM`, `iterateM` etc. to generate streams in a concurrent
-manner by using an appropriate stream style combinator.
+Monadic construction and generation functions e.g. `consM`, `unfoldrM`,
+`replicateM`, `repeatM`, `iterateM` and `fromFoldableM` etc. work concurrently
+when used with appropriate stream type combinator.
+
+The following code finishes in 3 seconds (6 seconds when serial):
+
+```
+> let p n = threadDelay (n * 1000000) >> return n
+> S.toList $ aheadly $ p 3 |: p 2 |: p 1 |: S.nil
+[3,2,1]
+
+> S.toList $ parallely $ p 3 |: p 2 |: p 1 |: S.nil
+[1,2,3]
+```
+
+The following finishes in 10 seconds (100 seconds when serial):
+
+```
+runStream $ asyncly $ S.replicateM 10 $ p 10
+```
 
 ## Concurrent Streaming Pipelines
 
@@ -108,9 +125,14 @@ main = runStream $
    |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
 ```
 
-## Concurrent transformation
+## Mapping Concurrently
 
-We can use `mapM` `sequence` concurrently on a stream.
+We can use `mapM` or `sequence` concurrently on a stream.
+
+```
+> let p n = threadDelay (n * 1000000) >> return n
+> runStream $ aheadly $ S.mapM (\x -> p 1 >> print x) (serially $ repeatM (p 1))
+```
 
 ## Serial and Concurrent Merging
 
