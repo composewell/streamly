@@ -114,8 +114,8 @@ matrix:
   #- env: BUILD=cabal-new GHCVER=8.2.2
   #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.4.2 GHC_OPTIONS=""
-    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.2], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.4.3 GHC_OPTIONS=""
+    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
     addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
