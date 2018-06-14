@@ -65,8 +65,9 @@ module Streamly.Core
     )
 where
 
-import           Control.Concurrent          (ThreadId, myThreadId, threadDelay)
-import           Control.Concurrent.MVar     (MVar, newEmptyMVar, tryTakeMVar,
+import           Control.Concurrent          (ThreadId, myThreadId,
+                                              threadDelay, getNumCapabilities)
+import           Control.Concurrent.MVar     (MVar, newEmptyMVar,
                                               tryPutMVar, takeMVar)
 import           Control.Exception           (SomeException (..), catch, mask)
 import           Control.Monad               (when)
@@ -76,7 +77,7 @@ import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Control.Monad.Trans.Control (MonadBaseControl, control)
 import           Data.Atomics                (casIORef, readForCAS, peekTicket
                                              ,atomicModifyIORefCAS_
-                                             ,writeBarrier)
+                                             ,writeBarrier,storeLoadBarrier)
 import           Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL,
                                                      tryPopR, nullQ)
 import           Data.Functor                (void)
@@ -88,7 +89,7 @@ import           Data.IORef                  (IORef, modifyIORef, newIORef,
                                               , writeIORef
 #endif
                                               )
-import           Data.Maybe                  (isNothing, fromJust)
+import           Data.Maybe                  (fromJust)
 import           Data.Semigroup              (Semigroup(..))
 import           Data.Set                    (Set)
 import qualified Data.Set                    as S
@@ -104,6 +105,7 @@ import GHC.IO (IO(..))
 -- until they are GCed because the consumer went away.
 
 #ifdef DIAGNOSTICS
+import           Control.Concurrent.MVar     (tryTakeMVar)
 import           Control.Exception           (catches, throwIO, Handler(..),
                                               BlockedIndefinitelyOnMVar(..),
                                               BlockedIndefinitelyOnSTM(..))
@@ -181,7 +183,7 @@ data SVar m a =
                                      , Int
                                      )
 
-            -- Shared work queue
+            -- Shared work queue (stream, seqNo)
             , workQueue      :: IORef ([Stream m a], Int)
             , enqueue        :: Stream m a -> IO ()
             , queueEmpty     :: m Bool
@@ -417,6 +419,9 @@ doFork action exHandler =
 -- TBD Each worker can have their own queue and the consumer can empty one
 -- queue at a time, that way contention can be reduced.
 
+maxOutputQLen :: Int
+maxOutputQLen = 1500
+
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
 {-# NOINLINE send #-}
@@ -435,11 +440,13 @@ send sv msg = do
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (doorBell sv) ()
-    return (len < 1500)
+    return (len < maxOutputQLen)
 
 {-# NOINLINE sendStop #-}
 sendStop :: SVar m a -> IO ()
-sendStop sv = myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
+sendStop sv = do
+    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n - 1
+    myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
 -- Async
@@ -452,21 +459,17 @@ sendStop sv = myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 {-# INLINE enqueueLIFO #-}
 enqueueLIFO :: SVar m a -> IORef [Stream m a] -> Stream m a -> IO ()
 enqueueLIFO sv q m = do
+    atomicModifyIORefCAS_ q $ \ms -> m : ms
+    storeLoadBarrier
     w <- readIORef $ waitingForWork sv
-    if w
-    then withDoorBell
-    else atomicModifyIORefCAS_ q $ \ms -> m : ms
-
-    where
-
-    withDoorBell = do
-        v <- atomicModifyIORefCAS q $ \ ms ->
-            case ms of
-                [] -> (m : ms, True)
-                _ -> (m : ms, False)
-        writeBarrier
-        when v $ void $ tryPutMVar (doorBell sv) ()
+    when w $ do
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- doorBell, otherwise the doorBell may get processed too early and
+        -- then we may set the flag to False to later making the consumer lose
+        -- the flag, even without receiving a doorBell.
         atomicModifyIORefCAS_ (waitingForWork sv) (const False)
+        void $ tryPutMVar (doorBell sv) ()
 
 runqueueLIFO :: MonadIO m => SVar m a -> IORef [Stream m a] -> m ()
 runqueueLIFO sv q = run
@@ -503,19 +506,17 @@ runqueueLIFO sv q = run
 {-# INLINE enqueueFIFO #-}
 enqueueFIFO :: SVar m a -> LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO sv q m = do
+    pushL q m
+    storeLoadBarrier
     w <- readIORef $ waitingForWork sv
-    if w
-    then withDoorBell
-    else pushL q m
-
-    where
-
-    withDoorBell = do
-        emp <- nullQ q
-        pushL q m
-        writeBarrier
-        when emp $ void $ tryPutMVar (doorBell sv) ()
+    when w $ do
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- doorBell, otherwise the doorBell may get processed too early and
+        -- then we may set the flag to False to later making the consumer lose
+        -- the flag, even without receiving a doorBell.
         atomicModifyIORefCAS_ (waitingForWork sv) (const False)
+        void $ tryPutMVar (doorBell sv) ()
 
 runqueueFIFO :: MonadIO m => SVar m a -> LinkedQueue (Stream m a) -> m ()
 runqueueFIFO sv q = run
@@ -615,14 +616,19 @@ runOne sv m = (runStream m) (Just sv) stop single yield
 {-# INLINE enqueueAhead #-}
 enqueueAhead :: SVar m a -> IORef ([Stream m a], Int) -> Stream m a -> IO ()
 enqueueAhead sv q m = do
-    w <- readIORef $ waitingForWork sv
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n + 1)  -- increment sequence
         _ -> error "not empty"
+    storeLoadBarrier
+    w <- readIORef $ waitingForWork sv
     when w $ do
-        writeBarrier
-        void $ tryPutMVar (doorBell sv) ()
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- doorBell, otherwise the doorBell may get processed too early and
+        -- then we may set the flag to False to later making the consumer lose
+        -- the flag, even without receiving a doorBell.
         atomicModifyIORefCAS_ (waitingForWork sv) (const False)
+        void $ tryPutMVar (doorBell sv) ()
 
 -- Normally the thread that has the token should never go away. The token gets
 -- handed over to another thread, but someone or the other has the token at any
@@ -641,6 +647,9 @@ enqueueAhead sv q m = do
 -- priority tasks do not fill up the heap making higher priority tasks block
 -- due to full heap. Maybe we can have a weighted space for them in the heap.
 -- The weight is inversely proportional to the sequence number.
+--
+-- XXX review for livelock
+--
 runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
 runqueueAhead sv q = runHeap
 
@@ -775,12 +784,12 @@ addThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 addThread sv tid =
     liftIO $ modifyIORef (runningThreads sv) (S.insert tid)
 
-{-
+-- This is cheaper than modifyThread because we do not have to send a doorBell
+-- This can make a difference when more workers are being dispatched.
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 delThread sv tid =
     liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.delete tid s)
--}
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
@@ -846,118 +855,160 @@ pushWorkerPar sv m = do
 #endif
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
 
--- XXX When the queue is LIFO we can put a limit on the number of dispatches.
--- Also, if a worker blocks on the output queue we can decide if we want to
--- block or make it go away entirely, depending on the number of workers and
--- the type of the queue.
-{-# INLINE sendWorkerWait #-}
+{-# INLINE workDone #-}
+workDone :: MonadIO m => SVar m a -> m Bool
+workDone sv = do
+    heapDone <-
+        if (svarStyle sv == AheadVar)
+        then do
+            (hp, _) <- liftIO $ readIORef (outputHeap sv)
+            return (H.size hp <= 0)
+        else return True
+    queueDone <- queueEmpty sv
+    return $ queueDone && heapDone
+
+maxWorkerLimit :: Int
+maxWorkerLimit = 1500
+
+dispatchWorker :: MonadAsync m => SVar m a -> m ()
+dispatchWorker sv = do
+    done <- workDone sv
+    when (not done) $ do
+        -- Note that the worker count is only decremented during event
+        -- processing in fromStreamVar and therefore it is safe to read and
+        -- use it without a lock.
+        cnt <- liftIO $ readIORef $ activeWorkers sv
+        -- Note that we may deadlock if the previous workers (tasks in the
+        -- stream) wait/depend on the future workers (tasks in the stream)
+        -- executing. In that case we should either configure the maxWorker
+        -- count to higher or use parallel style instead of ahead or async
+        -- style.
+        when (cnt < maxWorkerLimit) $ pushWorker sv
+
+{-# NOINLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => SVar m a -> m ()
 sendWorkerWait sv = do
-    -- When there is no output seen we dispatch more workers to help out if
-    -- there is work pending in the work queue. But we wait a little while
-    -- and check the output again so that we are not too aggressive.
-    -- If there is no output pending to process and there is no worker to be
-    -- sent then we block, so that we do not keep looping fruitlessly.
-
     -- Note that we are guaranteed to have at least one outstanding worker when
-    -- we enter this function. So if we sleep we are guaranteed to be woken up.
-    -- Note that the worker count is only decremented during event processing
-    -- in fromStreamVar and therefore it is safe to read and use it without a
-    -- lock.
+    -- we enter this function. So if we sleep we are guaranteed to be woken up
+    -- by a doorBell, when the worker exits.
 
-    -- XXX we should wait in such a way so that we can be immediately
-    -- interrupted by a doorBell. We can sleep on the doorbell and use a
-    -- monitor thread to send us a doorbell.
-    liftIO $ threadDelay 200
+    -- XXX we need a better way to handle this than hardcoded delays. The
+    -- delays may be different for different systems.
+    ncpu <- liftIO $ getNumCapabilities
+    if ncpu <= 1
+    then
+        if (svarStyle sv == AheadVar)
+        then liftIO $ threadDelay 100
+        else liftIO $ threadDelay 25
+    else
+        if (svarStyle sv == AheadVar)
+        then liftIO $ threadDelay 100
+        else liftIO $ threadDelay 10
+
     (_, n) <- liftIO $ readIORef (outputQueue sv)
     when (n <= 0) $ do
         -- The queue may be empty temporarily if the worker has dequeued the
         -- work item but has not enqueued the remaining part yet. For the same
         -- reason, a worker may come back if it tries to dequeue and finds the
         -- queue empty, even though the whole work has not finished yet.
-        done <- queueEmpty sv
-        if not done
+
+        -- If we find that the queue is empty, but it may be empty
+        -- temporarily, when we checked it. If that's the case we might
+        -- sleep indefinitely unless the active workers produce some
+        -- output. We may deadlock specially if the otuput from the active
+        -- workers depends on the future workers that we may never send.
+        -- So in case the queue was temporarily empty set a flag to inform
+        -- the enqueue to send us a doorbell.
+
+        -- Note that this is just a best effort mechanism to avoid a
+        -- deadlock. Deadlocks may still happen if for some weird reason
+        -- the consuming computation shares an MVar or some other resource
+        -- with the producing computation and gets blocked on that resource
+        -- and therefore cannot do any pushworker to add more threads to
+        -- the producer. In such cases the programmer should use a parallel
+        -- style so that all the producers are scheduled immediately and
+        -- unconditionally. We can also use a separate monitor thread to
+        -- push workers instead of pushing them from the consumer, but then
+        -- we are no longer using pull based concurrency rate adaptation.
+        --
+        -- XXX update this in the tutorial.
+
+        -- register for the doorBell before we check the queue so that if we
+        -- sleep because the queue was empty we are guaranteed to get a
+        -- doorbell on the next enqueue.
+
+        liftIO $ atomicModifyIORefCAS_ (waitingForWork sv) $ const True
+        liftIO $ storeLoadBarrier
+        dispatchWorker sv
+
+        -- XXX test for the case when we miss sending a worker when the worker
+        -- count is more than 1500.
+        --
+        -- XXX Assert here that if the heap is not empty then there is at
+        -- least one outstanding worker. Otherwise we could be sleeping
+        -- forever.
+
+        done <- workDone sv
+        if done
         then do
-            cnt <- liftIO $ readIORef $ activeWorkers sv
-            -- Note that we may deadlock if the previous workers (tasks in the
-            -- stream) wait/depend on the future workers (tasks in the stream)
-            -- executing. In that case we should either configure the maxWorker
-            -- count to higher or use parallel style instead of ahead or async
-            -- style.
-            if (cnt < 1500)
-            then do
-                pushWorker sv
-                sendWorkerWait sv
-            else liftIO $ withDBGMVar sv "sendWorkerWait: wait for workers"
-                                      $ takeMVar (doorBell sv)
-        else do
-            -- XXX Assert here that if the heap is not empty then there is at
-            -- least one outstanding worker. Otherwise we could be sleeping
-            -- forever.
-            --
-            -- We found that the queue was empty, but it may be empty
-            -- temporarily, when we checked it. If that's the case we might
-            -- sleep indefinitely unless the active workers produce some
-            -- output. We may deadlock specially if the otuput from the other
-            -- workers depends on the future workers that we may never send.
-            -- So in case the queue was temporarily empty set a flag to inform
-            -- the enqueue to send us a doorbell.
-
-            liftIO $ atomicModifyIORefCAS_ (waitingForWork sv) $ const True
-            liftIO $ writeBarrier
-
-            -- check again, this time we have set the waitingForWork flag so we
-            -- are guaranteed to get a doorbell in case the status changed
-            -- before we could sleep.
-            --
-            -- Note that this is just a best effort mechanism to avoid a
-            -- deadlock. Deadlocks may still happen if for some weird reason
-            -- the consuming computation shares an MVar or some other resource
-            -- with the producing computation and gets blocked on that resource
-            -- and therefore cannot do any pushworker to add more threads to
-            -- the producer. In such cases the programmer should use a parallel
-            -- style so that all the producers are scheduled immediately and
-            -- unconditionally. We can also use a separate monitor thread to
-            -- push workers instead of pushing them from the consumer, but then
-            -- we are no longer using pull based concurrency rate adaptation.
-            --
-            -- XXX update this in the tutorial.
-            emp <- queueEmpty sv
-            when emp $
-                liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
-                                     $ takeMVar (doorBell sv)
+            liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
+                             $ takeMVar (doorBell sv)
+            (_, len) <- liftIO $ readIORef (outputQueue sv)
+            when (len <= 0) $ sendWorkerWait sv
+        else sendWorkerWait sv
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
-    if svarStyle sv == ParallelVar
-    then liftIO $ withDBGMVar sv "fromStreamVar: doorbell"
-                              $ takeMVar (doorBell sv)
-    else do
-        res <- liftIO $ tryTakeMVar (doorBell sv)
-        when (isNothing res) $ sendWorkerWait sv
+    (list, _) <-
+        -- XXX we can set this in SVar
+        if svarStyle sv == ParallelVar
+        then do
+            liftIO $ withDBGMVar sv "fromStreamVar: doorbell"
+                                  $ takeMVar (doorBell sv)
+            readOutputQ sv
+        else do
+            res@(_, len) <- readOutputQ sv
+            -- When there is no output seen we dispatch more workers to help
+            -- out if there is work pending in the work queue.
+            if len <= 0
+            then blockingRead
+            else do
+                -- send a worker proactively, if needed, even before we start
+                -- processing the output.  This may degrade single processor
+                -- perf but improves multi-processor, because of more
+                -- parallelism
+                sendWorker
+                return res
 
-#ifdef DIAGNOSTICS
-    (list, len) <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
-    oqLen <- liftIO $ readIORef (maxOutQSize sv)
-    when (len > oqLen) $ liftIO $ writeIORef (maxOutQSize sv) len
-#else
-    (list, _) <- liftIO $ atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
-#endif
     -- Reversing the output is important to guarantee that we process the
     -- outputs in the same order as they were generated by the constituent
     -- streams.
-    (runStream $ processEvents (reverse list)) Nothing stp sng yld
+    runStream (processEvents $ reverse list) Nothing stp sng yld
 
     where
 
-    handleException e tid = do
-        liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n - 1
-        modifyThread sv tid
-        -- XXX implement kill async exception handling
-        -- liftIO $ readIORef (runningThreads sv) >>= mapM_ killThread
-        throwM e
+    {-# INLINE readOutputQ #-}
+    readOutputQ svr = liftIO $ do
+        (list, len) <- atomicModifyIORefCAS (outputQueue svr) $
+            \x -> (([],0), x)
+#ifdef DIAGNOSTICS
+        oqLen <- readIORef (maxOutQSize svr)
+        when (len > oqLen) $ writeIORef (maxOutQSize svr) len
+#endif
+        return (list, len)
+
+    sendWorker = do
+        cnt <- liftIO $ readIORef $ activeWorkers sv
+        when (cnt <= 0) $ do
+            done <- workDone sv
+            when (not done) $ pushWorker sv
+
+    {-# INLINE blockingRead #-}
+    blockingRead = do
+        sendWorkerWait sv
+        readOutputQ sv
 
     allDone stp = do
 #ifdef DIAGNOSTICS
@@ -971,52 +1022,37 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
     {-# INLINE processEvents #-}
     processEvents [] = Stream $ \_ stp sng yld -> do
         workersDone <- allThreadsDone sv
-        if not workersDone
-        then (runStream (fromStreamVar sv)) Nothing stp sng yld
-        else
+        done <-
+            -- XXX we can set this in SVar
             if svarStyle sv == ParallelVar
-            then allDone stp
-            else do
-                -- All the workers may come back if the outputQueue is full.
-                -- So check if there is work pending and kick off a worker to
-                -- finish it.
-                -- XXX we should perhaps kickoff even before we start
-                -- processing if the active workers are zero, rather than at
-                -- the end of processing the outputQueue. But some thread stop
-                -- events may be in the outputQueue itself, so we may not be
-                -- able to determine the correct number of workers before we
-                -- process it.
-                -- XXX It is necessary to do this before the processing to keep
-                -- minimal concurrency always.
-                -- We should have a separate queue for Stop events so that we
-                -- can process them before the outputs and send workers
-                -- promptly when needed.
-                heapDone <-
-                    if (svarStyle sv == AheadVar)
-                    then do
-                        (hp, _) <- liftIO $ readIORef (outputHeap sv)
-                        return (H.size hp <= 0)
-                    else return True
-                queueDone <- queueEmpty sv
-                if queueDone && heapDone
-                then allDone stp
-                else do
-                    pushWorker sv
-                    (runStream (fromStreamVar sv)) Nothing stp sng yld
+            then return workersDone
+            else
+                -- There may still be work pending even if there are no workers
+                -- pending because all the workers may return if the
+                -- outputQueue becomes full. In that case send off a worker to
+                -- kickstart the work again.
+                if workersDone
+                then do
+                    r <- workDone sv
+                    when (not r) $ pushWorker sv
+                    return r
+                else return False
+
+        if done
+        then allDone stp
+        else runStream (fromStreamVar sv) Nothing stp sng yld
 
     processEvents (ev : es) = Stream $ \_ stp sng yld -> do
-        let continue = (runStream (processEvents es)) Nothing stp sng yld
-            yield a  = yld a (processEvents es)
-
+        let rest = processEvents es
         case ev of
-            ChildYield a -> yield a
-            ChildStop tid e ->
+            ChildYield a -> yld a rest
+            ChildStop tid e -> do
+                if svarStyle sv == ParallelVar
+                then modifyThread sv tid
+                else delThread sv tid
                 case e of
-                    Nothing -> do
-                        let active = activeWorkers sv
-                        liftIO $ atomicModifyIORefCAS_ active $ \n -> n - 1
-                        modifyThread sv tid >> continue
-                    Just ex -> handleException ex tid
+                    Nothing -> runStream rest Nothing stp sng yld
+                    Just ex -> throwM ex
 
 getFifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
 getFifoSVar ctype = do

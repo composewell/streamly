@@ -153,7 +153,7 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N4
+  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations

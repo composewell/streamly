@@ -8,6 +8,7 @@ import Control.Monad (when)
 import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
+import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List (sort, foldl', scanl')
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
@@ -134,6 +135,8 @@ sourceUnfoldrM mv n = A.unfoldrM step 0
             dbgMVar ("put sourceUnfoldrM " ++ msg) (putMVar mv ())
             return (Just (fromIntegral cnt, cnt + 1))
 
+-- Note that this test is not guaranteed to succeed, because there is no
+-- guarantee of parallelism in case of Async/Ahead streams.
 concurrentUnfoldrM
     :: IsStream t
     => ([Word8] -> [Word8] -> Bool)
@@ -147,19 +150,26 @@ concurrentUnfoldrM eq op n =
         stream <- run $ do
             -- putStrLn $ "concurrentUnfoldrM: " ++ show n
             mv <- newEmptyMVar :: IO (MVar ())
+            cnt <- newIORef 0
             -- since unfoldr happens in parallel with the stream processing we
             -- can do two takeMVar in one iteration. If it is not parallel then
             -- this will not work and the test will fail.
             A.toList $ do
                 x <- op (sourceUnfoldrM mv n)
-                let msg = show x ++ "/" ++ show n
+                -- results may not be yielded in order, in case of
+                -- Async/WAsync/Parallel. So we use an increasing count
+                -- instead.
+                i <- A.once $ readIORef cnt
+                A.once $ modifyIORef cnt (+1)
+                let msg = show i ++ "/" ++ show n
                 A.once $ do
-                    if even x
+                    if even i
                     then do
                         dbgMVar ("first take concurrentUnfoldrM " ++ msg)
                                 (takeMVar mv)
-                        if n > x
-                        then dbgMVar ("second take concurrentUnfoldrM " ++ msg)
+                        if n > i
+                        then do
+                            dbgMVar ("second take concurrentUnfoldrM " ++ msg)
                                      (takeMVar mv)
                         else return ()
                     else return ()
@@ -704,6 +714,7 @@ main = hspec $ do
         transformOpsWord8 folded "wAsyncly folded" wAsyncly
         transformOpsWord8 folded "parallely folded" parallely
 
+    -- XXX add tests with outputQueue size set to 1
     describe "Stream concurrent operations" $ do
         concurrentOps A.fromFoldable "aheadly" aheadly (==)
         concurrentOps A.fromFoldable "asyncly" asyncly sortEq
