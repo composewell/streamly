@@ -58,8 +58,7 @@ module Streamly.Core
 
     -- * Concurrent Stream Vars (SVars)
     , SVar
-    , SVarStyle (..)
-    , newStreamVar1
+    , newStreamVarPar
     , fromStreamVar
     , toStreamVar
     )
@@ -130,7 +129,6 @@ data AheadHeapEntry m a =
 -- State threaded around the monad for thread management
 ------------------------------------------------------------------------------
 
--- XXX use a separate data structure for each type of SVar
 -- | Identify the type of the SVar. Two computations using the same style can
 -- be scheduled on the same SVar.
 data SVarStyle =
@@ -149,10 +147,10 @@ data SVarStyle =
 -- However, it ensures that the reader can read the results at whatever paces
 -- it wants to read. The SVar monitors and adapts to the consumer's pace.
 --
--- An SVar is a mini scheduler, it has an associated runqueue that holds the
+-- An SVar is a mini scheduler, it has an associated workLoop that holds the
 -- stream tasks to be picked and run by a pool of worker threads. It has an
 -- associated output queue where the output stream elements are placed by the
--- worker threads. A doorBell is used by the worker threads to intimate the
+-- worker threads. A outputDoorBell is used by the worker threads to intimate the
 -- consumer thread about availability of new results in the output queue. More
 -- workers are added to the SVar by 'fromStreamVar' on demand if the output
 -- produced is not keeping pace with the consumer. On bounded SVars, workers
@@ -171,34 +169,31 @@ data SVar m a =
 
             -- Shared output queue (events, length)
             , outputQueue    :: IORef ([ChildEvent a], Int)
-            , doorBell       :: MVar ()  -- signal the consumer about output
+            , outputDoorBell :: MVar ()  -- signal the consumer about output
+            , readOutputQ    :: m [ChildEvent a]
+            , postProcess    :: m Bool
 
-            -- Output synchronization mechanism for Ahead streams (Ahead and
-            -- wAhead). We maintain a heap of out of sequence ahead of time
-            -- generated outputs and the sequence number of the task that is
-            -- currently at the head of the stream.  Concurrent execute ahead
-            -- tasks that have a sequence number greater than the task at the
-            -- head should add their output to the heap.
-            , outputHeap    :: IORef (Heap (Entry Int (AheadHeapEntry m a))
-                                     , Int
-                                     )
-
-            -- Shared work queue (stream, seqNo)
-            , workQueue      :: IORef ([Stream m a], Int)
+            -- Used only by bounded SVar types
             , enqueue        :: Stream m a -> IO ()
-            , queueEmpty     :: m Bool
-            , waitingForWork :: IORef Bool
-            , runqueue       :: m ()
+            , isWorkDone     :: IO Bool
+            , needDoorBell   :: IORef Bool
+            , workLoop       :: m ()
 
             -- Shared, thread tracking
-            , runningThreads :: IORef (Set ThreadId)
-            , activeWorkers  :: IORef Int
+            , workerThreads  :: IORef (Set ThreadId)
+            , workerCount    :: IORef Int
+            , accountThread  :: ThreadId -> m ()
 #ifdef DIAGNOSTICS
+            , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry m a))
+                                     , Int
+                                     )
+            -- Shared work queue (stream, seqNo)
+            , aheadWorkQueue  :: IORef ([Stream m a], Int)
             , totalDispatches :: IORef Int
-            , maxWorkers   :: IORef Int
-            , maxOutQSize  :: IORef Int
-            , maxHeapSize  :: IORef Int
-            , maxWorkQSize :: IORef Int
+            , maxWorkers      :: IORef Int
+            , maxOutQSize     :: IORef Int
+            , maxHeapSize     :: IORef Int
+            , maxWorkQSize    :: IORef Int
 #endif
             }
 
@@ -208,12 +203,12 @@ dumpSVar :: SVar m a -> IO String
 dumpSVar sv = do
     tid <- myThreadId
     (oqList, oqLen) <- readIORef $ outputQueue sv
-    db <- tryTakeMVar $ doorBell sv
+    db <- tryTakeMVar $ outputDoorBell sv
     aheadDump <-
         if svarStyle sv == AheadVar
         then do
             (oheap, oheapSeq) <- readIORef $ outputHeap sv
-            (wq, wqSeq) <- readIORef $ workQueue sv
+            (wq, wqSeq) <- readIORef $ aheadWorkQueue sv
             maxHp <- readIORef $ maxHeapSize sv
             return $ unlines
                 [ "heap length = " ++ show (H.size oheap)
@@ -224,26 +219,25 @@ dumpSVar sv = do
                 ]
         else return []
 
-    waiting <- readIORef $ waitingForWork sv
-    rthread <- readIORef $ runningThreads sv
-    workers <- readIORef $ activeWorkers sv
+    waiting <- readIORef $ needDoorBell sv
+    rthread <- readIORef $ workerThreads sv
+    workers <- readIORef $ workerCount sv
     maxWrk <- readIORef $ maxWorkers sv
     dispatches <- readIORef $ totalDispatches sv
     maxOq <- readIORef $ maxOutQSize sv
-    -- XXX queueEmpty should be made IO return type
 
     return $ unlines
         [ "tid = " ++ show tid
         , "style = " ++ show (svarStyle sv)
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
-        , "output doorBell = " ++ show db
+        , "output outputDoorBell = " ++ show db
         , "total dispatches = " ++ show dispatches
         , "max workers = " ++ show maxWrk
         , "max outQSize = " ++ show maxOq
         ]
         ++ aheadDump ++ unlines
-        [ "waitingForWork = " ++ show waiting
+        [ "needDoorBell = " ++ show waiting
         , "running threads = " ++ show rthread
         , "running thread count = " ++ show workers
         ]
@@ -439,13 +433,13 @@ send sv msg = do
         -- to read the queue again and find it empty.
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
-        void $ tryPutMVar (doorBell sv) ()
+        void $ tryPutMVar (outputDoorBell sv) ()
     return (len < maxOutputQLen)
 
 {-# NOINLINE sendStop #-}
 sendStop :: SVar m a -> IO ()
 sendStop sv = do
-    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n - 1
+    liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
@@ -461,18 +455,18 @@ enqueueLIFO :: SVar m a -> IORef [Stream m a] -> Stream m a -> IO ()
 enqueueLIFO sv q m = do
     atomicModifyIORefCAS_ q $ \ms -> m : ms
     storeLoadBarrier
-    w <- readIORef $ waitingForWork sv
+    w <- readIORef $ needDoorBell sv
     when w $ do
         -- Note: the sequence of operations is important for correctness here.
         -- We need to set the flag to false strictly before sending the
-        -- doorBell, otherwise the doorBell may get processed too early and
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
         -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a doorBell.
-        atomicModifyIORefCAS_ (waitingForWork sv) (const False)
-        void $ tryPutMVar (doorBell sv) ()
+        -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
 
-runqueueLIFO :: MonadIO m => SVar m a -> IORef [Stream m a] -> m ()
-runqueueLIFO sv q = run
+workLoopLIFO :: MonadIO m => SVar m a -> IORef [Stream m a] -> m ()
+workLoopLIFO sv q = run
 
     where
 
@@ -508,18 +502,18 @@ enqueueFIFO :: SVar m a -> LinkedQueue (Stream m a) -> Stream m a -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
     storeLoadBarrier
-    w <- readIORef $ waitingForWork sv
+    w <- readIORef $ needDoorBell sv
     when w $ do
         -- Note: the sequence of operations is important for correctness here.
         -- We need to set the flag to false strictly before sending the
-        -- doorBell, otherwise the doorBell may get processed too early and
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
         -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a doorBell.
-        atomicModifyIORefCAS_ (waitingForWork sv) (const False)
-        void $ tryPutMVar (doorBell sv) ()
+        -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
 
-runqueueFIFO :: MonadIO m => SVar m a -> LinkedQueue (Stream m a) -> m ()
-runqueueFIFO sv q = run
+workLoopFIFO :: MonadIO m => SVar m a -> LinkedQueue (Stream m a) -> m ()
+workLoopFIFO sv q = run
 
     where
 
@@ -620,15 +614,15 @@ enqueueAhead sv q m = do
         ([], n) -> ([m], n + 1)  -- increment sequence
         _ -> error "not empty"
     storeLoadBarrier
-    w <- readIORef $ waitingForWork sv
+    w <- readIORef $ needDoorBell sv
     when w $ do
         -- Note: the sequence of operations is important for correctness here.
         -- We need to set the flag to false strictly before sending the
-        -- doorBell, otherwise the doorBell may get processed too early and
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
         -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a doorBell.
-        atomicModifyIORefCAS_ (waitingForWork sv) (const False)
-        void $ tryPutMVar (doorBell sv) ()
+        -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
 
 -- Normally the thread that has the token should never go away. The token gets
 -- handed over to another thread, but someone or the other has the token at any
@@ -650,15 +644,19 @@ enqueueAhead sv q m = do
 --
 -- XXX review for livelock
 --
-runqueueAhead :: MonadIO m => SVar m a -> IORef ([Stream m a], Int) -> m ()
-runqueueAhead sv q = runHeap
+workLoopAhead :: MonadIO m
+    => SVar m a
+    -> IORef ([Stream m a], Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry m a)) , Int)
+    -> m ()
+workLoopAhead sv q heap = runHeap
 
     where
 
     maxHeap = 1500
 
     toHeap seqNo ent = do
-        hp <- liftIO $ atomicModifyIORefCAS (outputHeap sv) $ \(h, snum) ->
+        hp <- liftIO $ atomicModifyIORefCAS heap $ \(h, snum) ->
             ((H.insert (Entry seqNo ent) h, snum), h)
         if H.size hp <= maxHeap
         then runHeap
@@ -672,7 +670,7 @@ runqueueAhead sv q = runHeap
         if continue
         then runQueueToken seqNo
         else liftIO $ do
-            atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) -> (h, seqNo + 1)
+            atomicModifyIORefCAS_ heap $ \(h, _) -> (h, seqNo + 1)
             sendStop sv
 
     yieldOutput seqNo a r = do
@@ -682,7 +680,7 @@ runqueueAhead sv q = runHeap
                                      (singleOutput seqNo)
                                      (yieldOutput seqNo)
         else liftIO $ do
-            atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+            atomicModifyIORefCAS_ heap $ \(h, _) ->
                 (H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo)
             sendStop sv
 
@@ -691,7 +689,7 @@ runqueueAhead sv q = runHeap
         work <- dequeue
         case work of
             Nothing -> do
-                liftIO $ atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+                liftIO $ atomicModifyIORefCAS_ heap $ \(h, _) ->
                     (h, prevSeqNo + 1)
                 runHeap
             Just (m, seqNo) -> do
@@ -701,7 +699,7 @@ runqueueAhead sv q = runHeap
                                             (singleOutput seqNo)
                                             (yieldOutput seqNo)
                 else do
-                    liftIO $ atomicModifyIORefCAS_ (outputHeap sv) $ \(h, _) ->
+                    liftIO $ atomicModifyIORefCAS_ heap $ \(h, _) ->
                         (h, prevSeqNo + 1)
                     (runStream m) (Just sv) runHeap
                                             (singleToHeap seqNo)
@@ -726,13 +724,13 @@ runqueueAhead sv q = runHeap
 #ifdef DIAGNOSTICS
         liftIO $ do
             maxHp <- readIORef (maxHeapSize sv)
-            (hp, _) <- readIORef (outputHeap sv)
+            (hp, _) <- readIORef heap
             when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
 #endif
-        ent <- liftIO $ dequeueFromHeap (outputHeap sv)
+        ent <- liftIO $ dequeueFromHeap heap
         case ent of
             Nothing -> do
-                done <- queueEmpty sv
+                done <- queueEmpty q
                 if done
                 then liftIO $ sendStop sv
                 else runQueueNoToken
@@ -743,6 +741,10 @@ runqueueAhead sv q = runHeap
                         (runStream r) (Just sv) (runQueueToken seqNo)
                                                 (singleOutput seqNo)
                                                 (yieldOutput seqNo)
+
+    queueEmpty qu = liftIO $ do
+        (xs, _) <- readIORef qu
+        return $ null xs
 
     dequeue = liftIO $ do
         atomicModifyIORefCAS q $ \case
@@ -782,14 +784,15 @@ runqueueAhead sv q = runHeap
 {-# NOINLINE addThread #-}
 addThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 addThread sv tid =
-    liftIO $ modifyIORef (runningThreads sv) (S.insert tid)
+    liftIO $ modifyIORef (workerThreads sv) (S.insert tid)
 
--- This is cheaper than modifyThread because we do not have to send a doorBell
--- This can make a difference when more workers are being dispatched.
+-- This is cheaper than modifyThread because we do not have to send a
+-- outputDoorBell This can make a difference when more workers are being
+-- dispatched.
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 delThread sv tid =
-    liftIO $ modifyIORef (runningThreads sv) $ (\s -> S.delete tid s)
+    liftIO $ modifyIORef (workerThreads sv) $ (\s -> S.delete tid s)
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
@@ -798,22 +801,22 @@ delThread sv tid =
 {-# INLINE modifyThread #-}
 modifyThread :: MonadIO m => SVar m a -> ThreadId -> m ()
 modifyThread sv tid = do
-    changed <- liftIO $ atomicModifyIORefCAS (runningThreads sv) $ \old ->
+    changed <- liftIO $ atomicModifyIORefCAS (workerThreads sv) $ \old ->
         if (S.member tid old)
         then let new = (S.delete tid old) in (new, new)
         else let new = (S.insert tid old) in (new, old)
     if null changed
     then liftIO $ do
         writeBarrier
-        void $ tryPutMVar (doorBell sv) ()
+        void $ tryPutMVar (outputDoorBell sv) ()
     else return ()
 
 -- | This is safe even if we are adding more threads concurrently because if
--- a child thread is adding another thread then anyway 'runningThreads' will
+-- a child thread is adding another thread then anyway 'workerThreads' will
 -- not be empty.
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => SVar m a -> m Bool
-allThreadsDone sv = liftIO $ S.null <$> readIORef (runningThreads sv)
+allThreadsDone sv = liftIO $ S.null <$> readIORef (workerThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: SVar m a -> SomeException -> IO ()
@@ -824,7 +827,7 @@ handleChildException sv e = do
 #ifdef DIAGNOSTICS
 recordMaxWorkers :: MonadIO m => SVar m a -> m ()
 recordMaxWorkers sv = liftIO $ do
-    active <- readIORef (activeWorkers sv)
+    active <- readIORef (workerCount sv)
     maxWrk <- readIORef (maxWorkers sv)
     when (active > maxWrk) $ writeIORef (maxWorkers sv) active
     modifyIORef (totalDispatches sv) (+1)
@@ -833,51 +836,39 @@ recordMaxWorkers sv = liftIO $ do
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => SVar m a -> m ()
 pushWorker sv = do
-    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+    liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
 #ifdef DIAGNOSTICS
     recordMaxWorkers sv
 #endif
-    doFork (runqueue sv) (handleChildException sv) >>= addThread sv
+    doFork (workLoop sv) (handleChildException sv) >>= addThread sv
 
 -- | In contrast to pushWorker which always happens only from the consumer
 -- thread, a pushWorkerPar can happen concurrently from multiple threads on the
 -- producer side. So we need to use a thread safe modification of
--- runningThreads. Alternatively, we can use a CreateThread event to avoid
+-- workerThreads. Alternatively, we can use a CreateThread event to avoid
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
 pushWorkerPar :: MonadAsync m => SVar m a -> Stream m a -> m ()
 pushWorkerPar sv m = do
-    -- We do not use activeWorkers in case of ParallelVar but still there is no
+    -- We do not use workerCount in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
 #ifdef DIAGNOSTICS
-    liftIO $ atomicModifyIORefCAS_ (activeWorkers sv) $ \n -> n + 1
+    liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     recordMaxWorkers sv
 #endif
     doFork (runOne sv m) (handleChildException sv) >>= modifyThread sv
-
-{-# INLINE workDone #-}
-workDone :: MonadIO m => SVar m a -> m Bool
-workDone sv = do
-    heapDone <-
-        if (svarStyle sv == AheadVar)
-        then do
-            (hp, _) <- liftIO $ readIORef (outputHeap sv)
-            return (H.size hp <= 0)
-        else return True
-    queueDone <- queueEmpty sv
-    return $ queueDone && heapDone
 
 maxWorkerLimit :: Int
 maxWorkerLimit = 1500
 
 dispatchWorker :: MonadAsync m => SVar m a -> m ()
 dispatchWorker sv = do
-    done <- workDone sv
+    done <- liftIO $ isWorkDone sv
     when (not done) $ do
         -- Note that the worker count is only decremented during event
         -- processing in fromStreamVar and therefore it is safe to read and
         -- use it without a lock.
-        cnt <- liftIO $ readIORef $ activeWorkers sv
+        cnt <- liftIO $ readIORef $ workerCount sv
         -- Note that we may deadlock if the previous workers (tasks in the
         -- stream) wait/depend on the future workers (tasks in the stream)
         -- executing. In that case we should either configure the maxWorker
@@ -890,7 +881,7 @@ sendWorkerWait :: MonadAsync m => SVar m a -> m ()
 sendWorkerWait sv = do
     -- Note that we are guaranteed to have at least one outstanding worker when
     -- we enter this function. So if we sleep we are guaranteed to be woken up
-    -- by a doorBell, when the worker exits.
+    -- by a outputDoorBell, when the worker exits.
 
     -- XXX we need a better way to handle this than hardcoded delays. The
     -- delays may be different for different systems.
@@ -933,11 +924,11 @@ sendWorkerWait sv = do
         --
         -- XXX update this in the tutorial.
 
-        -- register for the doorBell before we check the queue so that if we
+        -- register for the outputDoorBell before we check the queue so that if we
         -- sleep because the queue was empty we are guaranteed to get a
         -- doorbell on the next enqueue.
 
-        liftIO $ atomicModifyIORefCAS_ (waitingForWork sv) $ const True
+        liftIO $ atomicModifyIORefCAS_ (needDoorBell sv) $ const True
         liftIO $ storeLoadBarrier
         dispatchWorker sv
 
@@ -948,67 +939,78 @@ sendWorkerWait sv = do
         -- least one outstanding worker. Otherwise we could be sleeping
         -- forever.
 
-        done <- workDone sv
+        done <- liftIO $ isWorkDone sv
         if done
         then do
             liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
-                             $ takeMVar (doorBell sv)
+                             $ takeMVar (outputDoorBell sv)
             (_, len) <- liftIO $ readIORef (outputQueue sv)
             when (len <= 0) $ sendWorkerWait sv
         else sendWorkerWait sv
+
+{-# INLINE readOutputQRaw #-}
+readOutputQRaw :: SVar m a -> IO ([ChildEvent a], Int)
+readOutputQRaw sv = do
+    (list, len) <- atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
+#ifdef DIAGNOSTICS
+    oqLen <- readIORef (maxOutQSize sv)
+    when (len > oqLen) $ writeIORef (maxOutQSize sv) len
+#endif
+    return (list, len)
+
+readOutputQBounded :: MonadAsync m => SVar m a -> m [ChildEvent a]
+readOutputQBounded sv = do
+    (list, len) <- liftIO $ readOutputQRaw sv
+    -- When there is no output seen we dispatch more workers to help
+    -- out if there is work pending in the work queue.
+    if len <= 0
+    then blockingRead
+    else do
+        -- send a worker proactively, if needed, even before we start
+        -- processing the output.  This may degrade single processor
+        -- perf but improves multi-processor, because of more
+        -- parallelism
+        sendWorker
+        return list
+
+    where
+
+    sendWorker = do
+        cnt <- liftIO $ readIORef $ workerCount sv
+        when (cnt <= 0) $ do
+            done <- liftIO $ isWorkDone sv
+            when (not done) $ pushWorker sv
+
+    {-# INLINE blockingRead #-}
+    blockingRead = do
+        sendWorkerWait sv
+        liftIO $ (readOutputQRaw sv >>= return . fst)
+
+postProcessBounded :: MonadAsync m => SVar m a -> m Bool
+postProcessBounded sv = do
+    workersDone <- allThreadsDone sv
+    -- There may still be work pending even if there are no workers
+    -- pending because all the workers may return if the
+    -- outputQueue becomes full. In that case send off a worker to
+    -- kickstart the work again.
+    if workersDone
+    then do
+        r <- liftIO $ isWorkDone sv
+        when (not r) $ pushWorker sv
+        return r
+    else return False
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
 fromStreamVar :: MonadAsync m => SVar m a -> Stream m a
 fromStreamVar sv = Stream $ \_ stp sng yld -> do
-    (list, _) <-
-        -- XXX we can set this in SVar
-        if svarStyle sv == ParallelVar
-        then do
-            liftIO $ withDBGMVar sv "fromStreamVar: doorbell"
-                                  $ takeMVar (doorBell sv)
-            readOutputQ sv
-        else do
-            res@(_, len) <- readOutputQ sv
-            -- When there is no output seen we dispatch more workers to help
-            -- out if there is work pending in the work queue.
-            if len <= 0
-            then blockingRead
-            else do
-                -- send a worker proactively, if needed, even before we start
-                -- processing the output.  This may degrade single processor
-                -- perf but improves multi-processor, because of more
-                -- parallelism
-                sendWorker
-                return res
-
+    list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
     -- outputs in the same order as they were generated by the constituent
     -- streams.
     runStream (processEvents $ reverse list) Nothing stp sng yld
 
     where
-
-    {-# INLINE readOutputQ #-}
-    readOutputQ svr = liftIO $ do
-        (list, len) <- atomicModifyIORefCAS (outputQueue svr) $
-            \x -> (([],0), x)
-#ifdef DIAGNOSTICS
-        oqLen <- readIORef (maxOutQSize svr)
-        when (len > oqLen) $ writeIORef (maxOutQSize svr) len
-#endif
-        return (list, len)
-
-    sendWorker = do
-        cnt <- liftIO $ readIORef $ activeWorkers sv
-        when (cnt <= 0) $ do
-            done <- workDone sv
-            when (not done) $ pushWorker sv
-
-    {-# INLINE blockingRead #-}
-    blockingRead = do
-        sendWorkerWait sv
-        readOutputQ sv
 
     allDone stp = do
 #ifdef DIAGNOSTICS
@@ -1021,23 +1023,7 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
 
     {-# INLINE processEvents #-}
     processEvents [] = Stream $ \_ stp sng yld -> do
-        workersDone <- allThreadsDone sv
-        done <-
-            -- XXX we can set this in SVar
-            if svarStyle sv == ParallelVar
-            then return workersDone
-            else
-                -- There may still be work pending even if there are no workers
-                -- pending because all the workers may return if the
-                -- outputQueue becomes full. In that case send off a worker to
-                -- kickstart the work again.
-                if workersDone
-                then do
-                    r <- workDone sv
-                    when (not r) $ pushWorker sv
-                    return r
-                else return False
-
+        done <- postProcess sv
         if done
         then allDone stp
         else runStream (fromStreamVar sv) Nothing stp sng yld
@@ -1047,14 +1033,12 @@ fromStreamVar sv = Stream $ \_ stp sng yld -> do
         case ev of
             ChildYield a -> yld a rest
             ChildStop tid e -> do
-                if svarStyle sv == ParallelVar
-                then modifyThread sv tid
-                else delThread sv tid
+                accountThread sv tid
                 case e of
                     Nothing -> runStream rest Nothing stp sng yld
                     Just ex -> throwM ex
 
-getFifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getFifoSVar :: MonadAsync m => SVarStyle -> IO (SVar m a)
 getFifoSVar ctype = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
@@ -1070,28 +1054,31 @@ getFifoSVar ctype = do
     maxWq  <- newIORef 0
 #endif
     let sv =
-            SVar { outputQueue    = outQ
-                 , doorBell       = outQMv
-                 , outputHeap     = undefined
-                 , runningThreads = running
-                 , workQueue      = undefined
-                 , runqueue       = runqueueFIFO sv q
-                 , enqueue        = enqueueFIFO sv q
-                 , queueEmpty     = liftIO $ nullQ q
-                 , waitingForWork = wfw
-                 , svarStyle      = ctype
-                 , activeWorkers  = active
+           SVar { outputQueue      = outQ
+                , outputDoorBell   = outQMv
+                , readOutputQ      = readOutputQBounded sv
+                , postProcess      = postProcessBounded sv
+                , workerThreads    = running
+                , workLoop         = workLoopFIFO sv q
+                , enqueue          = enqueueFIFO sv q
+                , isWorkDone       = nullQ q
+                , needDoorBell     = wfw
+                , svarStyle        = ctype
+                , workerCount      = active
+                , accountThread    = delThread sv
 #ifdef DIAGNOSTICS
-                 , totalDispatches = disp
-                 , maxWorkers   = maxWrk
-                 , maxOutQSize  = maxOq
-                 , maxHeapSize  = maxHs
-                 , maxWorkQSize = maxWq
+                , aheadWorkQueue   = undefined
+                , outputHeap       = undefined
+                , totalDispatches  = disp
+                , maxWorkers       = maxWrk
+                , maxOutQSize      = maxOq
+                , maxHeapSize      = maxHs
+                , maxWorkQSize     = maxWq
 #endif
                  }
      in return sv
 
-getLifoSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getLifoSVar :: MonadAsync m => SVarStyle -> IO (SVar m a)
 getLifoSVar ctype = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
@@ -1106,66 +1093,33 @@ getLifoSVar ctype = do
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
 #endif
-    let checkEmpty = null <$> liftIO (readIORef q)
+    let checkEmpty = null <$> readIORef q
     let sv =
-            SVar { outputQueue    = outQ
-                 , doorBell       = outQMv
-                 , outputHeap     = undefined
-                 , runningThreads = running
-                 , workQueue      = undefined
-                 , runqueue       = runqueueLIFO sv q
-                 , enqueue        = enqueueLIFO sv q
-                 , queueEmpty     = checkEmpty
-                 , waitingForWork = wfw
-                 , svarStyle      = ctype
-                 , activeWorkers  = active
+            SVar { outputQueue      = outQ
+                 , outputDoorBell   = outQMv
+                 , readOutputQ      = readOutputQBounded sv
+                 , postProcess      = postProcessBounded sv
+                 , workerThreads    = running
+                 , workLoop         = workLoopLIFO sv q
+                 , enqueue          = enqueueLIFO sv q
+                 , isWorkDone       = checkEmpty
+                 , needDoorBell     = wfw
+                 , svarStyle        = ctype
+                 , workerCount      = active
+                 , accountThread    = delThread sv
 #ifdef DIAGNOSTICS
-                 , maxWorkers   = maxWrk
-                 , totalDispatches = disp
-                 , maxOutQSize  = maxOq
-                 , maxHeapSize  = maxHs
-                 , maxWorkQSize = maxWq
+                 , aheadWorkQueue   = undefined
+                 , outputHeap       = undefined
+                 , maxWorkers       = maxWrk
+                 , totalDispatches  = disp
+                 , maxOutQSize      = maxOq
+                 , maxHeapSize      = maxHs
+                 , maxWorkQSize     = maxWq
 #endif
                  }
      in return sv
 
-getParSVar :: SVarStyle -> IO (SVar m a)
-getParSVar style = do
-    outQ    <- newIORef ([], 0)
-    outQMv  <- newEmptyMVar
-    active  <- newIORef 0
-    wfw     <- newIORef False
-    running <- newIORef S.empty
-#ifdef DIAGNOSTICS
-    disp <- newIORef 0
-    maxWrk <- newIORef 0
-    maxOq  <- newIORef 0
-    maxHs  <- newIORef 0
-    maxWq  <- newIORef 0
-#endif
-    let sv =
-            SVar { outputQueue    = outQ
-                 , doorBell       = outQMv
-                 , outputHeap     = undefined
-                 , runningThreads = running
-                 , workQueue      = undefined
-                 , runqueue       = undefined
-                 , enqueue        = undefined
-                 , queueEmpty     = undefined
-                 , waitingForWork = wfw
-                 , svarStyle      = style
-                 , activeWorkers  = active
-#ifdef DIAGNOSTICS
-                 , totalDispatches = disp
-                 , maxWorkers   = maxWrk
-                 , maxOutQSize  = maxOq
-                 , maxHeapSize  = maxHs
-                 , maxWorkQSize = maxWq
-#endif
-                 }
-     in return sv
-
-getAheadSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getAheadSVar :: MonadAsync m => SVarStyle -> IO (SVar m a)
 getAheadSVar style = do
     outQ    <- newIORef ([], 0)
     outH    <- newIORef (H.empty, 0)
@@ -1182,32 +1136,88 @@ getAheadSVar style = do
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
 #endif
-
-    let checkEmpty = liftIO $ do
-                        (xs, _) <- readIORef q
-                        return $ null xs
     let sv =
-            SVar { outputQueue    = outQ
-                 , doorBell       = outQMv
-                 , outputHeap     = outH
-                 , runningThreads = running
-                 , workQueue      = q
-                 , runqueue       = runqueueAhead sv q
-                 , enqueue        = undefined
-                 , queueEmpty     = checkEmpty
-                 , waitingForWork = wfw
-                 , svarStyle      = style
-                 , activeWorkers  = active
-
+            SVar { outputQueue      = outQ
+                 , outputDoorBell   = outQMv
+                 , readOutputQ      = readOutputQBounded sv
+                 , postProcess      = postProcessBounded sv
+                 , workerThreads    = running
+                 , workLoop         = workLoopAhead sv q outH
+                 , enqueue          = enqueueAhead sv q
+                 , isWorkDone       = isWorkDoneAhead q outH
+                 , needDoorBell     = wfw
+                 , svarStyle        = style
+                 , workerCount      = active
+                 , accountThread    = delThread sv
 #ifdef DIAGNOSTICS
-                 , totalDispatches = disp
-                 , maxWorkers   = maxWrk
-                 , maxOutQSize  = maxOq
-                 , maxHeapSize  = maxHs
-                 , maxWorkQSize = maxWq
+                 , aheadWorkQueue   = q
+                 , outputHeap       = outH
+                 , totalDispatches  = disp
+                 , maxWorkers       = maxWrk
+                 , maxOutQSize      = maxOq
+                 , maxHeapSize      = maxHs
+                 , maxWorkQSize     = maxWq
 #endif
                  }
      in return sv
+
+    where
+
+    {-# INLINE isWorkDoneAhead #-}
+    isWorkDoneAhead q ref = do
+        heapDone <- do
+                (hp, _) <- readIORef ref
+                return (H.size hp <= 0)
+        queueDone <- checkEmpty q
+        return $ queueDone && heapDone
+
+    checkEmpty q = do
+        (xs, _) <- readIORef q
+        return $ null xs
+
+getParSVar :: MonadIO m => SVarStyle -> IO (SVar m a)
+getParSVar style = do
+    outQ    <- newIORef ([], 0)
+    outQMv  <- newEmptyMVar
+    active  <- newIORef 0
+    running <- newIORef S.empty
+#ifdef DIAGNOSTICS
+    disp <- newIORef 0
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+#endif
+    let sv =
+            SVar { outputQueue      = outQ
+                 , outputDoorBell   = outQMv
+                 , readOutputQ      = readOutputQPar sv
+                 , postProcess      = allThreadsDone sv
+                 , workerThreads    = running
+                 , workLoop         = undefined
+                 , enqueue          = undefined
+                 , isWorkDone       = undefined
+                 , needDoorBell     = undefined
+                 , svarStyle        = style
+                 , workerCount      = active
+                 , accountThread    = modifyThread sv
+#ifdef DIAGNOSTICS
+                 , aheadWorkQueue   = undefined
+                 , outputHeap       = undefined
+                 , totalDispatches  = disp
+                 , maxWorkers       = maxWrk
+                 , maxOutQSize      = maxOq
+                 , maxHeapSize      = maxHs
+                 , maxWorkQSize     = maxWq
+#endif
+                 }
+     in return sv
+
+    where
+
+    readOutputQPar sv = liftIO $ do
+        withDBGMVar sv "fromStreamVar: doorbell" $ takeMVar (outputDoorBell sv)
+        readOutputQRaw sv >>= return . fst
 
 -- | Create a new empty SVar.
 newEmptySVar :: MonadAsync m => SVarStyle -> m (SVar m a)
@@ -1227,25 +1237,18 @@ newStreamVar1 style m = do
     -- Note: We must have all the work on the queue before sending the
     -- pushworker, otherwise the pushworker may exit before we even get a
     -- chance to push.
-    if style == ParallelVar
-    then pushWorkerPar sv m
-    else do
-        liftIO $ (enqueue sv) m
-        pushWorker sv
-    return sv
-
--- | Create a new SVar and enqueue one stream computation on it.
-{-# INLINABLE newStreamVarAhead #-}
-newStreamVarAhead :: MonadAsync m => Stream m a -> m (SVar m a)
-newStreamVarAhead m = do
-    sv <- newEmptySVar AheadVar
-    -- Note: We must have all the work on the queue before sending the
-    -- pushworker, otherwise the pushworker may exit before we even get a
-    -- chance to push.
-    liftIO $ enqueueAhead sv (workQueue sv) m
+    liftIO $ enqueue sv m
     pushWorker sv
     return sv
 
+{-# INLINABLE newStreamVarPar #-}
+newStreamVarPar :: MonadAsync m => Stream m a -> m (SVar m a)
+newStreamVarPar m = do
+    sv <- newEmptySVar ParallelVar
+    pushWorkerPar sv m
+    return sv
+
+-- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
 toStreamVar :: MonadAsync m => SVar m a -> Stream m a -> m ()
@@ -1324,7 +1327,7 @@ toStreamVar sv m = do
 forkSVarAsync :: MonadAsync m => SVarStyle -> Stream m a -> Stream m a -> Stream m a
 forkSVarAsync style m1 m2 = Stream $ \_ stp sng yld -> do
     sv <- newStreamVar1 style (concurrently m1 m2)
-    (runStream (fromStreamVar sv)) Nothing stp sng yld
+    runStream (fromStreamVar sv) Nothing stp sng yld
     where
     concurrently ma mb = Stream $ \svr stp sng yld -> do
         liftIO $ enqueue (fromJust svr) mb
@@ -1336,8 +1339,31 @@ joinStreamVarAsync :: MonadAsync m
 joinStreamVarAsync style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style ->
-            liftIO ((enqueue sv) m2) >> (runStream m1) svr stp sng yld
+            liftIO (enqueue sv m2) >> (runStream m1) svr stp sng yld
         _ -> runStream (forkSVarAsync style m1 m2) Nothing stp sng yld
+
+-- The only difference between forkSVarAsync and this is that we run the left
+-- computation without a shared SVar.
+forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+forkSVarAhead m1 m2 = Stream $ \_ stp sng yld -> do
+        sv <- newStreamVar1 AheadVar (concurrently m1 m2)
+        (runStream (fromStreamVar sv)) Nothing stp sng yld
+    where
+    concurrently ma mb = Stream $ \svr stp sng yld -> do
+        liftIO $ enqueue (fromJust svr) mb
+        (runStream ma) Nothing stp sng yld
+
+{-# INLINE ahead #-}
+ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
+ahead m1 m2 = Stream $ \svr stp sng yld -> do
+    case svr of
+        Just sv | svarStyle sv == AheadVar -> do
+            liftIO $ enqueue sv m2
+            -- Always run the left side on a new SVar to avoid complexity in
+            -- sequencing results. This means the left side cannot further
+            -- split into more ahead computations on the same SVar.
+            (runStream m1) Nothing stp sng yld
+        _ -> runStream (forkSVarAhead m1 m2) Nothing stp sng yld
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -1355,33 +1381,6 @@ joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
         Just sv | svarStyle sv == style -> do
             pushWorkerPar sv m1 >> (runStream m2) svr stp sng yld
         _ -> runStream (forkSVarPar m1 m2) Nothing stp sng yld
-
-forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarAhead m1 m2 = Stream $ \_ stp sng yld -> do
-        sv <- newStreamVarAhead (concurrently m1 m2)
-        (runStream (fromStreamVar sv)) Nothing stp sng yld
-    where
-    concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueueAhead (fromJust svr) (workQueue (fromJust svr)) mb
-        (runStream ma) Nothing stp sng yld
-
-{-# INLINE ahead #-}
-ahead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-ahead m1 m2 = Stream $ \svr stp sng yld -> do
-    case svr of
-        Just sv | svarStyle sv == AheadVar -> do
-            liftIO $ enqueueAhead sv (workQueue sv) m2
-            -- Always run the left side on a new SVar to avoid complexity in
-            -- sequencing results. This means the left side cannot further
-            -- split into more ahead computations on the same SVar.
-            (runStream m1) Nothing stp sng yld
-        _ -> runStream (forkSVarAhead m1 m2) Nothing stp sng yld
-
--- | XXX we can implement it more efficienty by directly implementing instead
--- of combining streams using ahead.
-{-# INLINE consMAhead #-}
-consMAhead :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAhead m r = once m `ahead` r
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -1406,6 +1405,12 @@ wAsync = joinStreamVarAsync WAsyncVar
 {-# INLINE consMWAsync #-}
 consMWAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
 consMWAsync m r = once m `wAsync` r
+
+-- | XXX we can implement it more efficienty by directly implementing instead
+-- of combining streams using ahead.
+{-# INLINE consMAhead #-}
+consMAhead :: MonadAsync m => m a -> Stream m a -> Stream m a
+consMAhead m r = once m `ahead` r
 
 {-# INLINE parallel #-}
 parallel :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -1441,19 +1446,18 @@ _alt m1 m2 = Stream $ \_ stp sng yld ->
 ------------------------------------------------------------------------------
 
 applyWith :: MonadAsync m
-    => SVarStyle -> (Stream m a -> Stream m b) -> Stream m a -> Stream m b
-applyWith style f m = Stream $ \svr stp sng yld -> do
-    sv <- newStreamVar1 style m
+    => (Stream m a -> Stream m b) -> Stream m a -> Stream m b
+applyWith f m = Stream $ \svr stp sng yld -> do
+    sv <- newStreamVarPar m
     runStream (f $ fromStreamVar sv) svr stp sng yld
 
 ------------------------------------------------------------------------------
 -- Stream runner function application
 ------------------------------------------------------------------------------
 
-runWith :: MonadAsync m
-    => SVarStyle -> (Stream m a -> m b) -> Stream m a -> m b
-runWith style f m = do
-    sv <- newStreamVar1 style m
+runWith :: MonadAsync m => (Stream m a -> m b) -> Stream m a -> m b
+runWith f m = do
+    sv <- newStreamVarPar m
     f $ fromStreamVar sv
 
 ------------------------------------------------------------------------------

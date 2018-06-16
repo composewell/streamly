@@ -117,8 +117,7 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
-import           Streamly.Core               ( MonadAsync , SVar,
-                                               SVarStyle(..))
+import           Streamly.Core               (MonadAsync, SVar)
 import qualified Streamly.Core as S
 
 ------------------------------------------------------------------------------
@@ -317,19 +316,17 @@ toSVar sv m = S.toStreamVar sv (toStream m)
 -- @since 0.2.0
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync m = do
-    sv <- S.newStreamVar1 AsyncVar (toStream m)
+    sv <- S.newStreamVarPar (toStream m)
     return $ fromSVar sv
 
 {-# INLINE applyWith #-}
-applyWith :: (IsStream t, MonadAsync m)
-    => SVarStyle -> (t m a -> t m b) -> t m a -> t m b
-applyWith style f x = fromStream $
-    S.applyWith style (toStream . f . fromStream) (toStream x)
+applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
+applyWith f x = fromStream $
+    S.applyWith (toStream . f . fromStream) (toStream x)
 
 {-# INLINE runWith #-}
-runWith :: (IsStream t, MonadAsync m)
-    => SVarStyle -> (t m a -> m b) -> t m a -> m b
-runWith style f x = S.runWith style (f . fromStream) (toStream x)
+runWith :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+runWith f x = S.runWith (f . fromStream) (toStream x)
 
 infixr 0 |$
 infixr 0 |$.
@@ -354,7 +351,7 @@ infixl 1 |&.
 -- @since 0.3.0
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-f |$ x = applyWith ParallelVar f x
+f |$ x = applyWith f x
 
 -- | Parallel reverse function application operator for streams; just like the
 -- regular reverse function application operator '&' except that it is
@@ -389,7 +386,7 @@ x |& f = f |$ x
 -- @since 0.3.0
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-f |$. x = runWith ParallelVar f x
+f |$. x = runWith f x
 
 -- | Parallel reverse function application operator for applying a run or fold
 -- functions to a stream. Just like '|$.' except that the operands are reversed.
