@@ -23,7 +23,7 @@ module Streamly.Streams
     (
       IsStream (..)
     , Streaming         -- deprecated
-    , S.MonadAsync
+    , MonadAsync
 
     -- * Construction
     , nil
@@ -117,7 +117,7 @@ import           Control.Monad.Reader.Class  (MonadReader(..))
 import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
-import           Streamly.Core               (MonadAsync, SVar)
+import           Streamly.SVar               (MonadAsync, SVar, toStreamVar)
 import qualified Streamly.Core as S
 
 ------------------------------------------------------------------------------
@@ -239,7 +239,7 @@ infixr 5 .:
 -- remaining stream if any otherwise 'Nothing'. The third parameter is to
 -- represent an "empty" stream.
 streamBuild :: IsStream t
-    => (forall r. Maybe (SVar m a)
+    => (forall r. Maybe (SVar S.Stream m a)
         -> (a -> t m a -> m r)
         -> (a -> m r)
         -> m r
@@ -254,7 +254,7 @@ fromCallback :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
 fromCallback k = fromStream $ S.Stream $ \_ _ sng _ -> k sng
 
 -- | Read an SVar to get a stream.
-fromSVar :: (MonadAsync m, IsStream t) => SVar m a -> t m a
+fromSVar :: (MonadAsync m, IsStream t) => SVar S.Stream m a -> t m a
 fromSVar sv = fromStream $ S.fromStreamVar sv
 
 ------------------------------------------------------------------------------
@@ -266,7 +266,7 @@ fromSVar sv = fromStream $ S.fromStreamVar sv
 -- argument is for consuming an "empty" stream that yields nothing.
 streamFold
     :: IsStream t
-    => Maybe (SVar m a)
+    => Maybe (SVar S.Stream m a)
     -> (a -> t m a -> m r)
     -> (a -> m r)
     -> m r
@@ -299,8 +299,8 @@ runStreaming = runStream . adapt
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toSVar :: (IsStream t, MonadAsync m) => SVar m a -> t m a -> m ()
-toSVar sv m = S.toStreamVar sv (toStream m)
+toSVar :: (IsStream t, MonadAsync m) => SVar S.Stream m a -> t m a -> m ()
+toSVar sv m = toStreamVar sv (toStream m)
 
 ------------------------------------------------------------------------------
 -- Transformation
@@ -316,8 +316,8 @@ toSVar sv m = S.toStreamVar sv (toStream m)
 -- @since 0.2.0
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync m = do
-    sv <- S.newStreamVarPar (toStream m)
-    return $ fromSVar sv
+    s <- S.mkParallel (toStream m)
+    return $ fromStream s
 
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
