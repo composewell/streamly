@@ -24,14 +24,9 @@ maxValue = value + 1000
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-{-# INLINE toNull #-}
-{-# INLINE toList #-}
-{-# INLINE foldl #-}
-{-# INLINE last #-}
 {-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
-{-# INLINE mapM #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
 {-# INLINE takeOne #-}
@@ -41,7 +36,6 @@ maxValue = value + 1000
 {-# INLINE dropWhileTrue #-}
 {-# INLINE zip #-}
 {-# INLINE concat #-}
-{-# INLINE composeMapM #-}
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
@@ -52,14 +46,21 @@ scan, map, filterEven, filterAllOut,
     :: Monad m
     => Stream m Int -> m ()
 
+{-# INLINE composeMapM #-}
 composeMapM :: S.MonadAsync m => Stream m Int -> m ()
-toList :: Monad m => Stream m Int -> m [Int]
-foldl :: Monad m => Stream m Int -> m Int
-last :: Monad m => Stream m Int -> m (Maybe Int)
 
+{-# INLINE toList #-}
+toList :: Monad m => Stream m Int -> m [Int]
+{-# INLINE foldl #-}
+foldl :: Monad m => Stream m Int -> m Int
+{-# INLINE last #-}
+last :: Monad m => Stream m Int -> m (Maybe Int)
+{-# INLINE toNull #-}
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+{-# INLINE mapM #-}
 mapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+{-# INLINE zipAsync #-}
 zipAsync :: S.MonadAsync m => Stream m Int -> m ()
 
 -------------------------------------------------------------------------------

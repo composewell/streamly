@@ -830,6 +830,7 @@ sequence m = go (toStream m)
 -- | Zip two streams serially using a pure zipping function.
 --
 -- @since 0.1.0
+{-# INLINABLE zipWith #-}
 zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStream $ S.zipWith f (toStream m1) (toStream m2)
 
