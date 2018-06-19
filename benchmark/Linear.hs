@@ -18,6 +18,7 @@ import Gauge
 benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
 
+{-# INLINE benchSrcIO #-}
 benchSrcIO
     :: (t IO Int -> SerialT IO Int)
     -> String
