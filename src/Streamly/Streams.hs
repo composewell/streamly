@@ -118,7 +118,9 @@ import           Control.Monad.State.Class   (MonadState(..))
 import           Control.Monad.Trans.Class   (MonadTrans (lift))
 import           Data.Semigroup              (Semigroup(..))
 import           Streamly.SVar               (MonadAsync, SVar, toStreamVar)
-import qualified Streamly.Core as S
+
+import qualified Streamly.CPS.Stream as C
+import qualified Streamly.CPS.Concurrent as CC
 
 ------------------------------------------------------------------------------
 -- Types that can behave as a Stream
@@ -132,8 +134,8 @@ infixr 5 |:
 --
 -- @since 0.2.0
 class IsStream t where
-    toStream :: t m a -> S.Stream m a
-    fromStream :: S.Stream m a -> t m a
+    toStream :: t m a -> C.Stream m a
+    fromStream :: C.Stream m a -> t m a
     -- | Constructs a stream by adding a monadic action at the head of an
     -- existing stream. For example:
     --
@@ -190,7 +192,7 @@ type Streaming = IsStream
 --
 -- @since 0.1.0
 nil :: IsStream t => t m a
-nil = fromStream S.nil
+nil = fromStream C.nil
 
 -- | Constructs a stream by adding a monadic action at the head of an existing
 -- stream. For example:
@@ -204,7 +206,7 @@ nil = fromStream S.nil
 --
 -- @since 0.2.0
 consMSerial :: (IsStream t, Monad m) => m a -> t m a -> t m a
-consMSerial m r = fromStream $ S.consM m (toStream r)
+consMSerial m r = fromStream $ C.consM m (toStream r)
 
 infixr 5 `cons`
 
@@ -218,7 +220,7 @@ infixr 5 `cons`
 --
 -- @since 0.1.0
 cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ S.cons a (toStream r)
+cons a r = fromStream $ C.cons a (toStream r)
 
 infixr 5 .:
 
@@ -239,23 +241,23 @@ infixr 5 .:
 -- remaining stream if any otherwise 'Nothing'. The third parameter is to
 -- represent an "empty" stream.
 streamBuild :: IsStream t
-    => (forall r. Maybe (SVar S.Stream m a)
+    => (forall r. Maybe (SVar C.Stream m a)
         -> (a -> t m a -> m r)
         -> (a -> m r)
         -> m r
         -> m r)
     -> t m a
-streamBuild k = fromStream $ S.Stream $ \svr stp sng yld ->
+streamBuild k = fromStream $ C.Stream $ \svr stp sng yld ->
     let yield a r = yld a (toStream r)
      in k svr yield sng stp
 
 -- | Build a singleton stream from a callback function.
 fromCallback :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-fromCallback k = fromStream $ S.Stream $ \_ _ sng _ -> k sng
+fromCallback k = fromStream $ C.Stream $ \_ _ sng _ -> k sng
 
 -- | Read an SVar to get a stream.
-fromSVar :: (MonadAsync m, IsStream t) => SVar S.Stream m a -> t m a
-fromSVar sv = fromStream $ S.fromStreamVar sv
+fromSVar :: (MonadAsync m, IsStream t) => SVar C.Stream m a -> t m a
+fromSVar sv = fromStream $ CC.fromStreamVar sv
 
 ------------------------------------------------------------------------------
 -- Destroying a stream
@@ -266,7 +268,7 @@ fromSVar sv = fromStream $ S.fromStreamVar sv
 -- argument is for consuming an "empty" stream that yields nothing.
 streamFold
     :: IsStream t
-    => Maybe (SVar S.Stream m a)
+    => Maybe (SVar C.Stream m a)
     -> (a -> t m a -> m r)
     -> (a -> m r)
     -> m r
@@ -274,7 +276,7 @@ streamFold
     -> m r
 streamFold svr step single blank m =
     let yield a x = step a (fromStream x)
-     in (S.runStream (toStream m)) svr blank single yield
+     in (C.runStream (toStream m)) svr blank single yield
 
 -- | Run a streaming composition, discard the results. By default it interprets
 -- the stream as 'SerialT', to run other types of streams use the type adapting
@@ -288,7 +290,7 @@ runStream m = go (toStream m)
         let stop = return ()
             single _ = return ()
             yield _ r = go r
-         in (S.runStream m1) Nothing stop single yield
+         in (C.runStream m1) Nothing stop single yield
 
 -- | Same as 'runStream'
 --
@@ -299,7 +301,7 @@ runStreaming = runStream . adapt
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
-toSVar :: (IsStream t, MonadAsync m) => SVar S.Stream m a -> t m a -> m ()
+toSVar :: (IsStream t, MonadAsync m) => SVar C.Stream m a -> t m a -> m ()
 toSVar sv m = toStreamVar sv (toStream m)
 
 ------------------------------------------------------------------------------
@@ -316,17 +318,17 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- @since 0.2.0
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync m = do
-    s <- S.mkParallel (toStream m)
+    s <- CC.mkParallel (toStream m)
     return $ fromStream s
 
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
 applyWith f x = fromStream $
-    S.applyWith (toStream . f . fromStream) (toStream x)
+    CC.applyWith (toStream . f . fromStream) (toStream x)
 
 {-# INLINE runWith #-}
 runWith :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-runWith f x = S.runWith (f . fromStream) (toStream x)
+runWith f x = CC.runWith (f . fromStream) (toStream x)
 
 infixr 0 |$
 infixr 0 |$.
@@ -410,21 +412,21 @@ x |&. f = f |$. x
 -- XXX use template haskell instead and include Monoid and IsStream instances
 -- as well.
 
-withLocal :: MonadReader r m => (r -> r) -> S.Stream m a -> S.Stream m a
+withLocal :: MonadReader r m => (r -> r) -> C.Stream m a -> C.Stream m a
 withLocal f m =
-    S.Stream $ \_ stp sng yld ->
+    C.Stream $ \_ stp sng yld ->
         let single = local f . sng
             yield a r = local f $ yld a (withLocal f r)
-        in (S.runStream m) Nothing (local f stp) single yield
+        in (C.runStream m) Nothing (local f stp) single yield
 
 {-
 -- XXX handle and test cross thread state transfer
 withCatchError
     :: MonadError e m
-    => S.Stream m a -> (e -> S.Stream m a) -> S.Stream m a
+    => C.Stream m a -> (e -> C.Stream m a) -> C.Stream m a
 withCatchError m h =
-    S.Stream $ \_ stp sng yld ->
-        let run x = S.runStream x Nothing stp sng yield
+    C.Stream $ \_ stp sng yld ->
+        let run x = C.runStream x Nothing stp sng yield
             handle r = r `catchError` \e -> run $ h e
             yield a r = yld a (withCatchError r h)
         in handle $ run m
@@ -434,7 +436,7 @@ withCatchError m h =
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
 instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
-    pure = STREAM . S.singleton;                     \
+    pure = STREAM . C.singleton;                     \
     (<*>) = ap }
 
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
@@ -523,7 +525,7 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
 -- time.
 --
 -- @since 0.2.0
-newtype SerialT m a = SerialT {getSerialT :: S.Stream m a}
+newtype SerialT m a = SerialT {getSerialT :: C.Stream m a}
     deriving (Semigroup, Monoid, Functor, MonadTrans)
 
 -- |
@@ -556,7 +558,7 @@ instance IsStream SerialT where
 -- @since 0.2.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ S.serial (toStream m1) (toStream m2)
+serial m1 m2 = fromStream $ C.serial (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -564,8 +566,8 @@ serial m1 m2 = fromStream $ S.serial (toStream m1) (toStream m2)
 
 instance Monad m => Monad (SerialT m) where
     return = pure
-    (SerialT (S.Stream m)) >>= f = SerialT $ S.Stream $ \_ stp sng yld ->
-        let run x = (S.runStream x) Nothing stp sng yld
+    (SerialT (C.Stream m)) >>= f = SerialT $ C.Stream $ \_ stp sng yld ->
+        let run x = (C.runStream x) Nothing stp sng yld
             single a  = run $ toStream (f a)
             yield a r = run $ toStream $ f a <> (fromStream r >>= f)
         in m Nothing stp single yield
@@ -618,7 +620,7 @@ MONAD_COMMON_INSTANCES(SerialT,)
 -- stream.
 --
 -- @since 0.2.0
-newtype WSerialT m a = WSerialT {getWSerialT :: S.Stream m a}
+newtype WSerialT m a = WSerialT {getWSerialT :: C.Stream m a}
     deriving (Functor, MonadTrans)
 
 -- |
@@ -650,7 +652,7 @@ instance IsStream WSerialT where
 -- @since 0.2.0
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ S.wSerial (toStream m1) (toStream m2)
+wSerial m1 m2 = fromStream $ C.wSerial (toStream m1) (toStream m2)
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
@@ -679,8 +681,8 @@ instance Monoid (WSerialT m a) where
 
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    (WSerialT (S.Stream m)) >>= f = WSerialT $ S.Stream $ \_ stp sng yld ->
-        let run x = (S.runStream x) Nothing stp sng yld
+    (WSerialT (C.Stream m)) >>= f = WSerialT $ C.Stream $ \_ stp sng yld ->
+        let run x = (C.runStream x) Nothing stp sng yld
             single a  = run $ toStream (f a)
             yield a r = run $ toStream $ f a <> (fromStream r >>= f)
         in m Nothing stp single yield
@@ -740,7 +742,7 @@ MONAD_COMMON_INSTANCES(WSerialT,)
 -- streams at a time.
 --
 -- @since 0.3.0
-newtype AheadT m a = AheadT {getAheadT :: S.Stream m a}
+newtype AheadT m a = AheadT {getAheadT :: C.Stream m a}
     deriving (Functor, MonadTrans)
 
 instance IsStream AheadT where
@@ -749,7 +751,7 @@ instance IsStream AheadT where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
-    consM m r = fromStream $ S.consMAhead m (toStream r)
+    consM m r = fromStream $ CC.consMAhead m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> AheadT IO a -> AheadT IO a #-}
@@ -765,7 +767,7 @@ instance IsStream AheadT where
 -- @since 0.3.0
 {-# INLINE ahead #-}
 ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-ahead m1 m2 = fromStream $ S.ahead (toStream m1) (toStream m2)
+ahead m1 m2 = fromStream $ CC.ahead (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (AheadT m a) where
     (<>) = ahead
@@ -785,16 +787,16 @@ instance MonadAsync m => Monoid (AheadT m a) where
 {-# INLINE aheadbind #-}
 aheadbind
     :: MonadAsync m
-    => S.Stream m a
-    -> (a -> S.Stream m b)
-    -> S.Stream m b
+    => C.Stream m a
+    -> (a -> C.Stream m b)
+    -> C.Stream m b
 aheadbind m f = go m
     where
-        go (S.Stream g) =
-            S.Stream $ \ctx stp sng yld ->
-            let run x = (S.runStream x) ctx stp sng yld
+        go (C.Stream g) =
+            C.Stream $ \ctx stp sng yld ->
+            let run x = (C.runStream x) ctx stp sng yld
                 single a  = run $ f a
-                yield a r = run $ f a `S.ahead` go r
+                yield a r = run $ f a `CC.ahead` go r
             in g Nothing stp single yield
 
 instance MonadAsync m => Monad (AheadT m) where
@@ -861,7 +863,7 @@ MONAD_COMMON_INSTANCES(AheadT, MONADPARALLEL)
 -- streams at a time.
 --
 -- @since 0.1.0
-newtype AsyncT m a = AsyncT {getAsyncT :: S.Stream m a}
+newtype AsyncT m a = AsyncT {getAsyncT :: C.Stream m a}
     deriving (Functor, MonadTrans)
 
 instance IsStream AsyncT where
@@ -870,7 +872,7 @@ instance IsStream AsyncT where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> AsyncT IO a -> AsyncT IO a #-}
-    consM m r = fromStream $ S.consMAsync m (toStream r)
+    consM m r = fromStream $ CC.consMAsync m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> AsyncT IO a -> AsyncT IO a #-}
@@ -887,7 +889,7 @@ instance IsStream AsyncT where
 -- @since 0.2.0
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-async m1 m2 = fromStream $ S.async (toStream m1) (toStream m2)
+async m1 m2 = fromStream $ CC.async (toStream m1) (toStream m2)
 
 -- | Same as 'async'.
 --
@@ -914,22 +916,22 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 
 {-# INLINE parbind #-}
 parbind
-    :: (forall c. S.Stream m c -> S.Stream m c -> S.Stream m c)
-    -> S.Stream m a
-    -> (a -> S.Stream m b)
-    -> S.Stream m b
+    :: (forall c. C.Stream m c -> C.Stream m c -> C.Stream m c)
+    -> C.Stream m a
+    -> (a -> C.Stream m b)
+    -> C.Stream m b
 parbind par m f = go m
     where
-        go (S.Stream g) =
-            S.Stream $ \ctx stp sng yld ->
-            let run x = (S.runStream x) ctx stp sng yld
+        go (C.Stream g) =
+            C.Stream $ \ctx stp sng yld ->
+            let run x = (C.runStream x) ctx stp sng yld
                 single a  = run $ f a
                 yield a r = run $ f a `par` go r
             in g Nothing stp single yield
 
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
-    (AsyncT m) >>= f = AsyncT $ parbind S.async m (getAsyncT . f)
+    (AsyncT m) >>= f = AsyncT $ parbind CC.async m (getAsyncT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -989,7 +991,7 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 -- stream.
 --
 -- @since 0.2.0
-newtype WAsyncT m a = WAsyncT {getWAsyncT :: S.Stream m a}
+newtype WAsyncT m a = WAsyncT {getWAsyncT :: C.Stream m a}
     deriving (Functor, MonadTrans)
 
 instance IsStream WAsyncT where
@@ -998,7 +1000,7 @@ instance IsStream WAsyncT where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-    consM m r = fromStream $ S.consMWAsync m (toStream r)
+    consM m r = fromStream $ CC.consMWAsync m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
@@ -1014,7 +1016,7 @@ instance IsStream WAsyncT where
 -- @since 0.2.0
 {-# INLINE wAsync #-}
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-wAsync m1 m2 = fromStream $ S.wAsync (toStream m1) (toStream m2)
+wAsync m1 m2 = fromStream $ CC.wAsync (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (WAsyncT m a) where
     (<>) = wAsync
@@ -1034,7 +1036,7 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
     (WAsyncT m) >>= f =
-        WAsyncT $ parbind S.wAsync m (getWAsyncT . f)
+        WAsyncT $ parbind CC.wAsync m (getWAsyncT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -1132,7 +1134,7 @@ MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)
 -- streams as it needs to retain state for each unfinished stream.
 --
 -- @since 0.1.0
-newtype ParallelT m a = ParallelT {getParallelT :: S.Stream m a}
+newtype ParallelT m a = ParallelT {getParallelT :: C.Stream m a}
     deriving (Functor, MonadTrans)
 
 instance IsStream ParallelT where
@@ -1141,7 +1143,7 @@ instance IsStream ParallelT where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ParallelT IO a -> ParallelT IO a #-}
-    consM m r = fromStream $ S.consMParallel m (toStream r)
+    consM m r = fromStream $ CC.consMParallel m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ParallelT IO a -> ParallelT IO a #-}
@@ -1157,7 +1159,7 @@ instance IsStream ParallelT where
 -- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallel m1 m2 = fromStream $ S.parallel (toStream m1) (toStream m2)
+parallel m1 m2 = fromStream $ CC.parallel (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (ParallelT m a) where
     (<>) = parallel
@@ -1176,7 +1178,7 @@ instance MonadAsync m => Monoid (ParallelT m a) where
 
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
-    (ParallelT m) >>= f = ParallelT $ parbind S.parallel m (getParallelT . f)
+    (ParallelT m) >>= f = ParallelT $ parbind CC.parallel m (getParallelT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -1207,7 +1209,7 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- 'SerialT'.
 --
 -- @since 0.2.0
-newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: S.Stream m a}
+newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: C.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
 -- |
@@ -1230,8 +1232,8 @@ instance IsStream ZipSerialM where
     (|:) = consMSerial
 
 instance Monad m => Applicative (ZipSerialM m) where
-    pure = ZipSerialM . S.repeat
-    m1 <*> m2 = fromStream $ S.zipWith id (toStream m1) (toStream m2)
+    pure = ZipSerialM . C.repeat
+    m1 <*> m2 = fromStream $ C.zipWith id (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -1254,7 +1256,7 @@ instance Monad m => Applicative (ZipSerialM m) where
 -- 'SerialT'.
 --
 -- @since 0.2.0
-newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: S.Stream m a}
+newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: C.Stream m a}
         deriving (Functor, Semigroup, Monoid)
 
 instance IsStream ZipAsyncM where
@@ -1272,8 +1274,8 @@ instance IsStream ZipAsyncM where
     (|:) = consMSerial
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
-    pure = ZipAsyncM . S.repeat
-    m1 <*> m2 = fromStream $ S.zipAsyncWith id (toStream m1) (toStream m2)
+    pure = ZipAsyncM . C.repeat
+    m1 <*> m2 = fromStream $ CC.zipAsyncWith id (toStream m1) (toStream m2)
 
 -------------------------------------------------------------------------------
 -- Type adapting combinators
