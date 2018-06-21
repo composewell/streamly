@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.CPS.Concurrent
+-- Module      : Streamly.Streams.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -29,7 +29,7 @@ where
 import Control.Monad.Catch (throwM)
 
 import Streamly.SVar
-import Streamly.Streams.CPS
+import Streamly.Streams.StreamK
 
 -- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
 -- can keep it on in production to debug problems quickly if and when they

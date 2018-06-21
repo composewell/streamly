@@ -152,7 +152,7 @@ module Streamly
     )
 where
 
-import Streamly.Streams.CPS hiding (runStream, serial)
+import Streamly.Streams.StreamK hiding (runStream, serial)
 import Streamly.Streams.Serial
 import Streamly.Streams.Async
 import Streamly.Streams.Ahead

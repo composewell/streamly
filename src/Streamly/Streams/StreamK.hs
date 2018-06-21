@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.CPS
+-- Module      : Streamly.Streams.StreamK
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -20,7 +20,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.CPS
+module Streamly.Streams.StreamK
     (
     -- * Streams
       IsStream (..)

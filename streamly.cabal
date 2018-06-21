@@ -108,7 +108,7 @@ flag examples-sdl
 library
     hs-source-dirs:    src
     other-modules:     Streamly.SVar
-                     , Streamly.Streams.CPS
+                     , Streamly.Streams.StreamK
                      , Streamly.Streams.Serial
                      , Streamly.Streams.SVar
                      , Streamly.Streams.Async

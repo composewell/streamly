@@ -44,7 +44,7 @@ import Data.Semigroup (Semigroup(..))
 import qualified Data.Heap as H
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.CPS
+import Streamly.Streams.StreamK
 import Streamly.SVar
 
 #ifdef DIAGNOSTICS

@@ -44,7 +44,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (repeat, zipWith)
 
 import Streamly.Streams.Async (mkAsync)
-import Streamly.Streams.CPS
+import Streamly.Streams.StreamK
 import Streamly.SVar (MonadAsync)
 
 #include "Instances.hs"

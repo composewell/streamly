@@ -52,7 +52,7 @@ import Data.Semigroup (Semigroup(..))
 import qualified Data.Set as S
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.CPS
+import Streamly.Streams.StreamK
 import Streamly.SVar
 
 #include "Instances.hs"

@@ -47,7 +47,7 @@ import Data.Functor (void)
 import Data.Semigroup (Semigroup(..))
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.CPS
+import Streamly.Streams.StreamK
 import Streamly.SVar
 
 #include "Instances.hs"

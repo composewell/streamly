@@ -40,8 +40,8 @@ where
 import Streamly.Streams.Serial (SerialT)
 import Streamly.SVar (SVar)
 
-import Streamly.Streams.CPS hiding (runStream)
-import qualified Streamly.Streams.CPS as C
+import Streamly.Streams.StreamK hiding (runStream)
+import qualified Streamly.Streams.StreamK as K
 
 ------------------------------------------------------------------------------
 -- Fold Utilities
@@ -126,7 +126,7 @@ unfoldrM step = go
         case mayb of
             Nothing -> stp
             Just (a, b) ->
-                C.runStream (a `cons` go b) svr stp sng yld
+                K.runStream (a `cons` go b) svr stp sng yld
 -}
 
 ------------------------------------------------------------------------------
@@ -146,7 +146,7 @@ streamFold
     -> m r
 streamFold svr step single blank m =
     let yield a x = step a (fromStream x)
-     in (C.runStream (toStream m)) svr blank single yield
+     in (K.runStream (toStream m)) svr blank single yield
 
 -- | Run a streaming composition, discard the results. By default it interprets
 -- the stream as 'SerialT', to run other types of streams use the type adapting

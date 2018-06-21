@@ -52,8 +52,8 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
 
-import Streamly.Streams.CPS hiding (serial)
-import qualified Streamly.Streams.CPS as C
+import Streamly.Streams.StreamK hiding (serial)
+import qualified Streamly.Streams.StreamK as C
 
 #include "Instances.hs"
 
