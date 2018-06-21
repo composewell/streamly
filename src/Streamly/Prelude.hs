@@ -130,7 +130,6 @@ where
 
 import           Control.Monad (void)
 import           Control.Monad.IO.Class      (MonadIO(..))
-import           Data.Semigroup              (Semigroup(..))
 import           Data.Maybe                  (isJust, fromJust)
 import           Prelude hiding              (filter, drop, dropWhile, take,
                                               takeWhile, zipWith, foldr, foldl,
@@ -142,9 +141,11 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
 import qualified Prelude
 import qualified System.IO as IO
 
-import qualified Streamly.CPS.Stream as C
-import qualified Streamly.CPS.Concurrent as CC
-import           Streamly.Streams
+import Streamly.Streams.CPS
+import qualified Streamly.Streams.CPS as C
+import Streamly.Streams.Zip
+import Streamly.Streams.Serial
+import Streamly.SVar (MonadAsync)
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -246,19 +247,6 @@ fromFoldableM = Prelude.foldr consM nil
 {-# INLINE each #-}
 each :: (IsStream t, Foldable f) => f a -> t m a
 each = fromFoldable
-
--- | Create a singleton stream by executing a monadic action once. Same as
--- @m \`consM` nil@ but more efficient.
---
--- @
--- > toList $ once getLine
--- hello
--- ["hello"]
--- @
---
--- @since 0.2.0
-once :: (IsStream t, Monad m) => m a -> t m a
-once = fromStream . C.once
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --
@@ -693,10 +681,10 @@ reverse :: (IsStream t) => t m a -> t m a
 reverse m = fromStream $ go C.nil (toStream m)
     where
     go rev rest = C.Stream $ \_ stp sng yld ->
-        let run x = C.runStream x Nothing stp sng yld
-            stop = run rev
-            single a = run $ a `C.cons` rev
-            yield a r = run $ go (a `C.cons` rev) r
+        let runIt x = C.runStream x Nothing stp sng yld
+            stop = runIt rev
+            single a = runIt $ a `C.cons` rev
+            yield a r = runIt $ go (a `C.cons` rev) r
          in C.runStream rest Nothing stop single yield
 
 -- XXX replace the recursive "go" with continuation
@@ -822,54 +810,3 @@ sequence m = go (toStream m)
         let single ma = ma >>= sng
             yield ma r = C.runStream (toStream $ ma |: go r) svr stp sng yld
          in (C.runStream m1) Nothing stp single yield
-
-------------------------------------------------------------------------------
--- Serially Zipping Streams
-------------------------------------------------------------------------------
-
--- | Zip two streams serially using a pure zipping function.
---
--- @since 0.1.0
-{-# INLINABLE zipWith #-}
-zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStream $ C.zipWith f (toStream m1) (toStream m2)
-
--- | Zip two streams serially using a monadic zipping function.
---
--- @since 0.1.0
-zipWithM :: IsStream t => (a -> b -> t m c) -> t m a -> t m b -> t m c
-zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
-    where
-    go mx my = C.Stream $ \_ stp sng yld -> do
-        let merge a ra =
-                let run x = C.runStream x Nothing stp sng yld
-                    single2 b   = run $ toStream (f a b)
-                    yield2 b rb = run $ toStream (f a b) <> go ra rb
-                 in (C.runStream my) Nothing stp single2 yield2
-        let single1 a  = merge a C.nil
-            yield1 a ra = merge a ra
-        (C.runStream mx) Nothing stp single1 yield1
-
-------------------------------------------------------------------------------
--- Parallely Zipping Streams
-------------------------------------------------------------------------------
-
--- | Zip two streams concurrently (i.e. both the elements being zipped are
--- generated concurrently) using a pure zipping function.
---
--- @since 0.1.0
-zipAsyncWith :: (IsStream t, MonadAsync m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 =
-    fromStream $ CC.zipAsyncWith f (toStream m1) (toStream m2)
-
--- | Zip two streams asyncly (i.e. both the elements being zipped are generated
--- concurrently) using a monadic zipping function.
---
--- @since 0.1.0
-zipAsyncWithM :: (IsStream t, MonadAsync m)
-    => (a -> b -> t m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = fromStream $ C.Stream $ \_ stp sng yld -> do
-    ma <- mkAsync m1
-    mb <- mkAsync m2
-    (C.runStream (toStream (zipWithM f ma mb))) Nothing stp sng yld

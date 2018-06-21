@@ -152,7 +152,14 @@ module Streamly
     )
 where
 
-import Streamly.Streams
+import Streamly.Streams.CPS hiding (runStream, serial)
+import Streamly.Streams.Serial
+import Streamly.Streams.Async
+import Streamly.Streams.Ahead
+import Streamly.Streams.Parallel
+import Streamly.Streams.Zip
+import Streamly.Streams.Prelude
+import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 
 -- $serial
