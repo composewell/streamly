@@ -96,19 +96,20 @@ main = hspec $ do
     -- for Monoid that is using the right version of semigroup. Instance
     -- deriving can cause us to pick wrong instances sometimes.
 
-    describe "Serial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
-    describe "Serial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
+    describe "WSerial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
+    describe "WSerial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
 
-    describe "Parallel interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
-    describe "Parallel interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
-
-    -- describe "Parallel (<>) ordering check" $ interleaveCheck parallely (<>)
-    -- describe "Parallel mappend ordering check" $ interleaveCheck parallely mappend
+    -- describe "WAsync interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
+    -- describe "WAsync interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
 
     describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
     describe "Async mappend time order check" $ parallelCheck asyncly mappend
+
     describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
     describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
+
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions, multiset equality checks
