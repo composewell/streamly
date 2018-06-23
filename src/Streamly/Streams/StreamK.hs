@@ -199,9 +199,14 @@ mkStream k = fromStream $ Stream $ \svr stp sng yld ->
 nil :: IsStream t => t m a
 nil = fromStream $ Stream $ \_ stp _ _ -> stp
 
--- faster than yieldM because there is no bind.
--- | Create a singleton stream from a pure value. Same as @yieldM (return a)@
--- but more efficient.
+-- Faster than yieldM because there is no bind. Usually we can construct a
+-- stream from a pure value using "pure" in an applicative, however in case of
+-- Zip streams pure creates an infinite stream.
+-- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
+-- 'return' can be used in place of 'yield', however, in Zip applicative
+-- streams 'pure' is equivalent to 'repeat'.
+--
+-- @since 0.4.0
 yield :: IsStream t => a -> t m a
 yield a = fromStream $ Stream $ \_ _ single _ -> single a
 
@@ -257,17 +262,6 @@ infixr 5 .:
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
 
--- | Constructs a stream by adding a monadic action at the head of an existing
--- stream. For example:
---
--- @
--- > toList $ getLine \`consM` getLine \`consM` nil
--- hello
--- world
--- ["hello","world"]
--- @
---
--- @since 0.2.0
 {-# INLINE consMSerial #-}
 consMSerial :: (Monad m) => m a -> Stream m a -> Stream m a
 consMSerial m r = Stream $ \_ _ _ yld -> m >>= \a -> yld a r
@@ -336,6 +330,9 @@ runStream m = go (toStream m)
 -- Special generation
 -------------------------------------------------------------------------------
 
+-- | Generate an infinite stream by repeating a pure value.
+--
+-- @since 0.4.0
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
 

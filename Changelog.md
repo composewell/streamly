@@ -4,6 +4,11 @@
 
 * `once` has been deprecated and renamed to `yieldM`
 
+### Enhancements
+
+* Add `yield` to construct a singleton stream from a pure value
+* Add `repeat` to generate an infinite stream by repeating a pure value
+
 ## 0.3.0
 
 ### Breaking changes

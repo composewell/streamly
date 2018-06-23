@@ -41,10 +41,12 @@ module Streamly.Prelude
     -- * Construction
     -- | Primitives to construct or inspect a stream.
       nil
-    , consM
-    , (|:)
+    , K.yield
+    , K.yieldM
     , cons
     , (.:)
+    , consM
+    , (|:)
 
     -- * Generation by Unfolding
     , unfoldr
@@ -53,8 +55,8 @@ module Streamly.Prelude
     -- * Special Generation
     -- | Generate a monadic stream from an input structure, a seed or a
     -- generation function.
-    , K.yieldM
     , replicateM
+    , K.repeat
     , repeatM
     , iterate
     , iterateM
