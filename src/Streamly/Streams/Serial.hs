@@ -53,7 +53,7 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
 
 import Streamly.Streams.StreamK hiding (serial)
-import qualified Streamly.Streams.StreamK as C
+import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
 
@@ -162,7 +162,7 @@ instance IsStream SerialT where
 -- @since 0.2.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ C.serial (toStream m1) (toStream m2)
+serial m1 m2 = fromStream $ K.serial (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
 -- Monad
