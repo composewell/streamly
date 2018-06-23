@@ -602,7 +602,7 @@ parallelCheck t f = do
         (S.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
-    where event n = (S.yieldM $ threadDelay (n * 100000)) >> (return n)
+    where event n = (S.yieldM $ threadDelay (n * 200000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
