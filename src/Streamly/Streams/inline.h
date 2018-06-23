@@ -1,0 +1,3 @@
+#define INLINE_EARLY  INLINE [2]
+#define INLINE_NORMAL INLINE [1]
+#define INLINE_LATE   INLINE [0]

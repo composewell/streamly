@@ -76,6 +76,7 @@ extra-source-files:
     stack-8.0.yaml
     stack.yaml
     src/Streamly/Streams/Instances.hs
+    src/Streamly/Streams/inline.h
 
 source-repository head
     type: git
@@ -109,6 +110,7 @@ library
     hs-source-dirs:    src
     other-modules:     Streamly.SVar
                      , Streamly.Streams.StreamK
+                     , Streamly.Streams.StreamD
                      , Streamly.Streams.Serial
                      , Streamly.Streams.SVar
                      , Streamly.Streams.Async

@@ -20,22 +20,26 @@
 -- Portability : GHC
 --
 --
--- Continuation passing style stream implementation.
+-- Continuation passing style (CPS) stream implementation. The symbol 'K' below
+-- denotes a function as well as a Kontinuation.
 --
 -- import qualified Streamly.Streams.StreamK as K
 --
 module Streamly.Streams.StreamK
     (
-    -- * Streams
+    -- * A class for streams
       IsStream (..)
     , adapt
 
+    -- * The stream type
     , Stream (..)
-    , mkStream
+
+    -- * Elimination
     , foldStream
     , runStream
 
     -- * Construction
+    , mkStream
     , nil
     , yield
     , yieldM
@@ -302,6 +306,10 @@ instance IsStream Stream where
     {-# SPECIALIZE (|:) :: IO a -> Stream IO a -> Stream IO a #-}
     (|:) :: Monad m => m a -> Stream m a -> Stream m a
     (|:) = consMSerial
+
+-------------------------------------------------------------------------------
+-- Fold Stream
+-------------------------------------------------------------------------------
 
 -- | Fold a stream by providing an SVar, a stop continuation, a singleton
 -- continuation and a yield continuation.
