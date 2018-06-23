@@ -55,7 +55,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="1e44e612ce2af77c067aec489a254fdfbd6e589b"
+  - PACKCHECK_GITHUB_COMMIT="f7fa0aaf4066e7862c9c1aca1e313b304253825c"
 
 notifications:
   email:
@@ -79,18 +79,18 @@ matrix:
 
   # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
   # warnings.
-  - env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  - env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-1.22,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 STACK_YAML=stack-8.0.yaml STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 STACK_BUILD_OPTIONS="--flag streamly:diag"
+  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack RESOLVER=nightly
+  - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
     addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
   # You can keep a STACK_YAML file at any path location
@@ -156,7 +156,7 @@ matrix:
   # --------------------------------------------------------------------------
 
   allow_failures:
-  - env: BUILD=stack RESOLVER=nightly
+  - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
   - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=lts-11 HLINT_COMMANDS="hlint lint ."
 
