@@ -37,10 +37,13 @@ main = do
   defaultMain
     [ bgroup "serially"
       [ bgroup "generation"
-        [ benchSrcIO serially "unfoldr" $ Ops.sourceUnfoldr
+        [ -- Most basic, barely stream continuations running
+          benchSrcIO serially "unfoldr" $ Ops.sourceUnfoldr
         , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
+        -- These are essentially cons and consM
         , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO serially "fromFoldableM" Ops.sourceFromFoldableM
+        -- These are essentially appends
         , benchSrcIO serially "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO serially "foldMapWithM" Ops.sourceFoldMapWithM
         ]
@@ -81,19 +84,19 @@ main = do
       ]
       , bgroup "asyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull asyncly
-        -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
           benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
+        -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
+        -- , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM"   $ Ops.mapM asyncly
         ]
       , bgroup "wAsyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull wAsyncly
-        -- , benchSrcIO wAsyncly "fromFoldable" Ops.sourceFromFoldable
           benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
+        -- , benchSrcIO wAsyncly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO wAsyncly "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
+        -- , benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO wAsyncly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM"   $ Ops.mapM wAsyncly
         ]
@@ -101,20 +104,20 @@ main = do
       -- all stream types.
       , bgroup "aheadly"
         [ -- benchIO "unfoldr" $ Ops.toNull aheadly
-        -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
           benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
+        -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
+        -- , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO       "mapM"  $ Ops.mapM aheadly
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
         [ --benchIO "unfoldr" $ Ops.toNull parallely
-        --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
           benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
+        --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
+        -- , benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM" $ Ops.mapM parallely
         -- Zip has only one parallel flavor
