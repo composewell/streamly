@@ -1,6 +1,6 @@
 import Streamly
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly.Prelude (nil, once)
+import Streamly.Prelude (nil, yieldM)
 
 main = do
     hSetBuffering stdout LineBuffering
@@ -8,32 +8,32 @@ main = do
     putStrLn $ "\nloopTail:\n"
     runStream $ do
         x <- loopTail 0
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     putStrLn $ "\nloopHead:\n"
     runStream $ do
         x <- loopHead 0
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     putStrLn $ "\nloopTailA:\n"
     runStream $ do
         x <- loopTailA 0
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     putStrLn $ "\nloopHeadA:\n"
     runStream $ do
         x <- loopHeadA 0
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     putStrLn $ "\nwSerial:\n"
     runStream $ do
         x <- (return 0 <> return 1) `wSerial` (return 100 <> return 101)
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     putStrLn $ "\nParallel interleave:\n"
     runStream $ do
         x <- (return 0 <> return 1) `wAsync` (return 100 <> return 101)
-        once $ print (x :: Int)
+        yieldM $ print (x :: Int)
 
     where
 
@@ -45,7 +45,7 @@ main = do
     -- stream. Interleaves the generator and the consumer.
     loopTail :: Int -> Serial Int
     loopTail x = do
-        once $ putStrLn "LoopTail..."
+        yieldM $ putStrLn "LoopTail..."
         return x <> (if x < 3 then loopTail (x + 1) else nil)
 
     -- Loops and then generates a value. The consumer can run only after the
@@ -53,7 +53,7 @@ main = do
     -- at all.
     loopHead :: Int -> Serial Int
     loopHead x = do
-        once $ putStrLn "LoopHead..."
+        yieldM $ putStrLn "LoopHead..."
         (if x < 3 then loopHead (x + 1) else nil) <> return x
 
 -------------------------------------------------------------------------------
@@ -62,12 +62,12 @@ main = do
 
     loopTailA :: Int -> Serial Int
     loopTailA x = do
-        once $ putStrLn "LoopTailA..."
+        yieldM $ putStrLn "LoopTailA..."
         return x `async` (if x < 3 then loopTailA (x + 1) else nil)
 
     loopHeadA :: Int -> Serial Int
     loopHeadA x = do
-        once $ putStrLn "LoopHeadA..."
+        yieldM $ putStrLn "LoopHeadA..."
         (if x < 3 then loopHeadA (x + 1) else nil) `async` return x
 
 -------------------------------------------------------------------------------

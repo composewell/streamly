@@ -89,7 +89,7 @@ sourceFoldMapWith n = S.foldMapWith (S.<>) return [n..n+value]
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
     => Int -> t m Int
-sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.once . return) [n..n+value]
+sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: S.IsStream t => Int -> t m Int

@@ -9,7 +9,7 @@
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
 instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
-    pure = STREAM . singleton;                     \
+    pure = STREAM . yield;                     \
     (<*>) = ap }
 
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \

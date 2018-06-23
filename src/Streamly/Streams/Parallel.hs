@@ -58,7 +58,7 @@ import Streamly.SVar
 
 {-# NOINLINE runOne #-}
 runOne :: MonadIO m => SVar Stream m a -> Stream m a -> m ()
-runOne sv m = (runStream m) (Just sv) stop single yield
+runOne sv m = (unStream m) (Just sv) stop single yieldk
 
     where
 
@@ -69,7 +69,7 @@ runOne sv m = (runStream m) (Just sv) stop single yield
     -- queue and queue it back on that and exit the thread when the outputQueue
     -- overflows. Parallel is dangerous because it can accumulate unbounded
     -- output in the buffer.
-    yield a r = void (sendit a) >> runOne sv r
+    yieldk a r = void (sendit a) >> runOne sv r
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -77,7 +77,7 @@ forkSVarPar m r = Stream $ \_ stp sng yld -> do
     sv <- newParallelVar
     pushWorkerPar sv (runOne sv m)
     pushWorkerPar sv (runOne sv r)
-    (runStream (fromSVar sv)) Nothing stp sng yld
+    (unStream (fromSVar sv)) Nothing stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadAsync m
@@ -85,8 +85,8 @@ joinStreamVarPar :: MonadAsync m
 joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style -> do
-            pushWorkerPar sv (runOne sv m1) >> (runStream m2) svr stp sng yld
-        _ -> runStream (forkSVarPar m1 m2) Nothing stp sng yld
+            pushWorkerPar sv (runOne sv m1) >> (unStream m2) svr stp sng yld
+        _ -> unStream (forkSVarPar m1 m2) Nothing stp sng yld
 
 {-# INLINE parallelStream #-}
 parallelStream :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -96,7 +96,7 @@ parallelStream = joinStreamVarPar ParallelVar
 -- of combining streams using parallel.
 {-# INLINE consMParallel #-}
 consMParallel :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMParallel m r = once m `parallelStream` r
+consMParallel m r = yieldM m `parallelStream` r
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
@@ -125,7 +125,7 @@ applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
 applyWith f m = fromStream $ Stream $ \svr stp sng yld -> do
     sv <- newParallelVar
     pushWorkerPar sv (runOne sv (toStream m))
-    runStream (toStream $ f $ fromSVar sv) svr stp sng yld
+    unStream (toStream $ f $ fromSVar sv) svr stp sng yld
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application
@@ -369,4 +369,4 @@ MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
 -- @since 0.1.0
 {-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
-runParallelT = run
+runParallelT = runStream

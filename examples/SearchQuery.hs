@@ -1,5 +1,5 @@
 import Streamly
-import Streamly.Prelude (nil, once, (|:))
+import Streamly.Prelude (nil, yieldM, (|:))
 import Network.HTTP.Simple
 
 -- | Runs three search engine queries in parallel and prints the search engine
@@ -13,10 +13,11 @@ main = do
     runStream . parallely $ google |: bing |: duckduckgo |: nil
 
     putStrLn "\nUsing parallel semigroup composition"
-    runStream . parallely $ once google <> once bing <> once duckduckgo
+    runStream . parallely $ yieldM google <> yieldM bing <> yieldM duckduckgo
 
     putStrLn "\nUsing parallel applicative zip"
-    runStream . zipAsyncly $ (,,) <$> once google <*> once bing <*> once duckduckgo
+    runStream . zipAsyncly $
+        (,,) <$> yieldM google <*> yieldM bing <*> yieldM duckduckgo
 
     where
         get :: String -> IO ()

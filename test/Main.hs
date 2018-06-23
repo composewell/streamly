@@ -40,7 +40,7 @@ main = hspec $ do
         it "simple serially" $
             (runStream . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (runStream . serially) (A.once $ putStrLn "hello") `shouldReturn` ()
+            (runStream . serially) (A.yieldM $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ do
         it "Monoid - mempty" $
@@ -381,12 +381,12 @@ main = hspec $ do
 
     it "asyncly crosses thread limit (2000 threads)" $
         runStream (asyncly $ fold $
-                   replicate 2000 $ A.once $ threadDelay 1000000)
+                   replicate 2000 $ A.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
     it "aheadly crosses thread limit (4000 threads)" $
         runStream (aheadly $ fold $
-                   replicate 4000 $ A.once $ threadDelay 1000000)
+                   replicate 4000 $ A.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error
@@ -578,7 +578,7 @@ nestTwoParallelApp =
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
-timed x = A.once (threadDelay (x * 100000)) >> return x
+timed x = A.yieldM (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: IsStream t
     => (t IO Int -> SerialT IO Int)
@@ -602,7 +602,7 @@ parallelCheck t f = do
         (A.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
             `shouldReturn` ([1..4])
 
-    where event n = (A.once $ threadDelay (n * 100000)) >> (return n)
+    where event n = (A.yieldM $ threadDelay (n * 100000)) >> (return n)
 
 compose :: (IsStream t, Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
@@ -682,12 +682,12 @@ loops t tsrt hsrt = do
     where
         loopHead x = do
             -- this print line is important for the test (causes a bind)
-            A.once $ putStrLn "LoopHead..."
+            A.yieldM $ putStrLn "LoopHead..."
             t $ (if x < 3 then loopHead (x + 1) else nil) <> return x
 
         loopTail x = do
             -- this print line is important for the test (causes a bind)
-            A.once $ putStrLn "LoopTail..."
+            A.yieldM $ putStrLn "LoopTail..."
             t $ return x <> (if x < 3 then loopTail (x + 1) else nil)
 
 bindAndComposeSimple
@@ -755,21 +755,21 @@ mixedOps = do
 
     composeMixed :: SerialT IO Int
     composeMixed = do
-        A.once $ return ()
-        A.once $ putStr ""
+        A.yieldM $ return ()
+        A.yieldM $ putStr ""
         x <- return 1
         y <- return 2
         z <- do
                 x1 <- wAsyncly $ return 1 <> return 2
-                A.once $ return ()
-                A.once $ putStr ""
+                A.yieldM $ return ()
+                A.yieldM $ putStr ""
                 y1 <- asyncly $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- asyncly $ return 1 <> return 2
                     z11 <- wSerially $ return 1 <> return 2
-                    A.once $ return ()
-                    A.once $ putStr ""
+                    A.yieldM $ return ()
+                    A.yieldM $ putStr ""
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)
@@ -785,21 +785,21 @@ mixedOpsAheadly = do
 
     composeMixed :: SerialT IO Int
     composeMixed = do
-        A.once $ return ()
-        A.once $ putStr ""
+        A.yieldM $ return ()
+        A.yieldM $ putStr ""
         x <- return 1
         y <- return 2
         z <- do
                 x1 <- wAsyncly $ return 1 <> return 2
-                A.once $ return ()
-                A.once $ putStr ""
+                A.yieldM $ return ()
+                A.yieldM $ putStr ""
                 y1 <- aheadly $ return 1 <> return 2
                 z1 <- do
                     x11 <- return 1 <> return 2
                     y11 <- aheadly $ return 1 <> return 2
                     z11 <- parallely $ return 1 <> return 2
-                    A.once $ return ()
-                    A.once $ putStr ""
+                    A.yieldM $ return ()
+                    A.yieldM $ putStr ""
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)

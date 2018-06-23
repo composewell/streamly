@@ -64,15 +64,15 @@ import Streamly.SVar
 {-# INLINE runStreamLIFO #-}
 runStreamLIFO :: MonadIO m
     => SVar Stream m a -> IORef [Stream m a] -> Stream m a -> m () -> m ()
-runStreamLIFO sv q m stop = runStream m (Just sv) stop single yield
+runStreamLIFO sv q m stop = unStream m (Just sv) stop single yieldk
     where
     single a = do
         res <- liftIO $ send sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
-    yield a r = do
+    yieldk a r = do
         res <- liftIO $ send sv (ChildYield a)
         if res
-        then (runStream r) (Just sv) stop single yield
+        then (unStream r) (Just sv) stop single yieldk
         else liftIO $ enqueueLIFO sv q r >> sendStop sv
 
 -------------------------------------------------------------------------------
@@ -82,12 +82,12 @@ runStreamLIFO sv q m stop = runStream m (Just sv) stop single yield
 {-# INLINE runStreamFIFO #-}
 runStreamFIFO :: MonadIO m
     => SVar Stream m a -> LinkedQueue (Stream m a) -> Stream m a -> m () -> m ()
-runStreamFIFO sv q m stop = runStream m (Just sv) stop single yield
+runStreamFIFO sv q m stop = unStream m (Just sv) stop single yieldk
     where
     single a = do
         res <- liftIO $ send sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
-    yield a r = do
+    yieldk a r = do
         res <- liftIO $ send sv (ChildYield a)
         liftIO (enqueueFIFO sv q r)
         if res then stop else liftIO $ sendStop sv
@@ -278,11 +278,11 @@ forkSVarAsync style m1 m2 = Stream $ \_ stp sng yld -> do
         AsyncVar -> newAsyncVar (concurrently m1 m2)
         WAsyncVar -> newWAsyncVar (concurrently m1 m2)
         _ -> error "illegal svar type"
-    runStream (fromSVar sv) Nothing stp sng yld
+    unStream (fromSVar sv) Nothing stp sng yld
     where
     concurrently ma mb = Stream $ \svr stp sng yld -> do
         liftIO $ enqueue (fromJust svr) mb
-        (runStream ma) svr stp sng yld
+        unStream ma svr stp sng yld
 
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
@@ -290,8 +290,8 @@ joinStreamVarAsync :: MonadAsync m
 joinStreamVarAsync style m1 m2 = Stream $ \svr stp sng yld ->
     case svr of
         Just sv | svarStyle sv == style ->
-            liftIO (enqueue sv m2) >> (runStream m1) svr stp sng yld
-        _ -> runStream (forkSVarAsync style m1 m2) Nothing stp sng yld
+            liftIO (enqueue sv m2) >> unStream m1 svr stp sng yld
+        _ -> unStream (forkSVarAsync style m1 m2) Nothing stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -323,7 +323,7 @@ async m1 m2 = fromStream $
 -- of combining streams using async.
 {-# INLINE consMAsync #-}
 consMAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAsync m r = once m `asyncS` r
+consMAsync m r = yieldM m `asyncS` r
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -447,7 +447,7 @@ wAsyncS = joinStreamVarAsync WAsyncVar
 -- of combining streams using wAsync.
 {-# INLINE consMWAsync #-}
 consMWAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMWAsync m r = once m `wAsyncS` r
+consMWAsync m r = yieldM m `wAsyncS` r
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.
@@ -567,4 +567,4 @@ MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)
 -- @since 0.1.0
 {-# DEPRECATED runAsyncT "Please use 'runStream . asyncly' instead." #-}
 runAsyncT :: Monad m => AsyncT m a -> m ()
-runAsyncT = run
+runAsyncT = runStream

@@ -61,10 +61,10 @@ zipWithS f m1 m2 = go m1 m2
         let merge a ra =
                 let single2 b = sng (f a b)
                     yield2 b rb = yld (f a b) (go ra rb)
-                 in (runStream my) Nothing stp single2 yield2
+                 in unStream my Nothing stp single2 yield2
         let single1 a   = merge a nil
             yield1 a ra = merge a ra
-        (runStream mx) Nothing stp single1 yield1
+        unStream mx Nothing stp single1 yield1
 
 -- | Zip two streams serially using a pure zipping function.
 --
@@ -81,13 +81,13 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
     go mx my = Stream $ \_ stp sng yld -> do
         let merge a ra =
-                let runIt x = runStream x Nothing stp sng yld
+                let runIt x = unStream x Nothing stp sng yld
                     single2 b   = runIt $ toStream (f a b)
                     yield2 b rb = runIt $ toStream (f a b) <> go ra rb
-                 in (runStream my) Nothing stp single2 yield2
+                 in unStream my Nothing stp single2 yield2
         let single1 a  = merge a nil
             yield1 a ra = merge a ra
-        (runStream mx) Nothing stp single1 yield1
+        unStream mx Nothing stp single1 yield1
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -168,7 +168,7 @@ zipAsyncWith :: (IsStream t, MonadAsync m)
 zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
     ma <- mkAsync m1
     mb <- mkAsync m2
-    (runStream (toStream (zipWith f ma mb))) Nothing stp sng yld
+    unStream (toStream (zipWith f ma mb)) Nothing stp sng yld
 
 -- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
@@ -179,7 +179,7 @@ zipAsyncWithM :: (IsStream t, MonadAsync m)
 zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
     ma <- mkAsync m1
     mb <- mkAsync m2
-    (runStream (toStream (zipWithM f ma mb))) Nothing stp sng yld
+    unStream (toStream (zipWithM f ma mb)) Nothing stp sng yld
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -245,11 +245,11 @@ instance MonadAsync m => Applicative (ZipAsyncM m) where
 -- @since 0.1.0
 {-# DEPRECATED runZipStream "Please use 'runStream . zipSerially instead." #-}
 runZipStream :: Monad m => ZipSerialM m a -> m ()
-runZipStream = run
+runZipStream = runStream
 
 -- | Same as @runStream . zippingAsync@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipAsyncly instead." #-}
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
-runZipAsync = run
+runZipAsync = runStream

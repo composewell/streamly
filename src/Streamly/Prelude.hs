@@ -53,7 +53,7 @@ module Streamly.Prelude
     -- * Special Generation
     -- | Generate a monadic stream from an input structure, a seed or a
     -- generation function.
-    , once
+    , K.yieldM
     , replicateM
     , repeatM
     , iterate
@@ -121,6 +121,7 @@ module Streamly.Prelude
     , toHandle
 
     -- * Deprecated
+    , once
     , each
     , scan
     , foldl
@@ -217,7 +218,7 @@ unfoldrM step = go
         case mayb of
             Nothing -> stp
             Just (a, b) ->
-                K.runStream (toStream (return a |: go b)) svr stp sng yld
+                K.unStream (toStream (return a |: go b)) svr stp sng yld
 
 -- | Construct a stream from a 'Foldable' containing pure values.
 --
@@ -310,7 +311,7 @@ iterateM step = go
     where
     go s = fromStream $ K.Stream $ \svr stp sng yld -> do
        next <- step s
-       K.runStream (toStream (return s |: go next)) svr stp sng yld
+       K.unStream (toStream (return s |: go next)) svr stp sng yld
 
 -- | Read lines from an IO Handle into a stream of Strings.
 --
@@ -344,8 +345,8 @@ foldr step acc m = go (toStream m)
     go m1 =
         let stop = return acc
             single a = return (step a acc)
-            yield a r = go r >>= \b -> return (step a b)
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = go r >>= \b -> return (step a b)
+        in (K.unStream m1) Nothing stop single yieldk
 
 -- | Lazy right fold with a monadic step function. For example, to fold a
 -- stream into a list:
@@ -363,8 +364,8 @@ foldrM step acc m = go (toStream m)
     go m1 =
         let stop = return acc
             single a = step a acc
-            yield a r = go r >>= step a
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = go r >>= step a
+        in (K.unStream m1) Nothing stop single yieldk
 
 -- | Strict left scan with an extraction function. Like 'scanl'', but applies a
 -- user supplied extraction function (the third argument) at each step. This is
@@ -379,10 +380,10 @@ scanx step begin done m =
     where
     go m1 !acc = K.Stream $ \_ stp sng yld ->
         let single a = sng (done $ step acc a)
-            yield a r =
+            yieldk a r =
                 let s = step acc a
                 in yld (done s) (go r s)
-        in K.runStream m1 Nothing stp single yield
+        in K.unStream m1 Nothing stp single yieldk
 
 -- |
 -- @since 0.1.1
@@ -413,7 +414,7 @@ foldx step begin done m = get $ go (toStream m) begin
     {-# NOINLINE get #-}
     get m1 =
         let single = return . done
-         in (K.runStream m1) Nothing undefined single undefined
+         in (K.unStream m1) Nothing undefined single undefined
 
     -- Note, this can be implemented by making a recursive call to "go",
     -- however that is more expensive because of unnecessary recursion
@@ -422,10 +423,10 @@ foldx step begin done m = get $ go (toStream m) begin
     go m1 !acc = K.Stream $ \_ _ sng yld ->
         let stop = sng acc
             single a = sng $ step acc a
-            yield a r =
+            yieldk a r =
                 let stream = go r (step acc a)
-                in (K.runStream stream) Nothing undefined sng yld
-        in (K.runStream m1) Nothing stop single yield
+                in (K.unStream stream) Nothing undefined sng yld
+        in (K.unStream m1) Nothing stop single yieldk
 
 -- |
 -- @since 0.1.0
@@ -450,8 +451,8 @@ foldxM step begin done m = go begin (toStream m)
     go !acc m1 =
         let stop = acc >>= done
             single a = acc >>= \b -> step b a >>= done
-            yield a r = acc >>= \b -> go (step b a) r
-         in (K.runStream m1) Nothing stop single yield
+            yieldk a r = acc >>= \b -> go (step b a) r
+         in (K.unStream m1) Nothing stop single yieldk
 
 -- |
 -- @since 0.1.0
@@ -474,8 +475,8 @@ uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
         single a = return (Just (a, nil))
-        yield a r = return (Just (a, fromStream r))
-    in (K.runStream (toStream m)) Nothing stop single yield
+        yieldk a r = return (Just (a, fromStream r))
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Write a stream of Strings to an IO Handle.
 --
@@ -486,8 +487,8 @@ toHandle h m = go (toStream m)
     go m1 =
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
-            yield a r = liftIO (IO.hPutStrLn h a) >> go r
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
+        in (K.unStream m1) Nothing stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Special folds
@@ -508,8 +509,8 @@ take :: IsStream t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
     go n1 m1 = K.Stream $ \_ stp sng yld ->
-        let yield a r = yld a (go (n1 - 1) r)
-        in if n1 <= 0 then stp else (K.runStream m1) Nothing stp sng yield
+        let yieldk a r = yld a (go (n1 - 1) r)
+        in if n1 <= 0 then stp else (K.unStream m1) Nothing stp sng yieldk
 
 -- | Include only those elements that pass a predicate.
 --
@@ -521,9 +522,9 @@ filter p m = fromStream $ go (toStream m)
     go m1 = K.Stream $ \_ stp sng yld ->
         let single a  | p a       = sng a
                       | otherwise = stp
-            yield a r | p a       = yld a (go r)
-                      | otherwise = (K.runStream r) Nothing stp single yield
-         in (K.runStream m1) Nothing stp single yield
+            yieldk a r | p a       = yld a (go r)
+                      | otherwise = (K.unStream r) Nothing stp single yieldk
+         in (K.unStream m1) Nothing stp single yieldk
 
 -- | End the stream as soon as the predicate fails on an element.
 --
@@ -535,9 +536,9 @@ takeWhile p m = fromStream $ go (toStream m)
     go m1 = K.Stream $ \_ stp sng yld ->
         let single a  | p a       = sng a
                       | otherwise = stp
-            yield a r | p a       = yld a (go r)
+            yieldk a r | p a       = yld a (go r)
                       | otherwise = stp
-         in (K.runStream m1) Nothing stp single yield
+         in (K.unStream m1) Nothing stp single yieldk
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
@@ -547,11 +548,11 @@ drop n m = fromStream $ go n (toStream m)
     where
     go n1 m1 = K.Stream $ \_ stp sng yld ->
         let single _ = stp
-            yield _ r = (K.runStream $ go (n1 - 1) r) Nothing stp sng yld
+            yieldk _ r = (K.unStream $ go (n1 - 1) r) Nothing stp sng yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then (K.runStream m1) Nothing stp sng yld
-           else (K.runStream m1) Nothing stp single yield
+           then (K.unStream m1) Nothing stp sng yld
+           else (K.unStream m1) Nothing stp single yieldk
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -564,9 +565,9 @@ dropWhile p m = fromStream $ go (toStream m)
     go m1 = K.Stream $ \_ stp sng yld ->
         let single a  | p a       = stp
                       | otherwise = sng a
-            yield a r | p a       = (K.runStream r) Nothing stp single yield
+            yieldk a r | p a       = (K.unStream r) Nothing stp single yieldk
                       | otherwise = yld a r
-         in (K.runStream m1) Nothing stp single yield
+         in (K.unStream m1) Nothing stp single yieldk
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
@@ -577,9 +578,9 @@ all p m = go (toStream m)
     go m1 =
         let single a  | p a       = return True
                       | otherwise = return False
-            yield a r | p a       = go r
+            yieldk a r | p a       = go r
                       | otherwise = return False
-         in (K.runStream m1) Nothing (return True) single yield
+         in (K.unStream m1) Nothing (return True) single yieldk
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
@@ -590,9 +591,9 @@ any p m = go (toStream m)
     go m1 =
         let single a  | p a       = return True
                       | otherwise = return False
-            yield a r | p a       = return True
+            yieldk a r | p a       = return True
                       | otherwise = go r
-         in (K.runStream m1) Nothing (return False) single yield
+         in (K.unStream m1) Nothing (return False) single yieldk
 
 -- | Determine the sum of all elements of a stream of numbers
 --
@@ -613,8 +614,8 @@ head :: Monad m => SerialT m a -> m (Maybe a)
 head m =
     let stop      = return Nothing
         single a  = return (Just a)
-        yield a _ = return (Just a)
-    in (K.runStream (toStream m)) Nothing stop single yield
+        yieldk a _ = return (Just a)
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Extract all but the first element of the stream, if any.
 --
@@ -623,8 +624,8 @@ tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m =
     let stop      = return Nothing
         single _  = return $ Just nil
-        yield _ r = return $ Just $ fromStream r
-    in (K.runStream (toStream m)) Nothing stop single yield
+        yieldk _ r = return $ Just $ fromStream r
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Extract the last element of the stream, if any.
 --
@@ -640,8 +641,8 @@ null :: Monad m => SerialT m a -> m Bool
 null m =
     let stop      = return True
         single _  = return False
-        yield _ _ = return False
-    in (K.runStream (toStream m)) Nothing stop single yield
+        yieldk _ _ = return False
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Determine whether an element is present in the stream.
 --
@@ -652,8 +653,8 @@ elem e m = go (toStream m)
     go m1 =
         let stop      = return False
             single a  = return (a == e)
-            yield a r = if a == e then return True else go r
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = if a == e then return True else go r
+        in (K.unStream m1) Nothing stop single yieldk
 
 -- | Determine whether an element is not present in the stream.
 --
@@ -664,8 +665,8 @@ notElem e m = go (toStream m)
     go m1 =
         let stop      = return True
             single a  = return (a /= e)
-            yield a r = if a == e then return False else go r
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = if a == e then return False else go r
+        in (K.unStream m1) Nothing stop single yieldk
 
 -- | Determine the length of the stream.
 --
@@ -681,11 +682,11 @@ reverse :: (IsStream t) => t m a -> t m a
 reverse m = fromStream $ go K.nil (toStream m)
     where
     go rev rest = K.Stream $ \_ stp sng yld ->
-        let runIt x = K.runStream x Nothing stp sng yld
+        let runIt x = K.unStream x Nothing stp sng yld
             stop = runIt rev
             single a = runIt $ a `K.cons` rev
-            yield a r = runIt $ go (a `K.cons` rev) r
-         in K.runStream rest Nothing stop single yield
+            yieldk a r = runIt $ go (a `K.cons` rev) r
+         in K.unStream rest Nothing stop single yieldk
 
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
@@ -697,8 +698,8 @@ minimum m = go Nothing (toStream m)
     go res m1 =
         let stop      = return res
             single a  = return $ min_ a res
-            yield a r = go (min_ a res) r
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = go (min_ a res) r
+        in (K.unStream m1) Nothing stop single yieldk
 
     min_ a res = case res of
         Nothing -> Just a
@@ -714,8 +715,8 @@ maximum m = go Nothing (toStream m)
     go res m1 =
         let stop      = return res
             single a  = return $ max_ a res
-            yield a r = go (max_ a res) r
-        in (K.runStream m1) Nothing stop single yield
+            yieldk a r = go (max_ a res) r
+        in (K.unStream m1) Nothing stop single yieldk
 
     max_ a res = case res of
         Nothing -> Just a
@@ -745,8 +746,8 @@ mapM f m = go (toStream m)
     where
     go m1 = fromStream $ K.Stream $ \svr stp sng yld ->
         let single a  = f a >>= sng
-            yield a r = K.runStream (toStream (f a |: (go r))) svr stp sng yld
-         in (K.runStream m1) Nothing stp single yield
+            yieldk a r = K.unStream (toStream (f a |: (go r))) svr stp sng yld
+         in (K.unStream m1) Nothing stp single yieldk
 
 -- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
 -- elements, and return a stream of values extracted from 'Just'.
@@ -760,10 +761,10 @@ mapMaybe f m = go (toStream m)
         let single a = case f a of
                 Just b  -> sng b
                 Nothing -> stp
-            yield a r = case f a of
+            yieldk a r = case f a of
                 Just b  -> yld b (toStream $ go r)
-                Nothing -> (K.runStream r) Nothing stp single yield
-        in (K.runStream m1) Nothing stp single yield
+                Nothing -> (K.unStream r) Nothing stp single yieldk
+        in (K.unStream m1) Nothing stp single yieldk
 
 -- | Like 'mapMaybe' but maps a monadic function.
 --
@@ -786,8 +787,8 @@ mapM_ f m = go (toStream m)
     go m1 =
         let stop = return ()
             single a = void (f a)
-            yield a r = f a >> go r
-         in (K.runStream m1) Nothing stop single yield
+            yieldk a r = f a >> go r
+         in (K.unStream m1) Nothing stop single yieldk
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.
@@ -808,5 +809,5 @@ sequence m = go (toStream m)
     where
     go m1 = fromStream $ K.Stream $ \svr stp sng yld ->
         let single ma = ma >>= sng
-            yield ma r = K.runStream (toStream $ ma |: go r) svr stp sng yld
-         in (K.runStream m1) Nothing stp single yield
+            yieldk ma r = K.unStream (toStream $ ma |: go r) svr stp sng yld
+         in (K.unStream m1) Nothing stp single yieldk

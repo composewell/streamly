@@ -159,10 +159,10 @@ concurrentUnfoldrM eq op n =
                 -- results may not be yielded in order, in case of
                 -- Async/WAsync/Parallel. So we use an increasing count
                 -- instead.
-                i <- A.once $ readIORef cnt
-                A.once $ modifyIORef cnt (+1)
+                i <- A.yieldM $ readIORef cnt
+                A.yieldM $ modifyIORef cnt (+1)
                 let msg = show i ++ "/" ++ show n
-                A.once $ do
+                A.yieldM $ do
                     if even i
                     then do
                         dbgMVar ("first take concurrentUnfoldrM " ++ msg)

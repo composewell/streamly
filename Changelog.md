@@ -1,3 +1,9 @@
+## Unreleased
+
+### Deprecations
+
+* `once` has been deprecated and renamed to `yieldM`
+
 ## 0.3.0
 
 ### Breaking changes

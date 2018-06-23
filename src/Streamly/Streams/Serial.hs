@@ -171,10 +171,10 @@ serial m1 m2 = fromStream $ C.serial (toStream m1) (toStream m2)
 instance Monad m => Monad (SerialT m) where
     return = pure
     (SerialT (Stream m)) >>= f = SerialT $ Stream $ \_ stp sng yld ->
-        let runIt x = (runStream x) Nothing stp sng yld
-            single a  = runIt $ toStream (f a)
-            yield a r = runIt $ toStream $ f a <> (fromStream r >>= f)
-        in m Nothing stp single yield
+        let run x = (unStream x) Nothing stp sng yld
+            single a   = run $ toStream (f a)
+            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
+        in m Nothing stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -272,10 +272,10 @@ instance IsStream WSerialT where
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = Stream $ \_ stp sng yld -> do
-    let stop      = (runStream m2) Nothing stp sng yld
-        single a  = yld a m2
-        yield a r = yld a (interleave m2 r)
-    (runStream m1) Nothing stop single yield
+    let stop       = (unStream m2) Nothing stp sng yld
+        single a   = yld a m2
+        yieldk a r = yld a (interleave m2 r)
+    (unStream m1) Nothing stop single yieldk
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
@@ -313,10 +313,10 @@ instance Monoid (WSerialT m a) where
 instance Monad m => Monad (WSerialT m) where
     return = pure
     (WSerialT (Stream m)) >>= f = WSerialT $ Stream $ \_ stp sng yld ->
-        let runIt x = (runStream x) Nothing stp sng yld
-            single a  = runIt $ toStream (f a)
-            yield a r = runIt $ toStream $ f a <> (fromStream r >>= f)
-        in m Nothing stp single yield
+        let run x = (unStream x) Nothing stp sng yld
+            single a   = run $ toStream (f a)
+            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
+        in m Nothing stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -334,11 +334,11 @@ MONAD_COMMON_INSTANCES(WSerialT,)
 -- @since 0.1.0
 {-# DEPRECATED runStreamT "Please use runStream instead." #-}
 runStreamT :: Monad m => SerialT m a -> m ()
-runStreamT = run
+runStreamT = runStream
 
 -- | Same as @runStream . wSerially@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
 runInterleavedT :: Monad m => InterleavedT m a -> m ()
-runInterleavedT = run
+runInterleavedT = runStream

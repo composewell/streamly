@@ -2,23 +2,23 @@ import Control.Concurrent (myThreadId)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
 import Streamly
-import Streamly.Prelude (nil, once)
+import Streamly.Prelude (nil, yieldM)
 
 main = runStream $ do
-    once $ hSetBuffering stdout LineBuffering
+    yieldM $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
     y <- loop "B " 2
-    once $ myThreadId >>= putStr . show
+    yieldM $ myThreadId >>= putStr . show
              >> putStr " "
              >> print (x, y)
 
     where
 
     -- we can just use
-    -- parallely $ mconcat $ replicate n $ once (...)
+    -- parallely $ mconcat $ replicate n $ yieldM (...)
     loop :: String -> Int -> SerialT IO String
     loop name n = do
-        rnd <- once (randomIO :: IO Int)
+        rnd <- yieldM (randomIO :: IO Int)
         let result = (name ++ show rnd)
             repeat = if n > 1 then loop name (n - 1) else nil
          in (return result) `wAsync` repeat

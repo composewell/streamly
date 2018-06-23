@@ -9,7 +9,7 @@
 import Data.IORef
 import Graphics.UI.SDL as SDL
 import Streamly
-import Streamly.Prelude (once)
+import Streamly.Prelude (yieldM)
 import Streamly.Time
 
 ------------------------------------------------------------------------------
@@ -87,5 +87,5 @@ main :: IO ()
 main = do
   sdlInit
   cref <- newIORef (0,0)
-  runStream $ once (updateController cref)
-    `parallel` once (updateDisplay cref)
+  runStream $ yieldM (updateController cref)
+    `parallel` yieldM (updateDisplay cref)

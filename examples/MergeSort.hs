@@ -4,29 +4,29 @@ import Data.Word
 import System.Random (getStdGen, randoms)
 import Data.List (sort)
 import Streamly
-import Streamly.Prelude (once)
+import Streamly.Prelude (yieldM)
 import qualified Streamly.Prelude as A
 
 getSorted :: Serial Word16
 getSorted = do
-    g <- once getStdGen
+    g <- yieldM getStdGen
     let ls = take 100000 (randoms g) :: [Word16]
     foldMap return (sort ls)
 
 -- | merge two streams generating the elements from each in parallel
 mergeAsync :: Ord a => Serial a -> Serial a -> Serial a
 mergeAsync a b = do
-    x <- once $ mkAsync a
-    y <- once $ mkAsync b
+    x <- yieldM $ mkAsync a
+    y <- yieldM $ mkAsync b
     merge x y
 
 merge :: Ord a => Serial a -> Serial a -> Serial a
 merge a b = do
-    a1 <- once $ A.uncons a
+    a1 <- yieldM $ A.uncons a
     case a1 of
         Nothing -> b
         Just (x, ma) -> do
-            b1 <- once $ A.uncons b
+            b1 <- yieldM $ A.uncons b
             case b1 of
                 Nothing -> return x <> ma
                 Just (y, mb) ->
