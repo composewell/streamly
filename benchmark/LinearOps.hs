@@ -25,8 +25,10 @@ maxValue = value + 1000
 -------------------------------------------------------------------------------
 
 {-# INLINE scan #-}
+{-# INLINE mapM_ #-}
 {-# INLINE map #-}
 {-# INLINE fmap #-}
+{-# INLINE mapMaybe #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
@@ -40,7 +42,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-scan, map, fmap, filterEven, filterAllOut,
+scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
@@ -48,32 +50,36 @@ scan, map, fmap, filterEven, filterAllOut,
     => Stream m Int -> m ()
 
 {-# INLINE composeMapM #-}
-composeMapM :: S.MonadAsync m => Stream m Int -> m ()
+{-# INLINE zipAsync #-}
+{-# INLINE mapMaybeM #-}
+composeMapM, zipAsync, mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
 
 {-# INLINE toList #-}
 {-# INLINE foldr #-}
 {-# INLINE foldrM #-}
 toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
-{-# INLINE foldl #-}
-foldl :: Monad m => Stream m Int -> m Int
+
 {-# INLINE last #-}
-last :: Monad m => Stream m Int -> m (Maybe Int)
+{-# INLINE maximum #-}
+{-# INLINE minimum #-}
+last, minimum, maximum :: Monad m => Stream m Int -> m (Maybe Int)
+
+{-# INLINE foldl #-}
+{-# INLINE length #-}
+{-# INLINE sum #-}
+{-# INLINE product #-}
+foldl, length, sum, product :: Monad m => Stream m Int -> m Int
+
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
-{-# INLINE mapM_ #-}
-mapM_ :: Monad m => Stream m Int -> m ()
+
 {-# INLINE mapM #-}
 mapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
-{-# INLINE mapMaybe #-}
-mapMaybe :: Monad m => Stream m Int -> m ()
-{-# INLINE mapMaybeM #-}
-mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
+
 {-# INLINE sequence #-}
 sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
-{-# INLINE zipAsync #-}
-zipAsync :: S.MonadAsync m => Stream m Int -> m ()
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -154,6 +160,11 @@ foldr  = S.foldr (:) []
 foldrM = S.foldrM (\a xs -> return (a : xs)) []
 foldl  = S.foldl' (+) 0
 last   = S.last
+length = S.length
+sum    = S.sum
+product = S.product
+maximum = S.maximum
+minimum = S.minimum
 
 -------------------------------------------------------------------------------
 -- Transformation

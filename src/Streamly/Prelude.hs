@@ -558,14 +558,16 @@ any p m = go (toStream m)
 -- | Determine the sum of all elements of a stream of numbers
 --
 -- @since 0.1.0
+{-# INLINE sum #-}
 sum :: (Monad m, Num a) => SerialT m a -> m a
-sum = foldl (+) 0 id
+sum = foldl' (+) 0
 
 -- | Determine the product of all elements of a stream of numbers
 --
 -- @since 0.1.1
+{-# INLINE product #-}
 product :: (Monad m, Num a) => SerialT m a -> m a
-product = foldl (*) 1 id
+product = foldl' (*) 1
 
 -- | Extract the first element of the stream, if any.
 --
@@ -631,8 +633,9 @@ notElem e m = go (toStream m)
 -- | Determine the length of the stream.
 --
 -- @since 0.1.0
+{-# INLINE length #-}
 length :: Monad m => SerialT m a -> m Int
-length = foldl (\n _ -> n + 1) 0 id
+length = foldl' (\n _ -> n + 1) 0
 
 -- | Returns the elements of the stream in reverse order.
 -- The stream must be finite.
@@ -652,6 +655,7 @@ reverse m = fromStream $ go K.nil (toStream m)
 -- | Determine the minimum element in a stream.
 --
 -- @since 0.1.0
+{-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 minimum m = go Nothing (toStream m)
     where
@@ -669,6 +673,7 @@ minimum m = go Nothing (toStream m)
 -- | Determine the maximum element in a stream.
 --
 -- @since 0.1.0
+{-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = go Nothing (toStream m)
     where
