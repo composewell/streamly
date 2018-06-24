@@ -124,10 +124,12 @@ fromStreamK m = Stream step m
             yieldk a r = return $ Yield a r
          in K.unStream m1 Nothing stop single yieldk
 
+#ifndef DISABLE_FUSION
 {-# RULES "fromStreamK/toStreamK fusion"
     forall s. toStreamK (fromStreamK s) = s #-}
 {-# RULES "toStreamK/fromStreamK fusion"
     forall s. fromStreamK (toStreamK s) = s #-}
+#endif
 
 ------------------------------------------------------------------------------
 -- Construction
