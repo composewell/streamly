@@ -11,6 +11,7 @@
 * Add `fromList` and `fromListM` to generate streams from lists, faster than
   `fromFoldable` and `fromFoldableM`
 * Add `map` as a synonym of fmap
+* Add `scanlM'`, the monadic version of scanl'
 * Significant performance improvements
 
 ## 0.3.0

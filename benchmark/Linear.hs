@@ -15,10 +15,13 @@ import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
+--
+-- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIO #-}
 benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
 
+-- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchSrcIO #-}
 benchSrcIO
     :: (t IO Int -> SerialT IO Int)
@@ -64,6 +67,10 @@ main = do
         , benchIO "map" Ops.map
         , benchIO "fmap" Ops.fmap
         , benchIO "mapM" (Ops.mapM serially)
+        , benchIO "mapMaybe" Ops.mapMaybe
+        , benchIO "mapMaybeM" Ops.mapMaybeM
+        , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
+            (Ops.sequence serially) (Ops.sourceUnfoldrMAction n)
         , benchIO "concat" Ops.concat
         ]
       , bgroup "filtering"

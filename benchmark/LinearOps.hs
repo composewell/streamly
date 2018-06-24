@@ -11,7 +11,7 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..))
+        subtract, undefined, Maybe(..), odd)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -61,10 +61,17 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
 {-# INLINE mapM_ #-}
-mapM_ :: Monad m => Stream m a -> m ()
+mapM_ :: Monad m => Stream m Int -> m ()
 {-# INLINE mapM #-}
 mapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+{-# INLINE mapMaybe #-}
+mapMaybe :: Monad m => Stream m Int -> m ()
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
+{-# INLINE sequence #-}
+sequence :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
 {-# INLINE zipAsync #-}
 zipAsync :: S.MonadAsync m => Stream m Int -> m ()
 
@@ -123,13 +130,22 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE runStream #-}
-runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+{-# INLINE sourceUnfoldrMAction #-}
+sourceUnfoldrMAction :: (S.IsStream t, S.MonadAsync m) => Int -> t m (m Int)
+sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else return (Just (return cnt, cnt + 1))
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
+
+{-# INLINE runStream #-}
+runStream :: Monad m => Stream m a -> m ()
+runStream = S.runStream
 
 toNull t = runStream . t
 mapM_  = S.mapM_ (\_ -> return ())
@@ -151,6 +167,11 @@ scan          = transform . S.scanl' (+) 0
 fmap          = transform . Prelude.fmap (+1)
 map           = transform . S.map (+1)
 mapM t        = transform . t . S.mapM return
+mapMaybe      = transform . S.mapMaybe
+    (\x -> if Prelude.odd x then Nothing else Just ())
+mapMaybeM     = transform . S.mapMaybeM
+    (\x -> if Prelude.odd x then (return Nothing) else return $ Just ())
+sequence t    = transform . t . S.sequence
 filterEven    = transform . S.filter even
 filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)

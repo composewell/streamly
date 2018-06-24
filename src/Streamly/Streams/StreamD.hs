@@ -37,9 +37,8 @@ module Streamly.Streams.StreamD
     , Stream (..)
 
     -- * Construction
-    -- | Direct style stream does not support construction by adding more
-    -- elements to an existing stream.
     , nil
+    , cons
 
     -- * Deconstruction
     , uncons
@@ -69,6 +68,9 @@ module Streamly.Streams.StreamD
     , mapM_
     , toList
     , last
+
+    -- * Scans
+    , scanlM'
 
     -- * Mapping
     , map
@@ -144,6 +146,17 @@ fromStreamK m = Stream step m
 {-# INLINE_NORMAL nil #-}
 nil :: Monad m => Stream m a
 nil = Stream (const $ return Stop) ()
+
+-- | Note that the cons operation is not scalable as it has O(n^2) complexity.
+cons :: Monad m => a -> Stream m a -> Stream m a
+cons x (Stream step state) = Stream step1 Nothing
+    where
+    step1 Nothing   = return $ Yield x (Just state)
+    step1 (Just st) = do
+        r <- step st
+        case r of
+            Yield a s -> return $ Yield a (Just s)
+            Stop -> return Stop
 
 -- | Create a singleton 'Stream' from a pure value.
 {-# INLINE_NORMAL yield #-}
@@ -320,3 +333,21 @@ last (Stream step state) = go0 SPEC state
         case r of
             Yield y s -> go1 SPEC y s
             Stop      -> return (Just x)
+
+{-# INLINE_NORMAL postscanlM' #-}
+postscanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
+postscanlM' fstep begin (Stream step state) =
+    begin `seq` Stream step' (state, begin)
+  where
+    {-# INLINE_LATE step' #-}
+    step' (st, acc) = acc `seq` do
+        r <- step st
+        case r of
+            Yield x s -> do
+                y <- fstep acc x
+                y `seq` return (Yield y (s, y))
+            Stop -> return Stop
+
+{-# INLINE scanlM' #-}
+scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
+scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)

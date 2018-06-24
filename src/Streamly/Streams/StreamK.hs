@@ -74,9 +74,15 @@ module Streamly.Streams.StreamK
     , toList
     , last
 
+    -- * Scans
+    , scanx
+    , scanl'
+
     -- * Mapping
     , map
     , mapM
+    , mapMaybe
+    , sequence
 
     -- * Semigroup Style Composition
     , serial
@@ -96,7 +102,7 @@ import Control.Monad (void)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (foldl, foldr, last, map, mapM, mapM_, repeat)
+import Prelude hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence)
 import qualified Prelude
 
 import Streamly.SVar
@@ -451,6 +457,26 @@ last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
 last = foldx (\_ y -> Just y) Nothing id
 
 -------------------------------------------------------------------------------
+-- Scans
+-------------------------------------------------------------------------------
+
+{-# INLINE scanx #-}
+scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx step begin done m =
+    cons (done begin) $ fromStream $ go (toStream m) begin
+    where
+    go m1 !acc = Stream $ \_ stp sng yld ->
+        let single a = sng (done $ step acc a)
+            yieldk a r =
+                let s = step acc a
+                in yld (done s) (go r s)
+        in unStream m1 Nothing stp single yieldk
+
+{-# INLINE scanl' #-}
+scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
+scanl' step begin m = scanx step begin id m
+
+-------------------------------------------------------------------------------
 -- Generation
 -------------------------------------------------------------------------------
 
@@ -532,6 +558,8 @@ map f m = fromStream $ Stream $ \_ stp sng yld ->
 instance Monad m => Functor (Stream m) where
     fmap = map
 
+-- Be careful when modifying this, this uses a consM (|:) deliberately to allow
+-- other stream types to overload it.
 {-# INLINE mapM #-}
 mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
 mapM f m = go (toStream m)
@@ -539,6 +567,30 @@ mapM f m = go (toStream m)
     go m1 = fromStream $ Stream $ \svr stp sng yld ->
         let single a  = f a >>= sng
             yieldk a r = unStream (toStream (f a |: (go r))) svr stp sng yld
+         in (unStream m1) Nothing stp single yieldk
+
+{-# INLINE mapMaybe #-}
+mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
+mapMaybe f m = go (toStream m)
+  where
+    go m1 = fromStream $ Stream $ \_ stp sng yld ->
+        let single a = case f a of
+                Just b  -> sng b
+                Nothing -> stp
+            yieldk a r = case f a of
+                Just b  -> yld b (toStream $ go r)
+                Nothing -> (unStream r) Nothing stp single yieldk
+        in unStream m1 Nothing stp single yieldk
+
+-- Be careful when modifying this, this uses a consM (|:) deliberately to allow
+-- other stream types to overload it.
+{-# INLINE sequence #-}
+sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
+sequence m = go (toStream m)
+    where
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
+        let single ma = ma >>= sng
+            yieldk ma r = unStream (toStream $ ma |: go r) svr stp sng yld
          in (unStream m1) Nothing stp single yieldk
 
 -------------------------------------------------------------------------------

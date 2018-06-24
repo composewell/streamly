@@ -103,6 +103,7 @@ module Streamly.Prelude
 
     -- * Scans
     , scanl'
+    , scanlM'
     , scanx
 
     -- * Mapping
@@ -159,6 +160,22 @@ import Streamly.Streams.Zip (zipWith, zipWithM, zipAsyncWith, zipAsyncWithM)
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Serial as Serial
+
+------------------------------------------------------------------------------
+-- Deconstruction
+------------------------------------------------------------------------------
+
+-- | Decompose a stream into its head and tail. If the stream is empty, returns
+-- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
+-- the head of the stream and @ma@ its tail.
+--
+-- @since 0.1.0
+uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
+uncons m =
+    let stop = return Nothing
+        single a = return (Just (a, K.nil))
+        yieldk a r = return (Just (a, fromStream r))
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -379,40 +396,6 @@ foldr f = foldrM (\a b -> return (f a b))
 foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
 foldrM step acc m = D.foldrM step acc $ D.fromStreamK (toStream m)
 
--- | Strict left scan with an extraction function. Like 'scanl'', but applies a
--- user supplied extraction function (the third argument) at each step. This is
--- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
--- extraction.
---
--- @since 0.2.0
-{-# INLINE scanx #-}
-scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx step begin done m =
-    K.cons (done begin) $ fromStream $ go (toStream m) begin
-    where
-    go m1 !acc = K.Stream $ \_ stp sng yld ->
-        let single a = sng (done $ step acc a)
-            yieldk a r =
-                let s = step acc a
-                in yld (done s) (go r s)
-        in K.unStream m1 Nothing stp single yieldk
-
--- |
--- @since 0.1.1
-{-# DEPRECATED scan "Please use scanx instead." #-}
-scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scan = scanx
-
--- | Strict left scan. Like 'foldl'', but returns the folded value at each
--- step, generating a stream of all intermediate fold results. The first
--- element of the stream is the user supplied initial value, and the last
--- element of the stream is the same as the result of 'foldl''.
---
--- @since 0.2.0
-{-# INLINE scanl' #-}
-scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
-scanl' step begin m = scanx step begin id m
-
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -454,18 +437,6 @@ foldlM = foldxM
 -- @since 0.2.0
 foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
 foldlM' step begin m = D.foldlM' step begin $ D.fromStreamK (toStream m)
-
--- | Decompose a stream into its head and tail. If the stream is empty, returns
--- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
--- the head of the stream and @ma@ its tail.
---
--- @since 0.1.0
-uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
-uncons m =
-    let stop = return Nothing
-        single a = return (Just (a, K.nil))
-        yieldk a r = return (Just (a, fromStream r))
-    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Write a stream of Strings to an IO Handle.
 --
@@ -712,6 +683,44 @@ maximum m = go Nothing (toStream m)
         Just e  -> Just $ max a e
 
 ------------------------------------------------------------------------------
+-- Scans
+------------------------------------------------------------------------------
+
+-- | Strict left scan with an extraction function. Like 'scanl'', but applies a
+-- user supplied extraction function (the third argument) at each step. This is
+-- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
+-- extraction.
+--
+-- @since 0.2.0
+{-# INLINE scanx #-}
+scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx = K.scanx
+
+-- |
+-- @since 0.1.1
+{-# DEPRECATED scan "Please use scanx instead." #-}
+scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scan = scanx
+
+-- | Like 'scanl'' but with a monadic step function.
+--
+-- @since 0.4.0
+{-# INLINE scanlM' #-}
+scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
+scanlM' step begin m = fromStream $ D.toStreamK $
+    D.scanlM' step begin $ D.fromStreamK (toStream m)
+
+-- | Strict left scan. Like 'foldl'', but returns the folded value at each
+-- step, generating a stream of all intermediate fold results. The first
+-- element of the stream is the user supplied initial value, and the last
+-- element of the stream is the same as the result of 'foldl''.
+--
+-- @since 0.2.0
+{-# INLINE scanl' #-}
+scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
+scanl' step = scanlM' (\a b -> return (step a b))
+
+------------------------------------------------------------------------------
 -- Transformation
 ------------------------------------------------------------------------------
 
@@ -743,17 +752,8 @@ mapMSerial = Serial.mapM
 --
 -- @since 0.3.0
 {-# INLINE mapMaybe #-}
-mapMaybe :: (IsStream t) => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = go (toStream m)
-  where
-    go m1 = fromStream $ K.Stream $ \_ stp sng yld ->
-        let single a = case f a of
-                Just b  -> sng b
-                Nothing -> stp
-            yieldk a r = case f a of
-                Just b  -> yld b (toStream $ go r)
-                Nothing -> (K.unStream r) Nothing stp single yieldk
-        in (K.unStream m1) Nothing stp single yieldk
+mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
+mapMaybe = K.mapMaybe
 
 -- | Like 'mapMaybe' but maps a monadic function.
 --
@@ -788,10 +788,6 @@ mapM_ f m = D.mapM_ f $ D.fromStreamK (toStream m)
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @since 0.1.0
+{-# INLINE sequence #-}
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence m = go (toStream m)
-    where
-    go m1 = fromStream $ K.Stream $ \svr stp sng yld ->
-        let single ma = ma >>= sng
-            yieldk ma r = K.unStream (toStream $ ma |: go r) svr stp sng yld
-         in (K.unStream m1) Nothing stp single yieldk
+sequence = K.sequence
