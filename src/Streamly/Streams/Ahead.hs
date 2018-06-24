@@ -44,13 +44,16 @@ import Data.Semigroup (Semigroup(..))
 import qualified Data.Heap as H
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.StreamK
+import Streamly.Streams.Serial (map)
 import Streamly.SVar
+import Streamly.Streams.StreamK (IsStream(..), Stream(..))
+import qualified Streamly.Streams.StreamK as K
 
 #ifdef DIAGNOSTICS
 import Control.Monad (when)
 import Data.IORef (writeIORef, readIORef)
 #endif
+import Prelude hiding (map)
 
 #include "Instances.hs"
 
@@ -128,7 +131,7 @@ workLoopAhead sv q heap = runHeap
         else liftIO $ sendStop sv
 
     singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
-    yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `cons` r))
+    yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
 
     singleOutput seqNo a = do
         continue <- liftIO $ send sv (ChildYield a)
@@ -242,7 +245,7 @@ aheadS m1 m2 = Stream $ \svr stp sng yld -> do
 -- of combining streams using ahead.
 {-# INLINE consMAhead #-}
 consMAhead :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAhead m r = yieldM m `aheadS` r
+consMAhead m r = K.yieldM m `aheadS` r
 
 ------------------------------------------------------------------------------
 -- AheadT
@@ -293,7 +296,7 @@ consMAhead m r = yieldM m `aheadS` r
 --
 -- @since 0.3.0
 newtype AheadT m a = AheadT {getAheadT :: Stream m a}
-    deriving (Functor, MonadTrans)
+    deriving (MonadTrans)
 
 -- | A serial IO stream of elements of type @a@ with concurrent lookahead.  See
 -- 'AheadT' documentation for more details.
@@ -305,7 +308,7 @@ type Ahead a = AheadT IO a
 --
 -- @since 0.3.0
 aheadly :: IsStream t => AheadT m a -> t m a
-aheadly = adapt
+aheadly = K.adapt
 
 instance IsStream AheadT where
     toStream = getAheadT
@@ -339,7 +342,7 @@ instance MonadAsync m => Semigroup (AheadT m a) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (AheadT m a) where
-    mempty = nil
+    mempty = K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------

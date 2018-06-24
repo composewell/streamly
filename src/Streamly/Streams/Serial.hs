@@ -36,9 +36,9 @@ module Streamly.Streams.Serial
     , wSerially
     , interleaving     -- deprecated
 
-    -- * Running Streams
-    , runStreamT       -- deprecated
-    , runInterleavedT  -- deprecated
+    -- * Transformation
+    , map
+    , mapM
     )
 where
 
@@ -51,11 +51,14 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
+import Prelude hiding (map, mapM)
 
-import Streamly.Streams.StreamK hiding (serial)
+import Streamly.Streams.StreamK (IsStream(..), adapt, Stream(..))
 import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Streams.StreamD as D
 
 #include "Instances.hs"
+#include "inline.h"
 
 ------------------------------------------------------------------------------
 -- SerialT
@@ -118,7 +121,7 @@ import qualified Streamly.Streams.StreamK as K
 --
 -- @since 0.2.0
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
-    deriving (Semigroup, Monoid, Functor, MonadTrans)
+    deriving (Semigroup, Monoid, MonadTrans)
 
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
 -- for more details.
@@ -144,12 +147,12 @@ instance IsStream SerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
     consM :: Monad m => m a -> SerialT m a -> SerialT m a
-    consM m r = fromStream $ consMSerial m (toStream r)
+    consM m r = fromStream $ K.consMSerial m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
     (|:) :: Monad m => m a -> SerialT m a -> SerialT m a
-    m |: r = fromStream $ consMSerial m (toStream r)
+    m |: r = fromStream $ K.consMSerial m (toStream r)
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -179,6 +182,14 @@ instance Monad m => Monad (SerialT m) where
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+{-# INLINE_EARLY mapM #-}
+mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
+mapM f m = fromStream $ D.toStreamK $ D.mapM f $ D.fromStreamK (toStream m)
+
+{-# INLINE map #-}
+map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
+map f = mapM (return . f)
 
 MONAD_APPLICATIVE_INSTANCE(SerialT,)
 MONAD_COMMON_INSTANCES(SerialT,)
@@ -225,7 +236,7 @@ MONAD_COMMON_INSTANCES(SerialT,)
 --
 -- @since 0.2.0
 newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
-    deriving (Functor, MonadTrans)
+    deriving (MonadTrans)
 
 -- | An interleaving serial IO stream of elements of type @a@. See 'WSerialT'
 -- documentation for more details.
@@ -258,12 +269,12 @@ instance IsStream WSerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    consM m r = fromStream $ consMSerial m (toStream r)
+    consM m r = fromStream $ K.consMSerial m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    m |: r = fromStream $ consMSerial m (toStream r)
+    m |: r = fromStream $ K.consMSerial m (toStream r)
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -303,7 +314,7 @@ infixr 5 <=>
 ------------------------------------------------------------------------------
 
 instance Monoid (WSerialT m a) where
-    mempty = nil
+    mempty = K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -324,21 +335,3 @@ instance Monad m => Monad (WSerialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
-
--------------------------------------------------------------------------------
--- Running Streams
--------------------------------------------------------------------------------
-
--- | Same as @runStream@.
---
--- @since 0.1.0
-{-# DEPRECATED runStreamT "Please use runStream instead." #-}
-runStreamT :: Monad m => SerialT m a -> m ()
-runStreamT = runStream
-
--- | Same as @runStream . wSerially@.
---
--- @since 0.1.0
-{-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
-runInterleavedT :: Monad m => InterleavedT m a -> m ()
-runInterleavedT = runStream

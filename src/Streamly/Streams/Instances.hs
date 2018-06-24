@@ -9,10 +9,13 @@
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
 instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
-    pure = STREAM . yield;                     \
+    pure = STREAM . K.yield;                     \
     (<*>) = ap }
 
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
+instance Monad m => Functor (STREAM m) where { \
+    fmap = map };                                                             \
+                                                                              \
 instance (MonadBase b m, Monad m CONSTRAINT) => MonadBase b (STREAM m) where {\
     liftBase = liftBaseDefault };                                             \
                                                                               \
@@ -31,7 +34,7 @@ instance (MonadError e m CONSTRAINT) => MonadError e (STREAM m) where {       \
                                                                               \
 instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     ask = lift ask;                                                           \
-    local f m = fromStream $ withLocal f (toStream m) };                    \
+    local f m = fromStream $ K.withLocal f (toStream m) };                    \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
     get     = lift get;                                                       \

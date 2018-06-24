@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
@@ -34,10 +35,6 @@ module Streamly.Streams.StreamK
     -- * The stream type
     , Stream (..)
 
-    -- * Elimination
-    , foldStream
-    , runStream
-
     -- * Construction
     , mkStream
     , nil
@@ -57,6 +54,24 @@ module Streamly.Streams.StreamK
     , repeat
     , fromFoldable
 
+    -- * Elimination
+    , foldStream
+    , foldr
+    , foldrM
+    , foldx
+    , foldl'
+    , foldxM
+    , foldlM'
+
+    , runStream
+    , mapM_
+    , toList
+    , last
+
+    -- * Transformation
+    , map
+    , mapM
+
     -- * Semigroup Style Composition
     , serial
 
@@ -71,10 +86,12 @@ module Streamly.Streams.StreamK
     )
 where
 
+import Control.Monad (void)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (repeat)
+import Prelude hiding (foldl, foldr, last, map, mapM, mapM_, repeat)
+import qualified Prelude
 
 import Streamly.SVar
 
@@ -328,6 +345,74 @@ foldStream svr blank single step m =
     let yieldk a x = step a (fromStream x)
      in (unStream (toStream m)) svr blank single yieldk
 
+-- | Lazy right associative fold.
+foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
+foldr step acc m = go (toStream m)
+    where
+    go m1 =
+        let stop = return acc
+            single a = return (step a acc)
+            yieldk a r = go r >>= \b -> return (step a b)
+        in (unStream m1) Nothing stop single yieldk
+
+-- | Lazy right fold with a monadic step function.
+{-# INLINE foldrM #-}
+foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM step acc m = go (toStream m)
+    where
+    go m1 =
+        let stop = return acc
+            single a = step a acc
+            yieldk a r = go r >>= step a
+        in (unStream m1) Nothing stop single yieldk
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+{-# INLINE foldx #-}
+foldx :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldx step begin done m = get $ go (toStream m) begin
+    where
+    {-# NOINLINE get #-}
+    get m1 =
+        let single = return . done
+         in (unStream m1) Nothing undefined single undefined
+
+    -- Note, this can be implemented by making a recursive call to "go",
+    -- however that is more expensive because of unnecessary recursion
+    -- that cannot be tail call optimized. Unfolding recursion explicitly via
+    -- continuations is much more efficient.
+    go m1 !acc = Stream $ \_ _ sng yld ->
+        let stop = sng acc
+            single a = sng $ step acc a
+            yieldk a r =
+                let stream = go r (step acc a)
+                in (unStream stream) Nothing undefined sng yld
+        in (unStream m1) Nothing stop single yieldk
+
+-- | Strict left associative fold.
+{-# INLINE foldl' #-}
+foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
+foldl' step begin m = foldx step begin id m
+
+-- XXX replace the recursive "go" with explicit continuations.
+-- | Like 'foldx', but with a monadic step function.
+foldxM :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldxM step begin done m = go begin (toStream m)
+    where
+    go !acc m1 =
+        let stop = acc >>= done
+            single a = acc >>= \b -> step b a >>= done
+            yieldk a r = acc >>= \b -> go (step b a) r
+         in (unStream m1) Nothing stop single yieldk
+
+-- | Like 'foldl'' but with a monadic step function.
+foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
+foldlM' step begin m = foldxM step (return begin) return m
+
 runStream :: (Monad m, IsStream t) => t m a -> m ()
 runStream m = go (toStream m)
     where
@@ -336,6 +421,26 @@ runStream m = go (toStream m)
             single _ = return ()
             yieldk _ r = go (toStream r)
          in (unStream m1) Nothing stop single yieldk
+
+-- | Apply a monadic action to each element of the stream and discard the
+-- output of the action.
+mapM_ :: (IsStream t, Monad m) => (a -> m b) -> t m a -> m ()
+mapM_ f m = go (toStream m)
+    where
+    go m1 =
+        let stop = return ()
+            single a = void (f a)
+            yieldk a r = f a >> go r
+         in (unStream m1) Nothing stop single yieldk
+
+{-# INLINABLE toList #-}
+toList :: (IsStream t, Monad m) => t m a -> m [a]
+toList = foldr (:) []
+
+-- | Extract the last element of the stream, if any.
+{-# INLINE last #-}
+last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
+last = foldx (\_ y -> Just y) Nothing id
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -409,11 +514,24 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
+{-# INLINE map #-}
+map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
+map f m = fromStream $ Stream $ \_ stp sng yld ->
+    let single     = sng . f
+        yieldk a r = yld (f a) (fmap f r)
+    in unStream (toStream m) Nothing stp single yieldk
+
 instance Monad m => Functor (Stream m) where
-    fmap f m = Stream $ \_ stp sng yld ->
-        let single     = sng . f
-            yieldk a r = yld (f a) (fmap f r)
-        in (unStream m) Nothing stp single yieldk
+    fmap = map
+
+{-# INLINE mapM #-}
+mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
+mapM f m = go (toStream m)
+    where
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
+        let single a  = f a >>= sng
+            yieldk a r = unStream (toStream (f a |: (go r))) svr stp sng yld
+         in (unStream m1) Nothing stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Bind utility

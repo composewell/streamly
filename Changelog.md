@@ -10,6 +10,7 @@
 * Add `repeat` to generate an infinite stream by repeating a pure value
 * Add `fromList` and `fromListM` to generate streams from lists, faster than
   `fromFoldable` and `fromFoldableM`
+* Add `map` as a synonym of fmap
 * Significant performance improvements
 
 ## 0.3.0

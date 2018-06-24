@@ -34,24 +34,40 @@ module Streamly.Streams.StreamD
       Step (..)
     , Stream (..)
 
-    -- * Elimination
-    , runStream
-    , uncons
-
-    -- * Generation
+    -- * Construction
     , nil
     , yield
     , yieldM
+
+    -- * Generation by Unfolding
     , unfoldr
     , unfoldrM
+
+    -- * Special Generation
     , repeat
     , enumFromStepN
     , fromList
     , fromListM
 
-    -- * Transformation
-    , mapM
+    -- * Deconstruction
+    , uncons
+
+    -- * Elimination by Folding
+    -- ** General Folds
+    , foldr
+    , foldrM
+    , foldl'
+    , foldlM'
+
+    -- ** Special Folds
+    , runStream
     , mapM_
+    , toList
+    , last
+
+    -- * Mapping
+    , map
+    , mapM
 
     -- * Conversion
     , toStreamK
@@ -59,9 +75,11 @@ module Streamly.Streams.StreamD
     )
 where
 
+import GHC.Types ( SPEC(..) )
+import Prelude hiding (map, mapM, mapM_, repeat, foldr, last)
+
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
-import Prelude hiding (mapM, mapM_, repeat)
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -208,6 +226,14 @@ mapM f (Stream step state) = Stream step' state
             Yield x s -> f x >>= \a -> return $ Yield a s
             Stop      -> return Stop
 
+{-# INLINE map #-}
+map :: Monad m => (a -> b) -> Stream m a -> Stream m b
+map f = mapM (return . f)
+
+instance Monad m => Functor (Stream m) where
+    {-# INLINE fmap #-}
+    fmap = map
+
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
@@ -225,15 +251,65 @@ uncons (Stream step state) = go state
 -- | Run a streaming composition, discard the results.
 {-# INLINE_LATE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream (Stream step state) = go state
+runStream (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
         r <- step st
         case r of
-            Yield _ s -> go s
+            Yield _ s -> go SPEC s
             Stop      -> return ()
 
 -- | Execute a monadic action for each element of the 'Stream'
 {-# INLINE_NORMAL mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
 mapM_ m = runStream . mapM m
+
+{-# INLINE_NORMAL foldrM #-}
+foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
+foldrM f z (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+          r <- step st
+          case r of
+            Yield x s -> go SPEC s >>= f x
+            Stop      -> return z
+
+{-# INLINE_NORMAL foldr #-}
+foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
+foldr f = foldrM (\a b -> return (f a b))
+
+{-# INLINE_NORMAL foldlM' #-}
+foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
+foldlM' fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = acc `seq` do
+        r <- step st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Stop -> return acc
+
+{-# INLINE foldl' #-}
+foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
+foldl' fstep = foldlM' (\b a -> return (fstep b a))
+
+{-# INLINE toList #-}
+toList :: Monad m => Stream m a -> m [a]
+toList = foldr (:) []
+
+{-# INLINE_NORMAL last #-}
+last :: Monad m => Stream m a -> m (Maybe a)
+last (Stream step state) = go0 SPEC state
+  where
+    go0 !_ st = do
+        r <- step st
+        case r of
+            Yield x s -> go1 SPEC x s
+            Stop      -> return Nothing
+
+    go1 !_ x st = do
+        r <- step st
+        case r of
+            Yield y s -> go1 SPEC y s
+            Stop      -> return (Just x)

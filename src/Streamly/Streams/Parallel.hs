@@ -24,7 +24,6 @@ module Streamly.Streams.Parallel
     , Parallel
     , parallely
     , parallel
-    , runParallelT     -- deprecated
 
     -- * Function application
     , mkParallel
@@ -45,10 +44,13 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
 import Data.Semigroup (Semigroup(..))
+import Prelude hiding (map)
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.StreamK
+import Streamly.Streams.Serial (map)
 import Streamly.SVar
+import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
+import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
 
@@ -96,7 +98,7 @@ parallelStream = joinStreamVarPar ParallelVar
 -- of combining streams using parallel.
 {-# INLINE consMParallel #-}
 consMParallel :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMParallel m r = yieldM m `parallelStream` r
+consMParallel m r = K.yieldM m `parallelStream` r
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
@@ -307,7 +309,7 @@ x |&. f = f |$. x
 --
 -- @since 0.1.0
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (Functor, MonadTrans)
+    deriving (MonadTrans)
 
 -- | A parallely composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.
@@ -345,7 +347,7 @@ instance MonadAsync m => Semigroup (ParallelT m a) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (ParallelT m a) where
-    mempty = nil
+    mempty = K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -355,7 +357,7 @@ instance MonadAsync m => Monoid (ParallelT m a) where
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (ParallelT m) >>= f
-        = ParallelT $ bindWith parallelStream m (getParallelT . f)
+        = ParallelT $ K.bindWith parallelStream m (getParallelT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -363,10 +365,3 @@ instance MonadAsync m => Monad (ParallelT m) where
 
 MONAD_APPLICATIVE_INSTANCE(ParallelT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)
-
--- | Same as @runStream . parallely@.
---
--- @since 0.1.0
-{-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
-runParallelT :: Monad m => ParallelT m a -> m ()
-runParallelT = runStream

@@ -15,6 +15,7 @@ import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
+{-# INLINE benchIO #-}
 benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1000) >>= f . Ops.source
 
@@ -50,13 +51,18 @@ main = do
         , benchSrcIO serially "foldMapWithM" Ops.sourceFoldMapWithM
         ]
       , bgroup "elimination"
-        [ benchIO "toList" Ops.toList
-        , benchIO "fold" Ops.foldl
+        [ benchIO "toNull" $ Ops.toNull serially
+        , benchIO "mapM_" Ops.mapM_
+        , benchIO "toList" Ops.toList
+        , benchIO "foldr" Ops.foldr
+        , benchIO "foldrM" Ops.foldrM
+        , benchIO "foldl'" Ops.foldl
         , benchIO "last" Ops.last
         ]
       , bgroup "transformation"
         [ benchIO "scan" Ops.scan
         , benchIO "map" Ops.map
+        , benchIO "fmap" Ops.fmap
         , benchIO "mapM" (Ops.mapM serially)
         , benchIO "concat" Ops.concat
         ]

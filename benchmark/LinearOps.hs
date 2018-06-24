@@ -26,6 +26,7 @@ maxValue = value + 1000
 
 {-# INLINE scan #-}
 {-# INLINE map #-}
+{-# INLINE fmap #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
@@ -39,7 +40,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-scan, map, filterEven, filterAllOut,
+scan, map, fmap, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
@@ -50,13 +51,17 @@ scan, map, filterEven, filterAllOut,
 composeMapM :: S.MonadAsync m => Stream m Int -> m ()
 
 {-# INLINE toList #-}
-toList :: Monad m => Stream m Int -> m [Int]
+{-# INLINE foldr #-}
+{-# INLINE foldrM #-}
+toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
 {-# INLINE foldl #-}
 foldl :: Monad m => Stream m Int -> m Int
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => Stream m a -> m ()
 {-# INLINE mapM #-}
 mapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
@@ -72,6 +77,7 @@ type Stream m a = S.SerialT m a
 {-# INLINE source #-}
 source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
 source n = S.serially $ sourceUnfoldrM n
+-- source n = S.serially $ sourceFromList n
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -126,7 +132,10 @@ runStream = S.runStream
 -------------------------------------------------------------------------------
 
 toNull t = runStream . t
+mapM_  = S.mapM_ (\_ -> return ())
 toList = S.toList
+foldr  = S.foldr (:) []
+foldrM = S.foldrM (\a xs -> return (a : xs)) []
 foldl  = S.foldl' (+) 0
 last   = S.last
 
@@ -139,7 +148,8 @@ transform :: Monad m => Stream m a -> m ()
 transform = runStream
 
 scan          = transform . S.scanl' (+) 0
-map           = transform . fmap (+1)
+fmap          = transform . Prelude.fmap (+1)
+map           = transform . S.map (+1)
 mapM t        = transform . t . S.mapM return
 filterEven    = transform . S.filter even
 filterAllOut  = transform . S.filter (> maxValue)
@@ -169,7 +179,8 @@ compose f = transform . f . f . f . f
 composeMapM           = compose (S.mapM return)
 composeAllInFilters   = compose (S.filter (<= maxValue))
 composeAllOutFilters  = compose (S.filter (> maxValue))
-composeMapAllInFilter = compose (S.filter (<= maxValue) . fmap (subtract 1))
+composeMapAllInFilter =
+    compose (S.filter (<= maxValue) . Prelude.fmap (subtract 1))
 
 {-# INLINABLE composeScaling #-}
 composeScaling :: Monad m => Int -> Stream m Int -> m ()

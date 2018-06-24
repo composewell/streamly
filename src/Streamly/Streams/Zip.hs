@@ -30,22 +30,23 @@ module Streamly.Streams.Zip
     , ZipStream         -- deprecated
     , zipSerially
     , zipping          -- deprecated
-    , runZipStream     -- deprecated
 
     , ZipAsyncM
     , ZipAsync
     , zipAsyncly
     , zippingAsync     -- deprecated
-    , runZipAsync      -- deprecated
     )
 where
 
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (repeat, zipWith)
+import Prelude hiding (map, repeat, zipWith)
 
+import Streamly.Streams.StreamK (IsStream(..), Stream(..))
 import Streamly.Streams.Async (mkAsync)
-import Streamly.Streams.StreamK
+import Streamly.Streams.Serial (map)
 import Streamly.SVar (MonadAsync)
+
+import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
 
@@ -62,7 +63,7 @@ zipWithS f m1 m2 = go m1 m2
                 let single2 b = sng (f a b)
                     yield2 b rb = yld (f a b) (go ra rb)
                  in unStream my Nothing stp single2 yield2
-        let single1 a   = merge a nil
+        let single1 a   = merge a K.nil
             yield1 a ra = merge a ra
         unStream mx Nothing stp single1 yield1
 
@@ -85,7 +86,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
                     single2 b   = runIt $ toStream (f a b)
                     yield2 b rb = runIt $ toStream (f a b) <> go ra rb
                  in unStream my Nothing stp single2 yield2
-        let single1 a  = merge a nil
+        let single1 a  = merge a K.nil
             yield1 a ra = merge a ra
         unStream mx Nothing stp single1 yield1
 
@@ -112,7 +113,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 --
 -- @since 0.2.0
 newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
-        deriving (Functor, Semigroup, Monoid)
+        deriving (Semigroup, Monoid)
 
 -- |
 -- @since 0.1.0
@@ -128,7 +129,7 @@ type ZipSerial a = ZipSerialM IO a
 --
 -- @since 0.2.0
 zipSerially :: IsStream t => ZipSerialM m a -> t m a
-zipSerially = adapt
+zipSerially = K.adapt
 
 -- | Same as 'zipSerially'.
 --
@@ -144,15 +145,18 @@ instance IsStream ZipSerialM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    consM m r = fromStream $ consMSerial m (toStream r)
+    consM m r = fromStream $ K.consMSerial m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    m |: r = fromStream $ consMSerial m (toStream r)
+    m |: r = fromStream $ K.consMSerial m (toStream r)
+
+instance Monad m => Functor (ZipSerialM m) where
+    fmap = map
 
 instance Monad m => Applicative (ZipSerialM m) where
-    pure = ZipSerialM . repeat
+    pure = ZipSerialM . K.repeat
     m1 <*> m2 = fromStream $ zipWith id (toStream m1) (toStream m2)
 
 ------------------------------------------------------------------------------
@@ -203,7 +207,7 @@ zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
 --
 -- @since 0.2.0
 newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
-        deriving (Functor, Semigroup, Monoid)
+        deriving (Semigroup, Monoid)
 
 -- | An IO stream whose applicative instance zips streams wAsyncly.
 --
@@ -214,7 +218,7 @@ type ZipAsync a = ZipAsyncM IO a
 --
 -- @since 0.2.0
 zipAsyncly :: IsStream t => ZipAsyncM m a -> t m a
-zipAsyncly = adapt
+zipAsyncly = K.adapt
 
 -- | Same as 'zipAsyncly'.
 --
@@ -229,27 +233,16 @@ instance IsStream ZipAsyncM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     consM :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    consM m r = fromStream $ consMSerial m (toStream r)
+    consM m r = fromStream $ K.consMSerial m (toStream r)
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     (|:) :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    m |: r = fromStream $ consMSerial m (toStream r)
+    m |: r = fromStream $ K.consMSerial m (toStream r)
+
+instance Monad m => Functor (ZipAsyncM m) where
+    fmap = map
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
-    pure = ZipAsyncM . repeat
+    pure = ZipAsyncM . K.repeat
     m1 <*> m2 = zipAsyncWith id m1 m2
-
--- | Same as @runStream . zipping@.
---
--- @since 0.1.0
-{-# DEPRECATED runZipStream "Please use 'runStream . zipSerially instead." #-}
-runZipStream :: Monad m => ZipSerialM m a -> m ()
-runZipStream = runStream
-
--- | Same as @runStream . zippingAsync@.
---
--- @since 0.1.0
-{-# DEPRECATED runZipAsync "Please use 'runStream . zipAsyncly instead." #-}
-runZipAsync :: Monad m => ZipAsyncM m a -> m ()
-runZipAsync = runStream

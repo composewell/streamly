@@ -47,11 +47,11 @@ module Streamly.Prelude
     (
     -- * Construction
     -- | Primitives to construct or inspect a stream.
-      nil
+      K.nil
     , K.yield
     , K.yieldM
-    , cons
-    , (.:)
+    , K.cons
+    , (K..:)
     , consM
     , (|:)
 
@@ -116,6 +116,7 @@ module Streamly.Prelude
     , reverse
 
     -- * Mapping
+    , Serial.map
     , mapM
     , mapMaybe
     , mapMaybeM
@@ -140,25 +141,24 @@ module Streamly.Prelude
     )
 where
 
-import           Control.Monad (void)
-import           Control.Monad.IO.Class      (MonadIO(..))
-import           Data.Maybe                  (isJust, fromJust)
-import           Prelude hiding              (filter, drop, dropWhile, take,
-                                              takeWhile, zipWith, foldr, foldl,
-                                              mapM, mapM_, sequence, all, any,
-                                              sum, product, elem, notElem,
-                                              maximum, minimum, head, last,
-                                              tail, length, null, reverse,
-                                              iterate)
+import Control.Monad.IO.Class (MonadIO(..))
+import Data.Maybe (isJust, fromJust)
+import Prelude
+       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
+               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
+               notElem, maximum, minimum, head, last, tail, length, null,
+               reverse, iterate)
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.Streams.StreamK (IsStream(..), cons, nil, (.:))
+import Streamly.SVar (MonadAsync)
+import Streamly.Streams.StreamK (IsStream(..))
+import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.Zip (zipWith, zipWithM, zipAsyncWith, zipAsyncWithM)
+
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
-import Streamly.Streams.Zip
-import Streamly.Streams.Serial
-import Streamly.SVar (MonadAsync)
+import qualified Streamly.Streams.Serial as Serial
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -260,7 +260,7 @@ fromListM = fromStream . D.toStreamK . D.fromListM
 -- @since 0.3.0
 {-# INLINE fromFoldableM #-}
 fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
-fromFoldableM = Prelude.foldr consM nil
+fromFoldableM = Prelude.foldr consM K.nil
 
 -- | Same as 'fromFoldable'.
 --
@@ -284,7 +284,7 @@ each = K.fromFoldable
 replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
 replicateM n m = go n
     where
-    go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
+    go cnt = if cnt <= 0 then K.nil else m |: go (cnt - 1)
 
 -- | Generate a stream by repeatedly executing a monadic action forever.
 --
@@ -360,14 +360,11 @@ fromHandle h = fromStream go
 -- @
 --
 -- @since 0.1.0
+{-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
-foldr step acc m = go (toStream m)
-    where
-    go m1 =
-        let stop = return acc
-            single a = return (step a acc)
-            yieldk a r = go r >>= \b -> return (step a b)
-        in (K.unStream m1) Nothing stop single yieldk
+-- XXX somehow this definition does not perform well, need to investigate
+-- foldr step acc m = D.foldr step acc $ D.fromStreamK (toStream m)
+foldr f = foldrM (\a b -> return (f a b))
 
 -- | Lazy right fold with a monadic step function. For example, to fold a
 -- stream into a list:
@@ -380,13 +377,7 @@ foldr step acc m = go (toStream m)
 -- @since 0.2.0
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
-foldrM step acc m = go (toStream m)
-    where
-    go m1 =
-        let stop = return acc
-            single a = step a acc
-            yieldk a r = go r >>= step a
-        in (K.unStream m1) Nothing stop single yieldk
+foldrM step acc m = D.foldrM step acc $ D.fromStreamK (toStream m)
 
 -- | Strict left scan with an extraction function. Like 'scanl'', but applies a
 -- user supplied extraction function (the third argument) at each step. This is
@@ -397,7 +388,7 @@ foldrM step acc m = go (toStream m)
 {-# INLINE scanx #-}
 scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx step begin done m =
-    cons (done begin) $ fromStream $ go (toStream m) begin
+    K.cons (done begin) $ fromStream $ go (toStream m) begin
     where
     go m1 !acc = K.Stream $ \_ stp sng yld ->
         let single a = sng (done $ step acc a)
@@ -430,24 +421,7 @@ scanl' step begin m = scanx step begin id m
 -- @since 0.2.0
 {-# INLINE foldx #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx step begin done m = get $ go (toStream m) begin
-    where
-    {-# NOINLINE get #-}
-    get m1 =
-        let single = return . done
-         in (K.unStream m1) Nothing undefined single undefined
-
-    -- Note, this can be implemented by making a recursive call to "go",
-    -- however that is more expensive because of unnecessary recursion
-    -- that cannot be tail call optimized. Unfolding recursion explicitly via
-    -- continuations is much more efficient.
-    go m1 !acc = K.Stream $ \_ _ sng yld ->
-        let stop = sng acc
-            single a = sng $ step acc a
-            yieldk a r =
-                let stream = go r (step acc a)
-                in (K.unStream stream) Nothing undefined sng yld
-        in (K.unStream m1) Nothing stop single yieldk
+foldx = K.foldx
 
 -- |
 -- @since 0.1.0
@@ -460,20 +434,14 @@ foldl = foldx
 -- @since 0.2.0
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
-foldl' step begin m = foldx step begin id m
+foldl' step begin m = D.foldl' step begin $ D.fromStreamK (toStream m)
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
 --
 -- @since 0.2.0
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM step begin done m = go begin (toStream m)
-    where
-    go !acc m1 =
-        let stop = acc >>= done
-            single a = acc >>= \b -> step b a >>= done
-            yieldk a r = acc >>= \b -> go (step b a) r
-         in (K.unStream m1) Nothing stop single yieldk
+foldxM = K.foldxM
 
 -- |
 -- @since 0.1.0
@@ -485,7 +453,7 @@ foldlM = foldxM
 --
 -- @since 0.2.0
 foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
-foldlM' step begin m = foldxM step (return begin) return m
+foldlM' step begin m = D.foldlM' step begin $ D.fromStreamK (toStream m)
 
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
@@ -495,7 +463,7 @@ foldlM' step begin m = foldxM step (return begin) return m
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
-        single a = return (Just (a, nil))
+        single a = return (Just (a, K.nil))
         yieldk a r = return (Just (a, fromStream r))
     in (K.unStream (toStream m)) Nothing stop single yieldk
 
@@ -518,9 +486,9 @@ toHandle h m = go (toStream m)
 -- | Convert a stream into a list in the underlying monad.
 --
 -- @since 0.1.0
-{-# INLINABLE toList #-}
+{-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
-toList = foldrM (\a xs -> return (a : xs)) []
+toList m = D.toList $ D.fromStreamK (toStream m)
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
@@ -644,7 +612,7 @@ head m =
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m =
     let stop      = return Nothing
-        single _  = return $ Just nil
+        single _  = return $ Just K.nil
         yieldk _ r = return $ Just $ fromStream r
     in (K.unStream (toStream m)) Nothing stop single yieldk
 
@@ -653,7 +621,7 @@ tail m =
 -- @since 0.1.1
 {-# INLINE last #-}
 last :: Monad m => SerialT m a -> m (Maybe a)
-last = foldl (\_ y -> Just y) Nothing id
+last m = D.last $ D.fromStreamK (toStream m)
 
 -- | Determine whether the stream is empty.
 --
@@ -761,14 +729,14 @@ maximum m = go Nothing (toStream m)
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @since 0.1.0
-{-# INLINE mapM #-}
+{-# INLINE_EARLY mapM #-}
 mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
-mapM f m = go (toStream m)
-    where
-    go m1 = fromStream $ K.Stream $ \svr stp sng yld ->
-        let single a  = f a >>= sng
-            yieldk a r = K.unStream (toStream (f a |: (go r))) svr stp sng yld
-         in (K.unStream m1) Nothing stp single yieldk
+mapM = K.mapM
+
+{-# RULES "mapM serial" mapM = mapMSerial #-}
+{-# INLINE mapMSerial #-}
+mapMSerial :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
+mapMSerial = Serial.mapM
 
 -- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
 -- elements, and return a stream of values extracted from 'Just'.
@@ -802,14 +770,9 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 -- output of the action.
 --
 -- @since 0.1.0
+{-# INLINE mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
-mapM_ f m = go (toStream m)
-    where
-    go m1 =
-        let stop = return ()
-            single a = void (f a)
-            yieldk a r = f a >> go r
-         in (K.unStream m1) Nothing stop single yieldk
+mapM_ f m = D.mapM_ f $ D.fromStreamK (toStream m)
 
 -- | Reduce a stream of monadic actions to a stream of the output of those
 -- actions.

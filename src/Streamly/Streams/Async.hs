@@ -31,7 +31,6 @@ module Streamly.Streams.Async
     , WAsync
     , wAsyncly
     , wAsync
-    , runAsyncT        -- deprecated
     )
 where
 
@@ -49,11 +48,14 @@ import Data.IORef (IORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 
+import Prelude hiding (map)
 import qualified Data.Set as S
 
 import Streamly.Streams.SVar (fromSVar)
-import Streamly.Streams.StreamK
+import Streamly.Streams.Serial (map)
 import Streamly.SVar
+import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
+import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
 
@@ -323,7 +325,7 @@ async m1 m2 = fromStream $
 -- of combining streams using async.
 {-# INLINE consMAsync #-}
 consMAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAsync m r = yieldM m `asyncS` r
+consMAsync m r = K.yieldM m `asyncS` r
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -379,7 +381,7 @@ consMAsync m r = yieldM m `asyncS` r
 --
 -- @since 0.1.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (Functor, MonadTrans)
+    deriving (MonadTrans)
 
 -- | A demand driven left biased parallely composing IO stream of elements of
 -- type @a@.  See 'AsyncT' documentation for more details.
@@ -417,7 +419,7 @@ instance MonadAsync m => Semigroup (AsyncT m a) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (AsyncT m a) where
-    mempty = nil
+    mempty = K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -426,7 +428,7 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
-    (AsyncT m) >>= f = AsyncT $ bindWith asyncS m (getAsyncT . f)
+    (AsyncT m) >>= f = AsyncT $ K.bindWith asyncS m (getAsyncT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -447,7 +449,7 @@ wAsyncS = joinStreamVarAsync WAsyncVar
 -- of combining streams using wAsync.
 {-# INLINE consMWAsync #-}
 consMWAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMWAsync m r = yieldM m `wAsyncS` r
+consMWAsync m r = K.yieldM m `wAsyncS` r
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.
@@ -505,7 +507,7 @@ wAsync m1 m2 = fromStream $ wAsyncS (toStream m1) (toStream m2)
 --
 -- @since 0.2.0
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
-    deriving (Functor, MonadTrans)
+    deriving (MonadTrans)
 
 -- | A round robin parallely composing IO stream of elements of type @a@.
 -- See 'WAsyncT' documentation for more details.
@@ -543,7 +545,7 @@ instance MonadAsync m => Semigroup (WAsyncT m a) where
 ------------------------------------------------------------------------------
 
 instance MonadAsync m => Monoid (WAsyncT m a) where
-    mempty = nil
+    mempty = K.nil
     mappend = (<>)
 
 ------------------------------------------------------------------------------
@@ -553,7 +555,7 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
     (WAsyncT m) >>= f =
-        WAsyncT $ bindWith wAsyncS m (getWAsyncT . f)
+        WAsyncT $ K.bindWith wAsyncS m (getWAsyncT . f)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -561,10 +563,3 @@ instance MonadAsync m => Monad (WAsyncT m) where
 
 MONAD_APPLICATIVE_INSTANCE(WAsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)
-
--- | Same as @runStream . asyncly@.
---
--- @since 0.1.0
-{-# DEPRECATED runAsyncT "Please use 'runStream . asyncly' instead." #-}
-runAsyncT :: Monad m => AsyncT m a -> m ()
-runAsyncT = runStream
