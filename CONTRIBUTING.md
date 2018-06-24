@@ -9,6 +9,12 @@ we will appreciate if you provide as much detail as possible to reproduce or
 understand the problem, but nevertheless you are encouraged to open an issue
 for any problem that you may encounter.
 
+## Developer documentation
+
+Build haddock with the `dev` flag to see the whole documentation and module
+structure. For example,
+`stack haddock --flag "streamly:dev" --no-haddock-deps`.
+
 ## Pull Requests (PR)
 
 Please feel free to [send a pull

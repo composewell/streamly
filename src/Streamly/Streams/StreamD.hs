@@ -26,7 +26,9 @@
 -- to INLINE and fuse direct style better, providing better performance than
 -- CPS implementation.
 --
+-- @
 -- import qualified Streamly.Streams.StreamD as D
+-- @
 --
 module Streamly.Streams.StreamD
     (
@@ -35,22 +37,25 @@ module Streamly.Streams.StreamD
     , Stream (..)
 
     -- * Construction
+    -- | Direct style stream does not support construction by adding more
+    -- elements to an existing stream.
     , nil
-    , yield
-    , yieldM
+
+    -- * Deconstruction
+    , uncons
 
     -- * Generation by Unfolding
     , unfoldr
     , unfoldrM
 
     -- * Special Generation
+    -- | Direct style stream does not support @fromFoldable@.
+    , yield
+    , yieldM
     , repeat
     , enumFromStepN
     , fromList
     , fromListM
-
-    -- * Deconstruction
-    , uncons
 
     -- * Elimination by Folding
     -- ** General Folds
@@ -86,8 +91,8 @@ import qualified Streamly.Streams.StreamK as K
 ------------------------------------------------------------------------------
 
 -- | A stream is a succession of 'Step's. A 'Yield' produces a single value and
--- the next state of the stream. Stop indicates there are no more values in the
--- stream.
+-- the next state of the stream. 'Stop' indicates there are no more values in
+-- the stream.
 data Step s a = Yield a s | Stop
 
 instance Functor (Step s) where

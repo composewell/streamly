@@ -46,14 +46,15 @@
 module Streamly.Prelude
     (
     -- * Construction
-    -- | Primitives to construct or inspect a stream.
+    -- | Primitives to construct a stream.
       K.nil
-    , K.yield
-    , K.yieldM
     , K.cons
     , (K..:)
     , consM
     , (|:)
+
+    -- * Deconstruction
+    , uncons
 
     -- * Generation by Unfolding
     , unfoldr
@@ -62,6 +63,8 @@ module Streamly.Prelude
     -- * Special Generation
     -- | Generate a monadic stream from an input structure, a seed or a
     -- generation function.
+    , K.yield
+    , K.yieldM
     , replicateM
     , K.repeat
     , repeatM
@@ -71,9 +74,6 @@ module Streamly.Prelude
     , fromListM
     , K.fromFoldable
     , fromFoldableM
-
-    -- * Deconstruction
-    , uncons
 
     -- * Elimination by Folding
     -- ** General Folds
@@ -105,6 +105,13 @@ module Streamly.Prelude
     , scanl'
     , scanx
 
+    -- * Mapping
+    , Serial.map
+    , mapM
+    , mapMaybe
+    , mapMaybeM
+    , sequence
+
     -- * Filtering
     , filter
     , take
@@ -114,13 +121,6 @@ module Streamly.Prelude
 
     -- * Reordering
     , reverse
-
-    -- * Mapping
-    , Serial.map
-    , mapM
-    , mapMaybe
-    , mapMaybeM
-    , sequence
 
     -- * Zipping
     , zipWith

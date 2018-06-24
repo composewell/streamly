@@ -24,7 +24,9 @@
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
+-- @
 -- import qualified Streamly.Streams.StreamK as K
+-- @
 --
 module Streamly.Streams.StreamK
     (
@@ -38,8 +40,6 @@ module Streamly.Streams.StreamK
     -- * Construction
     , mkStream
     , nil
-    , yield
-    , yieldM
     , cons
     , (.:)
 
@@ -48,27 +48,33 @@ module Streamly.Streams.StreamK
     , yieldK
     , consK
 
-    -- * Generation
+    -- * Generation by Unfolding
     , unfoldr
     , unfoldrM
+
+    -- * Special Generation
+    , yield
+    , yieldM
     , repeat
     , fromFoldable
 
-    -- * Elimination
+    -- * Elimination by Folding
+    -- ** General Folds
     , foldStream
     , foldr
     , foldrM
-    , foldx
     , foldl'
-    , foldxM
     , foldlM'
+    , foldx
+    , foldxM
 
+    -- ** Special Folds
     , runStream
     , mapM_
     , toList
     , last
 
-    -- * Transformation
+    -- * Mapping
     , map
     , mapM
 
@@ -99,14 +105,16 @@ import Streamly.SVar
 -- The basic stream type
 ------------------------------------------------------------------------------
 
--- | The type 'Stream m a' represents a monadic stream of values of type 'a'
+-- | The type @Stream m a@ represents a monadic stream of values of type 'a'
 -- constructed using actions in monad 'm'. It uses stop, singleton and yield
 -- continuations equivalent to the following direct style type:
 --
+-- @
 -- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
+-- @
 --
--- To facilitate parallel composition we maintain a local state in an SVar that
--- is shared across and is used for synchronization of the streams being
+-- To facilitate parallel composition we maintain a local state in an 'SVar'
+-- that is shared across and is used for synchronization of the streams being
 -- composed.
 --
 -- The singleton case can be expressed in terms of stop and yield but we have
