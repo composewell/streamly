@@ -42,7 +42,7 @@ sourceUnfoldrM n value = S.serially $ S.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: S.IsStream t => Int -> Int -> t m Int
+sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
 sourceUnfoldr start n = S.unfoldr step start
     where
     step cnt =

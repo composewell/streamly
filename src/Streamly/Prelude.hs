@@ -1,9 +1,14 @@
 {-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
+
+{-# OPTIONS_GHC -Wno-orphans #-}
+
+#include "Streams/inline.h"
 
 -- |
 -- Module      : Streamly.Prelude
@@ -60,7 +65,9 @@ module Streamly.Prelude
     , repeatM
     , iterate
     , iterateM
-    , fromFoldable
+    , fromList
+    , fromListM
+    , K.fromFoldable
     , fromFoldableM
 
     -- * Deconstruction
@@ -123,7 +130,7 @@ module Streamly.Prelude
     , toHandle
 
     -- * Deprecated
-    , once
+    , K.once
     , each
     , scan
     , foldl
@@ -144,8 +151,9 @@ import           Prelude hiding              (filter, drop, dropWhile, take,
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.Streams.StreamK
+import Streamly.Streams.StreamK (IsStream(..), cons, nil, (.:))
 import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Streams.StreamD as D
 import Streamly.Streams.Zip
 import Streamly.Streams.Serial
 import Streamly.SVar (MonadAsync)
@@ -171,14 +179,11 @@ import Streamly.SVar (MonadAsync)
 -- @
 --
 -- @since 0.1.0
-{-# INLINE unfoldr #-}
-unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step = fromStream . go
-    where
-    go s = K.Stream $ \_ stp _ yld ->
-        case step s of
-            Nothing -> stp
-            Just (a, b) -> yld a (go b)
+{-# INLINE_EARLY unfoldr #-}
+unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
+unfoldr step seed = fromStream $ D.toStreamK (D.unfoldr step seed)
+{-# RULES "unfoldr fallback to StreamK" [1]
+    forall a b. D.toStreamK (D.unfoldr a b) = K.unfoldr a b #-}
 
 -- | Build a stream by unfolding a /monadic/ step function starting from a
 -- seed.  The step function returns the next element in the stream and the next
@@ -211,23 +216,35 @@ unfoldr step = fromStream . go
 -- /Concurrent/
 --
 -- /Since: 0.1.0/
-{-# INLINE unfoldrM #-}
+{-# INLINE_EARLY unfoldrM #-}
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldrM step = go
-    where
-    go s = fromStream $ K.Stream $ \svr stp sng yld -> do
-        mayb <- step s
-        case mayb of
-            Nothing -> stp
-            Just (a, b) ->
-                K.unStream (toStream (return a |: go b)) svr stp sng yld
+unfoldrM = K.unfoldrM
 
--- | Construct a stream from a 'Foldable' containing pure values.
+{-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
+{-# INLINE_EARLY unfoldrMSerial #-}
+unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
+unfoldrMSerial step seed = fromStream $ D.toStreamK (D.unfoldrM step seed)
+
+-- | Construct a stream from a list containing pure values. This can be more
+-- efficient than 'K.fromFoldable' for lists as it can fuse the list.
 --
--- @since 0.2.0
-{-# INLINE fromFoldable #-}
-fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
-fromFoldable = Prelude.foldr cons nil
+-- @since 0.4.0
+{-# INLINE_EARLY fromList #-}
+fromList :: (Monad m, IsStream t) => [a] -> t m a
+fromList = fromStream . D.toStreamK . D.fromList
+{-# RULES "fromList fallback to StreamK" [1]
+    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
+
+-- | Construct a stream from a list containing monadic actions. This can be
+-- more efficient than 'fromFoldableM' especially for serial streams as it can
+-- fuse the list.
+--
+-- @since 0.4.0
+{-# INLINE_EARLY fromListM #-}
+fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
+fromListM = fromStream . D.toStreamK . D.fromListM
+{-# RULES "fromListM fallback to StreamK" [1]
+    forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
 
 -- | Construct a stream from a 'Foldable' containing monadic actions.
 --
@@ -249,7 +266,7 @@ fromFoldableM = Prelude.foldr consM nil
 {-# DEPRECATED each "Please use fromFoldable instead." #-}
 {-# INLINE each #-}
 each :: (IsStream t, Foldable f) => f a -> t m a
-each = fromFoldable
+each = K.fromFoldable
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --

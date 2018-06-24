@@ -73,6 +73,14 @@ type Stream m a = S.SerialT m a
 source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
 source n = S.serially $ sourceUnfoldrM n
 
+{-# INLINE sourceFromList #-}
+sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceFromList n = S.fromList [n..n+value]
+
+{-# INLINE sourceFromListM #-}
+sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
+
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: S.IsStream t => Int -> t m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
@@ -92,7 +100,7 @@ sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
 sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: S.IsStream t => Int -> t m Int
+sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
 sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =

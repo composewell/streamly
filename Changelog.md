@@ -8,6 +8,9 @@
 
 * Add `yield` to construct a singleton stream from a pure value
 * Add `repeat` to generate an infinite stream by repeating a pure value
+* Add `fromList` and `fromListM` to generate streams from lists, faster than
+  `fromFoldable` and `fromFoldableM`
+* Significant performance improvements
 
 ## 0.3.0
 

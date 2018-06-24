@@ -9,6 +9,10 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
+#include "inline.h"
+
 -- |
 -- Module      : Streamly.Streams.Prelude
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -34,6 +38,7 @@ where
 
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK hiding (runStream)
+import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K
 
 ------------------------------------------------------------------------------
@@ -45,8 +50,11 @@ import qualified Streamly.Streams.StreamK as K
 -- combinators for example @runStream . 'asyncly'@.
 --
 -- @since 0.2.0
+{-# INLINE_EARLY runStream #-}
 runStream :: Monad m => SerialT m a -> m ()
-runStream = K.runStream
+runStream m = D.runStream $ D.fromStreamK (toStream m)
+{-# RULES "runStream fallback to CPS" [1]
+    forall a. D.runStream (D.fromStreamK a) = K.runStream a #-}
 
 -- | Same as 'runStream'
 --
@@ -90,29 +98,3 @@ foldMapWith f g = foldr (f . g) nil
 forEachWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
 forEachWith f xs g = foldr (f . g) nil xs
-
--------------------------------------------------------------------------------
--- Generation by unfold
--------------------------------------------------------------------------------
-
-{-
-{-# INLINE unfoldr #-}
-unfoldr :: (b -> Maybe (a, b)) -> b -> Stream m a
-unfoldr step = go
-    where
-    go s = Stream $ \_ stp _ yld ->
-        case step s of
-            Nothing -> stp
-            Just (a, b) -> yld a (go b)
-
-{-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> Stream m a
-unfoldrM step = go
-    where
-    go s = Stream $ \svr stp sng yld -> do
-        mayb <- step s
-        case mayb of
-            Nothing -> stp
-            Just (a, b) ->
-                K.runStream (a `cons` go b) svr stp sng yld
--}

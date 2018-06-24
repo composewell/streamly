@@ -52,7 +52,10 @@ module Streamly.Streams.StreamK
     , consK
 
     -- * Generation
+    , unfoldr
+    , unfoldrM
     , repeat
+    , fromFoldable
 
     -- * Semigroup Style Composition
     , serial
@@ -335,6 +338,30 @@ runStream m = go (toStream m)
          in (unStream m1) Nothing stop single yieldk
 
 -------------------------------------------------------------------------------
+-- Generation
+-------------------------------------------------------------------------------
+
+{-# INLINE unfoldr #-}
+unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
+unfoldr step = fromStream . go
+    where
+    go s = Stream $ \_ stp _ yld ->
+        case step s of
+            Nothing -> stp
+            Just (a, b) -> yld a (go b)
+
+{-# INLINE unfoldrM #-}
+unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM step = go
+    where
+    go s = fromStream $ Stream $ \svr stp sng yld -> do
+        mayb <- step s
+        case mayb of
+            Nothing -> stp
+            Just (a, b) ->
+                unStream (toStream (return a |: go b)) svr stp sng yld
+
+-------------------------------------------------------------------------------
 -- Special generation
 -------------------------------------------------------------------------------
 
@@ -343,6 +370,13 @@ runStream m = go (toStream m)
 -- @since 0.4.0
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
+
+-- | Construct a stream from a 'Foldable' containing pure values.
+--
+-- @since 0.2.0
+{-# INLINE fromFoldable #-}
+fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
+fromFoldable = Prelude.foldr cons nil
 
 ------------------------------------------------------------------------------
 -- Semigroup

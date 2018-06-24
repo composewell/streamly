@@ -47,6 +47,7 @@ module Streamly.Streams.StreamD
     , repeat
     , enumFromStepN
     , fromList
+    , fromListM
 
     -- * Transformation
     , mapM
@@ -58,6 +59,7 @@ module Streamly.Streams.StreamD
     )
 where
 
+import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
 import Prelude hiding (mapM, mapM_, repeat)
 
@@ -80,11 +82,11 @@ instance Functor (Step s) where
 data Stream m a = forall s. Stream (s -> m (Step s a)) s
 
 -------------------------------------------------------------------------------
--- IsStream Stream
+-- Conversion to and from StreamK
 -------------------------------------------------------------------------------
 
 -- Convert a direct stream to and from CPS encoded stream
-{-# INLINE_NORMAL toStreamK #-}
+{-# INLINE_LATE toStreamK #-}
 toStreamK :: Monad m => Stream m a -> K.Stream m a
 toStreamK (Stream step state) = go state
     where
@@ -94,7 +96,7 @@ toStreamK (Stream step state) = go state
             Yield x s -> yld x (go s)
             Stop      -> stp
 
-{-# INLINE_NORMAL fromStreamK #-}
+{-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
 fromStreamK m = Stream step m
     where
@@ -104,14 +106,10 @@ fromStreamK m = Stream step m
             yieldk a r = return $ Yield a r
          in K.unStream m1 Nothing stop single yieldk
 
-{-
-instance K.IsStream Stream where
-    toStream = toStreamK
-    fromStream = fromStreamK
-
-    consM = undefined
-    (|:) = undefined
--}
+{-# RULES "fromStreamK/toStreamK fusion"
+    forall s. toStreamK (fromStreamK s) = s #-}
+{-# RULES "toStreamK/fromStreamK fusion"
+    forall s. fromStreamK (toStreamK s) = s #-}
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -155,7 +153,7 @@ unfoldrM next state = Stream step state
             Just (x, s) -> Yield x s
             Nothing     -> Stop
 
-{-# INLINE_NORMAL unfoldr #-}
+{-# INLINE_LATE unfoldr #-}
 unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
 unfoldr f = unfoldrM (return . f)
 
@@ -175,8 +173,18 @@ enumFromStepN from stride n =
         step (x, i) | i > 0     = return $ Yield x (x + stride, i - 1)
                     | otherwise = return $ Stop
 
--- | Convert a list to a 'Stream'
-{-# INLINE_NORMAL fromList #-}
+-- XXX we need the MonadAsync constraint because of a rewrite rule.
+-- | Convert a list of monadic actions to a 'Stream'
+{-# INLINE_LATE fromListM #-}
+fromListM :: MonadAsync m => [m a] -> Stream m a
+fromListM zs = Stream step zs
+  where
+    {-# INLINE_LATE step #-}
+    step (m:ms) = m >>= \x -> return $ Yield x ms
+    step []     = return Stop
+
+-- | Convert a list of pure values to a 'Stream'
+{-# INLINE_LATE fromList #-}
 fromList :: Monad m => [a] -> Stream m a
 fromList zs = Stream step zs
   where
@@ -215,7 +223,7 @@ uncons (Stream step state) = go state
             Stop      -> Nothing
 
 -- | Run a streaming composition, discard the results.
-{-# INLINE_NORMAL runStream #-}
+{-# INLINE_LATE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
 runStream (Stream step state) = go state
   where

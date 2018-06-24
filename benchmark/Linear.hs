@@ -40,6 +40,8 @@ main = do
         [ -- Most basic, barely stream continuations running
           benchSrcIO serially "unfoldr" $ Ops.sourceUnfoldr
         , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
+        , benchSrcIO serially "fromList" Ops.sourceFromList
+        , benchSrcIO serially "fromListM" Ops.sourceFromListM
         -- These are essentially cons and consM
         , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO serially "fromFoldableM" Ops.sourceFromFoldableM
