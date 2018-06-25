@@ -13,7 +13,7 @@ module StreamDOps where
        -- (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
         -- subtract, undefined, Maybe(..))
 import Prelude
-        (Monad, Int, (+), (.), return, (>),
+        (Monad, Int, (+), (.), return, (>), even, (<=),
          Maybe(..))
 
 import qualified Streamly.Streams.StreamD as S
@@ -26,14 +26,14 @@ maxValue = value + 1000
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
-{-
-{-# INLINE scan #-}
+-- {-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
 {-# INLINE takeOne #-}
 {-# INLINE takeAll #-}
+{-
 {-# INLINE takeWhileTrue #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
@@ -42,15 +42,18 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-scan, map, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
-    concat, composeAllInFilters, composeAllOutFilters,
-    composeMapAllInFilter
+-}
+map, filterEven, filterAllOut,
+    filterAllIn, takeOne, takeAll -- takeWhileTrue, dropAll, dropWhileTrue, zip,
+    -- concat, composeAllInFilters, composeAllOutFilters,
+    -- composeMapAllInFilter
     :: Monad m
     => Stream m Int -> m ()
 
+{-
 {-# INLINE composeMapM #-}
 composeMapM :: S.MonadAsync m => Stream m Int -> m ()
+-}
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -58,9 +61,6 @@ toList :: Monad m => Stream m Int -> m [Int]
 foldl :: Monad m => Stream m Int -> m Int
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
-{-# INLINE zipAsync #-}
-zipAsync :: S.MonadAsync m => Stream m Int -> m ()
--}
 
 {-# INLINE toNull #-}
 {-# INLINE mapM #-}
@@ -98,12 +98,6 @@ sourceFromEnum n = S.enumFromStepN n 1 value
 sourceFromFoldable :: Monad m => Int -> Stream m Int
 sourceFromFoldable n = S.fromList [n..n+value]
 
-{-
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
--}
-
 {-# INLINE source #-}
 source :: Monad m => Int -> Stream m Int
 source n = sourceUnfoldrM n
@@ -117,11 +111,9 @@ runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
 toNull = runStream
-{-
 toList = S.toList
 foldl  = S.foldl' (+) 0
 last   = S.last
--}
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -131,17 +123,15 @@ last   = S.last
 transform :: Monad m => Stream m a -> m ()
 transform = runStream
 
-{-
-scan          = transform . S.scanl' (+) 0
-map           = transform . fmap (+1)
--}
+-- scan          = transform . S.scanl' (+) 0
+map           = transform . S.map (+1)
 mapM          = transform . S.mapM return
-{-
 filterEven    = transform . S.filter even
 filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)
 takeOne       = transform . S.take 1
 takeAll       = transform . S.take maxValue
+{-
 takeWhileTrue = transform . S.takeWhile (<= maxValue)
 dropAll       = transform . S.drop maxValue
 dropWhileTrue = transform . S.dropWhile (<= maxValue)

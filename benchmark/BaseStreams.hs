@@ -41,8 +41,15 @@ main = do
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM
         ]
       , bgroup "transformation"
-        [
-          benchIO "mapM" D.mapM D.sourceUnfoldrM
+        [ -- benchIO "scan" D.scan D.sourceUnfoldrM
+          benchIO "map"  D.map D.sourceUnfoldrM
+        , benchIO "mapM" D.mapM D.sourceUnfoldrM
+        ]
+      , bgroup "filtering"
+        [ benchIO "filter-even"    D.filterEven D.sourceUnfoldrM
+        , benchIO "filter-all-out" D.filterAllOut D.sourceUnfoldrM
+        , benchIO "filter-all-in"  D.filterAllIn D.sourceUnfoldrM
+        , benchIO "take-all"       D.takeAll D.sourceUnfoldrM
         ]
       ]
     , bgroup "streamK"

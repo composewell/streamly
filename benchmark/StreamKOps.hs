@@ -16,7 +16,7 @@ import Prelude
 import qualified Streamly.Streams.StreamK as S hiding (runStream)
 -- import qualified Streamly.Streams.Serial as S
 import qualified Streamly as S
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude as P
 
 value, maxValue :: Int
 value = 1000000
@@ -99,7 +99,7 @@ sourceFromFoldable n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}
 sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
+sourceFromFoldableM n = P.fromFoldableM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Monad m => Int -> Stream m Int
@@ -142,15 +142,15 @@ filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)
 takeOne       = transform . S.take 1
 takeAll       = transform . S.take maxValue
-takeWhileTrue = transform . S.takeWhile (<= maxValue)
-dropAll       = transform . S.drop maxValue
-dropWhileTrue = transform . S.dropWhile (<= maxValue)
+takeWhileTrue = transform . P.takeWhile (<= maxValue)
+dropAll       = transform . P.drop maxValue
+dropWhileTrue = transform . P.dropWhile (<= maxValue)
 
 -------------------------------------------------------------------------------
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ (S.zipWith (,) src src)
+zip src       = transform $ (P.zipWith (,) src src)
 concat _n     = return ()
 
 -------------------------------------------------------------------------------
