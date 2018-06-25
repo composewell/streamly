@@ -465,26 +465,15 @@ toList m = D.toList $ D.fromStreamK (toStream m)
 --
 -- @since 0.1.0
 {-# INLINE take #-}
-take :: IsStream t => Int -> t m a -> t m a
-take n m = fromStream $ go n (toStream m)
-    where
-    go n1 m1 = K.Stream $ \_ stp sng yld ->
-        let yieldk a r = yld a (go (n1 - 1) r)
-        in if n1 <= 0 then stp else (K.unStream m1) Nothing stp sng yieldk
+take :: (IsStream t, Monad m) => Int -> t m a -> t m a
+take n m = fromStream $ D.toStreamK $ D.take n (D.fromStreamK $ toStream m)
 
 -- | Include only those elements that pass a predicate.
 --
 -- @since 0.1.0
 {-# INLINE filter #-}
-filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter p m = fromStream $ go (toStream m)
-    where
-    go m1 = K.Stream $ \_ stp sng yld ->
-        let single a  | p a       = sng a
-                      | otherwise = stp
-            yieldk a r | p a       = yld a (go r)
-                      | otherwise = (K.unStream r) Nothing stp single yieldk
-         in (K.unStream m1) Nothing stp single yieldk
+filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ D.toStreamK $ D.filter p (D.fromStreamK $ toStream m)
 
 -- | End the stream as soon as the predicate fails on an element.
 --

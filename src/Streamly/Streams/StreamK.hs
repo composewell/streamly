@@ -84,6 +84,10 @@ module Streamly.Streams.StreamK
     , mapMaybe
     , sequence
 
+    -- * Filtering
+    , filter
+    , take
+
     -- * Semigroup Style Composition
     , serial
 
@@ -102,7 +106,9 @@ import Control.Monad (void)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence)
+import Prelude
+       hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
+               take, filter)
 import qualified Prelude
 
 import Streamly.SVar
@@ -516,6 +522,29 @@ repeat a = let x = cons a x in x
 {-# INLINE fromFoldable #-}
 fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = Prelude.foldr cons nil
+
+-------------------------------------------------------------------------------
+-- Filtering
+-------------------------------------------------------------------------------
+
+{-# INLINE take #-}
+take :: IsStream t => Int -> t m a -> t m a
+take n m = fromStream $ go n (toStream m)
+    where
+    go n1 m1 = Stream $ \_ stp sng yld ->
+        let yieldk a r = yld a (go (n1 - 1) r)
+        in if n1 <= 0 then stp else (unStream m1) Nothing stp sng yieldk
+
+{-# INLINE filter #-}
+filter :: IsStream t => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \_ stp sng yld ->
+        let single a  | p a       = sng a
+                      | otherwise = stp
+            yieldk a r | p a       = yld a (go r)
+                       | otherwise = (unStream r) Nothing stp single yieldk
+         in (unStream m1) Nothing stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Semigroup

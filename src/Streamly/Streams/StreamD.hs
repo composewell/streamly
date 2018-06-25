@@ -76,6 +76,11 @@ module Streamly.Streams.StreamD
     , map
     , mapM
 
+    -- * Filtering
+    , filter
+    , filterM
+    , take
+
     -- * Conversion
     , toStreamK
     , fromStreamK
@@ -83,7 +88,7 @@ module Streamly.Streams.StreamD
 where
 
 import GHC.Types ( SPEC(..) )
-import Prelude hiding (map, mapM, mapM_, repeat, foldr, last)
+import Prelude hiding (map, mapM, mapM_, repeat, foldr, last, take, filter)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -253,6 +258,41 @@ map f = mapM (return . f)
 instance Monad m => Functor (Stream m) where
     {-# INLINE fmap #-}
     fmap = map
+
+-------------------------------------------------------------------------------
+-- Filtering
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL take #-}
+take :: Monad m => Int -> Stream m a -> Stream m a
+take n (Stream step state) = n `seq` Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' (st, i) | i < n = do
+        r <- step st
+        return $ case r of
+            Yield x s -> Yield x (s, i + 1)
+            Stop      -> Stop
+    step' (_, _) = return Stop
+
+{-# INLINE_NORMAL filterM #-}
+filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+filterM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' st = do
+        r <- step st
+        case r of
+            Yield x s -> do
+                b <- f x
+                if b
+                then return $ Yield x s
+                else step' s
+            Stop -> return $ Stop
+
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+filter f = filterM (return . f)
 
 -------------------------------------------------------------------------------
 -- Elimination
