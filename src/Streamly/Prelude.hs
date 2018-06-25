@@ -473,7 +473,11 @@ take n m = fromStream $ D.toStreamK $ D.take n (D.fromStreamK $ toStream m)
 -- @since 0.1.0
 {-# INLINE filter #-}
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+-- XXX this causes GHC-8.2.2 to go into a liveloop with 100% CPU when compiling
+-- the "linear" benchmark code.
 filter p m = fromStream $ D.toStreamK $ D.filter p (D.fromStreamK $ toStream m)
+-- This implementation works fine
+-- filter = K.filter
 
 -- | End the stream as soon as the predicate fails on an element.
 --
