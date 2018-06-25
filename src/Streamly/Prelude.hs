@@ -472,8 +472,14 @@ take n m = fromStream $ D.toStreamK $ D.take n (D.fromStreamK $ toStream m)
 --
 -- @since 0.1.0
 {-# INLINE filter #-}
+#if __GLASGOW_HASKELL__ != 802
+-- GHC 8.2.2 crashes with this code, when used with "stack"
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
 filter p m = fromStream $ D.toStreamK $ D.filter p (D.fromStreamK $ toStream m)
+#else
+filter :: IsStream t => (a -> Bool) -> t m a -> t m a
+filter = K.filter
+#endif
 
 -- | End the stream as soon as the predicate fails on an element.
 --
