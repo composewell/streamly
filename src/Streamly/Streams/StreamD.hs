@@ -101,9 +101,14 @@ module Streamly.Streams.StreamD
     -- * Mapping
     , map
     , mapM
+
+    -- ** Map and Filter
+    , mapMaybe
+    , mapMaybeM
     )
 where
 
+import Data.Maybe (fromJust, isJust)
 import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
@@ -494,6 +499,18 @@ mapM f (Stream step state) = Stream step' state
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = mapM (return . f)
+
+------------------------------------------------------------------------------
+-- Transformation by Map and Filter
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL mapMaybe #-}
+mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
+mapMaybe f = fmap fromJust . filter isJust . map f
+
+{-# INLINE_NORMAL mapMaybeM #-}
+mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
+mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 ------------------------------------------------------------------------------
 -- Instances
