@@ -40,6 +40,11 @@ main = do
         , benchIO "fromFoldable" D.toNull D.sourceFromFoldable
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM
         ]
+      , bgroup "elimination"
+        [ benchIO "toNull" D.toNull D.sourceUnfoldrM
+        , benchIO "uncons" D.uncons D.sourceUnfoldrM
+        , benchIO "nullHeadTail" D.nullHeadTail D.sourceUnfoldrM
+        ]
       , bgroup "transformation"
         [ -- benchIO "scan" D.scan D.sourceUnfoldrM
           benchIO "map"  D.map D.sourceUnfoldrM
@@ -66,7 +71,10 @@ main = do
         , benchIO "foldMapWithM" K.toNull K.sourceFoldMapWithM
         ]
       , bgroup "elimination"
-        [ benchFold "toList" K.toList K.sourceUnfoldrM
+        [ benchIO "toNull" K.toNull K.sourceUnfoldrM
+        , benchIO "uncons" K.uncons K.sourceUnfoldrM
+        , benchIO "nullHeadTail" K.nullHeadTail K.sourceUnfoldrM
+        , benchFold "toList" K.toList K.sourceUnfoldrM
         , benchFold "fold"   K.foldl  K.sourceUnfoldrM
         , benchFold "last"   K.last   K.sourceUnfoldrM
         ]

@@ -30,7 +30,7 @@
 -- import qualified Streamly.Streams.StreamD as D
 -- @
 
--- A majority of functions in this file have been adapted from the vector
+-- Some of functions in this file have been adapted from the vector
 -- library,  https://hackage.haskell.org/package/vector.
 
 module Streamly.Streams.StreamD
@@ -74,6 +74,9 @@ module Streamly.Streams.StreamD
 
     -- ** Specialized Folds
     , runStream
+    , null
+    , head
+    , tail
     , last
     , elem
     , notElem
@@ -119,7 +122,7 @@ import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
-               notElem)
+               notElem, null, head, tail)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -151,7 +154,7 @@ data Stream m a = forall s. Stream (s -> m (Step s a)) s
 nil :: Monad m => Stream m a
 nil = Stream (const $ return Stop) ()
 
--- | Note that the cons operation is not scalable as it has O(n^2) complexity.
+-- | Can fuse but has O(n^2) complexity.
 cons :: Monad m => a -> Stream m a -> Stream m a
 cons x (Stream step state) = Stream step1 Nothing
     where
@@ -166,6 +169,7 @@ cons x (Stream step state) = Stream step1 Nothing
 -- Deconstruction
 -------------------------------------------------------------------------------
 
+-- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
 uncons (Stream step state) = go state
@@ -311,6 +315,39 @@ runStream (Stream step state) = go SPEC state
             Yield _ s -> go SPEC s
             Stop      -> return ()
 
+{-# INLINE_NORMAL null #-}
+null :: Monad m => Stream m a -> m Bool
+null (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield _ _ -> return False
+            Stop -> return True
+
+-- XXX SPEC?
+{-# INLINE_NORMAL head #-}
+head :: Monad m => Stream m a -> m (Maybe a)
+head (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield x _ -> return (Just x)
+            Stop -> return Nothing
+
+-- Does not fuse, has the same performance as the StreamK version.
+{-# INLINE_NORMAL tail #-}
+tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
+tail (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield _ s -> return (Just $ Stream step s)
+            Stop -> return Nothing
+
+-- XXX will it fuse? need custom impl?
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
 last = foldl' (\_ y -> Just y) Nothing

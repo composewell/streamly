@@ -11,7 +11,7 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..), odd, Bool)
+        subtract, undefined, Maybe(..), odd, Bool, not)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -24,6 +24,8 @@ maxValue = value + 1000
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
+{-# INLINE uncons #-}
+{-# INLINE nullHeadTail #-}
 {-# INLINE scan #-}
 {-# INLINE mapM_ #-}
 {-# INLINE map #-}
@@ -44,7 +46,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
+uncons, nullHeadTail, scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
     dropWhileTrue, dropWhileMTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
@@ -163,6 +165,21 @@ runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
 toNull t = runStream . t
+uncons s = do
+    r <- S.uncons s
+    case r of
+        Nothing -> return ()
+        Just (_, t) -> uncons t
+nullHeadTail s = do
+    r <- S.null s
+    if not r
+    then do
+        _ <- S.head s
+        t <- S.tail s
+        case t of
+            Nothing -> return ()
+            Just x -> nullHeadTail x
+    else return ()
 mapM_  = S.mapM_ (\_ -> return ())
 toList = S.toList
 foldr  = S.foldr (:) []

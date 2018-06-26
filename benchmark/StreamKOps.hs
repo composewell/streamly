@@ -11,7 +11,7 @@ module StreamKOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..))
+        subtract, undefined, Maybe(..), not)
 
 import qualified Streamly.Streams.StreamK as S hiding (runStream)
 -- import qualified Streamly.Streams.Serial as S
@@ -26,6 +26,9 @@ maxValue = value + 1000
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
+{-# INLINE toNull #-}
+{-# INLINE uncons #-}
+{-# INLINE nullHeadTail #-}
 {-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
@@ -41,7 +44,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-scan, map, filterEven, filterAllOut,
+toNull, uncons, nullHeadTail, scan, map, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
@@ -58,9 +61,7 @@ foldl :: Monad m => Stream m Int -> m Int
 {-# INLINE last #-}
 last :: Monad m => Stream m Int -> m (Maybe Int)
 
-{-# INLINE toNull #-}
 {-# INLINE mapM #-}
-toNull :: Monad m => Stream m Int -> m ()
 mapM :: S.MonadAsync m => Stream m Int -> m ()
 
 -------------------------------------------------------------------------------
@@ -122,6 +123,23 @@ runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
 toNull = runStream
+uncons s = do
+    r <- S.uncons s
+    case r of
+        Nothing -> return ()
+        Just (_, t) -> uncons t
+
+nullHeadTail s = do
+    r <- S.null s
+    if not r
+    then do
+        _ <- S.head s
+        t <- S.tail s
+        case t of
+            Nothing -> return ()
+            Just x -> nullHeadTail x
+    else return ()
+
 toList = S.toList
 foldl  = S.foldl' (+) 0
 last   = S.last

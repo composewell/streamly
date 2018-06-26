@@ -210,11 +210,7 @@ toStreamD = D.fromStreamK . toStream
 --
 -- @since 0.1.0
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
-uncons m =
-    let stop = return Nothing
-        single a = return (Just (a, K.nil))
-        yieldk a r = return (Just (a, fromStream r))
-    in (K.unStream (toStream m)) Nothing stop single yieldk
+uncons m = K.uncons (K.adapt m)
 
 ------------------------------------------------------------------------------
 -- Generation by Unfolding
@@ -500,32 +496,23 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- | Determine whether the stream is empty.
 --
 -- @since 0.1.1
+{-# INLINE null #-}
 null :: Monad m => SerialT m a -> m Bool
-null m =
-    let stop      = return True
-        single _  = return False
-        yieldk _ _ = return False
-    in (K.unStream (toStream m)) Nothing stop single yieldk
+null m = K.null m
 
 -- | Extract the first element of the stream, if any.
 --
 -- @since 0.1.0
+{-# INLINE head #-}
 head :: Monad m => SerialT m a -> m (Maybe a)
-head m =
-    let stop      = return Nothing
-        single a  = return (Just a)
-        yieldk a _ = return (Just a)
-    in (K.unStream (toStream m)) Nothing stop single yieldk
+head m = K.head m
 
 -- | Extract all but the first element of the stream, if any.
 --
 -- @since 0.1.1
+{-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-tail m =
-    let stop      = return Nothing
-        single _  = return $ Just K.nil
-        yieldk _ r = return $ Just $ fromStream r
-    in (K.unStream (toStream m)) Nothing stop single yieldk
+tail m = K.tail (K.adapt m)
 
 -- | Extract the last element of the stream, if any.
 --

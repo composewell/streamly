@@ -48,6 +48,9 @@ module Streamly.Streams.StreamK
     , yieldK
     , consK
 
+    -- * Deconstruction
+    , uncons
+
     -- * Generation
     -- ** Unfolds
     , unfoldr
@@ -75,6 +78,9 @@ module Streamly.Streams.StreamK
 
     -- ** Specialized Folds
     , runStream
+    , null
+    , head
+    , tail
     , elem
     , notElem
     , all
@@ -131,7 +137,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem)
+               maximum, elem, notElem, null, head, tail)
 import qualified Prelude
 
 import Streamly.SVar
@@ -338,6 +344,18 @@ instance IsStream Stream where
     (|:) = consMSerial
 
 -------------------------------------------------------------------------------
+-- Deconstruction
+-------------------------------------------------------------------------------
+
+{-# INLINE uncons #-}
+uncons :: (IsStream t, Monad m) => t m a -> m (Maybe (a, t m a))
+uncons m =
+    let stop = return Nothing
+        single a = return (Just (a, nil))
+        yieldk a r = return (Just (a, fromStream r))
+    in (unStream (toStream m)) Nothing stop single yieldk
+
+-------------------------------------------------------------------------------
 -- Generation
 -------------------------------------------------------------------------------
 
@@ -514,6 +532,7 @@ foldlM' step begin m = foldxM step (return begin) return m
 -- Specialized folds
 ------------------------------------------------------------------------------
 
+{-# INLINE runStream #-}
 runStream :: (Monad m, IsStream t) => t m a -> m ()
 runStream m = go (toStream m)
     where
@@ -521,7 +540,31 @@ runStream m = go (toStream m)
         let stop = return ()
             single _ = return ()
             yieldk _ r = go (toStream r)
-         in (unStream m1) Nothing stop single yieldk
+         in unStream m1 Nothing stop single yieldk
+
+{-# INLINE null #-}
+null :: (IsStream t, Monad m) => t m a -> m Bool
+null m =
+    let stop      = return True
+        single _  = return False
+        yieldk _ _ = return False
+    in unStream (toStream m) Nothing stop single yieldk
+
+{-# INLINE head #-}
+head :: (IsStream t, Monad m) => t m a -> m (Maybe a)
+head m =
+    let stop      = return Nothing
+        single a  = return (Just a)
+        yieldk a _ = return (Just a)
+    in unStream (toStream m) Nothing stop single yieldk
+
+{-# INLINE tail #-}
+tail :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
+tail m =
+    let stop      = return Nothing
+        single _  = return $ Just nil
+        yieldk _ r = return $ Just $ fromStream r
+    in unStream (toStream m) Nothing stop single yieldk
 
 {-# INLINE elem #-}
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool

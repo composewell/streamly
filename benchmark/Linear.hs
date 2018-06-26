@@ -55,6 +55,8 @@ main = do
         ]
       , bgroup "elimination"
         [ benchIO "toNull" $ Ops.toNull serially
+        , benchIO "uncons" Ops.uncons
+        , benchIO "nullHeadTail" Ops.nullHeadTail
         , benchIO "mapM_" Ops.mapM_
         , benchIO "toList" Ops.toList
         , benchIO "foldr" Ops.foldr
