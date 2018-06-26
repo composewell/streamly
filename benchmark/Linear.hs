@@ -84,8 +84,10 @@ main = do
         , benchIO "filter-all-in" Ops.filterAllIn
         , benchIO "take-all" Ops.takeAll
         , benchIO "takeWhile-true" Ops.takeWhileTrue
+        , benchIO "takeWhileM-true" Ops.takeWhileMTrue
         , benchIO "drop-all" Ops.dropAll
         , benchIO "dropWhile-true" Ops.dropWhileTrue
+        , benchIO "dropWhileM-true" Ops.dropWhileMTrue
         ]
       , benchIO "zip" $ Ops.zip
       , bgroup "compose"

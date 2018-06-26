@@ -29,7 +29,10 @@
 -- @
 -- import qualified Streamly.Streams.StreamD as D
 -- @
---
+
+-- A majority of functions in this file have been adapted from the vector
+-- library,  https://hackage.haskell.org/package/vector.
+
 module Streamly.Streams.StreamD
     (
     -- * The stream type
@@ -43,52 +46,68 @@ module Streamly.Streams.StreamD
     -- * Deconstruction
     , uncons
 
-    -- * Generation by Unfolding
+    -- * Generation
+    -- ** Unfolds
     , unfoldr
     , unfoldrM
 
-    -- * Special Generation
+    -- ** Specialized Generation
+    -- | Generate a monadic stream from a seed.
+    , repeat
+    , enumFromStepN
+
+    -- ** Conversions
+    -- | Transform an input structure into a stream.
     -- | Direct style stream does not support @fromFoldable@.
     , yield
     , yieldM
-    , repeat
-    , enumFromStepN
     , fromList
     , fromListM
+    , fromStreamK
 
-    -- * Elimination by Folding
+    -- * Elimination
     -- ** General Folds
     , foldr
     , foldrM
     , foldl'
     , foldlM'
 
-    -- ** Special Folds
+    -- ** Specialized Folds
     , runStream
-    , mapM_
-    , toList
     , last
 
-    -- * Scans
-    , scanlM'
+    -- ** Map and Fold
+    , mapM_
 
-    -- * Mapping
-    , map
-    , mapM
+    -- ** Conversions
+    -- | Transform a stream into another type.
+    , toList
+    , toStreamK
+
+    -- * Transformation
+    -- ** By folding (scans)
+    , scanlM'
 
     -- * Filtering
     , filter
     , filterM
     , take
+    , takeWhile
+    , takeWhileM
+    , drop
+    , dropWhile
+    , dropWhileM
 
-    -- * Conversion
-    , toStreamK
-    , fromStreamK
+    -- * Mapping
+    , map
+    , mapM
     )
 where
 
 import GHC.Types ( SPEC(..) )
-import Prelude hiding (map, mapM, mapM_, repeat, foldr, last, take, filter)
+import Prelude
+       hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
+               takeWhile, drop, dropWhile)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -111,38 +130,6 @@ instance Functor (Step s) where
 -- current state, and the current state.
 data Stream m a = forall s. Stream (s -> m (Step s a)) s
 
--------------------------------------------------------------------------------
--- Conversion to and from StreamK
--------------------------------------------------------------------------------
-
--- Convert a direct stream to and from CPS encoded stream
-{-# INLINE_LATE toStreamK #-}
-toStreamK :: Monad m => Stream m a -> K.Stream m a
-toStreamK (Stream step state) = go state
-    where
-    go st = K.Stream $ \_ stp _ yld -> do
-        r <- step st
-        case r of
-            Yield x s -> yld x (go s)
-            Stop      -> stp
-
-{-# INLINE_LATE fromStreamK #-}
-fromStreamK :: Monad m => K.Stream m a -> Stream m a
-fromStreamK m = Stream step m
-    where
-    step m1 =
-        let stop       = return Stop
-            single a   = return $ Yield a K.nil
-            yieldk a r = return $ Yield a r
-         in K.unStream m1 Nothing stop single yieldk
-
-#ifndef DISABLE_FUSION
-{-# RULES "fromStreamK/toStreamK fusion"
-    forall s. toStreamK (fromStreamK s) = s #-}
-{-# RULES "toStreamK/fromStreamK fusion"
-    forall s. fromStreamK (toStreamK s) = s #-}
-#endif
-
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
@@ -163,23 +150,19 @@ cons x (Stream step state) = Stream step1 Nothing
             Yield a s -> return $ Yield a (Just s)
             Stop -> return Stop
 
--- | Create a singleton 'Stream' from a pure value.
-{-# INLINE_NORMAL yield #-}
-yield :: Monad m => a -> Stream m a
-yield x = Stream (return . step) True
-  where
-    {-# INLINE_LATE step #-}
-    step True  = Yield x False
-    step False = Stop
+-------------------------------------------------------------------------------
+-- Deconstruction
+-------------------------------------------------------------------------------
 
--- | Create a singleton 'Stream' from a monadic action.
-{-# INLINE_NORMAL yieldM #-}
-yieldM :: Monad m => m a -> Stream m a
-yieldM m = Stream step True
+{-# INLINE_NORMAL uncons #-}
+uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
+uncons (Stream step state) = go state
   where
-    {-# INLINE_LATE step #-}
-    step True  = m >>= \x -> return $ Yield x False
-    step False = return Stop
+    go st = do
+        r <- step st
+        return $ case r of
+            Yield x s -> Just (x, (Stream step s))
+            Stop      -> Nothing
 
 ------------------------------------------------------------------------------
 -- Generation by unfold
@@ -201,7 +184,7 @@ unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
 unfoldr f = unfoldrM (return . f)
 
 ------------------------------------------------------------------------------
--- Generation
+-- Specialized Generation
 ------------------------------------------------------------------------------
 
 repeat :: Monad m => a -> Stream m a
@@ -215,6 +198,28 @@ enumFromStepN from stride n =
         {-# INLINE_LATE step #-}
         step (x, i) | i > 0     = return $ Yield x (x + stride, i - 1)
                     | otherwise = return $ Stop
+
+-------------------------------------------------------------------------------
+-- Generation by Conversion
+-------------------------------------------------------------------------------
+
+-- | Create a singleton 'Stream' from a pure value.
+{-# INLINE_NORMAL yield #-}
+yield :: Monad m => a -> Stream m a
+yield x = Stream (return . step) True
+  where
+    {-# INLINE_LATE step #-}
+    step True  = Yield x False
+    step False = Stop
+
+-- | Create a singleton 'Stream' from a monadic action.
+{-# INLINE_NORMAL yieldM #-}
+yieldM :: Monad m => m a -> Stream m a
+yieldM m = Stream step True
+  where
+    {-# INLINE_LATE step #-}
+    step True  = m >>= \x -> return $ Yield x False
+    step False = return Stop
 
 -- XXX we need the MonadAsync constraint because of a rewrite rule.
 -- | Convert a list of monadic actions to a 'Stream'
@@ -235,94 +240,19 @@ fromList zs = Stream step zs
     step (x:xs) = return $ Yield x xs
     step []     = return Stop
 
+{-# INLINE_LATE fromStreamK #-}
+fromStreamK :: Monad m => K.Stream m a -> Stream m a
+fromStreamK m = Stream step m
+    where
+    step m1 =
+        let stop       = return Stop
+            single a   = return $ Yield a K.nil
+            yieldk a r = return $ Yield a r
+         in K.unStream m1 Nothing stop single yieldk
+
 ------------------------------------------------------------------------------
--- Transformation
+-- Elimination by Folds
 ------------------------------------------------------------------------------
-
--- | Map a monadic function over a 'Stream'
-{-# INLINE_NORMAL mapM #-}
-mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
-mapM f (Stream step state) = Stream step' state
-  where
-    {-# INLINE_LATE step' #-}
-    step' st = do
-        r <- step st
-        case r of
-            Yield x s -> f x >>= \a -> return $ Yield a s
-            Stop      -> return Stop
-
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> Stream m a -> Stream m b
-map f = mapM (return . f)
-
-instance Monad m => Functor (Stream m) where
-    {-# INLINE fmap #-}
-    fmap = map
-
--------------------------------------------------------------------------------
--- Filtering
--------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL take #-}
-take :: Monad m => Int -> Stream m a -> Stream m a
-take n (Stream step state) = n `seq` Stream step' (state, 0)
-  where
-    {-# INLINE_LATE step' #-}
-    step' (st, i) | i < n = do
-        r <- step st
-        return $ case r of
-            Yield x s -> Yield x (s, i + 1)
-            Stop      -> Stop
-    step' (_, _) = return Stop
-
-{-# INLINE_NORMAL filterM #-}
-filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
-filterM f (Stream step state) = Stream step' state
-  where
-    {-# INLINE_LATE step' #-}
-    step' st = do
-        r <- step st
-        case r of
-            Yield x s -> do
-                b <- f x
-                if b
-                then return $ Yield x s
-                else step' s
-            Stop -> return $ Stop
-
-{-# INLINE filter #-}
-filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
-filter f = filterM (return . f)
-
--------------------------------------------------------------------------------
--- Elimination
--------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL uncons #-}
-uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
-uncons (Stream step state) = go state
-  where
-    go st = do
-        r <- step st
-        return $ case r of
-            Yield x s -> Just (x, (Stream step s))
-            Stop      -> Nothing
-
--- | Run a streaming composition, discard the results.
-{-# INLINE_LATE runStream #-}
-runStream :: Monad m => Stream m a -> m ()
-runStream (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-        r <- step st
-        case r of
-            Yield _ s -> go SPEC s
-            Stop      -> return ()
-
--- | Execute a monadic action for each element of the 'Stream'
-{-# INLINE_NORMAL mapM_ #-}
-mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
-mapM_ m = runStream . mapM m
 
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
@@ -354,9 +284,20 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
-{-# INLINE toList #-}
-toList :: Monad m => Stream m a -> m [a]
-toList = foldr (:) []
+------------------------------------------------------------------------------
+-- Specialized Folds
+------------------------------------------------------------------------------
+
+-- | Run a streaming composition, discard the results.
+{-# INLINE_LATE runStream #-}
+runStream :: Monad m => Stream m a -> m ()
+runStream (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+        r <- step st
+        case r of
+            Yield _ s -> go SPEC s
+            Stop      -> return ()
 
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
@@ -373,6 +314,45 @@ last (Stream step state) = go0 SPEC state
         case r of
             Yield y s -> go1 SPEC y s
             Stop      -> return (Just x)
+
+------------------------------------------------------------------------------
+-- Map and Fold
+------------------------------------------------------------------------------
+
+-- | Execute a monadic action for each element of the 'Stream'
+{-# INLINE_NORMAL mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
+mapM_ m = runStream . mapM m
+
+------------------------------------------------------------------------------
+-- Converting folds
+------------------------------------------------------------------------------
+
+{-# INLINE toList #-}
+toList :: Monad m => Stream m a -> m [a]
+toList = foldr (:) []
+
+-- Convert a direct stream to and from CPS encoded stream
+{-# INLINE_LATE toStreamK #-}
+toStreamK :: Monad m => Stream m a -> K.Stream m a
+toStreamK (Stream step state) = go state
+    where
+    go st = K.Stream $ \_ stp _ yld -> do
+        r <- step st
+        case r of
+            Yield x s -> yld x (go s)
+            Stop      -> stp
+
+#ifndef DISABLE_FUSION
+{-# RULES "fromStreamK/toStreamK fusion"
+    forall s. toStreamK (fromStreamK s) = s #-}
+{-# RULES "toStreamK/fromStreamK fusion"
+    forall s. fromStreamK (toStreamK s) = s #-}
+#endif
+
+------------------------------------------------------------------------------
+-- Transformation by Folding (Scans)
+------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
@@ -391,3 +371,134 @@ postscanlM' fstep begin (Stream step state) =
 {-# INLINE scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
+
+-------------------------------------------------------------------------------
+-- Filtering
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL take #-}
+take :: Monad m => Int -> Stream m a -> Stream m a
+take n (Stream step state) = n `seq` Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' (st, i) | i < n = do
+        r <- step st
+        return $ case r of
+            Yield x s -> Yield x (s, i + 1)
+            Stop      -> Stop
+    step' (_, _) = return Stop
+
+{-# INLINE_NORMAL takeWhileM #-}
+takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+takeWhileM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' st = do
+        r <- step st
+        case r of
+            Yield x s -> do
+                b <- f x
+                return $ if b then Yield x s else Stop
+            Stop -> return $ Stop
+
+{-# INLINE takeWhile #-}
+takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+takeWhile f = takeWhileM (return . f)
+
+{-# INLINE_NORMAL drop #-}
+drop :: Monad m => Int -> Stream m a -> Stream m a
+drop n (Stream step state) = Stream step' (state, Just n)
+  where
+    {-# INLINE_LATE step' #-}
+    step' (st, Just i)
+        | i > 0 = do
+            r <- step st
+            case r of
+               Yield _ s -> step' (s, Just (i - 1))
+               Stop      -> return Stop
+        | otherwise = step' (st, Nothing)
+
+    step' (st, Nothing) =  do
+        r <- step st
+        return $ case r of
+            Yield x s -> Yield x (s, Nothing)
+            Stop      -> Stop
+
+data DropWhileState s a
+    = DropWhileDrop s
+    | DropWhileYield a s
+    | DropWhileNext s
+
+{-# INLINE_NORMAL dropWhileM #-}
+dropWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' (DropWhileDrop st) = do
+        r <- step st
+        case r of
+            Yield x s -> do
+                b <- f x
+                if b
+                then step' (DropWhileDrop s)
+                else step' (DropWhileYield x s)
+            Stop -> return Stop
+
+    step' (DropWhileNext st) =  do
+        r <- step st
+        case r of
+            Yield x s -> step' (DropWhileYield x s)
+            Stop      -> return Stop
+
+    step' (DropWhileYield x st) = return $ Yield x (DropWhileNext st)
+
+{-# INLINE dropWhile #-}
+dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+dropWhile f = dropWhileM (return . f)
+
+{-# INLINE_NORMAL filterM #-}
+filterM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
+filterM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' st = do
+        r <- step st
+        case r of
+            Yield x s -> do
+                b <- f x
+                if b
+                then return $ Yield x s
+                else step' s
+            Stop -> return $ Stop
+
+{-# INLINE filter #-}
+filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
+filter f = filterM (return . f)
+
+------------------------------------------------------------------------------
+-- Transformation by Mapping
+------------------------------------------------------------------------------
+
+-- | Map a monadic function over a 'Stream'
+{-# INLINE_NORMAL mapM #-}
+mapM :: Monad m => (a -> m b) -> Stream m a -> Stream m b
+mapM f (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' st = do
+        r <- step st
+        case r of
+            Yield x s -> f x >>= \a -> return $ Yield a s
+            Stop      -> return Stop
+
+{-# INLINE map #-}
+map :: Monad m => (a -> b) -> Stream m a -> Stream m b
+map f = mapM (return . f)
+
+------------------------------------------------------------------------------
+-- Instances
+------------------------------------------------------------------------------
+
+instance Monad m => Functor (Stream m) where
+    {-# INLINE fmap #-}
+    fmap = map

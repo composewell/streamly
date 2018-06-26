@@ -35,15 +35,18 @@ maxValue = value + 1000
 {-# INLINE takeOne #-}
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
+{-# INLINE takeWhileMTrue #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
+{-# INLINE dropWhileMTrue #-}
 {-# INLINE zip #-}
 {-# INLINE concat #-}
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
 scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
+    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
+    dropWhileTrue, dropWhileMTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
     :: Monad m
@@ -189,8 +192,10 @@ filterAllIn   = transform . S.filter (<= maxValue)
 takeOne       = transform . S.take 1
 takeAll       = transform . S.take maxValue
 takeWhileTrue = transform . S.takeWhile (<= maxValue)
+takeWhileMTrue = transform . S.takeWhileM (return . (<= maxValue))
 dropAll       = transform . S.drop maxValue
 dropWhileTrue = transform . S.dropWhile (<= maxValue)
+dropWhileMTrue = transform . S.dropWhileM (return . (<= maxValue))
 
 -------------------------------------------------------------------------------
 -- Zipping and concat

@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Breaking changes
+
+* Some functions in prelude now require an additional Monad constraint for the
+  underlying type of the stream.
+
 ### Deprecations
 
 * `once` has been deprecated and renamed to `yieldM`
@@ -12,6 +17,7 @@
   `fromFoldable` and `fromFoldableM`
 * Add `map` as a synonym of fmap
 * Add `scanlM'`, the monadic version of scanl'
+* Add `takeWhileM` and `dropWhileM`
 * Significant performance improvements
 
 ## 0.3.0

@@ -56,26 +56,30 @@ module Streamly.Prelude
     -- * Deconstruction
     , uncons
 
-    -- * Generation by Unfolding
+    -- * Generation
+    -- ** Unfolds
     , unfoldr
     , unfoldrM
 
-    -- * Special Generation
-    -- | Generate a monadic stream from an input structure, a seed or a
-    -- generation function.
-    , K.yield
-    , K.yieldM
+    -- ** Specialized Generation
+    -- | Generate a monadic stream from a seed.
     , replicateM
     , K.repeat
     , repeatM
     , iterate
     , iterateM
+
+    -- ** Conversions
+    -- | Transform an input structure into a stream.
+    , K.yield
+    , K.yieldM
     , fromList
     , fromListM
     , K.fromFoldable
     , fromFoldableM
+    , fromHandle
 
-    -- * Elimination by Folding
+    -- * Elimination
     -- ** General Folds
     , foldr
     , foldrM
@@ -84,9 +88,7 @@ module Streamly.Prelude
     , foldx
     , foldxM
 
-    -- ** Special Folds
-    , mapM_
-    , toList
+    -- ** Specialized Folds
     , all
     , any
     , head
@@ -101,26 +103,39 @@ module Streamly.Prelude
     , sum
     , product
 
-    -- * Scans
+    -- ** Map and Fold
+    , mapM_
+
+    -- ** Conversions
+    -- | Transform a stream into an output structure of another type.
+    , toList
+    , toHandle
+
+    -- * Transformation
+    -- ** By folding (scans)
     , scanl'
     , scanlM'
     , scanx
 
-    -- * Mapping
-    , Serial.map
-    , mapM
-    , mapMaybe
-    , mapMaybeM
-    , sequence
-
-    -- * Filtering
+    -- ** Filtering
     , filter
     , take
     , takeWhile
+    , takeWhileM
     , drop
     , dropWhile
+    , dropWhileM
 
-    -- * Reordering
+    -- ** Mapping
+    , Serial.map
+    , mapM
+    , sequence
+
+    -- ** Map and Filter
+    , mapMaybe
+    , mapMaybeM
+
+    -- ** Reordering
     , reverse
 
     -- * Zipping
@@ -128,10 +143,6 @@ module Streamly.Prelude
     , zipWithM
     , zipAsyncWith
     , zipAsyncWithM
-
-    -- * IO
-    , fromHandle
-    , toHandle
 
     -- * Deprecated
     , K.once
@@ -178,7 +189,7 @@ uncons m =
     in (K.unStream (toStream m)) Nothing stop single yieldk
 
 ------------------------------------------------------------------------------
--- Construction
+-- Generation by Unfolding
 ------------------------------------------------------------------------------
 
 -- | Build a stream by unfolding a /pure/ step function starting from a seed.
@@ -244,48 +255,9 @@ unfoldrM = K.unfoldrM
 unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
 unfoldrMSerial step seed = fromStream $ D.toStreamK (D.unfoldrM step seed)
 
--- | Construct a stream from a list containing pure values. This can be more
--- efficient than 'K.fromFoldable' for lists as it can fuse the list.
---
--- @since 0.4.0
-{-# INLINE_EARLY fromList #-}
-fromList :: (Monad m, IsStream t) => [a] -> t m a
-fromList = fromStream . D.toStreamK . D.fromList
-{-# RULES "fromList fallback to StreamK" [1]
-    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
-
--- | Construct a stream from a list containing monadic actions. This can be
--- more efficient than 'fromFoldableM' especially for serial streams as it can
--- fuse the list.
---
--- @since 0.4.0
-{-# INLINE_EARLY fromListM #-}
-fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
-fromListM = fromStream . D.toStreamK . D.fromListM
-{-# RULES "fromListM fallback to StreamK" [1]
-    forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
-
--- | Construct a stream from a 'Foldable' containing monadic actions.
---
--- @
--- runStream $ serially $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
--- runStream $ asyncly  $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
--- @
---
--- /Concurrent (do not use with 'parallely' on infinite containers)/
---
--- @since 0.3.0
-{-# INLINE fromFoldableM #-}
-fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
-fromFoldableM = Prelude.foldr consM K.nil
-
--- | Same as 'fromFoldable'.
---
--- @since 0.1.0
-{-# DEPRECATED each "Please use fromFoldable instead." #-}
-{-# INLINE each #-}
-each :: (IsStream t, Foldable f) => f a -> t m a
-each = K.fromFoldable
+------------------------------------------------------------------------------
+-- Specialized Generation
+------------------------------------------------------------------------------
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --
@@ -351,6 +323,53 @@ iterateM step = go
        next <- step s
        K.unStream (toStream (return s |: go next)) svr stp sng yld
 
+------------------------------------------------------------------------------
+-- Conversions
+------------------------------------------------------------------------------
+
+-- | Construct a stream from a list containing pure values. This can be more
+-- efficient than 'K.fromFoldable' for lists as it can fuse the list.
+--
+-- @since 0.4.0
+{-# INLINE_EARLY fromList #-}
+fromList :: (Monad m, IsStream t) => [a] -> t m a
+fromList = fromStream . D.toStreamK . D.fromList
+{-# RULES "fromList fallback to StreamK" [1]
+    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
+
+-- | Construct a stream from a list containing monadic actions. This can be
+-- more efficient than 'fromFoldableM' especially for serial streams as it can
+-- fuse the list.
+--
+-- @since 0.4.0
+{-# INLINE_EARLY fromListM #-}
+fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
+fromListM = fromStream . D.toStreamK . D.fromListM
+{-# RULES "fromListM fallback to StreamK" [1]
+    forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
+
+-- | Construct a stream from a 'Foldable' containing monadic actions.
+--
+-- @
+-- runStream $ serially $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
+-- runStream $ asyncly  $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
+-- @
+--
+-- /Concurrent (do not use with 'parallely' on infinite containers)/
+--
+-- @since 0.3.0
+{-# INLINE fromFoldableM #-}
+fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
+fromFoldableM = Prelude.foldr consM K.nil
+
+-- | Same as 'fromFoldable'.
+--
+-- @since 0.1.0
+{-# DEPRECATED each "Please use fromFoldable instead." #-}
+{-# INLINE each #-}
+each :: (IsStream t, Foldable f) => f a -> t m a
+each = K.fromFoldable
+
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
@@ -366,7 +385,7 @@ fromHandle h = fromStream go
             yld str go
 
 ------------------------------------------------------------------------------
--- Elimination
+-- Elimination by Folding
 ------------------------------------------------------------------------------
 
 -- | Lazy right associative fold. For example, to fold a stream into a list:
@@ -438,117 +457,21 @@ foldlM = foldxM
 foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
 foldlM' step begin m = D.foldlM' step begin $ D.fromStreamK (toStream m)
 
--- | Write a stream of Strings to an IO Handle.
---
--- @since 0.1.0
-toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
-toHandle h m = go (toStream m)
-    where
-    go m1 =
-        let stop = return ()
-            single a = liftIO (IO.hPutStrLn h a)
-            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in (K.unStream m1) Nothing stop single yieldk
-
 ------------------------------------------------------------------------------
--- Special folds
+-- Specialized folds
 ------------------------------------------------------------------------------
-
--- | Convert a stream into a list in the underlying monad.
---
--- @since 0.1.0
-{-# INLINE toList #-}
-toList :: Monad m => SerialT m a -> m [a]
-toList m = D.toList $ D.fromStreamK (toStream m)
-
--- | Take first 'n' elements from the stream and discard the rest.
---
--- @since 0.1.0
-{-# INLINE take #-}
-take :: (IsStream t, Monad m) => Int -> t m a -> t m a
-take n m = fromStream $ D.toStreamK $ D.take n (D.fromStreamK $ toStream m)
-
--- | Include only those elements that pass a predicate.
---
--- @since 0.1.0
-{-# INLINE filter #-}
-#if __GLASGOW_HASKELL__ != 802
--- GHC 8.2.2 crashes with this code, when used with "stack"
-filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-filter p m = fromStream $ D.toStreamK $ D.filter p (D.fromStreamK $ toStream m)
-#else
-filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter = K.filter
-#endif
-
--- | End the stream as soon as the predicate fails on an element.
---
--- @since 0.1.0
-{-# INLINE takeWhile #-}
-takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
-takeWhile p m = fromStream $ go (toStream m)
-    where
-    go m1 = K.Stream $ \_ stp sng yld ->
-        let single a  | p a       = sng a
-                      | otherwise = stp
-            yieldk a r | p a       = yld a (go r)
-                      | otherwise = stp
-         in (K.unStream m1) Nothing stp single yieldk
-
--- | Discard first 'n' elements from the stream and take the rest.
---
--- @since 0.1.0
-drop :: IsStream t => Int -> t m a -> t m a
-drop n m = fromStream $ go n (toStream m)
-    where
-    go n1 m1 = K.Stream $ \_ stp sng yld ->
-        let single _ = stp
-            yieldk _ r = (K.unStream $ go (n1 - 1) r) Nothing stp sng yld
-        -- Somehow "<=" check performs better than a ">"
-        in if n1 <= 0
-           then (K.unStream m1) Nothing stp sng yld
-           else (K.unStream m1) Nothing stp single yieldk
-
--- | Drop elements in the stream as long as the predicate succeeds and then
--- take the rest of the stream.
---
--- @since 0.1.0
-{-# INLINE dropWhile #-}
-dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
-dropWhile p m = fromStream $ go (toStream m)
-    where
-    go m1 = K.Stream $ \_ stp sng yld ->
-        let single a  | p a       = stp
-                      | otherwise = sng a
-            yieldk a r | p a       = (K.unStream r) Nothing stp single yieldk
-                      | otherwise = yld a r
-         in (K.unStream m1) Nothing stp single yieldk
 
 -- | Determine whether all elements of a stream satisfy a predicate.
 --
 -- @since 0.1.0
 all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-all p m = go (toStream m)
-    where
-    go m1 =
-        let single a  | p a       = return True
-                      | otherwise = return False
-            yieldk a r | p a       = go r
-                      | otherwise = return False
-         in (K.unStream m1) Nothing (return True) single yieldk
+all = K.all
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
 -- @since 0.1.0
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-any p m = go (toStream m)
-    where
-    go m1 =
-        let single a  | p a       = return True
-                      | otherwise = return False
-            yieldk a r | p a       = return True
-                      | otherwise = go r
-         in (K.unStream m1) Nothing (return False) single yieldk
+any = K.any
 
 -- | Determine the sum of all elements of a stream of numbers
 --
@@ -632,20 +555,6 @@ notElem e m = go (toStream m)
 length :: Monad m => SerialT m a -> m Int
 length = foldl' (\n _ -> n + 1) 0
 
--- | Returns the elements of the stream in reverse order.
--- The stream must be finite.
---
--- @since 0.1.1
-reverse :: (IsStream t) => t m a -> t m a
-reverse m = fromStream $ go K.nil (toStream m)
-    where
-    go rev rest = K.Stream $ \_ stp sng yld ->
-        let runIt x = K.unStream x Nothing stp sng yld
-            stop = runIt rev
-            single a = runIt $ a `K.cons` rev
-            yieldk a r = runIt $ go (a `K.cons` rev) r
-         in K.unStream rest Nothing stop single yieldk
-
 -- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
 --
@@ -683,7 +592,43 @@ maximum m = go Nothing (toStream m)
         Just e  -> Just $ max a e
 
 ------------------------------------------------------------------------------
--- Scans
+-- Map and Fold
+------------------------------------------------------------------------------
+
+-- XXX this can utilize parallel mapping if we implement it as runStream . mapM
+-- | Apply a monadic action to each element of the stream and discard the
+-- output of the action.
+--
+-- @since 0.1.0
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
+mapM_ f m = D.mapM_ f $ D.fromStreamK (toStream m)
+
+------------------------------------------------------------------------------
+-- Conversions
+------------------------------------------------------------------------------
+
+-- | Convert a stream into a list in the underlying monad.
+--
+-- @since 0.1.0
+{-# INLINE toList #-}
+toList :: Monad m => SerialT m a -> m [a]
+toList m = D.toList $ D.fromStreamK (toStream m)
+
+-- | Write a stream of Strings to an IO Handle.
+--
+-- @since 0.1.0
+toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
+toHandle h m = go (toStream m)
+    where
+    go m1 =
+        let stop = return ()
+            single a = liftIO (IO.hPutStrLn h a)
+            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
+        in (K.unStream m1) Nothing stop single yieldk
+
+------------------------------------------------------------------------------
+-- Transformation by Folding (Scans)
 ------------------------------------------------------------------------------
 
 -- | Strict left scan with an extraction function. Like 'scanl'', but applies a
@@ -721,7 +666,71 @@ scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 scanl' step = scanlM' (\a b -> return (step a b))
 
 ------------------------------------------------------------------------------
--- Transformation
+-- Transformation by Filtering
+------------------------------------------------------------------------------
+
+-- | Include only those elements that pass a predicate.
+--
+-- @since 0.1.0
+{-# INLINE filter #-}
+#if __GLASGOW_HASKELL__ != 802
+-- GHC 8.2.2 crashes with this code, when used with "stack"
+filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ D.toStreamK $ D.filter p (D.fromStreamK $ toStream m)
+#else
+filter :: IsStream t => (a -> Bool) -> t m a -> t m a
+filter = K.filter
+#endif
+
+-- | Take first 'n' elements from the stream and discard the rest.
+--
+-- @since 0.1.0
+{-# INLINE take #-}
+take :: (IsStream t, Monad m) => Int -> t m a -> t m a
+take n m = fromStream $ D.toStreamK $ D.take n (D.fromStreamK $ toStream m)
+
+-- | End the stream as soon as the predicate fails on an element.
+--
+-- @since 0.1.0
+{-# INLINE takeWhile #-}
+takeWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+takeWhile p m = fromStream $ D.toStreamK $
+    D.takeWhile p (D.fromStreamK $ toStream m)
+
+-- | Same as 'takeWhile' but with a monadic predicate.
+--
+-- @since 0.4.0
+{-# INLINE takeWhileM #-}
+takeWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
+takeWhileM p m = fromStream $ D.toStreamK $
+    D.takeWhileM p (D.fromStreamK $ toStream m)
+
+-- | Discard first 'n' elements from the stream and take the rest.
+--
+-- @since 0.1.0
+{-# INLINE drop #-}
+drop :: (IsStream t, Monad m) => Int -> t m a -> t m a
+drop n m = fromStream $ D.toStreamK $ D.drop n (D.fromStreamK $ toStream m)
+
+-- | Drop elements in the stream as long as the predicate succeeds and then
+-- take the rest of the stream.
+--
+-- @since 0.1.0
+{-# INLINE dropWhile #-}
+dropWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
+dropWhile p m = fromStream $ D.toStreamK $
+    D.dropWhile p (D.fromStreamK $ toStream m)
+
+-- | Same as 'dropWhile' but with a monadic predicate.
+--
+-- @since 0.4.0
+{-# INLINE dropWhileM #-}
+dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
+dropWhileM p m = fromStream $ D.toStreamK $
+    D.dropWhileM p (D.fromStreamK $ toStream m)
+
+------------------------------------------------------------------------------
+-- Transformation by Mapping
 ------------------------------------------------------------------------------
 
 -- | Replace each element of the stream with the result of a monadic action
@@ -747,6 +756,28 @@ mapM = K.mapM
 mapMSerial :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
 mapMSerial = Serial.mapM
 
+-- | Reduce a stream of monadic actions to a stream of the output of those
+-- actions.
+--
+-- @
+-- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--           & (serially . S.sequence)
+--
+-- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+--           & (asyncly . S.sequence)
+-- @
+--
+-- /Concurrent (do not use with 'parallely' on infinite streams)/
+--
+-- @since 0.1.0
+{-# INLINE sequence #-}
+sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
+sequence = K.sequence
+
+------------------------------------------------------------------------------
+-- Transformation by Map and Filter
+------------------------------------------------------------------------------
+
 -- | Map a 'Maybe' returning function to a stream, filter out the 'Nothing'
 -- elements, and return a stream of values extracted from 'Just'.
 --
@@ -765,29 +796,20 @@ mapMaybeM :: (IsStream t, MonadAsync m, Functor (t m))
           => (a -> m (Maybe b)) -> t m a -> t m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
--- XXX this can utilize parallel mapping if we implement it as runStream . mapM
--- | Apply a monadic action to each element of the stream and discard the
--- output of the action.
---
--- @since 0.1.0
-{-# INLINE mapM_ #-}
-mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
-mapM_ f m = D.mapM_ f $ D.fromStreamK (toStream m)
+------------------------------------------------------------------------------
+-- Transformation by Reordering
+------------------------------------------------------------------------------
 
--- | Reduce a stream of monadic actions to a stream of the output of those
--- actions.
+-- | Returns the elements of the stream in reverse order.
+-- The stream must be finite.
 --
--- @
--- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (serially . S.sequence)
---
--- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
---           & (asyncly . S.sequence)
--- @
---
--- /Concurrent (do not use with 'parallely' on infinite streams)/
---
--- @since 0.1.0
-{-# INLINE sequence #-}
-sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence = K.sequence
+-- @since 0.1.1
+reverse :: (IsStream t) => t m a -> t m a
+reverse m = fromStream $ go K.nil (toStream m)
+    where
+    go rev rest = K.Stream $ \_ stp sng yld ->
+        let runIt x = K.unStream x Nothing stp sng yld
+            stop = runIt rev
+            single a = runIt $ a `K.cons` rev
+            yieldk a r = runIt $ go (a `K.cons` rev) r
+         in K.unStream rest Nothing stop single yieldk

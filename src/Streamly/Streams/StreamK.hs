@@ -48,17 +48,20 @@ module Streamly.Streams.StreamK
     , yieldK
     , consK
 
-    -- * Generation by Unfolding
+    -- * Generation
+    -- ** Unfolds
     , unfoldr
     , unfoldrM
 
-    -- * Special Generation
+    -- ** Specialized Generation
+    , repeat
+
+    -- ** Conversions
     , yield
     , yieldM
-    , repeat
     , fromFoldable
 
-    -- * Elimination by Folding
+    -- * Elimination
     -- ** General Folds
     , foldStream
     , foldr
@@ -68,25 +71,37 @@ module Streamly.Streams.StreamK
     , foldx
     , foldxM
 
-    -- ** Special Folds
+    -- ** Specialized Folds
     , runStream
-    , mapM_
-    , toList
+    , all
+    , any
     , last
 
-    -- * Scans
-    , scanx
+    -- ** Map and Fold
+    , mapM_
+
+    -- ** Conversions
+    , toList
+
+    -- * Transformation
+    -- ** By folding (scans)
     , scanl'
+    , scanx
 
-    -- * Mapping
-    , map
-    , mapM
-    , mapMaybe
-    , sequence
-
-    -- * Filtering
+    -- ** Filtering
     , filter
     , take
+    , takeWhile
+    , drop
+    , dropWhile
+
+    -- ** Mapping
+    , map
+    , mapM
+    , sequence
+
+    -- ** Map and Filter
+    , mapMaybe
 
     -- * Semigroup Style Composition
     , serial
@@ -108,7 +123,7 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
-               take, filter)
+               take, filter, all, any, takeWhile, drop, dropWhile)
 import qualified Prelude
 
 import Streamly.SVar
@@ -243,39 +258,6 @@ mkStream k = fromStream $ Stream $ \svr stp sng yld ->
 nil :: IsStream t => t m a
 nil = fromStream $ Stream $ \_ stp _ _ -> stp
 
--- Faster than yieldM because there is no bind. Usually we can construct a
--- stream from a pure value using "pure" in an applicative, however in case of
--- Zip streams pure creates an infinite stream.
--- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
--- 'return' can be used in place of 'yield', however, in Zip applicative
--- streams 'pure' is equivalent to 'repeat'.
---
--- @since 0.4.0
-yield :: IsStream t => a -> t m a
-yield a = fromStream $ Stream $ \_ _ single _ -> single a
-
--- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
--- but more efficient.
---
--- @
--- > toList $ yieldM getLine
--- hello
--- ["hello"]
--- @
---
--- @since 0.4.0
-{-# INLINE yieldM #-}
-yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single
-
--- | Same as yieldM
---
--- @since 0.2.0
-{-# DEPRECATED once "Please use yieldM instead." #-}
-{-# INLINE once #-}
-once :: (Monad m, IsStream t) => m a -> t m a
-once = yieldM
-
 infixr 5 `cons`
 
 -- faster than consM because there is no bind.
@@ -348,7 +330,85 @@ instance IsStream Stream where
     (|:) = consMSerial
 
 -------------------------------------------------------------------------------
--- Fold Stream
+-- Generation
+-------------------------------------------------------------------------------
+
+{-# INLINE unfoldr #-}
+unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
+unfoldr step = fromStream . go
+    where
+    go s = Stream $ \_ stp _ yld ->
+        case step s of
+            Nothing -> stp
+            Just (a, b) -> yld a (go b)
+
+{-# INLINE unfoldrM #-}
+unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM step = go
+    where
+    go s = fromStream $ Stream $ \svr stp sng yld -> do
+        mayb <- step s
+        case mayb of
+            Nothing -> stp
+            Just (a, b) ->
+                unStream (toStream (return a |: go b)) svr stp sng yld
+
+-------------------------------------------------------------------------------
+-- Special generation
+-------------------------------------------------------------------------------
+
+-- Faster than yieldM because there is no bind. Usually we can construct a
+-- stream from a pure value using "pure" in an applicative, however in case of
+-- Zip streams pure creates an infinite stream.
+-- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
+-- 'return' can be used in place of 'yield', however, in Zip applicative
+-- streams 'pure' is equivalent to 'repeat'.
+--
+-- @since 0.4.0
+yield :: IsStream t => a -> t m a
+yield a = fromStream $ Stream $ \_ _ single _ -> single a
+
+-- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
+-- but more efficient.
+--
+-- @
+-- > toList $ yieldM getLine
+-- hello
+-- ["hello"]
+-- @
+--
+-- @since 0.4.0
+{-# INLINE yieldM #-}
+yieldM :: (Monad m, IsStream t) => m a -> t m a
+yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single
+
+-- | Same as yieldM
+--
+-- @since 0.2.0
+{-# DEPRECATED once "Please use yieldM instead." #-}
+{-# INLINE once #-}
+once :: (Monad m, IsStream t) => m a -> t m a
+once = yieldM
+
+-- | Generate an infinite stream by repeating a pure value.
+--
+-- @since 0.4.0
+repeat :: IsStream t => a -> t m a
+repeat a = let x = cons a x in x
+
+-------------------------------------------------------------------------------
+-- Conversions
+-------------------------------------------------------------------------------
+
+-- | Construct a stream from a 'Foldable' containing pure values.
+--
+-- @since 0.2.0
+{-# INLINE fromFoldable #-}
+fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
+fromFoldable = Prelude.foldr cons nil
+
+-------------------------------------------------------------------------------
+-- Elimination by Folding
 -------------------------------------------------------------------------------
 
 -- | Fold a stream by providing an SVar, a stop continuation, a singleton
@@ -433,6 +493,10 @@ foldxM step begin done m = go begin (toStream m)
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
 foldlM' step begin m = foldxM step (return begin) return m
 
+------------------------------------------------------------------------------
+-- Specialized folds
+------------------------------------------------------------------------------
+
 runStream :: (Monad m, IsStream t) => t m a -> m ()
 runStream m = go (toStream m)
     where
@@ -441,6 +505,35 @@ runStream m = go (toStream m)
             single _ = return ()
             yieldk _ r = go (toStream r)
          in (unStream m1) Nothing stop single yieldk
+
+all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
+all p m = go (toStream m)
+    where
+    go m1 =
+        let single a   | p a       = return True
+                       | otherwise = return False
+            yieldk a r | p a       = go r
+                       | otherwise = return False
+         in unStream m1 Nothing (return True) single yieldk
+
+any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
+any p m = go (toStream m)
+    where
+    go m1 =
+        let single a   | p a       = return True
+                       | otherwise = return False
+            yieldk a r | p a       = return True
+                       | otherwise = go r
+         in unStream m1 Nothing (return False) single yieldk
+
+-- | Extract the last element of the stream, if any.
+{-# INLINE last #-}
+last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
+last = foldx (\_ y -> Just y) Nothing id
+
+------------------------------------------------------------------------------
+-- Map and Fold
+------------------------------------------------------------------------------
 
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
@@ -453,17 +546,16 @@ mapM_ f m = go (toStream m)
             yieldk a r = f a >> go r
          in (unStream m1) Nothing stop single yieldk
 
+------------------------------------------------------------------------------
+-- Converting folds
+------------------------------------------------------------------------------
+
 {-# INLINABLE toList #-}
 toList :: (IsStream t, Monad m) => t m a -> m [a]
 toList = foldr (:) []
 
--- | Extract the last element of the stream, if any.
-{-# INLINE last #-}
-last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
-last = foldx (\_ y -> Just y) Nothing id
-
 -------------------------------------------------------------------------------
--- Scans
+-- Transformation by folding (Scans)
 -------------------------------------------------------------------------------
 
 {-# INLINE scanx #-}
@@ -483,49 +575,19 @@ scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
 scanl' step begin m = scanx step begin id m
 
 -------------------------------------------------------------------------------
--- Generation
--------------------------------------------------------------------------------
-
-{-# INLINE unfoldr #-}
-unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step = fromStream . go
-    where
-    go s = Stream $ \_ stp _ yld ->
-        case step s of
-            Nothing -> stp
-            Just (a, b) -> yld a (go b)
-
-{-# INLINE unfoldrM #-}
-unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
-unfoldrM step = go
-    where
-    go s = fromStream $ Stream $ \svr stp sng yld -> do
-        mayb <- step s
-        case mayb of
-            Nothing -> stp
-            Just (a, b) ->
-                unStream (toStream (return a |: go b)) svr stp sng yld
-
--------------------------------------------------------------------------------
--- Special generation
--------------------------------------------------------------------------------
-
--- | Generate an infinite stream by repeating a pure value.
---
--- @since 0.4.0
-repeat :: IsStream t => a -> t m a
-repeat a = let x = cons a x in x
-
--- | Construct a stream from a 'Foldable' containing pure values.
---
--- @since 0.2.0
-{-# INLINE fromFoldable #-}
-fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
-fromFoldable = Prelude.foldr cons nil
-
--------------------------------------------------------------------------------
 -- Filtering
 -------------------------------------------------------------------------------
+
+{-# INLINE filter #-}
+filter :: IsStream t => (a -> Bool) -> t m a -> t m a
+filter p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \_ stp sng yld ->
+        let single a   | p a       = sng a
+                       | otherwise = stp
+            yieldk a r | p a       = yld a (go r)
+                       | otherwise = (unStream r) Nothing stp single yieldk
+         in unStream m1 Nothing stp single yieldk
 
 {-# INLINE take #-}
 take :: IsStream t => Int -> t m a -> t m a
@@ -533,18 +595,90 @@ take n m = fromStream $ go n (toStream m)
     where
     go n1 m1 = Stream $ \_ stp sng yld ->
         let yieldk a r = yld a (go (n1 - 1) r)
-        in if n1 <= 0 then stp else (unStream m1) Nothing stp sng yieldk
+        in if n1 <= 0 then stp else unStream m1 Nothing stp sng yieldk
 
-{-# INLINE filter #-}
-filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter p m = fromStream $ go (toStream m)
+{-# INLINE takeWhile #-}
+takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
+takeWhile p m = fromStream $ go (toStream m)
     where
     go m1 = Stream $ \_ stp sng yld ->
-        let single a  | p a       = sng a
-                      | otherwise = stp
+        let single a   | p a       = sng a
+                       | otherwise = stp
             yieldk a r | p a       = yld a (go r)
-                       | otherwise = (unStream r) Nothing stp single yieldk
+                       | otherwise = stp
+         in unStream m1 Nothing stp single yieldk
+
+drop :: IsStream t => Int -> t m a -> t m a
+drop n m = fromStream $ go n (toStream m)
+    where
+    go n1 m1 = Stream $ \_ stp sng yld ->
+        let single _ = stp
+            yieldk _ r = (unStream $ go (n1 - 1) r) Nothing stp sng yld
+        -- Somehow "<=" check performs better than a ">"
+        in if n1 <= 0
+           then unStream m1 Nothing stp sng yld
+           else unStream m1 Nothing stp single yieldk
+
+{-# INLINE dropWhile #-}
+dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
+dropWhile p m = fromStream $ go (toStream m)
+    where
+    go m1 = Stream $ \_ stp sng yld ->
+        let single a   | p a       = stp
+                       | otherwise = sng a
+            yieldk a r | p a       = (unStream r) Nothing stp single yieldk
+                       | otherwise = yld a r
+         in unStream m1 Nothing stp single yieldk
+
+-------------------------------------------------------------------------------
+-- Mapping
+-------------------------------------------------------------------------------
+
+{-# INLINE map #-}
+map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
+map f m = fromStream $ Stream $ \_ stp sng yld ->
+    let single     = sng . f
+        yieldk a r = yld (f a) (fmap f r)
+    in unStream (toStream m) Nothing stp single yieldk
+
+-- Be careful when modifying this, this uses a consM (|:) deliberately to allow
+-- other stream types to overload it.
+{-# INLINE mapM #-}
+mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
+mapM f m = go (toStream m)
+    where
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
+        let single a  = f a >>= sng
+            yieldk a r = unStream (toStream (f a |: (go r))) svr stp sng yld
          in (unStream m1) Nothing stp single yieldk
+
+-- Be careful when modifying this, this uses a consM (|:) deliberately to allow
+-- other stream types to overload it.
+{-# INLINE sequence #-}
+sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
+sequence m = go (toStream m)
+    where
+    go m1 = fromStream $ Stream $ \svr stp sng yld ->
+        let single ma = ma >>= sng
+            yieldk ma r = unStream (toStream $ ma |: go r) svr stp sng yld
+         in (unStream m1) Nothing stp single yieldk
+
+-------------------------------------------------------------------------------
+-- Map and Filter
+-------------------------------------------------------------------------------
+
+{-# INLINE mapMaybe #-}
+mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
+mapMaybe f m = go (toStream m)
+  where
+    go m1 = fromStream $ Stream $ \_ stp sng yld ->
+        let single a = case f a of
+                Just b  -> sng b
+                Nothing -> stp
+            yieldk a r = case f a of
+                Just b  -> yld b (toStream $ go r)
+                Nothing -> (unStream r) Nothing stp single yieldk
+        in unStream m1 Nothing stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -577,50 +711,8 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
-{-# INLINE map #-}
-map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
-map f m = fromStream $ Stream $ \_ stp sng yld ->
-    let single     = sng . f
-        yieldk a r = yld (f a) (fmap f r)
-    in unStream (toStream m) Nothing stp single yieldk
-
 instance Monad m => Functor (Stream m) where
     fmap = map
-
--- Be careful when modifying this, this uses a consM (|:) deliberately to allow
--- other stream types to overload it.
-{-# INLINE mapM #-}
-mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
-mapM f m = go (toStream m)
-    where
-    go m1 = fromStream $ Stream $ \svr stp sng yld ->
-        let single a  = f a >>= sng
-            yieldk a r = unStream (toStream (f a |: (go r))) svr stp sng yld
-         in (unStream m1) Nothing stp single yieldk
-
-{-# INLINE mapMaybe #-}
-mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = go (toStream m)
-  where
-    go m1 = fromStream $ Stream $ \_ stp sng yld ->
-        let single a = case f a of
-                Just b  -> sng b
-                Nothing -> stp
-            yieldk a r = case f a of
-                Just b  -> yld b (toStream $ go r)
-                Nothing -> (unStream r) Nothing stp single yieldk
-        in unStream m1 Nothing stp single yieldk
-
--- Be careful when modifying this, this uses a consM (|:) deliberately to allow
--- other stream types to overload it.
-{-# INLINE sequence #-}
-sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence m = go (toStream m)
-    where
-    go m1 = fromStream $ Stream $ \svr stp sng yld ->
-        let single ma = ma >>= sng
-            yieldk ma r = unStream (toStream $ ma |: go r) svr stp sng yld
-         in (unStream m1) Nothing stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Bind utility
