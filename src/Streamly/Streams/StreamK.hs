@@ -60,6 +60,8 @@ module Streamly.Streams.StreamK
     , yield
     , yieldM
     , fromFoldable
+    , fromList
+    , fromStreamK
 
     -- * Elimination
     -- ** General Folds
@@ -82,6 +84,7 @@ module Streamly.Streams.StreamK
 
     -- ** Conversions
     , toList
+    , toStreamK
 
     -- * Transformation
     -- ** By folding (scans)
@@ -360,6 +363,7 @@ unfoldrM step = go
 -- Faster than yieldM because there is no bind. Usually we can construct a
 -- stream from a pure value using "pure" in an applicative, however in case of
 -- Zip streams pure creates an infinite stream.
+--
 -- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
 -- 'return' can be used in place of 'yield', however, in Zip applicative
 -- streams 'pure' is equivalent to 'repeat'.
@@ -406,6 +410,14 @@ repeat a = let x = cons a x in x
 {-# INLINE fromFoldable #-}
 fromFoldable :: (IsStream t, Foldable f) => f a -> t m a
 fromFoldable = Prelude.foldr cons nil
+
+{-# INLINE fromList #-}
+fromList :: IsStream t => [a] -> t m a
+fromList = fromFoldable
+
+{-# INLINE fromStreamK #-}
+fromStreamK :: Stream m a -> Stream m a
+fromStreamK = id
 
 -------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -553,6 +565,10 @@ mapM_ f m = go (toStream m)
 {-# INLINABLE toList #-}
 toList :: (IsStream t, Monad m) => t m a -> m [a]
 toList = foldr (:) []
+
+{-# INLINE toStreamK #-}
+toStreamK :: Stream m a -> Stream m a
+toStreamK = id
 
 -------------------------------------------------------------------------------
 -- Transformation by folding (Scans)

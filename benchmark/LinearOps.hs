@@ -112,9 +112,9 @@ sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
 sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: (S.IsStream t, Monad (t m), S.Semigroup (t m Int))
+sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
     => Int -> t m Int
-sourceFoldMapWith n = S.foldMapWith (S.<>) return [n..n+value]
+sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))

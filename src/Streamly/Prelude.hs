@@ -71,8 +71,8 @@ module Streamly.Prelude
 
     -- ** Conversions
     -- | Transform an input structure into a stream.
-    , K.yield
-    , K.yieldM
+    , yield
+    , yieldM
     , fromList
     , fromListM
     , K.fromFoldable
@@ -170,11 +170,27 @@ import Streamly.Streams.Zip (zipWith, zipWithM, zipAsyncWith, zipAsyncWithM)
 
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
+
+#ifdef USE_STREAMK_ONLY
+import qualified Streamly.Streams.StreamK as S
+#else
+import qualified Streamly.Streams.StreamD as S
+#endif
+
 import qualified Streamly.Streams.Serial as Serial
 
 ------------------------------------------------------------------------------
 -- Conversion to and from direct style stream
 ------------------------------------------------------------------------------
+
+-- These definitions are dependent on what is imported as S
+{-# INLINE fromStreamS #-}
+fromStreamS :: (IsStream t, Monad m) => S.Stream m a -> t m a
+fromStreamS = fromStream . S.toStreamK
+
+{-# INLINE toStreamS #-}
+toStreamS :: (IsStream t, Monad m) => t m a -> S.Stream m a
+toStreamS = S.fromStreamK . toStream
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: (IsStream t, Monad m) => D.Stream m a -> t m a
@@ -223,9 +239,9 @@ uncons m =
 -- @since 0.1.0
 {-# INLINE_EARLY unfoldr #-}
 unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step seed = fromStreamD (D.unfoldr step seed)
+unfoldr step seed = fromStreamS (S.unfoldr step seed)
 {-# RULES "unfoldr fallback to StreamK" [1]
-    forall a b. D.toStreamK (D.unfoldr a b) = K.unfoldr a b #-}
+    forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
 
 -- | Build a stream by unfolding a /monadic/ step function starting from a
 -- seed.  The step function returns the next element in the stream and the next
@@ -265,11 +281,19 @@ unfoldrM = K.unfoldrM
 {-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
 {-# INLINE_EARLY unfoldrMSerial #-}
 unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrMSerial step seed = fromStreamD (D.unfoldrM step seed)
+unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
 ------------------------------------------------------------------------------
+
+{-# INLINE yield #-}
+yield :: IsStream t => a -> t m a
+yield a = K.yield a
+
+{-# INLINE yieldM #-}
+yieldM :: (Monad m, IsStream t) => m a -> t m a
+yieldM m = K.yieldM m
 
 -- | Generate a stream by performing a monadic action @n@ times.
 --
@@ -345,9 +369,9 @@ iterateM step = go
 -- @since 0.4.0
 {-# INLINE_EARLY fromList #-}
 fromList :: (Monad m, IsStream t) => [a] -> t m a
-fromList = fromStreamD . D.fromList
+fromList = fromStreamS . S.fromList
 {-# RULES "fromList fallback to StreamK" [1]
-    forall a. D.toStreamK (D.fromList a) = K.fromFoldable a #-}
+    forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
 
 -- | Construct a stream from a list containing monadic actions. This can be
 -- more efficient than 'fromFoldableM' especially for serial streams as it can
@@ -411,7 +435,7 @@ fromHandle h = fromStream go
 -- @since 0.2.0
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
-foldrM step acc m = D.foldrM step acc $ toStreamD m
+foldrM step acc m = S.foldrM step acc $ toStreamS m
 
 -- | Lazy right associative fold. For example, to fold a stream into a list:
 --
@@ -424,7 +448,7 @@ foldrM step acc m = D.foldrM step acc $ toStreamD m
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 -- XXX somehow this definition does not perform well, need to investigate
--- foldr step acc m = D.foldr step acc $ D.fromStreamK (toStream m)
+-- foldr step acc m = S.foldr step acc $ S.fromStreamK (toStream m)
 foldr f = foldrM (\a b -> return (f a b))
 
 -- | Strict left fold with an extraction function. Like the standard strict
@@ -448,7 +472,7 @@ foldl = foldx
 -- @since 0.2.0
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
-foldl' step begin m = D.foldl' step begin $ toStreamD m
+foldl' step begin m = S.foldl' step begin $ toStreamS m
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
@@ -467,7 +491,7 @@ foldlM = foldxM
 --
 -- @since 0.2.0
 foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
-foldlM' step begin m = D.foldlM' step begin $ toStreamD m
+foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -524,7 +548,7 @@ tail m =
 -- @since 0.1.1
 {-# INLINE last #-}
 last :: Monad m => SerialT m a -> m (Maybe a)
-last m = D.last $ toStreamD m
+last m = S.last $ toStreamS m
 
 -- | Determine whether the stream is empty.
 --
@@ -614,7 +638,7 @@ maximum m = go Nothing (toStream m)
 -- @since 0.1.0
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
-mapM_ f m = D.mapM_ f $ toStreamD m
+mapM_ f m = S.mapM_ f $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -625,7 +649,7 @@ mapM_ f m = D.mapM_ f $ toStreamD m
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
-toList m = D.toList $ toStreamD m
+toList m = S.toList $ toStreamS m
 
 -- | Write a stream of Strings to an IO Handle.
 --
@@ -687,7 +711,7 @@ scanl' step = scanlM' (\a b -> return (step a b))
 #if __GLASGOW_HASKELL__ != 802
 -- GHC 8.2.2 crashes with this code, when used with "stack"
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-filter p m = fromStreamD $ D.filter p $ toStreamD m
+filter p m = fromStreamS $ S.filter p $ toStreamS m
 #else
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter = K.filter
@@ -698,14 +722,14 @@ filter = K.filter
 -- @since 0.1.0
 {-# INLINE take #-}
 take :: (IsStream t, Monad m) => Int -> t m a -> t m a
-take n m = fromStreamD $ D.take n $ toStreamD m
+take n m = fromStreamS $ S.take n $ toStreamS m
 
 -- | End the stream as soon as the predicate fails on an element.
 --
 -- @since 0.1.0
 {-# INLINE takeWhile #-}
 takeWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-takeWhile p m = fromStreamD $ D.takeWhile p $ toStreamD m
+takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
 
 -- | Same as 'takeWhile' but with a monadic predicate.
 --
@@ -719,7 +743,7 @@ takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 -- @since 0.1.0
 {-# INLINE drop #-}
 drop :: (IsStream t, Monad m) => Int -> t m a -> t m a
-drop n m = fromStreamD $ D.drop n $ toStreamD m
+drop n m = fromStreamS $ S.drop n $ toStreamS m
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -727,7 +751,7 @@ drop n m = fromStreamD $ D.drop n $ toStreamD m
 -- @since 0.1.0
 {-# INLINE dropWhile #-}
 dropWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-dropWhile p m = fromStreamD $ D.dropWhile p $ toStreamD m
+dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 
 -- | Same as 'dropWhile' but with a monadic predicate.
 --
@@ -791,7 +815,7 @@ sequence = K.sequence
 -- @since 0.3.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: (IsStream t, Monad m) => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = fromStreamD $ D.mapMaybe f $ toStreamD m
+mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
 
 -- | Like 'mapMaybe' but maps a monadic function.
 --

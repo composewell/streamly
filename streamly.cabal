@@ -97,6 +97,11 @@ flag no-fusion
   manual: True
   default: False
 
+flag streamk
+  description: Use CPS style streams when possible
+  manual: True
+  default: False
+
 flag examples
   description: Build including examples
   manual: True
@@ -145,6 +150,9 @@ library
 
     default-language: Haskell2010
     ghc-options:      -Wall
+
+    if flag(streamk)
+      cpp-options:    -DUSE_STREAMK_ONLY
 
     if flag(no-fusion)
       cpp-options:    -DDISABLE_FUSION
