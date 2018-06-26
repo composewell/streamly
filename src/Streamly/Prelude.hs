@@ -497,31 +497,15 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- Specialized folds
 ------------------------------------------------------------------------------
 
--- | Determine whether all elements of a stream satisfy a predicate.
---
--- @since 0.1.0
-all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-all = K.all
-
--- | Determine whether any of the elements of a stream satisfy a predicate.
---
--- @since 0.1.0
-any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-any = K.any
-
--- | Determine the sum of all elements of a stream of numbers
---
--- @since 0.1.0
-{-# INLINE sum #-}
-sum :: (Monad m, Num a) => SerialT m a -> m a
-sum = foldl' (+) 0
-
--- | Determine the product of all elements of a stream of numbers
+-- | Determine whether the stream is empty.
 --
 -- @since 0.1.1
-{-# INLINE product #-}
-product :: (Monad m, Num a) => SerialT m a -> m a
-product = foldl' (*) 1
+null :: Monad m => SerialT m a -> m Bool
+null m =
+    let stop      = return True
+        single _  = return False
+        yieldk _ _ = return False
+    in (K.unStream (toStream m)) Nothing stop single yieldk
 
 -- | Extract the first element of the stream, if any.
 --
@@ -550,39 +534,19 @@ tail m =
 last :: Monad m => SerialT m a -> m (Maybe a)
 last m = S.last $ toStreamS m
 
--- | Determine whether the stream is empty.
---
--- @since 0.1.1
-null :: Monad m => SerialT m a -> m Bool
-null m =
-    let stop      = return True
-        single _  = return False
-        yieldk _ _ = return False
-    in (K.unStream (toStream m)) Nothing stop single yieldk
-
 -- | Determine whether an element is present in the stream.
 --
 -- @since 0.1.0
+{-# INLINE elem #-}
 elem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
-elem e m = go (toStream m)
-    where
-    go m1 =
-        let stop      = return False
-            single a  = return (a == e)
-            yieldk a r = if a == e then return True else go r
-        in (K.unStream m1) Nothing stop single yieldk
+elem e m = S.elem e (toStreamS m)
 
 -- | Determine whether an element is not present in the stream.
 --
 -- @since 0.1.0
+{-# INLINE notElem #-}
 notElem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
-notElem e m = go (toStream m)
-    where
-    go m1 =
-        let stop      = return True
-            single a  = return (a /= e)
-            yieldk a r = if a == e then return False else go r
-        in (K.unStream m1) Nothing stop single yieldk
+notElem e m = S.notElem e (toStreamS m)
 
 -- | Determine the length of the stream.
 --
@@ -590,6 +554,34 @@ notElem e m = go (toStream m)
 {-# INLINE length #-}
 length :: Monad m => SerialT m a -> m Int
 length = foldl' (\n _ -> n + 1) 0
+
+-- | Determine whether all elements of a stream satisfy a predicate.
+--
+-- @since 0.1.0
+{-# INLINE all #-}
+all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
+all p m = S.all p (toStreamS m)
+
+-- | Determine whether any of the elements of a stream satisfy a predicate.
+--
+-- @since 0.1.0
+{-# INLINE any #-}
+any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
+any p m = S.any p (toStreamS m)
+
+-- | Determine the sum of all elements of a stream of numbers
+--
+-- @since 0.1.0
+{-# INLINE sum #-}
+sum :: (Monad m, Num a) => SerialT m a -> m a
+sum = foldl' (+) 0
+
+-- | Determine the product of all elements of a stream of numbers
+--
+-- @since 0.1.1
+{-# INLINE product #-}
+product :: (Monad m, Num a) => SerialT m a -> m a
+product = foldl' (*) 1
 
 -- | Determine the minimum element in a stream.
 --

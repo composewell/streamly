@@ -75,6 +75,10 @@ module Streamly.Streams.StreamD
     -- ** Specialized Folds
     , runStream
     , last
+    , elem
+    , notElem
+    , all
+    , any
     , maximum
     , minimum
 
@@ -114,7 +118,8 @@ import Data.Maybe (fromJust, isJust)
 import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
-               takeWhile, drop, dropWhile, maximum, minimum)
+               takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
+               notElem)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -309,6 +314,58 @@ runStream (Stream step state) = go SPEC state
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
 last = foldl' (\_ y -> Just y) Nothing
+
+{-# INLINE_NORMAL elem #-}
+elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+elem e (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if x == e
+                then return True
+                else go s
+            Stop -> return False
+
+{-# INLINE_NORMAL notElem #-}
+notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+notElem e (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if x == e
+                then return False
+                else go s
+            Stop -> return True
+
+{-# INLINE_NORMAL all #-}
+all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+all p (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if p x
+                then go s
+                else return False
+            Stop -> return True
+
+{-# INLINE_NORMAL any #-}
+any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+any p (Stream step state) = go state
+  where
+    go st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if p x
+                then return True
+                else go s
+            Stop -> return False
 
 {-# INLINE_NORMAL maximum #-}
 maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)

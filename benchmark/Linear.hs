@@ -60,12 +60,17 @@ main = do
         , benchIO "foldr" Ops.foldr
         , benchIO "foldrM" Ops.foldrM
         , benchIO "foldl'" Ops.foldl
+
         , benchIO "last" Ops.last
         , benchIO "length" Ops.length
-        , benchIO "sum" Ops.sum
-        , benchIO "product" Ops.product
+        , benchIO "elem" Ops.elem
+        , benchIO "notElem" Ops.notElem
+        , benchIO "all" Ops.all
+        , benchIO "any" Ops.any
         , benchIO "maximum" Ops.maximum
         , benchIO "minimum" Ops.minimum
+        , benchIO "sum" Ops.sum
+        , benchIO "product" Ops.product
         ]
       , bgroup "transformation"
         [ benchIO "scan" Ops.scan

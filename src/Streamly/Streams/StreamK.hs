@@ -75,6 +75,8 @@ module Streamly.Streams.StreamK
 
     -- ** Specialized Folds
     , runStream
+    , elem
+    , notElem
     , all
     , any
     , last
@@ -129,7 +131,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum)
+               maximum, elem, notElem)
 import qualified Prelude
 
 import Streamly.SVar
@@ -520,6 +522,26 @@ runStream m = go (toStream m)
             single _ = return ()
             yieldk _ r = go (toStream r)
          in (unStream m1) Nothing stop single yieldk
+
+{-# INLINE elem #-}
+elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
+elem e m = go (toStream m)
+    where
+    go m1 =
+        let stop      = return False
+            single a  = return (a == e)
+            yieldk a r = if a == e then return True else go r
+        in (unStream m1) Nothing stop single yieldk
+
+{-# INLINE notElem #-}
+notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
+notElem e m = go (toStream m)
+    where
+    go m1 =
+        let stop      = return True
+            single a  = return (a /= e)
+            yieldk a r = if a == e then return False else go r
+        in (unStream m1) Nothing stop single yieldk
 
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 all p m = go (toStream m)

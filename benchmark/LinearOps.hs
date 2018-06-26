@@ -11,7 +11,7 @@ module LinearOps where
 
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..), odd)
+        subtract, undefined, Maybe(..), odd, Bool)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -72,6 +72,12 @@ last, minimum, maximum :: Monad m => Stream m Int -> m (Maybe Int)
 {-# INLINE sum #-}
 {-# INLINE product #-}
 foldl, length, sum, product :: Monad m => Stream m Int -> m Int
+
+{-# INLINE all #-}
+{-# INLINE any #-}
+{-# INLINE elem #-}
+{-# INLINE notElem #-}
+elem, notElem, all, any :: Monad m => Stream m Int -> m Bool
 
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
@@ -163,11 +169,15 @@ foldr  = S.foldr (:) []
 foldrM = S.foldrM (\a xs -> return (a : xs)) []
 foldl  = S.foldl' (+) 0
 last   = S.last
+elem   = S.elem maxValue
+notElem = S.notElem maxValue
 length = S.length
-sum    = S.sum
-product = S.product
+all    = S.all (<= maxValue)
+any    = S.any (> maxValue)
 maximum = S.maximum
 minimum = S.minimum
+sum    = S.sum
+product = S.product
 
 -------------------------------------------------------------------------------
 -- Transformation
