@@ -75,6 +75,8 @@ module Streamly.Streams.StreamD
     -- ** Specialized Folds
     , runStream
     , last
+    , maximum
+    , minimum
 
     -- ** Map and Fold
     , mapM_
@@ -112,7 +114,7 @@ import Data.Maybe (fromJust, isJust)
 import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
-               takeWhile, drop, dropWhile)
+               takeWhile, drop, dropWhile, maximum, minimum)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -307,6 +309,42 @@ runStream (Stream step state) = go SPEC state
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
 last = foldl' (\_ y -> Just y) Nothing
+
+{-# INLINE_NORMAL maximum #-}
+maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+maximum (Stream step state) = go Nothing state
+  where
+    go Nothing st = do
+        r <- step st
+        case r of
+            Yield x s -> go (Just x) s
+            Stop -> return Nothing
+    go (Just acc) st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if acc <= x
+                then go (Just x) s
+                else go (Just acc) s
+            Stop -> return (Just acc)
+
+{-# INLINE_NORMAL minimum #-}
+minimum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
+minimum (Stream step state) = go Nothing state
+  where
+    go Nothing st = do
+        r <- step st
+        case r of
+            Yield x s -> go (Just x) s
+            Stop -> return Nothing
+    go (Just acc) st = do
+        r <- step st
+        case r of
+            Yield x s ->
+                if acc <= x
+                then go (Just acc) s
+                else go (Just x) s
+            Stop -> return (Just acc)
 
 ------------------------------------------------------------------------------
 -- Map and Fold

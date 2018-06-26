@@ -89,15 +89,15 @@ module Streamly.Prelude
     , foldxM
 
     -- ** Specialized Folds
-    , all
-    , any
+    , null
     , head
     , tail
     , last
-    , null
-    , length
     , elem
     , notElem
+    , length
+    , all
+    , any
     , maximum
     , minimum
     , sum
@@ -591,41 +591,19 @@ notElem e m = go (toStream m)
 length :: Monad m => SerialT m a -> m Int
 length = foldl' (\n _ -> n + 1) 0
 
--- XXX replace the recursive "go" with continuation
 -- | Determine the minimum element in a stream.
 --
 -- @since 0.1.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-minimum m = go Nothing (toStream m)
-    where
-    go res m1 =
-        let stop      = return res
-            single a  = return $ min_ a res
-            yieldk a r = go (min_ a res) r
-        in (K.unStream m1) Nothing stop single yieldk
+minimum m = S.minimum (toStreamS m)
 
-    min_ a res = case res of
-        Nothing -> Just a
-        Just e  -> Just $ min a e
-
--- XXX replace the recursive "go" with continuation
 -- | Determine the maximum element in a stream.
 --
 -- @since 0.1.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-maximum m = go Nothing (toStream m)
-    where
-    go res m1 =
-        let stop      = return res
-            single a  = return $ max_ a res
-            yieldk a r = go (max_ a res) r
-        in (K.unStream m1) Nothing stop single yieldk
-
-    max_ a res = case res of
-        Nothing -> Just a
-        Just e  -> Just $ max a e
+maximum m = S.maximum (toStreamS m)
 
 ------------------------------------------------------------------------------
 -- Map and Fold

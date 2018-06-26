@@ -78,6 +78,8 @@ module Streamly.Streams.StreamK
     , all
     , any
     , last
+    , minimum
+    , maximum
 
     -- ** Map and Fold
     , mapM_
@@ -126,7 +128,8 @@ import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
-               take, filter, all, any, takeWhile, drop, dropWhile)
+               take, filter, all, any, takeWhile, drop, dropWhile, minimum,
+               maximum)
 import qualified Prelude
 
 import Streamly.SVar
@@ -542,6 +545,50 @@ any p m = go (toStream m)
 {-# INLINE last #-}
 last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
 last = foldx (\_ y -> Just y) Nothing id
+
+{-# INLINE minimum #-}
+minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+minimum m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 Nothing stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  =
+                if res <= a
+                then return (Just res)
+                else return (Just a)
+            yieldk a r =
+                if res <= a
+                then go (Just res) r
+                else go (Just a) r
+        in unStream m1 Nothing stop single yieldk
+
+{-# INLINE maximum #-}
+maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+maximum m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 Nothing stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  =
+                if res <= a
+                then return (Just a)
+                else return (Just res)
+            yieldk a r =
+                if res <= a
+                then go (Just a) r
+                else go (Just res) r
+        in unStream m1 Nothing stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Map and Fold
