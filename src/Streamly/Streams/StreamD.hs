@@ -306,19 +306,7 @@ runStream (Stream step state) = go SPEC state
 
 {-# INLINE_NORMAL last #-}
 last :: Monad m => Stream m a -> m (Maybe a)
-last (Stream step state) = go0 SPEC state
-  where
-    go0 !_ st = do
-        r <- step st
-        case r of
-            Yield x s -> go1 SPEC x s
-            Stop      -> return Nothing
-
-    go1 !_ x st = do
-        r <- step st
-        case r of
-            Yield y s -> go1 SPEC y s
-            Stop      -> return (Just x)
+last = foldl' (\_ y -> Just y) Nothing
 
 ------------------------------------------------------------------------------
 -- Map and Fold
