@@ -9,6 +9,7 @@
 
 module LinearOps where
 
+import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not)
@@ -42,13 +43,14 @@ maxValue = value + 1000
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileMTrue #-}
 {-# INLINE zip #-}
+{-# INLINE zipM #-}
 {-# INLINE concat #-}
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
 uncons, nullHeadTail, scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
-    dropWhileTrue, dropWhileMTrue, zip,
+    dropWhileTrue, dropWhileMTrue, zip, zipM,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
     :: Monad m
@@ -56,8 +58,9 @@ uncons, nullHeadTail, scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut
 
 {-# INLINE composeMapM #-}
 {-# INLINE zipAsync #-}
+{-# INLINE zipAsyncM #-}
 {-# INLINE mapMaybeM #-}
-composeMapM, zipAsync, mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
+composeMapM, zipAsync, zipAsyncM, mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
 
 {-# INLINE toList #-}
 {-# INLINE foldr #-}
@@ -228,8 +231,22 @@ dropWhileMTrue = transform . S.dropWhileM (return . (<= maxValue))
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ (S.zipWith (,) src src)
-zipAsync src  = transform $ (S.zipAsyncWith (,) src src)
+zip src       = do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform $ (S.zipWith (,) src src1)
+zipM src      =  do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform $ (S.zipWithM (\a b -> return (a,b)) src src1)
+zipAsync src  = do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform $ (S.zipAsyncWith (,) src src1)
+zipAsyncM src = do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform $ (S.zipAsyncWithM (\a b -> return (a,b)) src src1)
 concat _n     = return ()
 
 -------------------------------------------------------------------------------

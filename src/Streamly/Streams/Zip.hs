@@ -77,14 +77,14 @@ zipWith f m1 m2 = fromStream $ zipWithS f (toStream m1) (toStream m2)
 -- | Zip two streams serially using a monadic zipping function.
 --
 -- @since 0.1.0
-zipWithM :: IsStream t => (a -> b -> t m c) -> t m a -> t m b -> t m c
+zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
     go mx my = Stream $ \_ stp sng yld -> do
         let merge a ra =
                 let runIt x = unStream x Nothing stp sng yld
-                    single2 b   = runIt $ toStream (f a b)
-                    yield2 b rb = runIt $ toStream (f a b) <> go ra rb
+                    single2 b   = f a b >>= sng
+                    yield2 b rb = f a b >>= \x -> runIt (x `K.cons` go ra rb)
                  in unStream my Nothing stp single2 yield2
         let single1 a  = merge a K.nil
             yield1 a ra = merge a ra
@@ -177,9 +177,9 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
 -- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
 --
--- @since 0.1.0
+-- @since 0.4.0
 zipAsyncWithM :: (IsStream t, MonadAsync m)
-    => (a -> b -> t m c) -> t m a -> t m b -> t m c
+    => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
     ma <- mkAsync m1
     mb <- mkAsync m2

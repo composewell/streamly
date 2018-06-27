@@ -525,7 +525,7 @@ zipApplicative constr t eq (a, b) = withMaxSuccess maxTestCount $
         equals eq stream3 list
 
 zipMonadic
-    :: (IsStream t, Monad (t IO))
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> (t IO (Int, Int) -> SerialT IO (Int, Int))
     -> ([(Int, Int)] -> [(Int, Int)] -> Bool)

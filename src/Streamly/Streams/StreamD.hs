@@ -114,6 +114,10 @@ module Streamly.Streams.StreamD
     -- ** Map and Filter
     , mapMaybe
     , mapMaybeM
+
+    -- * Zipping
+    , zipWith
+    , zipWithM
     )
 where
 
@@ -122,7 +126,7 @@ import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
-               notElem, null, head, tail)
+               notElem, null, head, tail, zipWith)
 
 import Streamly.SVar (MonadAsync)
 import qualified Streamly.Streams.StreamK as K
@@ -624,6 +628,7 @@ map f = mapM (return . f)
 -- Transformation by Map and Filter
 ------------------------------------------------------------------------------
 
+-- XXX Will this always fuse properly?
 {-# INLINE_NORMAL mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
 mapMaybe f = fmap fromJust . filter isJust . map f
@@ -631,6 +636,37 @@ mapMaybe f = fmap fromJust . filter isJust . map f
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
+
+------------------------------------------------------------------------------
+-- Instances
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL zipWithM #-}
+zipWithM :: Monad m
+    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
+zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
+  where
+    {-# INLINE_LATE step #-}
+    step (sa, sb, Nothing) = do
+        r <- stepa sa
+        case r of
+            Yield x sa' -> step (sa', sb, Just x)
+            Stop        -> return Stop
+
+    step (sa, sb, Just x) = do
+        r <- stepb sb
+        case r of
+            Yield y sb' -> do
+                z <- f x y
+                return $ Yield z (sa, sb', Nothing)
+            Stop -> return Stop
+
+{-# RULES "zipWithM xs xs"
+    forall f xs. zipWithM f xs xs = mapM (\x -> f x x) xs #-}
+
+{-# INLINE zipWith #-}
+zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipWith f = zipWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Instances

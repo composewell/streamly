@@ -97,6 +97,7 @@ main = do
         , benchIO "dropWhileM-true" Ops.dropWhileMTrue
         ]
       , benchIO "zip" $ Ops.zip
+      , benchIO "zipM" $ Ops.zipM
       , bgroup "compose"
         [ benchIO "mapM" Ops.composeMapM
         , benchIO "map-with-all-in-filter" Ops.composeMapAllInFilter
@@ -151,5 +152,6 @@ main = do
         , benchIO "mapM" $ Ops.mapM parallely
         -- Zip has only one parallel flavor
         , benchIO "zip" $ Ops.zipAsync
+        , benchIO "zipM" $ Ops.zipAsyncM
         ]
       ]

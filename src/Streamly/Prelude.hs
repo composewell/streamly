@@ -141,8 +141,8 @@ module Streamly.Prelude
     -- * Zipping
     , zipWith
     , zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
+    , Z.zipAsyncWith
+    , Z.zipAsyncWithM
 
     -- * Deprecated
     , K.once
@@ -166,13 +166,14 @@ import qualified System.IO as IO
 import Streamly.SVar (MonadAsync)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.Zip (zipWith, zipWithM, zipAsyncWith, zipAsyncWithM)
 
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.Zip as Z
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
+import qualified Streamly.Streams.Zip as S
 #else
 import qualified Streamly.Streams.StreamD as S
 #endif
@@ -801,3 +802,21 @@ reverse m = fromStream $ go K.nil (toStream m)
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
          in K.unStream rest Nothing stop single yieldk
+
+------------------------------------------------------------------------------
+-- Zipping
+------------------------------------------------------------------------------
+
+-- | Zip two streams serially using a monadic zipping function.
+--
+-- @since 0.4.0
+{-# INLINABLE zipWithM #-}
+zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipWithM f m1 m2 = fromStreamS $ S.zipWithM f (toStreamS m1) (toStreamS m2)
+
+-- | Zip two streams serially using a pure zipping function.
+--
+-- @since 0.1.0
+{-# INLINABLE zipWith #-}
+zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)

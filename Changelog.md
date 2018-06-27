@@ -2,6 +2,7 @@
 
 ### Breaking changes
 
+* Signatures of `zipWithM` and `zipAsyncWithM` have changed
 * Some functions in prelude now require an additional Monad constraint for the
   underlying type of the stream.
 
