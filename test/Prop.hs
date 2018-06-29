@@ -49,12 +49,15 @@ equals eq stream list = do
 constructWithReplicateM
     :: IsStream t
     => (t IO Int -> SerialT IO Int)
+    -> Int
+    -> Int
     -> Word8
     -> Property
-constructWithReplicateM op len =
+constructWithReplicateM op thr buf len =
     monadicIO $ do
         let x = return (1 :: Int)
-        stream <- run $ (S.toList . op) (S.replicateM (fromIntegral len) x)
+        stream <- run $ (S.toList . op) (threads thr $ buffer buf $
+            S.replicateM (fromIntegral len) x)
         list <- run $ replicateM (fromIntegral len) x
         equals (==) stream list
 
@@ -383,6 +386,13 @@ transformCombineOpsCommon constr desc t eq = do
     prop (desc ++ " filter even") $
         transform (filter even) t (S.filter even)
 
+    prop (desc ++ " filterM False") $
+        transform (filter (const False)) t (S.filterM (const $ return False))
+    prop (desc ++ " filterM True") $
+        transform (filter (const True)) t (S.filterM (const $ return True))
+    prop (desc ++ " filterM even") $
+        transform (filter even) t (S.filterM (return . even))
+
     prop (desc ++ " take maxBound") $
         transform (take maxBound) t (S.take maxBound)
     prop (desc ++ " take 0") $ transform (take 0) t (S.take 0)
@@ -392,6 +402,11 @@ transformCombineOpsCommon constr desc t eq = do
     prop (desc ++ " takeWhile False") $
         transform (takeWhile (const False)) t (S.takeWhile (const False))
 
+    prop (desc ++ " takeWhileM True") $
+        transform (takeWhile (const True)) t (S.takeWhileM (const $ return True))
+    prop (desc ++ " takeWhileM False") $
+        transform (takeWhile (const False)) t (S.takeWhileM (const $ return False))
+
     prop (desc ++ " drop maxBound") $
         transform (drop maxBound) t (S.drop maxBound)
     prop (desc ++ " drop 0") $ transform (drop 0) t (S.drop 0)
@@ -400,8 +415,19 @@ transformCombineOpsCommon constr desc t eq = do
         transform (dropWhile (const True)) t (S.dropWhile (const True))
     prop (desc ++ " dropWhile False") $
         transform (dropWhile (const False)) t (S.dropWhile (const False))
+
+    prop (desc ++ " dropWhileM True") $
+        transform (dropWhile (const True)) t (S.dropWhileM (const $ return True))
+    prop (desc ++ " dropWhileM False") $
+        transform (dropWhile (const False)) t (S.dropWhileM (const $ return False))
+
+    prop (desc ++ " mapM (+1)") $
+        transform (map (+1)) t (S.mapM (\x -> return (x + 1)))
+
     prop (desc ++ " scan") $ transform (scanl' (flip const) 0) t
                                        (S.scanl' (flip const) 0)
+    prop (desc ++ " scanlM'") $ transform (scanl' (flip const) 0) t
+                                       (S.scanlM' (\_ a -> return a) 0)
     prop (desc ++ " reverse") $ transform reverse t S.reverse
 
 transformCombineOpsOrdered
@@ -573,6 +599,23 @@ monadBind constr t eq (a, b) = withMaxSuccess maxTestCount $
         let list = a >>= \x -> b >>= return . (+ x)
         equals eq stream list
 
+constructionConcurrent :: Int -> Int -> Spec
+constructionConcurrent thr buf =
+    describe (" threads = " ++ show thr ++ "buffer = " ++ show buf) $ do
+        prop "asyncly replicateM" $ constructWithReplicateM asyncly thr buf
+        prop "wAsyncly replicateM" $ constructWithReplicateM wAsyncly thr buf
+        prop "parallely replicateM" $ constructWithReplicateM parallely thr buf
+        prop "aheadly replicateM" $ constructWithReplicateM aheadly thr buf
+
+-- XXX test all concurrent ops for all these combinations
+concurrentAll :: String -> (Int -> Int -> Spec) -> Spec
+concurrentAll desc f = do
+    describe desc $ do
+        f 0 0       -- default
+        f 0 1       -- single buffer
+        f 1 0       -- single thread
+        f (-1) (-1) -- unbounded threads and buffer
+
 main :: IO ()
 main = hspec $ do
     let folded :: IsStream t => [a] -> t IO a
@@ -582,16 +625,16 @@ main = hspec $ do
                 _ -> foldMapWith (<>) return xs
             )
     describe "Construction" $ do
-        -- XXX test for all types of streams
-        prop "serially replicateM" $ constructWithReplicateM serially
+        prop "serially replicateM" $ constructWithReplicateM serially 0 0
         it "iterate" $
             (S.toList . serially . (S.take 100) $ (S.iterate (+ 1) (0 :: Int)))
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
-
+        -- XXX test for all types of streams
         it "iterateM" $ do
             let addM = (\ y -> return (y + 1))
             S.toList . serially . (S.take 100) $ S.iterateM addM (0 :: Int)
             `shouldReturn` (take 100 $ iterate (+ 1) 0)
+    concurrentAll "Construction" constructionConcurrent
 
     describe "Functor operations" $ do
         functorOps S.fromFoldable "serially" serially (==)
@@ -778,6 +821,8 @@ main = hspec $ do
         eliminationOps folded "wAsyncly folded" wAsyncly
         eliminationOps folded "parallely folded" parallely
 
+    -- XXX Add a test where we chain all transformation APIs and make sure that
+    -- the state is being passed through all of them.
     describe "Stream serial elimination operations" $ do
         serialEliminationOps S.fromFoldable "serially" serially
         serialEliminationOps S.fromFoldable "aheadly" aheadly

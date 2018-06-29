@@ -23,6 +23,11 @@ module Streamly.SVar
       MonadAsync
     , SVar (..)
     , SVarStyle (..)
+    , defaultMaxBuffer
+    , defaultMaxThreads
+    , State (..)
+    , defState
+    , rstState
 
     , newAheadVar
     , newParallelVar
@@ -71,6 +76,7 @@ import Data.Functor (void)
 import Data.Heap (Heap, Entry(..))
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, atomicModifyIORef)
+import Data.Maybe (fromJust)
 import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
@@ -179,6 +185,29 @@ data SVar t m a =
             , maxWorkQSize    :: IORef Int
 #endif
             }
+
+data State t m a = State
+    { streamVar :: Maybe (SVar t m a)
+    , maxThreads :: Int
+    , maxBuffer :: Int
+    }
+
+defaultMaxThreads, defaultMaxBuffer :: Int
+defaultMaxThreads = 1500
+defaultMaxBuffer = 1500
+
+defState :: State t m a
+defState = State
+    { streamVar = Nothing
+    , maxThreads = defaultMaxThreads
+    , maxBuffer = defaultMaxBuffer
+    }
+
+-- We can optimize this so that we clear it only if it is a Just value, it
+-- results in slightly better perf for zip/zipM but the performance of scan
+-- worsens a lot, it does not fuse.
+rstState :: State t m a -> State t m b
+rstState st = st {streamVar = Nothing}
 
 #ifdef DIAGNOSTICS
 {-# NOINLINE dumpSVar #-}
@@ -306,14 +335,11 @@ doFork action exHandler =
 -- TBD Each worker can have their own queue and the consumer can empty one
 -- queue at a time, that way contention can be reduced.
 
-maxOutputQLen :: Int
-maxOutputQLen = 1500
-
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
 {-# NOINLINE send #-}
-send :: SVar t m a -> ChildEvent a -> IO Bool
-send sv msg = do
+send :: Int -> SVar t m a -> ChildEvent a -> IO Bool
+send maxOutputQLen sv msg = do
     len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
         ((msg : es, n + 1), n)
     when (len <= 0) $ do
@@ -327,13 +353,13 @@ send sv msg = do
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (outputDoorBell sv) ()
-    return (len < maxOutputQLen)
+    return (len < maxOutputQLen || maxOutputQLen < 0)
 
 {-# NOINLINE sendStop #-}
 sendStop :: SVar t m a -> IO ()
 sendStop sv = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
-    myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
+    myThreadId >>= \tid -> void $ send (-1) sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
 -- Async
@@ -360,17 +386,18 @@ enqueueLIFO sv q m = do
 
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO :: MonadIO m
-    => (SVar t m a -> IORef [t m a] -> t m a -> m () -> m ())
-    -> SVar t m a -> IORef [t m a] -> m ()
-workLoopLIFO f sv q = run
+    => (State t m a -> IORef [t m a] -> t m a -> m () -> m ())
+    -> State t m a -> IORef [t m a] -> m ()
+workLoopLIFO f st q = run
 
     where
 
+    sv = fromJust $ streamVar st
     run = do
         work <- dequeue
         case work of
             Nothing -> liftIO $ sendStop sv
-            Just m -> f sv q m run
+            Just m -> f st q m run
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
                 [] -> ([], Nothing)
@@ -401,18 +428,18 @@ enqueueFIFO sv q m = do
 
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO :: MonadIO m
-    => (SVar t m a -> LinkedQueue (t m a) -> t m a -> m () -> m ())
-    -> SVar t m a -> LinkedQueue (t m a) -> m ()
-workLoopFIFO f sv q = run
+    => (State t m a -> LinkedQueue (t m a) -> t m a -> m () -> m ())
+    -> State t m a -> LinkedQueue (t m a) -> m ()
+workLoopFIFO f st q = run
 
     where
 
+    sv = fromJust $ streamVar st
     run = do
         work <- liftIO $ tryPopR q
         case work of
             Nothing -> liftIO $ sendStop sv
-            -- Just m -> runStreamFIFO sv q m run
-            Just m -> f sv q m run
+            Just m -> f st q m run
 
 -------------------------------------------------------------------------------
 -- Ahead
@@ -596,7 +623,7 @@ allThreadsDone sv = liftIO $ S.null <$> readIORef (workerThreads sv)
 handleChildException :: SVar t m a -> SomeException -> IO ()
 handleChildException sv e = do
     tid <- myThreadId
-    void $ send sv (ChildStop tid (Just e))
+    void $ send (-1) sv (ChildStop tid (Just e))
 
 #ifdef DIAGNOSTICS
 recordMaxWorkers :: MonadIO m => SVar t m a -> m ()
@@ -635,11 +662,8 @@ pushWorkerPar sv wloop = do
 #endif
     doFork wloop (handleChildException sv) >>= modifyThread sv
 
-maxWorkerLimit :: Int
-maxWorkerLimit = 1500
-
-dispatchWorker :: MonadAsync m => SVar t m a -> m ()
-dispatchWorker sv = do
+dispatchWorker :: MonadAsync m => Int -> SVar t m a -> m ()
+dispatchWorker maxWorkerLimit sv = do
     done <- liftIO $ isWorkDone sv
     when (not done) $ do
         -- Note that the worker count is only decremented during event
@@ -651,11 +675,11 @@ dispatchWorker sv = do
         -- executing. In that case we should either configure the maxWorker
         -- count to higher or use parallel style instead of ahead or async
         -- style.
-        when (cnt < maxWorkerLimit) $ pushWorker sv
+        when (cnt < maxWorkerLimit || maxWorkerLimit < 0) $ pushWorker sv
 
 {-# NOINLINE sendWorkerWait #-}
-sendWorkerWait :: MonadAsync m => SVar t m a -> m ()
-sendWorkerWait sv = do
+sendWorkerWait :: MonadAsync m => Int -> SVar t m a -> m ()
+sendWorkerWait maxWorkerLimit sv = do
     -- Note that we are guaranteed to have at least one outstanding worker when
     -- we enter this function. So if we sleep we are guaranteed to be woken up
     -- by a outputDoorBell, when the worker exits.
@@ -707,7 +731,7 @@ sendWorkerWait sv = do
 
         liftIO $ atomicModifyIORefCAS_ (needDoorBell sv) $ const True
         liftIO $ storeLoadBarrier
-        dispatchWorker sv
+        dispatchWorker maxWorkerLimit sv
 
         -- XXX test for the case when we miss sending a worker when the worker
         -- count is more than 1500.
@@ -722,8 +746,8 @@ sendWorkerWait sv = do
             liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
                              $ takeMVar (outputDoorBell sv)
             (_, len) <- liftIO $ readIORef (outputQueue sv)
-            when (len <= 0) $ sendWorkerWait sv
-        else sendWorkerWait sv
+            when (len <= 0) $ sendWorkerWait maxWorkerLimit sv
+        else sendWorkerWait maxWorkerLimit sv
 
 {-# INLINE readOutputQRaw #-}
 readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
@@ -735,8 +759,8 @@ readOutputQRaw sv = do
 #endif
     return (list, len)
 
-readOutputQBounded :: MonadAsync m => SVar t m a -> m [ChildEvent a]
-readOutputQBounded sv = do
+readOutputQBounded :: MonadAsync m => Int -> SVar t m a -> m [ChildEvent a]
+readOutputQBounded n sv = do
     (list, len) <- liftIO $ readOutputQRaw sv
     -- When there is no output seen we dispatch more workers to help
     -- out if there is work pending in the work queue.
@@ -760,7 +784,7 @@ readOutputQBounded sv = do
 
     {-# INLINE blockingRead #-}
     blockingRead = do
-        sendWorkerWait sv
+        sendWorkerWait n sv
         liftIO $ (readOutputQRaw sv >>= return . fst)
 
 postProcessBounded :: MonadAsync m => SVar t m a -> m Bool
@@ -778,12 +802,13 @@ postProcessBounded sv = do
     else return False
 
 getAheadSVar :: MonadAsync m
-    => (   SVar t m a
+    => State t m a
+    -> (   State t m a
         -> IORef ([t m a], Int)
         -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
         -> m ())
     -> IO (SVar t m a)
-getAheadSVar f = do
+getAheadSVar st f = do
     outQ    <- newIORef ([], 0)
     outH    <- newIORef (H.empty, 0)
     outQMv  <- newEmptyMVar
@@ -802,11 +827,11 @@ getAheadSVar f = do
     let sv =
             SVar { outputQueue      = outQ
                  , outputDoorBell   = outQMv
-                 , readOutputQ      = readOutputQBounded sv
+                 , readOutputQ      = readOutputQBounded (maxThreads st) sv
                  , postProcess      = postProcessBounded sv
                  , workerThreads    = running
                  -- , workLoop         = workLoopAhead sv q outH
-                 , workLoop         = f sv q outH
+                 , workLoop         = f st{streamVar = Just sv} q outH
                  , enqueue          = enqueueAhead sv q
                  , isWorkDone       = isWorkDoneAhead q outH
                  , needDoorBell     = wfw
@@ -894,14 +919,15 @@ sendWorker sv m = do
 
 {-# INLINABLE newAheadVar #-}
 newAheadVar :: MonadAsync m
-    => t m a
-    -> (   SVar t m a
+    => State t m a
+    -> t m a
+    -> (   State t m a
         -> IORef ([t m a], Int)
         -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
         -> m ())
     -> m (SVar t m a)
-newAheadVar m wloop = do
-    sv <- liftIO $ getAheadSVar wloop
+newAheadVar st m wloop = do
+    sv <- liftIO $ getAheadSVar st wloop
     sendWorker sv m
 
 {-# INLINABLE newParallelVar #-}

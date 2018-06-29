@@ -119,6 +119,7 @@ module Streamly.Prelude
 
     -- ** Filtering
     , filter
+    , filterM
     , take
     , takeWhile
     , takeWhileM
@@ -163,7 +164,7 @@ import Prelude
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.SVar (MonadAsync)
+import Streamly.SVar (MonadAsync, defState, rstState)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 
@@ -619,7 +620,7 @@ toHandle h m = go (toStream m)
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in (K.unStream m1) Nothing stop single yieldk
+        in (K.unStream m1) defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -674,6 +675,13 @@ filter p m = fromStreamS $ S.filter p $ toStreamS m
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter = K.filter
 #endif
+
+-- | Same as 'filter' but with a monadic predicate.
+--
+-- @since 0.4.0
+{-# INLINE filterM #-}
+filterM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
+filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
@@ -796,12 +804,12 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 reverse :: (IsStream t) => t m a -> t m a
 reverse m = fromStream $ go K.nil (toStream m)
     where
-    go rev rest = K.Stream $ \_ stp sng yld ->
-        let runIt x = K.unStream x Nothing stp sng yld
+    go rev rest = K.Stream $ \st stp sng yld ->
+        let runIt x = K.unStream x (rstState st) stp sng yld
             stop = runIt rev
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
-         in K.unStream rest Nothing stop single yieldk
+         in K.unStream rest (rstState st) stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Zipping

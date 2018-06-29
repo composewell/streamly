@@ -100,6 +100,10 @@ module Streamly
     , wAsync
     , parallel
 
+    -- * Concurrency Control
+    , threads
+    , buffer
+
     -- * Folding Containers of Streams
     -- $foldutils
     , foldWith
@@ -159,6 +163,7 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Parallel
 import Streamly.Streams.Zip
 import Streamly.Streams.Prelude
+import Streamly.Streams.SVar (threads, buffer)
 import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 

@@ -12,6 +12,8 @@
 
 ### Enhancements
 
+* Add concurrency control primitives `threads` and `buffer`.
+* Significant performance improvements
 * Add `yield` to construct a singleton stream from a pure value
 * Add `repeat` to generate an infinite stream by repeating a pure value
 * Add `fromList` and `fromListM` to generate streams from lists, faster than
@@ -19,7 +21,7 @@
 * Add `map` as a synonym of fmap
 * Add `scanlM'`, the monadic version of scanl'
 * Add `takeWhileM` and `dropWhileM`
-* Significant performance improvements
+* Add `filterM`
 
 ## 0.3.0
 

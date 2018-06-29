@@ -43,6 +43,7 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
+import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 
@@ -59,36 +60,38 @@ import qualified Streamly.Streams.StreamK as K
 -------------------------------------------------------------------------------
 
 {-# NOINLINE runOne #-}
-runOne :: MonadIO m => SVar Stream m a -> Stream m a -> m ()
-runOne sv m = (unStream m) (Just sv) stop single yieldk
+runOne :: MonadIO m => State Stream m a -> Stream m a -> m ()
+runOne st m = unStream m st stop single yieldk
 
     where
 
+    sv = fromJust $ streamVar st
     stop = liftIO $ sendStop sv
-    sendit a = liftIO $ send sv (ChildYield a)
+    sendit a = liftIO $ send (-1) sv (ChildYield a)
     single a = sendit a >> stop
     -- XXX there is no flow control in parallel case. We should perhaps use a
     -- queue and queue it back on that and exit the thread when the outputQueue
     -- overflows. Parallel is dangerous because it can accumulate unbounded
     -- output in the buffer.
-    yieldk a r = void (sendit a) >> runOne sv r
+    yieldk a r = void (sendit a) >> runOne st r
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarPar m r = Stream $ \_ stp sng yld -> do
+forkSVarPar m r = Stream $ \st stp sng yld -> do
     sv <- newParallelVar
-    pushWorkerPar sv (runOne sv m)
-    pushWorkerPar sv (runOne sv r)
-    (unStream (fromSVar sv)) Nothing stp sng yld
+    pushWorkerPar sv (runOne st{streamVar = Just sv} m)
+    pushWorkerPar sv (runOne st{streamVar = Just sv} r)
+    (unStream (fromSVar sv)) (rstState st) stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarPar style m1 m2 = Stream $ \svr stp sng yld ->
-    case svr of
+joinStreamVarPar style m1 m2 = Stream $ \st stp sng yld ->
+    case streamVar st of
         Just sv | svarStyle sv == style -> do
-            pushWorkerPar sv (runOne sv m1) >> (unStream m2) svr stp sng yld
-        _ -> unStream (forkSVarPar m1 m2) Nothing stp sng yld
+            pushWorkerPar sv (runOne st m1)
+            unStream m2 st stp sng yld
+        _ -> unStream (forkSVarPar m1 m2) (rstState st) stp sng yld
 
 {-# INLINE parallelStream #-}
 parallelStream :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
@@ -115,7 +118,7 @@ parallel m1 m2 = fromStream $ parallelStream (toStream m1) (toStream m2)
 mkParallel :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkParallel m = do
     sv <- newParallelVar
-    pushWorkerPar sv (runOne sv $ toStream m)
+    pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------
@@ -124,10 +127,10 @@ mkParallel m = do
 
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-applyWith f m = fromStream $ Stream $ \svr stp sng yld -> do
+applyWith f m = fromStream $ Stream $ \st stp sng yld -> do
     sv <- newParallelVar
-    pushWorkerPar sv (runOne sv (toStream m))
-    unStream (toStream $ f $ fromSVar sv) svr stp sng yld
+    pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
+    unStream (toStream $ f $ fromSVar sv) st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application
@@ -137,7 +140,7 @@ applyWith f m = fromStream $ Stream $ \svr stp sng yld -> do
 runWith :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
 runWith f m = do
     sv <- newParallelVar
-    pushWorkerPar sv (runOne sv $ toStream m)
+    pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
 
 ------------------------------------------------------------------------------

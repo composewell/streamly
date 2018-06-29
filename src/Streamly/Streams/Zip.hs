@@ -42,9 +42,9 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Streams.StreamK (IsStream(..), Stream(..))
-import Streamly.Streams.Async (mkAsync)
+import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Serial (map)
-import Streamly.SVar (MonadAsync)
+import Streamly.SVar (MonadAsync, rstState)
 
 import qualified Streamly.Streams.StreamK as K
 
@@ -58,14 +58,14 @@ import qualified Streamly.Streams.StreamK as K
 zipWithS :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWithS f m1 m2 = go m1 m2
     where
-    go mx my = Stream $ \_ stp sng yld -> do
+    go mx my = Stream $ \st stp sng yld -> do
         let merge a ra =
                 let single2 b = sng (f a b)
                     yield2 b rb = yld (f a b) (go ra rb)
-                 in unStream my Nothing stp single2 yield2
+                 in unStream my (rstState st) stp single2 yield2
         let single1 a   = merge a K.nil
             yield1 a ra = merge a ra
-        unStream mx Nothing stp single1 yield1
+        unStream mx (rstState st) stp single1 yield1
 
 -- | Zip two streams serially using a pure zipping function.
 --
@@ -80,15 +80,15 @@ zipWith f m1 m2 = fromStream $ zipWithS f (toStream m1) (toStream m2)
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
-    go mx my = Stream $ \_ stp sng yld -> do
+    go mx my = Stream $ \st stp sng yld -> do
         let merge a ra =
-                let runIt x = unStream x Nothing stp sng yld
+                let runIt x = unStream x (rstState st) stp sng yld
                     single2 b   = f a b >>= sng
                     yield2 b rb = f a b >>= \x -> runIt (x `K.cons` go ra rb)
-                 in unStream my Nothing stp single2 yield2
+                 in unStream my (rstState st) stp single2 yield2
         let single1 a  = merge a K.nil
             yield1 a ra = merge a ra
-        unStream mx Nothing stp single1 yield1
+        unStream mx (rstState st) stp single1 yield1
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -169,10 +169,10 @@ instance Monad m => Applicative (ZipSerialM m) where
 -- @since 0.1.0
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
-    ma <- mkAsync m1
-    mb <- mkAsync m2
-    unStream (toStream (zipWith f ma mb)) Nothing stp sng yld
+zipAsyncWith f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
+    ma <- mkAsync' (rstState st) m1
+    mb <- mkAsync' (rstState st) m2
+    unStream (toStream (zipWith f ma mb)) (rstState st) stp sng yld
 
 -- | Zip two streams asyncly (i.e. both the elements being zipped are generated
 -- concurrently) using a monadic zipping function.
@@ -180,10 +180,10 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
 -- @since 0.4.0
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = fromStream $ Stream $ \_ stp sng yld -> do
-    ma <- mkAsync m1
-    mb <- mkAsync m2
-    unStream (toStream (zipWithM f ma mb)) Nothing stp sng yld
+zipAsyncWithM f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
+    ma <- mkAsync' (rstState st) m1
+    mb <- mkAsync' (rstState st) m2
+    unStream (toStream (zipWithM f ma mb)) (rstState st) stp sng yld
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams

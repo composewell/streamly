@@ -115,14 +115,16 @@ import Prelude hiding (map)
 -- Thererefore the queue never has more than on item in it.
 
 workLoopAhead :: MonadIO m
-    => SVar Stream m a
+    => State Stream m a
     -> IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> m ()
-workLoopAhead sv q heap = runHeap
+workLoopAhead st q heap = runHeap
 
     where
 
+    sv = fromJust $ streamVar st
+    maxBuf = maxBuffer st
     toHeap seqNo ent = do
         hp <- liftIO $ atomicModifyIORefCAS heap $ \(h, snum) ->
             ((H.insert (Entry seqNo ent) h, snum), h)
@@ -134,7 +136,7 @@ workLoopAhead sv q heap = runHeap
     yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
 
     singleOutput seqNo a = do
-        continue <- liftIO $ send sv (ChildYield a)
+        continue <- liftIO $ send maxBuf sv (ChildYield a)
         if continue
         then runQueueToken seqNo
         else liftIO $ do
@@ -142,11 +144,11 @@ workLoopAhead sv q heap = runHeap
             sendStop sv
 
     yieldOutput seqNo a r = do
-        continue <- liftIO $ send sv (ChildYield a)
+        continue <- liftIO $ send maxBuf sv (ChildYield a)
         if continue
-        then unStream r (Just sv) (runQueueToken seqNo)
-                                  (singleOutput seqNo)
-                                  (yieldOutput seqNo)
+        then unStream r st (runQueueToken seqNo)
+                           (singleOutput seqNo)
+                           (yieldOutput seqNo)
         else liftIO $ do
             atomicModifyIORefCAS_ heap $ \(h, _) ->
                 (H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo)
@@ -163,15 +165,15 @@ workLoopAhead sv q heap = runHeap
             Just (m, seqNo) -> do
                 if seqNo == prevSeqNo + 1
                 then
-                    unStream m (Just sv) (runQueueToken seqNo)
-                                         (singleOutput seqNo)
-                                         (yieldOutput seqNo)
+                    unStream m st (runQueueToken seqNo)
+                                  (singleOutput seqNo)
+                                  (yieldOutput seqNo)
                 else do
                     liftIO $ atomicModifyIORefCAS_ heap $ \(h, _) ->
                         (h, prevSeqNo + 1)
-                    unStream m (Just sv) runHeap
-                                         (singleToHeap seqNo)
-                                         (yieldToHeap seqNo)
+                    unStream m st runHeap
+                                  (singleToHeap seqNo)
+                                  (yieldToHeap seqNo)
     runQueueNoToken = do
         work <- dequeueAhead q
         case work of
@@ -179,13 +181,13 @@ workLoopAhead sv q heap = runHeap
             Just (m, seqNo) -> do
                 if seqNo == 0
                 then
-                    unStream m (Just sv) (runQueueToken seqNo)
-                                         (singleOutput seqNo)
-                                         (yieldOutput seqNo)
+                    unStream m st (runQueueToken seqNo)
+                                  (singleOutput seqNo)
+                                  (yieldOutput seqNo)
                 else
-                    unStream m (Just sv) runHeap
-                                         (singleToHeap seqNo)
-                                         (yieldToHeap seqNo)
+                    unStream m st runHeap
+                                  (singleToHeap seqNo)
+                                  (yieldToHeap seqNo)
 
     {-# NOINLINE runHeap #-}
     runHeap = do
@@ -206,9 +208,9 @@ workLoopAhead sv q heap = runHeap
                 case hent of
                     AheadEntryPure a -> singleOutput seqNo a
                     AheadEntryStream r ->
-                        unStream r (Just sv) (runQueueToken seqNo)
-                                             (singleOutput seqNo)
-                                             (yieldOutput seqNo)
+                        unStream r st (runQueueToken seqNo)
+                                      (singleOutput seqNo)
+                                      (yieldOutput seqNo)
 
 -------------------------------------------------------------------------------
 -- WAhead
@@ -221,25 +223,25 @@ workLoopAhead sv q heap = runHeap
 -- The only difference between forkSVarAsync and this is that we run the left
 -- computation without a shared SVar.
 forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarAhead m1 m2 = Stream $ \_ stp sng yld -> do
-        sv <- newAheadVar (concurrently m1 m2) workLoopAhead
-        unStream (fromSVar sv) Nothing stp sng yld
+forkSVarAhead m1 m2 = Stream $ \st stp sng yld -> do
+        sv <- newAheadVar st (concurrently m1 m2) workLoopAhead
+        unStream (fromSVar sv) (rstState st) stp sng yld
     where
-    concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueue (fromJust svr) mb
-        unStream ma Nothing stp sng yld
+    concurrently ma mb = Stream $ \st stp sng yld -> do
+        liftIO $ enqueue (fromJust $ streamVar st) mb
+        unStream ma (rstState st) stp sng yld
 
 {-# INLINE aheadS #-}
 aheadS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-aheadS m1 m2 = Stream $ \svr stp sng yld -> do
-    case svr of
+aheadS m1 m2 = Stream $ \st stp sng yld -> do
+    case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
             liftIO $ enqueue sv m2
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
-            unStream m1 Nothing stp sng yld
-        _ -> unStream (forkSVarAhead m1 m2) Nothing stp sng yld
+            unStream m1 (rstState st) stp sng yld
+        _ -> unStream (forkSVarAhead m1 m2) (rstState st) stp sng yld
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
@@ -358,11 +360,11 @@ aheadbind
 aheadbind m f = go m
     where
         go (Stream g) =
-            Stream $ \ctx stp sng yld ->
-            let run x = unStream x ctx stp sng yld
+            Stream $ \st stp sng yld ->
+            let run x = unStream x st stp sng yld
                 single a   = run $ f a
                 yieldk a r = run $ f a `aheadS` go r
-            in g Nothing stp single yieldk
+            in g (rstState st) stp single yieldk
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure

@@ -26,6 +26,7 @@ module Streamly.Streams.Async
     , async
     , (<|)             --deprecated
     , mkAsync
+    , mkAsync'
 
     , WAsyncT
     , WAsync
@@ -65,16 +66,18 @@ import qualified Streamly.Streams.StreamK as K
 
 {-# INLINE runStreamLIFO #-}
 runStreamLIFO :: MonadIO m
-    => SVar Stream m a -> IORef [Stream m a] -> Stream m a -> m () -> m ()
-runStreamLIFO sv q m stop = unStream m (Just sv) stop single yieldk
+    => State Stream m a -> IORef [Stream m a] -> Stream m a -> m () -> m ()
+runStreamLIFO st q m stop = unStream m st stop single yieldk
     where
+    sv = fromJust $ streamVar st
+    maxBuf = maxBuffer st
     single a = do
-        res <- liftIO $ send sv (ChildYield a)
+        res <- liftIO $ send maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
     yieldk a r = do
-        res <- liftIO $ send sv (ChildYield a)
+        res <- liftIO $ send maxBuf sv (ChildYield a)
         if res
-        then (unStream r) (Just sv) stop single yieldk
+        then (unStream r) st stop single yieldk
         else liftIO $ enqueueLIFO sv q r >> sendStop sv
 
 -------------------------------------------------------------------------------
@@ -82,15 +85,22 @@ runStreamLIFO sv q m stop = unStream m (Just sv) stop single yieldk
 -------------------------------------------------------------------------------
 
 {-# INLINE runStreamFIFO #-}
-runStreamFIFO :: MonadIO m
-    => SVar Stream m a -> LinkedQueue (Stream m a) -> Stream m a -> m () -> m ()
-runStreamFIFO sv q m stop = unStream m (Just sv) stop single yieldk
+runStreamFIFO
+    :: MonadIO m
+    => State Stream m a
+    -> LinkedQueue (Stream m a)
+    -> Stream m a
+    -> m ()
+    -> m ()
+runStreamFIFO st q m stop = unStream m st stop single yieldk
     where
+    sv = fromJust $ streamVar st
+    maxBuf = maxBuffer st
     single a = do
-        res <- liftIO $ send sv (ChildYield a)
+        res <- liftIO $ send maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
     yieldk a r = do
-        res <- liftIO $ send sv (ChildYield a)
+        res <- liftIO $ send maxBuf sv (ChildYield a)
         liftIO (enqueueFIFO sv q r)
         if res then stop else liftIO $ sendStop sv
 
@@ -103,8 +113,8 @@ runStreamFIFO sv q m stop = unStream m (Just sv) stop single yieldk
 -- function argument to this function results in a perf degradation of more
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
-getLifoSVar :: MonadAsync m => IO (SVar Stream m a)
-getLifoSVar = do
+getLifoSVar :: MonadAsync m => State Stream m a -> IO (SVar Stream m a)
+getLifoSVar st = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -122,10 +132,11 @@ getLifoSVar = do
     let sv =
             SVar { outputQueue      = outQ
                  , outputDoorBell   = outQMv
-                 , readOutputQ      = readOutputQBounded sv
+                 , readOutputQ      = readOutputQBounded (maxThreads st) sv
                  , postProcess      = postProcessBounded sv
                  , workerThreads    = running
-                 , workLoop         = workLoopLIFO runStreamLIFO sv q
+                 , workLoop         = workLoopLIFO runStreamLIFO
+                                         st{streamVar = Just sv} q
                  , enqueue          = enqueueLIFO sv q
                  , isWorkDone       = checkEmpty
                  , needDoorBell     = wfw
@@ -144,8 +155,8 @@ getLifoSVar = do
                  }
      in return sv
 
-getFifoSVar :: MonadAsync m => IO (SVar Stream m a)
-getFifoSVar = do
+getFifoSVar :: MonadAsync m => State Stream m a -> IO (SVar Stream m a)
+getFifoSVar st = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -162,10 +173,11 @@ getFifoSVar = do
     let sv =
            SVar { outputQueue      = outQ
                 , outputDoorBell   = outQMv
-                , readOutputQ      = readOutputQBounded sv
+                , readOutputQ      = readOutputQBounded (maxThreads st) sv
                 , postProcess      = postProcessBounded sv
                 , workerThreads    = running
-                , workLoop         = workLoopFIFO runStreamFIFO sv q
+                , workLoop         = workLoopFIFO runStreamFIFO
+                                        st{streamVar = Just sv} q
                 , enqueue          = enqueueFIFO sv q
                 , isWorkDone       = nullQ q
                 , needDoorBell     = wfw
@@ -185,9 +197,10 @@ getFifoSVar = do
      in return sv
 
 {-# INLINABLE newAsyncVar #-}
-newAsyncVar :: MonadAsync m => Stream m a -> m (SVar Stream m a)
-newAsyncVar m = do
-    sv <- liftIO getLifoSVar
+newAsyncVar :: MonadAsync m
+    => State Stream m a -> Stream m a -> m (SVar Stream m a)
+newAsyncVar st m = do
+    sv <- liftIO $ getLifoSVar st
     sendWorker sv m
 
 -- XXX Get rid of this?
@@ -200,13 +213,18 @@ newAsyncVar m = do
 -- @since 0.2.0
 {-# INLINABLE mkAsync #-}
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
-mkAsync m = newAsyncVar (toStream m) >>= return . fromSVar
+mkAsync m = newAsyncVar defState (toStream m) >>= return . fromSVar
+
+{-# INLINABLE mkAsync' #-}
+mkAsync' :: (IsStream t, MonadAsync m) => State Stream m a -> t m a -> m (t m a)
+mkAsync' st m = newAsyncVar st (toStream m) >>= return . fromSVar
 
 -- | Create a new SVar and enqueue one stream computation on it.
 {-# INLINABLE newWAsyncVar #-}
-newWAsyncVar :: MonadAsync m => Stream m a -> m (SVar Stream m a)
-newWAsyncVar m = do
-    sv <- liftIO getFifoSVar
+newWAsyncVar :: MonadAsync m
+    => State Stream m a -> Stream m a -> m (SVar Stream m a)
+newWAsyncVar st m = do
+    sv <- liftIO $ getFifoSVar st
     sendWorker sv m
 
 ------------------------------------------------------------------------------
@@ -275,25 +293,25 @@ newWAsyncVar m = do
 
 forkSVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-forkSVarAsync style m1 m2 = Stream $ \_ stp sng yld -> do
+forkSVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
     sv <- case style of
-        AsyncVar -> newAsyncVar (concurrently m1 m2)
-        WAsyncVar -> newWAsyncVar (concurrently m1 m2)
+        AsyncVar -> newAsyncVar st (concurrently m1 m2)
+        WAsyncVar -> newWAsyncVar st (concurrently m1 m2)
         _ -> error "illegal svar type"
-    unStream (fromSVar sv) Nothing stp sng yld
+    unStream (fromSVar sv) (rstState st) stp sng yld
     where
-    concurrently ma mb = Stream $ \svr stp sng yld -> do
-        liftIO $ enqueue (fromJust svr) mb
-        unStream ma svr stp sng yld
+    concurrently ma mb = Stream $ \st stp sng yld -> do
+        liftIO $ enqueue (fromJust $ streamVar st) mb
+        unStream ma st stp sng yld
 
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarAsync style m1 m2 = Stream $ \svr stp sng yld ->
-    case svr of
+joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld ->
+    case streamVar st of
         Just sv | svarStyle sv == style ->
-            liftIO (enqueue sv m2) >> unStream m1 svr stp sng yld
-        _ -> unStream (forkSVarAsync style m1 m2) Nothing stp sng yld
+            liftIO (enqueue sv m2) >> unStream m1 st stp sng yld
+        _ -> unStream (forkSVarAsync style m1 m2) (rstState st) stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
