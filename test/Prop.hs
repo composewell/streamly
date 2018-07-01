@@ -23,6 +23,7 @@ import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as S
 
+-- Coverage build takes too long with default number of tests
 maxTestCount :: Int
 #ifdef DEVBUILD
 maxTestCount = 100
@@ -53,7 +54,7 @@ constructWithReplicateM
     -> Int
     -> Word8
     -> Property
-constructWithReplicateM op thr buf len =
+constructWithReplicateM op thr buf len = withMaxSuccess maxTestCount $
     monadicIO $ do
         let x = return (1 :: Int)
         stream <- run $ (S.toList . op) (maxThreads thr $ maxBuffer buf $
@@ -246,6 +247,7 @@ transformCombineFromList
     -> [Int]
     -> Property
 transformCombineFromList constr eq listOp t op a b c =
+    withMaxSuccess maxTestCount $
         monadicIO $ do
             stream <- run ((S.toList . t) $
                 constr a <> op (constr b <> constr c))
@@ -353,17 +355,17 @@ concurrentOps
     -> ([Word8] -> [Word8] -> Bool)
     -> Spec
 concurrentOps constr desc t eq = do
-    prop (desc ++ " fromFoldableM") $ withMaxSuccess maxTestCount $
-        concurrentFromFoldable eq t
-    prop (desc ++ " unfoldrM") $ withMaxSuccess maxTestCount $
-        concurrentUnfoldrM eq t
+    let prop1 d p = prop d $ withMaxSuccess maxTestCount p
+
+    prop1 (desc ++ " fromFoldableM") $ concurrentFromFoldable eq t
+    prop1 (desc ++ " unfoldrM") $ concurrentUnfoldrM eq t
     -- we pass it the length of the stream n and an mvar mv.
     -- The stream is [0..n]. The threads communicate in such a way that the
     -- actions coming first in the stream are dependent on the last action. So
     -- if the stream is not processed concurrently it will block forever.
     -- Note that if the size of the stream is bigger than the thread limit
     -- then it will block even if it is concurrent.
-    prop (desc ++ " mapM") $ withMaxSuccess maxTestCount $
+    prop1 (desc ++ " mapM") $
         concurrentMapM constr eq $ \n mv stream ->
             t $ S.mapM (mvarSequenceOp mv n) stream
 
@@ -600,7 +602,7 @@ monadBind constr t eq (a, b) = withMaxSuccess maxTestCount $
         equals eq stream list
 
 constructionConcurrent :: Int -> Int -> Spec
-constructionConcurrent thr buf =
+constructionConcurrent thr buf = do
     describe (" threads = " ++ show thr ++ "buffer = " ++ show buf) $ do
         prop "asyncly replicateM" $ constructWithReplicateM asyncly thr buf
         prop "wAsyncly replicateM" $ constructWithReplicateM wAsyncly thr buf
