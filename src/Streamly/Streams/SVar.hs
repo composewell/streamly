@@ -89,7 +89,7 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- when using concurrent streams. This is not the grand total number of threads
 -- but maximum threads at each point of concurrency.
 -- A value of 0 resets the thread limit to default, a negative value means
--- there is no limit.
+-- there is no limit. The default value is 1500.
 --
 -- @since 0.4.0
 maxThreads :: IsStream t => Int -> t m a -> t m a
@@ -101,7 +101,7 @@ maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
 -- concurrent computations. If the buffer becomes full we stop spawning more
 -- concurrent tasks until there is space in the buffer.
 -- A value of 0 resets the buffer size to default, a negative value means
--- there is no limit.
+-- there is no limit. The default value is 1500.
 --
 -- @since 0.4.0
 maxBuffer :: IsStream t => Int -> t m a -> t m a
