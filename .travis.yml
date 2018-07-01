@@ -151,7 +151,7 @@ matrix:
   # For available options see hpc-coveralls docs.
   # --------------------------------------------------------------------------
 
-  - env: BUILD=cabal COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops"
+  - env: BUILD=cabal COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops" DISABLE_SDIST_BUILD=y DISABLE_BENCH=y
     addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
