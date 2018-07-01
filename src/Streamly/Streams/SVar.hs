@@ -23,8 +23,8 @@ module Streamly.Streams.SVar
     (
       fromSVar
     , toSVar
-    , threads
-    , buffer
+    , maxThreads
+    , maxBuffer
     )
 where
 
@@ -89,32 +89,22 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- when using concurrent streams. This is not the grand total number of threads
 -- but maximum threads at each point of concurrency.
 -- A value of 0 resets the thread limit to default, a negative value means
--- there is no limit.  Note that this primitive has no effect on 'Parallel'
--- streams, the number of threads for 'Parallel' streams are always unbounded.
---
--- This primitive can be used at any point in the composition, and it affects
--- only the enclosed stream. When nested primitives are used the nearest
--- enclosing primitive overrides the outer ones.
--- Note that the use of this primitive does not enable concurrency, to enable
--- concurrency you have to use one of the concurrent stream type combinators.
+-- there is no limit.
 --
 -- @since 0.4.0
-threads :: IsStream t => Int -> t m a -> t m a
-threads n m = fromStream $ Stream $ \st stp sng yld -> do
+maxThreads :: IsStream t => Int -> t m a -> t m a
+maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
     let n' = if n == 0 then defaultMaxThreads else n
-    unStream (toStream m) (st {maxThreads = n'}) stp sng yld
+    unStream (toStream m) (st {threadsHigh = n'}) stp sng yld
 
 -- | Specify the maximum size of the buffer for storing the results from
 -- concurrent computations. If the buffer becomes full we stop spawning more
 -- concurrent tasks until there is space in the buffer.
 -- A value of 0 resets the buffer size to default, a negative value means
--- there is no limit.  Note that this primitive has no effect on 'Parallel'
--- streams, the buffer size for 'Parallel' streams is always unbounded.
---
--- The same scoping rules apply as for the 'threads' primitive.
+-- there is no limit.
 --
 -- @since 0.4.0
-buffer :: IsStream t => Int -> t m a -> t m a
-buffer n m = fromStream $ Stream $ \st stp sng yld -> do
+maxBuffer :: IsStream t => Int -> t m a -> t m a
+maxBuffer n m = fromStream $ Stream $ \st stp sng yld -> do
     let n' = if n == 0 then defaultMaxBuffer else n
-    unStream (toStream m) (st {maxBuffer = n'}) stp sng yld
+    unStream (toStream m) (st {bufferHigh = n'}) stp sng yld

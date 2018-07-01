@@ -188,8 +188,8 @@ data SVar t m a =
 
 data State t m a = State
     { streamVar :: Maybe (SVar t m a)
-    , maxThreads :: Int
-    , maxBuffer :: Int
+    , threadsHigh :: Int
+    , bufferHigh :: Int
     }
 
 defaultMaxThreads, defaultMaxBuffer :: Int
@@ -199,8 +199,8 @@ defaultMaxBuffer = 1500
 defState :: State t m a
 defState = State
     { streamVar = Nothing
-    , maxThreads = defaultMaxThreads
-    , maxBuffer = defaultMaxBuffer
+    , threadsHigh = defaultMaxThreads
+    , bufferHigh = defaultMaxBuffer
     }
 
 -- We can optimize this so that we clear it only if it is a Just value, it
@@ -827,7 +827,7 @@ getAheadSVar st f = do
     let sv =
             SVar { outputQueue      = outQ
                  , outputDoorBell   = outQMv
-                 , readOutputQ      = readOutputQBounded (maxThreads st) sv
+                 , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                  , postProcess      = postProcessBounded sv
                  , workerThreads    = running
                  -- , workLoop         = workLoopAhead sv q outH

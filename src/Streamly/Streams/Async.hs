@@ -70,7 +70,7 @@ runStreamLIFO :: MonadIO m
 runStreamLIFO st q m stop = unStream m st stop single yieldk
     where
     sv = fromJust $ streamVar st
-    maxBuf = maxBuffer st
+    maxBuf = bufferHigh st
     single a = do
         res <- liftIO $ send maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
@@ -95,7 +95,7 @@ runStreamFIFO
 runStreamFIFO st q m stop = unStream m st stop single yieldk
     where
     sv = fromJust $ streamVar st
-    maxBuf = maxBuffer st
+    maxBuf = bufferHigh st
     single a = do
         res <- liftIO $ send maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
@@ -132,7 +132,7 @@ getLifoSVar st = do
     let sv =
             SVar { outputQueue      = outQ
                  , outputDoorBell   = outQMv
-                 , readOutputQ      = readOutputQBounded (maxThreads st) sv
+                 , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                  , postProcess      = postProcessBounded sv
                  , workerThreads    = running
                  , workLoop         = workLoopLIFO runStreamLIFO
@@ -173,7 +173,7 @@ getFifoSVar st = do
     let sv =
            SVar { outputQueue      = outQ
                 , outputDoorBell   = outQMv
-                , readOutputQ      = readOutputQBounded (maxThreads st) sv
+                , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                 , postProcess      = postProcessBounded sv
                 , workerThreads    = running
                 , workLoop         = workLoopFIFO runStreamFIFO

@@ -101,8 +101,9 @@ module Streamly
     , parallel
 
     -- * Concurrency Control
-    , threads
-    , buffer
+    -- $concurrency
+    , maxThreads
+    , maxBuffer
 
     -- * Folding Containers of Streams
     -- $foldutils
@@ -163,7 +164,7 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Parallel
 import Streamly.Streams.Zip
 import Streamly.Streams.Prelude
-import Streamly.Streams.SVar (threads, buffer)
+import Streamly.Streams.SVar (maxThreads, maxBuffer)
 import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 
@@ -213,6 +214,17 @@ import Data.Semigroup (Semigroup(..))
 -- type specific manner. This section provides polymorphic versions of '<>'
 -- which can be used to combine two streams in a predetermined way irrespective
 -- of the type.
+
+-- $concurrency
+--
+-- These combinators can be used at any point in the composition to control
+-- concurrency, and they affect only the enclosed stream. When nested
+-- combinators are used, the nearest enclosing combinator overrides the outer
+-- ones.  These combinators have no effect on 'Parallel' streams, concurrency
+-- for 'Parallel' streams is always unbounded.
+-- Note that the use of these combinators does not enable concurrency, to
+-- enable concurrency you have to use one of the concurrent stream type
+-- combinators.
 
 -- $adapters
 --

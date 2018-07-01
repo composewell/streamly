@@ -124,7 +124,7 @@ workLoopAhead st q heap = runHeap
     where
 
     sv = fromJust $ streamVar st
-    maxBuf = maxBuffer st
+    maxBuf = bufferHigh st
     toHeap seqNo ent = do
         hp <- liftIO $ atomicModifyIORefCAS heap $ \(h, snum) ->
             ((H.insert (Entry seqNo ent) h, snum), h)

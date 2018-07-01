@@ -56,7 +56,7 @@ constructWithReplicateM
 constructWithReplicateM op thr buf len =
     monadicIO $ do
         let x = return (1 :: Int)
-        stream <- run $ (S.toList . op) (threads thr $ buffer buf $
+        stream <- run $ (S.toList . op) (maxThreads thr $ maxBuffer buf $
             S.replicateM (fromIntegral len) x)
         list <- run $ replicateM (fromIntegral len) x
         equals (==) stream list
