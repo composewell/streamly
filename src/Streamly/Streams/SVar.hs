@@ -93,6 +93,8 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- Concurrency control
 -------------------------------------------------------------------------------
 --
+-- XXX need to write these in direct style otherwise they will break fusion.
+--
 -- | Specify the maximum number of threads that can be spawned concurrently
 -- when using concurrent streams. This is not the grand total number of threads
 -- but maximum threads at each point of concurrency.
