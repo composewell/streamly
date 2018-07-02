@@ -9,6 +9,8 @@
 {-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#include "inline.h"
+
 -- |
 -- Module      : Streamly.Streams.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -25,6 +27,7 @@ module Streamly.Streams.SVar
     , toSVar
     , maxThreads
     , maxBuffer
+    , maxYields
     )
 where
 
@@ -32,6 +35,7 @@ import Control.Monad.Catch (throwM)
 
 import Streamly.SVar
 import Streamly.Streams.StreamK
+import Streamly.Streams.Serial (SerialT)
 
 -- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
 -- can keep it on in production to debug problems quickly if and when they
@@ -85,6 +89,10 @@ fromSVar sv = fromStream $ fromStreamVar sv
 toSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> m ()
 toSVar sv m = toStreamVar sv (toStream m)
 
+-------------------------------------------------------------------------------
+-- Concurrency control
+-------------------------------------------------------------------------------
+--
 -- | Specify the maximum number of threads that can be spawned concurrently
 -- when using concurrent streams. This is not the grand total number of threads
 -- but maximum threads at each point of concurrency.
@@ -92,10 +100,15 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- there is no limit. The default value is 1500.
 --
 -- @since 0.4.0
+{-# INLINE_NORMAL maxThreads #-}
 maxThreads :: IsStream t => Int -> t m a -> t m a
 maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
     let n' = if n == 0 then defaultMaxThreads else n
     unStream (toStream m) (st {threadsHigh = n'}) stp sng yld
+
+{-# RULES "maxThreadsSerial serial" maxThreads = maxThreadsSerial #-}
+maxThreadsSerial :: Int -> SerialT m a -> SerialT m a
+maxThreadsSerial _ = id
 
 -- | Specify the maximum size of the buffer for storing the results from
 -- concurrent computations. If the buffer becomes full we stop spawning more
@@ -104,7 +117,25 @@ maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
 -- there is no limit. The default value is 1500.
 --
 -- @since 0.4.0
+{-# INLINE_NORMAL maxBuffer #-}
 maxBuffer :: IsStream t => Int -> t m a -> t m a
 maxBuffer n m = fromStream $ Stream $ \st stp sng yld -> do
     let n' = if n == 0 then defaultMaxBuffer else n
     unStream (toStream m) (st {bufferHigh = n'}) stp sng yld
+
+{-# RULES "maxBuffer serial" maxBuffer = maxBufferSerial #-}
+maxBufferSerial :: Int -> SerialT m a -> SerialT m a
+maxBufferSerial _ = id
+
+-- Stop concurrent dispatches after this limit. This is useful in API's like
+-- "take" where we want to dispatch only upto the number of elements "take"
+-- needs.  This value applies only to the immediate next level and is not
+-- inherited by everything in enclosed scope.
+{-# INLINE_NORMAL maxYields #-}
+maxYields :: IsStream t => Maybe Int -> t m a -> t m a
+maxYields n m = fromStream $ Stream $ \st stp sng yld -> do
+    unStream (toStream m) (st {yieldLimit = n}) stp sng yld
+
+{-# RULES "maxYields serial" maxYields = maxYieldsSerial #-}
+maxYieldsSerial :: Maybe Int -> SerialT m a -> SerialT m a
+maxYieldsSerial _ = id

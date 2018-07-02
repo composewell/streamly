@@ -37,7 +37,7 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Atomics (atomicModifyIORefCAS_)
 import Data.Heap (Heap, Entry(..))
-import Data.IORef (IORef)
+import Data.IORef (IORef, readIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 
@@ -51,7 +51,7 @@ import qualified Streamly.Streams.StreamK as K
 
 #ifdef DIAGNOSTICS
 import Control.Monad (when)
-import Data.IORef (writeIORef, readIORef)
+import Data.IORef (writeIORef)
 #endif
 import Prelude hiding (map)
 
@@ -128,7 +128,14 @@ workLoopAhead st q heap = runHeap
     toHeap seqNo ent = do
         hp <- liftIO $ atomicModifyIORefCAS heap $ \(h, snum) ->
             ((H.insert (Entry seqNo ent) h, snum), h)
-        if H.size hp <= maxHeap
+        (_, len) <- liftIO $ readIORef (outputQueue sv)
+        let maxHeap = maxBuf - len
+        limit <- case maxYieldLimit sv of
+            Nothing -> return maxHeap
+            Just ref -> do
+                r <- liftIO $ readIORef ref
+                return $ if r >= 0 then r else maxHeap
+        if H.size hp <= limit
         then runHeap
         else liftIO $ sendStop sv
 
@@ -136,7 +143,7 @@ workLoopAhead st q heap = runHeap
     yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
 
     singleOutput seqNo a = do
-        continue <- liftIO $ send maxBuf sv (ChildYield a)
+        continue <- liftIO $ sendYield maxBuf sv (ChildYield a)
         if continue
         then runQueueToken seqNo
         else liftIO $ do
@@ -144,7 +151,7 @@ workLoopAhead st q heap = runHeap
             sendStop sv
 
     yieldOutput seqNo a r = do
-        continue <- liftIO $ send maxBuf sv (ChildYield a)
+        continue <- liftIO $ sendYield maxBuf sv (ChildYield a)
         if continue
         then unStream r st (runQueueToken seqNo)
                            (singleOutput seqNo)
@@ -241,7 +248,7 @@ aheadS m1 m2 = Stream $ \st stp sng yld -> do
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
             unStream m1 (rstState st) stp sng yld
-        _ -> unStream (forkSVarAhead m1 m2) (rstState st) stp sng yld
+        _ -> unStream (forkSVarAhead m1 m2) st stp sng yld
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.

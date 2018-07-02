@@ -72,10 +72,10 @@ runStreamLIFO st q m stop = unStream m st stop single yieldk
     sv = fromJust $ streamVar st
     maxBuf = bufferHigh st
     single a = do
-        res <- liftIO $ send maxBuf sv (ChildYield a)
+        res <- liftIO $ sendYield maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
     yieldk a r = do
-        res <- liftIO $ send maxBuf sv (ChildYield a)
+        res <- liftIO $ sendYield maxBuf sv (ChildYield a)
         if res
         then (unStream r) st stop single yieldk
         else liftIO $ enqueueLIFO sv q r >> sendStop sv
@@ -97,10 +97,10 @@ runStreamFIFO st q m stop = unStream m st stop single yieldk
     sv = fromJust $ streamVar st
     maxBuf = bufferHigh st
     single a = do
-        res <- liftIO $ send maxBuf sv (ChildYield a)
+        res <- liftIO $ sendYield maxBuf sv (ChildYield a)
         if res then stop else liftIO $ sendStop sv
     yieldk a r = do
-        res <- liftIO $ send maxBuf sv (ChildYield a)
+        res <- liftIO $ sendYield maxBuf sv (ChildYield a)
         liftIO (enqueueFIFO sv q r)
         if res then stop else liftIO $ sendStop sv
 
@@ -121,6 +121,9 @@ getLifoSVar st = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef []
+    yl <- case yieldLimit st of
+            Nothing -> return Nothing
+            Just x -> Just <$> newIORef x
 #ifdef DIAGNOSTICS
     disp <- newIORef 0
     maxWrk <- newIORef 0
@@ -131,6 +134,7 @@ getLifoSVar st = do
     let checkEmpty = null <$> readIORef q
     let sv =
             SVar { outputQueue      = outQ
+                 , maxYieldLimit    = yl
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                  , postProcess      = postProcessBounded sv
@@ -163,6 +167,9 @@ getFifoSVar st = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q       <- newQ
+    yl <- case yieldLimit st of
+            Nothing -> return Nothing
+            Just x -> Just <$> newIORef x
 #ifdef DIAGNOSTICS
     disp <- newIORef 0
     maxWrk <- newIORef 0
@@ -172,6 +179,7 @@ getFifoSVar st = do
 #endif
     let sv =
            SVar { outputQueue      = outQ
+                , maxYieldLimit    = yl
                 , outputDoorBell   = outQMv
                 , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                 , postProcess      = postProcessBounded sv
@@ -307,11 +315,11 @@ forkSVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld ->
+joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
     case streamVar st of
         Just sv | svarStyle sv == style ->
             liftIO (enqueue sv m2) >> unStream m1 st stp sng yld
-        _ -> unStream (forkSVarAsync style m1 m2) (rstState st) stp sng yld
+        _ -> unStream (forkSVarAsync style m1 m2) st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions

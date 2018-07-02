@@ -380,6 +380,10 @@ main = hspec $ do
     describe "Composed MonadThrow parallely" $ composeWithMonadThrow parallely
     describe "Composed MonadThrow aheadly" $ composeWithMonadThrow aheadly
 
+    describe "take on infinite concurrent stream" $ takeInfinite asyncly
+    describe "take on infinite concurrent stream" $ takeInfinite wAsyncly
+    describe "take on infinite concurrent stream" $ takeInfinite aheadly
+
     it "asyncly crosses thread limit (2000 threads)" $
         runStream (asyncly $ fold $
                    replicate 2000 $ S.yieldM $ threadDelay 1000000)
@@ -388,6 +392,13 @@ main = hspec $ do
     it "aheadly crosses thread limit (4000 threads)" $
         runStream (aheadly $ fold $
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
+        `shouldReturn` ()
+
+takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
+takeInfinite t = do
+    it "take 1" $
+        (runStream $ t $
+            S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
         `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error

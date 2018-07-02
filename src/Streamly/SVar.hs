@@ -37,7 +37,7 @@ module Streamly.SVar
     , atomicModifyIORefCAS
     , ChildEvent (..)
     , AheadHeapEntry (..)
-    , send
+    , sendYield
     , sendStop
     , enqueueLIFO
     , workLoopLIFO
@@ -46,7 +46,6 @@ module Streamly.SVar
     , enqueueAhead
     , pushWorkerPar
 
-    , maxHeap
     , queueEmptyAhead
     , dequeueAhead
     , dequeueFromHeap
@@ -158,6 +157,7 @@ data SVar t m a =
 
             -- Shared output queue (events, length)
             , outputQueue    :: IORef ([ChildEvent a], Int)
+            , maxYieldLimit  :: Maybe (IORef Int)
             , outputDoorBell :: MVar ()  -- signal the consumer about output
             , readOutputQ    :: m [ChildEvent a]
             , postProcess    :: m Bool
@@ -187,9 +187,10 @@ data SVar t m a =
             }
 
 data State t m a = State
-    { streamVar :: Maybe (SVar t m a)
+    { streamVar   :: Maybe (SVar t m a)
+    , yieldLimit  :: Maybe Int
     , threadsHigh :: Int
-    , bufferHigh :: Int
+    , bufferHigh  :: Int
     }
 
 defaultMaxThreads, defaultMaxBuffer :: Int
@@ -199,15 +200,23 @@ defaultMaxBuffer = 1500
 defState :: State t m a
 defState = State
     { streamVar = Nothing
+    , yieldLimit = Nothing
     , threadsHigh = defaultMaxThreads
     , bufferHigh = defaultMaxBuffer
     }
 
+-- XXX if perf gets affected we can have all the Nothing params in a single
+-- structure so that we reset is fast. We can also use rewrite rules such that
+-- reset occurs only in concurrent streams to reduce the impact on serial
+-- streams.
 -- We can optimize this so that we clear it only if it is a Just value, it
 -- results in slightly better perf for zip/zipM but the performance of scan
 -- worsens a lot, it does not fuse.
 rstState :: State t m a -> State t m b
-rstState st = st {streamVar = Nothing}
+rstState st = st
+    { streamVar = Nothing
+    , yieldLimit = Nothing
+    }
 
 #ifdef DIAGNOSTICS
 {-# NOINLINE dumpSVar #-}
@@ -337,7 +346,6 @@ doFork action exHandler =
 
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
-{-# NOINLINE send #-}
 send :: Int -> SVar t m a -> ChildEvent a -> IO Bool
 send maxOutputQLen sv msg = do
     len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
@@ -354,6 +362,15 @@ send maxOutputQLen sv msg = do
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (outputDoorBell sv) ()
     return (len < maxOutputQLen || maxOutputQLen < 0)
+
+{-# NOINLINE sendYield #-}
+sendYield :: Int -> SVar t m a -> ChildEvent a -> IO Bool
+sendYield maxOutputQLen sv msg = do
+    ylimit <- case maxYieldLimit sv of
+        Nothing -> return True
+        Just ref -> atomicModifyIORefCAS ref $ \x -> (x - 1, x > 1)
+    r <- send maxOutputQLen sv msg
+    return $ r && ylimit
 
 {-# NOINLINE sendStop #-}
 sendStop :: SVar t m a -> IO ()
@@ -534,9 +551,6 @@ enqueueAhead sv q m = do
 --
 -- XXX review for livelock
 --
-maxHeap :: Int
-maxHeap = 1500
-
 {-# INLINE queueEmptyAhead #-}
 queueEmptyAhead :: MonadIO m => IORef ([t m a], Int) -> m Bool
 queueEmptyAhead q = liftIO $ do
@@ -675,7 +689,15 @@ dispatchWorker maxWorkerLimit sv = do
         -- executing. In that case we should either configure the maxWorker
         -- count to higher or use parallel style instead of ahead or async
         -- style.
-        when (cnt < maxWorkerLimit || maxWorkerLimit < 0) $ pushWorker sv
+        limit <- case maxYieldLimit sv of
+            Nothing -> return maxWorkerLimit
+            Just x -> do
+                lim <- liftIO $ readIORef x
+                return $
+                    if maxWorkerLimit > 0
+                    then min maxWorkerLimit lim
+                    else lim
+        when (cnt < limit || limit < 0) $ pushWorker sv
 
 {-# NOINLINE sendWorkerWait #-}
 sendWorkerWait :: MonadAsync m => Int -> SVar t m a -> m ()
@@ -816,6 +838,9 @@ getAheadSVar st f = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef ([], -1)
+    yl <- case yieldLimit st of
+            Nothing -> return Nothing
+            Just x -> Just <$> newIORef x
 
 #ifdef DIAGNOSTICS
     disp <- newIORef 0
@@ -826,6 +851,7 @@ getAheadSVar st f = do
 #endif
     let sv =
             SVar { outputQueue      = outQ
+                 , maxYieldLimit    = yl
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQBounded (threadsHigh st) sv
                  , postProcess      = postProcessBounded sv
@@ -879,6 +905,7 @@ getParallelSVar = do
 #endif
     let sv =
             SVar { outputQueue      = outQ
+                 , maxYieldLimit    = Nothing
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQPar sv
                  , postProcess      = allThreadsDone sv

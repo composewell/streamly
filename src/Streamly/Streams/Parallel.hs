@@ -67,7 +67,7 @@ runOne st m = unStream m st stop single yieldk
 
     sv = fromJust $ streamVar st
     stop = liftIO $ sendStop sv
-    sendit a = liftIO $ send (-1) sv (ChildYield a)
+    sendit a = liftIO $ sendYield (-1) sv (ChildYield a)
     single a = sendit a >> stop
     -- XXX there is no flow control in parallel case. We should perhaps use a
     -- queue and queue it back on that and exit the thread when the outputQueue
