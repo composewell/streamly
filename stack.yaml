@@ -1,29 +1,21 @@
 #resolver: lts-11.0
-resolver: nightly-2018-06-24
+resolver: nightly-2018-07-06
 packages:
 - '.'
 #- location: ../bench-graph
 #  extra-dep: true
+allow-newer: true
 extra-deps:
-    - simple-conduit-0.6.0
-    - SDL-0.6.5.1
-
-    - git: https://github.com/composewell/bench-graph
-      commit: 268a04061cca7eda448b8f741d8d0aa82cd6be3a
+    - SDL-0.6.6.0
 
     - git: https://github.com/harendra-kumar/hs-gauge
-      commit: f3bb4a1fc801c581224843759b7e6dabb0aef3dc
+      commit: 5ac72696cba8e1d747f98e1656a0cfac0a5e9c71
 
-    - Chart-diagrams-1.8.3
+    - bench-graph-0.1.0
+    - Chart-1.9
+    - Chart-diagrams-1.9
+    - Unique-0.4.7.2
     - SVGFonts-1.6.0.3
-    - diagrams-core-1.4.0.1
-    - diagrams-lib-1.4.2
-    - diagrams-postscript-1.4
-    - diagrams-svg-1.4.1.1
-    - diagrams-solve-0.1.1
-    - dual-tree-0.2.1
-    - lens-4.15.4
-    - free-4.12.4
 
 flags: {}
 extra-package-dbs: []
