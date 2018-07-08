@@ -771,7 +771,8 @@ filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 -- @since 0.1.0
 {-# INLINE take #-}
 take :: (IsStream t, Monad m) => Int -> t m a -> t m a
-take n m = fromStreamS $ S.take n $ toStreamS (maxYields (Just n) m)
+take n m = fromStreamS $ S.take n $ toStreamS
+    (maxYields (Just (fromIntegral n)) m)
 
 -- | End the stream as soon as the predicate fails on an element.
 --

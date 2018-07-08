@@ -43,9 +43,11 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
+import Data.IORef (newIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
+import System.Clock
 
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
@@ -65,9 +67,13 @@ runOne st m = unStream m st stop single yieldk
 
     where
 
+    winfo = do
+        yc <- newIORef 0
+        wls <- newIORef (0, fromNanoSecs 0)
+        return $ WorkerInfo 0 yc wls
     sv = fromJust $ streamVar st
-    stop = liftIO $ sendStop sv
-    sendit a = liftIO $ sendYield (-1) sv (ChildYield a)
+    stop = liftIO $ winfo >>= sendStop sv
+    sendit a = liftIO $ winfo >>= \x -> sendYield sv x (ChildYield a)
     single a = sendit a >> stop
     -- XXX there is no flow control in parallel case. We should perhaps use a
     -- queue and queue it back on that and exit the thread when the outputQueue

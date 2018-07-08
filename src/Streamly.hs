@@ -112,6 +112,7 @@ module Streamly
     -- $concurrency
     , maxThreads
     , maxBuffer
+    , maxRate
 
     -- * Folding Containers of Streams
     -- $foldutils
@@ -172,7 +173,7 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Parallel
 import Streamly.Streams.Zip
 import Streamly.Streams.Prelude
-import Streamly.Streams.SVar (maxThreads, maxBuffer)
+import Streamly.Streams.SVar (maxThreads, maxBuffer, maxRate)
 import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 
@@ -296,6 +297,12 @@ runZipAsync = runStream . K.adapt
 -- which can be used to combine two streams in a predetermined way irrespective
 -- of the type.
 
+-- XXX An alternative design choice would be to let a control parameter affect
+-- the nearest SVar only and then it gets cleared. The benefit of the current
+-- choice is that it is simply just like global configuration, just like state
+-- behaves, so should be easy to comprehend. But it has the downside of leaking
+-- to undesired actions, that is we can forget to reset it.
+--
 -- $concurrency
 --
 -- These combinators can be used at any point in a stream composition to

@@ -27,6 +27,7 @@ module Streamly.Streams.Ahead
     )
 where
 
+import Control.Concurrent.MVar (putMVar, takeMVar)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -35,9 +36,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Atomics (atomicModifyIORefCAS_)
 import Data.Heap (Heap, Entry(..))
-import Data.IORef (IORef, readIORef)
+import Data.IORef (IORef, readIORef, atomicModifyIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 
@@ -113,88 +113,197 @@ import Prelude hiding (map)
 -- each left associative expression. The queue is used only for right
 -- associated expression, we queue the right expression and execute the left.
 -- Thererefore the queue never has more than on item in it.
+--
+-- XXX Also note that limiting concurrency for cases like "take 10" would not
+-- work well with left associative expressions, because we have no visibility
+-- about how much the left side of the expression would yield.
+--
+-- XXX It may be a good idea to increment sequence numbers for each yield,
+-- currently a stream on the left side of the expression may yield many
+-- elements with the same sequene number. We can then use the seq number to
+-- enforce yieldMax and yieldLImit as well.
+
+-- XXX the only difference between this and workerRateControl is that this
+-- updates the heap count and the other updates the yield count.
+-- we can pass that as an update function instead.
 
 workLoopAhead :: MonadIO m
-    => State Stream m a
-    -> IORef ([Stream m a], Int)
+    => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> State Stream m a
+    -> SVar Stream m a
+    -> WorkerInfo
     -> m ()
-workLoopAhead st q heap = runHeap
+workLoopAhead q heap st sv winfo = runHeap
 
     where
 
-    sv = fromJust $ streamVar st
-    maxBuf = bufferHigh st
-    toHeap seqNo ent = do
-        hp <- liftIO $ atomicModifyIORefCAS heap $ \(h, snum) ->
-            ((H.insert (Entry seqNo ent) h, snum), h)
+    maxBuf = maxBufferLimit sv
+
+    underMaxHeap hp = do
         (_, len) <- liftIO $ readIORef (outputQueue sv)
-        let maxHeap = maxBuf - len
-        limit <- case maxYieldLimit sv of
-            Nothing -> return maxHeap
-            Just ref -> do
-                r <- liftIO $ readIORef ref
-                return $ if r >= 0 then r else maxHeap
-        if H.size hp <= limit
-        then runHeap
-        else liftIO $ sendStop sv
+
+        -- XXX simplify this
+        let maxHeap = case maxBuf of
+                Limited lim -> Limited $
+                    if (fromIntegral lim) >= len
+                    then lim - (fromIntegral len)
+                    else 0
+                Unlimited -> Unlimited
+
+        case maxHeap of
+            Limited lim -> do
+                active <- liftIO $ readIORef (workerCount sv)
+                return $ H.size hp + active <= (fromIntegral lim)
+            Unlimited -> return True
+
+    -- XXX to reduce contention each CPU can have its own heap
+    toHeap seqNo ent = do
+        -- Heap insertion is an expensive affair so we use a non CAS based
+        -- modification, otherwise contention and retries can make a thread
+        -- context switch and throw it behind other threads which come later in
+        -- sequence.
+        hp <- liftIO $ atomicModifyIORef heap $ \(h, snum) ->
+            ((H.insert (Entry seqNo ent) h, snum), h)
+        -- XXX heap check should also be under MVar
+        heapOk <- underMaxHeap hp
+        if heapOk
+        then
+            case yieldRateInfo sv of
+                Nothing -> runHeap
+                Just yinfo -> do
+                    -- check the stop condition under a lock before actually
+                    -- stopping so that the whole herd does not stop at once.
+                    liftIO $ takeMVar (workerStopMVar yinfo)
+                    rateOk <- liftIO $ workerRateControl sv yinfo winfo
+                    if rateOk
+                    then do
+                        liftIO $ putMVar (workerStopMVar yinfo) ()
+                        runHeap
+                    else do
+                        liftIO $ sendStop sv winfo
+                        liftIO $ putMVar (workerStopMVar yinfo) ()
+        else liftIO $ sendStop sv winfo
 
     singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
     yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
 
     singleOutput seqNo a = do
-        continue <- liftIO $ sendYield maxBuf sv (ChildYield a)
+        continue <- liftIO $ sendYield sv winfo (ChildYield a)
         if continue
         then runQueueToken seqNo
         else liftIO $ do
-            atomicModifyIORefCAS_ heap $ \(h, _) -> (h, seqNo + 1)
-            sendStop sv
+            atomicModifyIORef heap $ \(h, _) -> ((h, seqNo + 1), ())
+            sendStop sv winfo
 
-    yieldOutput seqNo a r = do
-        continue <- liftIO $ sendYield maxBuf sv (ChildYield a)
+    singleFromHeap seqNo a = do
+        continue <- liftIO $ send sv (ChildYield a)
+        liftIO $ atomicModifyIORef heap $ \(h, _) -> ((h, seqNo + 1), ())
         if continue
-        then unStream r st (runQueueToken seqNo)
+        then runHeap
+        else liftIO $ sendStop sv winfo
+
+    singleStreamFromHeap seqNo a = do
+        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+        liftIO $ atomicModifyIORef heap $ \(h, _) -> ((h, seqNo + 1), ())
+        if continue
+        then runHeap
+        else liftIO $ sendStop sv winfo
+
+    -- XXX use a wrapper function around stop so that we never miss
+    -- incrementing the yield in a stop continuation. Essentiatlly all
+    -- "unstream" calls in this function must increment yield limit on stop.
+    yieldOutput seqNo a r = do
+        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+        yieldLimitOk <- liftIO $ decrementYieldLimit sv
+        if continue && yieldLimitOk
+        then do
+            let stop = liftIO (incrementYieldLimit sv) >> runQueueToken seqNo
+            unStream r st stop
                            (singleOutput seqNo)
                            (yieldOutput seqNo)
         else liftIO $ do
-            atomicModifyIORefCAS_ heap $ \(h, _) ->
-                (H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo)
-            sendStop sv
+            atomicModifyIORef heap $ \(h, _) ->
+                ((H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo), ())
+            incrementYieldLimit sv
+            sendStop sv winfo
+
+    yieldStreamFromHeap seqNo a r = do
+        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+        yieldLimitOk <- liftIO $ decrementYieldLimit sv
+        if continue && yieldLimitOk
+        then do
+            let stop = do
+                    liftIO $ atomicModifyIORef heap $ \(h, _) ->
+                        ((h, seqNo + 1), ())
+                    liftIO (incrementYieldLimit sv)
+                    runHeap
+            unStream r st stop
+                           (singleStreamFromHeap seqNo)
+                           (yieldStreamFromHeap seqNo)
+        else liftIO $ do
+            atomicModifyIORef heap $ \(h, _) ->
+                ((H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo), ())
+            incrementYieldLimit sv
+            sendStop sv winfo
 
     {-# INLINE runQueueToken #-}
     runQueueToken prevSeqNo = do
         work <- dequeueAhead q
         case work of
             Nothing -> do
-                liftIO $ atomicModifyIORefCAS_ heap $ \(h, _) ->
-                    (h, prevSeqNo + 1)
+                liftIO $ atomicModifyIORef heap $ \(h, _) ->
+                    ((h, prevSeqNo + 1), ())
                 runHeap
             Just (m, seqNo) -> do
-                if seqNo == prevSeqNo + 1
-                then
-                    unStream m st (runQueueToken seqNo)
-                                  (singleOutput seqNo)
-                                  (yieldOutput seqNo)
-                else do
-                    liftIO $ atomicModifyIORefCAS_ heap $ \(h, _) ->
-                        (h, prevSeqNo + 1)
-                    unStream m st runHeap
-                                  (singleToHeap seqNo)
-                                  (yieldToHeap seqNo)
+                yieldLimitOk <- liftIO $ decrementYieldLimit sv
+                if yieldLimitOk
+                then do
+                    if seqNo == prevSeqNo + 1
+                    then do
+                        let stop = liftIO (incrementYieldLimit sv)
+                                    >> runQueueToken seqNo
+                        unStream m st stop
+                                      (singleOutput seqNo)
+                                      (yieldOutput seqNo)
+                    else do
+                        liftIO $ atomicModifyIORef heap $ \(h, _) ->
+                            ((h, prevSeqNo + 1), ())
+                        let stop = liftIO (incrementYieldLimit sv)
+                                    >> runHeap
+                        unStream m st stop
+                                      (singleToHeap seqNo)
+                                      (yieldToHeap seqNo)
+                else liftIO $ do
+                    atomicModifyIORef heap $ \(h, _) ->
+                        ((h, prevSeqNo + 1), ())
+                    incrementYieldLimit sv
+                    sendStop sv winfo
+
     runQueueNoToken = do
         work <- dequeueAhead q
         case work of
             Nothing -> runHeap
             Just (m, seqNo) -> do
-                if seqNo == 0
-                then
-                    unStream m st (runQueueToken seqNo)
-                                  (singleOutput seqNo)
-                                  (yieldOutput seqNo)
-                else
-                    unStream m st runHeap
-                                  (singleToHeap seqNo)
-                                  (yieldToHeap seqNo)
+                yieldLimitOk <- liftIO $ decrementYieldLimit sv
+                if yieldLimitOk
+                then do
+                    if seqNo == 0
+                    then do
+                        let stop = liftIO (incrementYieldLimit sv)
+                                    >> runQueueToken seqNo
+                        unStream m st stop
+                                      (singleOutput seqNo)
+                                      (yieldOutput seqNo)
+                    else do
+                        let stop = liftIO (incrementYieldLimit sv)
+                                    >> runHeap
+                        unStream m st stop
+                                      (singleToHeap seqNo)
+                                      (yieldToHeap seqNo)
+                else liftIO $ do
+                    incrementYieldLimit sv
+                    sendStop sv winfo
 
     {-# NOINLINE runHeap #-}
     runHeap = do
@@ -207,17 +316,44 @@ workLoopAhead st q heap = runHeap
         ent <- liftIO $ dequeueFromHeap heap
         case ent of
             Nothing -> do
+                -- Before we pick up the next item from the work queue we check
+                -- if we are beyond the yield limit. It is better to check the
+                -- yield limit before we pick up the next item. Otherwise we
+                -- may have already started more tasks even though we may have
+                -- reached the yield limit.  We can avoid this by taking active
+                -- workers into account, but that is not as reliable, because
+                -- workers may go away without picking up work and yielding a
+                -- value.
+                --
+                -- XXX do the same for Async stream as well.
+                --
+                -- Rate control can be done either based on actual yields in
+                -- the output queue or based on any yield either to the heap or
+                -- to the output queue. In both cases we may have one issue or
+                -- the other. We chose to do this based on actual yields to the
+                -- output queue because it makes the code common to both async
+                -- and ahead streams.
+                --
                 done <- queueEmptyAhead q
                 if done
-                then liftIO $ sendStop sv
+                -- XXX need to run heap here if not empty
+                then liftIO $ sendStop sv winfo
                 else runQueueNoToken
             Just (Entry seqNo hent) -> do
                 case hent of
-                    AheadEntryPure a -> singleOutput seqNo a
-                    AheadEntryStream r ->
-                        unStream r st (runQueueToken seqNo)
-                                      (singleOutput seqNo)
-                                      (yieldOutput seqNo)
+                    -- Do not account this in worker latency as this will not
+                    -- be the real latency.
+                    AheadEntryPure a -> singleFromHeap seqNo a
+                    AheadEntryStream r -> do
+                        let stp = do
+                                liftIO $ atomicModifyIORef heap $ \(h, _) ->
+                                    ((h, seqNo + 1), ())
+                                liftIO (incrementYieldLimit sv)
+                                runHeap
+
+                        unStream r st stp
+                                      (singleStreamFromHeap seqNo)
+                                      (yieldStreamFromHeap seqNo)
 
 -------------------------------------------------------------------------------
 -- WAhead

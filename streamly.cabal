@@ -173,6 +173,7 @@ library
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
+                     , clock             >= 0.7.1 && < 0.8
 
                     -- transfomers
                      , exceptions        >= 0.8   && < 0.11
@@ -193,7 +194,7 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N
+  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -220,7 +221,7 @@ test-suite properties
   type: exitcode-stdio-1.0
   main-is: Prop.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N4
+  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
@@ -240,6 +241,23 @@ test-suite properties
     , QuickCheck        >= 2.10  && < 2.12
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
+
+test-suite maxrate
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is: MaxRate.hs
+  hs-source-dirs:  test
+  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
+  if flag(dev)
+    buildable: True
+    build-Depends:
+          streamly
+        , base   >= 4.8   && < 5
+        , clock  >= 0.7.1 && < 0.8
+        , hspec  >= 2.0   && < 3
+        , random >= 1.0.0 && < 1.2
+  else
+    buildable: False
 
 test-suite loops
   type: exitcode-stdio-1.0
@@ -376,6 +394,7 @@ benchmark base
     -- concurrency
     , atomic-primops    >= 0.8   && < 0.9
     , lockfree-queue    >= 0.2.3 && < 0.3
+    , clock             >= 0.7.1 && < 0.8
 
     , exceptions        >= 0.8   && < 0.11
     , monad-control     >= 1.0   && < 2
@@ -395,7 +414,7 @@ executable chart-linear
     buildable: True
     build-Depends:
         base >= 4.8 && < 5
-      , bench-graph
+      , bench-graph >= 0.1 && < 0.2
       , split
   else
     buildable: False
@@ -408,7 +427,7 @@ executable chart-nested
     buildable: True
     build-Depends:
         base >= 4.8 && < 5
-      , bench-graph
+      , bench-graph >= 0.1 && < 0.2
       , split
   else
     buildable: False

@@ -364,6 +364,14 @@ main = hspec $ do
     describe "take on infinite concurrent stream" $ takeInfinite aheadly
 
     ---------------------------------------------------------------------------
+    -- Some ad-hoc tests that failed at times
+    ---------------------------------------------------------------------------
+
+    it "takes n from stream of streams" (takeCombined 1 aheadly)
+    it "takes n from stream of streams" (takeCombined 2 asyncly)
+    it "takes n from stream of streams" (takeCombined 3 wAsyncly)
+
+    ---------------------------------------------------------------------------
     -- Folds are strict enough
     ---------------------------------------------------------------------------
 
@@ -417,6 +425,13 @@ main = hspec $ do
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
+takeCombined :: (Monad m, Semigroup (t m Int), Show a, Eq a, IsStream t)
+    => Int -> (t m Int -> SerialT IO a) -> IO ()
+takeCombined n t = do
+    let constr = S.fromFoldable
+    r <- (S.toList . t) $
+            S.take n ((constr ([] :: [Int])) <> constr ([] :: [Int]))
+    r `shouldBe` []
 
 checkFoldxStrictness :: IO ()
 checkFoldxStrictness = do
