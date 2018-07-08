@@ -10,7 +10,7 @@ extra-deps:
     - http-client-0.5.0
     - http-client-tls-0.3.0
     - SDL-0.6.5.1
-    - gauge-0.2.1
+    - gauge-0.2.3
     - basement-0.0.7
 flags: {}
 extra-package-dbs: []

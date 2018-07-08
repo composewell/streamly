@@ -7,10 +7,7 @@ packages:
 allow-newer: true
 extra-deps:
     - SDL-0.6.6.0
-
-    - git: https://github.com/harendra-kumar/hs-gauge
-      commit: 5ac72696cba8e1d747f98e1656a0cfac0a5e9c71
-
+    - gauge-0.2.3
     - bench-graph-0.1.0
     - Chart-1.9
     - Chart-diagrams-1.9

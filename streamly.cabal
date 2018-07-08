@@ -312,7 +312,7 @@ benchmark base
         , base                >= 4.8   && < 5
         , deepseq             >= 1.4.0 && < 1.5
         , random              >= 1.0   && < 2.0
-        , gauge               >= 0.2.1 && < 0.3
+        , gauge               >= 0.2.3 && < 0.3
   else
     buildable: False
 
@@ -341,7 +341,7 @@ benchmark linear
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.1 && < 0.3
+    , gauge               >= 0.2.3 && < 0.3
 
 benchmark nested
   type: exitcode-stdio-1.0
@@ -368,7 +368,7 @@ benchmark nested
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.1 && < 0.3
+    , gauge               >= 0.2.3 && < 0.3
 
 executable chart-linear
   default-language: Haskell2010
