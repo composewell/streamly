@@ -45,7 +45,10 @@ Why use streamly?
   * _Generality_: Unifies functionality provided by several disparate packages
     (streaming, concurrency, list transformer, logic programming, reactive
     programming) in a concise API.
-  * _Performance_: Streamly is designed for high performance. See
+  * _Performance_: Streamly is designed for high performance. It employs stream
+    fusion optimizations for best possible performance. Serial peformance is
+    equivalent to the venerable `vector` library in most cases and even better
+    in some cases.  Concurrent performance is unbeatable.  See
     [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
     for a comparison of popular streaming libraries on micro-benchmarks.
 
@@ -63,16 +66,17 @@ For more information on streamly, see:
 
 ## Streaming Pipelines
 
-Unlike `pipes` or `conduit` and like `vector` and `streaming` `streamly`
+Unlike `pipes` or `conduit` and like `vector` and `streaming`, `streamly`
 composes stream data instead of stream processors (functions).  A stream is
 just like a list and is explicitly passed around to functions that process the
 stream.  Therefore, no special operator is needed to join stages in a streaming
-pipeline, just the standard forward (`$`) or reverse (`&`) function application
-operator is enough.  Combinators are provided in `Streamly.Prelude` to
-transform or fold streams.
+pipeline, just the standard function application (`$`) or reverse function
+application (`&`) operator is enough.  Combinators are provided in
+`Streamly.Prelude` to transform or fold streams.
 
-This snippet reads numbers from stdin, prints the squares of even numbers and
-exits if an even number more than 9 is entered.
+The following snippet provides a simple stream composition example that reads
+numbers from stdin, prints the squares of even numbers and exits if an even
+number more than 9 is entered.
 
 ```haskell
 import Streamly
@@ -92,7 +96,8 @@ main = runStream $
 
 Monadic construction and generation functions e.g. `consM`, `unfoldrM`,
 `replicateM`, `repeatM`, `iterateM` and `fromFoldableM` etc. work concurrently
-when used with appropriate stream type combinator.
+when used with appropriate stream type combinator (e.g. `asyncly`, `aheadly` or
+`parallely`).
 
 The following code finishes in 3 seconds (6 seconds when serial):
 
@@ -113,8 +118,8 @@ runStream $ asyncly $ S.replicateM 10 $ p 10
 
 ## Concurrent Streaming Pipelines
 
-Use `|&` or `|$` to apply stream processing functions concurrently. In the
-following example "hello" is printed every second, if you use `&` instead of
+Use `|&` or `|$` to apply stream processing functions concurrently. The
+following example prints a "hello" every second; if you use `&` instead of
 `|&` you will see that the delay doubles to 2 seconds instead because of serial
 application.
 
@@ -126,7 +131,7 @@ main = runStream $
 
 ## Mapping Concurrently
 
-We can use `mapM` or `sequence` concurrently on a stream.
+We can use `mapM` or `sequence` functions concurrently on a stream.
 
 ```
 > let p n = threadDelay (n * 1000000) >> return n
@@ -136,8 +141,8 @@ We can use `mapM` or `sequence` concurrently on a stream.
 ## Serial and Concurrent Merging
 
 Semigroup and Monoid instances can be used to fold streams serially or
-concurrently. In the following example we are composing ten actions in the
-stream each with a delay of 1 to 10 seconds, respectively. Since all the
+concurrently. In the following example we compose ten actions in the
+stream, each with a delay of 1 to 10 seconds, respectively. Since all the
 actions are concurrent we see one output printed every second:
 
 ``` haskell
@@ -146,11 +151,11 @@ import qualified Streamly.Prelude as S
 import Control.Concurrent (threadDelay)
 
 main = S.toList $ parallely $ foldMap delay [1..10]
- where delay n = S.once $ threadDelay (n * 1000000) >> print n
+ where delay n = S.yieldM $ threadDelay (n * 1000000) >> print n
 ```
 
-Streams can be combined together in many ways. We are providing some examples
-below, see the tutorial for more ways. We will use the following `delay`
+Streams can be combined together in many ways. We provide some examples
+below, see the tutorial for more ways. We use the following `delay`
 function in the examples to demonstrate the concurrency aspects:
 
 ``` haskell
@@ -158,7 +163,7 @@ import Streamly
 import qualified Streamly.Prelude as S
 import Control.Concurrent
 
-delay n = S.once $ do
+delay n = S.yieldM $ do
     threadDelay (n * 1000000)
     tid <- myThreadId
     putStrLn (show tid ++ ": Delay " ++ show n)
@@ -196,7 +201,7 @@ import qualified Streamly.Prelude as S
 loops = do
     x <- S.fromFoldable [1,2]
     y <- S.fromFoldable [3,4]
-    S.once $ putStrLn $ show (x, y)
+    S.yieldM $ putStrLn $ show (x, y)
 
 main = runStream loops
 ```
@@ -209,20 +214,32 @@ main = runStream loops
 
 ## Concurrent Nested Loops
 
-To run the above code with demand-driven depth first concurrency i.e. each
-iteration in the loops can run concurrently depending on the consumer rate:
+To run the above code with, lookahead style concurrency i.e. each iteration in
+the loop can run run concurrently by but the results are presented in the same
+order as serial execution:
+
+``` haskell
+main = runStream $ aheadly $ loops
+```
+
+To run it with depth first concurrency yielding results asynchronously in the
+same order as they become available (deep async composition):
 
 ``` haskell
 main = runStream $ asyncly $ loops
 ```
 
-To run it with demand driven breadth first concurrency:
+To run it with breadth first concurrency and yeilding results asynchronously
+(wide async composition):
 
 ``` haskell
 main = runStream $ wAsyncly $ loops
 ```
 
-To run it with strict concurrency irrespective of demand:
+The above streams provide lazy/demand-driven concurrency which is automatically
+scaled as per demand and is controlled/bounded so that it can be used on
+infinite streams. The following combinator provides strict, unbounded
+concurrency irrespective of demand:
 
 ``` haskell
 main = runStream $ parallely $ loops
@@ -266,8 +283,8 @@ import qualified Streamly.Prelude as S
 
 main = runStream $ aheadly $ getCurrentDir >>= readdir
    where readdir d = do
-            (dirs, files) <- S.once $ listDir d
-            S.once $ mapM_ putStrLn $ map show files
+            (dirs, files) <- S.yieldM $ listDir d
+            S.yieldM $ mapM_ putStrLn $ map show files
             -- read the subdirs concurrently, (<>) is concurrent
             foldMap readdir dirs
 ```

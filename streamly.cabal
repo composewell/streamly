@@ -45,7 +45,11 @@ description:
   * /Generality/: Unifies functionality provided by several disparate packages
     (streaming, concurrency, list transformer, logic programming, reactive
     programming) in a concise API.
-  * /Performance/: Streamly is designed for high performance. See
+  * /Performance/: Streamly is designed for high performance.
+    It employs stream fusion optimizations for best possible performance.
+    Serial peformance is equivalent to the venerable `vector` library in most
+    cases and even better in some cases. Concurrent performance is unbeatable.
+    See
     <https://github.com/composewell/streaming-benchmarks streaming-benchmarks>
     for a comparison of popular streaming libraries on micro-benchmarks.
   .

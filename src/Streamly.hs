@@ -217,11 +217,11 @@ import Data.Semigroup (Semigroup(..))
 
 -- $concurrency
 --
--- These combinators can be used at any point in the composition to control
--- concurrency, and they affect only the enclosed stream. When nested
--- combinators are used, the nearest enclosing combinator overrides the outer
--- ones.  These combinators have no effect on 'Parallel' streams, concurrency
--- for 'Parallel' streams is always unbounded.
+-- These combinators can be used at any point in a stream composition to
+-- control the concurrency of the enclosed stream. When the combinators are
+-- used in a nested manner, the nearest enclosing combinator overrides the
+-- outer ones.  These combinators have no effect on 'Parallel' streams,
+-- concurrency for 'Parallel' streams is always unbounded.
 -- Note that the use of these combinators does not enable concurrency, to
 -- enable concurrency you have to use one of the concurrent stream type
 -- combinators.

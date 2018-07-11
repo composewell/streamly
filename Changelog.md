@@ -3,8 +3,8 @@
 ### Breaking changes
 
 * Signatures of `zipWithM` and `zipAsyncWithM` have changed
-* Some functions in prelude now require an additional Monad constraint for the
-  underlying type of the stream.
+* Some functions in prelude now require an additional `Monad` constraint on
+  the underlying type of the stream.
 
 ### Deprecations
 
@@ -12,8 +12,8 @@
 
 ### Enhancements
 
-* Add concurrency control primitives `threads` and `buffer`.
-* Significant performance improvements
+* Add concurrency control primitives `maxThreads` and `maxBuffer`.
+* Significant performance improvements utilizing stream fusion optimizations.
 * Add `yield` to construct a singleton stream from a pure value
 * Add `repeat` to generate an infinite stream by repeating a pure value
 * Add `fromList` and `fromListM` to generate streams from lists, faster than

@@ -97,7 +97,7 @@ toSVar sv m = toStreamVar sv (toStream m)
 --
 -- | Specify the maximum number of threads that can be spawned concurrently
 -- when using concurrent streams. This is not the grand total number of threads
--- but maximum threads at each point of concurrency.
+-- but the maximum number of threads at each point of concurrency.
 -- A value of 0 resets the thread limit to default, a negative value means
 -- there is no limit. The default value is 1500.
 --
