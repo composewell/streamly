@@ -122,21 +122,7 @@ flag examples-sdl
 
 library
     hs-source-dirs:    src
-    if flag(dev)
-        exposed-modules:
-                       Streamly.SVar
-                     , Streamly.Streams.StreamK
-                     , Streamly.Streams.StreamD
-                     , Streamly.Streams.Serial
-                     , Streamly.Streams.SVar
-                     , Streamly.Streams.Async
-                     , Streamly.Streams.Parallel
-                     , Streamly.Streams.Ahead
-                     , Streamly.Streams.Zip
-                     , Streamly.Streams.Prelude
-    else
-        other-modules:
-                       Streamly.SVar
+    other-modules:     Streamly.SVar
                      , Streamly.Streams.StreamK
                      , Streamly.Streams.StreamD
                      , Streamly.Streams.Serial

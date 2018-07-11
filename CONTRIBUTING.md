@@ -11,9 +11,10 @@ for any problem that you may encounter.
 
 ## Developer documentation
 
-Build haddock with the `dev` flag to see the whole documentation and module
-structure. For example,
-`stack haddock --flag "streamly:dev" --no-haddock-deps`.
+Build haddock with the `--show-all` option to see the documentation for all
+modules including the ones not exposed to users of the library.
+For example,
+`stack haddock --haddock-arguments "--show-all" --no-haddock-deps`.
 
 ## Pull Requests (PR)
 
