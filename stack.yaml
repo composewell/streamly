@@ -1,17 +1,13 @@
-#resolver: lts-11.0
-resolver: nightly-2018-07-06
+resolver: lts-12.0
 packages:
 - '.'
-#- location: ../bench-graph
-#  extra-dep: true
 allow-newer: true
 extra-deps:
     - SDL-0.6.6.0
     - gauge-0.2.3
-    - bench-graph-0.1.0
+    - bench-graph-0.1.1
     - Chart-1.9
     - Chart-diagrams-1.9
-    - Unique-0.4.7.2
     - SVGFonts-1.6.0.3
 
 flags: {}

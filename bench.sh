@@ -133,7 +133,7 @@ run_bench () {
     --include-first-iter \
     --min-samples 3 \
     --min-duration 0 \
-    --match exact
+    --match exact \
     --csvraw=$OUTPUT_FILE \
     -v 2 \
     --measure-with $BENCH_PROG $GAUGE_ARGS || die "Benchmarking failed"
