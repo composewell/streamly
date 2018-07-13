@@ -1,16 +1,19 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (Exception, try)
+import Control.Exception (Exception, try, ErrorCall(..), catch, throw)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.Error.Class (throwError, MonadError)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_, fold)
 import Data.List (sort)
+
+import Data.IORef
 import Test.Hspec
 
 import Streamly
@@ -87,30 +90,6 @@ main = hspec $ do
         it "Apply - parallel composed second argument" $
             (toListParallel ((,) <$> (return 1) <*> (return 2 <> return 3)) >>= return . sort)
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
-
-    ---------------------------------------------------------------------------
-    -- Semigroup/Monoidal Composition strict ordering checks
-    ---------------------------------------------------------------------------
-
-    -- test both (<>) and mappend to make sure we are using correct instance
-    -- for Monoid that is using the right version of semigroup. Instance
-    -- deriving can cause us to pick wrong instances sometimes.
-
-    describe "WSerial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
-    describe "WSerial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
-
-    -- describe "WAsync interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
-    -- describe "WAsync interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
-
-    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
-    describe "Async mappend time order check" $ parallelCheck asyncly mappend
-
-    -- XXX this keeps failing intermittently, need to investigate
-    -- describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
-    -- describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
-
-    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
-    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
     ---------------------------------------------------------------------------
     -- Monoidal Compositions, multiset equality checks
@@ -384,6 +363,50 @@ main = hspec $ do
     describe "take on infinite concurrent stream" $ takeInfinite wAsyncly
     describe "take on infinite concurrent stream" $ takeInfinite aheadly
 
+    ---------------------------------------------------------------------------
+    -- Folds are strict enough
+    ---------------------------------------------------------------------------
+
+    it "foldx is strict enough" checkFoldxStrictness
+    it "foldl' is strict enough" checkFoldl'Strictness
+    it "scanx is strict enough" checkScanxStrictness
+    it "scanl' is strict enough" checkScanl'Strictness
+    it "foldxM is strict enough" (checkFoldMStrictness foldxMStrictCheck)
+    it "foldlM' is strict enough" (checkFoldMStrictness foldlM'StrictCheck)
+    it "scanlM' is strict enough" (checkScanlMStrictness scanlM'StrictCheck)
+
+    ---------------------------------------------------------------------------
+    -- Slower tests are at the end
+    ---------------------------------------------------------------------------
+
+    ---------------------------------------------------------------------------
+    -- Semigroup/Monoidal Composition strict ordering checks
+    ---------------------------------------------------------------------------
+
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "WSerial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
+    describe "WSerial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
+
+    -- describe "WAsync interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
+    -- describe "WAsync interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
+
+    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
+    describe "Async mappend time order check" $ parallelCheck asyncly mappend
+
+    -- XXX this keeps failing intermittently, need to investigate
+    -- describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
+    -- describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
+
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+
+    ---------------------------------------------------------------------------
+    -- Thread limits
+    ---------------------------------------------------------------------------
+
     it "asyncly crosses thread limit (2000 threads)" $
         runStream (asyncly $ fold $
                    replicate 2000 $ S.yieldM $ threadDelay 1000000)
@@ -393,6 +416,90 @@ main = hspec $ do
         runStream (aheadly $ fold $
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
+
+
+checkFoldxStrictness :: IO ()
+checkFoldxStrictness = do
+  let s = return (1 :: Int) `S.consM` error "failure"
+  catch (S.foldx (\_ a -> if a == 1 then error "success" else "done")
+                      "begin" id s)
+    (\e -> case e of
+            ErrorCall err -> return err
+            _ -> throw e)
+    `shouldReturn` "success"
+
+checkFoldl'Strictness :: IO ()
+checkFoldl'Strictness = do
+  let s = return (1 :: Int) `S.consM` error "failure"
+  catch (S.foldl' (\_ a -> if a == 1 then error "success" else "done")
+                      "begin" s)
+    (\e -> case e of
+            ErrorCall err -> return err
+            _ -> throw e)
+    `shouldReturn` "success"
+
+checkScanxStrictness :: IO ()
+checkScanxStrictness = do
+  let s = return (1 :: Int) `S.consM` error "failure"
+  catch
+    (runStream (
+        S.scanx (\_ a ->
+                    if a == 1
+                    then error "success"
+                    else "done")
+                "begin" id s
+        )
+        >> return "finished"
+    )
+    (\e -> case e of
+            ErrorCall err -> return err
+            _ -> throw e)
+    `shouldReturn` "success"
+
+checkScanl'Strictness :: IO ()
+checkScanl'Strictness = do
+    let s = return (1 :: Int) `S.consM` error "failure"
+    catch
+        (runStream
+             (S.scanl'
+                  (\_ a ->
+                       if a == 1
+                           then error "success"
+                           else "done")
+                  "begin"
+                  s)
+             >> return "finished"
+        )
+        (\e -> case e of
+                ErrorCall err -> return err
+                _ -> throw e)
+        `shouldReturn` "success"
+
+foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
+foldlM'StrictCheck ref s =
+  S.foldlM' (\_ _ -> writeIORef ref 1) () s
+
+foldxMStrictCheck :: IORef Int -> SerialT IO Int -> IO ()
+foldxMStrictCheck ref s =
+  S.foldxM (\_ _ -> writeIORef ref 1) (return ()) return s
+
+checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()
+checkFoldMStrictness f = do
+  ref <- newIORef 0
+  let s = return 1 `S.consM` error "x"
+  catch (f ref s) (\(_ :: ErrorCall) -> return ())
+  readIORef ref `shouldReturn` 1
+
+scanlM'StrictCheck :: IORef Int -> SerialT IO Int -> SerialT IO ()
+scanlM'StrictCheck ref s =
+  S.scanlM' (\_ _ -> writeIORef ref 1) () s
+
+checkScanlMStrictness :: (IORef Int -> SerialT IO Int -> SerialT IO ()) -> IO ()
+checkScanlMStrictness f = do
+  ref <- newIORef 0
+  let s = return 1 `S.consM` error "x"
+  catch (runStream $ f ref s) (\(_ :: ErrorCall) -> return ())
+  readIORef ref `shouldReturn` 1
 
 takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
 takeInfinite t = do

@@ -1,3 +1,9 @@
+## Unreleased
+
+### Bug Fixes
+
+* foldxM was not fully strict, fixed.
+
 ## 0.4.0
 
 ### Breaking changes

@@ -116,6 +116,10 @@ module Streamly.Streams.StreamK
     -- ** Map and Filter
     , mapMaybe
 
+    -- ** Zipping
+    , zipWith
+    , zipWithM
+
     -- * Semigroup Style Composition
     , serial
 
@@ -137,7 +141,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail)
+               maximum, elem, notElem, null, head, tail, zipWith)
 import qualified Prelude
 
 import Streamly.SVar
@@ -521,7 +525,7 @@ foldxM step begin done m = go begin (toStream m)
     go !acc m1 =
         let stop = acc >>= done
             single a = acc >>= \b -> step b a >>= done
-            yieldk a r = acc >>= \b -> go (step b a) r
+            yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
          in (unStream m1) defState stop single yieldk
 
 -- | Like 'foldl'' but with a monadic step function.
@@ -810,6 +814,46 @@ mapMaybe f m = go (toStream m)
                 Just b  -> yld b (toStream $ go r)
                 Nothing -> (unStream r) (rstState st) stp single yieldk
         in unStream m1 (rstState st) stp single yieldk
+
+------------------------------------------------------------------------------
+-- Serial Zipping
+------------------------------------------------------------------------------
+
+{-# INLINE zipWithS #-}
+zipWithS :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
+zipWithS f m1 m2 = go m1 m2
+    where
+    go mx my = Stream $ \st stp sng yld -> do
+        let merge a ra =
+                let single2 b = sng (f a b)
+                    yield2 b rb = yld (f a b) (go ra rb)
+                 in unStream my (rstState st) stp single2 yield2
+        let single1 a   = merge a nil
+            yield1 a ra = merge a ra
+        unStream mx (rstState st) stp single1 yield1
+
+-- | Zip two streams serially using a pure zipping function.
+--
+-- @since 0.1.0
+{-# INLINABLE zipWith #-}
+zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 = fromStream $ zipWithS f (toStream m1) (toStream m2)
+
+-- | Zip two streams serially using a monadic zipping function.
+--
+-- @since 0.1.0
+zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
+    where
+    go mx my = Stream $ \st stp sng yld -> do
+        let merge a ra =
+                let runIt x = unStream x (rstState st) stp sng yld
+                    single2 b   = f a b >>= sng
+                    yield2 b rb = f a b >>= \x -> runIt (x `cons` go ra rb)
+                 in unStream my (rstState st) stp single2 yield2
+        let single1 a  = merge a nil
+            yield1 a ra = merge a ra
+        unStream mx (rstState st) stp single1 yield1
 
 ------------------------------------------------------------------------------
 -- Semigroup

@@ -13,10 +13,9 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
         subtract, undefined, Maybe(..), not)
 
-import qualified Streamly.Streams.StreamK as S hiding (runStream)
--- import qualified Streamly.Streams.Serial as S
-import qualified Streamly as S
-import qualified Streamly.Prelude as P
+import qualified Streamly.Streams.StreamK as S
+import qualified Streamly.Streams.Prelude as S
+import qualified Streamly.SVar as S
 
 value, maxValue :: Int
 value = 1000000
@@ -68,7 +67,7 @@ mapM :: S.MonadAsync m => Stream m Int -> m ()
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.SerialT m a
+type Stream m a = S.Stream m a
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: Int -> Stream m Int
@@ -98,17 +97,19 @@ sourceFromEnum n = S.enumFromStepN n 1 value
 sourceFromFoldable :: Int -> Stream m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
+{-
 {-# INLINE sourceFromFoldableM #-}
 sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
-sourceFromFoldableM n = P.fromFoldableM (Prelude.fmap return [n..n+value])
+sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
+-}
 
 {-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: Monad m => Int -> Stream m Int
-sourceFoldMapWith n = S.foldMapWith (S.<>) return [n..n+value]
+sourceFoldMapWith :: Int -> Stream m Int
+sourceFoldMapWith n = S.foldMapWith (S.serial) S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n = S.foldMapWith (S.serial) (S.yieldM . return) [n..n+value]
 
 {-# INLINE source #-}
 source :: S.MonadAsync m => Int -> Stream m Int
@@ -160,15 +161,15 @@ filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)
 takeOne       = transform . S.take 1
 takeAll       = transform . S.take maxValue
-takeWhileTrue = transform . P.takeWhile (<= maxValue)
-dropAll       = transform . P.drop maxValue
-dropWhileTrue = transform . P.dropWhile (<= maxValue)
+takeWhileTrue = transform . S.takeWhile (<= maxValue)
+dropAll       = transform . S.drop maxValue
+dropWhileTrue = transform . S.dropWhile (<= maxValue)
 
 -------------------------------------------------------------------------------
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ (P.zipWith (,) src src)
+zip src       = transform $ (S.zipWith (,) src src)
 concat _n     = return ()
 
 -------------------------------------------------------------------------------

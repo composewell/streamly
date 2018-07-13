@@ -96,9 +96,9 @@ sourceUnfoldrM n = S.unfoldrM step n
 sourceFromEnum :: Monad m => Int -> Stream m Int
 sourceFromEnum n = S.enumFromStepN n 1 value
 
-{-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: Monad m => Int -> Stream m Int
-sourceFromFoldable n = S.fromList [n..n+value]
+{-# INLINE sourceFromList #-}
+sourceFromList :: Monad m => Int -> Stream m Int
+sourceFromList n = S.fromList [n..n+value]
 
 {-# INLINE source #-}
 source :: Monad m => Int -> Stream m Int

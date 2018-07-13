@@ -37,7 +37,7 @@ main = do
         , benchIO "unfoldrM"     D.toNull D.sourceUnfoldrM
         , benchIO "fromEnum"     D.toNull D.sourceFromEnum
 
-        , benchIO "fromFoldable" D.toNull D.sourceFromFoldable
+        , benchIO "fromList" D.toNull D.sourceFromList
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM
         ]
       , bgroup "elimination"
@@ -64,7 +64,7 @@ main = do
         -- , benchIO "fromEnum"     K.toNull K.sourceFromEnum
 
         , benchIO "fromFoldable"  K.toNull K.sourceFromFoldable
-        , benchIO "fromFoldableM" K.toNull K.sourceFromFoldableM
+        -- , benchIO "fromFoldableM" K.toNull K.sourceFromFoldableM
 
         -- appends
         , benchIO "foldMapWith"  K.toNull K.sourceFoldMapWith
