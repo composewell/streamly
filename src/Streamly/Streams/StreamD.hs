@@ -564,14 +564,14 @@ dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
             Yield x s -> do
                 b <- f x
                 if b
-                then step' (rstState gst) (DropWhileDrop s)
-                else step' (rstState gst) (DropWhileYield x s)
+                then step' gst (DropWhileDrop s)
+                else step' gst (DropWhileYield x s)
             Stop -> return Stop
 
     step' gst (DropWhileNext st) =  do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> step' (rstState gst) (DropWhileYield x s)
+            Yield x s -> step' gst (DropWhileYield x s)
             Stop      -> return Stop
 
     step' _ (DropWhileYield x st) = return $ Yield x (DropWhileNext st)
@@ -592,7 +592,7 @@ filterM f (Stream step state) = Stream step' state
                 b <- f x
                 if b
                 then return $ Yield x s
-                else step' (rstState gst) s
+                else step' gst s
             Stop -> return $ Stop
 
 {-# INLINE filter #-}
