@@ -18,7 +18,7 @@ import qualified Streamly.Streams.Prelude as S
 import qualified Streamly.SVar as S
 
 value, maxValue :: Int
-value = 1000000
+value = 100000
 maxValue = value + 1000
 
 -------------------------------------------------------------------------------

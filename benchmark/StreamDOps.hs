@@ -9,17 +9,14 @@
 
 module StreamDOps where
 
--- import Prelude
-       -- (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        -- subtract, undefined, Maybe(..))
 import Prelude
-        (Monad, Int, (+), (.), return, (>), even, (<=),
-         Maybe(..), not)
+        (Monad, Int, (+), ($), (.), return, (>), even, (<=),
+         subtract, undefined, Maybe(..), not)
 
 import qualified Streamly.Streams.StreamD as S
 
 value, maxValue :: Int
-value = 1000000
+value = 100000
 maxValue = value + 1000
 
 -------------------------------------------------------------------------------
@@ -28,34 +25,32 @@ maxValue = value + 1000
 
 {-# INLINE uncons #-}
 {-# INLINE nullHeadTail #-}
--- {-# INLINE scan #-}
+{-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
 {-# INLINE takeOne #-}
 {-# INLINE takeAll #-}
-{-
 {-# INLINE takeWhileTrue #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
 {-# INLINE zip #-}
+{-
 {-# INLINE concat #-}
+-}
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
--}
-uncons, nullHeadTail, map, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll -- takeWhileTrue, dropAll, dropWhileTrue, zip,
-    -- concat, composeAllInFilters, composeAllOutFilters,
-    -- composeMapAllInFilter
+uncons, nullHeadTail, map, scan, filterEven, filterAllOut,
+    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
+    -- concat,
+    composeAllInFilters, composeAllOutFilters, composeMapAllInFilter
     :: Monad m
     => Stream m Int -> m ()
 
-{-
 {-# INLINE composeMapM #-}
-composeMapM :: S.MonadAsync m => Stream m Int -> m ()
--}
+composeMapM :: Monad m => Stream m Int -> m ()
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -140,7 +135,7 @@ last   = S.last
 transform :: Monad m => Stream m a -> m ()
 transform = runStream
 
--- scan          = transform . S.scanl' (+) 0
+scan          = transform . S.scanlM' (\a b -> return (a + b)) 0
 map           = transform . S.map (+1)
 mapM          = transform . S.mapM return
 filterEven    = transform . S.filter even
@@ -148,7 +143,6 @@ filterAllOut  = transform . S.filter (> maxValue)
 filterAllIn   = transform . S.filter (<= maxValue)
 takeOne       = transform . S.take 1
 takeAll       = transform . S.take maxValue
-{-
 takeWhileTrue = transform . S.takeWhile (<= maxValue)
 dropAll       = transform . S.drop maxValue
 dropWhileTrue = transform . S.dropWhile (<= maxValue)
@@ -158,7 +152,7 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 -------------------------------------------------------------------------------
 
 zip src       = transform $ (S.zipWith (,) src src)
-concat _n     = return ()
+-- concat _n     = return ()
 
 -------------------------------------------------------------------------------
 -- Composition
@@ -171,7 +165,7 @@ compose f = transform . f . f . f . f
 composeMapM           = compose (S.mapM return)
 composeAllInFilters   = compose (S.filter (<= maxValue))
 composeAllOutFilters  = compose (S.filter (> maxValue))
-composeMapAllInFilter = compose (S.filter (<= maxValue) . fmap (subtract 1))
+composeMapAllInFilter = compose (S.filter (<= maxValue) . S.map (subtract 1))
 
 {-# INLINABLE composeScaling #-}
 composeScaling :: Monad m => Int -> Stream m Int -> m ()
@@ -183,4 +177,3 @@ composeScaling m =
         4 -> transform . f . f . f . f
         _ -> undefined
     where f = S.filter (<= maxValue)
-    -}
