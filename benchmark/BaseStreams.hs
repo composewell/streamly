@@ -5,6 +5,8 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
+{-# LANGUAGE CPP                       #-}
+
 import Control.DeepSeq (NFData)
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
@@ -62,9 +64,11 @@ main = do
       , benchIO "zip" D.zip D.sourceUnfoldrM
       , bgroup "compose"
         [ benchIO "mapM" D.composeMapM D.sourceUnfoldrM
+#if __GLASGOW_HASKELL__ != 802
         , benchIO "map-with-all-in-filter" D.composeMapAllInFilter D.sourceUnfoldrM
         , benchIO "all-in-filters" D.composeAllInFilters D.sourceUnfoldrM
         , benchIO "all-out-filters" D.composeAllOutFilters D.sourceUnfoldrM
+#endif
         ]
         -- Scaling with same operation in sequence
       , bgroup "compose-scaling"
