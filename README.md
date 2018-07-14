@@ -56,7 +56,7 @@ The following chart shows a summary of the cost of key streaming operations
 processing a million elements. The timings for streamly and vector are in the
 600-700 microseconds range and therefore can barely be seen in the graph.
 
-![Streaming Operations at a Glance](charts/KeyOperations-time.svg)
+![Streaming Operations at a Glance](charts-0/KeyOperations-time.svg)
 
 For more details on streaming library ecosystem and where streamly fits in,
 please see
