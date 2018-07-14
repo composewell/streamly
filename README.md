@@ -52,6 +52,12 @@ Why use streamly?
     [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
     for a comparison of popular streaming libraries on micro-benchmarks.
 
+The following chart shows a summary of the cost of key streaming operations
+processing a million elements. The timings for streamly and vector are in the
+600-700 microseconds range and therefore can barely be seen in the graph.
+
+![Streaming Operations at a Glance](charts/KeyOperations-time.svg)
+
 For more details on streaming library ecosystem and where streamly fits in,
 please see
 [streaming libraries](https://github.com/composewell/streaming-benchmarks#streaming-libraries).
@@ -308,21 +314,6 @@ of integrating concurrency and streaming. See
 for a console based FRP game example and
 [CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
 for an SDL based animation example.
-
-## Performance
-
-`Streamly` has best in class performance even though it generalizes streaming
-to concurrent composition that does not mean it sacrifices non-concurrent
-performance. See
-[streaming-benchmarks](https://github.com/composewell/streaming-benchmarks) for
-detailed performance comparison with regular streaming libraries and the
-explanation of the benchmarks. The following graphs show a summary, the first
-one measures how four pipeline stages in a series perform, the second one
-measures the performance of individual stream operations; in both cases the
-stream processes a million elements:
-
-![Composing Pipeline Stages](charts/comparative/ComposingPipelineStages.svg)
-![All Operations at a Glance](charts/comparative/AllOperationsataGlance.svg)
 
 ## Contributing
 
