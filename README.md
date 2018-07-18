@@ -84,7 +84,7 @@ The following snippet provides a simple stream composition example that reads
 numbers from stdin, prints the squares of even numbers and exits if an even
 number more than 9 is entered.
 
-```haskell
+``` haskell
 import Streamly
 import qualified Streamly.Prelude as S
 import Data.Function ((&))
@@ -107,7 +107,7 @@ when used with appropriate stream type combinator (e.g. `asyncly`, `aheadly` or
 
 The following code finishes in 3 seconds (6 seconds when serial):
 
-```
+``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
 > S.toList $ aheadly $ p 3 |: p 2 |: p 1 |: S.nil
 [3,2,1]
@@ -118,7 +118,7 @@ The following code finishes in 3 seconds (6 seconds when serial):
 
 The following finishes in 10 seconds (100 seconds when serial):
 
-```
+``` haskell
 runStream $ asyncly $ S.replicateM 10 $ p 10
 ```
 
@@ -129,7 +129,7 @@ following example prints a "hello" every second; if you use `&` instead of
 `|&` you will see that the delay doubles to 2 seconds instead because of serial
 application.
 
-```
+``` haskell
 main = runStream $
       S.repeatM (threadDelay 1000000 >> return "hello")
    |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
@@ -139,7 +139,7 @@ main = runStream $
 
 We can use `mapM` or `sequence` functions concurrently on a stream.
 
-```
+``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
 > runStream $ aheadly $ S.mapM (\x -> p 1 >> print x) (serially $ repeatM (p 1))
 ```
@@ -176,7 +176,7 @@ delay n = S.yieldM $ do
 ```
 ### Serial
 
-```haskell
+``` haskell
 main = runStream $ delay 3 <> delay 2 <> delay 1
 ```
 ```
@@ -187,7 +187,7 @@ ThreadId 36: Delay 1
 
 ### Parallel
 
-```haskell
+``` haskell
 main = runStream . parallely $ delay 3 <> delay 2 <> delay 1
 ```
 ```
