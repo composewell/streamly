@@ -99,6 +99,8 @@ module Streamly.Prelude
     , length
     , all
     , any
+    , and
+    , or
     , maximum
     , minimum
     , sum
@@ -168,7 +170,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init)
+               reverse, iterate, init, and, or)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -571,6 +573,16 @@ all p m = S.all p (toStreamS m)
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 any p m = S.any p (toStreamS m)
+
+-- | Determines if all elements of a boolean stream are True.
+{-# INLINE and #-}
+and :: Monad m => SerialT m Bool -> m Bool
+and = all (==True)
+
+-- | Determines wheter at least one element of a boolean stream is True.
+{-# INLINE or #-}
+or :: Monad m => SerialT m Bool -> m Bool
+or = any (==True)
 
 -- | Determine the sum of all elements of a stream of numbers
 --
