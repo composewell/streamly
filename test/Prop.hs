@@ -64,11 +64,12 @@ constructWithReplicateM op thr buf len = withMaxSuccess maxTestCount $
         equals (==) stream list
 
 transformFromList
-    :: ([Int] -> t IO Int)
-    -> ([Int] -> [Int] -> Bool)
-    -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
-    -> [Int]
+    :: Show b =>
+       ([a] -> t IO a)
+    -> ([b] -> [b] -> Bool)
+    -> ([a] -> [b])
+    -> (t IO a -> SerialT IO b)
+    -> [a]
     -> Property
 transformFromList constr eq listOp op a =
     monadicIO $ do
@@ -265,10 +266,10 @@ foldFromList constr op eq a = transformFromList constr eq id op a
 
 eliminateOp
     :: (Show a, Eq a)
-    => ([Int] -> t IO Int)
-    -> ([Int] -> a)
-    -> (t IO Int -> IO a)
-    -> [Int]
+    => ([s] -> t IO s)
+    -> ([s] -> a)
+    -> (t IO s -> IO a)
+    -> [s]
     -> Property
 eliminateOp constr listOp op a =
     monadicIO $ do
@@ -499,6 +500,9 @@ eliminationOps constr desc t = do
     prop (desc ++ " elemIndex") $ eliminateOp constr (elemIndex 3) $ (S.elemIndex 3) . t
 
     prop (desc ++ " find") $ eliminateOp constr (find even) $ (S.find even) . t
+    prop (desc ++ " lookup") $
+        eliminateOp constr (lookup 3 . flip zip [1..]) $
+            S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
