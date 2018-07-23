@@ -9,7 +9,8 @@ import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
-import Data.List (sort, foldl', scanl')
+import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
+                  elemIndex)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -347,6 +348,10 @@ transformOps constr desc t eq = do
     prop (desc ++ " scan") $ transform (scanl' (+) 0) $ t . (S.scanl' (+) 0)
     prop (desc ++ " reverse") $ transform reverse $ t . S.reverse
 
+    prop (desc ++ " findIndices") $ transform (findIndices odd) $ t . (S.findIndices odd)
+    prop (desc ++ " elemIndices") $ transform (elemIndices 3) $ t . (S.elemIndices 3)
+
+
 concurrentOps
     :: IsStream t
     => ([Word8] -> t IO Word8)
@@ -480,6 +485,9 @@ eliminationOps constr desc t = do
 
     prop (desc ++ " maximum") $ eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
     prop (desc ++ " minimum") $ eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
+
+    prop (desc ++ " findIndex") $ eliminateOp constr (findIndex odd) $ (S.findIndex odd) . t
+    prop (desc ++ " elemIndex") $ eliminateOp constr (elemIndex 3) $ (S.elemIndex 3) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.

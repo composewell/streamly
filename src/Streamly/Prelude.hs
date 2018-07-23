@@ -104,6 +104,13 @@ module Streamly.Prelude
     , sum
     , product
 
+    -- *** Indices
+    , findIndices
+    , findIndex
+    , elemIndices
+    , elemIndex
+
+
     -- ** Map and Fold
     , mapM_
 
@@ -592,6 +599,28 @@ minimum m = S.minimum (toStreamS m)
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = S.maximum (toStreamS m)
+
+-- | Finds all the indices of elements satisfying the given predicate.
+{-# INLINE findIndices #-}
+findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
+findIndices = K.findIndices
+
+-- | Gives the index of the first stream element satisfying the given
+-- preficate.
+{-# INLINE findIndex #-}
+findIndex :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe Int)
+findIndex p = head . findIndices p
+
+-- | Finds the index of all elements in the stream which are equal to the
+-- given.
+{-# INLINE elemIndices #-}
+elemIndices :: (IsStream t, Eq a) => a -> t m a -> t m Int
+elemIndices a = findIndices (==a)
+
+-- | Gives the first index of an element in the stream, which equals the given.
+{-# INLINE elemIndex #-}
+elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
+elemIndex a = findIndex (==a)
 
 ------------------------------------------------------------------------------
 -- Map and Fold

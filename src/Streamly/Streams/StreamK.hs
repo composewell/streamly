@@ -89,6 +89,7 @@ module Streamly.Streams.StreamK
     , last
     , minimum
     , maximum
+    , findIndices
 
     -- ** Map and Fold
     , mapM_
@@ -673,6 +674,17 @@ maximum m = go Nothing (toStream m)
                 then go (Just a) r
                 else go (Just res) r
         in unStream m1 defState stop single yieldk
+
+{-# INLINE findIndices #-}
+findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
+findIndices p = fromStream . go 0 . toStream
+    where
+    go offset m1 = Stream $ \st stp sng yld ->
+        let single a | p a = sng offset
+                     | otherwise = stp
+            yieldk a x | p a = yld offset $ go (offset + 1) x
+                       | otherwise = unStream (go (offset + 1) x) st stp sng yld
+        in unStream m1 (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Map and Fold
