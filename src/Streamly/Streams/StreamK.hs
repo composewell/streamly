@@ -71,6 +71,7 @@ module Streamly.Streams.StreamK
     , foldStream
     , foldr
     , foldrM
+    , foldr1
     , foldl'
     , foldlM'
     , foldx
@@ -148,7 +149,8 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail, init, zipWith, lookup)
+               maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
+               foldr1)
 import qualified Prelude
 
 import Streamly.SVar
@@ -491,6 +493,20 @@ foldrM step acc m = go (toStream m)
             single a = step a acc
             yieldk a r = go r >>= step a
         in (unStream m1) defState stop single yieldk
+
+{-# INLINE foldr1 #-}
+foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
+foldr1 step m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> go h (toStream t) >>= return . Just
+    where
+    go p m1 =
+        let stp = return p
+            single a = return $ step a p
+            yieldk a r = go a r >>= return . (step p)
+         in unStream m1 defState stp single yieldk
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third

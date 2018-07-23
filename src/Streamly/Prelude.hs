@@ -82,8 +82,10 @@ module Streamly.Prelude
     -- * Elimination
     -- ** General Folds
     , foldr
+    , foldr1
     , foldrM
     , foldl'
+    , foldl1'
     , foldlM'
     , foldx
     , foldxM
@@ -175,7 +177,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup)
+               reverse, iterate, init, and, or, lookup, foldr1)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -465,6 +467,12 @@ foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 -- foldr step acc m = S.foldr step acc $ S.fromStreamK (toStream m)
 foldr f = foldrM (\a b -> return (f a b))
 
+-- | Right fold, for non-empty streams, using first element as the starting
+-- value. Returns 'Nothing' if the stream is empty.
+{-# INLINE foldr1 #-}
+foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
+foldr1 = K.foldr1
+
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -487,6 +495,17 @@ foldl = foldx
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
 foldl' step begin m = S.foldl' step begin $ toStreamS m
+
+-- | Strict left fold, for non-empty streams, using first element as the
+-- starting value. Returns 'Nothing' if the stream is empty.
+foldl1' :: Monad m => (a -> a -> a) -> (a -> b) -> SerialT m a -> m (Maybe b)
+foldl1' step done m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> do
+            res <- foldl' step h t
+            return $ Just $ done res
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.

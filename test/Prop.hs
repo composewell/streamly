@@ -10,7 +10,7 @@ import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-                  elemIndex, find, intersperse)
+                  elemIndex, find, intersperse, foldl1')
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -482,6 +482,10 @@ eliminationOps constr desc t = do
     prop (desc ++ " null") $ eliminateOp constr null $ S.null . t
     prop (desc ++ " foldl") $
         eliminateOp constr (foldl' (+) 0) $ (S.foldl' (+) 0) . t
+    prop (desc ++ " foldl1") $
+        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ (S.foldl1' (+) id) . t
+    prop (desc ++ " foldr1") $
+        eliminateOp constr (wrapMaybe $ foldr1 (+)) $ (S.foldr1 (+)) . t
     prop (desc ++ " all") $ eliminateOp constr (all even) $ (S.all even) . t
     prop (desc ++ " any") $ eliminateOp constr (any even) $ (S.any even) . t
     prop (desc ++ " length") $ eliminateOp constr length $ S.length . t
