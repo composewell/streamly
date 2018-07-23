@@ -117,6 +117,9 @@ module Streamly.Streams.StreamK
     , mapM
     , sequence
 
+    -- ** Inserting
+    , intersperseM
+
     -- ** Map and Filter
     , mapMaybe
 
@@ -848,6 +851,22 @@ sequence m = go (toStream m)
         let single ma = ma >>= sng
             yieldk ma r = unStream (toStream $ ma |: go r) st stp sng yld
          in (unStream m1) (rstState st) stp single yieldk
+
+-------------------------------------------------------------------------------
+-- Inserting
+-------------------------------------------------------------------------------
+
+{-# INLINE intersperseM #-}
+intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseM a m = fromStream $ prependingStart (toStream m)
+    where
+    prependingStart m1 = Stream $ \st stp sng yld ->
+        let yieldk i x = unStream (return i |: go x) st stp sng yld
+         in unStream m1 (rstState st) stp sng yieldk
+    go m2 = fromStream $ Stream $ \st stp sng yld ->
+        let single i = unStream (a |: yield i) st stp sng yld
+            yieldk i x = unStream (a |: return i |: go x) st stp sng yld
+         in unStream m2 (rstState st) stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Map and Filter

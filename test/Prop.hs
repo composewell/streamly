@@ -10,7 +10,7 @@ import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-                  elemIndex, find)
+                  elemIndex, find, intersperse)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -351,6 +351,8 @@ transformOps constr desc t eq = do
     prop (desc ++ " findIndices") $ transform (findIndices odd) $ t . (S.findIndices odd)
     prop (desc ++ " elemIndices") $ transform (elemIndices 3) $ t . (S.elemIndices 3)
 
+    prop (desc ++ " intersperseM") $ transform (intersperse 3) $ t . (S.intersperseM (return 3))
+
 
 concurrentOps
     :: IsStream t
@@ -436,6 +438,9 @@ transformCombineOpsCommon constr desc t eq = do
     prop (desc ++ " scanlM'") $ transform (scanl' (flip const) 0) t
                                        (S.scanlM' (\_ a -> return a) 0)
     prop (desc ++ " reverse") $ transform reverse t S.reverse
+
+    prop (desc ++ " intersperseM") $
+        transform (intersperse 3) t (S.intersperseM $ return 3)
 
 transformCombineOpsOrdered
     :: (IsStream t, Semigroup (t IO Int))

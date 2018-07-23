@@ -151,6 +151,9 @@ module Streamly.Prelude
     -- ** Reordering
     , reverse
 
+    -- ** Inserting
+    , intersperseM
+
     -- * Zipping
     , zipWith
     , zipWithM
@@ -871,6 +874,16 @@ reverse m = fromStream $ go K.nil (toStream m)
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
          in K.unStream rest (rstState st) stop single yieldk
+
+------------------------------------------------------------------------------
+-- Transformation by Inserting
+------------------------------------------------------------------------------
+
+-- | Generate a stream by performing the monadic action inbetween all elements
+-- of the given stream.
+{-# INLINE intersperseM #-}
+intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseM = K.intersperseM
 
 ------------------------------------------------------------------------------
 -- Zipping
