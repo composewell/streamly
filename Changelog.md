@@ -1,3 +1,10 @@
+## Unreleased
+
+### Enhancements
+
+* Add `foldl1'`, `foldr1`, `intersperseM`, `find`, `lookup`, `and`, `or`,
+  `findIndices`, `findIndex`, `elemIndices`, `elemIndex`, `init` to Prelude
+
 ## 0.4.1
 
 ### Bug Fixes
