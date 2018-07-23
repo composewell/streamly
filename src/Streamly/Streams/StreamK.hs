@@ -81,6 +81,7 @@ module Streamly.Streams.StreamK
     , null
     , head
     , tail
+    , init
     , elem
     , notElem
     , all
@@ -141,7 +142,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail, zipWith)
+               maximum, elem, notElem, null, head, tail, init, zipWith)
 import qualified Prelude
 
 import Streamly.SVar
@@ -569,6 +570,20 @@ tail m =
         single _  = return $ Just nil
         yieldk _ r = return $ Just $ fromStream r
     in unStream (toStream m) defState stop single yieldk
+
+{-# INLINE init #-}
+init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
+init m = go1 (toStream m)
+    where
+    go1 m1 = do
+        r <- uncons m1
+        case r of
+            Nothing -> return Nothing
+            Just (h, t) -> return . Just . fromStream $ go h t
+    go p m1 = Stream $ \_ stp sng yld ->
+        let single _ = sng p
+            yieldk a x = yld p $ go a x
+         in unStream m1 defState stp single yieldk
 
 {-# INLINE elem #-}
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool

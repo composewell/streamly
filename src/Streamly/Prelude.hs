@@ -93,6 +93,7 @@ module Streamly.Prelude
     , head
     , tail
     , last
+    , init
     , elem
     , notElem
     , length
@@ -160,7 +161,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate)
+               reverse, iterate, init)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -516,6 +517,11 @@ head m = K.head m
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m = K.tail (K.adapt m)
+
+-- | Extract all but the last element of the stream, if any.
+{-# INLINE init #-}
+init :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
+init m = K.init (K.adapt m)
 
 -- | Extract the last element of the stream, if any.
 --

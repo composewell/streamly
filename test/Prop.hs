@@ -496,6 +496,11 @@ serialEliminationOps constr desc t = do
             Nothing -> return Nothing
             Just s -> S.toList s >>= return . Just
     prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ S.last . t
+    prop (desc ++ " init") $ eliminateOp constr (wrapMaybe init) $ \x -> do
+        r <- S.init (t x)
+        case r of
+            Nothing -> return Nothing
+            Just s -> S.toList s >>= return . Just
 
 transformOpsWord8
     :: ([Word8] -> t IO Word8)
