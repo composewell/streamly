@@ -10,7 +10,7 @@ import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-                  elemIndex)
+                  elemIndex, find)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -488,6 +488,8 @@ eliminationOps constr desc t = do
 
     prop (desc ++ " findIndex") $ eliminateOp constr (findIndex odd) $ (S.findIndex odd) . t
     prop (desc ++ " elemIndex") $ eliminateOp constr (elemIndex 3) $ (S.elemIndex 3) . t
+
+    prop (desc ++ " find") $ eliminateOp constr (find even) $ (S.find even) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.

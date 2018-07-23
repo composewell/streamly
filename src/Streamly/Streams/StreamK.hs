@@ -90,6 +90,8 @@ module Streamly.Streams.StreamK
     , minimum
     , maximum
     , findIndices
+    , lookup
+    , find
 
     -- ** Map and Fold
     , mapM_
@@ -143,7 +145,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail, init, zipWith)
+               maximum, elem, notElem, null, head, tail, init, zipWith, lookup)
 import qualified Prelude
 
 import Streamly.SVar
@@ -674,6 +676,28 @@ maximum m = go Nothing (toStream m)
                 then go (Just a) r
                 else go (Just res) r
         in unStream m1 defState stop single yieldk
+
+{-# INLINE lookup #-}
+lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
+lookup e m = go (toStream m)
+    where
+    go m1 =
+        let single (a, b) | a == e = return $ Just b
+                          | otherwise = return Nothing
+            yieldk (a, b) x | a == e = return $ Just b
+                            | otherwise = go x
+        in unStream m1 defState (return Nothing) single yieldk
+
+{-# INLINE find #-}
+find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
+find p m = go (toStream m)
+    where
+    go m1 =
+        let single a | p a = return $ Just a
+                     | otherwise = return Nothing
+            yieldk a x | p a = return $ Just a
+                       | otherwise = go x
+        in unStream m1 defState (return Nothing) single yieldk
 
 {-# INLINE findIndices #-}
 findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int

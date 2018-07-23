@@ -105,6 +105,8 @@ module Streamly.Prelude
     , minimum
     , sum
     , product
+    , lookup
+    , find
 
     -- *** Indices
     , findIndices
@@ -170,7 +172,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or)
+               reverse, iterate, init, and, or, lookup)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -611,6 +613,17 @@ minimum m = S.minimum (toStreamS m)
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = S.maximum (toStreamS m)
+
+-- | Looks the given key up, treating the given stream as an association list.
+{-# INLINE lookup #-}
+lookup :: (Monad m, Eq a) => a -> SerialT m (a, b) -> m (Maybe b)
+lookup = K.lookup
+
+-- | Returns the first element of the stream satisfying the given predicate,
+-- if any.
+{-# INLINE find #-}
+find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
+find = K.find
 
 -- | Finds all the indices of elements satisfying the given predicate.
 {-# INLINE findIndices #-}
