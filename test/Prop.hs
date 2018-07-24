@@ -9,7 +9,8 @@ import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
 import Data.IORef (readIORef, modifyIORef, newIORef)
-import Data.List (sort, foldl', scanl')
+import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
+                  elemIndex, find, intersperse, foldl1')
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -63,11 +64,12 @@ constructWithReplicateM op thr buf len = withMaxSuccess maxTestCount $
         equals (==) stream list
 
 transformFromList
-    :: ([Int] -> t IO Int)
-    -> ([Int] -> [Int] -> Bool)
-    -> ([Int] -> [Int])
-    -> (t IO Int -> SerialT IO Int)
-    -> [Int]
+    :: Show b =>
+       ([a] -> t IO a)
+    -> ([b] -> [b] -> Bool)
+    -> ([a] -> [b])
+    -> (t IO a -> SerialT IO b)
+    -> [a]
     -> Property
 transformFromList constr eq listOp op a =
     monadicIO $ do
@@ -264,10 +266,10 @@ foldFromList constr op eq a = transformFromList constr eq id op a
 
 eliminateOp
     :: (Show a, Eq a)
-    => ([Int] -> t IO Int)
-    -> ([Int] -> a)
-    -> (t IO Int -> IO a)
-    -> [Int]
+    => ([s] -> t IO s)
+    -> ([s] -> a)
+    -> (t IO s -> IO a)
+    -> [s]
     -> Property
 eliminateOp constr listOp op a =
     monadicIO $ do
@@ -346,6 +348,12 @@ transformOps constr desc t eq = do
         transform (dropWhile (> 0)) $ t . (S.dropWhile (> 0))
     prop (desc ++ " scan") $ transform (scanl' (+) 0) $ t . (S.scanl' (+) 0)
     prop (desc ++ " reverse") $ transform reverse $ t . S.reverse
+
+    prop (desc ++ " findIndices") $ transform (findIndices odd) $ t . (S.findIndices odd)
+    prop (desc ++ " elemIndices") $ transform (elemIndices 3) $ t . (S.elemIndices 3)
+
+    prop (desc ++ " intersperseM") $ transform (intersperse 3) $ t . (S.intersperseM (return 3))
+
 
 concurrentOps
     :: IsStream t
@@ -432,6 +440,9 @@ transformCombineOpsCommon constr desc t eq = do
                                        (S.scanlM' (\_ a -> return a) 0)
     prop (desc ++ " reverse") $ transform reverse t S.reverse
 
+    prop (desc ++ " intersperseM") $
+        transform (intersperse 3) t (S.intersperseM $ return 3)
+
 transformCombineOpsOrdered
     :: (IsStream t, Semigroup (t IO Int))
     => ([Int] -> t IO Int)
@@ -472,6 +483,10 @@ eliminationOps constr desc t = do
     prop (desc ++ " null") $ eliminateOp constr null $ S.null . t
     prop (desc ++ " foldl") $
         eliminateOp constr (foldl' (+) 0) $ (S.foldl' (+) 0) . t
+    prop (desc ++ " foldl1") $
+        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ (S.foldl1' (+) id) . t
+    prop (desc ++ " foldr1") $
+        eliminateOp constr (wrapMaybe $ foldr1 (+)) $ (S.foldr1 (+)) . t
     prop (desc ++ " all") $ eliminateOp constr (all even) $ (S.all even) . t
     prop (desc ++ " any") $ eliminateOp constr (any even) $ (S.any even) . t
     prop (desc ++ " length") $ eliminateOp constr length $ S.length . t
@@ -480,6 +495,14 @@ eliminationOps constr desc t = do
 
     prop (desc ++ " maximum") $ eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
     prop (desc ++ " minimum") $ eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
+
+    prop (desc ++ " findIndex") $ eliminateOp constr (findIndex odd) $ (S.findIndex odd) . t
+    prop (desc ++ " elemIndex") $ eliminateOp constr (elemIndex 3) $ (S.elemIndex 3) . t
+
+    prop (desc ++ " find") $ eliminateOp constr (find even) $ (S.find even) . t
+    prop (desc ++ " lookup") $
+        eliminateOp constr (lookup 3 . flip zip [1..]) $
+            S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
@@ -496,6 +519,11 @@ serialEliminationOps constr desc t = do
             Nothing -> return Nothing
             Just s -> S.toList s >>= return . Just
     prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ S.last . t
+    prop (desc ++ " init") $ eliminateOp constr (wrapMaybe init) $ \x -> do
+        r <- S.init (t x)
+        case r of
+            Nothing -> return Nothing
+            Just s -> S.toList s >>= return . Just
 
 transformOpsWord8
     :: ([Word8] -> t IO Word8)

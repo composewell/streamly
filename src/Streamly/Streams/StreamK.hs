@@ -71,6 +71,7 @@ module Streamly.Streams.StreamK
     , foldStream
     , foldr
     , foldrM
+    , foldr1
     , foldl'
     , foldlM'
     , foldx
@@ -81,6 +82,7 @@ module Streamly.Streams.StreamK
     , null
     , head
     , tail
+    , init
     , elem
     , notElem
     , all
@@ -88,6 +90,9 @@ module Streamly.Streams.StreamK
     , last
     , minimum
     , maximum
+    , findIndices
+    , lookup
+    , find
 
     -- ** Map and Fold
     , mapM_
@@ -112,6 +117,9 @@ module Streamly.Streams.StreamK
     , map
     , mapM
     , sequence
+
+    -- ** Inserting
+    , intersperseM
 
     -- ** Map and Filter
     , mapMaybe
@@ -141,7 +149,8 @@ import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
-               maximum, elem, notElem, null, head, tail, zipWith)
+               maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
+               foldr1)
 import qualified Prelude
 
 import Streamly.SVar
@@ -485,6 +494,20 @@ foldrM step acc m = go (toStream m)
             yieldk a r = go r >>= step a
         in (unStream m1) defState stop single yieldk
 
+{-# INLINE foldr1 #-}
+foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
+foldr1 step m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> go h (toStream t) >>= return . Just
+    where
+    go p m1 =
+        let stp = return p
+            single a = return $ step a p
+            yieldk a r = go a r >>= return . (step p)
+         in unStream m1 defState stp single yieldk
+
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -569,6 +592,20 @@ tail m =
         single _  = return $ Just nil
         yieldk _ r = return $ Just $ fromStream r
     in unStream (toStream m) defState stop single yieldk
+
+{-# INLINE init #-}
+init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
+init m = go1 (toStream m)
+    where
+    go1 m1 = do
+        r <- uncons m1
+        case r of
+            Nothing -> return Nothing
+            Just (h, t) -> return . Just . fromStream $ go h t
+    go p m1 = Stream $ \_ stp sng yld ->
+        let single _ = sng p
+            yieldk a x = yld p $ go a x
+         in unStream m1 defState stp single yieldk
 
 {-# INLINE elem #-}
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -658,6 +695,39 @@ maximum m = go Nothing (toStream m)
                 then go (Just a) r
                 else go (Just res) r
         in unStream m1 defState stop single yieldk
+
+{-# INLINE lookup #-}
+lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
+lookup e m = go (toStream m)
+    where
+    go m1 =
+        let single (a, b) | a == e = return $ Just b
+                          | otherwise = return Nothing
+            yieldk (a, b) x | a == e = return $ Just b
+                            | otherwise = go x
+        in unStream m1 defState (return Nothing) single yieldk
+
+{-# INLINE find #-}
+find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
+find p m = go (toStream m)
+    where
+    go m1 =
+        let single a | p a = return $ Just a
+                     | otherwise = return Nothing
+            yieldk a x | p a = return $ Just a
+                       | otherwise = go x
+        in unStream m1 defState (return Nothing) single yieldk
+
+{-# INLINE findIndices #-}
+findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
+findIndices p = fromStream . go 0 . toStream
+    where
+    go offset m1 = Stream $ \st stp sng yld ->
+        let single a | p a = sng offset
+                     | otherwise = stp
+            yieldk a x | p a = yld offset $ go (offset + 1) x
+                       | otherwise = unStream (go (offset + 1) x) st stp sng yld
+        in unStream m1 (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Map and Fold
@@ -797,6 +867,22 @@ sequence m = go (toStream m)
         let single ma = ma >>= sng
             yieldk ma r = unStream (toStream $ ma |: go r) st stp sng yld
          in (unStream m1) (rstState st) stp single yieldk
+
+-------------------------------------------------------------------------------
+-- Inserting
+-------------------------------------------------------------------------------
+
+{-# INLINE intersperseM #-}
+intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseM a m = fromStream $ prependingStart (toStream m)
+    where
+    prependingStart m1 = Stream $ \st stp sng yld ->
+        let yieldk i x = unStream (return i |: go x) st stp sng yld
+         in unStream m1 (rstState st) stp sng yieldk
+    go m2 = fromStream $ Stream $ \st stp sng yld ->
+        let single i = unStream (a |: yield i) st stp sng yld
+            yieldk i x = unStream (a |: return i |: go x) st stp sng yld
+         in unStream m2 (rstState st) stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Map and Filter

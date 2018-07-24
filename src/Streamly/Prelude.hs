@@ -82,8 +82,10 @@ module Streamly.Prelude
     -- * Elimination
     -- ** General Folds
     , foldr
+    , foldr1
     , foldrM
     , foldl'
+    , foldl1'
     , foldlM'
     , foldx
     , foldxM
@@ -93,15 +95,27 @@ module Streamly.Prelude
     , head
     , tail
     , last
+    , init
     , elem
     , notElem
     , length
     , all
     , any
+    , and
+    , or
     , maximum
     , minimum
     , sum
     , product
+    , lookup
+    , find
+
+    -- *** Indices
+    , findIndices
+    , findIndex
+    , elemIndices
+    , elemIndex
+
 
     -- ** Map and Fold
     , mapM_
@@ -139,6 +153,9 @@ module Streamly.Prelude
     -- ** Reordering
     , reverse
 
+    -- ** Inserting
+    , intersperseM
+
     -- * Zipping
     , zipWith
     , zipWithM
@@ -160,7 +177,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate)
+               reverse, iterate, init, and, or, lookup, foldr1)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -450,6 +467,12 @@ foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 -- foldr step acc m = S.foldr step acc $ S.fromStreamK (toStream m)
 foldr f = foldrM (\a b -> return (f a b))
 
+-- | Right fold, for non-empty streams, using first element as the starting
+-- value. Returns 'Nothing' if the stream is empty.
+{-# INLINE foldr1 #-}
+foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
+foldr1 = K.foldr1
+
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -472,6 +495,17 @@ foldl = foldx
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
 foldl' step begin m = S.foldl' step begin $ toStreamS m
+
+-- | Strict left fold, for non-empty streams, using first element as the
+-- starting value. Returns 'Nothing' if the stream is empty.
+foldl1' :: Monad m => (a -> a -> a) -> (a -> b) -> SerialT m a -> m (Maybe b)
+foldl1' step done m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> do
+            res <- foldl' step h t
+            return $ Just $ done res
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
@@ -517,6 +551,11 @@ head m = K.head m
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
 tail m = K.tail (K.adapt m)
 
+-- | Extract all but the last element of the stream, if any.
+{-# INLINE init #-}
+init :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
+init m = K.init (K.adapt m)
+
 -- | Extract the last element of the stream, if any.
 --
 -- @since 0.1.1
@@ -559,6 +598,16 @@ all p m = S.all p (toStreamS m)
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
 any p m = S.any p (toStreamS m)
 
+-- | Determines if all elements of a boolean stream are True.
+{-# INLINE and #-}
+and :: Monad m => SerialT m Bool -> m Bool
+and = all (==True)
+
+-- | Determines wheter at least one element of a boolean stream is True.
+{-# INLINE or #-}
+or :: Monad m => SerialT m Bool -> m Bool
+or = any (==True)
+
 -- | Determine the sum of all elements of a stream of numbers
 --
 -- @since 0.1.0
@@ -586,6 +635,39 @@ minimum m = S.minimum (toStreamS m)
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = S.maximum (toStreamS m)
+
+-- | Looks the given key up, treating the given stream as an association list.
+{-# INLINE lookup #-}
+lookup :: (Monad m, Eq a) => a -> SerialT m (a, b) -> m (Maybe b)
+lookup = K.lookup
+
+-- | Returns the first element of the stream satisfying the given predicate,
+-- if any.
+{-# INLINE find #-}
+find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
+find = K.find
+
+-- | Finds all the indices of elements satisfying the given predicate.
+{-# INLINE findIndices #-}
+findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
+findIndices = K.findIndices
+
+-- | Gives the index of the first stream element satisfying the given
+-- preficate.
+{-# INLINE findIndex #-}
+findIndex :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe Int)
+findIndex p = head . findIndices p
+
+-- | Finds the index of all elements in the stream which are equal to the
+-- given.
+{-# INLINE elemIndices #-}
+elemIndices :: (IsStream t, Eq a) => a -> t m a -> t m Int
+elemIndices a = findIndices (==a)
+
+-- | Gives the first index of an element in the stream, which equals the given.
+{-# INLINE elemIndex #-}
+elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
+elemIndex a = findIndex (==a)
 
 ------------------------------------------------------------------------------
 -- Map and Fold
@@ -811,6 +893,16 @@ reverse m = fromStream $ go K.nil (toStream m)
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
          in K.unStream rest (rstState st) stop single yieldk
+
+------------------------------------------------------------------------------
+-- Transformation by Inserting
+------------------------------------------------------------------------------
+
+-- | Generate a stream by performing the monadic action inbetween all elements
+-- of the given stream.
+{-# INLINE intersperseM #-}
+intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseM = K.intersperseM
 
 ------------------------------------------------------------------------------
 -- Zipping
