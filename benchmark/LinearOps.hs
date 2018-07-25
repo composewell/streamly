@@ -11,7 +11,7 @@ module LinearOps where
 
 import Data.Maybe (fromJust)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
+       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not)
 
 import qualified Streamly          as S
@@ -24,76 +24,6 @@ maxValue = value + 1000
 -------------------------------------------------------------------------------
 -- Benchmark ops
 -------------------------------------------------------------------------------
-
-{-# INLINE uncons #-}
-{-# INLINE nullHeadTail #-}
-{-# INLINE scan #-}
-{-# INLINE mapM_ #-}
-{-# INLINE map #-}
-{-# INLINE fmap #-}
-{-# INLINE mapMaybe #-}
-{-# INLINE filterEven #-}
-{-# INLINE filterAllOut #-}
-{-# INLINE filterAllIn #-}
-{-# INLINE takeOne #-}
-{-# INLINE takeAll #-}
-{-# INLINE takeWhileTrue #-}
-{-# INLINE takeWhileMTrue #-}
-{-# INLINE dropAll #-}
-{-# INLINE dropWhileTrue #-}
-{-# INLINE dropWhileMTrue #-}
-{-# INLINE zip #-}
-{-# INLINE zipM #-}
-{-# INLINE concat #-}
-{-# INLINE composeAllInFilters #-}
-{-# INLINE composeAllOutFilters #-}
-{-# INLINE composeMapAllInFilter #-}
-uncons, nullHeadTail, scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
-    dropWhileTrue, dropWhileMTrue, zip, zipM,
-    concat, composeAllInFilters, composeAllOutFilters,
-    composeMapAllInFilter
-    :: Monad m
-    => Stream m Int -> m ()
-
-{-# INLINE composeMapM #-}
-{-# INLINE zipAsync #-}
-{-# INLINE zipAsyncM #-}
-{-# INLINE mapMaybeM #-}
-composeMapM, zipAsync, zipAsyncM, mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
-
-{-# INLINE toList #-}
-{-# INLINE foldr #-}
-{-# INLINE foldrM #-}
-toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
-
-{-# INLINE last #-}
-{-# INLINE maximum #-}
-{-# INLINE minimum #-}
-last, minimum, maximum :: Monad m => Stream m Int -> m (Maybe Int)
-
-{-# INLINE foldl #-}
-{-# INLINE length #-}
-{-# INLINE sum #-}
-{-# INLINE product #-}
-foldl, length, sum, product :: Monad m => Stream m Int -> m Int
-
-{-# INLINE all #-}
-{-# INLINE any #-}
-{-# INLINE elem #-}
-{-# INLINE notElem #-}
-elem, notElem, all, any :: Monad m => Stream m Int -> m Bool
-
-{-# INLINE toNull #-}
-toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
-
-{-# INLINE mapM #-}
-mapM :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
-
-{-# INLINE sequence #-}
-sequence :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -167,12 +97,65 @@ sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
 runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
+{-# INLINE toList #-}
+{-# INLINE foldr #-}
+{-# INLINE foldrM #-}
+toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
+
+{-# INLINE last #-}
+{-# INLINE maximum #-}
+{-# INLINE minimum #-}
+{-# INLINE find #-}
+{-# INLINE findIndex #-}
+{-# INLINE elemIndex #-}
+{-# INLINE foldl1' #-}
+{-# INLINE foldr1 #-}
+last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1 :: Monad m => Stream m Int -> m (Maybe Int)
+
+{-# INLINE foldl' #-}
+{-# INLINE length #-}
+{-# INLINE sum #-}
+{-# INLINE product #-}
+foldl', length, sum, product :: Monad m => Stream m Int -> m Int
+
+{-# INLINE all #-}
+{-# INLINE any #-}
+{-# INLINE and #-}
+{-# INLINE or #-}
+{-# INLINE elem #-}
+{-# INLINE notElem #-}
+elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
+
+{-# INLINE toNull #-}
+toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
 toNull t = runStream . t
+
+{-# INLINE uncons #-}
+uncons :: Monad m => Stream m Int -> m ()
 uncons s = do
     r <- S.uncons s
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
+
+{-# INLINE init #-}
+init :: Monad m => Stream m a -> m ()
+init s = do
+    r <- S.init s
+    case r of
+        Nothing -> return ()
+        Just x -> S.runStream x
+
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> m ()
+tail s = do
+    r <- S.tail s
+    case r of
+        Nothing -> return ()
+        Just x -> tail x
+
+{-# INLINE nullHeadTail #-}
+nullHeadTail :: Monad m => Stream m Int -> m ()
 nullHeadTail s = do
     r <- S.null s
     if not r
@@ -183,17 +166,25 @@ nullHeadTail s = do
             Nothing -> return ()
             Just x -> nullHeadTail x
     else return ()
+
 mapM_  = S.mapM_ (\_ -> return ())
 toList = S.toList
 foldr  = S.foldr (:) []
+foldr1 = S.foldr1 (+)
 foldrM = S.foldrM (\a xs -> return (a : xs)) []
-foldl  = S.foldl' (+) 0
+foldl' = S.foldl' (+) 0
+foldl1' = S.foldl1' (+)
 last   = S.last
 elem   = S.elem maxValue
 notElem = S.notElem maxValue
 length = S.length
 all    = S.all (<= maxValue)
 any    = S.any (> maxValue)
+and    = S.and . S.map (<= maxValue)
+or     = S.or . S.map (> maxValue)
+find   = S.find (== maxValue)
+findIndex = S.findIndex (== maxValue)
+elemIndex = S.elemIndex maxValue
 maximum = S.maximum
 minimum = S.minimum
 sum    = S.sum
@@ -206,6 +197,41 @@ product = S.product
 {-# INLINE transform #-}
 transform :: Monad m => Stream m a -> m ()
 transform = runStream
+
+{-# INLINE scan #-}
+{-# INLINE mapM_ #-}
+{-# INLINE map #-}
+{-# INLINE fmap #-}
+{-# INLINE mapMaybe #-}
+{-# INLINE filterEven #-}
+{-# INLINE filterAllOut #-}
+{-# INLINE filterAllIn #-}
+{-# INLINE takeOne #-}
+{-# INLINE takeAll #-}
+{-# INLINE takeWhileTrue #-}
+{-# INLINE takeWhileMTrue #-}
+{-# INLINE dropAll #-}
+{-# INLINE dropWhileTrue #-}
+{-# INLINE dropWhileMTrue #-}
+{-# INLINE findIndices #-}
+{-# INLINE elemIndices #-}
+scan, mapM_, map, fmap, mapMaybe, filterEven, filterAllOut,
+    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
+    dropWhileTrue, dropWhileMTrue,
+    findIndices, elemIndices
+    :: Monad m
+    => Stream m Int -> m ()
+
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: S.MonadAsync m => Stream m Int -> m ()
+
+{-# INLINE mapM #-}
+mapM :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+
+{-# INLINE sequence #-}
+sequence :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
 
 scan          = transform . S.scanl' (+) 0
 fmap          = transform . Prelude.fmap (+1)
@@ -226,10 +252,21 @@ takeWhileMTrue = transform . S.takeWhileM (return . (<= maxValue))
 dropAll       = transform . S.drop maxValue
 dropWhileTrue = transform . S.dropWhile (<= maxValue)
 dropWhileMTrue = transform . S.dropWhileM (return . (<= maxValue))
+findIndices    = transform . S.findIndices (== maxValue)
+elemIndices    = transform . S.elemIndices maxValue
 
 -------------------------------------------------------------------------------
 -- Zipping and concat
 -------------------------------------------------------------------------------
+
+{-# INLINE zip #-}
+{-# INLINE zipM #-}
+{-# INLINE concat #-}
+zip, zipM, concat  :: Monad m => Stream m Int -> m ()
+
+{-# INLINE zipAsync #-}
+{-# INLINE zipAsyncM #-}
+zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
 
 zip src       = do
     r <- S.tail src
@@ -256,6 +293,16 @@ concat _n     = return ()
 {-# INLINE compose #-}
 compose :: Monad m => (Stream m Int -> Stream m Int) -> Stream m Int -> m ()
 compose f = transform . f . f . f . f
+
+{-# INLINE composeMapM #-}
+{-# INLINE composeAllInFilters #-}
+{-# INLINE composeAllOutFilters #-}
+{-# INLINE composeMapAllInFilter #-}
+composeAllInFilters, composeAllOutFilters,
+    composeMapAllInFilter
+    :: Monad m
+    => Stream m Int -> m ()
+composeMapM :: S.MonadAsync m => Stream m Int -> m ()
 
 composeMapM           = compose (S.mapM return)
 composeAllInFilters   = compose (S.filter (<= maxValue))

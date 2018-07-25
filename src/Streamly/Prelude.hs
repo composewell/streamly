@@ -498,14 +498,14 @@ foldl' step begin m = S.foldl' step begin $ toStreamS m
 
 -- | Strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns 'Nothing' if the stream is empty.
-foldl1' :: Monad m => (a -> a -> a) -> (a -> b) -> SerialT m a -> m (Maybe b)
-foldl1' step done m = do
+foldl1' :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
+foldl1' step m = do
     r <- uncons m
     case r of
         Nothing -> return Nothing
         Just (h, t) -> do
             res <- foldl' step h t
-            return $ Just $ done res
+            return $ Just res
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.

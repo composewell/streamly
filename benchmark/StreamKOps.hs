@@ -130,6 +130,24 @@ uncons s = do
         Nothing -> return ()
         Just (_, t) -> uncons t
 
+{-# INLINE init #-}
+init :: (Monad m, S.IsStream t) => t m a -> m ()
+init s = do
+    r <- S.init s
+    case r of
+        Nothing -> return ()
+        Just x -> S.runStream x
+
+{-# INLINE tail #-}
+tail :: (Monad m, S.IsStream t) => t m a -> m ()
+tail s = do
+    r <- S.tail s
+    case r of
+        Nothing -> return ()
+        Just x -> tail x
+
+-- | If the stream is not null get its head and tail and then do the same to
+-- the tail.
 nullHeadTail s = do
     r <- S.null s
     if not r

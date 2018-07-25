@@ -471,6 +471,10 @@ transformCombineOpsOrdered constr desc t eq = do
     prop (desc ++ " concurrent application") $
         transform (& (map (+1))) t (|& (S.map (+1)))
 
+    prop (desc ++ " findIndices") $
+        transform (findIndices odd) t (S.findIndices odd)
+    prop (desc ++ " elemIndices") $
+        transform (elemIndices 0) t (S.elemIndices 0)
 
 wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
 wrapMaybe f =
@@ -487,14 +491,18 @@ eliminationOps
 eliminationOps constr desc t = do
     -- Elimination
     prop (desc ++ " null") $ eliminateOp constr null $ S.null . t
-    prop (desc ++ " foldl") $
+    prop (desc ++ " foldl'") $
         eliminateOp constr (foldl' (+) 0) $ (S.foldl' (+) 0) . t
-    prop (desc ++ " foldl1") $
-        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ (S.foldl1' (+) id) . t
+    prop (desc ++ " foldl1'") $
+        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ (S.foldl1' (+)) . t
     prop (desc ++ " foldr1") $
         eliminateOp constr (wrapMaybe $ foldr1 (+)) $ (S.foldr1 (+)) . t
     prop (desc ++ " all") $ eliminateOp constr (all even) $ (S.all even) . t
     prop (desc ++ " any") $ eliminateOp constr (any even) $ (S.any even) . t
+    prop (desc ++ " and") $ eliminateOp constr (and . map (> 0)) $
+        (S.and . S.map (> 0)) . t
+    prop (desc ++ " or") $ eliminateOp constr (or . map (> 0)) $
+        (S.or . S.map (> 0)) . t
     prop (desc ++ " length") $ eliminateOp constr length $ S.length . t
     prop (desc ++ " sum") $ eliminateOp constr sum $ S.sum . t
     prop (desc ++ " product") $ eliminateOp constr product $ S.product . t
@@ -813,7 +821,7 @@ main = hspec $ do
             concurrentFoldlApplication
 
     -- These tests are specifically targeted towards detecting illegal sharing
-    -- of SVar across conurrent streams.
+    -- of SVar across conurrent streams. All transform ops must be added here.
     describe "Stream transform and combine operations" $ do
         transformCombineOpsCommon S.fromFoldable "serially" serially (==)
         transformCombineOpsCommon S.fromFoldable "aheadly" aheadly (==)

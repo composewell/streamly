@@ -56,12 +56,16 @@ main = do
       , bgroup "elimination"
         [ benchIO "toNull" $ Ops.toNull serially
         , benchIO "uncons" Ops.uncons
+        , benchIO "init" Ops.init
+        , benchIO "tail" Ops.tail
         , benchIO "nullHeadTail" Ops.nullHeadTail
         , benchIO "mapM_" Ops.mapM_
         , benchIO "toList" Ops.toList
         , benchIO "foldr" Ops.foldr
+        , benchIO "foldr1" Ops.foldr1
         , benchIO "foldrM" Ops.foldrM
-        , benchIO "foldl'" Ops.foldl
+        , benchIO "foldl'" Ops.foldl'
+        , benchIO "foldl1'" Ops.foldl1'
 
         , benchIO "last" Ops.last
         , benchIO "length" Ops.length
@@ -69,6 +73,11 @@ main = do
         , benchIO "notElem" Ops.notElem
         , benchIO "all" Ops.all
         , benchIO "any" Ops.any
+        , benchIO "and" Ops.and
+        , benchIO "or" Ops.or
+        , benchIO "find" Ops.find
+        , benchIO "findIndex" Ops.findIndex
+        , benchIO "elemIndex" Ops.elemIndex
         , benchIO "maximum" Ops.maximum
         , benchIO "minimum" Ops.minimum
         , benchIO "sum" Ops.sum
@@ -83,6 +92,8 @@ main = do
         , benchIO "mapMaybeM" Ops.mapMaybeM
         , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
             (Ops.sequence serially) (Ops.sourceUnfoldrMAction n)
+        , benchIO "findIndices" Ops.findIndices
+        , benchIO "elemIndices" Ops.elemIndices
         , benchIO "concat" Ops.concat
         ]
       , bgroup "filtering"

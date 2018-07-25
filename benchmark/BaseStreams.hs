@@ -94,6 +94,8 @@ main = do
       , bgroup "elimination"
         [ benchIO "toNull" K.toNull K.sourceUnfoldrM
         , benchIO "uncons" K.uncons K.sourceUnfoldrM
+        , benchFold "init" K.init   K.sourceUnfoldrM
+        , benchFold "tail" K.tail   K.sourceUnfoldrM
         , benchIO "nullHeadTail" K.nullHeadTail K.sourceUnfoldrM
         , benchFold "toList" K.toList K.sourceUnfoldrM
         , benchFold "fold"   K.foldl  K.sourceUnfoldrM
