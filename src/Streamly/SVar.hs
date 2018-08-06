@@ -561,6 +561,29 @@ doFork action exHandler =
                                          exHandler
                 runInIO (return tid)
 
+-- XXX Can we make access to remainingYields and yieldRateInfo fields in sv
+-- faster, along with the fields in sv required by send?
+-- XXX make it noinline
+{-# INLINE decrementYieldLimit #-}
+decrementYieldLimit :: SVar t m a -> IO Bool
+decrementYieldLimit sv =
+    case remainingYields sv of
+        Nothing -> return True
+        Just ref -> do
+            r <- atomicModifyIORefCAS ref $ \x ->
+                    (if x >= 1 then x - 1 else 0, x)
+            return $ r >= 1
+
+-- XXX increment is not safe when the yield limit was already 0
+-- and therefore was not decremented. We need yield limit to be
+-- int and negative if we want this to work.
+{-# INLINE incrementYieldLimit #-}
+incrementYieldLimit :: SVar t m a -> IO ()
+incrementYieldLimit sv =
+    case remainingYields sv of
+        Nothing -> return ()
+        Just ref -> atomicModifyIORefCAS_ ref (+ 1)
+
 -- XXX exception safety of all atomic/MVar operations
 
 -- TBD Each worker can have their own queue and the consumer can empty one
@@ -648,27 +671,6 @@ workerRateControl sv yinfo winfo = do
     beyondMaxRate <- checkRatePeriodic sv yinfo winfo cnt
     return $ not (isBeyondMaxYield cnt winfo || beyondMaxRate)
 
--- XXX Can we make access to remainingYields and yieldRateInfo fields in sv
--- faster, along with the fields in sv required by send?
--- XXX make it noinline
-decrementYieldLimit :: SVar t m a -> IO Bool
-decrementYieldLimit sv =
-    case remainingYields sv of
-        Nothing -> return True
-        Just ref -> do
-            r <- atomicModifyIORefCAS ref $ \x ->
-                    (if x >= 1 then x - 1 else 0, x)
-            return $ r >= 1
-
--- XXX increment is not safe when the yield limit was already 0
--- and therefore was not decremented. We need yield limit to be
--- int and negative if we want this to work.
-incrementYieldLimit :: SVar t m a -> IO ()
-incrementYieldLimit sv =
-    case remainingYields sv of
-        Nothing -> return ()
-        Just ref -> atomicModifyIORefCAS_ ref (+ 1)
-
 -- XXX we should do rate control here but not latency update in case of ahead
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
@@ -682,18 +684,22 @@ sendYield sv winfo msg = do
             Just yinfo -> workerRateControl sv yinfo winfo
     return $ r && rateLimitOk
 
+{-# INLINE workerStopUpdate #-}
+workerStopUpdate :: WorkerInfo -> YieldRateInfo -> Int -> IO ()
+workerStopUpdate winfo info n = do
+    i <- readIORef (workerLatencyPeriod info)
+    when (i /= 0) $ workerUpdateLatency info winfo
+    when (n == 1) $ do
+        t <- getTime Monotonic
+        writeIORef (workerStopTimeStamp info) t
+
 {-# INLINABLE sendStop #-}
 sendStop :: SVar t m a -> WorkerInfo -> IO ()
 sendStop sv winfo = do
     n <- liftIO $ atomicModifyIORefCAS (workerCount sv) $ \n -> (n - 1, n)
     case yieldRateInfo sv of
         Nothing -> return ()
-        Just info -> do
-            i <- readIORef (workerLatencyPeriod info)
-            when (i /= 0) $ workerUpdateLatency info winfo
-            when (n == 1) $ do
-                t <- getTime Monotonic
-                writeIORef (workerStopTimeStamp info) t
+        Just info -> workerStopUpdate winfo info n
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
@@ -1099,7 +1105,7 @@ getWorkerLatency yinfo  = do
 
     let pendingCount = colCount + count
         pendingTime  = colTime + time
-        -- Take the average of previous and the latest
+        -- XXX Take the average of previous and the latest
         new =
             if pendingCount > 0
             then ((pendingTime `div` (fromIntegral pendingCount)) + prev)

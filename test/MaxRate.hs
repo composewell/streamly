@@ -52,7 +52,7 @@ measureRate' desc t rate consumerDelay producerDelay dur = do
                      else randomRIO ( round $ toMicroSecs t1
                                     , round $ toMicroSecs t2)
                 when (r > 0) $ do
-                    t1 <- getTime Monotonic
+                    -- t1 <- getTime Monotonic
                     threadDelay r
                     -- t2 <- getTime Monotonic
                     -- let delta = fromIntegral (toNanoSecs (t2 - t1)) / 1000000000
@@ -87,7 +87,6 @@ main = hspec $ do
     let rates = [1, 10, 100, 1000, 10000, 25000]
      in describe "asyncly no consumer delay and 1 sec producer delay" $ do
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 1 range)
-            -}
 
     let rates = [1, 10, 100, 1000, 10000, 25000]
      in describe "asyncly no consumer delay and variable producer delay" $ do
@@ -102,7 +101,7 @@ main = hspec $ do
      in describe "wAsyncly no consumer delay and 1 sec producer delay" $ do
             forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 1 range)
 
-    let rates = [1, 10, 100, 1000, 10000, 100000]
+    let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
      in describe "aheadly no consumer delay no producer delay" $ do
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 0 range)
 

@@ -81,6 +81,45 @@ workLoopLIFO q st sv winfo = run
         work <- dequeue
         case work of
             Nothing -> liftIO $ sendStop sv winfo
+            Just m -> unStream m st run single yieldk
+
+    single a = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        if res then run else liftIO $ sendStop sv winfo
+
+    yieldk a r = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        if res
+        then unStream r st run single yieldk
+        else liftIO $ do
+            enqueueLIFO sv q r
+            sendStop sv winfo
+
+    dequeue = liftIO $ atomicModifyIORefCAS q $ \case
+                [] -> ([], Nothing)
+                x : xs -> (xs, Just x)
+
+-- We duplicate workLoop for yield limit and no limit cases because it has
+-- around 40% performance overhead in the worst case.
+--
+-- XXX we can pass yinfo directly as an argument here so that we do not have to
+-- make a check every time.
+{-# INLINE workLoopLIFOLimited #-}
+workLoopLIFOLimited
+    :: MonadIO m
+    => IORef [Stream m a]
+    -> State Stream m a
+    -> SVar Stream m a
+    -> WorkerInfo
+    -> m ()
+workLoopLIFOLimited q st sv winfo = run
+
+    where
+
+    run = do
+        work <- dequeue
+        case work of
+            Nothing -> liftIO $ sendStop sv winfo
             Just m -> do
                 -- XXX This is just a best effort minimization of concurrency
                 -- to the yield limit. If the stream is made of concurrent
@@ -143,6 +182,36 @@ workLoopFIFO q st sv winfo = run
         work <- liftIO $ tryPopR q
         case work of
             Nothing -> liftIO $ sendStop sv winfo
+            Just m -> unStream m st run single yieldk
+
+    single a = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        if res then run else liftIO $ sendStop sv winfo
+
+    yieldk a r = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        if res
+        then unStream r st run single yieldk
+        else liftIO $ do
+            enqueueFIFO sv q r
+            sendStop sv winfo
+
+{-# INLINE workLoopFIFOLimited #-}
+workLoopFIFOLimited
+    :: MonadIO m
+    => LinkedQueue (Stream m a)
+    -> State Stream m a
+    -> SVar Stream m a
+    -> WorkerInfo
+    -> m ()
+workLoopFIFOLimited q st sv winfo = run
+
+    where
+
+    run = do
+        work <- liftIO $ tryPopR q
+        case work of
+            Nothing -> liftIO $ sendStop sv winfo
             Just m -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
@@ -197,7 +266,9 @@ getLifoSVar st = do
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
 #endif
-    let isWorkFinished sv = do
+    let isWorkFinished _ = null <$> readIORef q
+
+    let isWorkFinishedLimited sv = do
             yieldsDone <-
                     case remainingYields sv of
                         Just ref -> do
@@ -207,7 +278,7 @@ getLifoSVar st = do
             qEmpty <- null <$> readIORef q
             return $ qEmpty || yieldsDone
 
-    let getSVar sv readOutput postProc = SVar
+    let getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , remainingYields    = yl
             , maxBufferLimit   = getMaxBuffer st
@@ -217,9 +288,9 @@ getLifoSVar st = do
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
             , workerThreads    = running
-            , workLoop         = workLoopLIFO q st{streamVar = Just sv} sv
+            , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueLIFO sv q
-            , isWorkDone       = isWorkFinished sv
+            , isWorkDone       = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = AsyncVar
             , workerCount      = active
@@ -237,8 +308,26 @@ getLifoSVar st = do
 
     let sv =
             case getMaxStreamRate st of
-                Nothing -> getSVar sv readOutputQBounded postProcessBounded
-                Just _  -> getSVar sv readOutputQPaced postProcessPaced
+                Nothing ->
+                    case getYieldLimit st of
+                        Nothing -> getSVar sv readOutputQBounded
+                                              postProcessBounded
+                                              isWorkFinished
+                                              workLoopLIFO
+                        Just _  -> getSVar sv readOutputQBounded
+                                              postProcessBounded
+                                              isWorkFinishedLimited
+                                              workLoopLIFOLimited
+                Just _  ->
+                    case getYieldLimit st of
+                        Nothing -> getSVar sv readOutputQPaced
+                                              postProcessPaced
+                                              isWorkFinished
+                                              workLoopLIFO
+                        Just _  -> getSVar sv readOutputQPaced
+                                              postProcessPaced
+                                              isWorkFinishedLimited
+                                              workLoopLIFOLimited
      in return sv
 
 getFifoSVar :: MonadAsync m => State Stream m a -> IO (SVar Stream m a)
@@ -262,7 +351,8 @@ getFifoSVar st = do
     maxWq  <- newIORef 0
 #endif
 
-    let isWorkFinished sv = do
+    let isWorkFinished _ = nullQ q
+    let isWorkFinishedLimited sv = do
             yieldsDone <-
                     case remainingYields sv of
                         Just ref -> do
@@ -272,7 +362,7 @@ getFifoSVar st = do
             qEmpty <- nullQ q
             return $ qEmpty || yieldsDone
 
-    let getSVar sv readOutput postProc = SVar
+    let getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , remainingYields  = yl
             , maxBufferLimit   = getMaxBuffer st
@@ -282,9 +372,9 @@ getFifoSVar st = do
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
             , workerThreads    = running
-            , workLoop         = workLoopFIFO q st{streamVar = Just sv} sv
+            , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueFIFO sv q
-            , isWorkDone       = isWorkFinished sv
+            , isWorkDone       = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = WAsyncVar
             , workerCount      = active
@@ -302,8 +392,26 @@ getFifoSVar st = do
 
     let sv =
             case getMaxStreamRate st of
-                Nothing -> getSVar sv readOutputQBounded postProcessBounded
-                Just _  -> getSVar sv readOutputQPaced postProcessPaced
+                Nothing ->
+                    case getYieldLimit st of
+                        Nothing -> getSVar sv readOutputQBounded
+                                              postProcessBounded
+                                              isWorkFinished
+                                              workLoopFIFO
+                        Just _  -> getSVar sv readOutputQBounded
+                                              postProcessBounded
+                                              isWorkFinishedLimited
+                                              workLoopFIFOLimited
+                Just _  ->
+                    case getYieldLimit st of
+                        Nothing -> getSVar sv readOutputQPaced
+                                              postProcessPaced
+                                              isWorkFinished
+                                              workLoopFIFO
+                        Just _  -> getSVar sv readOutputQPaced
+                                              postProcessPaced
+                                              isWorkFinishedLimited
+                                              workLoopFIFOLimited
      in return sv
 
 {-# INLINABLE newAsyncVar #-}

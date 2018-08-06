@@ -78,11 +78,8 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
     processEvents (ev : es) = Stream $ \st stp sng yld -> do
         let rest = processEvents es
         case ev of
-            ChildYield a -> do
---                void $ dispatchWorkerPaced sv
-                yld a rest
+            ChildYield a -> yld a rest
             ChildStop tid e -> do
-                -- void $ dispatchWorkerPaced sv
                 accountThread sv tid
                 case e of
                     Nothing -> unStream rest (rstState st) stp sng yld
@@ -104,7 +101,7 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- XXX need to write these in direct style otherwise they will break fusion.
 --
 -- | Specify the maximum number of threads that can be spawned concurrently
--- when using concurrent streams. This values denotes maximum concurrent
+-- when using concurrent streams. This value denotes maximum concurrent
 -- requests, or tasks in progress at any given point of time. Note that this is
 -- not the grand total number of threads but maximum threads at an individual
 -- point of concurrency.
