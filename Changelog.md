@@ -1,5 +1,11 @@
 ## Unreleased
 
+### Bug Fixes
+
+* Fix a bug in concurrent function application that in certain cases would
+  unnecessarily share the concurrency state resulting in incorrect output
+  stream.
+
 ### Enhancements
 
 * Add `foldl1'`, `foldr1`, `intersperseM`, `find`, `lookup`, `and`, `or`,

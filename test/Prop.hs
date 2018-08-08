@@ -8,6 +8,7 @@ import Control.Monad (when)
 import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Monad (replicateM, replicateM_)
+import Data.Function ((&))
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
                   elemIndex, find, intersperse, foldl1')
@@ -465,6 +466,11 @@ transformCombineOpsOrdered constr desc t eq = do
     prop (desc ++ " dropWhile > 0") $
         transform (dropWhile (> 0)) t (S.dropWhile (> 0))
     prop (desc ++ " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
+
+    -- XXX this does not fail when the SVar is shared, need to fix.
+    prop (desc ++ " concurrent application") $
+        transform (& (map (+1))) t (|& (S.map (+1)))
+
 
 wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
 wrapMaybe f =

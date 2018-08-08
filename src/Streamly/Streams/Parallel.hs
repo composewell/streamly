@@ -130,7 +130,7 @@ applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
 applyWith f m = fromStream $ Stream $ \st stp sng yld -> do
     sv <- newParallelVar
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
-    unStream (toStream $ f $ fromSVar sv) st stp sng yld
+    unStream (toStream $ f $ fromSVar sv) (rstState st) stp sng yld
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application
