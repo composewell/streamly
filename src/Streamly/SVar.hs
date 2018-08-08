@@ -55,6 +55,7 @@ module Streamly.SVar
     , enqueueLIFO
     , enqueueFIFO
     , enqueueAhead
+    , reEnqueueAhead
     , pushWorkerPar
 
     , queueEmptyAhead
@@ -64,6 +65,7 @@ module Streamly.SVar
     , getYieldRateInfo
     , collectLatency
     , workerUpdateLatency
+    , isBeyondMaxRate
     , workerRateControl
     , updateYieldCount
     , decrementYieldLimit
@@ -254,7 +256,6 @@ data YieldRateInfo = YieldRateInfo
     -- that. XXX Note that not all workers stop at the same time therefore
     -- there is a certain inaccuracy in this mechanism.
     , workerStopTimeStamp :: IORef TimeSpec
-    , workerStopMVar :: MVar ()
     }
 
 data Limit = Unlimited | Limited Word deriving Show
@@ -286,6 +287,7 @@ data SVar t m a = SVar
     , workerThreads  :: IORef (Set ThreadId)
     , workerCount    :: IORef Int
     , accountThread  :: ThreadId -> m ()
+    , workerStopMVar :: MVar ()
 
 #ifdef DIAGNOSTICS
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
@@ -564,6 +566,11 @@ doFork action exHandler =
 -- XXX Can we make access to remainingYields and yieldRateInfo fields in sv
 -- faster, along with the fields in sv required by send?
 -- XXX make it noinline
+--
+-- XXX we may want to employ an increment and decrement in batches when the
+-- througput is high or when the cost of synchronization is high. For example
+-- if the application is distributed then inc/dec of a shared variable may be
+-- very costly.
 {-# INLINE decrementYieldLimit #-}
 decrementYieldLimit :: SVar t m a -> IO Bool
 decrementYieldLimit sv =
@@ -826,6 +833,19 @@ enqueueAhead sv q m = do
         -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
         -- then we may set the flag to False to later making the consumer lose
         -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
+
+-- enqueue without incrementing the sequence number
+{-# INLINE reEnqueueAhead #-}
+reEnqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> t m a -> IO ()
+reEnqueueAhead sv q m = do
+    atomicModifyIORefCAS_ q $ \ case
+        ([], n) -> ([m], n)  -- DO NOT increment sequence
+        _ -> error "not empty"
+    storeLoadBarrier
+    w <- readIORef $ needDoorBell sv
+    when w $ do
         atomicModifyIORefCAS_ (needDoorBell sv) (const False)
         void $ tryPutMVar (outputDoorBell sv) ()
 
@@ -1319,6 +1339,21 @@ sendWorkerWait delay dispatch sv = do
         -- we are no longer using pull based concurrency rate adaptation.
         --
         -- XXX update this in the tutorial.
+        --
+        -- Having pending active workers does not mean that we are guaranteed
+        -- to be woken up if we sleep. In case of Ahead streams, there may be
+        -- queued items in the heap even though the outputQueue is empty, and
+        -- we may have active workers which are deadlocked on those items to be
+        -- processed by the consumer. We should either guarantee that any
+        -- worker, before returning, clears the heap or we send a worker to clear
+        -- it. Normally we always send a worker if no output is seen, but if
+        -- the thread limit is reached or we are using pacing then we may not
+        -- send a worker. See the concurrentApplication test in the tests, that
+        -- test case requires at least one yield from the producer to not
+        -- deadlock, if the last workers output is stuck in the heap then this
+        -- test fails.  This problem can be extended to n threads when the
+        -- consumer may depend on the evaluation of next n items in the
+        -- producer stream.
 
         -- register for the outputDoorBell before we check the queue so that if we
         -- sleep because the queue was empty we are guaranteed to get a
@@ -1442,7 +1477,6 @@ getYieldRateInfo st = do
             wlong    <- newIORef (0,now)
             period   <- newIORef 1
             stopTime <- newIORef $ fromNanoSecs 0
-            stopMVar <- newMVar ()
 
             return $ Just YieldRateInfo
                 { expectedYieldLatency   = latency
@@ -1453,7 +1487,6 @@ getYieldRateInfo st = do
                 , workerStopTimeStamp    = stopTime
                 , workerCollectedLatency = wcol
                 , workerLongTermLatency  = wlong
-                , workerStopMVar = stopMVar
                 }
         Nothing -> return Nothing
 
@@ -1474,6 +1507,7 @@ getAheadSVar st f = do
     wfw     <- newIORef False
     running <- newIORef S.empty
     q <- newIORef ([], -1)
+    stopMVar <- newMVar ()
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
             Just x -> Just <$> newIORef x
@@ -1504,6 +1538,7 @@ getAheadSVar st f = do
             , svarStyle        = AheadVar
             , workerCount      = active
             , accountThread    = delThread sv
+            , workerStopMVar   = stopMVar
 #ifdef DIAGNOSTICS
             , aheadWorkQueue   = q
             , outputHeap       = outH
@@ -1574,6 +1609,7 @@ getParallelSVar = do
                  , svarStyle        = ParallelVar
                  , workerCount      = active
                  , accountThread    = modifyThread sv
+                 , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined

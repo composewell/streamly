@@ -295,6 +295,7 @@ getLifoSVar st = do
             , svarStyle        = AsyncVar
             , workerCount      = active
             , accountThread    = delThread sv
+            , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
@@ -379,6 +380,7 @@ getFifoSVar st = do
             , svarStyle        = WAsyncVar
             , workerCount      = active
             , accountThread    = delThread sv
+            , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined

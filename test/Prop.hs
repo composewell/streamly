@@ -714,7 +714,7 @@ main = hspec $ do
             ++ [wAsyncly . maxBuffer (-1)]
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps = forM_ $ makeOps aheadly
-             ++ [aheadly . maxRate 10000]
+             ++ [aheadly . maxRate 1000]
              ++ [aheadly . maxBuffer (-1)]
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps = forM_ $ makeOps parallely
@@ -895,10 +895,10 @@ main = hspec $ do
         forM_ (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
-        serialOps $ prop "concurrent application" . concurrentApplication (==)
-        asyncOps $ prop "concurrent application" . concurrentApplication sortEq
-        aheadOps $ prop "concurrent application" . concurrentApplication (==)
-        parallelOps $ prop "concurrent application" . concurrentApplication sortEq
+        serialOps $ prop "serial" . concurrentApplication (==)
+        asyncOps $ prop "async" . concurrentApplication sortEq
+        aheadOps $ prop "ahead" . concurrentApplication (==)
+        parallelOps $ prop "parallel" . concurrentApplication sortEq
 
         prop "concurrent foldr application" $ withMaxSuccess maxTestCount $
             concurrentFoldrApplication
