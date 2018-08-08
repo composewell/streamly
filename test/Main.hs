@@ -14,7 +14,7 @@ import Data.Foldable (forM_, fold)
 import Data.List (sort)
 
 import Data.IORef
-import Test.Hspec
+import Test.Hspec as H
 
 import Streamly
 import Streamly.Prelude ((.:), nil)
@@ -37,6 +37,76 @@ toListParallel = S.toList . wAsyncly
 
 main :: IO ()
 main = hspec $ do
+    parallelTests
+
+    describe "Nested parallel and serial compositions" $ do
+        let t = timed
+            p = wAsyncly
+            s = serially
+        {-
+        -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
+        -- because of parallelism of [8,0] and [8,0].
+        it "Nest <|>, <>, <|> (1)" $
+            let t = timed
+             in toListSerial (
+                    ((t 8 <|> t 4) <> (t 2 <|> t 0))
+                <|> ((t 8 <|> t 4) <> (t 2 <|> t 0)))
+            `shouldReturn` ([4,4,8,8,0,0,2,2])
+        -}
+        it "Nest <|>, <>, <|> (2)" $
+            (S.toList . wAsyncly) (
+                   s (p (t 4 <> t 8) <> p (t 1 <> t 2))
+                <> s (p (t 4 <> t 8) <> p (t 1 <> t 2)))
+            `shouldReturn` ([4,4,8,8,1,1,2,2])
+        -- FIXME: These two keep failing intermittently on Mac OS X
+        -- Need to examine and fix the tests.
+        {-
+        it "Nest <|>, <=>, <|> (1)" $
+            let t = timed
+             in toListSerial (
+                    ((t 8 <|> t 4) <=> (t 2 <|> t 0))
+                <|> ((t 9 <|> t 4) <=> (t 2 <|> t 0)))
+            `shouldReturn` ([4,4,0,0,8,2,9,2])
+        it "Nest <|>, <=>, <|> (2)" $
+            let t = timed
+             in toListSerial (
+                    ((t 4 <|> t 8) <=> (t 1 <|> t 2))
+                <|> ((t 4 <|> t 9) <=> (t 1 <|> t 2)))
+            `shouldReturn` ([4,4,1,1,8,2,9,2])
+        -}
+        it "Nest <|>, <|>, <|>" $
+            (S.toList . wAsyncly) (
+                    ((t 4 <> t 8) <> (t 0 <> t 2))
+                <> ((t 4 <> t 8) <> (t 0 <> t 2)))
+            `shouldReturn` ([0,0,2,2,4,4,8,8])
+
+    ---------------------------------------------------------------------------
+    -- Semigroup/Monoidal Composition strict ordering checks
+    ---------------------------------------------------------------------------
+
+    -- test both (<>) and mappend to make sure we are using correct instance
+    -- for Monoid that is using the right version of semigroup. Instance
+    -- deriving can cause us to pick wrong instances sometimes.
+
+    describe "WSerial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
+    describe "WSerial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
+
+    -- describe "WAsync interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
+    -- describe "WAsync interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
+
+    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
+    describe "Async mappend time order check" $ parallelCheck asyncly mappend
+
+    -- XXX this keeps failing intermittently, need to investigate
+    -- describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
+    -- describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
+
+    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
+    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+
+
+parallelTests :: SpecWith ()
+parallelTests = H.parallel $ do
     describe "Runners" $ do
         -- XXX move these to property tests
         -- XXX use an IORef to store and check the side effects
@@ -141,47 +211,6 @@ main = hspec $ do
        , [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        ])
-
-    describe "Nested parallel and serial compositions" $ do
-        let t = timed
-            p = wAsyncly
-            s = serially
-        {-
-        -- This is not correct, the result can also be [4,4,8,0,8,0,2,2]
-        -- because of parallelism of [8,0] and [8,0].
-        it "Nest <|>, <>, <|> (1)" $
-            let t = timed
-             in toListSerial (
-                    ((t 8 <|> t 4) <> (t 2 <|> t 0))
-                <|> ((t 8 <|> t 4) <> (t 2 <|> t 0)))
-            `shouldReturn` ([4,4,8,8,0,0,2,2])
-        -}
-        it "Nest <|>, <>, <|> (2)" $
-            (S.toList . wAsyncly) (
-                   s (p (t 4 <> t 8) <> p (t 1 <> t 2))
-                <> s (p (t 4 <> t 8) <> p (t 1 <> t 2)))
-            `shouldReturn` ([4,4,8,8,1,1,2,2])
-        -- FIXME: These two keep failing intermittently on Mac OS X
-        -- Need to examine and fix the tests.
-        {-
-        it "Nest <|>, <=>, <|> (1)" $
-            let t = timed
-             in toListSerial (
-                    ((t 8 <|> t 4) <=> (t 2 <|> t 0))
-                <|> ((t 9 <|> t 4) <=> (t 2 <|> t 0)))
-            `shouldReturn` ([4,4,0,0,8,2,9,2])
-        it "Nest <|>, <=>, <|> (2)" $
-            let t = timed
-             in toListSerial (
-                    ((t 4 <|> t 8) <=> (t 1 <|> t 2))
-                <|> ((t 4 <|> t 9) <=> (t 1 <|> t 2)))
-            `shouldReturn` ([4,4,1,1,8,2,9,2])
-        -}
-        it "Nest <|>, <|>, <|>" $
-            (S.toList . wAsyncly) (
-                    ((t 4 <> t 8) <> (t 0 <> t 2))
-                <> ((t 4 <> t 8) <> (t 0 <> t 2)))
-            `shouldReturn` ([0,0,2,2,4,4,8,8])
 
     ---------------------------------------------------------------------------
     -- Monoidal composition recursion loops
@@ -386,30 +415,6 @@ main = hspec $ do
     ---------------------------------------------------------------------------
     -- Slower tests are at the end
     ---------------------------------------------------------------------------
-
-    ---------------------------------------------------------------------------
-    -- Semigroup/Monoidal Composition strict ordering checks
-    ---------------------------------------------------------------------------
-
-    -- test both (<>) and mappend to make sure we are using correct instance
-    -- for Monoid that is using the right version of semigroup. Instance
-    -- deriving can cause us to pick wrong instances sometimes.
-
-    describe "WSerial interleaved (<>) ordering check" $ interleaveCheck wSerially (<>)
-    describe "WSerial interleaved mappend ordering check" $ interleaveCheck wSerially mappend
-
-    -- describe "WAsync interleaved (<>) ordering check" $ interleaveCheck wAsyncly (<>)
-    -- describe "WAsync interleaved mappend ordering check" $ interleaveCheck wAsyncly mappend
-
-    describe "Async (<>) time order check" $ parallelCheck asyncly (<>)
-    describe "Async mappend time order check" $ parallelCheck asyncly mappend
-
-    -- XXX this keeps failing intermittently, need to investigate
-    -- describe "WAsync (<>) time order check" $ parallelCheck wAsyncly (<>)
-    -- describe "WAsync mappend time order check" $ parallelCheck wAsyncly mappend
-
-    describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
-    describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
     ---------------------------------------------------------------------------
     -- Thread limits

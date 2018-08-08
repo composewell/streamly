@@ -15,11 +15,11 @@ import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
-import Test.Hspec.QuickCheck (prop)
+import Test.Hspec.QuickCheck
 import Test.QuickCheck (counterexample, Property, withMaxSuccess)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
-import Test.Hspec
+import Test.Hspec as H
 
 import Streamly
 import Streamly.Prelude ((.:), nil)
@@ -677,7 +677,12 @@ constructWithIterate t = do
         `shouldReturn` (take 100 $ iterate (+ 1) 0)
 
 main :: IO ()
-main = hspec $ do
+main = hspec
+    $ H.parallel
+#ifdef COVERAGE_BUILD
+    $ modifyMaxSuccess (const 10)
+#endif
+    $ do
     let folded :: IsStream t => [a] -> t IO a
         folded = serially . (\xs ->
             case xs of
@@ -690,7 +695,9 @@ main = hspec $ do
             , t . maxRate 0
             , t . maxRate (-1)
             , t . maxBuffer 0
+#ifndef COVERAGE_BUILD
             , t . maxBuffer 1
+#endif
             , t . maxThreads 0
             , t . maxThreads 1
             , t . maxThreads (-1)
@@ -714,7 +721,7 @@ main = hspec $ do
             ++ [wAsyncly . maxBuffer (-1)]
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps = forM_ $ makeOps aheadly
-             ++ [aheadly . maxRate 1000]
+             ++ [aheadly . maxRate 10000]
              ++ [aheadly . maxBuffer (-1)]
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps = forM_ $ makeOps parallely

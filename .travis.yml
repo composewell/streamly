@@ -86,7 +86,7 @@ matrix:
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
+  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
@@ -114,10 +114,12 @@ matrix:
   #- env: BUILD=cabal-new GHCVER=8.2.2
   #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.4.3 GHC_OPTIONS=""
+  # Using stack builds, cabal builds get terminated because the tests
+  # take more than 10 minutes and it does not produce any output until the end.
+  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3
     addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.4.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags=streamk"
+  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
     addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
@@ -151,7 +153,7 @@ matrix:
   # For available options see hpc-coveralls docs.
   # --------------------------------------------------------------------------
 
-  - env: BUILD=cabal COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops" DISABLE_SDIST_BUILD=y DISABLE_BENCH=y
+  - env: BUILD=cabal COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test properties loops nested-loops parallel-loops" GHC_OPTIONS="-DCOVERAGE_BUILD" DISABLE_SDIST_BUILD=y DISABLE_BENCH=y DISABLE_DOCS=y
     addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
