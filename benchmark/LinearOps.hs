@@ -80,6 +80,15 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+{-# INLINE sourceUnfoldrMN #-}
+sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrMN m n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + m
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
 {-# INLINE sourceUnfoldrMAction #-}
 sourceUnfoldrMAction :: (S.IsStream t, S.MonadAsync m) => Int -> t m (m Int)
 sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n

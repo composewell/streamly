@@ -126,6 +126,13 @@ main = do
       , bgroup "asyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull asyncly
           benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
+        , benchSrcIO asyncly "unfoldrM maxThreads 1"
+            (maxThreads 1 . Ops.sourceUnfoldrM)
+      -- XXX arbitrarily large maxRate should be the same as maxRate -1
+        , benchSrcIO asyncly "unfoldrM maxRate 1000000"
+            (maxRate 1000000 . Ops.sourceUnfoldrM)
+        , benchSrcIO asyncly "unfoldrM maxBuffer 1 (1000 ops)"
+            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
@@ -146,6 +153,13 @@ main = do
       , bgroup "aheadly"
         [ -- benchIO "unfoldr" $ Ops.toNull aheadly
           benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
+        , benchSrcIO aheadly "unfoldrM maxThreads 1"
+            (maxThreads 1 . Ops.sourceUnfoldrM)
+      -- XXX arbitrarily large maxRate should be the same as maxRate -1
+        , benchSrcIO aheadly "unfoldrM maxRate 1000000"
+            (maxRate 1000000 . Ops.sourceUnfoldrM)
+        , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
+            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
