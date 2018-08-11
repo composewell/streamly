@@ -190,11 +190,13 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
+-- Compilation for coverage builds on CI machines takes too long without -O0
+
 test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
+  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -221,7 +223,7 @@ test-suite properties
   type: exitcode-stdio-1.0
   main-is: Prop.hs
   hs-source-dirs: test
-  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
+  ghc-options:  -Wall -O0 -threaded -with-rtsopts=-N
   if flag(dev)
     cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations

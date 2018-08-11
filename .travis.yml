@@ -79,19 +79,19 @@ matrix:
 
   # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
   # warnings.
-  - env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-1.22,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  #  addons: {apt: {packages: [cabal-install-1.22,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  #  addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
-    addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
+  ## Use cabal-install-1.24 for stack solver to work
+  #- env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
+  #  addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
-    addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
+  ## Use cabal-install-1.24 for stack solver to work
+  #- env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
+  #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
   # You can keep a STACK_YAML file at any path location
   #- env: BUILD=stack STACK_YAML=.ci/stack-8.0.yaml
@@ -116,14 +116,14 @@ matrix:
 
   # Using stack builds, cabal builds get terminated because the tests
   # take more than 10 minutes and it does not produce any output until the end.
-  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3
-    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3
+  #  addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
-    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
+  #  addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
-    addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
+  #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
   # You can specify build flags like this:
   #- env: BUILD=cabal-new CABAL_NEWBUILD_OPTIONS="--flags=dev"
@@ -134,8 +134,8 @@ matrix:
   # --------------------------------------------------------------------------
 
   # GHC 8.2.2/cabal build using stack!
-  - env: BUILD=cabal-new RESOLVER=lts-11 GHCVER=8.2.2 GHC_OPTIONS=""
-    os: osx
+  #- env: BUILD=cabal-new RESOLVER=lts-11 GHCVER=8.2.2 GHC_OPTIONS=""
+  #  os: osx
 
   # GHC 8.2.2/stack
   #- env: BUILD=stack RESOLVER=lts-11 GHCVER=8.2.2
@@ -145,7 +145,7 @@ matrix:
   # Lint e.g. HLINT_COMMANDS="hlint lint src; hlint lint test"
   # --------------------------------------------------------------------------
 
-  - env: BUILD=stack RESOLVER=lts-11 HLINT_COMMANDS="hlint lint ."
+  #- env: BUILD=stack RESOLVER=lts-11 HLINT_COMMANDS="hlint lint ."
 
   # --------------------------------------------------------------------------
   # Build and send coverage report to coveralls.io using hpc-coveralls

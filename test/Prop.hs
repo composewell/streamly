@@ -692,50 +692,66 @@ main = hspec
 
     let makeOps t =
             [ t
+#ifndef COVERAGE_BUILD
             , t . maxRate 0
             , t . maxRate (-1)
             , t . maxBuffer 0
-#ifndef COVERAGE_BUILD
             , t . maxBuffer 1
-#endif
             , t . maxThreads 0
             , t . maxThreads 1
             , t . maxThreads (-1)
+#endif
             ]
 
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps = forM_ $ (makeOps serially)
+#ifndef COVERAGE_BUILD
             ++ [serially . maxRate 0.00000001]
             ++ [serially . maxBuffer (-1)]
+#endif
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
         wSerialOps = forM_ $ makeOps wSerially
+#ifndef COVERAGE_BUILD
             ++ [wSerially . maxRate 0.00000001]
             ++ [wSerially . maxBuffer (-1)]
+#endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
         asyncOps = forM_ $ makeOps asyncly
+#ifndef COVERAGE_BUILD
             ++ [asyncly . maxRate 10000]
             ++ [asyncly . maxBuffer (-1)]
+#endif
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
         wAsyncOps = forM_ $ makeOps wAsyncly
+#ifndef COVERAGE_BUILD
             ++ [wAsyncly . maxRate 10000]
             ++ [wAsyncly . maxBuffer (-1)]
+#endif
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps = forM_ $ makeOps aheadly
+#ifndef COVERAGE_BUILD
              ++ [aheadly . maxRate 10000]
              ++ [aheadly . maxBuffer (-1)]
+#endif
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps = forM_ $ makeOps parallely
+#ifndef COVERAGE_BUILD
             ++ [parallely . maxRate 0.00000001]
             ++ [parallely . maxBuffer (-1)]
+#endif
     let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps = forM_ $ makeOps zipSerially
+#ifndef COVERAGE_BUILD
             ++ [zipSerially . maxRate 0.00000001]
             ++ [zipSerially . maxBuffer (-1)]
+#endif
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
         zipAsyncOps = forM_ $ makeOps zipAsyncly
+#ifndef COVERAGE_BUILD
             ++ [zipAsyncly . maxRate 10000]
+#endif
 
     describe "Construction" $ do
         serialOps   $ prop "serially replicateM" . constructWithReplicateM
@@ -883,11 +899,13 @@ main = hspec
     -- exclude those cases from these.
     let mkOps t =
             [ t
+#ifndef COVERAGE_BUILD
             , t . maxRate 0
             , t . maxRate (-1)
             , t . maxBuffer 0
             , t . maxThreads 0
             , t . maxThreads (-1)
+#endif
             ]
 
     describe "Stream concurrent operations" $ do
