@@ -1,0 +1,135 @@
+version: 2
+
+#-----------------------------------------------------------------------------
+# packcheck-0.3.1
+# Packcheck global environment variables
+#-----------------------------------------------------------------------------
+
+env: &env
+    environment:
+      # ------------------------------------------------------------------------
+      # Common options
+      # ------------------------------------------------------------------------
+      # GHC_OPTIONS: "-Werror"
+      CABAL_REINIT_CONFIG: "y"
+      LC_ALL: "C.UTF-8"
+
+      # ------------------------------------------------------------------------
+      # What to build
+      # ------------------------------------------------------------------------
+      # DISABLE_TEST: "y"
+      DISABLE_BENCH: "y"
+      DISABLE_DOCS: "y"
+      DISABLE_SDIST_BUILD: "y"
+      DISABLE_DIST_CHECKS: "y"
+      # ENABLE_INSTALL: "y"
+
+      # ------------------------------------------------------------------------
+      # stack options
+      # ------------------------------------------------------------------------
+      # Note requiring a specific version of stack using STACKVER may fail due to
+      # github API limit while checking and upgrading/downgrading to the specific
+      # version.
+      #STACKVER: "1.6.5"
+      #STACK_UPGRADE: "y"
+      #RESOLVER: "lts-12"
+
+      # ------------------------------------------------------------------------
+      # cabal options
+      # ------------------------------------------------------------------------
+      CABAL_CHECK_RELAX: "y"
+      CABAL_NO_SANDBOX: "y"
+      CABAL_HACKAGE_MIRROR: "hackage.haskell.org:http://hackage.fpcomplete.com"
+
+      # ------------------------------------------------------------------------
+      # Where to find the required tools
+      # ------------------------------------------------------------------------
+      #PATH: /bin:/usr/bin
+      #TOOLS_DIR: /opt
+
+      # ------------------------------------------------------------------------
+      # Location of packcheck.sh (the shell script invoked to perform CI tests ).
+      # ------------------------------------------------------------------------
+      # You can either commit the packcheck.sh script at this path in your repo or
+      # you can use it by specifying the PACKCHECK_REPO_URL option below in which
+      # case it will be automatically copied from the packcheck repo to this path
+      # during CI tests. In any case it is finally invoked from this path.
+      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
+      # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
+      # then it is automatically pulled from this URL.
+      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
+      PACKCHECK_GITHUB_COMMIT: "432621414fe9b59a29425c77d3754a671afffc95"
+      PACKCHECK_CMD: "$PACKCHECK_LOCAL_PATH $BUILD PATH=/opt/ghc/bin:$PATH"
+
+    docker:
+      - image: debian:stretch
+
+#-----------------------------------------------------------------------------
+# Common utility stuff, not to be modified usually
+#-----------------------------------------------------------------------------
+
+preinstall: &preinstall
+  run: |
+        echo "deb http://downloads.haskell.org/debian stretch main" >> /etc/apt/sources.list
+        apt-get update
+        apt-get install -y curl
+        # required for apt-key
+        apt-get install -y gnupg
+        # required for cache save and restore
+        apt-get install -y ca-certificates
+        apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys BA3CBA3FFE22B574
+        apt-get update
+
+        # If a custom stack-yaml is specified, replace the default with that
+        if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
+        unset STACK_YAML
+
+        # Get packcheck if needed
+        CURL=$(which curl)
+        PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
+        if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
+        chmod +x $PACKCHECK_LOCAL_PATH
+
+restore: &restore
+  # Needs to happen after installing ca-certificates
+  restore_cache:
+    key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
+
+save: &save
+  save_cache:
+    key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
+    paths:
+      - ~/.cabal
+      - ~/.ghc
+      - ~/.local
+      - ~/.stack
+
+#-----------------------------------------------------------------------------
+# Build matrix
+#-----------------------------------------------------------------------------
+
+jobs:
+  coveralls:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run:
+            environment:
+              BUILD: cabal
+              COVERALLS_OPTIONS: "--repo-token=KlGN45lDWQkw55TNm18nkam2EXRg9lCSH --coverage-mode=StrictlyFullLines --exclude-dir=test test"
+            command: |
+              apt-get install -y ghc-8.2.2
+              apt-get install -y cabal-install-2.2
+              # required by hpc-coveralls
+              apt-get install -y libcurl4-gnutls-dev
+              apt-get install -y git
+              bash -c "$PACKCHECK_CMD"
+        - *save
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - coveralls
