@@ -297,13 +297,16 @@ getLifoSVar st = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
+            , svarRef          = Nothing
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-            , maxWorkers       = maxWrk
-            , totalDispatches  = disp
-            , maxOutQSize      = maxOq
-            , maxHeapSize      = maxHs
-            , maxWorkQSize     = maxWq
+            , svarStats        = SVarStats
+                { totalDispatches  = disp
+                , maxWorkers       = maxWrk
+                , maxOutQSize      = maxOq
+                , maxHeapSize      = maxHs
+                , maxWorkQSize     = maxWq
+                }
 #endif
             }
 
@@ -382,13 +385,16 @@ getFifoSVar st = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
+            , svarRef          = Nothing
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-            , totalDispatches  = disp
-            , maxWorkers       = maxWrk
-            , maxOutQSize      = maxOq
-            , maxHeapSize      = maxHs
-            , maxWorkQSize     = maxWq
+            , svarStats        = SVarStats
+                { totalDispatches  = disp
+                , maxWorkers       = maxWrk
+                , maxOutQSize      = maxOq
+                , maxHeapSize      = maxHs
+                , maxWorkQSize     = maxWq
+                }
 #endif
              }
 

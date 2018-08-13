@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE ExistentialQuantification  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -79,6 +80,10 @@ module Streamly.SVar
     , delThread
 
     , toStreamVar
+#ifdef DIAGNOSTICS
+    , SVarStats (..)
+    , dumpSVar
+#endif
     )
 where
 
@@ -122,6 +127,7 @@ import Control.Concurrent.MVar (tryTakeMVar)
 import Control.Exception
        (catches, throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
         BlockedIndefinitelyOnSTM(..))
+import Data.Maybe (isJust)
 import System.IO (hPutStrLn, stderr)
 #endif
 
@@ -258,6 +264,19 @@ data YieldRateInfo = YieldRateInfo
     , workerStopTimeStamp :: IORef TimeSpec
     }
 
+#ifdef DIAGNOSTICS
+data SVarStats = SVarStats {
+      totalDispatches :: IORef Int
+    , maxWorkers      :: IORef Int
+    , maxOutQSize     :: IORef Int
+    , maxHeapSize     :: IORef Int
+    , maxWorkQSize    :: IORef Int
+    -- , avgLatency      :: IORef NanoSecs
+    -- , minLatency      :: IORef NanoSecs
+    -- , maxLatency      :: IORef NanoSecs
+}
+#endif
+
 data Limit = Unlimited | Limited Word deriving Show
 
 data SVar t m a = SVar
@@ -290,14 +309,12 @@ data SVar t m a = SVar
     , workerStopMVar :: MVar ()
 
 #ifdef DIAGNOSTICS
+    -- to track garbage collection of SVar
+    , svarRef        :: Maybe (IORef ())
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
     -- Shared work queue (stream, seqNo)
-    , aheadWorkQueue  :: IORef ([t m a], Int)
-    , totalDispatches :: IORef Int
-    , maxWorkers      :: IORef Int
-    , maxOutQSize     :: IORef Int
-    , maxHeapSize     :: IORef Int
-    , maxWorkQSize    :: IORef Int
+    , aheadWorkQueue :: IORef ([t m a], Int)
+    , svarStats      :: SVarStats
 #endif
     }
 
@@ -439,6 +456,22 @@ getStreamLatency = _streamLatency
 -------------------------------------------------------------------------------
 
 #ifdef DIAGNOSTICS
+dumpSVarStats :: SVarStats -> SVarStyle -> Bool -> IO String
+dumpSVarStats ss style _paced = do
+    dispatches <- readIORef $ totalDispatches ss
+    maxWrk <- readIORef $ maxWorkers ss
+    maxOq <- readIORef $ maxOutQSize ss
+    maxHp <- readIORef $ maxHeapSize ss
+
+    return $ unlines
+        [ "total dispatches = " ++ show dispatches
+        , "max workers = " ++ show maxWrk
+        , "max outQSize = " ++ show maxOq
+        , if style == AheadVar
+          then "heap max size = " ++ show maxHp
+          else ""
+        ]
+
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: SVar t m a -> IO String
 dumpSVar sv = do
@@ -450,38 +483,39 @@ dumpSVar sv = do
         then do
             (oheap, oheapSeq) <- readIORef $ outputHeap sv
             (wq, wqSeq) <- readIORef $ aheadWorkQueue sv
-            maxHp <- readIORef $ maxHeapSize sv
             return $ unlines
                 [ "heap length = " ++ show (H.size oheap)
                 , "heap seqeunce = " ++ show oheapSeq
                 , "work queue length = " ++ show (length wq)
                 , "work queue sequence = " ++ show wqSeq
-                , "heap max size = " ++ show maxHp
                 ]
         else return []
 
-    waiting <- readIORef $ needDoorBell sv
+    let style = svarStyle sv
+    waiting <-
+        if style /= ParallelVar
+        then readIORef $ needDoorBell sv
+        else return False
     rthread <- readIORef $ workerThreads sv
     workers <- readIORef $ workerCount sv
-    maxWrk <- readIORef $ maxWorkers sv
-    dispatches <- readIORef $ totalDispatches sv
-    maxOq <- readIORef $ maxOutQSize sv
+    stats <- dumpSVarStats (svarStats sv) (svarStyle sv)
+                           (isJust (yieldRateInfo sv))
 
     return $ unlines
         [ "tid = " ++ show tid
         , "style = " ++ show (svarStyle sv)
+        , "---------CURRENT STATE-----------"
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
-        , "output outputDoorBell = " ++ show db
-        , "total dispatches = " ++ show dispatches
-        , "max workers = " ++ show maxWrk
-        , "max outQSize = " ++ show maxOq
+        , "outputDoorBell = " ++ show db
         ]
         ++ aheadDump ++ unlines
         [ "needDoorBell = " ++ show waiting
         , "running threads = " ++ show rthread
         , "running thread count = " ++ show workers
         ]
+        ++ "---------STATS-----------\n"
+        ++ stats
 
 {-# NOINLINE mvarExcHandler #-}
 mvarExcHandler :: SVar t m a -> String -> BlockedIndefinitelyOnMVar -> IO ()
@@ -961,9 +995,9 @@ handleChildException sv e = do
 recordMaxWorkers :: MonadIO m => SVar t m a -> m ()
 recordMaxWorkers sv = liftIO $ do
     active <- readIORef (workerCount sv)
-    maxWrk <- readIORef (maxWorkers sv)
-    when (active > maxWrk) $ writeIORef (maxWorkers sv) active
-    modifyIORef (totalDispatches sv) (+1)
+    maxWrk <- readIORef (maxWorkers $ svarStats sv)
+    when (active > maxWrk) $ writeIORef (maxWorkers $ svarStats sv) active
+    modifyIORef (totalDispatches $ svarStats sv) (+1)
 #endif
 
 {-# NOINLINE pushWorker #-}
@@ -1383,8 +1417,8 @@ readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
 readOutputQRaw sv = do
     (list, len) <- atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
 #ifdef DIAGNOSTICS
-    oqLen <- readIORef (maxOutQSize sv)
-    when (len > oqLen) $ writeIORef (maxOutQSize sv) len
+    oqLen <- readIORef (maxOutQSize $ svarStats sv)
+    when (len > oqLen) $ writeIORef (maxOutQSize $ svarStats sv) len
 #endif
     return (list, len)
 
@@ -1540,13 +1574,16 @@ getAheadSVar st f = do
             , accountThread    = delThread sv
             , workerStopMVar   = stopMVar
 #ifdef DIAGNOSTICS
+            , svarRef          = Nothing
             , aheadWorkQueue   = q
             , outputHeap       = outH
-            , totalDispatches  = disp
-            , maxWorkers       = maxWrk
-            , maxOutQSize      = maxOq
-            , maxHeapSize      = maxHs
-            , maxWorkQSize     = maxWq
+            , svarStats        = SVarStats
+                { totalDispatches  = disp
+                , maxWorkers       = maxWrk
+                , maxOutQSize      = maxOq
+                , maxHeapSize      = maxHs
+                , maxWorkQSize     = maxWq
+                }
 #endif
             }
 
@@ -1611,13 +1648,16 @@ getParallelSVar = do
                  , accountThread    = modifyThread sv
                  , workerStopMVar   = undefined
 #ifdef DIAGNOSTICS
+                 , svarRef          = Nothing
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
-                 , totalDispatches  = disp
-                 , maxWorkers       = maxWrk
-                 , maxOutQSize      = maxOq
-                 , maxHeapSize      = maxHs
-                 , maxWorkQSize     = maxWq
+                 , svarStats        = SVarStats
+                    { totalDispatches  = disp
+                    , maxWorkers       = maxWrk
+                    , maxOutQSize      = maxOq
+                    , maxHeapSize      = maxHs
+                    , maxWorkQSize     = maxWq
+                    }
 #endif
                  }
      in return sv

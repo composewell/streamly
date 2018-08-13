@@ -33,10 +33,12 @@ module Streamly.Streams.SVar
 where
 
 import Control.Monad.Catch (throwM)
-#ifdef DIAGNOSTICS_VERBOSE
-import Control.Monad.IO.Class (liftIO)
-#endif
 import Data.Int (Int64)
+#ifdef DIAGNOSTICS
+import Control.Monad.IO.Class (liftIO)
+import Data.IORef (newIORef, mkWeakIORef)
+import System.IO (hPutStrLn, stderr)
+#endif
 
 import Streamly.SVar
 import Streamly.Streams.StreamK
@@ -46,6 +48,15 @@ import Streamly.Streams.Serial (SerialT)
 -- can keep it on in production to debug problems quickly if and when they
 -- happen, but it may result in unexpected output when threads are left hanging
 -- until they are GCed because the consumer went away.
+
+#ifdef DIAGNOSTICS
+#ifdef DIAGNOSTICS_VERBOSE
+printSVar :: SVar t m a -> String -> IO ()
+printSVar sv how = do
+    svInfo <- dumpSVar sv
+    hPutStrLn stderr $ "\n" ++ how ++ "\n" ++ svInfo
+#endif
+#endif
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
@@ -62,8 +73,7 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
     allDone stp = do
 #ifdef DIAGNOSTICS
 #ifdef DIAGNOSTICS_VERBOSE
-            svInfo <- liftIO $ dumpSVar sv
-            liftIO $ hPutStrLn stderr $ "fromStreamVar done\n" ++ svInfo
+            liftIO $ printSVar sv "SVar Done"
 #endif
 #endif
             stp
@@ -87,7 +97,15 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 
 {-# INLINE fromSVar #-}
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a
-fromSVar sv = fromStream $ fromStreamVar sv
+fromSVar sv = do
+    fromStream $ Stream $ \st stp sng yld -> do
+#ifdef DIAGNOSTICS_VERBOSE
+        ref <- liftIO $ newIORef ()
+        _ <- liftIO $ mkWeakIORef ref (printSVar sv "SVar Garbage Collected")
+        unStream (fromStreamVar sv{svarRef = Just ref}) st stp sng yld
+#else
+        unStream (fromStreamVar sv) st stp sng yld
+#endif
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.

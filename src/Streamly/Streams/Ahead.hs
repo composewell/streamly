@@ -214,9 +214,10 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
     loopHeap seqNo ent = do
 #ifdef DIAGNOSTICS
         liftIO $ do
-            maxHp <- readIORef (maxHeapSize sv)
+            maxHp <- readIORef (maxHeapSize $ svarStats sv)
             (hp, _) <- readIORef heap
-            when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
+            when (H.size hp > maxHp) $ writeIORef (maxHeapSize $ svarStats sv)
+                                                  (H.size hp)
 #endif
         case ent of
             AheadEntryPure a -> do
@@ -449,9 +450,10 @@ workLoopAhead :: MonadIO m
 workLoopAhead q heap st sv winfo = do
 #ifdef DIAGNOSTICS
         liftIO $ do
-            maxHp <- readIORef (maxHeapSize sv)
+            maxHp <- readIORef (maxHeapSize $ svarStats sv)
             (hp, _) <- readIORef heap
-            when (H.size hp > maxHp) $ writeIORef (maxHeapSize sv) (H.size hp)
+            when (H.size hp > maxHp) $ writeIORef (maxHeapSize $ svarStats sv)
+                                                  (H.size hp)
 #endif
         ent <- liftIO $ dequeueFromHeap heap
         case ent of
