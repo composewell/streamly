@@ -8,6 +8,10 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#ifdef DIAGNOSTICS_VERBOSE
+#define DIAGNOSTICS
+#endif
+
 -- |
 -- Module      : Streamly.Streams.Ahead
 -- Copyright   : (c) 2017 Harendra Kumar

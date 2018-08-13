@@ -20,6 +20,10 @@
 -- Portability : GHC
 --
 --
+#ifdef DIAGNOSTICS_VERBOSE
+#define DIAGNOSTICS
+#endif
+
 module Streamly.SVar
     (
       MonadAsync
@@ -80,8 +84,9 @@ module Streamly.SVar
     , delThread
 
     , toStreamVar
-#ifdef DIAGNOSTICS
     , SVarStats (..)
+    , NanoSecs (..)
+#ifdef DIAGNOSTICS
     , dumpSVar
 #endif
     )
@@ -127,7 +132,6 @@ import Control.Concurrent.MVar (tryTakeMVar)
 import Control.Exception
        (catches, throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
         BlockedIndefinitelyOnSTM(..))
-import Data.Maybe (isJust)
 import System.IO (hPutStrLn, stderr)
 #endif
 
@@ -264,18 +268,17 @@ data YieldRateInfo = YieldRateInfo
     , workerStopTimeStamp :: IORef TimeSpec
     }
 
-#ifdef DIAGNOSTICS
 data SVarStats = SVarStats {
-      totalDispatches :: IORef Int
-    , maxWorkers      :: IORef Int
-    , maxOutQSize     :: IORef Int
-    , maxHeapSize     :: IORef Int
-    , maxWorkQSize    :: IORef Int
-    -- , avgLatency      :: IORef NanoSecs
-    -- , minLatency      :: IORef NanoSecs
-    -- , maxLatency      :: IORef NanoSecs
+      totalDispatches  :: IORef Int
+    , maxWorkers       :: IORef Int
+    , maxOutQSize      :: IORef Int
+    , maxHeapSize      :: IORef Int
+    , maxWorkQSize     :: IORef Int
+    , avgWorkerLatency :: IORef (Count, NanoSecs)
+    , minWorkerLatency :: IORef NanoSecs
+    , maxWorkerLatency :: IORef NanoSecs
+    , svarStopTime     :: IORef (Maybe TimeSpec)
 }
-#endif
 
 data Limit = Unlimited | Limited Word deriving Show
 
@@ -308,13 +311,13 @@ data SVar t m a = SVar
     , accountThread  :: ThreadId -> m ()
     , workerStopMVar :: MVar ()
 
+    , svarStats      :: SVarStats
 #ifdef DIAGNOSTICS
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
-    , svarStats      :: SVarStats
 #endif
     }
 
@@ -456,20 +459,58 @@ getStreamLatency = _streamLatency
 -------------------------------------------------------------------------------
 
 #ifdef DIAGNOSTICS
-dumpSVarStats :: SVarStats -> SVarStyle -> Bool -> IO String
-dumpSVarStats ss style _paced = do
+dumpSVarStats :: SVar t m a -> SVarStats -> SVarStyle -> IO String
+dumpSVarStats sv ss style = do
+    case yieldRateInfo sv of
+        Nothing -> return ()
+        Just yinfo -> do
+            _ <- liftIO $ collectLatency (svarStats sv) yinfo
+            return ()
+
     dispatches <- readIORef $ totalDispatches ss
     maxWrk <- readIORef $ maxWorkers ss
     maxOq <- readIORef $ maxOutQSize ss
     maxHp <- readIORef $ maxHeapSize ss
+    minLat <- readIORef $ minWorkerLatency ss
+    maxLat <- readIORef $ maxWorkerLatency ss
+    (avgCnt, avgTime) <- readIORef $ avgWorkerLatency ss
+    svarLat <- case yieldRateInfo sv of
+        Nothing -> return 0
+        Just yinfo -> do
+            (cnt, startTime) <- readIORef $ workerLongTermLatency yinfo
+            if cnt > 0
+            then do
+                t <- readIORef (svarStopTime ss)
+                case t of
+                    Nothing -> do
+                        now <- getTime Monotonic
+                        let interval = toNanoSecs (now - startTime)
+                        return $ interval `div` fromIntegral cnt
+                    Just stopTime -> do
+                        let interval = toNanoSecs (stopTime - startTime)
+                        return $ interval `div` fromIntegral cnt
+            else return 0
 
     return $ unlines
         [ "total dispatches = " ++ show dispatches
         , "max workers = " ++ show maxWrk
         , "max outQSize = " ++ show maxOq
-        , if style == AheadVar
-          then "heap max size = " ++ show maxHp
-          else ""
+            ++ (if style == AheadVar
+               then "\nheap max size = " ++ show maxHp
+               else "")
+            ++ (if minLat > 0
+               then "\nmin worker latency = " ++ show minLat
+               else "")
+            ++ (if maxLat > 0
+               then "\nmax worker latency = " ++ show maxLat
+               else "")
+            ++ (if avgCnt > 0
+                then "\navg worker latency = "
+                    ++ show (avgTime `div` fromIntegral avgCnt)
+                else "")
+            ++ (if svarLat > 0
+               then "\nSVar latency = " ++ show svarLat
+               else "")
         ]
 
 {-# NOINLINE dumpSVar #-}
@@ -498,8 +539,7 @@ dumpSVar sv = do
         else return False
     rthread <- readIORef $ workerThreads sv
     workers <- readIORef $ workerCount sv
-    stats <- dumpSVarStats (svarStats sv) (svarStyle sv)
-                           (isJust (yieldRateInfo sv))
+    stats <- dumpSVarStats sv (svarStats sv) (svarStyle sv)
 
     return $ unlines
         [ "tid = " ++ show tid
@@ -629,6 +669,9 @@ incrementYieldLimit sv =
 
 -- TBD Each worker can have their own queue and the consumer can empty one
 -- queue at a time, that way contention can be reduced.
+
+-- XXX Only yields should be counted in the buffer limit and not the Stop
+-- events.
 
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
@@ -1126,7 +1169,7 @@ countDispatchWorkers workerLimit count duration wLatency expectedLat =
     -- XXX we can have a maxEfficiency combinator as well which runs the
     -- producer at the maximal efficiency i.e. the number of workers are chosen
     -- such that the latency is minimum or within a range. Or we can call it
-    -- maxLatency.
+    -- maxWorkerLatency.
     --
     let nWorkers = (fromIntegral wLatency) / (fromIntegral expectedLat)
         -- Calculate how many yields are we ahead or behind to match the exact
@@ -1207,8 +1250,8 @@ useCollectedBatch yinfo latency colRef measRef = do
 -- period. The former two are used for accurate measurement of the going rate
 -- whereas the average is used for future estimates e.g. how many workers
 -- should be maintained to maintain the rate.
-collectLatency :: YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
-collectLatency yinfo = do
+collectLatency :: SVarStats -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+collectLatency _ss yinfo = do
     let cur      = workerCurrentLatency yinfo
         col      = workerCollectedLatency yinfo
         longTerm = workerLongTermLatency yinfo
@@ -1228,6 +1271,14 @@ collectLatency yinfo = do
     if (pendingCount > 0)
     then do
         let new = pendingTime `div` (fromIntegral pendingCount)
+#ifdef DIAGNOSTICS
+        minLat <- readIORef (minWorkerLatency _ss)
+        when (new < minLat || minLat == 0) $
+            writeIORef (minWorkerLatency _ss) new
+
+        maxLat <- readIORef (maxWorkerLatency _ss)
+        when (new > maxLat) $ writeIORef (maxWorkerLatency _ss) new
+#endif
         -- To avoid minor fluctuations update in batches
         if     (pendingCount > fromIntegral magicMaxBuffer)
             || (pendingTime > minThreadDelay)
@@ -1236,6 +1287,10 @@ collectLatency yinfo = do
             || (prev == 0)
         then do
             useCollectedBatch yinfo new col measured
+#ifdef DIAGNOSTICS
+            modifyIORef (avgWorkerLatency _ss) $
+                \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
+#endif
             modifyIORef longTerm $ \(_, t) -> (lcount', t)
             return (lcount', ltime, new)
         else do
@@ -1263,7 +1318,7 @@ dispatchWorkerPaced :: MonadAsync m => SVar t m a -> m Bool
 dispatchWorkerPaced sv = do
     let workerLimit = maxWorkerLimit sv
     let yinfo = fromJust $ yieldRateInfo sv
-    (count, tstamp, wLatency) <- liftIO $ collectLatency yinfo
+    (count, tstamp, wLatency) <- liftIO $ collectLatency (svarStats sv) yinfo
     -- XXX use workerBootstrapLatency
     if wLatency == 0
     -- Need to measure the latency with a single worker before we can perform
@@ -1547,13 +1602,15 @@ getAheadSVar st f = do
             Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-#ifdef DIAGNOSTICS
     disp   <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
-#endif
+    avgLat <- newIORef (0, NanoSecs 0)
+    maxLat <- newIORef (NanoSecs 0)
+    minLat <- newIORef (NanoSecs 0)
+    stpTime <- newIORef Nothing
 
     let getSVar sv readOutput postProc = SVar
             { outputQueue      = outQ
@@ -1577,14 +1634,18 @@ getAheadSVar st f = do
             , svarRef          = Nothing
             , aheadWorkQueue   = q
             , outputHeap       = outH
+#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk
                 , maxOutQSize      = maxOq
                 , maxHeapSize      = maxHs
                 , maxWorkQSize     = maxWq
+                , avgWorkerLatency = avgLat
+                , minWorkerLatency = minLat
+                , maxWorkerLatency = maxLat
+                , svarStopTime     = stpTime
                 }
-#endif
             }
 
     let sv =
@@ -1622,13 +1683,17 @@ getParallelSVar = do
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
     running <- newIORef S.empty
-#ifdef DIAGNOSTICS
+
     disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
-#endif
+    avgLat <- newIORef (0, NanoSecs 0)
+    maxLat <- newIORef (NanoSecs 0)
+    minLat <- newIORef (NanoSecs 0)
+    stpTime <- newIORef Nothing
+
     let sv =
             SVar { outputQueue      = outQ
                  , remainingYields  = Nothing
@@ -1651,14 +1716,18 @@ getParallelSVar = do
                  , svarRef          = Nothing
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
+#endif
                  , svarStats        = SVarStats
                     { totalDispatches  = disp
                     , maxWorkers       = maxWrk
                     , maxOutQSize      = maxOq
                     , maxHeapSize      = maxHs
                     , maxWorkQSize     = maxWq
+                    , avgWorkerLatency = avgLat
+                    , minWorkerLatency = minLat
+                    , maxWorkerLatency = maxLat
+                    , svarStopTime     = stpTime
                     }
-#endif
                  }
      in return sv
 

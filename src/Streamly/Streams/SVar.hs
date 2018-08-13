@@ -11,6 +11,10 @@
 
 #include "inline.h"
 
+#ifdef DIAGNOSTICS_VERBOSE
+#define DIAGNOSTICS
+#endif
+
 -- |
 -- Module      : Streamly.Streams.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -36,8 +40,9 @@ import Control.Monad.Catch (throwM)
 import Data.Int (Int64)
 #ifdef DIAGNOSTICS
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (newIORef, mkWeakIORef)
+import Data.IORef (newIORef, writeIORef, mkWeakIORef)
 import System.IO (hPutStrLn, stderr)
+import System.Clock (Clock(Monotonic), getTime)
 #endif
 
 import Streamly.SVar
@@ -72,6 +77,8 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 
     allDone stp = do
 #ifdef DIAGNOSTICS
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
 #ifdef DIAGNOSTICS_VERBOSE
             liftIO $ printSVar sv "SVar Done"
 #endif

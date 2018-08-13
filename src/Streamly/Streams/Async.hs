@@ -9,6 +9,10 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#ifdef DIAGNOSTICS_VERBOSE
+#define DIAGNOSTICS
+#endif
+
 -- |
 -- Module      : Streamly.Streams.Async
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -259,13 +263,16 @@ getLifoSVar st = do
                 Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-#ifdef DIAGNOSTICS
     disp   <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
-#endif
+    avgLat <- newIORef (0, NanoSecs 0)
+    maxLat <- newIORef (NanoSecs 0)
+    minLat <- newIORef (NanoSecs 0)
+    stpTime <- newIORef Nothing
+
     let isWorkFinished _ = null <$> readIORef q
 
     let isWorkFinishedLimited sv = do
@@ -300,14 +307,18 @@ getLifoSVar st = do
             , svarRef          = Nothing
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
+#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk
                 , maxOutQSize      = maxOq
                 , maxHeapSize      = maxHs
                 , maxWorkQSize     = maxWq
+                , avgWorkerLatency = avgLat
+                , minWorkerLatency = minLat
+                , maxWorkerLatency = maxLat
+                , svarStopTime     = stpTime
                 }
-#endif
             }
 
     let sv =
@@ -347,13 +358,15 @@ getFifoSVar st = do
                 Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-#ifdef DIAGNOSTICS
     disp <- newIORef 0
     maxWrk <- newIORef 0
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
-#endif
+    avgLat <- newIORef (0, NanoSecs 0)
+    maxLat <- newIORef (NanoSecs 0)
+    minLat <- newIORef (NanoSecs 0)
+    stpTime <- newIORef Nothing
 
     let isWorkFinished _ = nullQ q
     let isWorkFinishedLimited sv = do
@@ -388,14 +401,18 @@ getFifoSVar st = do
             , svarRef          = Nothing
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
+#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk
                 , maxOutQSize      = maxOq
                 , maxHeapSize      = maxHs
                 , maxWorkQSize     = maxWq
+                , avgWorkerLatency = avgLat
+                , minWorkerLatency = minLat
+                , maxWorkerLatency = maxLat
+                , svarStopTime     = stpTime
                 }
-#endif
              }
 
     let sv =
