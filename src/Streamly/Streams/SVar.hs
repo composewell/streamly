@@ -36,6 +36,7 @@ module Streamly.Streams.SVar
     )
 where
 
+import Control.Exception (fromException)
 import Control.Monad.Catch (throwM)
 import Data.Int (Int64)
 #ifdef DIAGNOSTICS
@@ -100,7 +101,11 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
                 accountThread sv tid
                 case e of
                     Nothing -> unStream rest (rstState st) stp sng yld
-                    Just ex -> throwM ex
+                    Just ex ->
+                        case fromException ex of
+                            Just ThreadAbort ->
+                                unStream rest (rstState st) stp sng yld
+                            Nothing -> throwM ex
 
 {-# INLINE fromSVar #-}
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a

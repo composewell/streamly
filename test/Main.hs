@@ -39,6 +39,8 @@ main :: IO ()
 main = hspec $ do
     parallelTests
 
+    -- These are not run parallely because the timing gets affected
+    -- unpredictably when other tests are running on the same machine.
     describe "Nested parallel and serial compositions" $ do
         let t = timed
             p = wAsyncly
@@ -80,6 +82,24 @@ main = hspec $ do
                 <> ((t 4 <> t 8) <> (t 0 <> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])
 
+    describe "restricts concurrency and cleans up extra tasks" $ do
+        it "take 1 asyncly" $ checkCleanup asyncly (S.take 1)
+        it "take 1 wAsyncly" $ checkCleanup wAsyncly (S.take 1)
+        it "take 1 aheadly" $ checkCleanup aheadly (S.take 1)
+        it "take 1 parallely" $ checkCleanup parallely (S.take 1)
+
+{-
+        it "takeWhile (< 0) asyncly" $ checkCleanup asyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) wAsyncly" $ checkCleanup wAsyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) aheadly" $ checkCleanup aheadly (S.takeWhile (< 0))
+        it "takeWhile (< 0) parallely" $ checkCleanup parallely (S.takeWhile (< 0))
+
+        it "head asyncly" $ checkCleanupFold asyncly (S.head)
+        it "head wAsyncly" $ checkCleanupFold wAsyncly (S.head)
+        it "head aheadly" $ checkCleanupFold aheadly (S.head)
+        it "head parallely" $ checkCleanupFold parallely (S.head)
+-}
+
     ---------------------------------------------------------------------------
     -- Semigroup/Monoidal Composition strict ordering checks
     ---------------------------------------------------------------------------
@@ -104,6 +124,35 @@ main = hspec $ do
     describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
+checkCleanup :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> (t IO Int -> t IO Int)
+    -> IO ()
+checkCleanup t op = do
+    r <- newIORef (-1 :: Int)
+    runStream . serially $ do
+        _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
+        return ()
+    threadDelay 500000
+    res <- readIORef r
+    res `shouldBe` 0
+    where
+    delay ref i = threadDelay (i*100000) >> writeIORef ref i >> return i
+
+{-
+checkCleanupFold :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> (SerialT IO Int -> IO (Maybe Int))
+    -> IO ()
+checkCleanupFold t op = do
+    r <- newIORef (-1 :: Int)
+    _ <- op $ t $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
+    threadDelay 500000
+    res <- readIORef r
+    res `shouldBe` 0
+    where
+    delay ref i = threadDelay (i*100000) >> writeIORef ref i >> return i
+-}
 
 parallelTests :: SpecWith ()
 parallelTests = H.parallel $ do

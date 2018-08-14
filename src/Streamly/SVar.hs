@@ -52,6 +52,7 @@ module Streamly.SVar
     , atomicModifyIORefCAS
     , WorkerInfo (..)
     , YieldRateInfo (..)
+    , ThreadAbort (..)
     , ChildEvent (..)
     , AheadHeapEntry (..)
     , send
@@ -74,6 +75,7 @@ module Streamly.SVar
     , workerRateControl
     , updateYieldCount
     , decrementYieldLimit
+    , decrementYieldLimitPost
     , incrementYieldLimit
     , postProcessBounded
     , postProcessPaced
@@ -96,7 +98,7 @@ import Control.Concurrent
        (ThreadId, myThreadId, threadDelay, getNumCapabilities)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
-import Control.Exception (SomeException(..), catch, mask, assert)
+import Control.Exception (SomeException(..), catch, mask, assert, Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -162,6 +164,10 @@ newtype Count = Count Word64
 ------------------------------------------------------------------------------
 -- Parent child thread communication type
 ------------------------------------------------------------------------------
+
+data ThreadAbort = ThreadAbort deriving Show
+
+instance Exception ThreadAbort
 
 -- | Events that a child thread may send to a parent thread.
 data ChildEvent a =
@@ -654,6 +660,18 @@ decrementYieldLimit sv =
             r <- atomicModifyIORefCAS ref $ \x ->
                     (if x >= 1 then x - 1 else 0, x)
             return $ r >= 1
+
+-- decrementYieldLimit returns False when the old limit is 0. This one returns
+-- False when the old limit is 1.
+{-# INLINE decrementYieldLimitPost #-}
+decrementYieldLimitPost :: SVar t m a -> IO Bool
+decrementYieldLimitPost sv =
+    case remainingYields sv of
+        Nothing -> return True
+        Just ref -> do
+            r <- atomicModifyIORefCAS ref $ \x ->
+                    (if x >= 1 then x - 1 else 0, x)
+            return $ r > 1
 
 -- XXX increment is not safe when the yield limit was already 0
 -- and therefore was not decremented. We need yield limit to be
@@ -1677,12 +1695,15 @@ getAheadSVar st f = do
         (xs, _) <- readIORef q
         return $ null xs
 
-getParallelSVar :: MonadIO m => IO (SVar t m a)
-getParallelSVar = do
+getParallelSVar :: MonadIO m => State t m a -> IO (SVar t m a)
+getParallelSVar st = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
     running <- newIORef S.empty
+    yl <- case getYieldLimit st of
+            Nothing -> return Nothing
+            Just x -> Just <$> newIORef x
 
     disp <- newIORef 0
     maxWrk <- newIORef 0
@@ -1696,7 +1717,7 @@ getParallelSVar = do
 
     let sv =
             SVar { outputQueue      = outQ
-                 , remainingYields  = Nothing
+                 , remainingYields  = yl
                  , maxBufferLimit   = Unlimited
                  , maxWorkerLimit   = undefined
                  , yieldRateInfo    = Nothing
@@ -1764,8 +1785,8 @@ newAheadVar st m wloop = do
     sendFirstWorker sv m
 
 {-# INLINABLE newParallelVar #-}
-newParallelVar :: MonadAsync m => m (SVar t m a)
-newParallelVar = liftIO $ getParallelSVar
+newParallelVar :: MonadAsync m => State t m a -> m (SVar t m a)
+newParallelVar st = liftIO $ getParallelSVar st
 
 -- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
