@@ -396,28 +396,9 @@ unfoldrM step = go
 -- Special generation
 -------------------------------------------------------------------------------
 
--- Faster than yieldM because there is no bind. Usually we can construct a
--- stream from a pure value using "pure" in an applicative, however in case of
--- Zip streams pure creates an infinite stream.
---
--- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
--- 'return' can be used in place of 'yield', however, in Zip applicative
--- streams 'pure' is equivalent to 'repeat'.
---
--- @since 0.4.0
 yield :: IsStream t => a -> t m a
 yield a = fromStream $ Stream $ \_ _ single _ -> single a
 
--- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
--- but more efficient.
---
--- @
--- > toList $ yieldM getLine
--- hello
--- ["hello"]
--- @
---
--- @since 0.4.0
 {-# INLINE yieldM #-}
 yieldM :: (Monad m, IsStream t) => m a -> t m a
 yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single

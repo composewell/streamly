@@ -91,31 +91,32 @@ module Streamly.Prelude
     , foldxM
 
     -- ** Specialized Folds
-    , null
+
+    -- Filtering folds: extract parts of the stream
     , head
     , tail
     , last
     , init
+
+    -- Conditional folds: may terminate early based on a condition
+    , null
     , elem
+    , elemIndex
     , notElem
-    , length
+    , lookup
+    , find
+    , findIndex
     , all
     , any
     , and
     , or
+
+    -- Full folds - need to go through all elements
+    , length
     , maximum
     , minimum
     , sum
     , product
-    , lookup
-    , find
-
-    -- *** Indices
-    , findIndices
-    , findIndex
-    , elemIndices
-    , elemIndex
-
 
     -- ** Map and Fold
     , mapM_
@@ -126,7 +127,14 @@ module Streamly.Prelude
     , toHandle
 
     -- * Transformation
-    -- ** By folding (scans)
+    -- ** Mapping
+    , Serial.map
+    , mapM
+    , sequence
+
+    -- ** Scanning
+    -- | Scan is a transformation by continuously folding the result with the
+    -- next element of the stream.
     , scanl'
     , scanlM'
     , scanx
@@ -141,20 +149,19 @@ module Streamly.Prelude
     , dropWhile
     , dropWhileM
 
-    -- ** Mapping
-    , Serial.map
-    , mapM
-    , sequence
-
-    -- ** Map and Filter
-    , mapMaybe
-    , mapMaybeM
+    -- ** Inserting
+    , intersperseM
 
     -- ** Reordering
     , reverse
 
-    -- ** Inserting
-    , intersperseM
+    -- ** Indices
+    , findIndices
+    , elemIndices
+
+    -- ** Map and Filter
+    , mapMaybe
+    , mapMaybeM
 
     -- * Zipping
     , zipWith
@@ -303,10 +310,29 @@ unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
+-- Faster than yieldM because there is no bind. Usually we can construct a
+-- stream from a pure value using "pure" in an applicative, however in case of
+-- Zip streams pure creates an infinite stream.
+--
+-- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
+-- 'return' can be used in place of 'yield', however, in Zip applicative
+-- streams 'pure' is equivalent to 'repeat'.
+--
+-- @since 0.4.0
 {-# INLINE yield #-}
 yield :: IsStream t => a -> t m a
 yield a = K.yield a
 
+-- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
+-- but more efficient.
+--
+-- @
+-- > toList $ yieldM getLine
+-- hello
+-- ["hello"]
+-- @
+--
+-- @since 0.4.0
 {-# INLINE yieldM #-}
 yieldM :: (Monad m, IsStream t) => m a -> t m a
 yieldM m = K.yieldM m
