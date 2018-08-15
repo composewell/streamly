@@ -46,6 +46,7 @@ module Streamly.SVar
     , setYieldLimit
 
     , cleanupSVar
+    , cleanupSVarFromWorker
 
     -- SVar related
     , newAheadVar
@@ -114,6 +115,7 @@ import Data.Heap (Heap, Entry(..))
 import Data.Int (Int64)
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
+import Data.List ((\\))
 import Data.Maybe (fromJust)
 import Data.Set (Set)
 import Data.Word (Word64)
@@ -471,6 +473,13 @@ cleanupSVar sv = do
     workers <- readIORef (workerThreads sv)
     Prelude.mapM_ (\tid -> throwTo tid ThreadAbort)
           (S.toList workers)
+
+cleanupSVarFromWorker :: SVar t m a -> IO ()
+cleanupSVarFromWorker sv = do
+    workers <- readIORef (workerThreads sv)
+    self <- myThreadId
+    mapM_ (\tid -> throwTo tid ThreadAbort)
+          (S.toList workers \\ [self])
 
 -------------------------------------------------------------------------------
 -- Dumping the SVar for debug/diag

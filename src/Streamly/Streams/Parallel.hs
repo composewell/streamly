@@ -34,7 +34,6 @@ module Streamly.Streams.Parallel
     )
 where
 
-import Control.Concurrent (throwTo, myThreadId)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -44,14 +43,11 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
-import Data.IORef (newIORef, readIORef)
-import Data.List ((\\))
+import Data.IORef (newIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 import System.Clock
-
-import qualified Data.Set as S
 
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
@@ -82,11 +78,7 @@ runOne st m = unStream m st stop single yieldk
         yieldLimitOk <- liftIO $ decrementYieldLimitPost sv
         if yieldLimitOk
         then action
-        else liftIO $ do
-            workers <- readIORef (workerThreads sv)
-            self <- myThreadId
-            mapM_ (\tid -> throwTo tid ThreadAbort)
-                  (S.toList workers \\ [self])
+        else liftIO $ cleanupSVarFromWorker sv
 
     stop = liftIO $ winfo >>= sendStop sv
     sendit a = liftIO $ winfo >>= \x -> sendYield sv x (ChildYield a)
