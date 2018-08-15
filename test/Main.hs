@@ -12,6 +12,7 @@ import Control.Monad.Error.Class (throwError, MonadError)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_, fold)
 import Data.List (sort)
+import System.Mem (performMajorGC)
 
 import Data.IORef
 import Test.Hspec as H
@@ -88,17 +89,24 @@ main = hspec $ do
         it "take 1 aheadly" $ checkCleanup aheadly (S.take 1)
         it "take 1 parallely" $ checkCleanup parallely (S.take 1)
 
-{-
         it "takeWhile (< 0) asyncly" $ checkCleanup asyncly (S.takeWhile (< 0))
         it "takeWhile (< 0) wAsyncly" $ checkCleanup wAsyncly (S.takeWhile (< 0))
         it "takeWhile (< 0) aheadly" $ checkCleanup aheadly (S.takeWhile (< 0))
         it "takeWhile (< 0) parallely" $ checkCleanup parallely (S.takeWhile (< 0))
 
-        it "head asyncly" $ checkCleanupFold asyncly (S.head)
-        it "head wAsyncly" $ checkCleanupFold wAsyncly (S.head)
-        it "head aheadly" $ checkCleanupFold aheadly (S.head)
-        it "head parallely" $ checkCleanupFold parallely (S.head)
--}
+        testFoldOpsCleanup "head" S.head
+        testFoldOpsCleanup "null" S.null
+        testFoldOpsCleanup "elem" (S.elem 0)
+        testFoldOpsCleanup "notElem" (S.notElem 0)
+        testFoldOpsCleanup "elemIndex" (S.elemIndex 0)
+        -- S.lookup
+        testFoldOpsCleanup "notElem" (S.notElem 0)
+        testFoldOpsCleanup "find" (S.find (==0))
+        testFoldOpsCleanup "findIndex" (S.findIndex (==0))
+        testFoldOpsCleanup "all" (S.all (==1))
+        testFoldOpsCleanup "any" (S.any (==0))
+        testFoldOpsCleanup "and" (S.and . S.map (==1))
+        testFoldOpsCleanup "or" (S.or . S.map (==0))
 
     ---------------------------------------------------------------------------
     -- Semigroup/Monoidal Composition strict ordering checks
@@ -133,13 +141,13 @@ checkCleanup t op = do
     runStream . serially $ do
         _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
         return ()
+    performMajorGC
     threadDelay 500000
     res <- readIORef r
     res `shouldBe` 0
     where
-    delay ref i = threadDelay (i*100000) >> writeIORef ref i >> return i
+    delay ref i = threadDelay (i*200000) >> writeIORef ref i >> return i
 
-{-
 checkCleanupFold :: IsStream t
     => (t IO Int -> SerialT IO Int)
     -> (SerialT IO Int -> IO (Maybe Int))
@@ -147,12 +155,20 @@ checkCleanupFold :: IsStream t
 checkCleanupFold t op = do
     r <- newIORef (-1 :: Int)
     _ <- op $ t $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
+    performMajorGC
     threadDelay 500000
     res <- readIORef r
     res `shouldBe` 0
     where
-    delay ref i = threadDelay (i*100000) >> writeIORef ref i >> return i
--}
+    delay ref i = threadDelay (i*200000) >> writeIORef ref i >> return i
+
+testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
+testFoldOpsCleanup name f = do
+    let testOp op x = op x >> return Nothing
+    it (name ++ " asyncly") $ checkCleanupFold asyncly (testOp f)
+    it (name ++ " wAsyncly") $ checkCleanupFold wAsyncly (testOp f)
+    it (name ++ " aheadly") $ checkCleanupFold aheadly (testOp f)
+    it (name ++ " parallely") $ checkCleanupFold parallely (testOp f)
 
 parallelTests :: SpecWith ()
 parallelTests = H.parallel $ do

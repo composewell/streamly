@@ -303,8 +303,8 @@ getLifoSVar st = do
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
-#ifdef DIAGNOSTICS
             , svarRef          = Nothing
+#ifdef DIAGNOSTICS
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
 #endif
@@ -397,8 +397,8 @@ getFifoSVar st = do
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
-#ifdef DIAGNOSTICS
             , svarRef          = Nothing
+#ifdef DIAGNOSTICS
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
 #endif

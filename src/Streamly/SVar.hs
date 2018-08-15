@@ -45,6 +45,8 @@ module Streamly.SVar
     , getYieldLimit
     , setYieldLimit
 
+    , cleanupSVar
+
     -- SVar related
     , newAheadVar
     , newParallelVar
@@ -95,7 +97,7 @@ module Streamly.SVar
 where
 
 import Control.Concurrent
-       (ThreadId, myThreadId, threadDelay, getNumCapabilities)
+       (ThreadId, myThreadId, threadDelay, getNumCapabilities, throwTo)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
 import Control.Exception (SomeException(..), catch, mask, assert, Exception)
@@ -318,9 +320,9 @@ data SVar t m a = SVar
     , workerStopMVar :: MVar ()
 
     , svarStats      :: SVarStats
-#ifdef DIAGNOSTICS
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
+#ifdef DIAGNOSTICS
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
@@ -459,6 +461,16 @@ setStreamLatency n st =
 
 getStreamLatency :: State t m a -> Maybe NanoSecs
 getStreamLatency = _streamLatency
+
+-------------------------------------------------------------------------------
+-- Cleanup
+-------------------------------------------------------------------------------
+
+cleanupSVar :: SVar t m a -> IO ()
+cleanupSVar sv = do
+    workers <- readIORef (workerThreads sv)
+    Prelude.mapM_ (\tid -> throwTo tid ThreadAbort)
+          (S.toList workers)
 
 -------------------------------------------------------------------------------
 -- Dumping the SVar for debug/diag
@@ -1648,8 +1660,8 @@ getAheadSVar st f = do
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = stopMVar
-#ifdef DIAGNOSTICS
             , svarRef          = Nothing
+#ifdef DIAGNOSTICS
             , aheadWorkQueue   = q
             , outputHeap       = outH
 #endif
@@ -1733,8 +1745,8 @@ getParallelSVar st = do
                  , workerCount      = active
                  , accountThread    = modifyThread sv
                  , workerStopMVar   = undefined
-#ifdef DIAGNOSTICS
                  , svarRef          = Nothing
+#ifdef DIAGNOSTICS
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
 #endif

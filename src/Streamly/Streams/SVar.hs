@@ -39,9 +39,10 @@ where
 import Control.Exception (fromException)
 import Control.Monad.Catch (throwM)
 import Data.Int (Int64)
-#ifdef DIAGNOSTICS
 import Control.Monad.IO.Class (liftIO)
-import Data.IORef (newIORef, writeIORef, mkWeakIORef)
+import Data.IORef (newIORef, mkWeakIORef)
+#ifdef DIAGNOSTICS
+import Data.IORef (writeIORef)
 import System.IO (hPutStrLn, stderr)
 import System.Clock (Clock(Monotonic), getTime)
 #endif
@@ -111,13 +112,16 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a
 fromSVar sv = do
     fromStream $ Stream $ \st stp sng yld -> do
-#ifdef DIAGNOSTICS_VERBOSE
         ref <- liftIO $ newIORef ()
-        _ <- liftIO $ mkWeakIORef ref (printSVar sv "SVar Garbage Collected")
+        _ <- liftIO $ mkWeakIORef ref hook
         unStream (fromStreamVar sv{svarRef = Just ref}) st stp sng yld
-#else
-        unStream (fromStreamVar sv) st stp sng yld
+    where
+
+    hook = do
+#ifdef DIAGNOSTICS_VERBOSE
+        printSVar sv "SVar Garbage Collected"
 #endif
+        cleanupSVar sv
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
