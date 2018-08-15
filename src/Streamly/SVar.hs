@@ -153,7 +153,7 @@ newtype NanoSecs = NanoSecs Word64
              , Ord
              )
 
-newtype Count = Count Word64
+newtype Count = Count Int64
     deriving ( Eq
              , Read
              , Show
@@ -672,14 +672,16 @@ doFork action exHandler =
 -- througput is high or when the cost of synchronization is high. For example
 -- if the application is distributed then inc/dec of a shared variable may be
 -- very costly.
+--
+-- Note that we need it to be an Int type so that we have the ability to undo a
+-- decrement that takes below zero.
 {-# INLINE decrementYieldLimit #-}
 decrementYieldLimit :: SVar t m a -> IO Bool
 decrementYieldLimit sv =
     case remainingYields sv of
         Nothing -> return True
         Just ref -> do
-            r <- atomicModifyIORefCAS ref $ \x ->
-                    (if x >= 1 then x - 1 else 0, x)
+            r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
             return $ r >= 1
 
 -- decrementYieldLimit returns False when the old limit is 0. This one returns
@@ -690,13 +692,9 @@ decrementYieldLimitPost sv =
     case remainingYields sv of
         Nothing -> return True
         Just ref -> do
-            r <- atomicModifyIORefCAS ref $ \x ->
-                    (if x >= 1 then x - 1 else 0, x)
+            r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
             return $ r > 1
 
--- XXX increment is not safe when the yield limit was already 0
--- and therefore was not decremented. We need yield limit to be
--- int and negative if we want this to work.
 {-# INLINE incrementYieldLimit #-}
 incrementYieldLimit :: SVar t m a -> IO ()
 incrementYieldLimit sv =
@@ -1143,8 +1141,8 @@ dispatchWorker yieldCount sv = do
         -- style.
         limit <- case remainingYields sv of
             Nothing -> return workerLimit
-            Just x -> do
-                n <- liftIO $ readIORef x
+            Just ref -> do
+                n <- liftIO $ readIORef ref
                 return $
                     case workerLimit of
                         Unlimited -> Limited (fromIntegral n)

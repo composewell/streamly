@@ -134,9 +134,6 @@ workLoopLIFOLimited q st sv winfo = run
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then do
-                -- XXX increment is not safe when the yield limit was already 0
-                -- and therefore was not decremented. We need yield limit to be
-                -- int and negative if we want this to work.
                     let stop = liftIO (incrementYieldLimit sv) >> run
                     unStream m st stop single yieldk
                 -- Avoid any side effects, undo the yield limit decrement if we
