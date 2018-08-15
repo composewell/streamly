@@ -1566,6 +1566,12 @@ postProcessBounded sv = do
     -- There may still be work pending even if there are no workers pending
     -- because all the workers may return if the outputQueue becomes full. In
     -- that case send off a worker to kickstart the work again.
+    --
+    -- Note that isWorkDone can only be safely checked if all workers are done.
+    -- When some workers are in progress they may have decremented the yield
+    -- Limit and later ending up incrementing it again. If we look at the yield
+    -- limit in that window we may falsely say that it is 0 and therefore we
+    -- are done.
     if workersDone
     then do
         r <- liftIO $ isWorkDone sv
@@ -1707,8 +1713,8 @@ getAheadSVar st f = do
                     Nothing -> return False
         -- XXX note that yieldsDone can only be authoritative only when there
         -- are no workers running. If there are active workers they can
-        -- increment the yield count and therefore change the result.
-        return $ yieldsDone || (queueDone && heapDone)
+        -- later increment the yield count and therefore change the result.
+        return $ (yieldsDone && heapDone) || (queueDone && heapDone)
 
     checkEmpty q = do
         (xs, _) <- readIORef q

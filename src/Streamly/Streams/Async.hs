@@ -139,6 +139,7 @@ workLoopLIFOLimited q st sv winfo = run
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
+                    enqueueLIFO sv q m
                     incrementYieldLimit sv
                     sendStop sv winfo
 
@@ -220,6 +221,7 @@ workLoopFIFOLimited q st sv winfo = run
                     let stop = liftIO (incrementYieldLimit sv) >> run
                     unStream m st stop single yieldk
                 else liftIO $ do
+                    enqueueFIFO sv q m
                     incrementYieldLimit sv
                     sendStop sv winfo
 

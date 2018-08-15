@@ -691,66 +691,67 @@ main = hspec
             )
 
     let makeOps t =
-            [ t
+            [ ("default", t)
 #ifndef COVERAGE_BUILD
-            , t . maxRate 0
-            , t . maxRate (-1)
-            , t . maxBuffer 0
-            , t . maxBuffer 1
-            , t . maxThreads 0
-            , t . maxThreads 1
-            , t . maxThreads (-1)
+            , ("maxRate 10000", t . maxRate 10000)
+            , ("maxRate -1", t . maxRate (-1))
+            , ("maxBuffer 0", t . maxBuffer 0)
+            , ("maxBuffer 1", t . maxBuffer 1)
+            , ("maxThreads 0", t . maxThreads 0)
+            , ("maxThreads 1", t . maxThreads 1)
+            , ("maxThreads -1", t . maxThreads (-1))
 #endif
             ]
 
+    let mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
-        serialOps = forM_ $ (makeOps serially)
+        serialOps spec = mapOps spec $ (makeOps serially)
 #ifndef COVERAGE_BUILD
-            ++ [serially . maxRate 0.00000001]
-            ++ [serially . maxBuffer (-1)]
+            ++ [("maxRate 0.00000001", serially . maxRate 0.00000001)]
+            ++ [("maxBuffer -1", serially . maxBuffer (-1))]
 #endif
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
-        wSerialOps = forM_ $ makeOps wSerially
+        wSerialOps spec = mapOps spec $ makeOps wSerially
 #ifndef COVERAGE_BUILD
-            ++ [wSerially . maxRate 0.00000001]
-            ++ [wSerially . maxBuffer (-1)]
+            ++ [("maxRate 0.00000001", wSerially . maxRate 0.00000001)]
+            ++ [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
 #endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
-        asyncOps = forM_ $ makeOps asyncly
+        asyncOps spec = mapOps spec $ makeOps asyncly
 #ifndef COVERAGE_BUILD
-            ++ [asyncly . maxRate 10000]
-            ++ [asyncly . maxBuffer (-1)]
+            ++ [("maxRate 10000", asyncly . maxRate 10000)]
+            ++ [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
 #endif
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
-        wAsyncOps = forM_ $ makeOps wAsyncly
+        wAsyncOps spec = mapOps spec $ makeOps wAsyncly
 #ifndef COVERAGE_BUILD
-            ++ [wAsyncly . maxRate 10000]
-            ++ [wAsyncly . maxBuffer (-1)]
+            ++ [("maxRate 10000", wAsyncly . maxRate 10000)]
+            ++ [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
 #endif
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
-        aheadOps = forM_ $ makeOps aheadly
+        aheadOps spec = mapOps spec $ makeOps aheadly
 #ifndef COVERAGE_BUILD
-             ++ [aheadly . maxRate 10000]
-             ++ [aheadly . maxBuffer (-1)]
+             -- ++ [("maxRate 10000", aheadly . maxRate 10000)]
+             -- ++ [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
 #endif
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
-        parallelOps = forM_ $ makeOps parallely
+        parallelOps spec = mapOps spec $ makeOps parallely
 #ifndef COVERAGE_BUILD
-            ++ [parallely . maxRate 0.00000001]
-            ++ [parallely . maxBuffer (-1)]
+            ++ [("maxRate 0.00000001", parallely . maxRate 0.00000001)]
+            ++ [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
     let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
-        zipSerialOps = forM_ $ makeOps zipSerially
+        zipSerialOps spec = mapOps spec $ makeOps zipSerially
 #ifndef COVERAGE_BUILD
-            ++ [zipSerially . maxRate 0.00000001]
-            ++ [zipSerially . maxBuffer (-1)]
+            ++ [("maxRate 0.00000001", zipSerially . maxRate 0.00000001)]
+            ++ [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
 #endif
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
-        zipAsyncOps = forM_ $ makeOps zipAsyncly
+        zipAsyncOps spec = mapOps spec $ makeOps zipAsyncly
 #ifndef COVERAGE_BUILD
-            ++ [zipAsyncly . maxRate 10000]
+            ++ [("maxRate 10000", zipAsyncly . maxRate 10000)]
 #endif
 
     describe "Construction" $ do
@@ -898,26 +899,27 @@ main = hspec
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
     let mkOps t =
-            [ t
+            [ ("default", t)
 #ifndef COVERAGE_BUILD
-            , t . maxRate 0
-            , t . maxRate (-1)
-            , t . maxBuffer 0
-            , t . maxThreads 0
-            , t . maxThreads (-1)
+            , ("maxRate 0", t . maxRate 0)
+            , ("maxRate -1", t . maxRate (-1))
+            , ("maxBuffer 0", t . maxBuffer 0)
+            , ("maxThreads 0", t . maxThreads 0)
+            , ("maxThreads 0", t . maxThreads (-1))
 #endif
             ]
 
+    let forOps ops spec = forM_ ops (\(desc, f) -> describe desc $ spec f)
     describe "Stream concurrent operations" $ do
-        forM_ (mkOps aheadly)   $ concurrentOps S.fromFoldable "aheadly" (==)
-        forM_ (mkOps asyncly)   $ concurrentOps S.fromFoldable "asyncly" sortEq
-        forM_ (mkOps wAsyncly)  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
-        forM_ (mkOps parallely) $ concurrentOps S.fromFoldable "parallely" sortEq
+        forOps (mkOps aheadly)   $ concurrentOps S.fromFoldable "aheadly" (==)
+        forOps (mkOps asyncly)   $ concurrentOps S.fromFoldable "asyncly" sortEq
+        forOps (mkOps wAsyncly)  $ concurrentOps S.fromFoldable "wAsyncly" sortEq
+        forOps (mkOps parallely) $ concurrentOps S.fromFoldable "parallely" sortEq
 
-        forM_ (mkOps aheadly)   $ concurrentOps folded "aheadly folded" (==)
-        forM_ (mkOps asyncly)   $ concurrentOps folded "asyncly folded" sortEq
-        forM_ (mkOps wAsyncly)  $ concurrentOps folded "wAsyncly folded" sortEq
-        forM_ (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
+        forOps (mkOps aheadly)   $ concurrentOps folded "aheadly folded" (==)
+        forOps (mkOps asyncly)   $ concurrentOps folded "asyncly folded" sortEq
+        forOps (mkOps wAsyncly)  $ concurrentOps folded "wAsyncly folded" sortEq
+        forOps (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
 
     describe "Concurrent application" $ do
         serialOps $ prop "serial" . concurrentApplication (==)
@@ -955,6 +957,11 @@ main = hspec
         aheadOps     $ transformCombineOpsOrdered S.fromFoldable "aheadly" (==)
         zipSerialOps $ transformCombineOpsOrdered S.fromFoldable "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsOrdered S.fromFoldable "zipAsyncly" (==)
+
+        serialOps    $ transformCombineOpsOrdered folded "serially" (==)
+        aheadOps     $ transformCombineOpsOrdered folded "aheadly" (==)
+        zipSerialOps $ transformCombineOpsOrdered folded "zipSerially" (==)
+        zipAsyncOps  $ transformCombineOpsOrdered folded "zipAsyncly" (==)
 
     describe "Stream elimination operations" $ do
         serialOps    $ eliminationOps S.fromFoldable "serially"

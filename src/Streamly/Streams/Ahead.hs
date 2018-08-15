@@ -128,10 +128,6 @@ import Prelude hiding (map)
 -- elements with the same sequene number. We can then use the seq number to
 -- enforce yieldMax and yieldLImit as well.
 
--- XXX the only difference between this and workerRateControl is that this
--- updates the heap count and the other updates the yield count.
--- we can pass that as an update function instead.
-
 -- Invariants:
 --
 -- * A worker should always ensure that it pushes all the consecutive items in
@@ -264,6 +260,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                     then processWithToken q heap st sv winfo m seqNo
                     else processWithoutToken q heap st sv winfo m seqNo
                 else liftIO $ do
+                    liftIO $ reEnqueueAhead sv q m
                     incrementYieldLimit sv
                     sendStop sv winfo
 
@@ -275,9 +272,17 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         void $ liftIO $ sendYield sv winfo (ChildYield a)
         nextHeap seqNo
 
+    -- XXX when we have an unfinished stream on the heap we cannot account all
+    -- the yields of that stream until it finishes, so if we have picked up
+    -- and executed more actions beyond that in the parent stream and put them
+    -- on the heap then they would eat up some yield limit which is not
+    -- correct, we will think that our yield limit is over even though we have
+    -- to yield items from unfinished stream before them. For this reason, if
+    -- there are pending items in the heap we drain them unconditionally
+    -- without considering the yield limit.
     runStreamWithYieldLimit continue seqNo r = do
-        yieldLimitOk <- liftIO $ decrementYieldLimit sv
-        if continue && yieldLimitOk
+        _ <- liftIO $ decrementYieldLimit sv
+        if continue -- see comment above -- && yieldLimitOk
         then do
             let stop = do
                   liftIO (incrementYieldLimit sv)
@@ -363,13 +368,13 @@ processWithToken :: MonadIO m
     -> Int
     -> m ()
 processWithToken q heap st sv winfo action sno = do
+    -- Note, we enter this function with yield limit already decremented
+    -- XXX deduplicate stop in all invocations
     let stop = do
             liftIO (incrementYieldLimit sv)
             loopWithToken sno
 
-    unStream action st stop
-                  (singleOutput sno)
-                  (yieldOutput sno)
+    unStream action st stop (singleOutput sno) (yieldOutput sno)
 
     where
 
@@ -424,6 +429,7 @@ processWithToken q heap st sv winfo action sno = do
                     else do
                         liftIO $ atomicModifyIORef heap $ \(h, _) ->
                              ((h, prevSeqNo + 1), ())
+                        liftIO (incrementYieldLimit sv)
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
                         -- a doorBell and we will not clear the heap before
@@ -431,12 +437,12 @@ processWithToken q heap st sv winfo action sno = do
                         -- on the output that is stuck in the heap then this
                         -- will result in a deadlock. So we always clear the
                         -- heap before executing the next action.
-                        -- processWithoutToken q heap st sv winfo m seqNo
                         liftIO $ reEnqueueAhead sv q m
                         workLoopAhead q heap st sv winfo
                 else do
                     liftIO $ atomicModifyIORef heap $ \(h, _) ->
                          ((h, prevSeqNo + 1), ())
+                    liftIO $ reEnqueueAhead sv q m
                     liftIO $ incrementYieldLimit sv
                     drainHeap q heap st sv winfo
 
@@ -444,6 +450,12 @@ processWithToken q heap st sv winfo action sno = do
 -- Just like AsyncT we can use an implementation without yeidlimit and even
 -- without pacing code to keep the performance higher in the unlimited and
 -- unpaced case.
+--
+-- XXX The yieldLimit stuff is pretty invasive. We can instead do it by using
+-- three hooks, a pre-execute hook, a yield hook and a stop hook. In fact these
+-- hooks can be used for a more general implementation to even check predicates
+-- and not just yield limit.
+
 workLoopAhead :: MonadIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
@@ -489,6 +501,12 @@ workLoopAhead q heap st sv winfo = do
                             then processWithToken q heap st sv winfo m seqNo
                             else processWithoutToken q heap st sv winfo m seqNo
                         else liftIO $ do
+                            -- If some worker decremented the yield limit but
+                            -- then did not yield anything and therefore
+                            -- incremented it later, then if we did not requeue
+                            -- m here we may find the work queue empty and
+                            -- therefore miss executing the remaining action.
+                            liftIO $ reEnqueueAhead sv q m
                             incrementYieldLimit sv
                             sendStop sv winfo
             Just (Entry seqNo hent) ->
