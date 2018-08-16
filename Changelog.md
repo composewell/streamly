@@ -36,7 +36,7 @@
 
 * Add concurrency control primitives `maxThreads` and `maxBuffer`.
 * Concurrency of a stream with bounded concurrency when used with `take` is now
-  limited by the number elements demanded by `take`.
+  limited by the number of elements demanded by `take`.
 * Significant performance improvements utilizing stream fusion optimizations.
 * Add `yield` to construct a singleton stream from a pure value
 * Add `repeat` to generate an infinite stream by repeating a pure value

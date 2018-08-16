@@ -188,6 +188,9 @@ instance Monad m => Monad (SerialT m) where
 mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
 mapM f m = fromStream $ D.toStreamK $ D.mapM f $ D.fromStreamK (toStream m)
 
+-- | Same as 'fmap'.
+--
+-- @since 0.4.0
 {-# INLINE map #-}
 map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
 map f = mapM (return . f)
