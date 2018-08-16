@@ -198,6 +198,7 @@ test-suite test
   hs-source-dirs: test
   ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
+    cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
   if impl(ghc >= 8.0)
