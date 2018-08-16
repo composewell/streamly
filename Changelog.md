@@ -5,6 +5,8 @@
 * Fix a bug in concurrent function application that in certain cases would
   unnecessarily share the concurrency state resulting in incorrect output
   stream.
+* Leftover threads are now cleaned up as soon as the SVar is garbage
+  collected.
 
 ### Enhancements
 
