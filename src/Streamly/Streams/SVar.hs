@@ -153,9 +153,11 @@ maxThreads :: IsStream t => Int -> t m a -> t m a
 maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setMaxThreads n st) stp sng yld
 
+{-
 {-# RULES "maxThreadsSerial serial" maxThreads = maxThreadsSerial #-}
 maxThreadsSerial :: Int -> SerialT m a -> SerialT m a
 maxThreadsSerial _ = id
+-}
 
 -- | Specify the maximum size of the buffer for storing the results from
 -- concurrent computations. If the buffer becomes full we stop spawning more
@@ -176,9 +178,11 @@ maxBuffer :: IsStream t => Int -> t m a -> t m a
 maxBuffer n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setMaxBuffer n st) stp sng yld
 
+{-
 {-# RULES "maxBuffer serial" maxBuffer = maxBufferSerial #-}
 maxBufferSerial :: Int -> SerialT m a -> SerialT m a
 maxBufferSerial _ = id
+-}
 
 -- | Specify the maximum average pull rate in number of yields per second (i.e.
 -- @Hertz@) which the consumer of the stream cannot exceed. A value of 0 resets
@@ -199,9 +203,11 @@ yieldRate :: IsStream t => Double -> t m a -> t m a
 yieldRate n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setMaxStreamRate n st) stp sng yld
 
+{-
 {-# RULES "yieldRate serial" yieldRate = yieldRateSerial #-}
 yieldRateSerial :: Double -> SerialT m a -> SerialT m a
 yieldRateSerial _ = id
+-}
 
 -- | Specify the average latency, in nanoseconds, of a single threaded action
 -- in a concurrent composition. Streamly can measure the latencies, but that is
@@ -215,14 +221,16 @@ yieldRateSerial _ = id
 -- This would normally be useful only in high latency and high throughput
 -- cases.
 --
-{-# INLINE_NORMAL serialLatency #-}
-serialLatency :: IsStream t => Int -> t m a -> t m a
-serialLatency n m = fromStream $ Stream $ \st stp sng yld -> do
+{-# INLINE_NORMAL _serialLatency #-}
+_serialLatency :: IsStream t => Int -> t m a -> t m a
+_serialLatency n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setStreamLatency n st) stp sng yld
 
-{-# RULES "serialLatency serial" serialLatency = serialLatencySerial #-}
+{-
+{-# RULES "serialLatency serial" _serialLatency = serialLatencySerial #-}
 serialLatencySerial :: Int -> SerialT m a -> SerialT m a
 serialLatencySerial _ = id
+-}
 
 -- Stop concurrent dispatches after this limit. This is useful in API's like
 -- "take" where we want to dispatch only upto the number of elements "take"
