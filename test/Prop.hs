@@ -693,8 +693,8 @@ main = hspec
     let makeOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
-            , ("maxRate 10000", t . maxRate 10000)
-            , ("maxRate -1", t . maxRate (-1))
+            , ("yieldRate 10000", t . yieldRate 10000)
+            , ("yieldRate -1", t . yieldRate (-1))
             , ("maxBuffer 0", t . maxBuffer 0)
             , ("maxBuffer 1", t . maxBuffer 1)
             , ("maxThreads 0", t . maxThreads 0)
@@ -707,43 +707,43 @@ main = hspec
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ (makeOps serially)
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 0.00000001", serially . maxRate 0.00000001)]
+            ++ [("yieldRate 0.00000001", serially . yieldRate 0.00000001)]
             ++ [("maxBuffer -1", serially . maxBuffer (-1))]
 #endif
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
         wSerialOps spec = mapOps spec $ makeOps wSerially
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 0.00000001", wSerially . maxRate 0.00000001)]
+            ++ [("yieldRate 0.00000001", wSerially . yieldRate 0.00000001)]
             ++ [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
 #endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
         asyncOps spec = mapOps spec $ makeOps asyncly
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 10000", asyncly . maxRate 10000)]
+            ++ [("yieldRate 10000", asyncly . yieldRate 10000)]
             ++ [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
 #endif
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
         wAsyncOps spec = mapOps spec $ makeOps wAsyncly
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 10000", wAsyncly . maxRate 10000)]
+            ++ [("yieldRate 10000", wAsyncly . yieldRate 10000)]
             ++ [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
 #endif
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps spec = mapOps spec $ makeOps aheadly
 #ifndef COVERAGE_BUILD
-             -- ++ [("maxRate 10000", aheadly . maxRate 10000)]
+             -- ++ [("yieldRate 10000", aheadly . yieldRate 10000)]
              -- ++ [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
 #endif
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps spec = mapOps spec $ makeOps parallely
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 0.00000001", parallely . maxRate 0.00000001)]
+            ++ [("yieldRate 0.00000001", parallely . yieldRate 0.00000001)]
             ++ [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
     let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps spec = mapOps spec $ makeOps zipSerially
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 0.00000001", zipSerially . maxRate 0.00000001)]
+            ++ [("yieldRate 0.00000001", zipSerially . yieldRate 0.00000001)]
             ++ [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
 #endif
     -- Note, the "pure" of applicative Zip streams generates and infinite
@@ -751,7 +751,7 @@ main = hspec
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
         zipAsyncOps spec = mapOps spec $ makeOps zipAsyncly
 #ifndef COVERAGE_BUILD
-            ++ [("maxRate 10000", zipAsyncly . maxRate 10000)]
+            ++ [("yieldRate 10000", zipAsyncly . yieldRate 10000)]
 #endif
 
     describe "Construction" $ do
@@ -815,7 +815,7 @@ main = hspec
         zipAsyncOps  $ prop "zipAsyncly applicative folded" . zipApplicative folded (==)
 
         -- We test only the serial zip with serial streams and the parallel
-        -- stream, because the maxRate setting in these streams can slow down
+        -- stream, because the yieldRate setting in these streams can slow down
         -- zipAsync.
         serialOps   $ prop "zip monadic serially" . zipMonadic S.fromFoldable (==)
         serialOps   $ prop "zip monadic serially folded" . zipMonadic folded (==)
@@ -901,8 +901,8 @@ main = hspec
     let mkOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
-            , ("maxRate 0", t . maxRate 0)
-            , ("maxRate -1", t . maxRate (-1))
+            , ("yieldRate 0", t . yieldRate 0)
+            , ("yieldRate -1", t . yieldRate (-1))
             , ("maxBuffer 0", t . maxBuffer 0)
             , ("maxThreads 0", t . maxThreads 0)
             , ("maxThreads 0", t . maxThreads (-1))

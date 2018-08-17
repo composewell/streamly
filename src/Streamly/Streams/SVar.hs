@@ -32,7 +32,7 @@ module Streamly.Streams.SVar
     , maxThreads
     , maxBuffer
     , maxYields
-    , maxRate
+    , yieldRate
     )
 where
 
@@ -114,6 +114,9 @@ fromSVar sv = do
     fromStream $ Stream $ \st stp sng yld -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref hook
+        -- We pass a copy of sv to fromStreamVar, so that we know that it has
+        -- no other references, when that copy gets garbage collected "ref"
+        -- will get garbage collected and our hook will be called.
         unStream (fromStreamVar sv{svarRef = Just ref}) st stp sng yld
     where
 
@@ -134,13 +137,15 @@ toSVar sv m = toStreamVar sv (toStream m)
 --
 -- XXX need to write these in direct style otherwise they will break fusion.
 --
--- | Specify the maximum number of threads that can be spawned concurrently
--- when using concurrent streams. This value denotes maximum concurrent
--- requests, or tasks in progress at any given point of time. Note that this is
--- not the grand total number of threads but maximum threads at an individual
--- point of concurrency.
+-- | Specify the maximum number of threads that can be spawned concurrently for
+-- any concurrent combinator in a stream.
 -- A value of 0 resets the thread limit to default, a negative value means
 -- there is no limit. The default value is 1500.
+--
+-- When the actions in a stream are IO bound, having blocking IO calls, this
+-- option can be used to control the maximum number of in-flight IO requests.
+-- When the actions are CPU bound this option can be used to
+-- control the amount of CPU used by the stream.
 --
 -- @since 0.4.0
 {-# INLINE_NORMAL maxThreads #-}
@@ -175,24 +180,33 @@ maxBuffer n m = fromStream $ Stream $ \st stp sng yld -> do
 maxBufferSerial :: Int -> SerialT m a -> SerialT m a
 maxBufferSerial _ = id
 
--- | Specify the maximum rate in number of yields per second at which the
--- stream can be generated. A value of 0 resets the rate to default, a negative
--- value means there is no limit. The default value is no limit.
+-- | Specify the maximum average pull rate in number of yields per second (i.e.
+-- @Hertz@) which the consumer of the stream cannot exceed. A value of 0 resets
+-- the rate to default, a negative value means there is no limit. The default
+-- value is no limit.
+-- Concurrent production is ramped up or down automatically to achieve the
+-- specified yield rate. However, the effective maximum production rate
+-- achieved by a stream is governed by:
+--
+-- * The 'maxThreads' limit
+-- * The 'maxBuffer' limit
+-- * The maximum rate that the stream producer can achieve
+-- * The maximum rate that the stream consumer can achieve
 --
 -- @since 0.5.0
-{-# INLINE_NORMAL maxRate #-}
-maxRate :: IsStream t => Double -> t m a -> t m a
-maxRate n m = fromStream $ Stream $ \st stp sng yld -> do
+{-# INLINE_NORMAL yieldRate #-}
+yieldRate :: IsStream t => Double -> t m a -> t m a
+yieldRate n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setMaxStreamRate n st) stp sng yld
 
-{-# RULES "maxRate serial" maxRate = maxRateSerial #-}
-maxRateSerial :: Double -> SerialT m a -> SerialT m a
-maxRateSerial _ = id
+{-# RULES "yieldRate serial" yieldRate = yieldRateSerial #-}
+yieldRateSerial :: Double -> SerialT m a -> SerialT m a
+yieldRateSerial _ = id
 
 -- | Specify the average latency, in nanoseconds, of a single threaded action
 -- in a concurrent composition. Streamly can measure the latencies, but that is
 -- possible only after at least one task has completed. This combinator can be
--- used to provide a latency hint so that rate control using 'maxRate' can take
+-- used to provide a latency hint so that rate control using 'yieldRate' can take
 -- that into account right from the beginning. When not specified then a
 -- default behavior is chosen which could be too slow or too fast, and would be
 -- restricted by any other control parameters configured.

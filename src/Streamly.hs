@@ -112,7 +112,7 @@ module Streamly
     -- $concurrency
     , maxThreads
     , maxBuffer
-    , maxRate
+    , yieldRate
 
     -- * Folding Containers of Streams
     -- $foldutils
@@ -173,7 +173,7 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Parallel
 import Streamly.Streams.Zip
 import Streamly.Streams.Prelude
-import Streamly.Streams.SVar (maxThreads, maxBuffer, maxRate)
+import Streamly.Streams.SVar (maxThreads, maxBuffer, yieldRate)
 import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 
@@ -305,14 +305,13 @@ runZipAsync = runStream . K.adapt
 --
 -- $concurrency
 --
--- These combinators can be used at any point in a stream composition to
--- control the concurrency of the enclosed stream. When the combinators are
--- used in a nested manner, the nearest enclosing combinator overrides the
--- outer ones.  These combinators have no effect on 'Parallel' streams,
--- concurrency for 'Parallel' streams is always unbounded.
--- Note that the use of these combinators does not enable concurrency, to
--- enable concurrency you have to use one of the concurrent stream type
--- combinators.
+-- These combinators can be used at any point in a stream composition to set
+-- parameters to control the concurrency of the enclosed stream.  A parameter
+-- set at any point remains effective for any concurrent combinators used
+-- downstream until it is reset.  These control parameters have no effect on
+-- non-concurrent combinators in the stream, or on non-concurrent streams. They
+-- also do not affect 'Parallel' streams, as concurrency for 'Parallel' streams
+-- is always unbounded.
 
 -- $adapters
 --
