@@ -43,11 +43,9 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
-import Data.IORef (newIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
-import System.Clock
 
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
@@ -62,15 +60,10 @@ import qualified Streamly.Streams.StreamK as K
 -------------------------------------------------------------------------------
 
 {-# NOINLINE runOne #-}
-runOne :: MonadIO m => State Stream m a -> Stream m a -> m ()
-runOne st m = unStream m st stop single yieldk
+runOne :: MonadIO m => State Stream m a -> Stream m a -> WorkerInfo -> m ()
+runOne st m winfo = unStream m st stop single yieldk
 
     where
-
-    winfo = do
-        yc <- newIORef 0
-        wls <- newIORef (0, fromNanoSecs 0)
-        return $ WorkerInfo 0 yc wls
 
     sv = fromJust $ streamVar st
 
@@ -80,15 +73,15 @@ runOne st m = unStream m st stop single yieldk
         then action
         else liftIO $ cleanupSVarFromWorker sv
 
-    stop = liftIO $ winfo >>= sendStop sv
-    sendit a = liftIO $ winfo >>= \x -> sendYield sv x (ChildYield a)
+    stop = liftIO $ sendStop sv winfo
+    sendit a = liftIO $ sendYield sv winfo (ChildYield a)
     single a = sendit a >> withLimitCheck stop
 
     -- XXX there is no flow control in parallel case. We should perhaps use a
     -- queue and queue it back on that and exit the thread when the outputQueue
     -- overflows. Parallel is dangerous because it can accumulate unbounded
     -- output in the buffer.
-    yieldk a r = void (sendit a) >> withLimitCheck (runOne st r)
+    yieldk a r = void (sendit a) >> withLimitCheck (runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a

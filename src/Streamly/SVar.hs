@@ -8,6 +8,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MagicHash                  #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE UnboxedTuples              #-}
 
 -- |
@@ -853,6 +854,7 @@ checkRatePeriodic sv yinfo winfo ycnt = do
     if (i /= 0 && (ycnt `mod` i) == 0)
     then do
         workerUpdateLatency yinfo winfo
+        -- XXX not required for parallel streams
         isBeyondMaxRate sv yinfo
     else return False
 
@@ -1182,7 +1184,7 @@ pushWorker yieldMax sv = do
 -- workerThreads. Alternatively, we can use a CreateThread event to avoid
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
-pushWorkerPar :: MonadAsync m => SVar t m a -> m () -> m ()
+pushWorkerPar :: MonadAsync m => SVar t m a -> (WorkerInfo -> m ()) -> m ()
 pushWorkerPar sv wloop = do
     -- We do not use workerCount in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
@@ -1190,7 +1192,17 @@ pushWorkerPar sv wloop = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     recordMaxWorkers sv
 #endif
-    doFork wloop (handleChildException sv) >>= modifyThread sv
+    winfo <- do
+            cntRef <- liftIO $ newIORef 0
+            t <- liftIO $ getTime Monotonic
+            lat <- liftIO $ newIORef (0, t)
+            return $ WorkerInfo
+                { workerYieldMax = 0
+                , workerYieldCount = cntRef
+                , workerLatencyStart = lat
+                }
+
+    doFork (wloop winfo) (handleChildException sv) >>= modifyThread sv
 
 -- Returns:
 -- True: can dispatch more
@@ -1806,6 +1818,7 @@ getParallelSVar st = do
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
             Just x -> Just <$> newIORef x
+    rateInfo <- getYieldRateInfo st
 
     disp <- newIORef 0
     maxWrk <- newIORef 0
@@ -1824,8 +1837,9 @@ getParallelSVar st = do
             SVar { outputQueue      = outQ
                  , remainingYields  = yl
                  , maxBufferLimit   = Unlimited
-                 , maxWorkerLimit   = undefined
-                 , yieldRateInfo    = Nothing
+                 , maxWorkerLimit   = Unlimited
+                 -- Used only for diagnostics
+                 , yieldRateInfo    = rateInfo
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQPar sv
                  , postProcess      = allThreadsDone sv
@@ -1862,6 +1876,9 @@ getParallelSVar st = do
 
     readOutputQPar sv = liftIO $ do
         withDBGMVar sv "readOutputQPar: doorbell" $ takeMVar (outputDoorBell sv)
+        case yieldRateInfo sv of
+            Nothing -> return ()
+            Just yinfo -> void $ collectLatency (svarStats sv) yinfo
         readOutputQRaw sv >>= return . fst
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)

@@ -63,6 +63,10 @@ import Streamly.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
 import qualified Streamly.Streams.StreamK as K
 
+#ifdef DIAGNOSTICS
+import Control.Concurrent (myThreadId)
+#endif
+
 #include "Instances.hs"
 
 -------------------------------------------------------------------------------
