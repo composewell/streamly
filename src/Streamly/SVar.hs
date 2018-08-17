@@ -139,6 +139,7 @@ import Control.Exception
        (catches, throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
         BlockedIndefinitelyOnSTM(..))
 import System.IO (hPutStrLn, stderr)
+import Text.Printf (printf)
 #endif
 
 newtype NanoSecs = NanoSecs Word64
@@ -325,6 +326,7 @@ data SVar t m a = SVar
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
 #ifdef DIAGNOSTICS
+    , svarCreator   :: ThreadId
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
@@ -486,12 +488,77 @@ cleanupSVarFromWorker sv = do
 -------------------------------------------------------------------------------
 
 #ifdef DIAGNOSTICS
+-- | Convert a number of seconds to a string.  The string will consist
+-- of four decimal places, followed by a short description of the time
+-- units.
+secs :: Double -> String
+secs k
+    | k < 0      = '-' : secs (-k)
+    | k >= 1     = k        `with` "s"
+    | k >= 1e-3  = (k*1e3)  `with` "ms"
+#ifdef mingw32_HOST_OS
+    | k >= 1e-6  = (k*1e6)  `with` "us"
+#else
+    | k >= 1e-6  = (k*1e6)  `with` "μs"
+#endif
+    | k >= 1e-9  = (k*1e9)  `with` "ns"
+    | k >= 1e-12 = (k*1e12) `with` "ps"
+    | k >= 1e-15 = (k*1e15) `with` "fs"
+    | k >= 1e-18 = (k*1e18) `with` "as"
+    | otherwise  = printf "%g s" k
+     where with (t :: Double) (u :: String)
+               | t >= 1e9  = printf "%.4g %s" t u
+               | t >= 1e3  = printf "%.0f %s" t u
+               | t >= 1e2  = printf "%.1f %s" t u
+               | t >= 1e1  = printf "%.2f %s" t u
+               | otherwise = printf "%.3f %s" t u
+
+-- XXX Code duplicated from collectLatency
+drainLatency :: SVarStats -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+drainLatency _ss yinfo = do
+    let cur      = workerCurrentLatency yinfo
+        col      = workerCollectedLatency yinfo
+        longTerm = workerLongTermLatency yinfo
+        measured = workerMeasuredLatency yinfo
+
+    (count, time)       <- atomicModifyIORefCAS cur $ \v -> ((0,0), v)
+    (colCount, colTime) <- readIORef col
+    (lcount, ltime)     <- readIORef longTerm
+    prev                <- readIORef measured
+
+    let pendingCount = colCount + count
+        pendingTime  = colTime + time
+
+        lcount' = lcount + pendingCount
+        notUpdated = (lcount', ltime, prev)
+
+    if (pendingCount > 0)
+    then do
+        let new = pendingTime `div` (fromIntegral pendingCount)
+#ifdef DIAGNOSTICS
+        minLat <- readIORef (minWorkerLatency _ss)
+        when (new < minLat || minLat == 0) $
+            writeIORef (minWorkerLatency _ss) new
+
+        maxLat <- readIORef (maxWorkerLatency _ss)
+        when (new > maxLat) $ writeIORef (maxWorkerLatency _ss) new
+#endif
+        -- To avoid minor fluctuations update in batches
+        useCollectedBatch yinfo new col measured
+#ifdef DIAGNOSTICS
+        modifyIORef (avgWorkerLatency _ss) $
+            \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
+#endif
+        modifyIORef longTerm $ \(_, t) -> (lcount', t)
+        return (lcount', ltime, new)
+    else return notUpdated
+
 dumpSVarStats :: SVar t m a -> SVarStats -> SVarStyle -> IO String
 dumpSVarStats sv ss style = do
     case yieldRateInfo sv of
         Nothing -> return ()
         Just yinfo -> do
-            _ <- liftIO $ collectLatency (svarStats sv) yinfo
+            _ <- liftIO $ drainLatency (svarStats sv) yinfo
             return ()
 
     dispatches <- readIORef $ totalDispatches ss
@@ -501,8 +568,8 @@ dumpSVarStats sv ss style = do
     minLat <- readIORef $ minWorkerLatency ss
     maxLat <- readIORef $ maxWorkerLatency ss
     (avgCnt, avgTime) <- readIORef $ avgWorkerLatency ss
-    svarLat <- case yieldRateInfo sv of
-        Nothing -> return 0
+    (svarCnt, svarLat) <- case yieldRateInfo sv of
+        Nothing -> return (0, 0)
         Just yinfo -> do
             (cnt, startTime) <- readIORef $ workerLongTermLatency yinfo
             if cnt > 0
@@ -512,11 +579,11 @@ dumpSVarStats sv ss style = do
                     Nothing -> do
                         now <- getTime Monotonic
                         let interval = toNanoSecs (now - startTime)
-                        return $ interval `div` fromIntegral cnt
+                        return $ (cnt, interval `div` fromIntegral cnt)
                     Just stopTime -> do
                         let interval = toNanoSecs (stopTime - startTime)
-                        return $ interval `div` fromIntegral cnt
-            else return 0
+                        return $ (cnt, interval `div` fromIntegral cnt)
+            else return (0, 0)
 
     return $ unlines
         [ "total dispatches = " ++ show dispatches
@@ -526,24 +593,30 @@ dumpSVarStats sv ss style = do
                then "\nheap max size = " ++ show maxHp
                else "")
             ++ (if minLat > 0
-               then "\nmin worker latency = " ++ show minLat
+               then "\nmin worker latency = "
+                    ++ secs (fromIntegral minLat * 1e-9)
                else "")
             ++ (if maxLat > 0
-               then "\nmax worker latency = " ++ show maxLat
+               then "\nmax worker latency = "
+                    ++ secs (fromIntegral maxLat * 1e-9)
                else "")
             ++ (if avgCnt > 0
-                then "\navg worker latency = "
-                    ++ show (avgTime `div` fromIntegral avgCnt)
+                then let lat = avgTime `div` fromIntegral avgCnt
+                     in "\navg worker latency = "
+                        ++ secs (fromIntegral lat * 1e-9)
                 else "")
             ++ (if svarLat > 0
-               then "\nSVar latency = " ++ show svarLat
+               then "\nSVar latency = "
+                        ++ secs (fromIntegral svarLat * 1e-9)
+               else "")
+            ++ (if svarCnt > 0
+               then "\nSVar yield count = " ++ show svarCnt
                else "")
         ]
 
 {-# NOINLINE dumpSVar #-}
 dumpSVar :: SVar t m a -> IO String
 dumpSVar sv = do
-    tid <- myThreadId
     (oqList, oqLen) <- readIORef $ outputQueue sv
     db <- tryTakeMVar $ outputDoorBell sv
     aheadDump <-
@@ -569,7 +642,7 @@ dumpSVar sv = do
     stats <- dumpSVarStats sv (svarStats sv) (svarStyle sv)
 
     return $ unlines
-        [ "tid = " ++ show tid
+        [ "Creator tid = " ++ show (svarCreator sv)
         , "style = " ++ show (svarStyle sv)
         , "---------CURRENT STATE-----------"
         , "outputQueue length computed  = " ++ show (length oqList)
@@ -1654,6 +1727,9 @@ getAheadSVar st f = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
+#ifdef DIAGNOSTICS
+    tid <- myThreadId
+#endif
 
     let getSVar sv readOutput postProc = SVar
             { outputQueue      = outQ
@@ -1675,6 +1751,7 @@ getAheadSVar st f = do
             , workerStopMVar   = stopMVar
             , svarRef          = Nothing
 #ifdef DIAGNOSTICS
+            , svarCreator      = tid
             , aheadWorkQueue   = q
             , outputHeap       = outH
 #endif
@@ -1739,6 +1816,9 @@ getParallelSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
+#ifdef DIAGNOSTICS
+    tid <- myThreadId
+#endif
 
     let sv =
             SVar { outputQueue      = outQ
@@ -1760,6 +1840,7 @@ getParallelSVar st = do
                  , workerStopMVar   = undefined
                  , svarRef          = Nothing
 #ifdef DIAGNOSTICS
+                 , svarCreator      = tid
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
 #endif

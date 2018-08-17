@@ -271,6 +271,9 @@ getLifoSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
+#ifdef DIAGNOSTICS
+    tid <- myThreadId
+#endif
 
     let isWorkFinished _ = null <$> readIORef q
 
@@ -304,6 +307,7 @@ getLifoSVar st = do
             , workerStopMVar   = undefined
             , svarRef          = Nothing
 #ifdef DIAGNOSTICS
+            , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
 #endif
@@ -366,6 +370,9 @@ getFifoSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
+#ifdef DIAGNOSTICS
+    tid <- myThreadId
+#endif
 
     let isWorkFinished _ = nullQ q
     let isWorkFinishedLimited sv = do
@@ -398,6 +405,7 @@ getFifoSVar st = do
             , workerStopMVar   = undefined
             , svarRef          = Nothing
 #ifdef DIAGNOSTICS
+            , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
 #endif
