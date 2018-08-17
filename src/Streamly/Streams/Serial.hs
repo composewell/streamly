@@ -166,7 +166,9 @@ instance IsStream SerialT where
 -- @since 0.2.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ K.serial (toStream m1) (toStream m2)
+serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+    unStream (K.serial (toStream m1) (toStream m2))
+             (rstState st) stp sng yld
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -298,7 +300,9 @@ interleave m1 m2 = Stream $ \st stp sng yld -> do
 -- @since 0.2.0
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ interleave (toStream m1) (toStream m2)
+wSerial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+    unStream (interleave (toStream m1) (toStream m2))
+             (rstState st) stp sng yld
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial

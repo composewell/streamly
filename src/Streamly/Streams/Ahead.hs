@@ -634,7 +634,8 @@ instance IsStream AheadT where
 -- @since 0.3.0
 {-# INLINE ahead #-}
 ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-ahead m1 m2 = fromStream $ aheadS (toStream m1) (toStream m2)
+ahead m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+    unStream (aheadS (toStream m1) (toStream m2)) st stp sng yld
 
 instance MonadAsync m => Semigroup (AheadT m a) where
     (<>) = ahead

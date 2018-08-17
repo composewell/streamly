@@ -7,6 +7,9 @@
   stream.
 * Leftover threads are now cleaned up as soon as the SVar is garbage
   collected.
+* Fix passing of state across parallel, async, wAsync, ahead, serial, wSerial
+  combinators. Without this fix combinators that rely on state passing e.g.
+  `maxThreads` and `maxBuffer` won't work across these combinators.
 
 ### Enhancements
 

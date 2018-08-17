@@ -582,8 +582,9 @@ asyncS = joinStreamVarAsync AsyncVar
 -- @since 0.2.0
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-async m1 m2 = fromStream $
-    joinStreamVarAsync AsyncVar (toStream m1) (toStream m2)
+async m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+    unStream (joinStreamVarAsync AsyncVar (toStream m1) (toStream m2))
+             st stp sng yld
 
 -- | Same as 'async'.
 --
@@ -729,7 +730,8 @@ consMWAsync m r = K.yieldM m `wAsyncS` r
 -- @since 0.2.0
 {-# INLINE wAsync #-}
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-wAsync m1 m2 = fromStream $ wAsyncS (toStream m1) (toStream m2)
+wAsync m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+    unStream (wAsyncS (toStream m1) (toStream m2)) st stp sng yld
 
 -- | Wide async composition or async composition with breadth first traversal.
 -- The Semigroup instance of 'WAsyncT' concurrently /traverses/ the composed

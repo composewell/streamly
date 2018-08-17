@@ -117,7 +117,9 @@ consMParallel m r = K.yieldM m `parallelStream` r
 -- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallel m1 m2 = fromStream $ parallelStream (toStream m1) (toStream m2)
+parallel m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
+    unStream (parallelStream (toStream m1) (toStream m2))
+             st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Convert a stream to parallel
