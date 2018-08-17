@@ -119,7 +119,6 @@ import Data.IORef
 import Data.List ((\\))
 import Data.Maybe (fromJust)
 import Data.Set (Set)
-import Data.Word (Word64)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
@@ -143,7 +142,9 @@ import System.IO (hPutStrLn, stderr)
 import Text.Printf (printf)
 #endif
 
-newtype NanoSecs = NanoSecs Word64
+-- Always use signed arithmetic to avoid inadvertant overflows of signed values
+-- on conversion when comparing unsigned quantities with signed.
+newtype NanoSecs = NanoSecs Int64
     deriving ( Eq
              , Read
              , Show
