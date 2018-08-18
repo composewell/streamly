@@ -43,7 +43,7 @@ measureRate' desc t rate consumerDelay producerDelay dur = do
             $ t
             $ maxBuffer  (-1)
             $ maxThreads (-1)
-            $ maxRate rate
+            $ yieldRate rate
             $ S.take  (round $ rate * 10)
             $ S.repeatM $ do
                 let (t1, t2) = producerDelay
