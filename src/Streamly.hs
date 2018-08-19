@@ -112,7 +112,7 @@ module Streamly
     -- $concurrency
     , maxThreads
     , maxBuffer
-    , yieldRate
+    , rate
 
     -- * Folding Containers of Streams
     -- $foldutils
@@ -173,7 +173,7 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Parallel
 import Streamly.Streams.Zip
 import Streamly.Streams.Prelude
-import Streamly.Streams.SVar (maxThreads, maxBuffer, yieldRate)
+import Streamly.Streams.SVar (maxThreads, maxBuffer, rate)
 import Streamly.SVar (MonadAsync)
 import Data.Semigroup (Semigroup(..))
 

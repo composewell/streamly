@@ -30,8 +30,8 @@ measureRate' :: IsStream t
     -> (Double, Double)
     -> (Double, Double)
     -> Spec
-measureRate' desc t rate consumerDelay producerDelay dur = do
-    it (desc ++ " rate: " ++ show rate
+measureRate' desc t rval consumerDelay producerDelay dur = do
+    it (desc ++ " rate: " ++ show rval
              ++ ", consumer latency: " ++ show consumerDelay
              ++ ", producer latency: " ++ show producerDelay)
     $ durationShouldBe dur $ do
@@ -43,8 +43,8 @@ measureRate' desc t rate consumerDelay producerDelay dur = do
             $ t
             $ maxBuffer  (-1)
             $ maxThreads (-1)
-            $ yieldRate rate
-            $ S.take  (round $ rate * 10)
+            $ rate rval
+            $ S.take  (round $ rval * 10)
             $ S.repeatM $ do
                 let (t1, t2) = producerDelay
                 r <- if t1 == t2
@@ -69,9 +69,9 @@ measureRate :: IsStream t
     -> Int
     -> (Double, Double)
     -> Spec
-measureRate desc t rate consumerDelay producerDelay dur =
+measureRate desc t rval consumerDelay producerDelay dur =
     let d = fromIntegral producerDelay
-    in measureRate' desc t rate consumerDelay (d, d) dur
+    in measureRate' desc t rval consumerDelay (d, d) dur
 
 main :: IO ()
 main = hspec $ do

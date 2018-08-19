@@ -32,7 +32,7 @@ module Streamly.Streams.SVar
     , maxThreads
     , maxBuffer
     , maxYields
-    , yieldRate
+    , rate
     )
 where
 
@@ -198,13 +198,13 @@ maxBufferSerial _ = id
 -- * The maximum rate that the stream consumer can achieve
 --
 -- @since 0.5.0
-{-# INLINE_NORMAL yieldRate #-}
-yieldRate :: IsStream t => Double -> t m a -> t m a
-yieldRate n m = fromStream $ Stream $ \st stp sng yld -> do
+{-# INLINE_NORMAL rate #-}
+rate :: IsStream t => Double -> t m a -> t m a
+rate n m = fromStream $ Stream $ \st stp sng yld -> do
     unStream (toStream m) (setMaxStreamRate n st) stp sng yld
 
 {-
-{-# RULES "yieldRate serial" yieldRate = yieldRateSerial #-}
+{-# RULES "rate serial" rate = yieldRateSerial #-}
 yieldRateSerial :: Double -> SerialT m a -> SerialT m a
 yieldRateSerial _ = id
 -}
@@ -212,7 +212,7 @@ yieldRateSerial _ = id
 -- | Specify the average latency, in nanoseconds, of a single threaded action
 -- in a concurrent composition. Streamly can measure the latencies, but that is
 -- possible only after at least one task has completed. This combinator can be
--- used to provide a latency hint so that rate control using 'yieldRate' can take
+-- used to provide a latency hint so that rate control using 'rate' can take
 -- that into account right from the beginning. When not specified then a
 -- default behavior is chosen which could be too slow or too fast, and would be
 -- restricted by any other control parameters configured.
