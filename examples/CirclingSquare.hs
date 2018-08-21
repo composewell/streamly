@@ -9,8 +9,7 @@
 import Data.IORef
 import Graphics.UI.SDL as SDL
 import Streamly
-import Streamly.Prelude (yieldM)
-import Streamly.Time
+import Streamly.Prelude as S
 
 ------------------------------------------------------------------------------
 -- SDL Graphics Init
@@ -40,7 +39,7 @@ display (playerX, playerY) = do
 
   -- Paint small red square, at an angle 'angle' with respect to the center
   foreC <- mapRGB format 212 108 73
-  let side = 10
+  let side = 20
       x = round playerX
       y = round playerY
   _ <- fillRect screen (Just (Rect x y side side)) foreC
@@ -52,40 +51,34 @@ display (playerX, playerY) = do
 -- Wait and update Controller Position if it changes
 ------------------------------------------------------------------------------
 
-refreshRate :: Int
-refreshRate = 40
-
 updateController :: IORef (Double, Double) -> IO ()
-updateController ref = periodic refreshRate $ do
-  e <- pollEvent
-  case e of
-    MouseMotion x y _ _ -> do
-        writeIORef ref (fromIntegral x, fromIntegral y)
-    _ -> return ()
+updateController ref = do
+    e <- pollEvent
+    case e of
+        MouseMotion x y _ _ -> do
+            writeIORef ref (fromIntegral x, fromIntegral y)
+        _ -> return ()
 
 ------------------------------------------------------------------------------
 -- Periodically refresh the output display
 ------------------------------------------------------------------------------
 
 updateDisplay :: IORef (Double, Double) -> IO ()
-updateDisplay cref = withClock clock refreshRate displaySquare
+updateDisplay cref = do
+    time <- SDL.getTicks
+    (x, y) <- readIORef cref
+    let t = (fromIntegral time) * speed / 1000
+     in display (x + cos t * radius, y + sin t * radius)
 
     where
 
-    clock = do
-        t <- SDL.getTicks
-        return ((fromIntegral t) * 1000)
-
-    speed  = 8
-    radius = 30
-    displaySquare time = do
-        (x, y) <- readIORef cref
-        let t = (fromIntegral time) * speed / 1000000
-         in display (x + cos t * radius, y + sin t * radius)
+    speed  = 6
+    radius = 60
 
 main :: IO ()
 main = do
-  sdlInit
-  cref <- newIORef (0,0)
-  runStream $ yieldM (updateController cref)
-    `parallel` yieldM (updateDisplay cref)
+    sdlInit
+    cref <- newIORef (0,0)
+    runStream $ asyncly $ rate (Just $ ConstRate 40)
+        $ S.repeatM (updateController cref)
+              `parallel` S.repeatM (updateDisplay cref)

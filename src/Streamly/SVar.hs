@@ -40,8 +40,8 @@ module Streamly.SVar
     , setMaxThreads
     , getMaxBuffer
     , setMaxBuffer
-    , getMaxStreamRate
-    , setMaxStreamRate
+    , getStreamRate
+    , setStreamRate
     , setStreamLatency
     , getYieldLimit
     , setYieldLimit
@@ -72,6 +72,7 @@ module Streamly.SVar
     , dequeueAhead
     , dequeueFromHeap
 
+    , Rate (..)
     , getYieldRateInfo
     , collectLatency
     , workerUpdateLatency
@@ -234,9 +235,52 @@ data WorkerInfo = WorkerInfo
     , workerLatencyStart  :: IORef (Count, TimeSpec)
     }
 
+-- | Specify the stream yield rate.
+--
+-- @since 0.5.0
+data Rate =
+      AvgRate Double
+    -- ^ Specifies the average production rate of a stream in number of yields
+    -- per second (i.e.  @Hertz@).  Concurrent production is ramped up or down
+    -- automatically to achieve the specified average yield rate. The rate can
+    -- go down to half of the specified rate on the lower side and double of
+    -- the specified rate on the higher side.
+    | MinRate Double
+    -- ^ Specifies the minimum rate at which the stream should yield values. As
+    -- far as possible the yield rate would never be allowed to go below the
+    -- specified rate, even though it may possibly go above it at times, the
+    -- upper limit is double of the specified rate.
+    | MaxRate Double
+    -- ^ Specifies the maximum rate at which the stream should yield values. As
+    -- far as possible the yield rate would never be allowed to go above the
+    -- specified rate, even though it may possibly go below it at times, the
+    -- lower limit is half of the specified rate. This can be useful in
+    -- applications where certain resource usage must not be allowed to go
+    -- beyond certain limits.
+    | ConstRate Double
+     -- ^ Specifies a constant yield rate. If for some reason the actual rate
+     -- goes above or below the specified rate we do not try to recover it by
+     -- increasing or decreasing the rate in future.  This can be useful in
+     -- applications like graphics frame refresh where we need to maintain a
+     -- constant refresh rate.
+    | Rate Double Double Double
+    -- ^ This is the most general specification of the stream yield rate and
+    -- all the other specifications can be expressed in terms of this. The
+    -- first argument is the target rate, the second argument is the lower
+    -- limit and the third argument is the upper limit. We try to keep the
+    -- average rate at the target rate specified, if the actual rate goes above
+    -- or below we try to recover the rate by increasing or decreasing it in
+    -- future while keeping the maximum or minimum within the specified range.
+
+data LatencyRange = LatencyRange
+    { minLatency :: NanoSecs
+    , maxLatency :: NanoSecs
+    } deriving Show
+
 -- Rate control.
 data YieldRateInfo = YieldRateInfo
-    { svarExpectedLatency :: NanoSecs
+    { svarLatencyTarget :: NanoSecs
+    , svarLatencyRange  :: LatencyRange
 
     -- Actual latency/througput as seen from the consumer side, we count the
     -- yields and the time it took to generates those yields. This is used to
@@ -256,7 +300,7 @@ data YieldRateInfo = YieldRateInfo
     -- long time, in such cases the consumer can change it.
     -- 0 means no latency computation
     -- XXX this is derivable from workerMeasuredLatency, can be removed.
-    , workerLatencyUpdateInterval :: IORef Count
+    , workerPollingInterval :: IORef Count
 
     -- This is in progress latency stats maintained by the workers which we
     -- empty into workerCollectedLatency stats at certain intervals - whenever
@@ -355,8 +399,8 @@ data State t m a = State
     , _threadsHigh    :: Limit
     , _bufferHigh     :: Limit
     -- XXX these two can be collapsed into a single type
-    , _streamLatency  :: Maybe NanoSecs
-    , _maxStreamRate  :: Maybe Double -- yields per second
+    , _streamLatency  :: Maybe NanoSecs -- bootstrap latency
+    , _maxStreamRate  :: Maybe Rate
     }
 
 -------------------------------------------------------------------------------
@@ -444,18 +488,11 @@ setMaxBuffer n st =
 getMaxBuffer :: State t m a -> Limit
 getMaxBuffer = _bufferHigh
 
-setMaxStreamRate :: Double -> State t m a -> State t m a
-setMaxStreamRate n st =
-    st { _maxStreamRate =
-            if n < 0
-            then Nothing
-            else if n == 0
-                 then Nothing
-                 else Just n
-       }
+setStreamRate :: Maybe Rate -> State t m a -> State t m a
+setStreamRate r st = st { _maxStreamRate = r }
 
-getMaxStreamRate :: State t m a -> Maybe Double
-getMaxStreamRate = _maxStreamRate
+getStreamRate :: State t m a -> Maybe Rate
+getStreamRate = _maxStreamRate
 
 setStreamLatency :: Int -> State t m a -> State t m a
 setStreamLatency n st =
@@ -651,11 +688,13 @@ dumpSVar sv = do
         , "---------CURRENT STATE-----------"
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
+        -- XXX print the types of events in the outputQueue, first 5
         , "outputDoorBell = " ++ show db
         ]
         ++ aheadDump ++ unlines
         [ "needDoorBell = " ++ show waiting
         , "running threads = " ++ show rthread
+        -- XXX print the status of first 5 threads
         , "running thread count = " ++ show workers
         ]
         ++ "---------STATS-----------\n"
@@ -853,7 +892,8 @@ checkRatePeriodic :: SVar t m a
                   -> Count
                   -> IO Bool
 checkRatePeriodic sv yinfo winfo ycnt = do
-    i <- readIORef (workerLatencyUpdateInterval yinfo)
+    i <- readIORef (workerPollingInterval yinfo)
+    -- XXX use generation count to check if the interval has been updated
     if (i /= 0 && (ycnt `mod` i) == 0)
     then do
         workerUpdateLatency yinfo winfo
@@ -886,7 +926,7 @@ sendYield sv winfo msg = do
 {-# INLINE workerStopUpdate #-}
 workerStopUpdate :: WorkerInfo -> YieldRateInfo -> Int -> IO ()
 workerStopUpdate winfo info n = do
-    i <- readIORef (workerLatencyUpdateInterval info)
+    i <- readIORef (workerPollingInterval info)
     when (i /= 0) $ workerUpdateLatency info winfo
     when (n == 1) $ do
         t <- getTime Monotonic
@@ -1265,51 +1305,100 @@ minThreadDelay = 10^(6 :: Int)
 -- | Another magic number! When we have to start more workers to cover up a
 -- number of yields that we are lagging by then we cannot start one worker for
 -- each yield because that may be a very big number and if the latency of the
--- workers is low these number of yields could be very high. We use this number
--- as the duration in which we want to cover any lag. In other words we
--- accumulate the lag (lagging number of yields) such that it covers this much
--- duration for a single worker to produce those yields, before we start an
--- extra worker.
-coverUpLatency :: NanoSecs
-coverUpLatency = 1000000
+-- workers is low these number of yields could be very high. We assume that we
+-- run each extra worker for at least this much time.
+rateRecoveryTime :: NanoSecs
+rateRecoveryTime = 1000000
 
 nanoToMicroSecs :: NanoSecs -> Int
 nanoToMicroSecs s = (fromIntegral s) `div` 1000
 
--- XXX we can use phantom types to distinguish the duration/latency/expectedLat
-countDispatchWorkers
-    :: Limit -> Count -> NanoSecs -> NanoSecs -> NanoSecs -> Int
-countDispatchWorkers workerLimit svarYields svarElapsed wLatency expectedLat =
-    -- Calculate how many workers do we need to maintain the rate.
+-- We either block, or send one worker with limited yield count or one or more
+-- workers with unlimited yield count.
+data Work
+    = BlockWait NanoSecs
+    | PartialWorker Count
+    | ManyWorkers Int Count
+    deriving Show
 
-    -- XXX Increasing the workers may reduce the overall latency per
-    -- yield of the workers, sometimes quite a bit. We can keep a
-    -- latency histogram for 1,2,4..2^20 workers so that we can decide
-    -- which bucket is optimal and decide the number of workers based
-    -- on that.
-    --
-    -- XXX put a cap on extraworkers? Should not be more than nWorkers.
-    -- Bridge the gap slowly rather than in a burst in one go.
-    --
+-- XXX we can use phantom types to distinguish the duration/latency/expectedLat
+estimateWorkers
+    :: Limit
+    -> Count
+    -> NanoSecs
+    -> NanoSecs
+    -> NanoSecs
+    -> LatencyRange
+    -> Work
+estimateWorkers workerLimit svarYields svarElapsed wLatency targetLat range =
     -- XXX we can have a maxEfficiency combinator as well which runs the
     -- producer at the maximal efficiency i.e. the number of workers are chosen
     -- such that the latency is minimum or within a range. Or we can call it
     -- maxWorkerLatency.
     --
-    let nWorkers = (fromIntegral wLatency) / (fromIntegral expectedLat)
+    let
+        -- How many workers do we need to acheive the required rate?
+        --
+        -- When the workers are IO bound we can increase the throughput by
+        -- increasing the number of workers as long as the IO device has enough
+        -- capacity to process all the requests concurrently. If the IO
+        -- bandwidth is saturated increasing the workers won't help. Also, if
+        -- the CPU utilization in processing all these requests exceeds the CPU
+        -- bandwidth, then increasing the number of workers won't help.
+        --
+        -- When the workers are purely CPU bound, increasing the workers beyond
+        -- the number of CPUs won't help.
+        --
+        -- TODO - measure the CPU and IO requirements of the workers. Have a
+        -- way to specify the max bandwidth of the underlying IO mechanism and
+        -- use that to determine the max rate of workers, and also take the CPU
+        -- bandwidth into account. We can also discover the IO bandwidth if we
+        -- know that we are not CPU bound, then how much steady state rate are
+        -- we able to acheive. Design tests for CPU bound and IO bound cases.
+
         -- Calculate how many yields are we ahead or behind to match the exact
         -- required rate. Based on that we increase or decrease the effective
         -- workers.
-        d = fromIntegral svarElapsed
-        e = fromIntegral expectedLat
-        n = max 1 (fromIntegral coverUpLatency / fromIntegral wLatency)
-                :: Double
-        extraYields = (d / e) - (fromIntegral svarYields)
-        extraWorkers = extraYields / n
-        requiredWorkers = round $ nWorkers + extraWorkers
-    in case workerLimit of
-        Unlimited -> requiredWorkers
-        Limited x -> min requiredWorkers (fromIntegral x)
+        --
+        -- When the worker latency is lower than required latency we begin with
+        -- a yield and then wait rather than first waiting and then yielding.
+        targetYields = (svarElapsed + wLatency + targetLat - 1) `div` targetLat
+        deltaYields = fromIntegral targetYields - svarYields
+
+        -- We recover the deficit by running at a higher/lower rate for a
+        -- certain amount of time. To keep the effective rate in reasonable
+        -- limits we use rateRecoveryTime, minLatency and maxLatency.
+        in  if deltaYields > 0
+            then
+                let deltaYieldsFreq :: Double
+                    deltaYieldsFreq =
+                        fromIntegral deltaYields /
+                            fromIntegral rateRecoveryTime
+                    yieldsFreq = 1.0 / fromIntegral targetLat
+                    totalYieldsFreq = yieldsFreq + deltaYieldsFreq
+                    adjustedLat = NanoSecs $ round $ 1.0 / totalYieldsFreq
+                    requiredLat = min (max adjustedLat (minLatency range))
+                                      (maxLatency range)
+                in  assert (requiredLat > 0) $
+                    if wLatency <= requiredLat
+                    then PartialWorker deltaYields
+                    else ManyWorkers ( fromIntegral
+                                     $ withLimit
+                                     $ wLatency `div` requiredLat) deltaYields
+            else
+                let expectedDuration = (fromIntegral svarYields) * targetLat
+                    sleepTime = expectedDuration - svarElapsed
+                    maxSleepTime = maxLatency range - wLatency
+                    s = min sleepTime maxSleepTime
+                in assert (sleepTime >= 0) $
+                    -- if s is less than 0 it means our maxSleepTime is less
+                    -- than the worker latency.
+                    if (s > 0) then BlockWait s else ManyWorkers 1 (Count 0)
+    where
+        withLimit n =
+            case workerLimit of
+                Unlimited -> n
+                Limited x -> min n (fromIntegral x)
 
 -- | Get the worker latency without resetting workerPendingLatency
 -- Returns (total yield count, base time, measured latency)
@@ -1341,19 +1430,33 @@ isBeyondMaxRate sv yinfo = do
     (count, tstamp, wLatency) <- getWorkerLatency yinfo
     now <- getTime Monotonic
     let duration = fromInteger $ toNanoSecs $ now - tstamp
-    let expectedLat = svarExpectedLatency yinfo
-    let netWorkers = countDispatchWorkers (maxWorkerLimit sv) count duration
-                                          wLatency expectedLat
+    let targetLat = svarLatencyTarget yinfo
+    let work = estimateWorkers (maxWorkerLimit sv) count duration wLatency
+                               targetLat (svarLatencyRange yinfo)
     cnt <- readIORef $ workerCount sv
-    if netWorkers <= 0
-    then do
-        let sleepTime = ((fromIntegral count) * expectedLat) - duration
-        if sleepTime >= minThreadDelay
-        then return True
-        else return False
-    else if cnt > netWorkers
-         then return True
-         else return False
+    return $ case work of
+        -- XXX set the worker's maxYields or polling interval based on yields
+        PartialWorker _yields -> cnt > 1
+        ManyWorkers n _ -> cnt > n
+        BlockWait _ -> True
+
+-- Every once in a while workers update the latencies and check the yield rate.
+-- They return if we are above the expected yield rate. If we check too often
+-- it may impact performance, if we check less often we may have a stale
+-- picture. We update every minThreadDelay but we translate that into a yield
+-- count based on latency so that the checking overhead is little.
+--
+-- XXX use a generation count to indicate that the value is updated. If the
+-- value is updated an existing worker must check it again on the next yield.
+-- Otherwise it is possible that we may keep updating it and because of the mod
+-- worker keeps skipping it.
+updateWorkerPollingInterval :: YieldRateInfo -> NanoSecs -> IO ()
+updateWorkerPollingInterval yinfo latency = do
+    let periodRef = workerPollingInterval yinfo
+        cnt = max 1 $ minThreadDelay `div` latency
+        period = min cnt (fromIntegral magicMaxBuffer)
+
+    writeIORef periodRef (fromIntegral period)
 
 useCollectedBatch :: YieldRateInfo
                   -> NanoSecs
@@ -1361,14 +1464,10 @@ useCollectedBatch :: YieldRateInfo
                   -> IORef NanoSecs
                   -> IO ()
 useCollectedBatch yinfo latency colRef measRef = do
-    let periodRef = workerLatencyUpdateInterval yinfo
-        cnt = max 1 $ minThreadDelay `div` latency
-        period = min cnt (fromIntegral magicMaxBuffer)
-
+    updateWorkerPollingInterval yinfo latency
+    writeIORef colRef (0, 0)
     -- XXX we should use some weight for the old latency as well in arriving at
     -- the new latency, we have the counts, we can use that for some weighting.
-    writeIORef periodRef (fromIntegral period)
-    writeIORef colRef (0, 0)
     writeIORef measRef latency
 
 -- Returns a triple, (1) yield count since last collection, (2) the base time
@@ -1467,50 +1566,75 @@ dispatchWorkerPaced sv = do
     then return False
     else do
         let workerLimit = maxWorkerLimit sv
-        let expectedLat = svarExpectedLatency yinfo
-        let netWorkers = countDispatchWorkers
-                            workerLimit svarYields svarElapsed
-                            wLatency expectedLat
+        let targetLat = svarLatencyTarget yinfo
+        let range = svarLatencyRange yinfo
+        let work = estimateWorkers workerLimit svarYields svarElapsed
+                                   wLatency targetLat range
 
         -- XXX we need to take yieldLimit into account here. If we are at the
         -- end of the limit as well as the time, we should not be sleeping.
         -- If we are not actually planning to dispatch any more workers we need
         -- to take that in account.
-        if netWorkers <= 0
-        then do
-            let expectedDuration = (fromIntegral svarYields) * expectedLat
-            let sleepTime = expectedDuration - svarElapsed
+        case work of
+            BlockWait s -> do
+                assert (s >= 0) (return ())
+                -- XXX note that when we return from here we will block waiting
+                -- for the result from the existing worker. If that takes too
+                -- long we won't be able to send another worker until the
+                -- result arrives.
+                --
+                -- Sleep only if there are no active workers, otherwise we will
+                -- defer the output of those. Note we cannot use workerCount
+                -- here as it is not a reliable way to ensure there are
+                -- definitely no active workers. When workerCount is 0 we may
+                -- still have a Stop event waiting in the outputQueue.
+                done <- allThreadsDone sv
+                when done $ void $ do
+                    liftIO $ threadDelay $ nanoToMicroSecs s
+                    dispatchWorker 1 sv
+                return False
+            PartialWorker yields -> do
+                assert (yields > 0) (return ())
+                done <- allThreadsDone sv
+                when done $ void $ dispatchWorker yields sv
+                return False
+            ManyWorkers netWorkers yields -> do
+                assert (netWorkers >= 1) (return ())
+                assert (yields >= 0) (return ())
 
-            when (sleepTime >= minThreadDelay) $ do
-                liftIO $ threadDelay $ nanoToMicroSecs sleepTime
+                let periodRef = workerPollingInterval yinfo
+                    ycnt = max 1 $ yields `div` fromIntegral netWorkers
+                    period = min ycnt (fromIntegral magicMaxBuffer)
 
-            cnt <- liftIO $ readIORef $ workerCount sv
-            when (cnt < 1) $ void $ do
-                let n = countDispatchYields (expectedLat - wLatency)
-                 in dispatchWorker (fromIntegral (max n 1)) sv
-            return False
-        else do
-            -- XXX stagger the workers over a period
-            cnt <- liftIO $ readIORef $ workerCount sv
-            if (cnt < netWorkers)
-            then dispatchWorker 0 sv
-            else return False
+                old <- liftIO $ readIORef periodRef
+                when (period < old) $
+                    liftIO $ writeIORef periodRef period
+
+                cnt <- liftIO $ readIORef $ workerCount sv
+                if (cnt < netWorkers)
+                then do
+                    let total = netWorkers - cnt
+                        batch = max 1 $ fromIntegral $
+                                    minThreadDelay `div` targetLat
+                    r <- dispatchN (min total batch)
+                    -- XXX stagger the workers over a period?
+                    -- XXX cannot sleep, as that would mean we cannot process the
+                    -- outputs. need to try a different mechanism to stagger.
+                    -- when (total > batch) $
+                       -- liftIO $ threadDelay $ nanoToMicroSecs minThreadDelay
+                    return r
+                else return False
 
     where
 
-    countDispatchYields :: NanoSecs -> Int
-    countDispatchYields idleTime =
-        assert (idleTime >= 0) $
-        -- we do not want to sleep for less than minThreadDelay
-        let maxYieldsPerWorker = fromIntegral magicMaxBuffer
-         in if idleTime < minThreadDelay
-            then
-                if idleTime == 0
-                then maxYieldsPerWorker
-                else
-                    let n = (minThreadDelay + idleTime) `div` idleTime
-                     in min (fromIntegral n) maxYieldsPerWorker
-            else 1
+    dispatchN n = do
+        if n == 0
+        then return True
+        else do
+            r <- dispatchWorker 0 sv
+            if r
+            then dispatchN (n - 1)
+            else return False
 
 sendWorkerDelayPaced :: SVar t m a -> IO ()
 sendWorkerDelayPaced _ = return ()
@@ -1540,7 +1664,7 @@ sendWorkerWait
 sendWorkerWait delay dispatch sv = do
     -- Note that we are guaranteed to have at least one outstanding worker when
     -- we enter this function. So if we sleep we are guaranteed to be woken up
-    -- by a outputDoorBell, when the worker exits.
+    -- by an outputDoorBell, when the worker exits.
 
     liftIO $ delay sv
     (_, n) <- liftIO $ readIORef (outputQueue sv)
@@ -1680,8 +1804,10 @@ postProcessBounded sv = do
     if workersDone
     then do
         r <- liftIO $ isWorkDone sv
-        -- XXX do we need to dispatch many here?
+        -- Note that we need to guarantee a worker, therefore we cannot just
+        -- use dispatchWorker which may or may not send a worker.
         when (not r) $ pushWorker 0 sv
+        -- XXX do we need to dispatch many here?
         -- void $ dispatchWorker sv
         return r
     else return False
@@ -1699,33 +1825,62 @@ postProcessPaced sv = do
             let yinfo = fromJust $ yieldRateInfo sv
             liftIO $ adjustLatencies yinfo
             void $ dispatchWorkerPaced sv
+            -- Note that we need to guarantee a worker since the work is not
+            -- finished, therefore we cannot just rely on dispatchWorkerPaced
+            -- which may or may not send a worker.
+            noWorker <- allThreadsDone sv
+            when noWorker $ pushWorker 0 sv
         return r
     else return False
 
 getYieldRateInfo :: State t m a -> IO (Maybe YieldRateInfo)
 getYieldRateInfo st = do
-    case getMaxStreamRate st of
-        Just rate -> do
-            let latency = round $ 1.0e9 / rate
-            measured <- newIORef 0
-            wcur     <- newIORef (0,0)
-            wcol     <- newIORef (0,0)
-            now      <- getTime Monotonic
-            wlong    <- newIORef (0,now)
-            period   <- newIORef 1
-            stopTime <- newIORef $ fromNanoSecs 0
-
-            return $ Just YieldRateInfo
-                { svarExpectedLatency   = latency
-                , workerBootstrapLatency = getStreamLatency st
-                , workerLatencyUpdateInterval    = period
-                , workerMeasuredLatency  = measured
-                , workerPendingLatency   = wcur
-                , workerStopTimeStamp    = stopTime
-                , workerCollectedLatency = wcol
-                , svarAllTimeLatency  = wlong
-                }
+    let toLatency r = if r <= 0 then maxBound else round $ 1.0e9 / r
+        toMaxLatency r = if r <= 0 then maxBound else r
+    case getStreamRate st of
+        Just (AvgRate rate) ->
+            let l = toLatency rate
+                mx = toMaxLatency (l * 2)
+            in mkYieldRateInfo l (LatencyRange (l `div` 2) mx)
+        Just (MinRate rate) ->
+            let l = toLatency rate
+            in mkYieldRateInfo l (LatencyRange (l `div` 2) l)
+        Just (MaxRate rate) ->
+            let l = toLatency rate
+                mx = toMaxLatency (l * 2)
+            in mkYieldRateInfo l (LatencyRange l mx)
+        Just (ConstRate rate) ->
+            let l = toLatency rate
+            in mkYieldRateInfo l (LatencyRange l l)
+        Just (Rate rate minr maxr) ->
+            let l = toLatency rate
+                minl = toLatency minr
+                maxl = toLatency maxr
+            in mkYieldRateInfo l (LatencyRange minl maxl)
         Nothing -> return Nothing
+
+    where
+
+    mkYieldRateInfo latency latRange = do
+        measured <- newIORef 0
+        wcur     <- newIORef (0,0)
+        wcol     <- newIORef (0,0)
+        now      <- getTime Monotonic
+        wlong    <- newIORef (0,now)
+        period   <- newIORef 1
+        stopTime <- newIORef $ fromNanoSecs 0
+
+        return $ Just YieldRateInfo
+            { svarLatencyTarget      = latency
+            , svarLatencyRange       = latRange
+            , workerBootstrapLatency = getStreamLatency st
+            , workerPollingInterval  = period
+            , workerMeasuredLatency  = measured
+            , workerPendingLatency   = wcur
+            , workerStopTimeStamp    = stopTime
+            , workerCollectedLatency = wcol
+            , svarAllTimeLatency     = wlong
+            }
 
 getAheadSVar :: MonadAsync m
     => State t m a
@@ -1801,7 +1956,7 @@ getAheadSVar st f = do
             }
 
     let sv =
-            case getMaxStreamRate st of
+            case getStreamRate st of
                 Nothing -> getSVar sv readOutputQBounded postProcessBounded
                 Just _  -> getSVar sv readOutputQPaced postProcessPaced
      in return sv
@@ -1909,7 +2064,10 @@ sendFirstWorker sv m = do
     liftIO $ enqueue sv m
     case yieldRateInfo sv of
         Nothing -> pushWorker 0 sv
-        Just _  -> pushWorker 1 sv
+        Just yinfo  -> do
+            if svarLatencyTarget yinfo == maxBound
+            then liftIO $ threadDelay maxBound
+            else pushWorker 1 sv
     return sv
 
 {-# INLINABLE newAheadVar #-}

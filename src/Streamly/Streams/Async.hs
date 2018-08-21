@@ -329,7 +329,7 @@ getLifoSVar st = do
             }
 
     let sv =
-            case getMaxStreamRate st of
+            case getStreamRate st of
                 Nothing ->
                     case getYieldLimit st of
                         Nothing -> getSVar sv readOutputQBounded
@@ -427,7 +427,7 @@ getFifoSVar st = do
              }
 
     let sv =
-            case getMaxStreamRate st of
+            case getStreamRate st of
                 Nothing ->
                     case getYieldLimit st of
                         Nothing -> getSVar sv readOutputQBounded

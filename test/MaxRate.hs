@@ -43,7 +43,7 @@ measureRate' desc t rval consumerDelay producerDelay dur = do
             $ t
             $ maxBuffer  (-1)
             $ maxThreads (-1)
-            $ rate rval
+            $ rate (Just $ AvgRate rval)
             $ S.take  (round $ rval * 10)
             $ S.repeatM $ do
                 let (t1, t2) = producerDelay
@@ -77,8 +77,10 @@ main :: IO ()
 main = hspec $ do
     let range = (8,12)
 
-    -- XXX very low rates (e.g. 0.1) fail because we introduce the delay
-    -- after yield and not before.
+    -- Note that because after the last yield we don't wait, the last period
+    -- will be effectively shorter. This becomes significant when the rates are
+    -- lower (1 or lower). For rate 1 we lose 1 second in the end and for rate
+    -- 10 0.1 second.
     let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
      in describe "asyncly no consumer delay no producer delay" $ do
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 0 range)
@@ -88,6 +90,8 @@ main = hspec $ do
      in describe "asyncly no consumer delay and 1 sec producer delay" $ do
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 1 range)
 
+    -- At lower rates (1/10) this is likely to vary quite a bit depending on
+    -- the spread of random producer latencies generated.
     let rates = [1, 10, 100, 1000, 10000, 25000]
      in describe "asyncly no consumer delay and variable producer delay" $ do
             forM_ rates $ \r ->

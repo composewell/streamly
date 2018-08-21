@@ -4,16 +4,15 @@
 -- https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html
 
 import Streamly
-import Control.Concurrent (threadDelay)
+import Streamly.Prelude as S
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT)
-import Data.Semigroup (cycle1)
 
 data Event = Harm Int | Heal Int | Quit deriving (Show)
 
-userAction :: MonadIO m => SerialT m Event
-userAction = cycle1 $ liftIO askUser
+userAction :: MonadAsync m => SerialT m Event
+userAction = S.repeatM $ liftIO askUser
     where
     askUser = do
         command <- getLine
@@ -22,8 +21,9 @@ userAction = cycle1 $ liftIO askUser
             "quit"   -> return  Quit
             _        -> putStrLn "What?" >> askUser
 
-acidRain :: MonadIO m => SerialT m Event
-acidRain = cycle1 $ liftIO (threadDelay 1000000) >> return (Harm 1)
+acidRain :: MonadAsync m => SerialT m Event
+acidRain = asyncly $ rate (Just $ ConstRate 1) $
+    S.repeatM $ liftIO $ return $ Harm 1
 
 game :: (MonadAsync m, MonadState Int m) => SerialT m ()
 game = do

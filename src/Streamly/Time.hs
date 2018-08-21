@@ -10,6 +10,9 @@
 -- Time utilities for reactive programming.
 
 module Streamly.Time
+{-# DEPRECATED
+   "Please use the \"rate\" combinator instead of the functions in this module"
+  #-}
     ( periodic
     , withClock
     )
@@ -22,6 +25,7 @@ import Control.Concurrent (threadDelay)
 -- second (Hz).
 --
 -- @since 0.1.0
+{-# DEPRECATED periodic "Please use the \"rate\" combinator instead" #-}
 periodic :: Int -> IO () -> IO ()
 periodic freq action = do
     action
@@ -37,6 +41,7 @@ periodic freq action = do
 -- local time as an argument.
 --
 -- @since 0.1.0
+{-# DEPRECATED withClock "Please use the \"rate\" combinator instead" #-}
 withClock :: IO Int -> Int -> (Int -> IO ()) -> IO ()
 withClock clock freq action = do
     t <- clock

@@ -184,13 +184,14 @@ maxBufferSerial :: Int -> SerialT m a -> SerialT m a
 maxBufferSerial _ = id
 -}
 
--- | Specify the maximum average pull rate in number of yields per second (i.e.
--- @Hertz@) which the consumer of the stream cannot exceed. A value of 0 resets
--- the rate to default, a negative value means there is no limit. The default
--- value is no limit.
--- Concurrent production is ramped up or down automatically to achieve the
--- specified yield rate. However, the effective maximum production rate
--- achieved by a stream is governed by:
+-- | Specify the pull rate of a stream in number of yields per second
+-- (i.e.  @Hertz@). A 'Nothing' value resets the rate to default which is
+-- unlimited. If the specified rate is 0 or negative the stream never yields a
+-- value.
+-- When the rate is specified, concurrent production may be ramped up or down
+-- automatically to achieve the specified yield rate. The specific behavior for
+-- different styles of 'Rate' specifications is documented under 'Rate'.  The
+-- effective maximum production rate achieved by a stream is governed by:
 --
 -- * The 'maxThreads' limit
 -- * The 'maxBuffer' limit
@@ -199,9 +200,16 @@ maxBufferSerial _ = id
 --
 -- @since 0.5.0
 {-# INLINE_NORMAL rate #-}
-rate :: IsStream t => Double -> t m a -> t m a
-rate n m = fromStream $ Stream $ \st stp sng yld -> do
-    unStream (toStream m) (setMaxStreamRate n st) stp sng yld
+rate :: IsStream t => Maybe Rate -> t m a -> t m a
+rate r m = fromStream $ Stream $ \st stp sng yld -> do
+    case r of
+        Just (Rate rt minr _) | rt < minr ->
+            error "rate: Target rate cannot be lower than minimum rate."
+        Just (Rate rt _ maxr) | rt > maxr ->
+            error "rate: Target rate cannot be greater than maximum rate."
+        Just (Rate _ minr maxr) | minr > maxr ->
+            error "rate: Minimum rate cannot be greater than maximum rate."
+        _ -> unStream (toStream m) (setStreamRate r st) stp sng yld
 
 {-
 {-# RULES "rate serial" rate = yieldRateSerial #-}
