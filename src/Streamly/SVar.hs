@@ -585,7 +585,8 @@ drainLatency _ss yinfo = do
         when (new > maxLat) $ writeIORef (maxWorkerLatency _ss) new
 #endif
         -- To avoid minor fluctuations update in batches
-        useCollectedBatch yinfo new col measured
+        writeIORef col (0, 0)
+        writeIORef measured new
 #ifdef DIAGNOSTICS
         modifyIORef (avgWorkerLatency _ss) $
             \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
@@ -1376,15 +1377,15 @@ estimateWorkers workerLimit svarYields svarElapsed wLatency targetLat range =
                             fromIntegral rateRecoveryTime
                     yieldsFreq = 1.0 / fromIntegral targetLat
                     totalYieldsFreq = yieldsFreq + deltaYieldsFreq
-                    adjustedLat = NanoSecs $ round $ 1.0 / totalYieldsFreq
-                    requiredLat = min (max adjustedLat (minLatency range))
+                    requiredLat = NanoSecs $ round $ 1.0 / totalYieldsFreq
+                    adjustedLat = min (max requiredLat (minLatency range))
                                       (maxLatency range)
-                in  assert (requiredLat > 0) $
-                    if wLatency <= requiredLat
+                in  assert (adjustedLat > 0) $
+                    if wLatency <= adjustedLat
                     then PartialWorker deltaYields
                     else ManyWorkers ( fromIntegral
                                      $ withLimit
-                                     $ wLatency `div` requiredLat) deltaYields
+                                     $ wLatency `div` adjustedLat) deltaYields
             else
                 let expectedDuration = (fromIntegral svarYields) * targetLat
                     sleepTime = expectedDuration - svarElapsed
@@ -1402,7 +1403,7 @@ estimateWorkers workerLimit svarYields svarElapsed wLatency targetLat range =
 
 -- | Get the worker latency without resetting workerPendingLatency
 -- Returns (total yield count, base time, measured latency)
--- CAUTION! keep it in sync with collectLatency and useCollectedBatch
+-- CAUTION! keep it in sync with collectLatency
 getWorkerLatency :: YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
 getWorkerLatency yinfo  = do
     let cur      = workerPendingLatency yinfo
@@ -1458,18 +1459,6 @@ updateWorkerPollingInterval yinfo latency = do
 
     writeIORef periodRef (fromIntegral period)
 
-useCollectedBatch :: YieldRateInfo
-                  -> NanoSecs
-                  -> IORef (Count, NanoSecs)
-                  -> IORef NanoSecs
-                  -> IO ()
-useCollectedBatch yinfo latency colRef measRef = do
-    updateWorkerPollingInterval yinfo latency
-    writeIORef colRef (0, 0)
-    -- XXX we should use some weight for the old latency as well in arriving at
-    -- the new latency, we have the counts, we can use that for some weighting.
-    writeIORef measRef latency
-
 -- Returns a triple, (1) yield count since last collection, (2) the base time
 -- when we started counting, (3) average latency in the last measurement
 -- period. The former two are used for accurate measurement of the going rate
@@ -1514,7 +1503,9 @@ collectLatency _ss yinfo = do
                  in prev > 0 && (r > 2 || r < 0.5))
             || (prev == 0)
         then do
-            useCollectedBatch yinfo new col measured
+            updateWorkerPollingInterval yinfo (max new prev)
+            writeIORef col (0, 0)
+            writeIORef measured ((prev + new) `div` 2)
 #ifdef DIAGNOSTICS
             modifyIORef (avgWorkerLatency _ss) $
                 \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
@@ -1526,12 +1517,14 @@ collectLatency _ss yinfo = do
             return $ tripleWith prev
     else return $ tripleWith prev
 
+-- This takes away the time when the producer is idle because the consumer
+-- not consuming or consuming slowly.
 adjustLatencies :: YieldRateInfo -> IO ()
 adjustLatencies yinfo = do
     let longTerm = svarAllTimeLatency yinfo
     t0 <- readIORef (workerStopTimeStamp yinfo)
     t1 <- getTime Monotonic
-    modifyIORef longTerm $ \(c, t) -> (c, t + t1 - t0)
+    modifyIORef longTerm $ \(cnt, time) -> (cnt, time + t1 - t0)
     return ()
 
 -- XXX in case of ahead style stream we need to take the heap size into account
@@ -1835,27 +1828,29 @@ postProcessPaced sv = do
 
 getYieldRateInfo :: State t m a -> IO (Maybe YieldRateInfo)
 getYieldRateInfo st = do
-    let toLatency r = if r <= 0 then maxBound else round $ 1.0e9 / r
-        toMaxLatency r = if r <= 0 then maxBound else r
+    let -- convert rate in Hertz to latency in Nanoseconds
+        rateToLatency r = if r <= 0 then maxBound else round $ 1.0e9 / r
+        -- handle overflowed latency value
+        toMaxLatency l = if l <= 0 then maxBound else l
     case getStreamRate st of
         Just (AvgRate rate) ->
-            let l = toLatency rate
+            let l = rateToLatency rate
                 mx = toMaxLatency (l * 2)
             in mkYieldRateInfo l (LatencyRange (l `div` 2) mx)
         Just (MinRate rate) ->
-            let l = toLatency rate
+            let l = rateToLatency rate
             in mkYieldRateInfo l (LatencyRange (l `div` 2) l)
         Just (MaxRate rate) ->
-            let l = toLatency rate
+            let l = rateToLatency rate
                 mx = toMaxLatency (l * 2)
             in mkYieldRateInfo l (LatencyRange l mx)
         Just (ConstRate rate) ->
-            let l = toLatency rate
+            let l = rateToLatency rate
             in mkYieldRateInfo l (LatencyRange l l)
         Just (Rate rate minr maxr) ->
-            let l = toLatency rate
-                minl = toLatency minr
-                maxl = toLatency maxr
+            let l = rateToLatency rate
+                minl = rateToLatency maxr
+                maxl = rateToLatency minr
             in mkYieldRateInfo l (LatencyRange minl maxl)
         Nothing -> return Nothing
 

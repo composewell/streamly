@@ -129,8 +129,8 @@ main = do
         , benchSrcIO asyncly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
       -- XXX arbitrarily large maxRate should be the same as maxRate -1
-        , benchSrcIO asyncly "unfoldrM maxRate 1000000"
-            (maxRate 1000000 . Ops.sourceUnfoldrM)
+        , benchSrcIO asyncly "unfoldrM rate AvgRate 1000000"
+            (rate (Just $ MaxRate 1000000) . Ops.sourceUnfoldrM)
         , benchSrcIO asyncly "unfoldrM maxBuffer 1 (1000 ops)"
             (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         -- , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
@@ -156,8 +156,8 @@ main = do
         , benchSrcIO aheadly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
       -- XXX arbitrarily large maxRate should be the same as maxRate -1
-        , benchSrcIO aheadly "unfoldrM maxRate 1000000"
-            (maxRate 1000000 . Ops.sourceUnfoldrM)
+        , benchSrcIO aheadly "unfoldrM rate AvgRate 1000000"
+            (rate (Just $ AvgRate 1000000) . Ops.sourceUnfoldrM)
         , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
             (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
