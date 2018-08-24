@@ -693,7 +693,7 @@ main = hspec
     let makeOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
-            , ("rate AvgRate 10000", t . rate (Just $ AvgRate 10000))
+            , ("rate AvgRate 10000", t . avgRate 10000)
             , ("rate Nothing", t . rate Nothing)
             , ("maxBuffer 0", t . maxBuffer 0)
             , ("maxBuffer 1", t . maxBuffer 1)
@@ -707,13 +707,13 @@ main = hspec
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ (makeOps serially)
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", serially . rate (Just $ AvgRate 0.00000001))]
+            ++ [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
             ++ [("maxBuffer -1", serially . maxBuffer (-1))]
 #endif
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
         wSerialOps spec = mapOps spec $ makeOps wSerially
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", wSerially . rate (Just $ AvgRate 0.00000001))]
+            ++ [("rate AvgRate 0.00000001", wSerially . avgRate 0.00000001)]
             ++ [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
 #endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
@@ -734,13 +734,13 @@ main = hspec
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps spec = mapOps spec $ makeOps parallely
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", parallely . rate (Just $ AvgRate 0.00000001))]
+            ++ [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
             ++ [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
     let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps spec = mapOps spec $ makeOps zipSerially
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", zipSerially . rate (Just $ AvgRate 0.00000001))]
+            ++ [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
             ++ [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
 #endif
     -- Note, the "pure" of applicative Zip streams generates and infinite

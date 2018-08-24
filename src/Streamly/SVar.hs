@@ -235,42 +235,17 @@ data WorkerInfo = WorkerInfo
     , workerLatencyStart  :: IORef (Count, TimeSpec)
     }
 
--- | Specify the stream yield rate.
+-- | Specify the stream yield rate in yields per second (@Hertz@).  We try to
+-- keep the average rate at 'rateGoal', if the actual average rate goes above
+-- or below the goal we try to recover it by increasing or decreasing the
+-- instantaneous rate but keeping it within 'rateLow' and 'rateHigh' limits.
 --
 -- @since 0.5.0
-data Rate =
-      AvgRate Double
-    -- ^ Specifies the average production rate of a stream in number of yields
-    -- per second (i.e.  @Hertz@).  Concurrent production is ramped up or down
-    -- automatically to achieve the specified average yield rate. The rate can
-    -- go down to half of the specified rate on the lower side and double of
-    -- the specified rate on the higher side.
-    | MinRate Double
-    -- ^ Specifies the minimum rate at which the stream should yield values. As
-    -- far as possible the yield rate would never be allowed to go below the
-    -- specified rate, even though it may possibly go above it at times, the
-    -- upper limit is double of the specified rate.
-    | MaxRate Double
-    -- ^ Specifies the maximum rate at which the stream should yield values. As
-    -- far as possible the yield rate would never be allowed to go above the
-    -- specified rate, even though it may possibly go below it at times, the
-    -- lower limit is half of the specified rate. This can be useful in
-    -- applications where certain resource usage must not be allowed to go
-    -- beyond certain limits.
-    | ConstRate Double
-     -- ^ Specifies a constant yield rate. If for some reason the actual rate
-     -- goes above or below the specified rate we do not try to recover it by
-     -- increasing or decreasing the rate in future.  This can be useful in
-     -- applications like graphics frame refresh where we need to maintain a
-     -- constant refresh rate.
-    | Rate Double Double Double
-    -- ^ This is the most general specification of the stream yield rate and
-    -- all the other specifications can be expressed in terms of this. The
-    -- first argument is the target rate, the second argument is the lower
-    -- limit and the third argument is the upper limit. We try to keep the
-    -- average rate at the target rate specified, if the actual rate goes above
-    -- or below we try to recover the rate by increasing or decreasing it in
-    -- future while keeping the maximum or minimum within the specified range.
+data Rate = Rate
+    { rateLow  :: Double -- ^ The lower rate limit
+    , rateGoal :: Double -- ^ The target rate we want to achieve
+    , rateHigh :: Double -- ^ The upper rate limit
+    }
 
 data LatencyRange = LatencyRange
     { minLatency :: NanoSecs
@@ -1828,29 +1803,13 @@ postProcessPaced sv = do
 
 getYieldRateInfo :: State t m a -> IO (Maybe YieldRateInfo)
 getYieldRateInfo st = do
-    let -- convert rate in Hertz to latency in Nanoseconds
-        rateToLatency r = if r <= 0 then maxBound else round $ 1.0e9 / r
-        -- handle overflowed latency value
-        toMaxLatency l = if l <= 0 then maxBound else l
+    -- convert rate in Hertz to latency in Nanoseconds
+    let rateToLatency r = if r <= 0 then maxBound else round $ 1.0e9 / r
     case getStreamRate st of
-        Just (AvgRate rate) ->
-            let l = rateToLatency rate
-                mx = toMaxLatency (l * 2)
-            in mkYieldRateInfo l (LatencyRange (l `div` 2) mx)
-        Just (MinRate rate) ->
-            let l = rateToLatency rate
-            in mkYieldRateInfo l (LatencyRange (l `div` 2) l)
-        Just (MaxRate rate) ->
-            let l = rateToLatency rate
-                mx = toMaxLatency (l * 2)
-            in mkYieldRateInfo l (LatencyRange l mx)
-        Just (ConstRate rate) ->
-            let l = rateToLatency rate
-            in mkYieldRateInfo l (LatencyRange l l)
-        Just (Rate rate minr maxr) ->
-            let l = rateToLatency rate
-                minl = rateToLatency maxr
-                maxl = rateToLatency minr
+        Just (Rate low goal high) ->
+            let l    = rateToLatency goal
+                minl = rateToLatency high
+                maxl = rateToLatency low
             in mkYieldRateInfo l (LatencyRange minl maxl)
         Nothing -> return Nothing
 

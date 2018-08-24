@@ -33,6 +33,10 @@ module Streamly.Streams.SVar
     , maxBuffer
     , maxYields
     , rate
+    , avgRate
+    , minRate
+    , maxRate
+    , constRate
     )
 where
 
@@ -203,11 +207,11 @@ maxBufferSerial _ = id
 rate :: IsStream t => Maybe Rate -> t m a -> t m a
 rate r m = fromStream $ Stream $ \st stp sng yld -> do
     case r of
-        Just (Rate rt minr _) | rt < minr ->
+        Just (Rate low goal _) | goal < low ->
             error "rate: Target rate cannot be lower than minimum rate."
-        Just (Rate rt _ maxr) | rt > maxr ->
+        Just (Rate _ goal high) | goal > high ->
             error "rate: Target rate cannot be greater than maximum rate."
-        Just (Rate _ minr maxr) | minr > maxr ->
+        Just (Rate low _ high) | low > high ->
             error "rate: Minimum rate cannot be greater than maximum rate."
         _ -> unStream (toStream m) (setStreamRate r st) stp sng yld
 
@@ -216,6 +220,54 @@ rate r m = fromStream $ Stream $ \st stp sng yld -> do
 yieldRateSerial :: Double -> SerialT m a -> SerialT m a
 yieldRateSerial _ = id
 -}
+
+-- | Same as @rate (Just $ Rate (r/2) r (2*r))@
+--
+-- Specifies the average production rate of a stream in number of yields
+-- per second (i.e.  @Hertz@).  Concurrent production is ramped up or down
+-- automatically to achieve the specified average yield rate. The rate can
+-- go down to half of the specified rate on the lower side and double of
+-- the specified rate on the higher side.
+--
+-- @since 0.5.0
+avgRate :: IsStream t => Double -> t m a -> t m a
+avgRate r = rate (Just $ Rate (r/2) r (2*r))
+
+-- | Same as @rate (Just $ Rate r r (2*r))@
+--
+-- Specifies the minimum rate at which the stream should yield values. As
+-- far as possible the yield rate would never be allowed to go below the
+-- specified rate, even though it may possibly go above it at times, the
+-- upper limit is double of the specified rate.
+--
+-- @since 0.5.0
+minRate :: IsStream t => Double -> t m a -> t m a
+minRate r = rate (Just $ Rate r r (2*r))
+
+-- | Same as @rate (Just $ Rate (r/2) r r)@
+--
+-- Specifies the maximum rate at which the stream should yield values. As
+-- far as possible the yield rate would never be allowed to go above the
+-- specified rate, even though it may possibly go below it at times, the
+-- lower limit is half of the specified rate. This can be useful in
+-- applications where certain resource usage must not be allowed to go
+-- beyond certain limits.
+--
+-- @since 0.5.0
+maxRate :: IsStream t => Double -> t m a -> t m a
+maxRate r = rate (Just $ Rate (r/2) r r)
+
+-- | Same as @rate (Just $ Rate r r r)@
+--
+-- Specifies a constant yield rate. If for some reason the actual rate
+-- goes above or below the specified rate we do not try to recover it by
+-- increasing or decreasing the rate in future.  This can be useful in
+-- applications like graphics frame refresh where we need to maintain a
+-- constant refresh rate.
+--
+-- @since 0.5.0
+constRate :: IsStream t => Double -> t m a -> t m a
+constRate r = rate (Just $ Rate r r r)
 
 -- | Specify the average latency, in nanoseconds, of a single threaded action
 -- in a concurrent composition. Streamly can measure the latencies, but that is

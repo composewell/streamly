@@ -22,8 +22,7 @@ userAction = S.repeatM $ liftIO askUser
             _        -> putStrLn "What?" >> askUser
 
 acidRain :: MonadAsync m => SerialT m Event
-acidRain = asyncly $ rate (Just $ ConstRate 1) $
-    S.repeatM $ liftIO $ return $ Harm 1
+acidRain = asyncly $ constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
 
 game :: (MonadAsync m, MonadState Int m) => SerialT m ()
 game = do
