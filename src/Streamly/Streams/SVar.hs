@@ -188,11 +188,9 @@ maxBufferSerial :: Int -> SerialT m a -> SerialT m a
 maxBufferSerial _ = id
 -}
 
--- | Specify the pull rate of a stream in number of yields per second
--- (i.e.  @Hertz@). A 'Nothing' value resets the rate to default which is
--- unlimited. If the specified rate is 0 or negative the stream never yields a
--- value.
--- When the rate is specified, concurrent production may be ramped up or down
+-- | Specify the pull rate of a stream.
+-- A 'Nothing' value resets the rate to default which is unlimited.  When the
+-- rate is specified, concurrent production may be ramped up or down
 -- automatically to achieve the specified yield rate. The specific behavior for
 -- different styles of 'Rate' specifications is documented under 'Rate'.  The
 -- effective maximum production rate achieved by a stream is governed by:
@@ -207,11 +205,11 @@ maxBufferSerial _ = id
 rate :: IsStream t => Maybe Rate -> t m a -> t m a
 rate r m = fromStream $ Stream $ \st stp sng yld -> do
     case r of
-        Just (Rate low goal _) | goal < low ->
+        Just (Rate low goal _ _) | goal < low ->
             error "rate: Target rate cannot be lower than minimum rate."
-        Just (Rate _ goal high) | goal > high ->
+        Just (Rate _ goal high _) | goal > high ->
             error "rate: Target rate cannot be greater than maximum rate."
-        Just (Rate low _ high) | low > high ->
+        Just (Rate low _ high _) | low > high ->
             error "rate: Minimum rate cannot be greater than maximum rate."
         _ -> unStream (toStream m) (setStreamRate r st) stp sng yld
 
@@ -221,7 +219,7 @@ yieldRateSerial :: Double -> SerialT m a -> SerialT m a
 yieldRateSerial _ = id
 -}
 
--- | Same as @rate (Just $ Rate (r/2) r (2*r))@
+-- | Same as @rate (Just $ Rate (r/2) r (2*r) maxBound)@
 --
 -- Specifies the average production rate of a stream in number of yields
 -- per second (i.e.  @Hertz@).  Concurrent production is ramped up or down
@@ -231,9 +229,9 @@ yieldRateSerial _ = id
 --
 -- @since 0.5.0
 avgRate :: IsStream t => Double -> t m a -> t m a
-avgRate r = rate (Just $ Rate (r/2) r (2*r))
+avgRate r = rate (Just $ Rate (r/2) r (2*r) maxBound)
 
--- | Same as @rate (Just $ Rate r r (2*r))@
+-- | Same as @rate (Just $ Rate r r (2*r) maxBound)@
 --
 -- Specifies the minimum rate at which the stream should yield values. As
 -- far as possible the yield rate would never be allowed to go below the
@@ -242,9 +240,9 @@ avgRate r = rate (Just $ Rate (r/2) r (2*r))
 --
 -- @since 0.5.0
 minRate :: IsStream t => Double -> t m a -> t m a
-minRate r = rate (Just $ Rate r r (2*r))
+minRate r = rate (Just $ Rate r r (2*r) maxBound)
 
--- | Same as @rate (Just $ Rate (r/2) r r)@
+-- | Same as @rate (Just $ Rate (r/2) r r maxBound)@
 --
 -- Specifies the maximum rate at which the stream should yield values. As
 -- far as possible the yield rate would never be allowed to go above the
@@ -255,9 +253,9 @@ minRate r = rate (Just $ Rate r r (2*r))
 --
 -- @since 0.5.0
 maxRate :: IsStream t => Double -> t m a -> t m a
-maxRate r = rate (Just $ Rate (r/2) r r)
+maxRate r = rate (Just $ Rate (r/2) r r maxBound)
 
--- | Same as @rate (Just $ Rate r r r)@
+-- | Same as @rate (Just $ Rate r r r 0)@
 --
 -- Specifies a constant yield rate. If for some reason the actual rate
 -- goes above or below the specified rate we do not try to recover it by
@@ -267,7 +265,7 @@ maxRate r = rate (Just $ Rate (r/2) r r)
 --
 -- @since 0.5.0
 constRate :: IsStream t => Double -> t m a -> t m a
-constRate r = rate (Just $ Rate r r r)
+constRate r = rate (Just $ Rate r r r 0)
 
 -- | Specify the average latency, in nanoseconds, of a single threaded action
 -- in a concurrent composition. Streamly can measure the latencies, but that is

@@ -115,8 +115,11 @@ main = hspec $ do
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 1 range)
 
     describe "asyncly with 1 sec producer delay and some consumer delay" $ do
+        -- ideally it should take 10 x 1 + 1 seconds
         forM_ [1] (\r -> measureRate "asyncly" asyncly r 1 1 (11, 16))
+        -- ideally it should take 10 x 2 + 1 seconds
         forM_ [1] (\r -> measureRate "asyncly" asyncly r 2 1 (21, 23))
+        -- ideally it should take 10 x 3 + 1 seconds
         forM_ [1] (\r -> measureRate "asyncly" asyncly r 3 1 (31, 33))
 
     describe "aheadly with 1 sec producer delay and some consumer delay" $ do

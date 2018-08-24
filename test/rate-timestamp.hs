@@ -14,7 +14,7 @@ withTimeStamp msg = do
 -- acidRain :: MonadAsync m => SerialT m Event
 producer =
       asyncly
-    $ rate (Just $ AvgRate 1)
+    $ avgRate 1
     $ S.repeatM
     $ liftIO $ do
         withTimeStamp "produced"
