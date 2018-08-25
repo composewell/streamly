@@ -2,18 +2,19 @@
 
 ### Bug Fixes
 
+* Leftover threads are now cleaned up as soon as the SVar is garbage
+  collected.
 * Fix a bug in concurrent function application that in certain cases would
   unnecessarily share the concurrency state resulting in incorrect output
   stream.
-* Leftover threads are now cleaned up as soon as the SVar is garbage
-  collected.
 * Fix passing of state across parallel, async, wAsync, ahead, serial, wSerial
   combinators. Without this fix combinators that rely on state passing e.g.
   `maxThreads` and `maxBuffer` won't work across these combinators.
 
 ### Enhancements
 
-* Added rate limiting combinator `rate` to control the yield rate of a stream.
+* Added rate limiting combinators `rate`, `avgRate`, `minRate`, `maxRate` and
+  `constRate` to control the yield rate of a stream.
 * Add `foldl1'`, `foldr1`, `intersperseM`, `find`, `lookup`, `and`, `or`,
   `findIndices`, `findIndex`, `elemIndices`, `elemIndex`, `init` to Prelude
 

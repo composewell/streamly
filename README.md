@@ -307,6 +307,28 @@ The concurrency facilities provided by streamly can be compared with
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
 expression.
 
+## Rate Limiting
+
+For bounded concurrent streams, stream yield rate can be specified. For
+example, to print hello once every second you can simply write this:
+
+``` haskell
+import Streamly
+import Streamly.Prelude as S
+
+main = runStream $ asyncly $ avgRate 1 $ S.repeatM $ putStrLn "hello"
+```
+
+For some practical uses of rate control, see
+[AcidRain.hs](https://github.com/composewell/streamly/tree/master/examples/AcidRain.hs)
+and
+[CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
+.
+Concurrency of the stream is automatically controlled to match the specified
+rate. Rate control works precisely even at throughputs as high as millions of
+yields per second. For more sophisticated rate control see the haddock
+documentation.
+
 ## Reactive Programming (FRP)
 
 Streamly is a foundation for first class reactive programming as well by virtue
