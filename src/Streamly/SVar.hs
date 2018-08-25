@@ -123,8 +123,7 @@ import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
-import System.Clock
-       (TimeSpec, Clock(Monotonic), getTime, toNanoSecs, fromNanoSecs)
+import System.Clock (TimeSpec, Clock(Monotonic), getTime, toNanoSecs)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
@@ -311,12 +310,6 @@ data YieldRateInfo = YieldRateInfo
 
     -- Latency as measured by workers, aggregated for the last period.
     , workerMeasuredLatency :: IORef NanoSecs
-
-    -- When the last worker exits it updates this timestamp. We use this to
-    -- adjust svarAllTimeLatency so that we do not account the idle time in
-    -- that. XXX Note that not all workers stop at the same time therefore
-    -- there is a certain inaccuracy in this mechanism.
-    , workerStopTimeStamp :: IORef TimeSpec
     }
 
 data SVarStats = SVarStats {
@@ -922,21 +915,18 @@ sendYield sv winfo msg = do
     return $ r && rateLimitOk
 
 {-# INLINE workerStopUpdate #-}
-workerStopUpdate :: WorkerInfo -> YieldRateInfo -> Int -> IO ()
-workerStopUpdate winfo info n = do
+workerStopUpdate :: WorkerInfo -> YieldRateInfo -> IO ()
+workerStopUpdate winfo info = do
     i <- readIORef (workerPollingInterval info)
     when (i /= 0) $ workerUpdateLatency info winfo
-    when (n == 1) $ do
-        t <- getTime Monotonic
-        writeIORef (workerStopTimeStamp info) t
 
 {-# INLINABLE sendStop #-}
 sendStop :: SVar t m a -> WorkerInfo -> IO ()
 sendStop sv winfo = do
-    n <- liftIO $ atomicModifyIORefCAS (workerCount sv) $ \n -> (n - 1, n)
+    atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
     case yieldRateInfo sv of
         Nothing -> return ()
-        Just info -> workerStopUpdate winfo info n
+        Just info -> workerStopUpdate winfo info
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
@@ -1518,16 +1508,6 @@ collectLatency _ss yinfo = do
             return $ tripleWith prev
     else return $ tripleWith prev
 
--- This takes away the time when the producer is idle because the consumer
--- not consuming or consuming slowly.
-adjustLatencies :: YieldRateInfo -> IO ()
-adjustLatencies yinfo = do
-    let longTerm = svarAllTimeLatency yinfo
-    t0 <- readIORef (workerStopTimeStamp yinfo)
-    t1 <- getTime Monotonic
-    modifyIORef longTerm $ \(cnt, time) -> (cnt, time + t1 - t0)
-    return ()
-
 -- XXX in case of ahead style stream we need to take the heap size into account
 -- because we return the workers on the basis of that which causes a condition
 -- where we keep dispatching and they keep returning. So we must have exactly
@@ -1829,8 +1809,6 @@ postProcessPaced sv = do
     then do
         r <- liftIO $ isWorkDone sv
         when (not r) $ do
-            let yinfo = fromJust $ yieldRateInfo sv
-            liftIO $ adjustLatencies yinfo
             void $ dispatchWorkerPaced sv
             -- Note that we need to guarantee a worker since the work is not
             -- finished, therefore we cannot just rely on dispatchWorkerPaced
@@ -1861,7 +1839,6 @@ getYieldRateInfo st = do
         now      <- getTime Monotonic
         wlong    <- newIORef (0,now)
         period   <- newIORef 1
-        stopTime <- newIORef $ fromNanoSecs 0
         gainLoss <- newIORef (Count 0)
 
         return $ Just YieldRateInfo
@@ -1873,7 +1850,6 @@ getYieldRateInfo st = do
             , workerPollingInterval  = period
             , workerMeasuredLatency  = measured
             , workerPendingLatency   = wcur
-            , workerStopTimeStamp    = stopTime
             , workerCollectedLatency = wcol
             , svarAllTimeLatency     = wlong
             }
