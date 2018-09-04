@@ -86,7 +86,7 @@ import qualified Streamly.Streams.StreamD as D
 -- @
 -- main = 'runStream' . 'serially' $ do
 --     x <- return 1 \<\> return 2
---     S.once $ print x
+--     S.yieldM $ print x
 -- @
 -- @
 -- 1
@@ -99,7 +99,7 @@ import qualified Streamly.Streams.StreamD as D
 -- main = 'runStream' . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
---     S.once $ print (x, y)
+--     S.yieldM $ print (x, y)
 -- @
 -- @
 -- (1,3)
@@ -227,7 +227,7 @@ MONAD_COMMON_INSTANCES(SerialT,)
 -- main = 'runStream' . 'wSerially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
---     S.once $ print (x, y)
+--     S.yieldM $ print (x, y)
 -- @
 -- @
 -- (1,3)

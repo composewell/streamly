@@ -636,7 +636,7 @@ consMAsync m r = K.yieldM m `asyncS` r
 --
 -- main = 'runStream' . 'asyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
---     S.once $ do
+--     S.yieldM $ do
 --          threadDelay (n * 1000000)
 --          myThreadId >>= \\tid -> putStrLn (show tid ++ ": Delay " ++ show n)
 -- @
@@ -762,7 +762,7 @@ wAsync m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 --
 -- main = 'runStream' . 'wAsyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
---     S.once $ do
+--     S.yieldM $ do
 --          threadDelay (n * 1000000)
 --          myThreadId >>= \\tid -> putStrLn (show tid ++ ": Delay " ++ show n)
 -- @
