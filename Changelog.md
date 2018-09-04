@@ -1,15 +1,16 @@
-## Unreleased
+## 0.5.0
 
 ### Bug Fixes
 
-* Leftover threads are now cleaned up as soon as the SVar is garbage
+* Leftover threads are now cleaned up as soon as the consumer is garbage
   collected.
 * Fix a bug in concurrent function application that in certain cases would
   unnecessarily share the concurrency state resulting in incorrect output
   stream.
-* Fix passing of state across parallel, async, wAsync, ahead, serial, wSerial
-  combinators. Without this fix combinators that rely on state passing e.g.
-  `maxThreads` and `maxBuffer` won't work across these combinators.
+* Fix passing of state across `parallel`, `async`, `wAsync`, `ahead`, `serial`,
+  `wSerial` combinators. Without this fix combinators that rely on state
+  passing e.g.  `maxThreads` and `maxBuffer` won't work across these
+  combinators.
 
 ### Enhancements
 
@@ -17,6 +18,11 @@
   `constRate` to control the yield rate of a stream.
 * Add `foldl1'`, `foldr1`, `intersperseM`, `find`, `lookup`, `and`, `or`,
   `findIndices`, `findIndex`, `elemIndices`, `elemIndex`, `init` to Prelude
+
+### Deprecations
+
+* The `Streamly.Time` module is now deprecated, its functionality is subsumed
+  by the new rate limiting combinators.
 
 ## 0.4.1
 
