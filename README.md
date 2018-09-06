@@ -338,6 +338,13 @@ for a console based FRP game example and
 [CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
 for an SDL based animation example.
 
+## Comparison with the `async` package
+
+Streamly provides higher level concurrency compared to the `async` package, it
+can be used wherever you would want to use the `async` package. [See this
+tutorial for a quick comparison of streamly with
+async](https://github.com/composewell/streamly/blob/master/docs/Async.md).
+
 ## Contributing
 
 The code is available under BSD-3 license
