@@ -79,7 +79,7 @@ workLoopLIFO
     => IORef [Stream m a]
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 workLoopLIFO q st sv winfo = run
 
@@ -118,7 +118,7 @@ workLoopLIFOLimited
     => IORef [Stream m a]
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 workLoopLIFOLimited q st sv winfo = run
 
@@ -178,7 +178,7 @@ workLoopFIFO
     => LinkedQueue (Stream m a)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 workLoopFIFO q st sv winfo = run
 
@@ -208,7 +208,7 @@ workLoopFIFOLimited
     => LinkedQueue (Stream m a)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 workLoopFIFOLimited q st sv winfo = run
 

@@ -347,7 +347,7 @@ data SVar t m a = SVar
     , enqueue        :: t m a -> IO ()
     , isWorkDone     :: IO Bool
     , needDoorBell   :: IORef Bool
-    , workLoop       :: WorkerInfo -> m ()
+    , workLoop       :: Maybe WorkerInfo -> m ()
 
     -- Shared, thread tracking
     , workerThreads  :: IORef (Set ThreadId)
@@ -905,13 +905,16 @@ workerRateControl sv yinfo winfo = do
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
 {-# INLINE sendYield #-}
-sendYield :: SVar t m a -> WorkerInfo -> ChildEvent a -> IO Bool
-sendYield sv winfo msg = do
+sendYield :: SVar t m a -> Maybe WorkerInfo -> ChildEvent a -> IO Bool
+sendYield sv mwinfo msg = do
     r <- send sv msg
     rateLimitOk <-
-        case yieldRateInfo sv of
+        case mwinfo of
+            Just winfo ->
+                case yieldRateInfo sv of
+                    Nothing -> return True
+                    Just yinfo -> workerRateControl sv yinfo winfo
             Nothing -> return True
-            Just yinfo -> workerRateControl sv yinfo winfo
     return $ r && rateLimitOk
 
 {-# INLINE workerStopUpdate #-}
@@ -921,12 +924,15 @@ workerStopUpdate winfo info = do
     when (i /= 0) $ workerUpdateLatency info winfo
 
 {-# INLINABLE sendStop #-}
-sendStop :: SVar t m a -> WorkerInfo -> IO ()
-sendStop sv winfo = do
+sendStop :: SVar t m a -> Maybe WorkerInfo -> IO ()
+sendStop sv mwinfo = do
     atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
-    case yieldRateInfo sv of
+    case mwinfo of
+        Just winfo ->
+            case yieldRateInfo sv of
+                Nothing -> return ()
+                Just info -> workerStopUpdate winfo info
         Nothing -> return ()
-        Just info -> workerStopUpdate winfo info
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
@@ -1193,17 +1199,20 @@ pushWorker yieldMax sv = do
 #ifdef DIAGNOSTICS
     recordMaxWorkers sv
 #endif
-    -- XXX we can make this allocation conditional, it might matter when
-    -- significant number of workers are being sent.
-    winfo <- do
-            cntRef <- liftIO $ newIORef 0
-            t <- liftIO $ getTime Monotonic
-            lat <- liftIO $ newIORef (0, t)
-            return $ WorkerInfo
-                { workerYieldMax = yieldMax
-                , workerYieldCount = cntRef
-                , workerLatencyStart = lat
-                }
+    -- This allocation matters when significant number of workers are being
+    -- sent. We allocate it only when needed.
+    winfo <-
+        case yieldRateInfo sv of
+            Nothing -> return Nothing
+            Just _ -> liftIO $ do
+                cntRef <- newIORef 0
+                t <- getTime Monotonic
+                lat <- newIORef (0, t)
+                return $ Just $ WorkerInfo
+                    { workerYieldMax = yieldMax
+                    , workerYieldCount = cntRef
+                    , workerLatencyStart = lat
+                    }
     doFork (workLoop sv winfo) (handleChildException sv) >>= addThread sv
 
 -- XXX we can push the workerCount modification in accountThread and use the
@@ -1215,25 +1224,32 @@ pushWorker yieldMax sv = do
 -- workerThreads. Alternatively, we can use a CreateThread event to avoid
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
-pushWorkerPar :: MonadAsync m => SVar t m a -> (WorkerInfo -> m ()) -> m ()
+pushWorkerPar :: MonadAsync m => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
 pushWorkerPar sv wloop = do
     -- We do not use workerCount in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
 #ifdef DIAGNOSTICS
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     recordMaxWorkers sv
-#endif
-    winfo <- do
-            cntRef <- liftIO $ newIORef 0
-            t <- liftIO $ getTime Monotonic
-            lat <- liftIO $ newIORef (0, t)
-            return $ WorkerInfo
-                { workerYieldMax = 0
-                , workerYieldCount = cntRef
-                , workerLatencyStart = lat
-                }
+    -- This allocation matters when significant number of workers are being
+    -- sent. We allocate it only when needed. The overhead increases by 4x.
+    winfo <-
+        case yieldRateInfo sv of
+            Nothing -> return Nothing
+            Just _ -> liftIO $ do
+                cntRef <- newIORef 0
+                t <- getTime Monotonic
+                lat <- newIORef (0, t)
+                return $ Just $ WorkerInfo
+                    { workerYieldMax = 0
+                    , workerYieldCount = cntRef
+                    , workerLatencyStart = lat
+                    }
 
     doFork (wloop winfo) (handleChildException sv) >>= modifyThread sv
+#else
+    doFork (wloop Nothing) (handleChildException sv) >>= modifyThread sv
+#endif
 
 -- Returns:
 -- True: can dispatch more
@@ -1860,7 +1876,7 @@ getAheadSVar :: MonadAsync m
         -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
         -> State t m a
         -> SVar t m a
-        -> WorkerInfo
+        -> Maybe WorkerInfo
         -> m ())
     -> IO (SVar t m a)
 getAheadSVar st f = do
@@ -2050,7 +2066,7 @@ newAheadVar :: MonadAsync m
         -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
         -> State t m a
         -> SVar t m a
-        -> WorkerInfo
+        -> Maybe WorkerInfo
         -> m ())
     -> m (SVar t m a)
 newAheadVar st m wloop = do

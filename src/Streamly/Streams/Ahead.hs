@@ -192,7 +192,7 @@ processHeap :: MonadIO m
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> AheadHeapEntry Stream m a
     -> Int
     -> Bool -- we are draining the heap before we stop
@@ -306,7 +306,7 @@ drainHeap :: MonadIO m
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 drainHeap q heap st sv winfo = do
     ent <- liftIO $ dequeueFromHeap heap
@@ -320,7 +320,7 @@ processWithoutToken :: MonadIO m
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> Stream m a
     -> Int
     -> m ()
@@ -344,16 +344,21 @@ processWithoutToken q heap st sv winfo m sno = do
             ((H.insert (Entry seqNo ent) h, snum), h)
 
         heapOk <- liftIO $ underMaxHeap sv hp
+        let keepDraining = drainHeap q heap st sv winfo
+            mainLoop = workLoopAhead q heap st sv winfo
         if heapOk
         then
             case yieldRateInfo sv of
-                Nothing -> workLoopAhead q heap st sv winfo
+                Nothing -> mainLoop
                 Just yinfo -> do
-                    rateOk <- liftIO $ workerRateControl sv yinfo winfo
-                    if rateOk
-                    then workLoopAhead q heap st sv winfo
-                    else drainHeap q heap st sv winfo
-        else drainHeap q heap st sv winfo
+                    case winfo of
+                        Just info -> do
+                            rateOk <- liftIO $ workerRateControl sv yinfo info
+                            if rateOk
+                            then mainLoop
+                            else keepDraining
+                        Nothing -> mainLoop
+        else keepDraining
 
     singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
     yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
@@ -363,7 +368,7 @@ processWithToken :: MonadIO m
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> Stream m a
     -> Int
     -> m ()
@@ -461,7 +466,7 @@ workLoopAhead :: MonadIO m
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
     -> State Stream m a
     -> SVar Stream m a
-    -> WorkerInfo
+    -> Maybe WorkerInfo
     -> m ()
 workLoopAhead q heap st sv winfo = do
 #ifdef DIAGNOSTICS

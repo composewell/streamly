@@ -60,7 +60,9 @@ import qualified Streamly.Streams.StreamK as K
 -------------------------------------------------------------------------------
 
 {-# NOINLINE runOne #-}
-runOne :: MonadIO m => State Stream m a -> Stream m a -> WorkerInfo -> m ()
+runOne
+    :: MonadIO m
+    => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
 runOne st m winfo = unStream m st stop single yieldk
 
     where
