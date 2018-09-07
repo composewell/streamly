@@ -167,18 +167,21 @@ main = do
       , bgroup "aheadly"
         [ -- benchIO "unfoldr" $ Ops.toNull aheadly
           benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO aheadly "unfoldrM maxThreads 1"
-            (maxThreads 1 . Ops.sourceUnfoldrM)
-      -- XXX arbitrarily large maxRate should be the same as maxRate -1
-        , benchSrcIO aheadly "unfoldrM rate AvgRate 1000000"
-            (avgRate 1000000 . Ops.sourceUnfoldrM)
-        , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
-            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
-        -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
         , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO       "mapM"  $ Ops.mapM aheadly
+        , benchSrcIO aheadly "unfoldrM maxThreads 1"
+            (maxThreads 1 . Ops.sourceUnfoldrM)
+        , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
+            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
+        -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
+        ]
+      , bgroup "aheadly/rate"
+        [
+          -- XXX arbitrarily large maxRate should be the same as maxRate -1
+          benchSrcIO aheadly "unfoldrM rate AvgRate 1000000"
+            (avgRate 1000000 . Ops.sourceUnfoldrM)
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
