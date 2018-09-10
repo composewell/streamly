@@ -337,6 +337,7 @@ data SVar t m a = SVar
     , outputDoorBell :: MVar ()  -- signal the consumer about output
     , readOutputQ    :: m [ChildEvent a]
     , postProcess    :: m Bool
+    , hasDelayedOutput :: IO Bool
 
     -- Combined/aggregate parameters
     , maxWorkerLimit :: Limit
@@ -1147,6 +1148,20 @@ dequeueFromHeap hpRef = do
                 then ((hp', seqNo), Just ent)
                 else (hp, Nothing)
 
+{-# INLINE canDequeueFromHeap #-}
+canDequeueFromHeap
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    -> IO Bool
+canDequeueFromHeap hpVar =
+    withIORef hpVar $ \pair@(hp, snum) -> do
+        let r = H.uncons hp
+        case r of
+            Just (ent@(Entry seqNo _ev), hp') -> return $ seqNo == snum
+            _ -> return False
+    where
+
+    withIORef ref f = readIORef ref >>= f
+
 -------------------------------------------------------------------------------
 -- WAhead
 -------------------------------------------------------------------------------
@@ -1705,7 +1720,8 @@ sendWorkerWait delay dispatch sv = do
 
     liftIO $ delay sv
     (_, n) <- liftIO $ readIORef (outputQueue sv)
-    when (n <= 0) $ do
+    hasOutput <- if (n > 0) then return True else liftIO $ hasDelayedOutput sv
+    when (not hasOutput) $ do
         -- The queue may be empty temporarily if the worker has dequeued the
         -- work item but has not enqueued the remaining part yet. For the same
         -- reason, a worker may come back if it tries to dequeue and finds the
@@ -1949,6 +1965,7 @@ getAheadSVar st f = do
             , outputDoorBell   = outQMv
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
+            , hasDelayedOutput = canDequeueFromHeap outH
             , workerThreads    = running
             , workLoop         = f q outH st{streamVar = Just sv} sv
             , enqueue          = enqueueAhead sv q
@@ -2046,6 +2063,7 @@ getParallelSVar st = do
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQPar sv
                  , postProcess      = allThreadsDone sv
+                 , hasDelayedOutput = return False
                  , workerThreads    = running
                  , workLoop         = undefined
                  , enqueue          = undefined
