@@ -71,6 +71,10 @@ module Streamly.SVar
     , queueEmptyAhead
     , dequeueAhead
     , dequeueFromHeap
+    , dequeueFromHeapSeq
+    , requeueOnHeapTop
+    , updateHeapSeq
+    , withIORef
 
     , Rate (..)
     , getYieldRateInfo
@@ -102,8 +106,7 @@ where
 import Control.Concurrent
        (ThreadId, myThreadId, threadDelay, getNumCapabilities, throwTo)
 import Control.Concurrent.MVar
-       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar, readMVar,
-        modifyMVar, modifyMVar_, withMVar)
+       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
 import Control.Exception (SomeException(..), catch, mask, assert, Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -1138,29 +1141,61 @@ dequeueAhead q = liftIO $ do
 dequeueFromHeap
     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
     -> IO (Maybe (Entry Int (AheadHeapEntry t m a)))
-dequeueFromHeap hpRef = do
-    atomicModifyIORef hpRef $ \hp@(h, snum) -> do
-        let r = H.uncons h
+dequeueFromHeap hpVar =
+    atomicModifyIORef hpVar $ \pair@(hp, snum) -> do
+        let r = H.uncons hp
         case r of
-            Nothing -> (hp, Nothing)
-            Just (ent@(Entry seqNo _ev), hp') ->
-                if (seqNo == snum)
-                then ((hp', seqNo), Just ent)
-                else (hp, Nothing)
+            Just (ent@(Entry seqNo _ev), hp') | seqNo == snum ->
+                    ((hp', snum), Just ent)
+            _ -> (pair, Nothing)
+
+withIORef :: IORef a -> (a -> IO b) -> IO b
+withIORef ref f = readIORef ref >>= f
+
+atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
+atomicModifyIORef_ ref f =
+    atomicModifyIORef ref $ \x -> (f x, ())
 
 {-# INLINE canDequeueFromHeap #-}
 canDequeueFromHeap
     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
     -> IO Bool
 canDequeueFromHeap hpVar =
-    withIORef hpVar $ \pair@(hp, snum) -> do
+    withIORef hpVar $ \(hp, snum) -> do
         let r = H.uncons hp
         case r of
-            Just (ent@(Entry seqNo _ev), hp') -> return $ seqNo == snum
+            Just ((Entry seqNo _ev), _) -> return $ seqNo == snum
             _ -> return False
-    where
 
-    withIORef ref f = readIORef ref >>= f
+{-# INLINE dequeueFromHeapSeq #-}
+dequeueFromHeapSeq
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    -> Int
+    -> IO (Maybe (Entry Int (AheadHeapEntry t m a)))
+dequeueFromHeapSeq hpVar snum =
+    atomicModifyIORef hpVar $ \(hp, _) -> do
+        let r = H.uncons hp
+        case r of
+            Just (ent@(Entry seqNo _ev), hp') | seqNo == snum ->
+                    ((hp', snum), Just ent)
+            _ -> ((hp, snum), Nothing)
+
+{-# INLINE requeueOnHeapTop #-}
+requeueOnHeapTop
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    -> Entry Int (AheadHeapEntry t m a)
+    -> Int
+    -> IO ()
+requeueOnHeapTop hpVar ent seqNo =
+    atomicModifyIORef_ hpVar $ \(hp, _) -> (H.insert ent hp, seqNo)
+
+{-# INLINE updateHeapSeq #-}
+updateHeapSeq
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    -> Int
+    -> IO ()
+updateHeapSeq hpVar seqNo =
+    atomicModifyIORef_ hpVar $ \(hp, _) -> (hp, seqNo)
 
 -------------------------------------------------------------------------------
 -- WAhead

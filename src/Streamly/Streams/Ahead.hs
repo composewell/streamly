@@ -169,23 +169,23 @@ preStopCheck ::
 preStopCheck sv heap = do
     -- check the stop condition under a lock before actually
     -- stopping so that the whole herd does not stop at once.
-    takeMVar (workerStopMVar sv)
-    let stop = do
-            putMVar (workerStopMVar sv) ()
-            return True
-        continue = do
-            putMVar (workerStopMVar sv) ()
-            return False
-    (hp, _) <- readIORef heap
-    heapOk <- underMaxHeap sv hp
-    if heapOk
-    then
-        case yieldRateInfo sv of
-            Nothing -> continue
-            Just yinfo -> do
-                rateOk <- isBeyondMaxRate sv yinfo
-                if rateOk then continue else stop
-    else stop
+    withIORef heap $ \(hp, _) -> do
+        heapOk <- underMaxHeap sv hp
+        takeMVar (workerStopMVar sv)
+        let stop = do
+                putMVar (workerStopMVar sv) ()
+                return True
+            continue = do
+                putMVar (workerStopMVar sv) ()
+                return False
+        if heapOk
+        then
+            case yieldRateInfo sv of
+                Nothing -> continue
+                Just yinfo -> do
+                    rateOk <- isBeyondMaxRate sv yinfo
+                    if rateOk then continue else stop
+        else stop
 
 processHeap :: MonadIO m
     => IORef ([Stream m a], Int)
@@ -206,19 +206,11 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         if stopIt
         then liftIO $ do
             -- put the entry back in the heap and stop
-            atomicModifyIORef heap $ \(h, _) ->
-                ((H.insert (Entry seqNo ent) h, seqNo), ())
+            liftIO $ requeueOnHeapTop heap (Entry seqNo ent) seqNo
             sendStop sv winfo
         else runStreamWithYieldLimit True seqNo r
 
     loopHeap seqNo ent = do
-#ifdef DIAGNOSTICS
-        liftIO $ do
-            maxHp <- readIORef (maxHeapSize $ svarStats sv)
-            (hp, _) <- readIORef heap
-            when (H.size hp > maxHp) $ writeIORef (maxHeapSize $ svarStats sv)
-                                                  (H.size hp)
-#endif
         case ent of
             AheadEntryPure a -> do
                 -- Use 'send' directly so that we do not account this in worker
@@ -233,10 +225,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                 else runStreamWithYieldLimit True seqNo r
 
     nextHeap prevSeqNo = do
-        -- XXX use "dequeueIfSeqential prevSeqNo" instead of always
-        -- updating the sequence number in heap.
-        liftIO $ atomicModifyIORef heap $ \(h, _) -> ((h, prevSeqNo + 1), ())
-        ent <- liftIO $ dequeueFromHeap heap
+        ent <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
         case ent of
             Just (Entry seqNo hent) -> loopHeap seqNo hent
             Nothing -> do
@@ -291,8 +280,8 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                           (singleStreamFromHeap seqNo)
                           (yieldStreamFromHeap seqNo)
         else liftIO $ do
-            atomicModifyIORef heap $ \(h, _) ->
-                 ((H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo), ())
+            let ent = Entry seqNo (AheadEntryStream r)
+            liftIO $ requeueOnHeapTop heap ent seqNo
             incrementYieldLimit sv
             sendStop sv winfo
 
@@ -314,6 +303,8 @@ drainHeap q heap st sv winfo = do
         Nothing -> liftIO $ sendStop sv winfo
         Just (Entry seqNo hent) ->
             processHeap q heap st sv winfo hent seqNo True
+
+data HeapStatus = HContinue | HStop
 
 processWithoutToken :: MonadIO m
     => IORef ([Stream m a], Int)
@@ -340,25 +331,37 @@ processWithoutToken q heap st sv winfo m sno = do
         -- modification, otherwise contention and retries can make a thread
         -- context switch and throw it behind other threads which come later in
         -- sequence.
-        hp <- liftIO $ atomicModifyIORef heap $ \(h, snum) ->
-            ((H.insert (Entry seqNo ent) h, snum), h)
+        newHp <- liftIO $ atomicModifyIORef heap $ \(hp, snum) ->
+            let hp' = H.insert (Entry seqNo ent) hp
+            in ((hp', snum), hp')
 
-        heapOk <- liftIO $ underMaxHeap sv hp
-        let keepDraining = drainHeap q heap st sv winfo
+#ifdef DIAGNOSTICS
+        liftIO $ do
+            maxHp <- readIORef (maxHeapSize $ svarStats sv)
+            when (H.size newHp > maxHp) $
+                writeIORef (maxHeapSize $ svarStats sv) (H.size newHp)
+#endif
+        heapOk <- liftIO $ underMaxHeap sv newHp
+        let drainAndStop = drainHeap q heap st sv winfo
             mainLoop = workLoopAhead q heap st sv winfo
-        if heapOk
-        then
+        status <-
             case yieldRateInfo sv of
-                Nothing -> mainLoop
+                Nothing -> return HContinue
                 Just yinfo -> do
                     case winfo of
                         Just info -> do
                             rateOk <- liftIO $ workerRateControl sv yinfo info
                             if rateOk
-                            then mainLoop
-                            else keepDraining
-                        Nothing -> mainLoop
-        else keepDraining
+                            then return HContinue
+                            else return HStop
+                        Nothing -> return HContinue
+
+        if heapOk
+        then
+            case status of
+                HContinue -> mainLoop
+                HStop -> drainAndStop
+        else drainAndStop
 
     singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
     yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
@@ -388,7 +391,7 @@ processWithToken q heap st sv winfo action sno = do
         if continue
         then loopWithToken seqNo
         else do
-            liftIO $ atomicModifyIORef heap $ \(h, _) -> ((h, seqNo + 1), ())
+            liftIO $ updateHeapSeq heap (seqNo + 1)
             drainHeap q heap st sv winfo
 
     -- XXX use a wrapper function around stop so that we never miss
@@ -406,8 +409,8 @@ processWithToken q heap st sv winfo action sno = do
                           (singleOutput seqNo)
                           (yieldOutput seqNo)
         else do
-            liftIO $ atomicModifyIORef heap $ \(h, _) ->
-                 ((H.insert (Entry seqNo (AheadEntryStream r)) h, seqNo), ())
+            let ent = Entry seqNo (AheadEntryStream r)
+            liftIO $ requeueOnHeapTop heap ent seqNo
             liftIO $ incrementYieldLimit sv
             drainHeap q heap st sv winfo
 
@@ -415,8 +418,7 @@ processWithToken q heap st sv winfo action sno = do
         work <- dequeueAhead q
         case work of
             Nothing -> do
-                liftIO $ atomicModifyIORef heap $ \(h, _) ->
-                    ((h, prevSeqNo + 1), ())
+                liftIO $ updateHeapSeq heap (prevSeqNo + 1)
                 workLoopAhead q heap st sv winfo
 
             Just (m, seqNo) -> do
@@ -432,8 +434,7 @@ processWithToken q heap st sv winfo action sno = do
                                       (singleOutput seqNo)
                                       (yieldOutput seqNo)
                     else do
-                        liftIO $ atomicModifyIORef heap $ \(h, _) ->
-                             ((h, prevSeqNo + 1), ())
+                        liftIO $ updateHeapSeq heap (prevSeqNo + 1)
                         liftIO (incrementYieldLimit sv)
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
@@ -445,8 +446,7 @@ processWithToken q heap st sv winfo action sno = do
                         liftIO $ reEnqueueAhead sv q m
                         workLoopAhead q heap st sv winfo
                 else do
-                    liftIO $ atomicModifyIORef heap $ \(h, _) ->
-                         ((h, prevSeqNo + 1), ())
+                    liftIO $ updateHeapSeq heap (prevSeqNo + 1)
                     liftIO $ reEnqueueAhead sv q m
                     liftIO $ incrementYieldLimit sv
                     drainHeap q heap st sv winfo
