@@ -164,7 +164,7 @@ underMaxHeap sv hp = do
 -- False => continue
 preStopCheck ::
        SVar Stream m a
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Maybe Int)
     -> IO Bool
 preStopCheck sv heap = do
     -- check the stop condition under a lock before actually
@@ -187,9 +187,29 @@ preStopCheck sv heap = do
                     if rateOk then continue else stop
         else stop
 
+-- XXX In absence of a "noyield" primitive (i.e. do not pre-empt inside a
+-- critical section) from GHC RTS, we have a difficult problem. Assume we have
+-- a 100,000 threads producing output and queuing it to the heap for
+-- sequencing. The heap can be drained only by one thread at a time, any thread
+-- that finds that heap can be drained now, takes a lock and starts draining
+-- it, however the thread may get prempted in the middle of it holding the
+-- lock. Since that thread is holding the lock, the other threads cannot pick
+-- up the draining task, therefore they proceed to picking up the next task to
+-- execute. If the draining thread could yield voluntarily at a point where it
+-- has released the lock, then the next threads could pick up the draining
+-- instead of executing more tasks. When there are 100,000 threads the drainer
+-- gets a cpu share to run only 1:100000 of the time. This makes the heap
+-- accumulate a lot of output when we the buffer size is large.
+--
+-- The solutions to this problem are:
+-- 1) make the other threads wait in a queue until the draining finishes
+-- 2) make the other threads queue and go away if draining is in progress
+--
+-- In both cases we give the drainer a chance to run more often.
+--
 processHeap :: MonadIO m
     => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -225,10 +245,11 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                 else runStreamWithYieldLimit True seqNo r
 
     nextHeap prevSeqNo = do
-        ent <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
-        case ent of
-            Just (Entry seqNo hent) -> loopHeap seqNo hent
-            Nothing -> do
+        res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
+        case res of
+            Ready (Entry seqNo hent) -> loopHeap seqNo hent
+            -- when Clearing then stop
+            _ -> do
                 if stopping
                 then do
                     r <- liftIO $ preStopCheck sv heap
@@ -292,23 +313,23 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
 {-# NOINLINE drainHeap #-}
 drainHeap :: MonadIO m
     => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
     -> m ()
 drainHeap q heap st sv winfo = do
-    ent <- liftIO $ dequeueFromHeap heap
-    case ent of
-        Nothing -> liftIO $ sendStop sv winfo
-        Just (Entry seqNo hent) ->
+    r <- liftIO $ dequeueFromHeap heap
+    case r of
+        Ready (Entry seqNo hent) ->
             processHeap q heap st sv winfo hent seqNo True
+        _ -> liftIO $ sendStop sv winfo
 
 data HeapStatus = HContinue | HStop
 
 processWithoutToken :: MonadIO m
     => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -368,7 +389,7 @@ processWithoutToken q heap st sv winfo m sno = do
 
 processWithToken :: MonadIO m
     => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -463,7 +484,7 @@ processWithToken q heap st sv winfo action sno = do
 
 workLoopAhead :: MonadIO m
     => IORef ([Stream m a], Int)
-    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Int)
+    -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
     -> SVar Stream m a
     -> Maybe WorkerInfo
@@ -476,9 +497,12 @@ workLoopAhead q heap st sv winfo = do
             when (H.size hp > maxHp) $ writeIORef (maxHeapSize $ svarStats sv)
                                                   (H.size hp)
 #endif
-        ent <- liftIO $ dequeueFromHeap heap
-        case ent of
-            Nothing -> do
+        r <- liftIO $ dequeueFromHeap heap
+        case r of
+            Ready (Entry seqNo hent) ->
+                processHeap q heap st sv winfo hent seqNo False
+            -- when clearing then stop
+            _ -> do
                 -- Before we execute the next item from the work queue we check
                 -- if we are beyond the yield limit. It is better to check the
                 -- yield limit before we pick up the next item. Otherwise we
@@ -514,8 +538,6 @@ workLoopAhead q heap st sv winfo = do
                             liftIO $ reEnqueueAhead sv q m
                             incrementYieldLimit sv
                             sendStop sv winfo
-            Just (Entry seqNo hent) ->
-                processHeap q heap st sv winfo hent seqNo False
 
 -------------------------------------------------------------------------------
 -- WAhead

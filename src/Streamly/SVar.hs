@@ -70,6 +70,8 @@ module Streamly.SVar
 
     , queueEmptyAhead
     , dequeueAhead
+
+    , HeapDequeueResult(..)
     , dequeueFromHeap
     , dequeueFromHeapSeq
     , requeueOnHeapTop
@@ -366,7 +368,8 @@ data SVar t m a = SVar
     , svarRef        :: Maybe (IORef ())
 #ifdef DIAGNOSTICS
     , svarCreator    :: ThreadId
-    , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
+    , outputHeap     :: IORef ( Heap (Entry Int (AheadHeapEntry t m a))
+                              , Maybe Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
 #endif
@@ -1137,17 +1140,9 @@ dequeueAhead q = liftIO $ do
             (x : [], n) -> (([], n), Just (x, n))
             _ -> error "more than one item on queue"
 
-{-# INLINE dequeueFromHeap #-}
-dequeueFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
-    -> IO (Maybe (Entry Int (AheadHeapEntry t m a)))
-dequeueFromHeap hpVar =
-    atomicModifyIORef hpVar $ \pair@(hp, snum) -> do
-        let r = H.uncons hp
-        case r of
-            Just (ent@(Entry seqNo _ev), hp') | seqNo == snum ->
-                    ((hp', snum), Just ent)
-            _ -> (pair, Nothing)
+-------------------------------------------------------------------------------
+-- Heap manipulation
+-------------------------------------------------------------------------------
 
 withIORef :: IORef a -> (a -> IO b) -> IO b
 withIORef ref f = readIORef ref >>= f
@@ -1156,46 +1151,72 @@ atomicModifyIORef_ :: IORef a -> (a -> a) -> IO ()
 atomicModifyIORef_ ref f =
     atomicModifyIORef ref $ \x -> (f x, ())
 
+data HeapDequeueResult t m a =
+      Clearing
+    | Waiting Int
+    | Ready (Entry Int (AheadHeapEntry t m a))
+
+{-# INLINE dequeueFromHeap #-}
+dequeueFromHeap
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
+    -> IO (HeapDequeueResult t m a)
+dequeueFromHeap hpVar =
+    atomicModifyIORef hpVar $ \pair@(hp, snum) ->
+        case snum of
+            Nothing -> (pair, Clearing)
+            Just n -> do
+                let r = H.uncons hp
+                case r of
+                    Just (ent@(Entry seqNo _ev), hp') | seqNo == n ->
+                            ((hp', Nothing), Ready ent)
+                    _ -> (pair, Waiting n)
+
 {-# INLINE canDequeueFromHeap #-}
 canDequeueFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
     -> IO Bool
 canDequeueFromHeap hpVar =
-    withIORef hpVar $ \(hp, snum) -> do
-        let r = H.uncons hp
-        case r of
-            Just ((Entry seqNo _ev), _) -> return $ seqNo == snum
-            _ -> return False
+    withIORef hpVar $ \(hp, snum) ->
+        case snum of
+            Nothing -> return True
+            Just n -> do
+                let r = H.uncons hp
+                case r of
+                    Just ((Entry seqNo _ev), _) -> return $ seqNo == n
+                    _ -> return False
 
 {-# INLINE dequeueFromHeapSeq #-}
 dequeueFromHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
     -> Int
-    -> IO (Maybe (Entry Int (AheadHeapEntry t m a)))
-dequeueFromHeapSeq hpVar snum =
-    atomicModifyIORef hpVar $ \(hp, _) -> do
-        let r = H.uncons hp
-        case r of
-            Just (ent@(Entry seqNo _ev), hp') | seqNo == snum ->
-                    ((hp', snum), Just ent)
-            _ -> ((hp, snum), Nothing)
+    -> IO (HeapDequeueResult t m a)
+dequeueFromHeapSeq hpVar i =
+    atomicModifyIORef hpVar $ \(hp, snum) ->
+        case snum of
+            Nothing -> do
+                let r = H.uncons hp
+                case r of
+                    Just (ent@(Entry seqNo _ev), hp') | seqNo == i ->
+                            ((hp', Nothing), Ready ent)
+                    _ -> ((hp, Just i), Waiting i)
+            Just _ -> error "dequeueFromHeapSeq: unreachable"
 
 {-# INLINE requeueOnHeapTop #-}
 requeueOnHeapTop
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
     -> Entry Int (AheadHeapEntry t m a)
     -> Int
     -> IO ()
 requeueOnHeapTop hpVar ent seqNo =
-    atomicModifyIORef_ hpVar $ \(hp, _) -> (H.insert ent hp, seqNo)
+    atomicModifyIORef_ hpVar $ \(hp, _) -> (H.insert ent hp, Just seqNo)
 
 {-# INLINE updateHeapSeq #-}
 updateHeapSeq
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
     -> Int
     -> IO ()
 updateHeapSeq hpVar seqNo =
-    atomicModifyIORef_ hpVar $ \(hp, _) -> (hp, seqNo)
+    atomicModifyIORef_ hpVar $ \(hp, _) -> (hp, Just seqNo)
 
 -------------------------------------------------------------------------------
 -- WAhead
@@ -1958,7 +1979,7 @@ getYieldRateInfo st = do
 getAheadSVar :: MonadAsync m
     => State t m a
     -> (   IORef ([t m a], Int)
-        -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+        -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
         -> State t m a
         -> SVar t m a
         -> Maybe WorkerInfo
@@ -1966,7 +1987,10 @@ getAheadSVar :: MonadAsync m
     -> IO (SVar t m a)
 getAheadSVar st f = do
     outQ    <- newIORef ([], 0)
-    outH    <- newIORef (H.empty, 0)
+    -- the second component of the tuple is "Nothing" when heap is being
+    -- cleared, "Just n" when we are expecting sequence number n to arrive
+    -- before we can start clearing the heap.
+    outH    <- newIORef (H.empty, Just 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
@@ -2157,7 +2181,7 @@ newAheadVar :: MonadAsync m
     => State t m a
     -> t m a
     -> (   IORef ([t m a], Int)
-        -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Int)
+        -> IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
         -> State t m a
         -> SVar t m a
         -> Maybe WorkerInfo
