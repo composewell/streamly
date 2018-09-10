@@ -304,6 +304,7 @@ getLifoSVar st = do
             , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueLIFO sv q
             , isWorkDone       = workDone sv
+            , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = AsyncVar
             , workerCount      = active
@@ -402,11 +403,11 @@ getFifoSVar st = do
             , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueFIFO sv q
             , isWorkDone       = workDone sv
+            , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = WAsyncVar
             , workerCount      = active
             , accountThread    = delThread sv
-            , workerStopMVar   = undefined
             , svarRef          = Nothing
 #ifdef DIAGNOSTICS
             , svarCreator      = tid

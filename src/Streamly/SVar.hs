@@ -102,7 +102,8 @@ where
 import Control.Concurrent
        (ThreadId, myThreadId, threadDelay, getNumCapabilities, throwTo)
 import Control.Concurrent.MVar
-       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
+       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar, readMVar,
+        modifyMVar, modifyMVar_, withMVar)
 import Control.Exception (SomeException(..), catch, mask, assert, Exception)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
@@ -346,6 +347,7 @@ data SVar t m a = SVar
     -- Used only by bounded SVar types
     , enqueue        :: t m a -> IO ()
     , isWorkDone     :: IO Bool
+    , isQueueDone    :: IO Bool
     , needDoorBell   :: IORef Bool
     , workLoop       :: Maybe WorkerInfo -> m ()
 
@@ -359,7 +361,7 @@ data SVar t m a = SVar
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
 #ifdef DIAGNOSTICS
-    , svarCreator   :: ThreadId
+    , svarCreator    :: ThreadId
     , outputHeap     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)) , Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
@@ -846,19 +848,40 @@ send sv msg = do
             active <- readIORef (workerCount sv)
             return $ len < ((fromIntegral lim) - active)
 
--- XXX We assume that a worker always yields a value. If we can have
--- workers that return without yielding anything our computations to
--- determine the number of workers may be off.
+workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecs))
+workerCollectLatency winfo = do
+    (cnt0, t0) <- readIORef (workerLatencyStart winfo)
+    cnt1 <- readIORef (workerYieldCount winfo)
+    let cnt = cnt1 - cnt0
+
+    if (cnt > 0)
+    then do
+        t1 <- getTime Monotonic
+        let period = fromInteger $ toNanoSecs (t1 - t0)
+        writeIORef (workerLatencyStart winfo) (cnt1, t1)
+        return $ Just (cnt, period)
+    else return Nothing
+
+-- XXX There are a number of gotchas in measuring latencies.
+-- 1) We measure latencies only when a worker yields a value
+-- 2) It is possible that a stream calls the stop continuation, in which case
+-- the worker would not yield a value and we would not account that worker in
+-- latencies. Even though this case should ideally be accounted we do not
+-- account it because we cannot or do not distinguish it from the case
+-- described next.
+-- 3) It is possible that a worker returns without yielding anything because it
+-- never got a chance to pick up work.
+--
+-- We can fix this if we measure the latencies by counting the work items
+-- picked rather than based on the outputs yielded.
 workerUpdateLatency :: YieldRateInfo -> WorkerInfo -> IO ()
 workerUpdateLatency yinfo winfo = do
-    cnt1 <- readIORef (workerYieldCount winfo)
-    (cnt0, t0) <- readIORef (workerLatencyStart winfo)
-    t1 <- getTime Monotonic
-    writeIORef (workerLatencyStart winfo) (cnt1, t1)
-    let period = fromInteger $ toNanoSecs (t1 - t0)
-    let ref = workerPendingLatency yinfo
-    atomicModifyIORefCAS ref $ \(ycnt, ytime) ->
-        ((ycnt + cnt1 - cnt0, ytime + period), ())
+    r <- workerCollectLatency winfo
+    case r of
+        Just (cnt, period) -> do
+            let ref = workerPendingLatency yinfo
+            atomicModifyIORefCAS_ ref $ \(n, t) -> (n + cnt, t + period)
+        Nothing -> return ()
 
 updateYieldCount :: WorkerInfo -> IO Count
 updateYieldCount winfo = do
@@ -1262,37 +1285,43 @@ dispatchWorker yieldCount sv = do
     done <- liftIO $ isWorkDone sv
     if (not done)
     then do
+        qDone <- liftIO $ isQueueDone sv
         -- Note that the worker count is only decremented during event
         -- processing in fromStreamVar and therefore it is safe to read and
         -- use it without a lock.
         active <- liftIO $ readIORef $ workerCount sv
-        -- Note that we may deadlock if the previous workers (tasks in the
-        -- stream) wait/depend on the future workers (tasks in the stream)
-        -- executing. In that case we should either configure the maxWorker
-        -- count to higher or use parallel style instead of ahead or async
-        -- style.
-        limit <- case remainingYields sv of
-            Nothing -> return workerLimit
-            Just ref -> do
-                n <- liftIO $ readIORef ref
-                return $
-                    case workerLimit of
-                        Unlimited -> Limited (fromIntegral n)
-                        Limited lim -> Limited $ min lim (fromIntegral n)
+        if (not qDone)
+        then do
+            -- Note that we may deadlock if the previous workers (tasks in the
+            -- stream) wait/depend on the future workers (tasks in the stream)
+            -- executing. In that case we should either configure the maxWorker
+            -- count to higher or use parallel style instead of ahead or async
+            -- style.
+            limit <- case remainingYields sv of
+                Nothing -> return workerLimit
+                Just ref -> do
+                    n <- liftIO $ readIORef ref
+                    return $
+                        case workerLimit of
+                            Unlimited -> Limited (fromIntegral n)
+                            Limited lim -> Limited $ min lim (fromIntegral n)
 
-        -- XXX for ahead streams shall we take the heap yields into account for
-        -- controlling the dispatch? We should not dispatch if the heap has
-        -- already got the limit covered.
-        let dispatch = pushWorker yieldCount sv >> return True
-         in case limit of
-            Unlimited -> dispatch
-            -- Note that the use of remainingYields and workerCount is not
-            -- atomic and the counts may even have changed between reading and
-            -- using them here, so this is just approximate logic and we cannot
-            -- rely on it for correctness. We may actually dispatch more
-            -- workers than required.
-            Limited lim | active < (fromIntegral lim) -> dispatch
-            _ -> return False
+            -- XXX for ahead streams shall we take the heap yields into account for
+            -- controlling the dispatch? We should not dispatch if the heap has
+            -- already got the limit covered.
+            let dispatch = pushWorker yieldCount sv >> return True
+             in case limit of
+                Unlimited -> dispatch
+                -- Note that the use of remainingYields and workerCount is not
+                -- atomic and the counts may even have changed between reading and
+                -- using them here, so this is just approximate logic and we cannot
+                -- rely on it for correctness. We may actually dispatch more
+                -- workers than required.
+                Limited lim | active < (fromIntegral lim) -> dispatch
+                _ -> return False
+        else do
+            when (active <= 0) $ pushWorker 0 sv
+            return False
     else return False
 
 -- | This is a magic number and it is overloaded, and used at several places to
@@ -1646,6 +1675,9 @@ sendWorkerDelay :: SVar t m a -> IO ()
 sendWorkerDelay sv = do
     -- XXX we need a better way to handle this than hardcoded delays. The
     -- delays may be different for different systems.
+    -- If there is a usecase where this is required we can create a combinator
+    -- to set it as a config in the state.
+    {-
     ncpu <- getNumCapabilities
     if ncpu <= 1
     then
@@ -1656,6 +1688,8 @@ sendWorkerDelay sv = do
         if (svarStyle sv == AheadVar)
         then threadDelay 100
         else threadDelay 10
+    -}
+    return ()
 
 {-# NOINLINE sendWorkerWait #-}
 sendWorkerWait
@@ -1919,6 +1953,7 @@ getAheadSVar st f = do
             , workLoop         = f q outH st{streamVar = Just sv} sv
             , enqueue          = enqueueAhead sv q
             , isWorkDone       = isWorkDoneAhead sv q outH
+            , isQueueDone      = isQueueDoneAhead sv q
             , needDoorBell     = wfw
             , svarStyle        = AheadVar
             , workerCount      = active
@@ -1951,11 +1986,8 @@ getAheadSVar st f = do
 
     where
 
-    {-# INLINE isWorkDoneAhead #-}
-    isWorkDoneAhead sv q ref = do
-        heapDone <- do
-                (hp, _) <- readIORef ref
-                return (H.size hp <= 0)
+    {-# INLINE isQueueDoneAhead #-}
+    isQueueDoneAhead sv q = do
         queueDone <- checkEmpty q
         yieldsDone <-
                 case remainingYields sv of
@@ -1966,7 +1998,15 @@ getAheadSVar st f = do
         -- XXX note that yieldsDone can only be authoritative only when there
         -- are no workers running. If there are active workers they can
         -- later increment the yield count and therefore change the result.
-        return $ (yieldsDone && heapDone) || (queueDone && heapDone)
+        return $ yieldsDone || queueDone
+
+    {-# INLINE isWorkDoneAhead #-}
+    isWorkDoneAhead sv q ref = do
+        heapDone <- do
+                (hp, _) <- readIORef ref
+                return (H.size hp <= 0)
+        queueDone <- isQueueDoneAhead sv q
+        return $ heapDone && queueDone
 
     checkEmpty q = do
         (xs, _) <- readIORef q
@@ -2010,6 +2050,7 @@ getParallelSVar st = do
                  , workLoop         = undefined
                  , enqueue          = undefined
                  , isWorkDone       = undefined
+                 , isQueueDone      = undefined
                  , needDoorBell     = undefined
                  , svarStyle        = ParallelVar
                  , workerCount      = active
