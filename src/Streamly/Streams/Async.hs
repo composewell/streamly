@@ -300,7 +300,6 @@ getLifoSVar st = do
             , outputDoorBell   = outQMv
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
-            , hasDelayedOutput = return False
             , workerThreads    = running
             , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueLIFO sv q
@@ -400,7 +399,6 @@ getFifoSVar st = do
             , outputDoorBell   = outQMv
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
-            , hasDelayedOutput = return False
             , workerThreads    = running
             , workLoop         = wloop q st{streamVar = Just sv} sv
             , enqueue          = enqueueFIFO sv q

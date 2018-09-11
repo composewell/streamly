@@ -106,7 +106,7 @@ module Streamly.SVar
 where
 
 import Control.Concurrent
-       (ThreadId, myThreadId, threadDelay, getNumCapabilities, throwTo)
+       (ThreadId, myThreadId, threadDelay, throwTo)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
 import Control.Exception (SomeException(..), catch, mask, assert, Exception)
@@ -342,7 +342,6 @@ data SVar t m a = SVar
     , outputDoorBell :: MVar ()  -- signal the consumer about output
     , readOutputQ    :: m [ChildEvent a]
     , postProcess    :: m Bool
-    , hasDelayedOutput :: IO Bool
 
     -- Combined/aggregate parameters
     , maxWorkerLimit :: Limit
@@ -1171,20 +1170,6 @@ dequeueFromHeap hpVar =
                             ((hp', Nothing), Ready ent)
                     _ -> (pair, Waiting n)
 
-{-# INLINE canDequeueFromHeap #-}
-canDequeueFromHeap
-    :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
-    -> IO Bool
-canDequeueFromHeap hpVar =
-    withIORef hpVar $ \(hp, snum) ->
-        case snum of
-            Nothing -> return True
-            Just n -> do
-                let r = H.uncons hp
-                case r of
-                    Just ((Entry seqNo _ev), _) -> return $ seqNo == n
-                    _ -> return False
-
 {-# INLINE dequeueFromHeapSeq #-}
 dequeueFromHeapSeq
     :: IORef (Heap (Entry Int (AheadHeapEntry t m a)), Maybe Int)
@@ -1743,7 +1728,7 @@ sendWorkerDelayPaced :: SVar t m a -> IO ()
 sendWorkerDelayPaced _ = return ()
 
 sendWorkerDelay :: SVar t m a -> IO ()
-sendWorkerDelay sv = do
+sendWorkerDelay _sv = do
     -- XXX we need a better way to handle this than hardcoded delays. The
     -- delays may be different for different systems.
     -- If there is a usecase where this is required we can create a combinator
@@ -1776,8 +1761,7 @@ sendWorkerWait delay dispatch sv = do
 
     liftIO $ delay sv
     (_, n) <- liftIO $ readIORef (outputQueue sv)
-    hasOutput <- if (n > 0) then return True else liftIO $ hasDelayedOutput sv
-    when (not hasOutput) $ do
+    when (n <= 0) $ do
         -- The queue may be empty temporarily if the worker has dequeued the
         -- work item but has not enqueued the remaining part yet. For the same
         -- reason, a worker may come back if it tries to dequeue and finds the
@@ -2024,7 +2008,6 @@ getAheadSVar st f = do
             , outputDoorBell   = outQMv
             , readOutputQ      = readOutput sv
             , postProcess      = postProc sv
-            , hasDelayedOutput = canDequeueFromHeap outH
             , workerThreads    = running
             , workLoop         = f q outH st{streamVar = Just sv} sv
             , enqueue          = enqueueAhead sv q
@@ -2122,7 +2105,6 @@ getParallelSVar st = do
                  , outputDoorBell   = outQMv
                  , readOutputQ      = readOutputQPar sv
                  , postProcess      = allThreadsDone sv
-                 , hasDelayedOutput = return False
                  , workerThreads    = running
                  , workLoop         = undefined
                  , enqueue          = undefined
