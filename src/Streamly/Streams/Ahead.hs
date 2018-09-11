@@ -226,7 +226,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         if stopIt
         then liftIO $ do
             -- put the entry back in the heap and stop
-            liftIO $ requeueOnHeapTop heap (Entry seqNo ent) seqNo
+            requeueOnHeapTop heap (Entry seqNo ent) seqNo
             sendStop sv winfo
         else runStreamWithYieldLimit True seqNo r
 
@@ -248,7 +248,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         res <- liftIO $ dequeueFromHeapSeq heap (prevSeqNo + 1)
         case res of
             Ready (Entry seqNo hent) -> loopHeap seqNo hent
-            -- when Clearing then stop
+            Clearing -> liftIO $ sendStop sv winfo
             _ -> do
                 if stopping
                 then do
@@ -501,8 +501,8 @@ workLoopAhead q heap st sv winfo = do
         case r of
             Ready (Entry seqNo hent) ->
                 processHeap q heap st sv winfo hent seqNo False
-            -- when clearing then stop
-            _ -> do
+            Clearing -> liftIO $ sendStop sv winfo
+            Waiting _ -> do
                 -- Before we execute the next item from the work queue we check
                 -- if we are beyond the yield limit. It is better to check the
                 -- yield limit before we pick up the next item. Otherwise we
