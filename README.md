@@ -334,7 +334,8 @@ For more information, see:
 
   * [A comprehensive tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
   * [Some practical examples](https://github.com/composewell/streamly/tree/master/examples)
-  * [Comparison with other packages](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
+  * See the `Comparison with existing packages` section at the end of the
+    [tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
   * [Streaming benchmarks comparing streamly with other streaming libraries](https://github.com/composewell/streaming-benchmarks)
   * [Quick tutorial comparing streamly with the async package](https://github.com/composewell/streamly/blob/master/docs/Async.md)
   * [Concurrency benchmarks comparing streamly with async](https://github.com/composewell/concurrency-benchmarks)
