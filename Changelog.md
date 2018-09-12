@@ -1,3 +1,8 @@
+## 0.5.1
+
+* Performance improvements, especially space consumption, for concurrent
+  streams
+
 ## 0.5.0
 
 ### Bug Fixes
