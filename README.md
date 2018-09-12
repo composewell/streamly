@@ -30,7 +30,8 @@ the functionality of list transformer libraries like `pipes` or
 [list-t](https://hackage.haskell.org/package/list-t), and also the logic
 programming library [logict](https://hackage.haskell.org/package/logict). On
 the concurrency side, it subsumes the functionality of the
-[async](https://hackage.haskell.org/package/async) package. Because it supports
+[async](https://hackage.haskell.org/package/async) package, and provides even
+higher level concurrent composition. Because it supports
 streaming with concurrency we can write FRP applications similar in concept to
 [Yampa](https://hackage.haskell.org/package/Yampa) or
 [reflex](https://hackage.haskell.org/package/reflex).
@@ -58,18 +59,6 @@ processing a million elements. The timings for streamly and vector are in the
 600-700 microseconds range and therefore can barely be seen in the graph.
 
 ![Streaming Operations at a Glance](charts-0/KeyOperations-time.svg)
-
-For more details on streaming library ecosystem and where streamly fits in,
-please see
-[streaming libraries](https://github.com/composewell/streaming-benchmarks#streaming-libraries).
-Also, see the [Comparison with Existing
-Packages](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
-section in the streamly tutorial.
-
-For more information on streamly, see:
-
-  * [Streamly.Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) module in the haddock documentation for a detailed introduction
-  * [examples](https://github.com/composewell/streamly/tree/master/examples) directory in the package for some simple practical examples
 
 ## Streaming Pipelines
 
@@ -338,12 +327,16 @@ for a console based FRP game example and
 [CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
 for an SDL based animation example.
 
-## Comparison with the `async` package
+## Further Reading
 
-Streamly provides higher level concurrency compared to the `async` package, it
-can be used wherever you would want to use the `async` package. [See this
-tutorial for a quick comparison of streamly with
-async](https://github.com/composewell/streamly/blob/master/docs/Async.md).
+For more information, see:
+
+  * [A comprehensive tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
+  * [Some practical examples](https://github.com/composewell/streamly/tree/master/examples)
+  * [Comparison with other packages](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
+  * [Streaming benchmarks comparing streamly with other streaming libraries](https://github.com/composewell/streaming-benchmarks)
+  * [Quick tutorial comparing streamly with the async package](https://github.com/composewell/streamly/blob/master/docs/Async.md)
+  * [Concurrency benchmarks comparing streamly with async](https://github.com/composewell/concurrency-benchmarks)
 
 ## Contributing
 

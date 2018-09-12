@@ -929,6 +929,9 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 -- Transformation by Reordering
 ------------------------------------------------------------------------------
 
+-- XXX to scale this we need to use a slab allocated array backed
+-- representation for temporary storage.
+--
 -- | Returns the elements of the stream in reverse order.
 -- The stream must be finite.
 --

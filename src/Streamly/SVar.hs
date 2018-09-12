@@ -338,6 +338,11 @@ data SVar t m a = SVar
       svarStyle      :: SVarStyle
 
     -- Shared output queue (events, length)
+    -- XXX For better efficiency we can try a preallocated array type (perhaps
+    -- something like a vector) that allows an O(1) append. That way we will
+    -- avoid constructing and reversing the list. Possibly we can also avoid
+    -- the GC copying overhead. When the size increases we should be able to
+    -- allocate the array in chunks.
     , outputQueue    :: IORef ([ChildEvent a], Int)
     , outputDoorBell :: MVar ()  -- signal the consumer about output
     , readOutputQ    :: m [ChildEvent a]
