@@ -10,14 +10,15 @@
 ## Stream`ing` `Concurrent`ly
 
 Streamly, short for streaming concurrently, provides monadic streams, with a
-simple API, almost identical to standard lists, and an in-built support for
-concurrency.  By using stream-style combinators on stream composition,
-streams can be generated, merged, chained, mapped, zipped, and consumed
-concurrently – providing a generalized high level programming framework
-unifying streaming and concurrency. Controlled concurrency allows even infinite
-streams to be evaluated concurrently.  Concurrency is auto scaled based on
-feedback from the stream consumer.  The programmer does not have to be aware of
-threads, locking or synchronization to write scalable concurrent programs.
+simple API, almost identical to standard lists and vector, and an in-built
+support for concurrency.  By using stream-style combinators on stream
+composition, streams can be generated, merged, chained, mapped, zipped, and
+consumed concurrently – providing a generalized high level programming
+framework unifying streaming and concurrency. Controlled concurrency allows
+even infinite streams to be evaluated concurrently.  Concurrency is auto scaled
+based on feedback from the stream consumer.  The programmer does not have to be
+aware of threads, locking or synchronization to write scalable concurrent
+programs.
 
 The basic streaming functionality of streamly is equivalent to that provided by
 streaming libraries like
