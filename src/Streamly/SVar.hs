@@ -346,7 +346,7 @@ data SVar t m a = SVar
     -- Combined/aggregate parameters
     , maxWorkerLimit :: Limit
     , maxBufferLimit :: Limit
-    , remainingYields :: Maybe (IORef Count)
+    , remainingWork  :: Maybe (IORef Count)
     , yieldRateInfo  :: Maybe YieldRateInfo
 
     -- Used only by bounded SVar types
@@ -779,7 +779,7 @@ doFork action exHandler =
                                          exHandler
                 runInIO (return tid)
 
--- XXX Can we make access to remainingYields and yieldRateInfo fields in sv
+-- XXX Can we make access to remainingWork and yieldRateInfo fields in sv
 -- faster, along with the fields in sv required by send?
 -- XXX make it noinline
 --
@@ -793,7 +793,7 @@ doFork action exHandler =
 {-# INLINE decrementYieldLimit #-}
 decrementYieldLimit :: SVar t m a -> IO Bool
 decrementYieldLimit sv =
-    case remainingYields sv of
+    case remainingWork sv of
         Nothing -> return True
         Just ref -> do
             r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
@@ -804,7 +804,7 @@ decrementYieldLimit sv =
 {-# INLINE decrementYieldLimitPost #-}
 decrementYieldLimitPost :: SVar t m a -> IO Bool
 decrementYieldLimitPost sv =
-    case remainingYields sv of
+    case remainingWork sv of
         Nothing -> return True
         Just ref -> do
             r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
@@ -813,7 +813,7 @@ decrementYieldLimitPost sv =
 {-# INLINE incrementYieldLimit #-}
 incrementYieldLimit :: SVar t m a -> IO ()
 incrementYieldLimit sv =
-    case remainingYields sv of
+    case remainingWork sv of
         Nothing -> return ()
         Just ref -> atomicModifyIORefCAS_ ref (+ 1)
 
@@ -1339,6 +1339,9 @@ dispatchWorker yieldCount sv = do
     -- XXX in case of Ahead streams we should not send more than one worker
     -- when the work queue is done but heap is not done.
     done <- liftIO $ isWorkDone sv
+    -- Note, "done" may not mean that the work is actually finished if there
+    -- are workers active, because there may be a worker which has not yet
+    -- queued the leftover work.
     if (not done)
     then do
         qDone <- liftIO $ isQueueDone sv
@@ -1353,7 +1356,7 @@ dispatchWorker yieldCount sv = do
             -- executing. In that case we should either configure the maxWorker
             -- count to higher or use parallel style instead of ahead or async
             -- style.
-            limit <- case remainingYields sv of
+            limit <- case remainingWork sv of
                 Nothing -> return workerLimit
                 Just ref -> do
                     n <- liftIO $ readIORef ref
@@ -1368,12 +1371,12 @@ dispatchWorker yieldCount sv = do
             let dispatch = pushWorker yieldCount sv >> return True
              in case limit of
                 Unlimited -> dispatch
-                -- Note that the use of remainingYields and workerCount is not
+                -- Note that the use of remainingWork and workerCount is not
                 -- atomic and the counts may even have changed between reading and
                 -- using them here, so this is just approximate logic and we cannot
                 -- rely on it for correctness. We may actually dispatch more
                 -- workers than required.
-                Limited lim | active < (fromIntegral lim) -> dispatch
+                Limited lim | lim > 0 -> dispatch
                 _ -> return False
         else do
             when (active <= 0) $ pushWorker 0 sv
@@ -1474,9 +1477,9 @@ estimateWorkers workerLimit svarYields gainLossYields
                 in  assert (adjustedLat > 0) $
                     if wLatency <= adjustedLat
                     then PartialWorker deltaYields
-                    else ManyWorkers ( fromIntegral
-                                     $ withLimit
-                                     $ wLatency `div` adjustedLat) deltaYields
+                    else let workers = withLimit $ wLatency `div` adjustedLat
+                             limited = min workers (fromIntegral deltaYields)
+                         in ManyWorkers (fromIntegral limited) deltaYields
             else
                 let expectedDuration = fromIntegral effectiveYields * targetLat
                     sleepTime = expectedDuration - svarElapsed
@@ -2001,7 +2004,7 @@ getAheadSVar st f = do
 
     let getSVar sv readOutput postProc = SVar
             { outputQueue      = outQ
-            , remainingYields  = yl
+            , remainingWork  = yl
             , maxBufferLimit   = getMaxBuffer st
             , maxWorkerLimit   = getMaxThreads st
             , yieldRateInfo    = rateInfo
@@ -2049,7 +2052,7 @@ getAheadSVar st f = do
     isQueueDoneAhead sv q = do
         queueDone <- checkEmpty q
         yieldsDone <-
-                case remainingYields sv of
+                case remainingWork sv of
                     Just yref -> do
                         n <- readIORef yref
                         return (n <= 0)
@@ -2097,7 +2100,7 @@ getParallelSVar st = do
 
     let sv =
             SVar { outputQueue      = outQ
-                 , remainingYields  = yl
+                 , remainingWork  = yl
                  , maxBufferLimit   = Unlimited
                  , maxWorkerLimit   = Unlimited
                  -- Used only for diagnostics

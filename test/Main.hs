@@ -84,19 +84,19 @@ main = hspec $ do
             `shouldReturn` ([0,0,2,2,4,4,8,8])
 
     describe "restricts concurrency and cleans up extra tasks" $ do
-        it "take 1 asyncly" $ checkCleanup asyncly (S.take 1)
-        it "take 1 wAsyncly" $ checkCleanup wAsyncly (S.take 1)
-        it "take 1 aheadly" $ checkCleanup aheadly (S.take 1)
+        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
+        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
+        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
 
-        it "takeWhile (< 0) asyncly" $ checkCleanup asyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) wAsyncly" $ checkCleanup wAsyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) aheadly" $ checkCleanup aheadly (S.takeWhile (< 0))
+        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
 
 #ifdef DEVBUILD
         -- parallely fails on CI machines, may need more difference in times of
         -- the events, but that would make tests even slower.
-        it "take 1 parallely" $ checkCleanup parallely (S.take 1)
-        it "takeWhile (< 0) parallely" $ checkCleanup parallely (S.takeWhile (< 0))
+        it "take 1 parallely" $ checkCleanup 3 parallely (S.take 1)
+        it "takeWhile (< 0) parallely" $ checkCleanup 3 parallely (S.takeWhile (< 0))
 
         testFoldOpsCleanup "head" S.head
         testFoldOpsCleanup "null" S.null
@@ -138,10 +138,11 @@ main = hspec $ do
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
 checkCleanup :: IsStream t
-    => (t IO Int -> SerialT IO Int)
+    => Int
+    -> (t IO Int -> SerialT IO Int)
     -> (t IO Int -> t IO Int)
     -> IO ()
-checkCleanup t op = do
+checkCleanup d t op = do
     r <- newIORef (-1 :: Int)
     runStream . serially $ do
         _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
@@ -151,7 +152,7 @@ checkCleanup t op = do
     res <- readIORef r
     res `shouldBe` 0
     where
-    delay ref i = threadDelay (i*200000) >> writeIORef ref i >> return i
+    delay ref i = threadDelay (i*d*100000) >> writeIORef ref i >> return i
 
 #ifdef DEVBUILD
 checkCleanupFold :: IsStream t

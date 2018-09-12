@@ -283,7 +283,7 @@ getLifoSVar st = do
 
     let isWorkFinishedLimited sv = do
             yieldsDone <-
-                    case remainingYields sv of
+                    case remainingWork sv of
                         Just ref -> do
                             n <- readIORef ref
                             return (n <= 0)
@@ -293,7 +293,7 @@ getLifoSVar st = do
 
     let getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
-            , remainingYields    = yl
+            , remainingWork    = yl
             , maxBufferLimit   = getMaxBuffer st
             , maxWorkerLimit   = getMaxThreads st
             , yieldRateInfo    = rateInfo
@@ -382,7 +382,7 @@ getFifoSVar st = do
     let isWorkFinished _ = nullQ q
     let isWorkFinishedLimited sv = do
             yieldsDone <-
-                    case remainingYields sv of
+                    case remainingWork sv of
                         Just ref -> do
                             n <- readIORef ref
                             return (n <= 0)
@@ -392,7 +392,7 @@ getFifoSVar st = do
 
     let getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
-            , remainingYields  = yl
+            , remainingWork  = yl
             , maxBufferLimit   = getMaxBuffer st
             , maxWorkerLimit   = getMaxThreads st
             , yieldRateInfo    = rateInfo
