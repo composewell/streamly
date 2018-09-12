@@ -40,8 +40,24 @@ main :: IO ()
 main = hspec $ do
     parallelTests
 
+    describe "restricts concurrency and cleans up extra tasks" $ do
+        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
+        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
+        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
+
+        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
+        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
+
+#ifdef DEVBUILD
+    let timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
+        timed x = S.yieldM (threadDelay (x * 100000)) >> return x
+
     -- These are not run parallely because the timing gets affected
     -- unpredictably when other tests are running on the same machine.
+    --
+    -- Also, they fail intermittently due to scheduling delays, so not run on
+    -- CI machines.
     describe "Nested parallel and serial compositions" $ do
         let t = timed
             p = wAsyncly
@@ -83,16 +99,6 @@ main = hspec $ do
                 <> ((t 4 <> t 8) <> (t 0 <> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])
 
-    describe "restricts concurrency and cleans up extra tasks" $ do
-        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
-        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
-        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
-
-        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
-
-#ifdef DEVBUILD
         -- parallely fails on CI machines, may need more difference in times of
         -- the events, but that would make tests even slower.
         it "take 1 parallely" $ checkCleanup 3 parallely (S.take 1)
@@ -788,9 +794,6 @@ nestTwoParallelApp =
         s2 = foldMapWith (<>) return [5..8]
     in ((S.toList . parallely) ((+) <$> s1 <*> s2) >>= return . sort)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
-
-timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
-timed x = S.yieldM (threadDelay (x * 100000)) >> return x
 
 interleaveCheck :: IsStream t
     => (t IO Int -> SerialT IO Int)
