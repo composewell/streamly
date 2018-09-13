@@ -7,69 +7,112 @@
 [![CircleCI](https://circleci.com/gh/composewell/streamly/tree/master.svg?style=svg)](https://circleci.com/gh/composewell/streamly/tree/master)
 [![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
 
-## Stream`ing` `Concurrent`ly
 
-Streamly, short for streaming concurrently, provides monadic streams, with a
-simple API, almost identical to standard lists and vector, and an in-built
-support for concurrency.  By using stream-style combinators on stream
-composition, streams can be generated, merged, chained, mapped, zipped, and
-consumed concurrently – providing a generalized high level programming
-framework unifying streaming and concurrency. Controlled concurrency allows
-even infinite streams to be evaluated concurrently.  Concurrency is auto scaled
-based on feedback from the stream consumer.  The programmer does not have to be
-aware of threads, locking or synchronization to write scalable concurrent
-programs.
+## What is streamly?
 
-The basic streaming functionality of streamly is equivalent to that provided by
-streaming libraries like
-[vector](https://hackage.haskell.org/package/vector),
-[streaming](https://hackage.haskell.org/package/streaming),
-[pipes](https://hackage.haskell.org/package/pipes), and
-[conduit](https://hackage.haskell.org/package/conduit).
-In addition to providing streaming functionality, streamly subsumes
-the functionality of list transformer libraries like `pipes` or
-[list-t](https://hackage.haskell.org/package/list-t), and also the logic
-programming library [logict](https://hackage.haskell.org/package/logict). On
-the concurrency side, it subsumes the functionality of the
-[async](https://hackage.haskell.org/package/async) package, and provides even
-higher level concurrent composition. Because it supports
-streaming with concurrency we can write FRP applications similar in concept to
-[Yampa](https://hackage.haskell.org/package/Yampa) or
-[reflex](https://hackage.haskell.org/package/reflex).
+Haskell lists provide an elegant data flow programming model for pure
+computations.  With lists, we can express pure computations using composable
+stream operations like `:`, `unfold`, `map`, `filter`, `zip` and `fold`.
+Streamly extends this data flow programming model to concurrent monadic
+computations. We use the same list primitives except that we deal with lists of
+monadic computations (streams) instead of lists of pure computations.
 
-Why use streamly?
+We express concurrency declaratively with the list primitives themselves
+without having to know any low level notions of concurrency like threads,
+locking or synchronization. Concurrency is automatically scaled up or down
+based on the need of the application, so that we can say goodbye to managing
+thread pools and associated sizing issues as well.  That's what true fearless
+concurrency is.  Streamly can be thought of as concurrent monadic lists, if you
+know Haskell lists then you already know how to use streamly.
 
-  * _Simplicity_: Simple list like streaming API, if you know how to use lists
-    then you know how to use streamly. This library is built with simplicity
-    and ease of use as a design goal.
-  * _Concurrency_: Simple, powerful, and scalable concurrency.  Concurrency is
-    built-in, and not intrusive, concurrent programs are written exactly the
-    same way as non-concurrent ones.
-  * _Generality_: Unifies functionality provided by several disparate packages
-    (streaming, concurrency, list transformer, logic programming, reactive
-    programming) in a concise API.
-  * _Performance_: Streamly is designed for high performance. It employs stream
-    fusion optimizations for best possible performance. Serial peformance is
-    equivalent to the venerable `vector` library in most cases and even better
-    in some cases.  Concurrent performance is unbeatable.  See
-    [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
-    for a comparison of popular streaming libraries on micro-benchmarks.
+## Where to use streamly?
+
+Everywhere.  The answer to this question would be similar to the answer to -
+"Where do I use Haskell lists?".  Streamly generalizes lists to monadic
+streams, and IO to non-deterministic stream composition with concurrency.  The
+`IO` monad becomes a special case of streamly, if we use single element streams
+the behavior of streamly is identical to the IO monad.  It can be replaced with
+streamly by just prefixing IO actions with `liftIO`, without any loss of
+performance.  Pure lists too become a special case of streamly; if we use the
+`Identity` monad, streams turn into pure lists.  Non-concurrent programs become
+a special case of concurrent ones, by just adding a combinator, a non-concurrent
+program becomes concurrent.
+
+We can say that streamly is a superset of lists and IO, with builtin
+concurrency.  If you want to write a program that involves IO, concurrent or
+not, then you can just use streamly as the base monad, heck, you could even use
+streamly for pure computations, as streamly performs at par with pure lists or
+`vector`.
+
+If you need convincing for using streaming or data flow programming paradigm
+itself then try to answer this question - why do we use lists? It boils down to
+why we use functional programming in the first place, and Haskell is successful
+in enforcing this for pure computations, but not for monadic computations. In
+the absence of a standard, easy to use or enforced data flow programming
+library for monadic computations, and the IO monad providing an escape hatch to
+an imperative model, we just love to fall into the imperative trap.
+
+## Show me an example
+
+Here is an IO monad code to list a directory recursively:
+
+```haskell
+import Control.Monad.IO.Class (liftIO)
+import Path.IO (listDir, getCurrentDir) -- from path-io package
+
+listDirRecursive = getCurrentDir >>= readdir
+  where
+    readdir dir = do
+      (dirs, files) <- listDir dir
+      liftIO $ mapM_ putStrLn
+             $ map show dirs ++ map show files
+      foldMap readdir dirs
+```
+
+This is your usual IO monad code, with no streamly specific code whatsoever.
+This is how you can run this:
+
+``` haskell
+main :: IO ()
+main = listDirRecursive
+```
+
+And, this is how you can run exactly the same code using streamly with
+lookahead style concurrency, the only difference is that this time multiple
+directories are read concurrently:
+
+``` haskell
+import Streamly (runStream, aheadly)
+
+main :: IO ()
+main = runStream $ aheadly $ listDirRecursive
+```
+
+Isn't that magical? What's going on here? Streamly does not introduce any new
+abstractions, it just uses the standard abstractions like `Semigroup` or
+`Monoid` to combine monadic streams concurrently, the same way lists combine a
+sequence of pure values non-concurrently. Therefore, the `foldMap` in the code
+above turns into a concurrent monoidal composition of a stream of `readdir`
+computations.
+
+## How does it perform?
+
+Providing monadic streaming and high level declarative concurrency does not
+mean that `streamly` compromises with performance in any way. The
+non-concurrent performance of `streamly` competes with lists and the `vector`
+library. The concurrent performance is as good as it gets, see [concurrency
+benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
+performance results and a comparison with the `async` package.
 
 The following chart shows a summary of the cost of key streaming operations
-processing a million elements. The timings for streamly and vector are in the
-600-700 microseconds range and therefore can barely be seen in the graph.
+processing a million elements. The timings for `streamly` and `vector` are in
+the 600-700 microseconds range and therefore can barely be seen in the graph.
+For more details, see [streaming
+benchmarks](https://github.com/composewell/streaming-benchmarks).
 
 ![Streaming Operations at a Glance](charts-0/KeyOperations-time.svg)
 
 ## Streaming Pipelines
-
-Unlike `pipes` or `conduit` and like `vector` and `streaming`, `streamly`
-composes stream data instead of stream processors (functions).  A stream is
-just like a list and is explicitly passed around to functions that process the
-stream.  Therefore, no special operator is needed to join stages in a streaming
-pipeline, just the standard function application (`$`) or reverse function
-application (`&`) operator is enough.  Combinators are provided in
-`Streamly.Prelude` to transform or fold streams.
 
 The following snippet provides a simple stream composition example that reads
 numbers from stdin, prints the squares of even numbers and exits if an even
@@ -88,6 +131,14 @@ main = runStream $
      & fmap (\x -> x * x)
      & S.mapM print
 ```
+
+Unlike `pipes` or `conduit` and like `vector` and `streaming`, `streamly`
+composes stream data instead of stream processors (functions).  A stream is
+just like a list and is explicitly passed around to functions that process the
+stream.  Therefore, no special operator is needed to join stages in a streaming
+pipeline, just the standard function application (`$`) or reverse function
+application (`&`) operator is enough.  Combinators are provided in
+`Streamly.Prelude` to transform or fold streams.
 
 ## Concurrent Stream Generation
 
@@ -270,28 +321,6 @@ main = do
     print s
 ```
 
-Of course, the actions running in parallel could be arbitrary IO actions.  For
-example, to concurrently list the contents of a directory tree recursively:
-
-``` haskell
-import Path.IO (listDir, getCurrentDir)
-import Streamly
-import qualified Streamly.Prelude as S
-
-main = runStream $ aheadly $ getCurrentDir >>= readdir
-   where readdir d = do
-            (dirs, files) <- S.yieldM $ listDir d
-            S.yieldM $ mapM_ putStrLn $ map show files
-            -- read the subdirs concurrently, (<>) is concurrent
-            foldMap readdir dirs
-```
-
-In the above examples we do not think in terms of threads, locking or
-synchronization, rather we think in terms of what can run in parallel, the rest
-is taken care of automatically. When using `aheadly` the programmer does
-not have to worry about how many threads are to be created, they are
-automatically adjusted based on the demand of the consumer.
-
 The concurrency facilities provided by streamly can be compared with
 [OpenMP](https://en.wikipedia.org/wiki/OpenMP) and
 [Cilk](https://en.wikipedia.org/wiki/Cilk) but with a more declarative
@@ -327,6 +356,56 @@ of integrating concurrency and streaming. See
 for a console based FRP game example and
 [CirclingSquare.hs](https://github.com/composewell/streamly/tree/master/examples/CirclingSquare.hs)
 for an SDL based animation example.
+
+## Conclusion
+
+Streamly, short for streaming concurrently, provides monadic streams, with a
+simple API, almost identical to standard lists, and an in-built
+support for concurrency.  By using stream-style combinators on stream
+composition, streams can be generated, merged, chained, mapped, zipped, and
+consumed concurrently – providing a generalized high level programming
+framework unifying streaming and concurrency. Controlled concurrency allows
+even infinite streams to be evaluated concurrently.  Concurrency is auto scaled
+based on feedback from the stream consumer.  The programmer does not have to be
+aware of threads, locking or synchronization to write scalable concurrent
+programs.
+
+Streamly is a programmer first library, designed to be useful and friendly to
+programmers for solving practical problems in a simple and concise manner. Some
+key points in favor of streamly are:
+
+  * _Simplicity_: Simple list like streaming API, if you know how to use lists
+    then you know how to use streamly. This library is built with simplicity
+    and ease of use as a design goal.
+  * _Concurrency_: Simple, powerful, and scalable concurrency.  Concurrency is
+    built-in, and not intrusive, concurrent programs are written exactly the
+    same way as non-concurrent ones.
+  * _Generality_: Unifies functionality provided by several disparate packages
+    (streaming, concurrency, list transformer, logic programming, reactive
+    programming) in a concise API.
+  * _Performance_: Streamly is designed for high performance. It employs stream
+    fusion optimizations for best possible performance. Serial peformance is
+    equivalent to the venerable `vector` library in most cases and even better
+    in some cases.  Concurrent performance is unbeatable.  See
+    [streaming-benchmarks](https://github.com/composewell/streaming-benchmarks)
+    for a comparison of popular streaming libraries on micro-benchmarks.
+
+The basic streaming functionality of streamly is equivalent to that provided by
+streaming libraries like
+[vector](https://hackage.haskell.org/package/vector),
+[streaming](https://hackage.haskell.org/package/streaming),
+[pipes](https://hackage.haskell.org/package/pipes), and
+[conduit](https://hackage.haskell.org/package/conduit).
+In addition to providing streaming functionality, streamly subsumes
+the functionality of list transformer libraries like `pipes` or
+[list-t](https://hackage.haskell.org/package/list-t), and also the logic
+programming library [logict](https://hackage.haskell.org/package/logict). On
+the concurrency side, it subsumes the functionality of the
+[async](https://hackage.haskell.org/package/async) package, and provides even
+higher level concurrent composition. Because it supports
+streaming with concurrency we can write FRP applications similar in concept to
+[Yampa](https://hackage.haskell.org/package/Yampa) or
+[reflex](https://hackage.haskell.org/package/reflex).
 
 ## Further Reading
 
