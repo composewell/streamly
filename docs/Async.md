@@ -1,13 +1,15 @@
-## `async/wait` Model vs Concurrent Streams
+# Streamly
 
 Streamly is a library to make concurrent programming a joy. The venerable
 `async` package is the go to package for concurrent programming for most
 Haskellers. Streamly is a higher level library than `async` and provides a lot
 more power and functionality, using a simpler and concise expression of
-concurrency. You should be able to express everything with streamly that you
-can with `async`, if you can't please raise an issue. If you are familiar with
-`async`, in this document we highlight how streamly can be used where you would
-use `async`.
+concurrency. At a high level, you should be able to express everything with
+streamly that you can with `async`, if you can't please raise an issue. If you
+are familiar with `async`, in this document we highlight how streamly can be
+used where you would use `async`.
+
+## `async/wait` vs Concurrent Streams
 
 Unlike `async`, streamly does not use a spawn and `wait` model.  Streamly uses
 a more high level approach to concurrency and has no explicit notion of
