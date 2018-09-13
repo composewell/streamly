@@ -75,6 +75,7 @@ cabal-version:       >= 1.10
 extra-source-files:
     Changelog.md
     README.md
+    docs/Async.md
     bench.sh
     stack-7.10.yaml
     stack-8.0.yaml
