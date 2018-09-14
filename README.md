@@ -8,28 +8,27 @@
 [![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
 
 
-## What is streamly?
+## Streaming Concurrently
 
-Haskell lists provide an elegant data flow programming model for pure
-computations.  With lists, we can express pure computations using composable
-stream operations like `:`, `unfold`, `map`, `filter`, `zip` and `fold`.
-Streamly extends this data flow programming model to concurrent monadic
-computations. We use the same list primitives except that we deal with lists of
-monadic computations (streams) instead of lists of pure computations.
+Haskell lists express pure computations using composable stream operations like
+`:`, `unfold`, `map`, `filter`, `zip` and `fold`.  Streamly extends this data
+flow programming model of pure lists to lists of concurrent monadic
+computations (streams) using the same primitives.
 
-We express concurrency declaratively with the list primitives themselves
-without having to know any low level notions of concurrency like threads,
-locking or synchronization. Concurrency is automatically scaled up or down
-based on the need of the application, so that we can say goodbye to managing
-thread pools and associated sizing issues as well.  That's what true fearless
-concurrency is.  Streamly can be thought of as concurrent monadic lists, if you
-know Haskell lists then you already know how to use streamly.
+Streamly expresses concurrency using the list primitives, and standard, well
+known abstractions, without having to know any low level notions of concurrency
+like threads, locking or synchronization. Concurrency is automatically scaled
+up or down based on the need of the application, so that we can say goodbye to
+managing thread pools and associated sizing issues as well.  This is true,
+fearless and declarative concurrency.  Streamly can be thought of as concurrent
+monadic lists, if you know Haskell lists then you already know how to use
+streamly.
 
 ## Where to use streamly?
 
 Everywhere.  The answer to this question would be similar to the answer to -
 "Where do I use Haskell lists?".  Streamly generalizes lists to monadic
-streams, and IO to non-deterministic stream composition with concurrency.  The
+streams, and IO monad to non-deterministic stream composition with concurrency.  The
 `IO` monad becomes a special case of streamly, if we use single element streams
 the behavior of streamly is identical to the IO monad.  It can be replaced with
 streamly by just prefixing IO actions with `liftIO`, without any loss of
@@ -90,7 +89,7 @@ main = runStream $ aheadly $ listDirRecursive
 
 Isn't that magical? What's going on here? Streamly does not introduce any new
 abstractions, it just uses the standard abstractions like `Semigroup` or
-`Monoid` to combine monadic streams concurrently, the same way lists combine a
+`Monoid` to combine monadic streams concurrently, the way lists combine a
 sequence of pure values non-concurrently. Therefore, the `foldMap` in the code
 above turns into a concurrent monoidal composition of a stream of `readdir`
 computations.
