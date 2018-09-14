@@ -24,7 +24,7 @@ import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as S
 
-singleton :: IsStream t => a -> t m a
+singleton :: (IsStream t, Monad m) => a -> t m a
 singleton a = a .: nil
 
 toListSerial :: SerialT IO a -> IO [a]
@@ -43,16 +43,35 @@ main :: IO ()
 main = hspec $ do
     parallelTests
 
-    describe "restricts concurrency and cleans up extra tasks" $ do
-        it "take 1 asyncly" $ checkCleanup 2 asyncly (S.take 1)
-        it "take 1 wAsyncly" $ checkCleanup 2 wAsyncly (S.take 1)
-        it "take 1 aheadly" $ checkCleanup 2 aheadly (S.take 1)
-
-        it "takeWhile (< 0) asyncly" $ checkCleanup 2 asyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) wAsyncly" $ checkCleanup 2 wAsyncly (S.takeWhile (< 0))
-        it "takeWhile (< 0) aheadly" $ checkCleanup 2 aheadly (S.takeWhile (< 0))
+    let ops =
+            [ ("take 1", runStream . S.take 1)
+            , ("takeWhile (<0)", runStream . S.takeWhile (< 0))
+            , ("head", void . S.head)
+            , ("null", void . S.null)
+            , ("elem", void . S.elem 0)
+            , ("notElem", void . S.notElem 0)
+            , ("elemIndex", void . S.elemIndex 0)
+            -- S.lookup
+            , ("find", void . S.find (==0))
+            , ("findIndex", void . S.findIndex (==0))
+            , ("all", void . S.all (==1))
+            , ("any", void . S.any (==0))
+            , ("and", void . S.and . S.map (==1))
+            , ("or", void . S.or . S.map (==0))
+            ]
+    describe "asyncly: restricts concurrency and cleans up extra tasks" $
+        forM_ ops $ \(desc, f) -> it desc $ checkCleanup asyncly f
+    describe "wAsyncly: restricts concurrency and cleans up extra tasks" $
+        forM_ ops $ \(desc, f) -> it desc $ checkCleanup wAsyncly f
+    describe "aheadly: restricts concurrency and cleans up extra tasks" $
+        forM_ ops $ \(desc, f) -> it desc $ checkCleanup aheadly f
 
 #ifdef DEVBUILD
+    -- parallely fails on CI machines, may need more difference in times of
+    -- the events, but that would make tests even slower.
+    describe "parallely: restricts concurrency and cleans up extra tasks" $
+        forM_ ops $ \(desc, f) -> it desc $ checkCleanup parallely f
+
     let timed :: (IsStream t, Monad (t IO)) => Int -> t IO Int
         timed x = S.yieldM (threadDelay (x * 100000)) >> return x
 
@@ -101,25 +120,6 @@ main = hspec $ do
                     ((t 4 <> t 8) <> (t 0 <> t 2))
                 <> ((t 4 <> t 8) <> (t 0 <> t 2)))
             `shouldReturn` ([0,0,2,2,4,4,8,8])
-
-        -- parallely fails on CI machines, may need more difference in times of
-        -- the events, but that would make tests even slower.
-        it "take 1 parallely" $ checkCleanup 3 parallely (S.take 1)
-        it "takeWhile (< 0) parallely" $ checkCleanup 3 parallely (S.takeWhile (< 0))
-
-        testFoldOpsCleanup "head" S.head
-        testFoldOpsCleanup "null" S.null
-        testFoldOpsCleanup "elem" (S.elem 0)
-        testFoldOpsCleanup "notElem" (S.notElem 0)
-        testFoldOpsCleanup "elemIndex" (S.elemIndex 0)
-        -- S.lookup
-        testFoldOpsCleanup "notElem" (S.notElem 0)
-        testFoldOpsCleanup "find" (S.find (==0))
-        testFoldOpsCleanup "findIndex" (S.findIndex (==0))
-        testFoldOpsCleanup "all" (S.all (==1))
-        testFoldOpsCleanup "any" (S.any (==0))
-        testFoldOpsCleanup "and" (S.and . S.map (==1))
-        testFoldOpsCleanup "or" (S.or . S.map (==0))
 #endif
 
     ---------------------------------------------------------------------------
@@ -147,45 +147,16 @@ main = hspec $ do
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
 
 checkCleanup :: IsStream t
-    => Int
-    -> (t IO Int -> SerialT IO Int)
-    -> (t IO Int -> t IO Int)
-    -> IO ()
-checkCleanup d t op = do
-    r <- newIORef (-1 :: Int)
-    runStream . serially $ do
-        _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
-        return ()
-    performMajorGC
-    threadDelay 500000
-    res <- readIORef r
-    res `shouldBe` 0
-    where
-    delay ref i = threadDelay (i*d*100000) >> writeIORef ref i >> return i
-
-#ifdef DEVBUILD
-checkCleanupFold :: IsStream t
     => (t IO Int -> SerialT IO Int)
-    -> (SerialT IO Int -> IO (Maybe Int))
+    -> (SerialT IO Int -> IO ())
     -> IO ()
-checkCleanupFold t op = do
+checkCleanup t op = do
     r <- newIORef (-1 :: Int)
     _ <- op $ t $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
-    performMajorGC
-    threadDelay 500000
     res <- readIORef r
     res `shouldBe` 0
     where
     delay ref i = threadDelay (i*200000) >> writeIORef ref i >> return i
-
-testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
-testFoldOpsCleanup name f = do
-    let testOp op x = op x >> return Nothing
-    it (name <> " asyncly") $ checkCleanupFold asyncly (testOp f)
-    it (name <> " wAsyncly") $ checkCleanupFold wAsyncly (testOp f)
-    it (name <> " aheadly") $ checkCleanupFold aheadly (testOp f)
-    it (name <> " parallely") $ checkCleanupFold parallely (testOp f)
-#endif
 
 parallelTests :: SpecWith ()
 parallelTests = H.parallel $ do

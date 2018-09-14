@@ -35,7 +35,7 @@ maxTestCount = 100
 maxTestCount = 10
 #endif
 
-singleton :: IsStream t => a -> t m a
+singleton :: (IsStream t, Monad m) => a -> t m a
 singleton a = a .: nil
 
 sortEq :: Ord a => [a] -> [a] -> Bool

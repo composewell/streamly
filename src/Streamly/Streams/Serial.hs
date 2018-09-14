@@ -164,7 +164,7 @@ instance IsStream SerialT where
 --
 -- @since 0.2.0
 {-# INLINE serial #-}
-serial :: IsStream t => t m a -> t m a -> t m a
+serial :: (IsStream t, Monad m) => t m a -> t m a -> t m a
 serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
     unStream (K.serial (toStream m1) (toStream m2))
              (rstState st) stp sng yld
@@ -173,12 +173,14 @@ serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 -- Monad
 ------------------------------------------------------------------------------
 
+-- XXX need to fix other places as well to compose the cleanup functions
 instance Monad m => Monad (SerialT m) where
     return = pure
     (SerialT (Stream m)) >>= f = SerialT $ Stream $ \st stp sng yld ->
-        let run x = unStream x (rstState st) stp sng yld
-            single a   = run $ toStream (f a)
-            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
+        let run x k = unStream x (rstState st) stp sng
+                        $ \a r k1 -> yld a r (k >> k1)
+            single a   = run (toStream (f a)) (return ())
+            yieldk a r k = run (toStream $ f a <> (fromStream r >>= f)) k
         in m (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------
@@ -286,11 +288,11 @@ instance IsStream WSerialT where
 ------------------------------------------------------------------------------
 
 {-# INLINE interleave #-}
-interleave :: Stream m a -> Stream m a -> Stream m a
+interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = Stream $ \st stp sng yld -> do
     let stop       = unStream m2 (rstState st) stp sng yld
-        single a   = yld a m2
-        yieldk a r = yld a (interleave m2 r)
+        single a   = yld a m2 (return ())
+        yieldk a r k = yld a (interleave m2 r) k
     unStream m1 (rstState st) stop single yieldk
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
@@ -298,12 +300,12 @@ interleave m1 m2 = Stream $ \st stp sng yld -> do
 --
 -- @since 0.2.0
 {-# INLINE wSerial #-}
-wSerial :: IsStream t => t m a -> t m a -> t m a
+wSerial :: (IsStream t, Monad m) => t m a -> t m a -> t m a
 wSerial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
     unStream (interleave (toStream m1) (toStream m2))
              (rstState st) stp sng yld
 
-instance Semigroup (WSerialT m a) where
+instance Monad m => Semigroup (WSerialT m a) where
     (<>) = wSerial
 
 infixr 5 <=>
@@ -313,14 +315,14 @@ infixr 5 <=>
 -- @since 0.1.0
 {-# DEPRECATED (<=>) "Please use 'wSerial' instead." #-}
 {-# INLINE (<=>) #-}
-(<=>) :: IsStream t => t m a -> t m a -> t m a
+(<=>) :: (IsStream t, Monad m) => t m a -> t m a -> t m a
 (<=>) = wSerial
 
 ------------------------------------------------------------------------------
 -- Monoid
 ------------------------------------------------------------------------------
 
-instance Monoid (WSerialT m a) where
+instance Monad m => Monoid (WSerialT m a) where
     mempty = K.nil
     mappend = (<>)
 
@@ -331,9 +333,10 @@ instance Monoid (WSerialT m a) where
 instance Monad m => Monad (WSerialT m) where
     return = pure
     (WSerialT (Stream m)) >>= f = WSerialT $ Stream $ \st stp sng yld ->
-        let run x = unStream x (rstState st) stp sng yld
-            single a   = run $ toStream (f a)
-            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
+        let run x k = unStream x (rstState st) stp sng
+                        $ \a r k1 -> yld a r (k >> k1)
+            single a   = run (toStream (f a)) (return ())
+            yieldk a r k = run (toStream $ f a <> (fromStream r >>= f)) k
         in m (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------

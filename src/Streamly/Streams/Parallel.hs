@@ -46,7 +46,7 @@ import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 
-import Streamly.Streams.SVar (fromSVar)
+import Streamly.Streams.SVar (fromSVar, cleanupSVarFromWorker)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
@@ -76,14 +76,14 @@ runOne st m winfo = unStream m st stop single yieldk
         else liftIO $ cleanupSVarFromWorker sv
 
     stop = liftIO $ sendStop sv winfo
-    sendit a = liftIO $ sendYield sv winfo (ChildYield a)
-    single a = sendit a >> withLimitCheck stop
+    sendit a k = liftIO $ sendYield sv winfo (ChildYield a k)
+    single a = sendit a (return ()) >> withLimitCheck stop
 
     -- XXX there is no flow control in parallel case. We should perhaps use a
     -- queue and queue it back on that and exit the thread when the outputQueue
     -- overflows. Parallel is dangerous because it can accumulate unbounded
     -- output in the buffer.
-    yieldk a r = void (sendit a)
+    yieldk a r k = void (sendit a k)
         >> withLimitCheck (void $ liftIO $ mrun $ runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}

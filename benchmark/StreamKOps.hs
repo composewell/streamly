@@ -52,7 +52,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 type Stream m a = S.Stream m a
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> Stream m Int
+sourceUnfoldr :: Monad m => Int -> Stream m Int
 sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =
@@ -76,7 +76,7 @@ sourceFromEnum n = S.enumFromStepN n 1 value
 -}
 
 {-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: Int -> Stream m Int
+sourceFromFoldable :: Monad m => Int -> Stream m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
 {-
@@ -86,7 +86,7 @@ sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 -}
 
 {-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: Int -> Stream m Int
+sourceFoldMapWith :: Monad m => Int -> Stream m Int
 sourceFoldMapWith n = S.foldMapWith S.serial S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}

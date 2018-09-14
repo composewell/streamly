@@ -429,7 +429,7 @@ repeatM = go
 -- | Iterate a pure function from a seed value, streaming the results forever.
 --
 -- @since 0.1.2
-iterate :: IsStream t => (a -> a) -> a -> t m a
+iterate :: (IsStream t, Monad m) => (a -> a) -> a -> t m a
 iterate step = fromStream . go
     where
     go s = K.cons s (go (step s))
@@ -506,7 +506,7 @@ fromFoldableM = Prelude.foldr consM K.nil
 -- @since 0.1.0
 {-# DEPRECATED each "Please use fromFoldable instead." #-}
 {-# INLINE each #-}
-each :: (IsStream t, Foldable f) => f a -> t m a
+each :: (IsStream t, Foldable f, Monad m) => f a -> t m a
 each = K.fromFoldable
 
 -- | Read lines from an IO Handle into a stream of Strings.
@@ -521,7 +521,7 @@ fromHandle h = fromStream go
         then stp
         else do
             str <- liftIO $ IO.hGetLine h
-            yld str go
+            yld str go (return ())
 
 ------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -813,7 +813,8 @@ toHandle h m = go (toStream m)
     go m1 =
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
-            yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
+            yieldk a r k =  -- XXX try and cleanup on exception
+                liftIO (IO.hPutStrLn h a) >> go r
         in K.unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
@@ -827,13 +828,15 @@ toHandle h m = go (toStream m)
 --
 -- @since 0.2.0
 {-# INLINE scanx #-}
-scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx = K.scanx
 
 -- |
 -- @since 0.1.1
 {-# DEPRECATED scan "Please use scanx instead." #-}
-scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scan :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scan = scanx
 
 -- | Like 'scanl'' but with a monadic step function.
@@ -999,14 +1002,14 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 -- The stream must be finite.
 --
 -- @since 0.1.1
-reverse :: (IsStream t) => t m a -> t m a
+reverse :: (IsStream t, Monad m) => t m a -> t m a
 reverse m = fromStream $ go K.nil (toStream m)
     where
     go rev rest = K.Stream $ \st stp sng yld ->
         let runIt x = K.unStream x (rstState st) stp sng yld
             stop = runIt rev
             single a = runIt $ a `K.cons` rev
-            yieldk a r = runIt $ go (a `K.cons` rev) r
+            yieldk a r _ = runIt $ go (a `K.cons` rev) r
          in K.unStream rest (rstState st) stop single yieldk
 
 ------------------------------------------------------------------------------

@@ -44,9 +44,6 @@ module Streamly.SVar
     , getInspectMode
     , setInspectMode
 
-    , cleanupSVar
-    , cleanupSVarFromWorker
-
     -- SVar related
     , newAheadVar
     , newParallelVar
@@ -127,7 +124,7 @@ import Data.Int (Int64)
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.List ((\\))
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isJust)
 import Data.Semigroup ((<>))
 import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
@@ -174,9 +171,11 @@ data ThreadAbort = ThreadAbort deriving Show
 
 instance Exception ThreadAbort
 
+-- XXX can we exit the threads via the cleanup callback instead of killing
+-- them?
 -- | Events that a child thread may send to a parent thread.
-data ChildEvent a =
-      ChildYield a
+data ChildEvent m a =
+      ChildYield a (m ())
     | ChildStop ThreadId (Maybe SomeException)
 
 -- | Sorting out-of-turn outputs in a heap for Ahead style streams
@@ -337,9 +336,9 @@ data SVar t m a = SVar
     -- avoid constructing and reversing the list. Possibly we can also avoid
     -- the GC copying overhead. When the size increases we should be able to
     -- allocate the array in chunks.
-    , outputQueue    :: IORef ([ChildEvent a], Int)
+    , outputQueue    :: IORef ([ChildEvent m a], Int)
     , outputDoorBell :: MVar ()  -- signal the consumer about output
-    , readOutputQ    :: m [ChildEvent a]
+    , readOutputQ    :: m [ChildEvent m a]
     , postProcess    :: m Bool
 
     -- Combined/aggregate parameters
@@ -364,6 +363,7 @@ data SVar t m a = SVar
     , svarStats      :: SVarStats
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
+    , svarCleanup    :: IORef Bool
 
     -- Only for diagnostics
     , svarInspectMode :: Bool
@@ -506,23 +506,6 @@ setInspectMode st = st { _inspectMode = True }
 
 getInspectMode :: State t m a -> Bool
 getInspectMode = _inspectMode
-
--------------------------------------------------------------------------------
--- Cleanup
--------------------------------------------------------------------------------
-
-cleanupSVar :: SVar t m a -> IO ()
-cleanupSVar sv = do
-    workers <- readIORef (workerThreads sv)
-    Prelude.mapM_ (`throwTo` ThreadAbort)
-          (S.toList workers)
-
-cleanupSVarFromWorker :: SVar t m a -> IO ()
-cleanupSVarFromWorker sv = do
-    workers <- readIORef (workerThreads sv)
-    self <- myThreadId
-    mapM_ (`throwTo` ThreadAbort)
-          (S.toList workers \\ [self])
 
 -------------------------------------------------------------------------------
 -- Dumping the SVar for debug/diag
@@ -864,7 +847,7 @@ incrementYieldLimit sv =
 
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
-send :: SVar t m a -> ChildEvent a -> IO Bool
+send :: SVar t m a -> ChildEvent m a -> IO Bool
 send sv msg = do
     -- XXX can the access to outputQueue and maxBufferLimit be made faster
     -- somehow?
@@ -971,7 +954,7 @@ workerRateControl sv yinfo winfo = do
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
 {-# INLINE sendYield #-}
-sendYield :: SVar t m a -> Maybe WorkerInfo -> ChildEvent a -> IO Bool
+sendYield :: SVar t m a -> Maybe WorkerInfo -> ChildEvent m a -> IO Bool
 sendYield sv mwinfo msg = do
     r <- send sv msg
     rateLimitOk <-
@@ -1852,7 +1835,7 @@ sendWorkerWait delay dispatch sv = do
             when (len <= 0) $ sendWorkerWait delay dispatch sv
 
 {-# INLINE readOutputQRaw #-}
-readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
+readOutputQRaw :: SVar t m a -> IO ([ChildEvent m a], Int)
 readOutputQRaw sv = do
     (list, len) <- atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
     when (svarInspectMode sv) $ do
@@ -1861,7 +1844,7 @@ readOutputQRaw sv = do
         when (len > oqLen) $ writeIORef ref len
     return (list, len)
 
-readOutputQBounded :: MonadAsync m => SVar t m a -> m [ChildEvent a]
+readOutputQBounded :: MonadAsync m => SVar t m a -> m [ChildEvent m a]
 readOutputQBounded sv = do
     (list, len) <- liftIO $ readOutputQRaw sv
     -- When there is no output seen we dispatch more workers to help
@@ -1889,7 +1872,7 @@ readOutputQBounded sv = do
         sendWorkerWait sendWorkerDelay (dispatchWorker 0) sv
         liftIO (fst `fmap` readOutputQRaw sv)
 
-readOutputQPaced :: MonadAsync m => SVar t m a -> m [ChildEvent a]
+readOutputQPaced :: MonadAsync m => SVar t m a -> m [ChildEvent m a]
 readOutputQPaced sv = do
     (list, len) <- liftIO $ readOutputQRaw sv
     if len <= 0
@@ -2039,6 +2022,7 @@ getAheadSVar st f mrun = do
     rateInfo <- getYieldRateInfo st
 
     stats <- newSVarStats
+    cleanupRef <- newIORef False
     tid <- myThreadId
 
     let getSVar sv readOutput postProc = SVar
@@ -2062,6 +2046,7 @@ getAheadSVar st f mrun = do
             , accountThread    = delThread sv
             , workerStopMVar   = stopMVar
             , svarRef          = Nothing
+            , svarCleanup      = cleanupRef
             , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = q
@@ -2115,6 +2100,7 @@ getParallelSVar st mrun = do
     rateInfo <- getYieldRateInfo st
 
     stats <- newSVarStats
+    cleanupRef <- newIORef False
     tid <- myThreadId
 
     let sv =
@@ -2139,6 +2125,7 @@ getParallelSVar st mrun = do
                  , accountThread    = modifyThread sv
                  , workerStopMVar   = undefined
                  , svarRef          = Nothing
+                 , svarCleanup      = cleanupRef
                  , svarInspectMode  = getInspectMode st
                  , svarCreator      = tid
                  , aheadWorkQueue   = undefined

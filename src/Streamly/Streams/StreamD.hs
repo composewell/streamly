@@ -136,17 +136,18 @@ import qualified Streamly.Streams.StreamK as K
 -- | A stream is a succession of 'Step's. A 'Yield' produces a single value and
 -- the next state of the stream. 'Stop' indicates there are no more values in
 -- the stream.
-data Step s a = Yield a s | Stop
+data Step s m a = Yield a s (m ()) | Stop
 
-instance Functor (Step s) where
+instance Functor (Step s m) where
     {-# INLINE fmap #-}
-    fmap f (Yield x s) = Yield (f x) s
+    fmap f (Yield x s k) = Yield (f x) s k
     fmap _ Stop = Stop
 
 -- gst = global state
 -- | A stream consists of a step function that generates the next step given a
 -- current state, and the current state.
-data Stream m a = forall s. Stream (State K.Stream m a -> s -> m (Step s a)) s
+data Stream m a =
+    forall s. Stream (State K.Stream m a -> s -> m (Step s m a)) s
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -163,11 +164,11 @@ cons :: Monad m => a -> Stream m a -> Stream m a
 cons x (Stream step state) = Stream step1 Nothing
     where
     {-# INLINE_LATE step1 #-}
-    step1 _ Nothing   = return $ Yield x (Just state)
+    step1 _ Nothing   = return $ Yield x (Just state) (return ())
     step1 gst (Just st) = do
         r <- step (rstState gst) st
         case r of
-            Yield a s -> return $ Yield a (Just s)
+            Yield a s k -> return $ Yield a (Just s) k
             Stop -> return Stop
 
 -------------------------------------------------------------------------------
@@ -182,7 +183,7 @@ uncons (Stream step state) = go state
     go st = do
         r <- step defState st
         return $ case r of
-            Yield x s -> Just (x, Stream step s)
+            Yield x s _ -> Just (x, (Stream step s))
             Stop      -> Nothing
 
 ------------------------------------------------------------------------------
@@ -197,7 +198,7 @@ unfoldrM next state = Stream step state
     step _ st = do
         r <- next st
         return $ case r of
-            Just (x, s) -> Yield x s
+            Just (x, s) -> Yield x s (return ())
             Nothing     -> Stop
 
 {-# INLINE_LATE unfoldr #-}
@@ -209,7 +210,7 @@ unfoldr f = unfoldrM (return . f)
 ------------------------------------------------------------------------------
 
 repeat :: Monad m => a -> Stream m a
-repeat x = Stream (\_ _ -> return $ Yield x ()) ()
+repeat x = Stream (\_ _ -> return $ Yield x () (return ())) ()
 
 {-# INLINE_NORMAL enumFromStepN #-}
 enumFromStepN :: (Num a, Monad m) => a -> a -> Int -> Stream m a
@@ -217,8 +218,9 @@ enumFromStepN from stride n =
     from `seq` stride `seq` n `seq` Stream step (from, n)
     where
         {-# INLINE_LATE step #-}
-        step _ (x, i) | i > 0     = return $ Yield x (x + stride, i - 1)
-                      | otherwise = return Stop
+        step _ (x, i) | i > 0   =
+            return $ Yield x (x + stride, i - 1) (return ())
+                    | otherwise = return Stop
 
 -------------------------------------------------------------------------------
 -- Generation by Conversion
@@ -230,7 +232,7 @@ yield :: Monad m => a -> Stream m a
 yield x = Stream (\_ s -> return $ step undefined s) True
   where
     {-# INLINE_LATE step #-}
-    step _ True  = Yield x False
+    step _ True  = Yield x False (return ())
     step _ False = Stop
 
 -- | Create a singleton 'Stream' from a monadic action.
@@ -239,7 +241,7 @@ yieldM :: Monad m => m a -> Stream m a
 yieldM m = Stream step True
   where
     {-# INLINE_LATE step #-}
-    step _ True  = m >>= \x -> return $ Yield x False
+    step _ True  = m >>= \x -> return $ Yield x False (return ())
     step _ False = return Stop
 
 -- XXX we need the MonadAsync constraint because of a rewrite rule.
@@ -249,7 +251,7 @@ fromListM :: MonadAsync m => [m a] -> Stream m a
 fromListM = Stream step
   where
     {-# INLINE_LATE step #-}
-    step _ (m:ms) = m >>= \x -> return $ Yield x ms
+    step _ (m:ms) = m >>= \x -> return $ Yield x ms (return ())
     step _ []     = return Stop
 
 -- | Convert a list of pure values to a 'Stream'
@@ -258,18 +260,17 @@ fromList :: Monad m => [a] -> Stream m a
 fromList = Stream step
   where
     {-# INLINE_LATE step #-}
-    step _ (x:xs) = return $ Yield x xs
+    step _ (x:xs) = return $ Yield x xs (return ())
     step _ []     = return Stop
 
--- XXX pass the state to streamD
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
 fromStreamK = Stream step
     where
     step gst m1 =
         let stop       = return Stop
-            single a   = return $ Yield a K.nil
-            yieldk a r = return $ Yield a r
+            single a   = return $ Yield a K.nil (return ())
+            yieldk a r k = return $ Yield a r k
          in K.unStream m1 gst stop single yieldk
 
 ------------------------------------------------------------------------------
@@ -283,7 +284,7 @@ foldrM f z (Stream step state) = go SPEC state
     go !_ st = do
           r <- step defState st
           case r of
-            Yield x s -> go SPEC s >>= f x
+            Yield x s _ -> go SPEC s >>= f x
             Stop      -> return z
 
 {-# INLINE_NORMAL foldr #-}
@@ -297,7 +298,7 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
     go !_ acc st = acc `seq` do
         r <- step defState st
         case r of
-            Yield x s -> do
+            Yield x s _ -> do
                 acc' <- fstep acc x
                 go SPEC acc' s
             Stop -> return acc
@@ -318,7 +319,7 @@ runStream (Stream step state) = go SPEC state
     go !_ st = do
         r <- step defState st
         case r of
-            Yield _ s -> go SPEC s
+            Yield _ s _ -> go SPEC s
             Stop      -> return ()
 
 {-# INLINE_NORMAL null #-}
@@ -328,7 +329,7 @@ null (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield _ _ -> return False
+            Yield _ _ k -> k >> return False
             Stop -> return True
 
 -- XXX SPEC?
@@ -339,7 +340,7 @@ head (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield x _ -> return (Just x)
+            Yield x _ k -> k >> return (Just x)
             Stop -> return Nothing
 
 -- Does not fuse, has the same performance as the StreamK version.
@@ -350,7 +351,7 @@ tail (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield _ s -> return (Just $ Stream step s)
+            Yield _ s _ -> return (Just $ Stream step s)
             Stop -> return Nothing
 
 -- XXX will it fuse? need custom impl?
@@ -365,9 +366,9 @@ elem e (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s k ->
                 if x == e
-                then return True
+                then k >> return True
                 else go s
             Stop -> return False
 
@@ -378,9 +379,9 @@ notElem e (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s k ->
                 if x == e
-                then return False
+                then k >> return False
                 else go s
             Stop -> return True
 
@@ -391,10 +392,10 @@ all p (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s k ->
                 if p x
                 then go s
-                else return False
+                else k >> return False
             Stop -> return True
 
 {-# INLINE_NORMAL any #-}
@@ -404,9 +405,9 @@ any p (Stream step state) = go state
     go st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s k ->
                 if p x
-                then return True
+                then k >> return True
                 else go s
             Stop -> return False
 
@@ -417,12 +418,12 @@ maximum (Stream step state) = go Nothing state
     go Nothing st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
+            Yield x s _ -> go (Just x) s
             Stop -> return Nothing
     go (Just acc) st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s _ ->
                 if acc <= x
                 then go (Just x) s
                 else go (Just acc) s
@@ -435,12 +436,12 @@ minimum (Stream step state) = go Nothing state
     go Nothing st = do
         r <- step defState st
         case r of
-            Yield x s -> go (Just x) s
+            Yield x s _ -> go (Just x) s
             Stop -> return Nothing
     go (Just acc) st = do
         r <- step defState st
         case r of
-            Yield x s ->
+            Yield x s _ ->
                 if acc <= x
                 then go (Just acc) s
                 else go (Just x) s
@@ -471,7 +472,7 @@ toStreamK (Stream step state) = go state
     go st = K.Stream $ \gst stp _ yld -> do
         r <- step gst st
         case r of
-            Yield x s -> yld x (go s)
+            Yield x s k -> yld x (go s) k
             Stop      -> stp
 
 #ifndef DISABLE_FUSION
@@ -494,9 +495,9 @@ postscanlM' fstep begin (Stream step state) =
     step' gst (st, acc) = acc `seq` do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> do
+            Yield x s k -> do
                 y <- fstep acc x
-                y `seq` return (Yield y (s, y))
+                y `seq` return (Yield y (s, y) k)
             Stop -> return Stop
 
 {-# INLINE_LATE scanlM' #-}
@@ -513,15 +514,16 @@ scanl' f = scanlM' (\a b -> return (f a b))
 
 {-# INLINE_NORMAL take #-}
 take :: Monad m => Int -> Stream m a -> Stream m a
-take n (Stream step state) = n `seq` Stream step' (state, 0)
+take n (Stream step state) = n `seq` Stream step' (state, 0, Nothing)
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, i) | i < n = do
+    step' gst (st, i, _) | i < n = do
         r <- step (rstState gst) st
         return $ case r of
-            Yield x s -> Yield x (s, i + 1)
+            Yield x s k -> Yield x (s, i + 1, Just k) k
             Stop      -> Stop
-    step' _ (_, _) = return Stop
+    step' _ (_, _, Nothing) = return Stop
+    step' _ (_, _, Just k) = k >> return Stop
 
 {-# INLINE_NORMAL takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
@@ -531,9 +533,9 @@ takeWhileM f (Stream step state) = Stream step' state
     step' gst st = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> do
+            Yield x s k -> do
                 b <- f x
-                return $ if b then Yield x s else Stop
+                if b then return $ Yield x s k else k >> return Stop
             Stop -> return Stop
 
 {-# INLINE takeWhile #-}
@@ -548,13 +550,13 @@ drop n (Stream step state) = Stream step' (state, n)
     step' gst (st, i) = do
         r <- step (rstState gst) st
         case r of
-            Yield _ s | i > 0 -> step' gst (s, i - 1)
-            Yield x s -> return $ Yield x (s, 0)
+            Yield _ s _ | i > 0 -> step' gst (s, i - 1)
+            Yield x s k -> return $ Yield x (s, 0) k
             Stop      -> return Stop
 
-data DropWhileState s a
+data DropWhileState s m a
     = DropWhileDrop s
-    | DropWhileYield a s
+    | DropWhileYield a s (m())
     | DropWhileNext s
 
 {-# INLINE_NORMAL dropWhileM #-}
@@ -565,20 +567,20 @@ dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
     step' gst (DropWhileDrop st) = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> do
+            Yield x s k -> do
                 b <- f x
                 if b
                 then step' gst (DropWhileDrop s)
-                else step' gst (DropWhileYield x s)
+                else step' gst (DropWhileYield x s k)
             Stop -> return Stop
 
     step' gst (DropWhileNext st) =  do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> step' gst (DropWhileYield x s)
+            Yield x s k -> step' gst (DropWhileYield x s k)
             Stop      -> return Stop
 
-    step' _ (DropWhileYield x st) = return $ Yield x (DropWhileNext st)
+    step' _ (DropWhileYield x st k) = return $ Yield x (DropWhileNext st) k
 
 {-# INLINE dropWhile #-}
 dropWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
@@ -592,10 +594,10 @@ filterM f (Stream step state) = Stream step' state
     step' gst st = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> do
+            Yield x s k -> do
                 b <- f x
                 if b
-                then return $ Yield x s
+                then return $ Yield x s k
                 else step' gst s
             Stop -> return Stop
 
@@ -616,7 +618,7 @@ mapM f (Stream step state) = Stream step' state
     step' gst st = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> f x >>= \a -> return $ Yield a s
+            Yield x s k -> f x >>= \a -> return $ Yield a s k
             Stop      -> return Stop
 
 {-# INLINE map #-}
@@ -630,11 +632,11 @@ map f = mapM (return . f)
 -- XXX Will this always fuse properly?
 {-# INLINE_NORMAL mapMaybe #-}
 mapMaybe :: Monad m => (a -> Maybe b) -> Stream m a -> Stream m b
-mapMaybe f = fmap fromJust . filter isJust . map f
+mapMaybe f = map fromJust . filter isJust . map f
 
 {-# INLINE_NORMAL mapMaybeM #-}
 mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
-mapMaybeM f = fmap fromJust . filter isJust . mapM f
+mapMaybeM f = map fromJust . filter isJust . mapM f
 
 ------------------------------------------------------------------------------
 -- Instances
@@ -649,15 +651,15 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
     step gst (sa, sb, Nothing) = do
         r <- stepa (rstState gst) sa
         case r of
-            Yield x sa' -> step gst (sa', sb, Just x)
+            Yield x sa' k -> step gst (sa', sb, Just (x, k))
             Stop        -> return Stop
 
-    step gst (sa, sb, Just x) = do
+    step gst (sa, sb, Just (x, kl)) = do
         r <- stepb (rstState gst) sb
         case r of
-            Yield y sb' -> do
+            Yield y sb' k -> do
                 z <- f x y
-                return $ Yield z (sa, sb', Nothing)
+                return $ Yield z (sa, sb', Nothing) (kl >> k)
             Stop -> return Stop
 
 {-# RULES "zipWithM xs xs"

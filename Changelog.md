@@ -13,6 +13,10 @@
   used in a stateful monad e.g. `StateT`. Particularly, this bug cannot affect
   `ReaderT`.
 
+### Breaking Changes
+
+* Monad constraints may have to be added in some APIs.
+
 ## 0.5.1
 
 * Performance improvements, especially space consumption, for concurrent

@@ -52,7 +52,7 @@ sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
 sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: S.IsStream t => Int -> t m Int
+sourceFromFoldable :: (S.IsStream t, Monad m) => Int -> t m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}

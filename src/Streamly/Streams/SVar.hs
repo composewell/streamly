@@ -32,20 +32,26 @@ module Streamly.Streams.SVar
     , constRate
     , inspectMode
     , printState
+    , cleanupSVarFromWorker
     )
 where
 
-import Control.Exception (fromException)
+import Control.Concurrent
+       (ThreadId, myThreadId, threadDelay, throwTo)
+import Control.Exception (assert, fromException)
 import Control.Monad (when)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
-import Data.Maybe (isNothing)
+import Data.List ((\\))
+import Data.Maybe (isNothing, isJust)
 import Data.Semigroup ((<>))
 import System.IO (hPutStrLn, stderr)
 import System.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
+
+import qualified Data.Set as S
 
 import Streamly.SVar
 import Streamly.Streams.StreamK
@@ -62,6 +68,36 @@ printState st = liftIO $ do
     case msv of
         Just sv -> dumpSVar sv >>= putStrLn
         Nothing -> putStrLn "No SVar"
+
+-------------------------------------------------------------------------------
+-- Cleanup
+-------------------------------------------------------------------------------
+
+cleanupSVar :: SVar t m a -> IO ()
+cleanupSVar sv = do
+    -- We yield the cleanup function on every yield, in some cases it is
+    -- possible that the same cleanup function is called multiple times, for
+    -- such cases we keep a flag to do it only once.
+    flag <- readIORef (svarCleanup sv)
+    r <- liftIO $ readIORef (svarStopTime (svarStats sv))
+    when (not flag && not (isJust r)) $ do
+        when (svarInspectMode sv) $ printSVar sv "SVar cleanup"
+        writeIORef (svarCleanup sv) True
+        workers <- readIORef (workerThreads sv)
+        Prelude.mapM_ (\tid -> throwTo tid ThreadAbort) (S.toList workers)
+        -- XXX call the cleanup functions in the pending output queue
+
+cleanupSVarFromWorker :: SVar t m a -> IO ()
+cleanupSVarFromWorker sv = do
+    flag <- readIORef (svarCleanup sv)
+    r <- liftIO $ readIORef (svarStopTime (svarStats sv))
+    when (not flag && not (isJust r)) $ do
+        when (svarInspectMode sv) $ printSVar sv "SVar cleanup"
+        workers <- readIORef (workerThreads sv)
+        self <- myThreadId
+        Prelude.mapM_ (`throwTo` ThreadAbort)
+              (S.toList workers \\ [self])
+        -- XXX call the cleanup functions in the pending output queue
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
@@ -92,7 +128,21 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
     processEvents (ev : es) = Stream $ \st stp sng yld -> do
         let rest = processEvents es
         case ev of
-            ChildYield a -> yld a rest
+            -- XXX we should perhaps register k in the SVar instead of letting the
+            -- user call it. The user will call only this thread's k, how about
+            -- other threads?
+            -- if this is based on a start event then we can do that. but if
+            -- this is on every yield it would be expensive. Then we would have
+            -- to check the whole pending output queue and call the cleanup for
+            -- each one of them.
+            --
+            -- if there is an SVar we can use the register/release technique to
+            -- register and unregister the cleanup functions instead of sending
+            -- them across the SVar.
+            --
+            -- We can perhaps optimize by using a Maybe, in most cases it would
+            -- be Nothing and we pay the cost only if it is Just.
+            ChildYield a k -> yld a rest (k >> liftIO (cleanupSVar sv))
             ChildStop tid e -> do
                 accountThread sv tid
                 case e of
@@ -116,14 +166,16 @@ fromSVar sv =
     where
 
     hook = do
-        when (svarInspectMode sv) $ do
-            r <- liftIO $ readIORef (svarStopTime (svarStats sv))
-            when (isNothing r) $
-                printSVar sv "SVar Garbage Collected"
-        cleanupSVar sv
-        -- If there are any SVars referenced by this SVar a GC will prompt
-        -- them to be cleaned up quickly.
-        when (svarInspectMode sv) performMajorGC
+        return ()
+        {-
+        done <- readIORef (svarCleanup sv)
+        when (not done) $ do
+            assert True (printSVar sv "SVar Garbage Collected without cleanup")
+            assert True (error "bug")
+            -- in production, perform a GC to cleanup any other SVars
+            -- referenced by this SVar.
+            performMajorGC
+            -}
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.

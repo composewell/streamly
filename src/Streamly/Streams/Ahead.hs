@@ -241,7 +241,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                 -- latency as this will not be the real latency.
                 -- Don't stop the worker in this case as we are just
                 -- transferring available results from heap to outputQueue.
-                void $ liftIO $ send sv (ChildYield a)
+                void $ liftIO $ send sv (ChildYield a (return ()))
                 nextHeap seqNo
             AheadEntryStream r ->
                 if stopping
@@ -280,7 +280,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
     -- only in yield continuation where we may have a remaining stream to be
     -- pushed on the heap.
     singleStreamFromHeap seqNo a = do
-        void $ liftIO $ sendYield sv winfo (ChildYield a)
+        void $ liftIO $ sendYield sv winfo (ChildYield a (return ()))
         nextHeap seqNo
 
     -- XXX when we have an unfinished stream on the heap we cannot account all
@@ -307,8 +307,8 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             incrementYieldLimit sv
             sendStop sv winfo
 
-    yieldStreamFromHeap seqNo a r = do
-        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldStreamFromHeap seqNo a r k = do
+        continue <- liftIO $ sendYield sv winfo (ChildYield a k)
         runStreamWithYieldLimit continue seqNo r
 
 {-# NOINLINE drainHeap #-}
@@ -350,7 +350,7 @@ processWithoutToken q heap st sv winfo m seqNo = do
 
     runStreamSVar sv m st stop
         (toHeap . AheadEntryPure)
-        (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
+        (\a r k -> toHeap $ AheadEntryStream $ K.consWith a r k)
 
     where
 
@@ -413,7 +413,7 @@ processWithToken q heap st sv winfo action sno = do
     where
 
     singleOutput seqNo a = do
-        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+        continue <- liftIO $ sendYield sv winfo (ChildYield a (return ()))
         if continue
         then loopWithToken (seqNo + 1)
         else do
@@ -423,8 +423,8 @@ processWithToken q heap st sv winfo action sno = do
     -- XXX use a wrapper function around stop so that we never miss
     -- incrementing the yield in a stop continuation. Essentiatlly all
     -- "unstream" calls in this function must increment yield limit on stop.
-    yieldOutput seqNo a r = do
-        continue <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldOutput seqNo a r k = do
+        continue <- liftIO $ sendYield sv winfo (ChildYield a k)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if continue && yieldLimitOk
         then do
@@ -683,12 +683,14 @@ aheadbind m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-                let runShared x   = unstreamShared x st stp sng yld
-                    runIsolated x = unStreamIsolated x st stp sng yld
+                let runShared x k = unstreamShared x st stp sng
+                        $ \a r k1 -> yld a r (k >> k1)
+                    runIsolated x k = unStreamIsolated x st stp sng
+                        $ \a r k1 -> yld a r (k >> k1)
 
-                    single a   = runIsolated $ f a
-                    yieldk a r = runShared $
-                        K.isolateStream (f a) `aheadS` go r
+                    single a   = runIsolated (f a) (return ())
+                    yieldk a r k = runShared
+                        (K.isolateStream (f a) `aheadS` go r) k
                 in g (rstState st) stp single yieldk
 
 instance MonadAsync m => Monad (AheadT m) where

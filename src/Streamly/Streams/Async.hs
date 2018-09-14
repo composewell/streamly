@@ -85,11 +85,11 @@ workLoopLIFO q st sv winfo = run
             Just m -> runStreamSVar sv m st run single yieldk
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ sendYield sv winfo (ChildYield a (return ()))
         if res then run else liftIO $ sendStop sv winfo
 
-    yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldk a r k = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a k)
         if res
         then runStreamSVar sv r st run single yieldk
         else liftIO $ do
@@ -141,13 +141,13 @@ workLoopLIFOLimited q st sv winfo = run
                     sendStop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ sendYield sv winfo (ChildYield a (return ()))
         if res then run else liftIO $ sendStop sv winfo
 
     -- XXX can we pass on the yield limit downstream to limit the concurrency
     -- of constituent streams.
-    yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldk a r k = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a k)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
@@ -186,11 +186,11 @@ workLoopFIFO q st sv winfo = run
             Just m -> runStreamSVar sv m st run single yieldk
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ sendYield sv winfo (ChildYield a (return ()))
         if res then run else liftIO $ sendStop sv winfo
 
-    yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldk a r k = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a k)
         if res
         then runStreamSVar sv r st run single yieldk
         else liftIO $ do
@@ -225,11 +225,11 @@ workLoopFIFOLimited q st sv winfo = run
                     sendStop sv winfo
 
     single a = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+        res <- liftIO $ sendYield sv winfo (ChildYield a (return ()))
         if res then run else liftIO $ sendStop sv winfo
 
-    yieldk a r = do
-        res <- liftIO $ sendYield sv winfo (ChildYield a)
+    yieldk a r k = do
+        res <- liftIO $ sendYield sv winfo (ChildYield a k)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
@@ -263,6 +263,7 @@ getLifoSVar st mrun = do
     rateInfo <- getYieldRateInfo st
 
     stats <- newSVarStats
+    cleanupRef <- newIORef False
     tid <- myThreadId
 
     let isWorkFinished _ = null <$> readIORef q
@@ -278,7 +279,7 @@ getLifoSVar st mrun = do
             return $ qEmpty || yieldsDone
 
     let getSVar :: SVar Stream m a
-            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m [ChildEvent m a])
             -> (SVar Stream m a -> m Bool)
             -> (SVar Stream m a -> IO Bool)
             -> (IORef [Stream m a]
@@ -308,6 +309,7 @@ getLifoSVar st mrun = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
             , svarRef          = Nothing
+            , svarCleanup      = cleanupRef
             , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
@@ -354,6 +356,7 @@ getFifoSVar st mrun = do
     rateInfo <- getYieldRateInfo st
 
     stats <- newSVarStats
+    cleanupRef <- newIORef False
     tid <- myThreadId
 
     let isWorkFinished _ = nullQ q
@@ -368,7 +371,7 @@ getFifoSVar st mrun = do
             return $ qEmpty || yieldsDone
 
     let getSVar :: SVar Stream m a
-            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m [ChildEvent m a])
             -> (SVar Stream m a -> m Bool)
             -> (SVar Stream m a -> IO Bool)
             -> (LinkedQueue (Stream m a)
@@ -398,6 +401,7 @@ getFifoSVar st mrun = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
             , svarRef          = Nothing
+            , svarCleanup      = cleanupRef
             , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
