@@ -47,7 +47,9 @@ import qualified Data.Heap as H
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
-import Streamly.Streams.StreamK (IsStream(..), Stream(..))
+import Streamly.Streams.StreamK
+       (IsStream(..), Stream(..), unstreamShared, unStreamIsolated,
+        runStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 import Prelude hiding (map)
@@ -296,7 +298,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             let stop = do
                   liftIO (incrementYieldLimit sv)
                   nextHeap seqNo
-            unStream r st stop
+            runStreamSVar sv r st stop
                           (singleStreamFromHeap seqNo)
                           (yieldStreamFromHeap seqNo)
         else liftIO $ do
@@ -346,7 +348,7 @@ processWithoutToken q heap st sv winfo m seqNo = do
             -- we stop.
             toHeap AheadEntryNull
 
-    unStream m st stop
+    runStreamSVar sv m st stop
         (toHeap . AheadEntryPure)
         (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
 
@@ -406,7 +408,7 @@ processWithToken q heap st sv winfo action sno = do
             liftIO (incrementYieldLimit sv)
             loopWithToken (sno + 1)
 
-    unStream action st stop (singleOutput sno) (yieldOutput sno)
+    runStreamSVar sv action st stop (singleOutput sno) (yieldOutput sno)
 
     where
 
@@ -429,7 +431,7 @@ processWithToken q heap st sv winfo action sno = do
             let stop = do
                     liftIO (incrementYieldLimit sv)
                     loopWithToken (seqNo + 1)
-            unStream r st stop
+            runStreamSVar sv r st stop
                           (singleOutput seqNo)
                           (yieldOutput seqNo)
         else do
@@ -458,7 +460,7 @@ processWithToken q heap st sv winfo action sno = do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
                                 loopWithToken (seqNo + 1)
-                        unStream m st stop
+                        runStreamSVar sv m st stop
                                       (singleOutput seqNo)
                                       (yieldOutput seqNo)
                     else
@@ -681,10 +683,13 @@ aheadbind m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-            let run x = unStream x st stp sng yld
-                single a   = run $ f a
-                yieldk a r = run $ f a `aheadS` go r
-            in g (rstState st) stp single yieldk
+                let runShared x   = unstreamShared x st stp sng yld
+                    runIsolated x = unStreamIsolated x st stp sng yld
+
+                    single a   = runIsolated $ f a
+                    yieldk a r = runShared $
+                        K.isolateStream (f a) `aheadS` go r
+                in g (rstState st) stp single yieldk
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure

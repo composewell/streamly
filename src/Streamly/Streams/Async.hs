@@ -57,7 +57,7 @@ import qualified Data.Set as S
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
-import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
+import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt, runStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -82,7 +82,7 @@ workLoopLIFO q st sv winfo = run
         work <- dequeue
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> unStream m st run single yieldk
+            Just m -> runStreamSVar sv m st run single yieldk
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -91,7 +91,7 @@ workLoopLIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then unStream r st run single yieldk
+        then runStreamSVar sv r st run single yieldk
         else liftIO $ do
             enqueueLIFO sv q r
             sendStop sv winfo
@@ -132,7 +132,7 @@ workLoopLIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    unStream m st stop single yieldk
+                    runStreamSVar sv m st stop single yieldk
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
@@ -151,7 +151,7 @@ workLoopLIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then unStream r st stop single yieldk
+        then runStreamSVar sv r st stop single yieldk
         else liftIO $ do
             incrementYieldLimit sv
             enqueueLIFO sv q r
@@ -183,7 +183,7 @@ workLoopFIFO q st sv winfo = run
         work <- liftIO $ tryPopR q
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> unStream m st run single yieldk
+            Just m -> runStreamSVar sv m st run single yieldk
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -192,7 +192,7 @@ workLoopFIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then unStream r st run single yieldk
+        then runStreamSVar sv r st run single yieldk
         else liftIO $ do
             enqueueFIFO sv q r
             sendStop sv winfo
@@ -218,7 +218,7 @@ workLoopFIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    unStream m st stop single yieldk
+                    runStreamSVar sv m st stop single yieldk
                 else liftIO $ do
                     enqueueFIFO sv q m
                     incrementYieldLimit sv
@@ -233,7 +233,7 @@ workLoopFIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then unStream r st stop single yieldk
+        then runStreamSVar sv r st stop single yieldk
         else liftIO $ do
             incrementYieldLimit sv
             enqueueFIFO sv q r
@@ -249,8 +249,8 @@ workLoopFIFOLimited q st sv winfo = run
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
 getLifoSVar :: forall m a. MonadAsync m
-    => State Stream m a -> IO (SVar Stream m a)
-getLifoSVar st = do
+    => State Stream m a -> RunInIO m -> IO (SVar Stream m a)
+getLifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -303,6 +303,7 @@ getLifoSVar st = do
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = AsyncVar
+            , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
@@ -339,8 +340,8 @@ getLifoSVar st = do
      in return sv
 
 getFifoSVar :: forall m a. MonadAsync m
-    => State Stream m a -> IO (SVar Stream m a)
-getFifoSVar st = do
+    => State Stream m a -> RunInIO m -> IO (SVar Stream m a)
+getFifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -392,6 +393,7 @@ getFifoSVar st = do
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = WAsyncVar
+            , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
@@ -431,7 +433,8 @@ getFifoSVar st = do
 newAsyncVar :: MonadAsync m
     => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newAsyncVar st m = do
-    sv <- liftIO $ getLifoSVar st
+    mrun <- captureMonadState
+    sv <- liftIO $ getLifoSVar st mrun
     sendFirstWorker sv m
 
 -- XXX Get rid of this?
@@ -455,7 +458,8 @@ mkAsync' st m = fmap fromSVar (newAsyncVar st (toStream m))
 newWAsyncVar :: MonadAsync m
     => State Stream m a -> Stream m a -> m (SVar Stream m a)
 newWAsyncVar st m = do
-    sv <- liftIO $ getFifoSVar st
+    mrun <- captureMonadState
+    sv <- liftIO $ getFifoSVar st mrun
     sendFirstWorker sv m
 
 ------------------------------------------------------------------------------

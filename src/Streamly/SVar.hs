@@ -8,6 +8,7 @@
 {-# LANGUAGE LambdaCase                 #-}
 {-# LANGUAGE MagicHash                  #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE UnboxedTuples              #-}
 
@@ -49,6 +50,8 @@ module Streamly.SVar
     -- SVar related
     , newAheadVar
     , newParallelVar
+    , captureMonadState
+    , RunInIO (..)
 
     , atomicModifyIORefCAS
     , WorkerInfo (..)
@@ -113,7 +116,7 @@ import Control.Exception
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, control)
+import Control.Monad.Trans.Control (MonadBaseControl, control, StM)
 import Data.Atomics
        (casIORef, readForCAS, peekTicket, atomicModifyIORefCAS_,
         writeBarrier, storeLoadBarrier)
@@ -325,7 +328,8 @@ data Limit = Unlimited | Limited Word deriving Show
 data SVar t m a = SVar
     {
     -- Read only state
-      svarStyle      :: SVarStyle
+      svarStyle       :: SVarStyle
+    , svarMrun        :: RunInIO m
 
     -- Shared output queue (events, length)
     -- XXX For better efficiency we can try a preallocated array type (perhaps
@@ -777,6 +781,18 @@ ringDoorBell sv = do
 -- @since 0.1.0
 type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 
+-- When we run computations concurrently, we completely isolate the state of
+-- the concurrent computations from the parent computation.  The invariant is
+-- that we should never be running two concurrent computations in the same
+-- thread without using the runInIO function.  Also, we should never be running
+-- a concurrent computation in the parent thread, otherwise it may affect the
+-- state of the parent which is against the defined semantics of concurrent
+-- execution.
+newtype RunInIO m = RunInIO { runInIO :: forall b. m b -> IO (StM m b) }
+
+captureMonadState :: MonadBaseControl IO m => m (RunInIO m)
+captureMonadState = control $ \run -> run (return $ RunInIO run)
+
 -- Stolen from the async package. The perf improvement is modest, 2% on a
 -- thread heavy benchmark (parallel composition using noop computations).
 -- A version of forkIO that does not include the outer exception
@@ -790,14 +806,15 @@ rawForkIO action = IO $ \ s ->
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
     => m ()
+    -> RunInIO m
     -> (SomeException -> IO ())
     -> m ThreadId
-doFork action exHandler =
-    control $ \runInIO ->
+doFork action (RunInIO mrun) exHandler =
+    control $ \run ->
         mask $ \restore -> do
-                tid <- rawForkIO $ catch (restore $ void $ runInIO action)
+                tid <- rawForkIO $ catch (restore $ void $ mrun action)
                                          exHandler
-                runInIO (return tid)
+                run (return tid)
 
 -- XXX Can we make access to remainingWork and yieldRateInfo fields in sv
 -- faster, along with the fields in sv required by send?
@@ -1288,7 +1305,8 @@ pushWorker yieldMax sv = do
                     , workerYieldCount = cntRef
                     , workerLatencyStart = lat
                     }
-    doFork (workLoop sv winfo) (handleChildException sv) >>= addThread sv
+    doFork (workLoop sv winfo) (svarMrun sv) (handleChildException sv)
+        >>= addThread sv
 
 -- XXX we can push the workerCount modification in accountThread and use the
 -- same pushWorker for Parallel case as well.
@@ -1305,7 +1323,8 @@ pushWorkerPar
 pushWorkerPar sv wloop =
     if svarInspectMode sv
     then forkWithDiag
-    else doFork (wloop Nothing) (handleChildException sv) >>= modifyThread sv
+    else doFork (wloop Nothing) (svarMrun sv) (handleChildException sv)
+            >>= modifyThread sv
 
     where
 
@@ -1330,7 +1349,8 @@ pushWorkerPar sv wloop =
                         , workerLatencyStart = lat
                         }
 
-        doFork (wloop winfo) (handleChildException sv) >>= modifyThread sv
+        doFork (wloop winfo) (svarMrun sv) (handleChildException sv)
+            >>= modifyThread sv
 
 -- Returns:
 -- True: can dispatch more
@@ -1997,8 +2017,9 @@ getAheadSVar :: MonadAsync m
         -> SVar t m a
         -> Maybe WorkerInfo
         -> m ())
+    -> RunInIO m
     -> IO (SVar t m a)
-getAheadSVar st f = do
+getAheadSVar st f mrun = do
     outQ    <- newIORef ([], 0)
     -- the second component of the tuple is "Nothing" when heap is being
     -- cleared, "Just n" when we are expecting sequence number n to arrive
@@ -2036,6 +2057,7 @@ getAheadSVar st f = do
             , isQueueDone      = isQueueDoneAhead sv q
             , needDoorBell     = wfw
             , svarStyle        = AheadVar
+            , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
             , workerStopMVar   = stopMVar
@@ -2081,8 +2103,8 @@ getAheadSVar st f = do
         (xs, _) <- readIORef q
         return $ null xs
 
-getParallelSVar :: MonadIO m => State t m a -> IO (SVar t m a)
-getParallelSVar st = do
+getParallelSVar :: MonadIO m => State t m a -> RunInIO m -> IO (SVar t m a)
+getParallelSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -2112,6 +2134,7 @@ getParallelSVar st = do
                  , isQueueDone      = undefined
                  , needDoorBell     = undefined
                  , svarStyle        = ParallelVar
+                 , svarMrun         = mrun
                  , workerCount      = active
                  , accountThread    = modifyThread sv
                  , workerStopMVar   = undefined
@@ -2160,12 +2183,15 @@ newAheadVar :: MonadAsync m
         -> m ())
     -> m (SVar t m a)
 newAheadVar st m wloop = do
-    sv <- liftIO $ getAheadSVar st wloop
+    mrun <- captureMonadState
+    sv <- liftIO $ getAheadSVar st wloop mrun
     sendFirstWorker sv m
 
 {-# INLINABLE newParallelVar #-}
 newParallelVar :: MonadAsync m => State t m a -> m (SVar t m a)
-newParallelVar st = liftIO $ getParallelSVar st
+newParallelVar st = do
+    mrun <- captureMonadState
+    liftIO $ getParallelSVar st mrun
 
 -- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then

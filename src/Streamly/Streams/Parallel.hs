@@ -67,6 +67,7 @@ runOne st m winfo = unStream m st stop single yieldk
     where
 
     sv = fromJust $ streamVar st
+    mrun = runInIO $ svarMrun sv
 
     withLimitCheck action = do
         yieldLimitOk <- liftIO $ decrementYieldLimitPost sv
@@ -82,7 +83,8 @@ runOne st m winfo = unStream m st stop single yieldk
     -- queue and queue it back on that and exit the thread when the outputQueue
     -- overflows. Parallel is dangerous because it can accumulate unbounded
     -- output in the buffer.
-    yieldk a r = void (sendit a) >> withLimitCheck (runOne st r winfo)
+    yieldk a r = void (sendit a)
+        >> withLimitCheck (void $ liftIO $ mrun $ runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a

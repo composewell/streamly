@@ -5,6 +5,12 @@
 * Fixed a livelock in ahead style streams. The problem manifests sometimes when
   multiple streams are merged together in ahead style and one of them is a nil
   stream.
+* As per expected concurrency semantics each forked concurrent task must run
+  with the monadic state captured at the fork point.  This release fixes a bug,
+  which, in some cases caused an incorrect monadic state to be used for a
+  concurrent action, leading to unexpected behavior when concurrent streams are
+  used in a stateful monad e.g. `StateT`. Particularly, this bug cannot affect
+  `ReaderT`.
 
 ## 0.5.1
 

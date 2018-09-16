@@ -7,8 +7,11 @@ module Main (main) where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, try, ErrorCall(..), catch, throw)
+import Control.Monad (void)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.Error.Class (throwError, MonadError)
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad.State (MonadState, get, modify, runStateT, StateT)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_, fold)
 import Data.List (sort)
@@ -496,6 +499,34 @@ parallelTests = H.parallel $ do
     it "scanlM' is strict enough" (checkScanlMStrictness scanlM'StrictCheck)
 
     ---------------------------------------------------------------------------
+    -- Monadic state snapshot in concurrent tasks
+    ---------------------------------------------------------------------------
+
+    it "asyncly maintains independent states in concurrent tasks"
+        (monadicStateSnapshot asyncly)
+    it "asyncly limited maintains independent states in concurrent tasks"
+        (monadicStateSnapshot (asyncly . S.take 10000))
+    it "wAsyncly maintains independent states in concurrent tasks"
+        (monadicStateSnapshot wAsyncly)
+    it "wAsyncly limited maintains independent states in concurrent tasks"
+        (monadicStateSnapshot (wAsyncly . S.take 10000))
+    it "aheadly maintains independent states in concurrent tasks"
+        (monadicStateSnapshot aheadly)
+    it "aheadly limited maintains independent states in concurrent tasks"
+        (monadicStateSnapshot (aheadly . S.take 10000))
+    it "parallely maintains independent states in concurrent tasks"
+        (monadicStateSnapshot parallely)
+
+    it "async maintains independent states in concurrent tasks"
+        (monadicStateSnapshotOp async)
+    it "ahead maintains independent states in concurrent tasks"
+        (monadicStateSnapshotOp ahead)
+    it "wAsync maintains independent states in concurrent tasks"
+        (monadicStateSnapshotOp wAsync)
+    it "parallel maintains independent states in concurrent tasks"
+        (monadicStateSnapshotOp Streamly.parallel)
+
+    ---------------------------------------------------------------------------
     -- Slower tests are at the end
     ---------------------------------------------------------------------------
 
@@ -512,6 +543,77 @@ parallelTests = H.parallel $ do
         runStream (aheadly $ fold $
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
+
+-- Each snapshot carries an independent state. Multiple parallel tasks should
+-- not affect each other's state. This is especially important when we run
+-- multiple tasks in a single thread.
+snapshot :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot =
+    -- We deliberately use a replicate count 1 here, because a lower count
+    -- catches problems that a higher count doesn't.
+    S.replicateM 1 $ do
+        -- Even though we modify the state here it should not reflect in other
+        -- parallel tasks, it is local to each concurrent task.
+        modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==1))
+        modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+snapshot1 :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot1 = S.replicateM 1000 $
+    modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+snapshot2 :: (IsStream t, MonadAsync m, MonadState Int m) => t m ()
+snapshot2 = S.replicateM 1000 $
+    modify (+1) >> get >>= liftIO . (`shouldSatisfy` (==2))
+
+stateComp
+    :: ( IsStream t
+       , MonadAsync m
+       , Semigroup (t m ())
+       , MonadIO (t m)
+       , MonadState Int m
+       , MonadState Int (t m)
+       )
+    => t m ()
+stateComp = do
+    -- Each task in a concurrent composition inherits the state and maintains
+    -- its own modifications to it, not affecting the parent computation.
+    snapshot <> (modify (+1) >> (snapshot1 <> snapshot2))
+    -- The above modify statement does not affect our state because that is
+    -- used in a parallel composition. In a serial composition it will affect
+    -- our state.
+    get >>= liftIO . (`shouldSatisfy` (== (0 :: Int)))
+
+monadicStateSnapshot
+    :: ( IsStream t
+       , Semigroup (t (StateT Int IO) ())
+       , MonadIO (t (StateT Int IO))
+       , MonadState Int (t (StateT Int IO))
+       )
+    => (t (StateT Int IO) () -> SerialT (StateT Int IO) ()) -> IO ()
+monadicStateSnapshot t = void $ runStateT (runStream $ t stateComp) 0
+
+stateCompOp
+    :: (   AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+       )
+    -> SerialT (StateT Int IO) ()
+stateCompOp op = do
+    -- Each task in a concurrent composition inherits the state and maintains
+    -- its own modifications to it, not affecting the parent computation.
+    asyncly (snapshot `op` (modify (+1) >> (snapshot1 `op` snapshot2)))
+    -- The above modify statement does not affect our state because that is
+    -- used in a parallel composition. In a serial composition it will affect
+    -- our state.
+    get >>= liftIO . (`shouldSatisfy` (== (0 :: Int)))
+
+monadicStateSnapshotOp
+    :: (   AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+        -> AsyncT (StateT Int IO) ()
+       )
+    -> IO ()
+monadicStateSnapshotOp op = void $ runStateT (runStream $ stateCompOp op) 0
 
 takeCombined :: (Monad m, Semigroup (t m Int), Show a, Eq a, IsStream t)
     => Int -> (t m Int -> SerialT IO a) -> IO ()

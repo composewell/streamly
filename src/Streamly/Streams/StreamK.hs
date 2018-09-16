@@ -33,6 +33,10 @@ module Streamly.Streams.StreamK
 
     -- * The stream type
     , Stream (..)
+    , unStreamIsolated
+    , isolateStream
+    , unstreamShared
+    , runStreamSVar
 
     -- * Construction
     , mkStream
@@ -140,6 +144,7 @@ module Streamly.Streams.StreamK
 where
 
 import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Semigroup (Semigroup(..))
@@ -182,6 +187,51 @@ newtype Stream m a =
             -> (a -> Stream m a -> m r)  -- yield
             -> m r
     }
+
+-- XXX make this the default "unStream"
+-- | unwraps the Stream type producing the stream function that can be run with
+-- continuations.
+{-# INLINE unStreamIsolated #-}
+unStreamIsolated ::
+       Stream m a
+    -> State Stream m a          -- state
+    -> m r                       -- stop
+    -> (a -> m r)                -- singleton
+    -> (a -> Stream m a -> m r)  -- yield
+    -> m r
+unStreamIsolated x st = unStream x (rstState st)
+
+{-# INLINE isolateStream #-}
+isolateStream :: Stream m a -> Stream m a
+isolateStream x = Stream $ \st stp sng yld ->
+    unStreamIsolated x st stp sng yld
+
+-- | Like unstream, but passes a shared SVar across continuations.
+{-# INLINE unstreamShared #-}
+unstreamShared ::
+       Stream m a
+    -> State Stream m a          -- state
+    -> m r                       -- stop
+    -> (a -> m r)                -- singleton
+    -> (a -> Stream m a -> m r)  -- yield
+    -> m r
+unstreamShared = unStream
+
+-- Run the stream using a run function associated with the SVar that runs the
+-- streams with a captured snapshot of the monadic state.
+{-# INLINE runStreamSVar #-}
+runStreamSVar
+    :: MonadIO m
+    => SVar Stream m a
+    -> Stream m a
+    -> State Stream m a          -- state
+    -> m r                       -- stop
+    -> (a -> m r)                -- singleton
+    -> (a -> Stream m a -> m r)  -- yield
+    -> m ()
+runStreamSVar sv m st stp sng yld =
+    let mrun = runInIO $ svarMrun sv
+    in void $ liftIO $ mrun $ unStream m st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Types that can behave as a Stream
@@ -969,10 +1019,12 @@ bindWith par m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-            let run x = unStream x st stp sng yld
-                single a   = run $ f a
-                yieldk a r = run $ f a `par` go r
-            in g (rstState st) stp single yieldk
+                let runShared x = unstreamShared x st stp sng yld
+                    runIsolated x = unStreamIsolated x st stp sng yld
+
+                    single a   = runIsolated $ f a
+                    yieldk a r = runShared $ isolateStream (f a) `par` go r
+                in g (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Alternative & MonadPlus
