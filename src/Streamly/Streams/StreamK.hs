@@ -412,6 +412,7 @@ once :: (Monad m, IsStream t) => m a -> t m a
 once = yieldM
 
 -- | Generate an infinite stream by repeating a pure value.
+-- Can be expressed as @cycle1 . yield@.
 --
 -- @since 0.4.0
 repeat :: IsStream t => a -> t m a
@@ -421,7 +422,8 @@ repeat a = let x = cons a x in x
 -- Conversions
 -------------------------------------------------------------------------------
 
--- | Construct a stream from a 'Foldable' containing pure values.
+-- | Construct a stream from a 'Foldable' containing pure values. Same as
+-- @'Prelude.foldr' 'cons' 'nil'@.
 --
 -- @since 0.2.0
 {-# INLINE fromFoldable #-}

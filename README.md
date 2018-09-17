@@ -41,7 +41,8 @@ We can say that streamly is a superset of lists and IO, with builtin
 concurrency.  If you want to write a program that involves IO, concurrent or
 not, then you can just use streamly as the base monad, heck, you could even use
 streamly for pure computations, as streamly performs at par with pure lists or
-`vector`.
+`vector`. In fact, streamly is better than lists because it appends much
+faster than lists, you do not need difference lists for that.
 
 If you need convincing for using streaming or data flow programming paradigm
 itself then try to answer this question - why do we use lists? It boils down to

@@ -46,41 +46,70 @@
 module Streamly.Prelude
     (
     -- * Construction
-    -- | Primitives to construct a stream.
+    -- | All other stream construction and generation combinators described
+    -- later, and even more custom combinators can be expressed in terms of
+    -- these primitives. However, the special versions provided in this module
+    -- can be more efficient in some situations.
+
+    -- ** From Elements
+    -- | Primitives to construct a stream from pure values or monadic actions.
       K.nil
     , K.cons
     , (K..:)
     , consM
     , (|:)
+    , yield
+    , yieldM
 
-    -- * Deconstruction
-    , uncons
+    -- ** From Streams
+    -- | You can construct streams by appending or merging existing streams.
+    -- When constructing streams from streams, '<>' and 'mempty' are the
+    -- intuitive equivalents of 'K.cons' and 'K.nil', respectively. These
+    -- primitives can be very useful when constructing your own custom stream
+    -- combinators. Also see the variants of '<>' defined in the "Streamly"
+    -- module. Note that appending streams is inexpensive, it is much more
+    -- efficient than appending lists.
 
     -- * Generation
-    -- ** Unfolds
+    -- ** Unfold and Iterate
+    -- | Note that the generative steps of unfold and iterate are inherently
+    -- serial as the next step depends on the result of the previous step.
+    -- However, consumption of the result from the previous step can happen in
+    -- parallel with the generation by the next step.
     , unfoldr
     , unfoldrM
-
-    -- ** Specialized Generation
-    -- | Generate a monadic stream from a seed.
-    , replicateM
-    , K.repeat
-    , repeatM
     , iterate
     , iterateM
 
-    -- ** Conversions
-    -- | Transform an input structure into a stream.
-    , yield
-    , yieldM
+    -- ** Replicate and Repeat
+    -- | Generate a monadic stream from a seed value or function. Note that
+    -- these functions can generate a stream fully concurrently as, unlike
+    -- unfolds, there is no dependency between steps, therefore, an unbounded
+    -- number of steps can run concurrently. All of these can be expressed in
+    -- terms of 'K.cons' and 'K.nil' primitives.
+    , replicateM
+    , K.repeat
+    , repeatM
+
+    -- ** Generate From
+    -- | Convert an input structure, container or source into a stream. All of
+    -- these can be expressed in terms of primitives.
     , fromList
     , fromListM
     , K.fromFoldable
     , fromFoldableM
     , fromHandle
 
+    -- * Deconstruction
+    , uncons
+
     -- * Elimination
+
     -- ** General Folds
+    -- | All the folds can be implemented in terms of 'uncons', however the
+    -- specific implementations provided here are generally more efficient.
+    -- Folds are inherently serial as each step needs to use the result of
+    -- the previous step.
     , foldr
     , foldr1
     , foldrM
@@ -91,6 +120,8 @@ module Streamly.Prelude
     , foldxM
 
     -- ** Specialized Folds
+    -- | These folds can be expressed in terms of the general fold routines but
+    -- the special versions here can be more efficient in many cases.
 
     -- Filtering folds: extract parts of the stream
     , head
@@ -118,26 +149,39 @@ module Streamly.Prelude
     , sum
     , product
 
-    -- ** Map and Fold
-    , mapM_
-
-    -- ** Conversions
-    -- | Transform a stream into an output structure of another type.
+    -- ** Fold To
+    -- | Convert or divert a stream into an output structure, container or
+    -- sink.
     , toList
     , toHandle
 
     -- * Transformation
-    -- ** Mapping
-    , Serial.map
-    , mapM
-    , sequence
+    -- | One to one transformations, each element in the input stream is
+    -- transformed into a corresponding element in the output stream.
+    -- Therefore, the length of the stream and the ordering of elements in the
+    -- stream remains unchanged after the transformation.
 
     -- ** Scanning
     -- | Scan is a transformation by continuously folding the result with the
-    -- next element of the stream.
+    -- next element of the stream. This is the generalized way to transform a
+    -- stream carrying state from previous transformation steps, other forms of
+    -- transformation like map can be expressed in terms of this.
     , scanl'
     , scanlM'
     , scanx
+
+    -- ** Mapping
+    -- | Map is a special form of scan where no state is carried from one step
+    -- to the next.
+    , Serial.map
+    , mapM
+
+    -- ** Flattening
+    , sequence
+
+    -- * Filtering and Insertion
+    -- | Adding or removing elements from the stream thus changing the length
+    -- of the stream.
 
     -- ** Filtering
     , filter
@@ -152,16 +196,20 @@ module Streamly.Prelude
     -- ** Inserting
     , intersperseM
 
-    -- ** Reordering
+    -- * Reordering
     , reverse
 
-    -- ** Indices
-    , findIndices
-    , elemIndices
+    -- * Hybrid Operations
+    -- ** Map and Fold
+    , mapM_
 
     -- ** Map and Filter
     , mapMaybe
     , mapMaybeM
+
+    -- ** Scan and filter
+    , findIndices
+    , elemIndices
 
     -- * Zipping
     , zipWith
@@ -259,6 +307,15 @@ uncons m = K.uncons (K.adapt m)
 -- [0,1,2,3]
 -- @
 --
+-- unfoldr can be expressed in terms of 'yield' and '<>' as follows:
+--
+-- @
+-- unfoldr step s =
+--     case step s of
+--         Nothing -> mempty
+--         Just (a, b) -> 'yield' a '<>' (unfoldr step b)
+-- @
+--
 -- @since 0.1.0
 {-# INLINE_EARLY unfoldr #-}
 unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
@@ -310,13 +367,14 @@ unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
--- Faster than yieldM because there is no bind. Usually we can construct a
--- stream from a pure value using "pure" in an applicative, however in case of
--- Zip streams pure creates an infinite stream.
+-- Faster than yieldM because there is no bind.
 --
--- | Create a singleton stream from a pure value. In monadic streams, 'pure' or
--- 'return' can be used in place of 'yield', however, in Zip applicative
--- streams 'pure' is equivalent to 'repeat'.
+-- | Create a singleton stream from a pure value. Same as @a `cons` nil@ but
+-- slighly more efficient.  Note that in monadic streams, 'yield' is the same
+-- as 'pure' or 'return', however, in Zip applicative streams it is not the
+-- same as 'pure' because in that case 'pure' is equivalent to 'repeat'
+-- instead.  In all other stream types, 'yield' is the same as @yieldM . pure@
+-- but more efficient.
 --
 -- @since 0.4.0
 {-# INLINE yield #-}
@@ -337,7 +395,8 @@ yield a = K.yield a
 yieldM :: (Monad m, IsStream t) => m a -> t m a
 yieldM m = K.yieldM m
 
--- | Generate a stream by performing a monadic action @n@ times.
+-- | Generate a stream by performing a monadic action @n@ times. Can be
+-- expressed as @stimes n (yieldM m)@.
 --
 --
 -- @
@@ -353,7 +412,8 @@ replicateM n m = go n
     where
     go cnt = if cnt <= 0 then K.nil else m |: go (cnt - 1)
 
--- | Generate a stream by repeatedly executing a monadic action forever.
+-- | Generate a stream by repeatedly executing a monadic action forever. Can be
+-- expressed as @cycle1 . yieldM@.
 --
 -- @
 -- runStream $ serially $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
@@ -405,8 +465,9 @@ iterateM step = go
 -- Conversions
 ------------------------------------------------------------------------------
 
--- | Construct a stream from a list containing pure values. This can be more
--- efficient than 'K.fromFoldable' for lists as it can fuse the list.
+-- | Construct a stream from a list containing pure values. More efficient list
+-- specific implementation of 'K.fromFoldable' as it works well with fusion
+-- optimization.
 --
 -- @since 0.4.0
 {-# INLINE_EARLY fromList #-}
@@ -415,9 +476,9 @@ fromList = fromStreamS . S.fromList
 {-# RULES "fromList fallback to StreamK" [1]
     forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
 
--- | Construct a stream from a list containing monadic actions. This can be
--- more efficient than 'fromFoldableM' especially for serial streams as it can
--- fuse the list.
+-- | Construct a stream from a list containing monadic actions. More efficient
+-- list specific implementation of 'fromFoldableM' especially for serial
+-- streams as it works well with fusion optimization.
 --
 -- @since 0.4.0
 {-# INLINE_EARLY fromListM #-}
@@ -426,7 +487,8 @@ fromListM = fromStreamD . D.fromListM
 {-# RULES "fromListM fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
 
--- | Construct a stream from a 'Foldable' containing monadic actions.
+-- | Construct a stream from a 'Foldable' containing monadic actions. Same as
+-- @'Prelude.foldr' 'consM' 'K.nil'@.
 --
 -- @
 -- runStream $ serially $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
@@ -687,7 +749,8 @@ lookup = K.lookup
 find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
 find = K.find
 
--- | Finds all the indices of elements satisfying the given predicate.
+-- | Find all the indices where the element in the stream satisfies the given
+-- predicate.
 --
 -- @since 0.5.0
 {-# INLINE findIndices #-}
@@ -702,8 +765,8 @@ findIndices = K.findIndices
 findIndex :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe Int)
 findIndex p = head . findIndices p
 
--- | Finds the index of all elements in the stream which are equal to the
--- given.
+-- | Find all the indices where the value of the element in the stream is equal
+-- to the given value.
 --
 -- @since 0.5.0
 {-# INLINE elemIndices #-}
