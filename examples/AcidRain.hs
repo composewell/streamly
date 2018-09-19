@@ -7,9 +7,9 @@ import Streamly
 import Streamly.Prelude as S
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.State (MonadState, get, modify, runStateT)
+import Control.Monad.State (MonadState, get, modify, runStateT, put)
 
-data Event = Harm Int | Heal Int | Quit deriving (Show)
+data Event = Harm Int | Heal Int deriving (Show)
 
 userAction :: MonadAsync m => SerialT m Event
 userAction = S.repeatM $ liftIO askUser
@@ -18,7 +18,7 @@ userAction = S.repeatM $ liftIO askUser
         command <- getLine
         case command of
             "potion" -> return (Heal 10)
-            "quit"   -> return  Quit
+            "quit"   -> fail "quit"
             _        -> putStrLn "What?" >> askUser
 
 acidRain :: MonadAsync m => SerialT m Event
@@ -30,7 +30,6 @@ game = do
     case event of
         Harm n -> modify $ \h -> h - n
         Heal n -> modify $ \h -> h + n
-        Quit   -> fail "quit"
 
     h <- get
     when (h <= 0) $ fail "You die!"
