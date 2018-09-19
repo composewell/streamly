@@ -8,10 +8,6 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
-#ifdef DIAGNOSTICS_VERBOSE
-#define DIAGNOSTICS
-#endif
-
 -- |
 -- Module      : Streamly.Streams.Ahead
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -32,7 +28,7 @@ module Streamly.Streams.Ahead
 where
 
 import Control.Concurrent.MVar (putMVar, takeMVar)
-import Control.Monad (ap, void)
+import Control.Monad (ap, void, when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
@@ -41,7 +37,7 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Heap (Heap, Entry(..))
-import Data.IORef (IORef, readIORef, atomicModifyIORef)
+import Data.IORef (IORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import GHC.Exts (inline)
@@ -54,10 +50,6 @@ import Streamly.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream(..))
 import qualified Streamly.Streams.StreamK as K
 
-#ifdef DIAGNOSTICS
-import Control.Monad (when)
-import Data.IORef (writeIORef)
-#endif
 import Prelude hiding (map)
 
 #include "Instances.hs"
@@ -360,12 +352,12 @@ processWithoutToken q heap st sv winfo m sno = do
             let hp' = H.insert (Entry seqNo ent) hp
             in ((hp', snum), hp')
 
-#ifdef DIAGNOSTICS
-        liftIO $ do
-            maxHp <- readIORef (maxHeapSize $ svarStats sv)
-            when (H.size newHp > maxHp) $
-                writeIORef (maxHeapSize $ svarStats sv) (H.size newHp)
-#endif
+        when (svarInspectMode sv) $
+            liftIO $ do
+                maxHp <- readIORef (maxHeapSize $ svarStats sv)
+                when (H.size newHp > maxHp) $
+                    writeIORef (maxHeapSize $ svarStats sv) (H.size newHp)
+
         heapOk <- liftIO $ underMaxHeap sv newHp
         let drainAndStop = drainHeap q heap st sv winfo
             mainLoop = workLoopAhead q heap st sv winfo
@@ -486,6 +478,8 @@ processWithToken q heap st sv winfo action sno = do
 -- hooks can be used for a more general implementation to even check predicates
 -- and not just yield limit.
 
+-- XXX we can remove the sv parameter as it can be derived from st
+
 workLoopAhead :: MonadIO m
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
@@ -494,13 +488,6 @@ workLoopAhead :: MonadIO m
     -> Maybe WorkerInfo
     -> m ()
 workLoopAhead q heap st sv winfo = do
-#ifdef DIAGNOSTICS
-        liftIO $ do
-            maxHp <- readIORef (maxHeapSize $ svarStats sv)
-            (hp, _) <- readIORef heap
-            when (H.size hp > maxHp) $ writeIORef (maxHeapSize $ svarStats sv)
-                                                  (H.size hp)
-#endif
         r <- liftIO $ dequeueFromHeap heap
         case r of
             Ready (Entry seqNo hent) ->

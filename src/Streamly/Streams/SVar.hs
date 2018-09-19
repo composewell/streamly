@@ -11,10 +11,6 @@
 
 #include "inline.h"
 
-#ifdef DIAGNOSTICS_VERBOSE
-#define DIAGNOSTICS
-#endif
-
 -- |
 -- Module      : Streamly.Streams.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -37,37 +33,38 @@ module Streamly.Streams.SVar
     , minRate
     , maxRate
     , constRate
+    , inspectMode
+    , printState
     )
 where
 
 import Control.Exception (fromException)
+import Control.Monad (when)
 import Control.Monad.Catch (throwM)
+import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
-import Control.Monad.IO.Class (liftIO)
-import Data.IORef (newIORef, mkWeakIORef)
-#ifdef DIAGNOSTICS
+import Data.IORef (newIORef, readIORef, mkWeakIORef)
 import Data.IORef (writeIORef)
+import Data.Maybe (isNothing)
 import System.IO (hPutStrLn, stderr)
 import System.Clock (Clock(Monotonic), getTime)
-#endif
+import System.Mem (performMajorGC)
 
 import Streamly.SVar
 import Streamly.Streams.StreamK
 import Streamly.Streams.Serial (SerialT)
 
--- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
--- can keep it on in production to debug problems quickly if and when they
--- happen, but it may result in unexpected output when threads are left hanging
--- until they are GCed because the consumer went away.
-
-#ifdef DIAGNOSTICS
-#ifdef DIAGNOSTICS_VERBOSE
 printSVar :: SVar t m a -> String -> IO ()
 printSVar sv how = do
     svInfo <- dumpSVar sv
     hPutStrLn stderr $ "\n" ++ how ++ "\n" ++ svInfo
-#endif
-#endif
+
+printState :: MonadIO m => State Stream m a -> m ()
+printState st = liftIO $ do
+    let msv = streamVar st
+    case msv of
+        Just sv -> dumpSVar sv >>= putStrLn
+        Nothing -> putStrLn "No SVar"
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}
@@ -81,16 +78,12 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 
     where
 
-    allDone stp =
-#ifdef DIAGNOSTICS
-        do
+    allDone stp = do
+        when (svarInspectMode sv) $ do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
-#ifdef DIAGNOSTICS_VERBOSE
             liftIO $ printSVar sv "SVar Done"
-#endif
-#endif
-            stp
+        stp
 
     {-# INLINE processEvents #-}
     processEvents [] = Stream $ \st stp sng yld -> do
@@ -125,12 +118,15 @@ fromSVar sv =
         unStream (fromStreamVar sv{svarRef = Just ref}) st stp sng yld
     where
 
-    hook =
-#ifdef DIAGNOSTICS_VERBOSE
-      do
-        printSVar sv "SVar Garbage Collected"
-#endif
+    hook = do
+        when (svarInspectMode sv) $ do
+            r <- liftIO $ readIORef (svarStopTime (svarStats sv))
+            when (isNothing r) $
+                printSVar sv "SVar Garbage Collected"
         cleanupSVar sv
+        -- If there are any SVars referenced by this SVar a GC will prompt
+        -- them to be cleaned up quickly.
+        when (svarInspectMode sv) performMajorGC
 
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
 -- be read back from the SVar using 'fromSVar'.
@@ -214,6 +210,8 @@ rate r m = fromStream $ Stream $ \st stp sng yld ->
         Just (Rate low _ high _) | low > high ->
             error "rate: Minimum rate cannot be greater than maximum rate."
         _ -> unStream (toStream m) (setStreamRate r st) stp sng yld
+
+-- XXX implement for serial streams as well, as a simple delay
 
 {-
 {-# RULES "rate serial" rate = yieldRateSerial #-}
@@ -304,3 +302,8 @@ maxYields n m = fromStream $ Stream $ \st stp sng yld ->
 {-# RULES "maxYields serial" maxYields = maxYieldsSerial #-}
 maxYieldsSerial :: Maybe Int64 -> SerialT m a -> SerialT m a
 maxYieldsSerial _ = id
+
+-- | Print debug information about an SVar when the stream ends
+inspectMode :: IsStream t => t m a -> t m a
+inspectMode m = fromStream $ Stream $ \st stp sng yld -> do
+     unStream (toStream m) (setInspectMode st) stp sng yld

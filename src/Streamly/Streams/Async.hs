@@ -6,12 +6,9 @@
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
-
-#ifdef DIAGNOSTICS_VERBOSE
-#define DIAGNOSTICS
-#endif
 
 -- |
 -- Module      : Streamly.Streams.Async
@@ -40,6 +37,7 @@ module Streamly.Streams.Async
     )
 where
 
+import Control.Concurrent (myThreadId)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -62,10 +60,6 @@ import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
 import qualified Streamly.Streams.StreamK as K
-
-#ifdef DIAGNOSTICS
-import Control.Concurrent (myThreadId)
-#endif
 
 #include "Instances.hs"
 
@@ -172,6 +166,8 @@ workLoopLIFOLimited q st sv winfo = run
 -- WAsync
 -------------------------------------------------------------------------------
 
+-- XXX we can remove sv as it is derivable from st
+
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
     :: MonadIO m
@@ -253,7 +249,8 @@ workLoopFIFOLimited q st sv winfo = run
 -- function argument to this function results in a perf degradation of more
 -- than 10%.  Need to investigate what the root cause is.
 -- Interestingly, the same thing does not make any difference for Ahead.
-getLifoSVar :: MonadAsync m => State Stream m a -> IO (SVar Stream m a)
+getLifoSVar :: forall m a. MonadAsync m
+    => State Stream m a -> IO (SVar Stream m a)
 getLifoSVar st = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
@@ -275,9 +272,7 @@ getLifoSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
-#ifdef DIAGNOSTICS
     tid <- myThreadId
-#endif
 
     let isWorkFinished _ = null <$> readIORef q
 
@@ -291,7 +286,17 @@ getLifoSVar st = do
             qEmpty <- null <$> readIORef q
             return $ qEmpty || yieldsDone
 
-    let getSVar sv readOutput postProc workDone wloop = SVar
+    let getSVar :: SVar Stream m a
+            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m Bool)
+            -> (SVar Stream m a -> IO Bool)
+            -> (IORef [Stream m a]
+                -> State Stream m a
+                -> SVar Stream m a
+                -> Maybe WorkerInfo
+                -> m())
+            -> SVar Stream m a
+        getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , remainingWork    = yl
             , maxBufferLimit   = getMaxBuffer st
@@ -311,11 +316,10 @@ getLifoSVar st = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
             , svarRef          = Nothing
-#ifdef DIAGNOSTICS
+            , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk
@@ -353,7 +357,8 @@ getLifoSVar st = do
                                               workLoopLIFOLimited
      in return sv
 
-getFifoSVar :: MonadAsync m => State Stream m a -> IO (SVar Stream m a)
+getFifoSVar :: forall m a. MonadAsync m
+    => State Stream m a -> IO (SVar Stream m a)
 getFifoSVar st = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
@@ -375,9 +380,7 @@ getFifoSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
-#ifdef DIAGNOSTICS
     tid <- myThreadId
-#endif
 
     let isWorkFinished _ = nullQ q
     let isWorkFinishedLimited sv = do
@@ -390,7 +393,17 @@ getFifoSVar st = do
             qEmpty <- nullQ q
             return $ qEmpty || yieldsDone
 
-    let getSVar sv readOutput postProc workDone wloop = SVar
+    let getSVar :: SVar Stream m a
+            -> (SVar Stream m a -> m [ChildEvent a])
+            -> (SVar Stream m a -> m Bool)
+            -> (SVar Stream m a -> IO Bool)
+            -> (LinkedQueue (Stream m a)
+                -> State Stream m a
+                -> SVar Stream m a
+                -> Maybe WorkerInfo
+                -> m())
+            -> SVar Stream m a
+        getSVar sv readOutput postProc workDone wloop = SVar
             { outputQueue      = outQ
             , remainingWork  = yl
             , maxBufferLimit   = getMaxBuffer st
@@ -410,11 +423,10 @@ getFifoSVar st = do
             , accountThread    = delThread sv
             , workerStopMVar   = undefined
             , svarRef          = Nothing
-#ifdef DIAGNOSTICS
+            , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk

@@ -86,7 +86,7 @@ matrix:
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:diag"
+  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work

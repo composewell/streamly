@@ -19,11 +19,6 @@
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
---
---
-#ifdef DIAGNOSTICS_VERBOSE
-#define DIAGNOSTICS
-#endif
 
 module Streamly.SVar
     (
@@ -45,6 +40,8 @@ module Streamly.SVar
     , setStreamLatency
     , getYieldLimit
     , setYieldLimit
+    , getInspectMode
+    , setInspectMode
 
     , cleanupSVar
     , cleanupSVarFromWorker
@@ -99,17 +96,18 @@ module Streamly.SVar
     , toStreamVar
     , SVarStats (..)
     , NanoSecs (..)
-#ifdef DIAGNOSTICS
     , dumpSVar
-#endif
     )
 where
 
 import Control.Concurrent
        (ThreadId, myThreadId, threadDelay, throwTo)
 import Control.Concurrent.MVar
-       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar)
-import Control.Exception (SomeException(..), catch, mask, assert, Exception)
+       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar, tryReadMVar)
+import Control.Exception
+       (SomeException(..), catch, mask, assert, Exception, catches,
+        throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
+        BlockedIndefinitelyOnSTM(..))
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -130,23 +128,11 @@ import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
 import System.Clock (TimeSpec, Clock(Monotonic), getTime, toNanoSecs)
+import System.IO (hPutStrLn, stderr)
+import Text.Printf (printf)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
-
--- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
--- can keep it on in production to debug problems quickly if and when they
--- happen, but it may result in unexpected output when threads are left hanging
--- until they are GCed because the consumer went away.
-
-#ifdef DIAGNOSTICS
-import Control.Concurrent.MVar (tryTakeMVar)
-import Control.Exception
-       (catches, throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
-        BlockedIndefinitelyOnSTM(..))
-import System.IO (hPutStrLn, stderr)
-import Text.Printf (printf)
-#endif
 
 -- Always use signed arithmetic to avoid inadvertant overflows of signed values
 -- on conversion when comparing unsigned quantities with signed.
@@ -371,13 +357,14 @@ data SVar t m a = SVar
     , svarStats      :: SVarStats
     -- to track garbage collection of SVar
     , svarRef        :: Maybe (IORef ())
-#ifdef DIAGNOSTICS
+
+    -- Only for diagnostics
+    , svarInspectMode :: Bool
     , svarCreator    :: ThreadId
     , outputHeap     :: IORef ( Heap (Entry Int (AheadHeapEntry t m a))
                               , Maybe Int)
     -- Shared work queue (stream, seqNo)
     , aheadWorkQueue :: IORef ([t m a], Int)
-#endif
     }
 
 -------------------------------------------------------------------------------
@@ -401,6 +388,7 @@ data State t m a = State
     -- XXX these two can be collapsed into a single type
     , _streamLatency  :: Maybe NanoSecs -- bootstrap latency
     , _maxStreamRate  :: Maybe Rate
+    , _inspectMode    :: Bool
     }
 
 -------------------------------------------------------------------------------
@@ -428,6 +416,7 @@ defState = State
     , _bufferHigh = defaultMaxBuffer
     , _maxStreamRate = Nothing
     , _streamLatency = Nothing
+    , _inspectMode = False
     }
 
 -- XXX if perf gets affected we can have all the Nothing params in a single
@@ -505,6 +494,12 @@ setStreamLatency n st =
 getStreamLatency :: State t m a -> Maybe NanoSecs
 getStreamLatency = _streamLatency
 
+setInspectMode :: State t m a -> State t m a
+setInspectMode st = st { _inspectMode = True }
+
+getInspectMode :: State t m a -> Bool
+getInspectMode = _inspectMode
+
 -------------------------------------------------------------------------------
 -- Cleanup
 -------------------------------------------------------------------------------
@@ -526,7 +521,6 @@ cleanupSVarFromWorker sv = do
 -- Dumping the SVar for debug/diag
 -------------------------------------------------------------------------------
 
-#ifdef DIAGNOSTICS
 -- | Convert a number of seconds to a string.  The string will consist
 -- of four decimal places, followed by a short description of the time
 -- units.
@@ -553,8 +547,8 @@ secs k
                | otherwise = printf "%.3f %s" t u
 
 -- XXX Code duplicated from collectLatency
-drainLatency :: SVarStats -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
-drainLatency _ss yinfo = do
+drainLatency :: SVar t m a -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+drainLatency sv yinfo = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
         longTerm = svarAllTimeLatency yinfo
@@ -574,21 +568,19 @@ drainLatency _ss yinfo = do
     if (pendingCount > 0)
     then do
         let new = pendingTime `div` (fromIntegral pendingCount)
-#ifdef DIAGNOSTICS
-        minLat <- readIORef (minWorkerLatency _ss)
-        when (new < minLat || minLat == 0) $
-            writeIORef (minWorkerLatency _ss) new
+        when (svarInspectMode sv) $ do
+            let ss = svarStats sv
+            minLat <- readIORef (minWorkerLatency ss)
+            when (new < minLat || minLat == 0) $
+                writeIORef (minWorkerLatency ss) new
 
-        maxLat <- readIORef (maxWorkerLatency _ss)
-        when (new > maxLat) $ writeIORef (maxWorkerLatency _ss) new
-#endif
+            maxLat <- readIORef (maxWorkerLatency ss)
+            when (new > maxLat) $ writeIORef (maxWorkerLatency ss) new
+            modifyIORef (avgWorkerLatency ss) $
+                \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
         -- To avoid minor fluctuations update in batches
         writeIORef col (0, 0)
         writeIORef measured new
-#ifdef DIAGNOSTICS
-        modifyIORef (avgWorkerLatency _ss) $
-            \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
-#endif
         modifyIORef longTerm $ \(_, t) -> (lcount', t)
         return (lcount', ltime, new)
     else return notUpdated
@@ -598,7 +590,7 @@ dumpSVarStats sv ss style = do
     case yieldRateInfo sv of
         Nothing -> return ()
         Just yinfo -> do
-            _ <- liftIO $ drainLatency (svarStats sv) yinfo
+            _ <- liftIO $ drainLatency sv yinfo
             return ()
 
     dispatches <- readIORef $ totalDispatches ss
@@ -662,7 +654,7 @@ dumpSVarStats sv ss style = do
 dumpSVar :: SVar t m a -> IO String
 dumpSVar sv = do
     (oqList, oqLen) <- readIORef $ outputQueue sv
-    db <- tryTakeMVar $ outputDoorBell sv
+    db <- tryReadMVar $ outputDoorBell sv
     aheadDump <-
         if svarStyle sv == AheadVar
         then do
@@ -686,15 +678,17 @@ dumpSVar sv = do
     stats <- dumpSVarStats sv (svarStats sv) (svarStyle sv)
 
     return $ unlines
-        [ "Creator tid = " ++ show (svarCreator sv)
-        , "style = " ++ show (svarStyle sv)
+        [
+          "Creator tid = " ++ show (svarCreator sv),
+          "style = " ++ show (svarStyle sv)
         , "---------CURRENT STATE-----------"
         , "outputQueue length computed  = " ++ show (length oqList)
         , "outputQueue length maintained = " ++ show oqLen
         -- XXX print the types of events in the outputQueue, first 5
         , "outputDoorBell = " ++ show db
         ]
-        ++ aheadDump ++ unlines
+        ++ aheadDump
+        ++ unlines
         [ "needDoorBell = " ++ show waiting
         , "running threads = " ++ show rthread
         -- XXX print the status of first 5 threads
@@ -702,6 +696,11 @@ dumpSVar sv = do
         ]
         ++ "---------STATS-----------\n"
         ++ stats
+
+-- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
+-- can keep it on in production to debug problems quickly if and when they
+-- happen, but it may result in unexpected output when threads are left hanging
+-- until they are GCed because the consumer went away.
 
 {-# NOINLINE mvarExcHandler #-}
 mvarExcHandler :: SVar t m a -> String -> BlockedIndefinitelyOnMVar -> IO ()
@@ -717,15 +716,14 @@ stmExcHandler sv label e@BlockedIndefinitelyOnSTM = do
     hPutStrLn stderr $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n" ++ svInfo
     throwIO e
 
-withDBGMVar :: SVar t m a -> String -> IO () -> IO ()
-withDBGMVar sv label action =
-    action `catches` [ Handler (mvarExcHandler sv label)
-                     , Handler (stmExcHandler sv label)
-                     ]
-#else
-withDBGMVar :: SVar t m a -> String -> IO () -> IO ()
-withDBGMVar _ _ action = action
-#endif
+withDiagMVar :: SVar t m a -> String -> IO () -> IO ()
+withDiagMVar sv label action =
+    if svarInspectMode sv
+    then
+        action `catches` [ Handler (mvarExcHandler sv label)
+                         , Handler (stmExcHandler sv label)
+                         ]
+    else action
 
 -------------------------------------------------------------------------------
 -- CAS
@@ -1248,22 +1246,19 @@ handleChildException sv e = do
     tid <- myThreadId
     void $ send sv (ChildStop tid (Just e))
 
-#ifdef DIAGNOSTICS
+{-# NOINLINE recordMaxWorkers #-}
 recordMaxWorkers :: MonadIO m => SVar t m a -> m ()
 recordMaxWorkers sv = liftIO $ do
     active <- readIORef (workerCount sv)
     maxWrk <- readIORef (maxWorkers $ svarStats sv)
     when (active > maxWrk) $ writeIORef (maxWorkers $ svarStats sv) active
     modifyIORef (totalDispatches $ svarStats sv) (+1)
-#endif
 
 {-# NOINLINE pushWorker #-}
 pushWorker :: MonadAsync m => Count -> SVar t m a -> m ()
 pushWorker yieldMax sv = do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
-#ifdef DIAGNOSTICS
-    recordMaxWorkers sv
-#endif
+    when (svarInspectMode sv) $ recordMaxWorkers sv
     -- This allocation matters when significant number of workers are being
     -- sent. We allocate it only when needed.
     winfo <-
@@ -1288,34 +1283,39 @@ pushWorker yieldMax sv = do
 -- producer side. So we need to use a thread safe modification of
 -- workerThreads. Alternatively, we can use a CreateThread event to avoid
 -- using a CAS based modification.
-{-# NOINLINE pushWorkerPar #-}
-pushWorkerPar :: MonadAsync m => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
+{-# INLINE pushWorkerPar #-}
+pushWorkerPar
+    :: MonadAsync m
+    => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
 pushWorkerPar sv wloop =
-    -- We do not use workerCount in case of ParallelVar but still there is no
-    -- harm in maintaining it correctly.
-#ifdef DIAGNOSTICS
-  do
-    liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
-    recordMaxWorkers sv
-    -- This allocation matters when significant number of workers are being
-    -- sent. We allocate it only when needed. The overhead increases by 4x.
-    winfo <-
-        case yieldRateInfo sv of
-            Nothing -> return Nothing
-            Just _ -> liftIO $ do
-                cntRef <- newIORef 0
-                t <- getTime Monotonic
-                lat <- newIORef (0, t)
-                return $ Just $ WorkerInfo
-                    { workerYieldMax = 0
-                    , workerYieldCount = cntRef
-                    , workerLatencyStart = lat
-                    }
+    if svarInspectMode sv
+    then forkWithDiag
+    else doFork (wloop Nothing) (handleChildException sv) >>= modifyThread sv
 
-    doFork (wloop winfo) (handleChildException sv) >>= modifyThread sv
-#else
-    doFork (wloop Nothing) (handleChildException sv) >>= modifyThread sv
-#endif
+    where
+
+    {-# NOINLINE forkWithDiag #-}
+    forkWithDiag = do
+        -- We do not use workerCount in case of ParallelVar but still there is
+        -- no harm in maintaining it correctly.
+        liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
+        recordMaxWorkers sv
+        -- This allocation matters when significant number of workers are being
+        -- sent. We allocate it only when needed. The overhead increases by 4x.
+        winfo <-
+            case yieldRateInfo sv of
+                Nothing -> return Nothing
+                Just _ -> liftIO $ do
+                    cntRef <- newIORef 0
+                    t <- getTime Monotonic
+                    lat <- newIORef (0, t)
+                    return $ Just $ WorkerInfo
+                        { workerYieldMax = 0
+                        , workerYieldCount = cntRef
+                        , workerLatencyStart = lat
+                        }
+
+        doFork (wloop winfo) (handleChildException sv) >>= modifyThread sv
 
 -- Returns:
 -- True: can dispatch more
@@ -1547,8 +1547,8 @@ updateWorkerPollingInterval yinfo latency = do
 -- whereas the average is used for future estimates e.g. how many workers
 -- should be maintained to maintain the rate.
 -- CAUTION! keep it in sync with getWorkerLatency
-collectLatency :: SVarStats -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
-collectLatency _ss yinfo = do
+collectLatency :: SVar t m a -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+collectLatency sv yinfo = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
         longTerm = svarAllTimeLatency yinfo
@@ -1567,15 +1567,15 @@ collectLatency _ss yinfo = do
 
     if pendingCount > 0
     then do
-        let new = pendingTime `div` fromIntegral pendingCount
-#ifdef DIAGNOSTICS
-        minLat <- readIORef (minWorkerLatency _ss)
-        when (new < minLat || minLat == 0) $
-            writeIORef (minWorkerLatency _ss) new
+        let new = pendingTime `div` (fromIntegral pendingCount)
+        when (svarInspectMode sv) $ do
+            let ss = svarStats sv
+            minLat <- readIORef (minWorkerLatency ss)
+            when (new < minLat || minLat == 0) $
+                writeIORef (minWorkerLatency ss) new
 
-        maxLat <- readIORef (maxWorkerLatency _ss)
-        when (new > maxLat) $ writeIORef (maxWorkerLatency _ss) new
-#endif
+            maxLat <- readIORef (maxWorkerLatency ss)
+            when (new > maxLat) $ writeIORef (maxWorkerLatency ss) new
         -- When we have collected a significant sized batch we compute the new
         -- latency using that batch and return the new latency, otherwise we
         -- return the previous latency derived from the previous batch.
@@ -1585,13 +1585,13 @@ collectLatency _ss yinfo = do
                  in prev > 0 && (r > 2 || r < 0.5))
             || (prev == 0)
         then do
+            when (svarInspectMode sv) $ do
+                let ss = svarStats sv
+                modifyIORef (avgWorkerLatency ss) $
+                    \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
             updateWorkerPollingInterval yinfo (max new prev)
             writeIORef col (0, 0)
             writeIORef measured ((prev + new) `div` 2)
-#ifdef DIAGNOSTICS
-            modifyIORef (avgWorkerLatency _ss) $
-                \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
-#endif
             modifyIORef longTerm $ \(_, t) -> (lcount', t)
             return $ tripleWith new
         else do
@@ -1613,7 +1613,7 @@ dispatchWorkerPaced sv = do
     (svarYields, svarElapsed, wLatency) <- do
         now <- liftIO $ getTime Monotonic
         (yieldCount, baseTime, lat) <-
-            liftIO $ collectLatency (svarStats sv) yinfo
+            liftIO $ collectLatency sv yinfo
         let elapsed = fromInteger $ toNanoSecs $ now - baseTime
         let latency =
                 if lat == 0
@@ -1811,7 +1811,7 @@ sendWorkerWait delay dispatch sv = do
         if canDoMore
         then sendWorkerWait delay dispatch sv
         else do
-            liftIO $ withDBGMVar sv "sendWorkerWait: nothing to do"
+            liftIO $ withDiagMVar sv "sendWorkerWait: nothing to do"
                              $ takeMVar (outputDoorBell sv)
             (_, len) <- liftIO $ readIORef (outputQueue sv)
             when (len <= 0) $ sendWorkerWait delay dispatch sv
@@ -1820,10 +1820,10 @@ sendWorkerWait delay dispatch sv = do
 readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
 readOutputQRaw sv = do
     (list, len) <- atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
-#ifdef DIAGNOSTICS
-    oqLen <- readIORef (maxOutQSize $ svarStats sv)
-    when (len > oqLen) $ writeIORef (maxOutQSize $ svarStats sv) len
-#endif
+    when (svarInspectMode sv) $ do
+        let ref = maxOutQSize $ svarStats sv
+        oqLen <- readIORef ref
+        when (len > oqLen) $ writeIORef ref len
     return (list, len)
 
 readOutputQBounded :: MonadAsync m => SVar t m a -> m [ChildEvent a]
@@ -1985,9 +1985,7 @@ getAheadSVar st f = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
-#ifdef DIAGNOSTICS
     tid <- myThreadId
-#endif
 
     let getSVar sv readOutput postProc = SVar
             { outputQueue      = outQ
@@ -2009,11 +2007,10 @@ getAheadSVar st f = do
             , accountThread    = delThread sv
             , workerStopMVar   = stopMVar
             , svarRef          = Nothing
-#ifdef DIAGNOSTICS
+            , svarInspectMode  = getInspectMode st
             , svarCreator      = tid
             , aheadWorkQueue   = q
             , outputHeap       = outH
-#endif
             , svarStats        = SVarStats
                 { totalDispatches  = disp
                 , maxWorkers       = maxWrk
@@ -2081,9 +2078,7 @@ getParallelSVar st = do
     maxLat <- newIORef (NanoSecs 0)
     minLat <- newIORef (NanoSecs 0)
     stpTime <- newIORef Nothing
-#ifdef DIAGNOSTICS
     tid <- myThreadId
-#endif
 
     let sv =
             SVar { outputQueue      = outQ
@@ -2106,11 +2101,10 @@ getParallelSVar st = do
                  , accountThread    = modifyThread sv
                  , workerStopMVar   = undefined
                  , svarRef          = Nothing
-#ifdef DIAGNOSTICS
+                 , svarInspectMode  = getInspectMode st
                  , svarCreator      = tid
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
-#endif
                  , svarStats        = SVarStats
                     { totalDispatches  = disp
                     , maxWorkers       = maxWrk
@@ -2128,10 +2122,11 @@ getParallelSVar st = do
     where
 
     readOutputQPar sv = liftIO $ do
-        withDBGMVar sv "readOutputQPar: doorbell" $ takeMVar (outputDoorBell sv)
+        withDiagMVar sv "readOutputQPar: doorbell"
+            $ takeMVar (outputDoorBell sv)
         case yieldRateInfo sv of
             Nothing -> return ()
-            Just yinfo -> void $ collectLatency (svarStats sv) yinfo
+            Just yinfo -> void $ collectLatency sv yinfo
         fst `fmap` readOutputQRaw sv
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)

@@ -87,11 +87,6 @@ source-repository head
     type: git
     location: https://github.com/composewell/streamly
 
-flag diag
-  description: Diagnostics build
-  manual: True
-  default: False
-
 flag dev
   description: Development build
   manual: True
@@ -138,6 +133,7 @@ library
                      , Streamly.Time
                      , Streamly
                      , Streamly.Tutorial
+                     , Streamly.Internal
 
     default-language: Haskell2010
     ghc-options:      -Wall
@@ -148,11 +144,7 @@ library
     if flag(no-fusion)
       cpp-options:    -DDISABLE_FUSION
 
-    if flag(diag)
-      cpp-options:    -DDIAGNOSTICS
-
     if flag(dev)
-      cpp-options:    -DDIAGNOSTICS
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
                       -fno-ignore-asserts

@@ -8,9 +8,7 @@ extra-deps:
     - Chart-1.9
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
-
-    - git: https://github.com/composewell/bench-show
-      commit: 38cb1b547d1a7ac62de09d59e28f4a1f71dba31b
+    - bench-show-0.2.0
 
 flags: {}
 extra-package-dbs: []
