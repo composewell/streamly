@@ -366,7 +366,7 @@ uncons m =
     let stop = return Nothing
         single a = return (Just (a, nil))
         yieldk a r = return (Just (a, fromStream r))
-    in (unStream (toStream m)) defState stop single yieldk
+    in unStream (toStream m) defState stop single yieldk
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -454,7 +454,7 @@ foldStream
     -> m r
 foldStream st blank single step m =
     let yieldk a x = step a (fromStream x)
-     in (unStream (toStream m)) st blank single yieldk
+     in unStream (toStream m) st blank single yieldk
 
 -- | Lazy right associative fold.
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
@@ -464,7 +464,7 @@ foldr step acc m = go (toStream m)
         let stop = return acc
             single a = return (step a acc)
             yieldk a r = go r >>= \b -> return (step a b)
-        in (unStream m1) defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE foldrM #-}
@@ -475,7 +475,7 @@ foldrM step acc m = go (toStream m)
         let stop = return acc
             single a = step a acc
             yieldk a r = go r >>= step a
-        in (unStream m1) defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE foldr1 #-}
 foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
@@ -488,7 +488,7 @@ foldr1 step m = do
     go p m1 =
         let stp = return p
             single a = return $ step a p
-            yieldk a r = go a r >>= return . (step p)
+            yieldk a r = go a r >>= return . step p
          in unStream m1 defState stp single yieldk
 
 -- | Strict left fold with an extraction function. Like the standard strict
@@ -503,7 +503,7 @@ foldx step begin done m = get $ go (toStream m) begin
     {-# NOINLINE get #-}
     get m1 =
         let single = return . done
-         in (unStream m1) undefined undefined single undefined
+         in unStream m1 undefined undefined single undefined
 
     -- Note, this can be implemented by making a recursive call to "go",
     -- however that is more expensive because of unnecessary recursion
@@ -514,8 +514,8 @@ foldx step begin done m = get $ go (toStream m) begin
             single a = sng $ step acc a
             yieldk a r =
                 let stream = go r (step acc a)
-                in (unStream stream) defState undefined sng yld
-        in (unStream m1) defState stop single yieldk
+                in unStream stream defState undefined sng yld
+        in unStream m1 defState stop single yieldk
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
@@ -532,7 +532,7 @@ foldxM step begin done m = go begin (toStream m)
         let stop = acc >>= done
             single a = acc >>= \b -> step b a >>= done
             yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
-         in (unStream m1) defState stop single yieldk
+         in unStream m1 defState stop single yieldk
 
 -- | Like 'foldl'' but with a monadic step function.
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
@@ -598,7 +598,7 @@ elem e m = go (toStream m)
         let stop      = return False
             single a  = return (a == e)
             yieldk a r = if a == e then return True else go r
-        in (unStream m1) defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE notElem #-}
 notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -608,7 +608,7 @@ notElem e m = go (toStream m)
         let stop      = return True
             single a  = return (a /= e)
             yieldk a r = if a == e then return False else go r
-        in (unStream m1) defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 all p m = go (toStream m)
@@ -725,7 +725,7 @@ mapM_ f m = go (toStream m)
         let stop = return ()
             single a = void (f a)
             yieldk a r = f a >> go r
-         in (unStream m1) defState stop single yieldk
+         in unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Converting folds
@@ -771,7 +771,7 @@ filter p m = fromStream $ go (toStream m)
         let single a   | p a       = sng a
                        | otherwise = stp
             yieldk a r | p a       = yld a (go r)
-                       | otherwise = (unStream r) (rstState st) stp single yieldk
+                       | otherwise = unStream r (rstState st) stp single yieldk
          in unStream m1 (rstState st) stp single yieldk
 
 {-# INLINE take #-}
@@ -814,7 +814,7 @@ dropWhile p m = fromStream $ go (toStream m)
     go m1 = Stream $ \st stp sng yld ->
         let single a   | p a       = stp
                        | otherwise = sng a
-            yieldk a r | p a = (unStream r) (rstState st) stp single yieldk
+            yieldk a r | p a = unStream r (rstState st) stp single yieldk
                        | otherwise = yld a r
          in unStream m1 (rstState st) stp single yieldk
 
@@ -837,8 +837,8 @@ mapM f m = go (toStream m)
     where
     go m1 = fromStream $ Stream $ \st stp sng yld ->
         let single a  = f a >>= sng
-            yieldk a r = unStream (toStream (f a |: (go r))) st stp sng yld
-         in (unStream m1) (rstState st) stp single yieldk
+            yieldk a r = unStream (toStream (f a |: go r)) st stp sng yld
+         in unStream m1 (rstState st) stp single yieldk
 
 -- Be careful when modifying this, this uses a consM (|:) deliberately to allow
 -- other stream types to overload it.
@@ -849,7 +849,7 @@ sequence m = go (toStream m)
     go m1 = fromStream $ Stream $ \st stp sng yld ->
         let single ma = ma >>= sng
             yieldk ma r = unStream (toStream $ ma |: go r) st stp sng yld
-         in (unStream m1) (rstState st) stp single yieldk
+         in unStream m1 (rstState st) stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Inserting
@@ -881,7 +881,7 @@ mapMaybe f m = go (toStream m)
                 Nothing -> stp
             yieldk a r = case f a of
                 Just b  -> yld b (toStream $ go r)
-                Nothing -> (unStream r) (rstState st) stp single yieldk
+                Nothing -> unStream r (rstState st) stp single yieldk
         in unStream m1 (rstState st) stp single yieldk
 
 ------------------------------------------------------------------------------
@@ -935,7 +935,7 @@ serial :: Stream m a -> Stream m a -> Stream m a
 serial m1 m2 = go m1
     where
     go (Stream m) = Stream $ \st stp sng yld ->
-            let stop       = (unStream m2) (rstState st) stp sng yld
+            let stop       = unStream m2 (rstState st) stp sng yld
                 single a   = yld a m2
                 yieldk a r = yld a (go r)
             in m (rstState st) stop single yieldk
@@ -972,7 +972,7 @@ bindWith par m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-            let run x = (unStream x) st stp sng yld
+            let run x = unStream x st stp sng yld
                 single a   = run $ f a
                 yieldk a r = run $ f a `par` go r
             in g (rstState st) stp single yieldk
@@ -995,7 +995,7 @@ withLocal f m =
     Stream $ \st stp sng yld ->
         let single = local f . sng
             yieldk a r = local f $ yld a (withLocal f r)
-        in (unStream m) (rstState st) (local f stp) single yieldk
+        in unStream m (rstState st) (local f stp) single yieldk
 
 ------------------------------------------------------------------------------
 -- MonadError
