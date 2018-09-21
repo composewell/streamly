@@ -965,12 +965,17 @@ workerStopUpdate winfo info = do
 sendStop :: SVar t m a -> Maybe WorkerInfo -> IO ()
 sendStop sv mwinfo = do
     atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
-    case mwinfo of
-        Just winfo ->
-            case yieldRateInfo sv of
-                Nothing -> return ()
-                Just info -> workerStopUpdate winfo info
-        Nothing -> return ()
+    case (mwinfo, yieldRateInfo sv) of
+      (Just winfo, Just info) ->
+          workerStopUpdate winfo info
+      _ ->
+        return ()
+    -- case mwinfo of
+    --     Just winfo ->
+    --         case yieldRateInfo sv of
+    --             Just info -> workerStopUpdate winfo info
+    --             Nothing -> return ()
+    --     Nothing -> return ()
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 -------------------------------------------------------------------------------
