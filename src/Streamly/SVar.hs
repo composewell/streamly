@@ -978,6 +978,22 @@ sendStop sv mwinfo = do
     --     Nothing -> return ()
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
+
+{-# INLINE tryPutDoorBell #-}
+tryPutDoorBell :: SVar t m a -> IO ()
+tryPutDoorBell sv = do
+    storeLoadBarrier
+    w <- readIORef $ needDoorBell sv
+    when w $ do
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
+        -- then we may set the flag to False to later making the consumer lose
+        -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
+
+
 -------------------------------------------------------------------------------
 -- Async
 -------------------------------------------------------------------------------
@@ -996,19 +1012,6 @@ enqueueLIFO sv q m = do
 -- WAsync
 -------------------------------------------------------------------------------
 
-{-# INLINE tryPutDoorBell #-}
-tryPutDoorBell :: SVar t m a -> IO ()
-tryPutDoorBell sv = do
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
 
 -- XXX we can use the Ahead style sequence/heap mechanism to make the best
 -- effort to always try to finish the streams on the left side of an expression
