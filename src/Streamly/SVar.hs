@@ -496,11 +496,14 @@ getStreamRate = _maxStreamRate
 setStreamLatency :: Int -> State t m a -> State t m a
 setStreamLatency n st =
     st { _streamLatency =
-            if n < 0
+            if (n <= 0)
             then Nothing
-            else if n == 0
-                 then Nothing
-                 else Just (fromIntegral n)
+            else Just (fromIntegral n)
+            -- if n < 0
+            -- then Nothing
+            -- else if n == 0
+            --      then Nothing
+            --      else Just (fromIntegral n)
        }
 
 getStreamLatency :: State t m a -> Maybe NanoSecs
