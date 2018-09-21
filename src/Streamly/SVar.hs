@@ -990,6 +990,15 @@ sendStop sv mwinfo = do
 enqueueLIFO :: SVar t m a -> IORef [t m a] -> t m a -> IO ()
 enqueueLIFO sv q m = do
     atomicModifyIORefCAS_ q $ \ms -> m : ms
+    tryPutDoorBell sv
+
+-------------------------------------------------------------------------------
+-- WAsync
+-------------------------------------------------------------------------------
+
+{-# INLINE tryPutDoorBell #-}
+tryPutDoorBell :: SVar t m a -> IO ()
+tryPutDoorBell sv = do
     storeLoadBarrier
     w <- readIORef $ needDoorBell sv
     when w $ do
@@ -1000,10 +1009,6 @@ enqueueLIFO sv q m = do
         -- the flag, even without receiving a outputDoorBell.
         atomicModifyIORefCAS_ (needDoorBell sv) (const False)
         void $ tryPutMVar (outputDoorBell sv) ()
-
--------------------------------------------------------------------------------
--- WAsync
--------------------------------------------------------------------------------
 
 -- XXX we can use the Ahead style sequence/heap mechanism to make the best
 -- effort to always try to finish the streams on the left side of an expression
@@ -1013,16 +1018,7 @@ enqueueLIFO sv q m = do
 enqueueFIFO :: SVar t m a -> LinkedQueue (t m a) -> t m a -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -------------------------------------------------------------------------------
 -- Ahead
@@ -1094,16 +1090,7 @@ enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n + 1)  -- increment sequence
         _ -> error "not empty"
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -- enqueue without incrementing the sequence number
 {-# INLINE reEnqueueAhead #-}
@@ -1112,11 +1099,7 @@ reEnqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n)  -- DO NOT increment sequence
         _ -> error "not empty"
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -- Normally the thread that has the token should never go away. The token gets
 -- handed over to another thread, but someone or the other has the token at any
