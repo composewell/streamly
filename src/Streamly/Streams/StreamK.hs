@@ -890,7 +890,7 @@ mapMaybe f m = go (toStream m)
 
 {-# INLINE zipWithS #-}
 zipWithS :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWithS f m1 m2 = go m1 m2
+zipWithS f = go
     where
     go mx my = Stream $ \st stp sng yld -> do
         let merge a ra =
@@ -898,7 +898,7 @@ zipWithS f m1 m2 = go m1 m2
                     yield2 b rb = yld (f a b) (go ra rb)
                  in unStream my (rstState st) stp single2 yield2
         let single1 a   = merge a nil
-            yield1 a ra = merge a ra
+            yield1 = merge
         unStream mx (rstState st) stp single1 yield1
 
 -- | Zip two streams serially using a pure zipping function.
@@ -921,7 +921,7 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
                     yield2 b rb = f a b >>= \x -> runIt (x `cons` go ra rb)
                  in unStream my (rstState st) stp single2 yield2
         let single1 a  = merge a nil
-            yield1 a ra = merge a ra
+            yield1 = merge
         unStream mx (rstState st) stp single1 yield1
 
 ------------------------------------------------------------------------------
