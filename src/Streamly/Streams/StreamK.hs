@@ -483,12 +483,13 @@ foldr1 step m = do
     r <- uncons m
     case r of
         Nothing -> return Nothing
-        Just (h, t) -> go h (toStream t) >>= return . Just
+        Just (h, t) -> fmap Just (go h (toStream t))
+        -- Just (h, t) -> (fmap Just . go h . toStream) t
     where
     go p m1 =
         let stp = return p
-            single a = return $ step a p
-            yieldk a r = go a r >>= return . step p
+            single a = return (step a p)
+            yieldk a r = fmap (step p) (go a r)
          in unStream m1 defState stp single yieldk
 
 -- | Strict left fold with an extraction function. Like the standard strict
