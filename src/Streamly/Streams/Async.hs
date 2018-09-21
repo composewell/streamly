@@ -469,11 +469,13 @@ newAsyncVar st m = do
 -- @since 0.2.0
 {-# INLINABLE mkAsync #-}
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
-mkAsync m = newAsyncVar defState (toStream m) >>= return . fromSVar
+-- mkAsync m = newAsyncVar defState (toStream m) >>= return . fromSVar
+mkAsync m = fromSVar `fmap` newAsyncVar defState (toStream m)
 
 {-# INLINABLE mkAsync' #-}
 mkAsync' :: (IsStream t, MonadAsync m) => State Stream m a -> t m a -> m (t m a)
-mkAsync' st m = newAsyncVar st (toStream m) >>= return . fromSVar
+-- mkAsync' st m = newAsyncVar st (toStream m) >>= return . fromSVar
+mkAsync' st m = fromSVar `fmap` newAsyncVar st (toStream m)
 
 -- | Create a new SVar and enqueue one stream computation on it.
 {-# INLINABLE newWAsyncVar #-}
@@ -563,7 +565,7 @@ forkSVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
+joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld ->
     case streamVar st of
         Just sv | svarStyle sv == style ->
             liftIO (enqueue sv m2) >> unStream m1 st stp sng yld
