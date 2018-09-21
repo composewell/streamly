@@ -191,7 +191,7 @@ uncons (Stream step state) = go state
 
 {-# INLINE_NORMAL unfoldrM #-}
 unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
-unfoldrM next state = Stream step state
+unfoldrM next = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ st = do
@@ -246,7 +246,7 @@ yieldM m = Stream step True
 -- | Convert a list of monadic actions to a 'Stream'
 {-# INLINE_LATE fromListM #-}
 fromListM :: MonadAsync m => [m a] -> Stream m a
-fromListM zs = Stream step zs
+fromListM = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
@@ -255,7 +255,7 @@ fromListM zs = Stream step zs
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => [a] -> Stream m a
-fromList zs = Stream step zs
+fromList = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (x:xs) = return $ Yield x xs
@@ -264,7 +264,7 @@ fromList zs = Stream step zs
 -- XXX pass the state to streamD
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
-fromStreamK m = Stream step m
+fromStreamK = Stream step
     where
     step gst m1 =
         let stop       = return Stop
