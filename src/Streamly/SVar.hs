@@ -1252,11 +1252,14 @@ modifyThread sv tid = do
         if S.member tid old
         then let new = S.delete tid old in (new, new)
         else let new = S.insert tid old in (new, old)
-    if null changed
-    then liftIO $ do
-        writeBarrier
-        void $ tryPutMVar (outputDoorBell sv) ()
-    else return ()
+    -- if null changed
+    -- then liftIO $ do
+    --     writeBarrier
+    --     void $ tryPutMVar (outputDoorBell sv) ()
+    -- else return ()
+    when (null changed) . liftIO $
+        do writeBarrier
+           void $ tryPutMVar (outputDoorBell sv) ()
 
 -- | This is safe even if we are adding more threads concurrently because if
 -- a child thread is adding another thread then anyway 'workerThreads' will
