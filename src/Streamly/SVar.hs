@@ -496,7 +496,7 @@ getStreamRate = _maxStreamRate
 setStreamLatency :: Int -> State t m a -> State t m a
 setStreamLatency n st =
     st { _streamLatency =
-            if (n <= 0)
+            if n <= 0
             then Nothing
             else Just (fromIntegral n)
             -- if n < 0
@@ -1313,10 +1313,11 @@ pushWorker yieldMax sv = do
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
 pushWorkerPar :: MonadAsync m => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
-pushWorkerPar sv wloop = do
+pushWorkerPar sv wloop =
     -- We do not use workerCount in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
 #ifdef DIAGNOSTICS
+  do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     recordMaxWorkers sv
     -- This allocation matters when significant number of workers are being
@@ -1875,7 +1876,8 @@ readOutputQBounded sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelay (dispatchWorker 0) sv
-        liftIO $ readOutputQRaw sv >>= return . fst
+        -- liftIO $ readOutputQRaw sv >>= return . fst
+        liftIO $ fst `fmap` readOutputQRaw sv
 
 readOutputQPaced :: MonadAsync m => SVar t m a -> m [ChildEvent a]
 readOutputQPaced sv = do
@@ -1893,7 +1895,8 @@ readOutputQPaced sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelayPaced dispatchWorkerPaced sv
-        liftIO $ (readOutputQRaw sv >>= return . fst)
+        -- liftIO $ (readOutputQRaw sv >>= return . fst)
+        liftIO $ fst `fmap` readOutputQRaw sv
 
 postProcessBounded :: MonadAsync m => SVar t m a -> m Bool
 postProcessBounded sv = do
@@ -2155,7 +2158,8 @@ getParallelSVar st = do
         case yieldRateInfo sv of
             Nothing -> return ()
             Just yinfo -> void $ collectLatency (svarStats sv) yinfo
-        readOutputQRaw sv >>= return . fst
+        -- readOutputQRaw sv >>= return . fst
+        fst `fmap` readOutputQRaw sv
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
 sendFirstWorker sv m = do
