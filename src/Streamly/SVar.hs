@@ -1139,7 +1139,7 @@ queueEmptyAhead q = liftIO $ do
 {-# INLINE dequeueAhead #-}
 dequeueAhead :: MonadIO m
     => IORef ([t m a], Int) -> m (Maybe (t m a, Int))
-dequeueAhead q = liftIO $ do
+dequeueAhead q = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
             (x : [], n) -> (([], n), Just (x, n))
@@ -1724,7 +1724,7 @@ dispatchWorkerPaced sv = do
                    else yields + buf
             liftIO $ modifyIORef (svarGainedLostYields yinfo) (+ delta)
 
-    dispatchN n = do
+    dispatchN n =
         if n == 0
         then return True
         else do
@@ -1737,12 +1737,13 @@ sendWorkerDelayPaced :: SVar t m a -> IO ()
 sendWorkerDelayPaced _ = return ()
 
 sendWorkerDelay :: SVar t m a -> IO ()
-sendWorkerDelay _sv = do
+sendWorkerDelay _sv =
     -- XXX we need a better way to handle this than hardcoded delays. The
     -- delays may be different for different systems.
     -- If there is a usecase where this is required we can create a combinator
     -- to set it as a config in the state.
     {-
+   do
     ncpu <- getNumCapabilities
     if ncpu <= 1
     then
@@ -2160,8 +2161,9 @@ sendFirstWorker sv m = do
     -- chance to push.
     liftIO $ enqueue sv m
     case yieldRateInfo sv of
-        Nothing -> pushWorker 0 sv
-        Just yinfo  -> do
+        Nothing ->
+            pushWorker 0 sv
+        Just yinfo ->
             if svarLatencyTarget yinfo == maxBound
             then liftIO $ threadDelay maxBound
             else pushWorker 1 sv
