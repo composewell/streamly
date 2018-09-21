@@ -641,8 +641,8 @@ minimum m = go Nothing (toStream m)
     where
     go Nothing m1 =
         let stop      = return Nothing
-            single a  = return (Just a)
-            yieldk a r = go (Just a) r
+            single = return . Just
+            yieldk = go . Just
         in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
@@ -659,12 +659,12 @@ minimum m = go Nothing (toStream m)
 
 {-# INLINE maximum #-}
 maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
-maximum m = go Nothing (toStream m)
+maximum = go Nothing . toStream
     where
     go Nothing m1 =
-        let stop      = return Nothing
-            single a  = return (Just a)
-            yieldk a r = go (Just a) r
+        let stop   = return Nothing
+            single = return . Just
+            yieldk = go . Just
         in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
