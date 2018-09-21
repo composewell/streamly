@@ -177,7 +177,7 @@ serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 instance Monad m => Monad (SerialT m) where
     return = pure
     (SerialT (Stream m)) >>= f = SerialT $ Stream $ \st stp sng yld ->
-        let run x = (unStream x) (rstState st) stp sng yld
+        let run x = unStream x (rstState st) stp sng yld
             single a   = run $ toStream (f a)
             yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
         in m (rstState st) stp single yieldk
@@ -289,10 +289,10 @@ instance IsStream WSerialT where
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
 interleave m1 m2 = Stream $ \st stp sng yld -> do
-    let stop       = (unStream m2) (rstState st) stp sng yld
+    let stop       = unStream m2 (rstState st) stp sng yld
         single a   = yld a m2
         yieldk a r = yld a (interleave m2 r)
-    (unStream m1) (rstState st) stop single yieldk
+    unStream m1 (rstState st) stop single yieldk
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
@@ -331,8 +331,8 @@ instance Monoid (WSerialT m a) where
 
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    (WSerialT (Stream m)) >>= f = WSerialT $ Stream $ \st stp sng yld ->
-        let run x = (unStream x) (rstState st) stp sng yld
+    WSerialT (Stream m) >>= f = WSerialT $ Stream $ \st stp sng yld ->
+        let run x = unStream x (rstState st) stp sng yld
             single a   = run $ toStream (f a)
             yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
         in m (rstState st) stp single yieldk
