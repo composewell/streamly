@@ -516,14 +516,14 @@ getStreamLatency = _streamLatency
 cleanupSVar :: SVar t m a -> IO ()
 cleanupSVar sv = do
     workers <- readIORef (workerThreads sv)
-    Prelude.mapM_ (\tid -> throwTo tid ThreadAbort)
+    Prelude.mapM_ (`throwTo` ThreadAbort)
           (S.toList workers)
 
 cleanupSVarFromWorker :: SVar t m a -> IO ()
 cleanupSVarFromWorker sv = do
     workers <- readIORef (workerThreads sv)
     self <- myThreadId
-    mapM_ (\tid -> throwTo tid ThreadAbort)
+    mapM_ (`throwTo` ThreadAbort)
           (S.toList workers \\ [self])
 
 -------------------------------------------------------------------------------
@@ -1239,7 +1239,7 @@ addThread sv tid =
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar t m a -> ThreadId -> m ()
 delThread sv tid =
-    liftIO $ modifyIORef (workerThreads sv) (\s -> S.delete tid s)
+    liftIO $ modifyIORef (workerThreads sv) (S.delete tid)
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
