@@ -182,7 +182,7 @@ uncons (Stream step state) = go state
     go st = do
         r <- step defState st
         return $ case r of
-            Yield x s -> Just (x, (Stream step s))
+            Yield x s -> Just (x, Stream step s)
             Stop      -> Nothing
 
 ------------------------------------------------------------------------------
@@ -217,8 +217,8 @@ enumFromStepN from stride n =
     from `seq` stride `seq` n `seq` Stream step (from, n)
     where
         {-# INLINE_LATE step #-}
-        step _ (x, i) | i > 0   = return $ Yield x (x + stride, i - 1)
-                    | otherwise = return $ Stop
+        step _ (x, i) | i > 0     = return (Yield x (x + stride, i - 1))
+                      | otherwise = return Stop
 
 -------------------------------------------------------------------------------
 -- Generation by Conversion
@@ -530,7 +530,7 @@ takeWhileM f (Stream step state) = Stream step' state
             Yield x s -> do
                 b <- f x
                 return $ if b then Yield x s else Stop
-            Stop -> return $ Stop
+            Stop -> return Stop
 
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
@@ -593,7 +593,7 @@ filterM f (Stream step state) = Stream step' state
                 if b
                 then return $ Yield x s
                 else step' gst s
-            Stop -> return $ Stop
+            Stop -> return Stop
 
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
