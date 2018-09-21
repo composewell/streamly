@@ -1254,7 +1254,7 @@ modifyThread sv tid = do
 -- not be empty.
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => SVar t m a -> m Bool
-allThreadsDone sv = liftIO $ S.null <$> readIORef (workerThreads sv)
+allThreadsDone sv = liftIO $ S.null `fmap` readIORef (workerThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: SVar t m a -> SomeException -> IO ()
@@ -1990,7 +1990,7 @@ getAheadSVar st f = do
     stopMVar <- newMVar ()
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
-            Just x -> Just <$> newIORef x
+            Just x -> Just `fmap` newIORef x
     rateInfo <- getYieldRateInfo st
 
     disp   <- newIORef 0
@@ -2086,7 +2086,7 @@ getParallelSVar st = do
     running <- newIORef S.empty
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
-            Just x -> Just <$> newIORef x
+            Just x -> Just `fmap` newIORef x
     rateInfo <- getYieldRateInfo st
 
     disp <- newIORef 0
