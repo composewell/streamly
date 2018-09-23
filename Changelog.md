@@ -1,3 +1,11 @@
+## Unreleased
+
+### Bug Fixes
+
+* Fixed a livelock in ahead style streams. The problem manifests sometimes when
+  multiple streams are merged together in ahead style and one of them is a nil
+  stream.
+
 ## 0.5.1
 
 * Performance improvements, especially space consumption, for concurrent

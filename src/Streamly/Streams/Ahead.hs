@@ -230,6 +230,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
 
     loopHeap seqNo ent =
         case ent of
+            AheadEntryNull -> nextHeap seqNo
             AheadEntryPure a -> do
                 -- Use 'send' directly so that we do not account this in worker
                 -- latency as this will not be the real latency.
@@ -338,7 +339,12 @@ processWithoutToken q heap st sv winfo m sno = do
     -- we have already decremented the yield limit for m
     let stop = do
             liftIO (incrementYieldLimit sv)
-            workLoopAhead q heap st sv winfo
+            -- If the stream stops without yielding anything, and we do not put
+            -- anything on heap, but if heap was waiting for this seq number
+            -- then it will keep waiting forever, because we are never going to
+            -- put it on heap. So we have to put a null entry on heap even when
+            -- we stop.
+            toHeap sno AheadEntryNull
 
     unStream m st stop (singleToHeap sno) (yieldToHeap sno)
 

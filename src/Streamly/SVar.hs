@@ -189,7 +189,8 @@ data ChildEvent a =
 
 -- | Sorting out-of-turn outputs in a heap for Ahead style streams
 data AheadHeapEntry (t :: (* -> *) -> * -> *) m a =
-      AheadEntryPure a
+      AheadEntryNull
+    | AheadEntryPure a
     | AheadEntryStream (t m a)
 
 ------------------------------------------------------------------------------
