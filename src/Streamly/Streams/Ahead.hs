@@ -399,7 +399,7 @@ processWithToken q heap st sv winfo action sno = do
     -- XXX deduplicate stop in all invocations
     let stop = do
             liftIO (incrementYieldLimit sv)
-            loopWithToken sno
+            loopWithToken (sno + 1)
 
     unStream action st stop (singleOutput sno) (yieldOutput sno)
 
@@ -408,7 +408,7 @@ processWithToken q heap st sv winfo action sno = do
     singleOutput seqNo a = do
         continue <- liftIO $ sendYield sv winfo (ChildYield a)
         if continue
-        then loopWithToken seqNo
+        then loopWithToken (seqNo + 1)
         else do
             liftIO $ updateHeapSeq heap (seqNo + 1)
             drainHeap q heap st sv winfo
@@ -423,7 +423,7 @@ processWithToken q heap st sv winfo action sno = do
         then do
             let stop = do
                     liftIO (incrementYieldLimit sv)
-                    loopWithToken seqNo
+                    loopWithToken (seqNo + 1)
             unStream r st stop
                           (singleOutput seqNo)
                           (yieldOutput seqNo)
@@ -433,27 +433,27 @@ processWithToken q heap st sv winfo action sno = do
             liftIO $ incrementYieldLimit sv
             drainHeap q heap st sv winfo
 
-    loopWithToken prevSeqNo = do
+    loopWithToken nextSeqNo = do
         work <- dequeueAhead q
         case work of
             Nothing -> do
-                liftIO $ updateHeapSeq heap (prevSeqNo + 1)
+                liftIO $ updateHeapSeq heap nextSeqNo
                 workLoopAhead q heap st sv winfo
 
             Just (m, seqNo) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then
-                    if seqNo == prevSeqNo + 1
+                    if seqNo == nextSeqNo
                     then do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
-                                loopWithToken seqNo
+                                loopWithToken (seqNo + 1)
                         unStream m st stop
                                       (singleOutput seqNo)
                                       (yieldOutput seqNo)
                     else do
-                        liftIO $ updateHeapSeq heap (prevSeqNo + 1)
+                        liftIO $ updateHeapSeq heap nextSeqNo
                         liftIO (incrementYieldLimit sv)
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
@@ -465,7 +465,7 @@ processWithToken q heap st sv winfo action sno = do
                         liftIO $ reEnqueueAhead sv q m
                         workLoopAhead q heap st sv winfo
                 else do
-                    liftIO $ updateHeapSeq heap (prevSeqNo + 1)
+                    liftIO $ updateHeapSeq heap nextSeqNo
                     liftIO $ reEnqueueAhead sv q m
                     liftIO $ incrementYieldLimit sv
                     drainHeap q heap st sv winfo
