@@ -2,16 +2,20 @@
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--quick] [--append] "
-  echo "       [--no-graphs] [--no-measure]"
-  echo "       [--benchmark <linear|nested>]"
   echo "       [--compare] [--base commit] [--candidate commit]"
+  echo "       [--benchmark <linear|nested|base>]"
+  echo "       [--graphs]"
+  echo "       [--slow]"
+  echo "       [--no-measure]"
+  echo "       [--append] "
   echo "       -- <gauge options>"
   echo
-  echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
-  echo "commit is generated, in the 'charts' directory."
-  echo "Use --base and --candidate to select the commits to compare."
-  echo
+  # XXX in the report the base and candidate are shown in reverse order as we
+  # run the benchmarks for candidate first and then base.
+  #echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
+  #echo "commit is generated, in the 'charts' directory."
+  #echo "Use --base and --candidate to select the commits to compare."
+  #echo
   echo "Any arguments after a '--' are passed directly to guage"
   echo "You can omit '--' if the gauge args used do not start with a '-'."
   exit
@@ -23,61 +27,64 @@ die () {
   exit 1
 }
 
-DEFAULT_BENCHMARK=linear
-COMPARE=0
-
-while test -n "$1"
-do
-  case $1 in
-    -h|--help|help) print_help ;;
-    --quick) QUICK=1; shift ;;
-    --append) APPEND=1; shift ;;
-    --benchmark) shift; BENCHMARK=$1; shift ;;
-    --base) shift; BASE=$1; shift ;;
-    --candidate) shift; CANDIDATE=$1; shift ;;
-    --compare) COMPARE=1; shift ;;
-    --no-graphs) GRAPH=0; shift ;;
-    --no-measure) MEASURE=0; shift ;;
-    --) shift; break ;;
-    -*|--*) print_help ;;
-    *) break ;;
-  esac
-done
-
-GAUGE_ARGS=$*
-
-if test -z "$BENCHMARK"
-then
-  BENCHMARK=$DEFAULT_BENCHMARK
-  echo "Using default benchmark suite [$BENCHMARK], use --benchmark to specify another"
-else
-  echo "Using benchmark suite [$BENCHMARK]"
-fi
-
-STACK=stack
-echo "Using stack command [$STACK]"
-
-# We build it first at the current commit before checking out any other commit
-# for benchmarking.
-if test "$GRAPH" != "0"
-then
-  CHART_PROG="chart-$BENCHMARK"
-  prog=$($STACK exec which $CHART_PROG)
-  hash -r
-  if test ! -x "$prog"
+set_benchmarks() {
+  if test -z "$BENCHMARKS"
   then
-    echo "Building charting executable"
-    $STACK build --flag "streamly:dev" || die "build failed"
+    BENCHMARKS=$DEFAULT_BENCHMARKS
+    echo "Using default benchmark suite [$BENCHMARKS], use --benchmark to specify another"
+  else
+    echo "Using benchmark suite [$BENCHMARKS]"
   fi
+}
 
-  prog=$($STACK exec which $CHART_PROG)
-  if test ! -x "$prog"
+# $1: benchmark name (linear, nested, base)
+find_report_prog() {
+    local bench_name=$1
+    local prog_name="chart-$bench_name"
+    hash -r
+    local prog_path=$($STACK exec which $prog_name)
+    if test -x "$prog_path"
+    then
+      echo $prog_path
+    else
+      return 1
+    fi
+}
+
+# $1: benchmark name (linear, nested, base)
+build_report_prog() {
+    local bench_name=$1
+    local prog_name="chart-$bench_name"
+    local prog_path=$($STACK exec which $prog_name)
+
+    hash -r
+    if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
+    then
+      echo "Building bench-graph executables"
+      BUILD_ONCE=1
+      $STACK build --flag "streamly:dev" || die "build failed"
+    elif test ! -x "$prog_path"
+    then
+      return 1
+    fi
+    return 0
+}
+
+build_report_progs() {
+  local bench_list=$1
+
+  if test "$RAW" = "0"
   then
-    die "Could not find [$CHART_PROG] executable"
+    for i in $bench_list
+    do
+      build_report_prog $i || exit 1
+      local prog
+      prog=$(find_report_prog $i) || \
+          die "Cannot find bench-graph executable for benchmark $i"
+      echo "Using bench-graph executable [$prog]"
+    done
   fi
-  CHART_PROG=$prog
-  echo "Using chart executable [$CHART_PROG]"
-fi
+}
 
 # We run the benchmarks in isolation in a separate process so that different
 # benchmarks do not interfere with other. To enable that we need to pass the
@@ -89,14 +96,19 @@ fi
 # find .stack-work/ -type f -name "benchmarks"
 
 find_bench_prog () {
-  BENCH_PROG=`$STACK path --dist-dir`/build/$BENCHMARK/$BENCHMARK
-  if test ! -x "$BENCH_PROG"
+  local bench_name=$1
+  local bench_prog=`$STACK path --dist-dir`/build/$bench_name/$bench_name
+  if test -x "$bench_prog"
   then
-    echo
-    echo "WARNING! benchmark binary [$BENCH_PROG] not found or not executable"
-    echo "WARNING! not using isolated measurement."
-    echo
+    echo $bench_prog
+  else
+    return 1
   fi
+}
+
+bench_output_file() {
+    local bench_name=$1
+    echo "charts/$bench_name/results.csv"
 }
 
 # --min-duration 0 means exactly one iteration per sample. We use a million
@@ -112,44 +124,33 @@ find_bench_prog () {
 # We can pass --min-samples value from the command line as second argument
 # after the benchmark name in case we want to use more than one sample.
 
-if test "$QUICK" = "1"
-then
-  ENABLE_QUICK="--quick"
-fi
-
-OUTPUT_FILE="charts/results.csv"
-
 run_bench () {
-  $STACK build --bench --no-run-benchmarks || die "build failed"
-  find_bench_prog
-  mkdir -p charts
+  local bench_name=$1
+  local output_file=$(bench_output_file $bench_name)
+  local bench_prog
+  bench_prog=$(find_bench_prog $bench_name) || \
+    die "Cannot find benchmark executable for benchmark $bench_name"
 
-  # We set min-samples to 3 if we use less than three samples, statistical
-  # analysis crashes. Note that the benchmark runs for a minimum of 5 seconds.
-  # We use min-duration=0 to run just one iteration for each sample. Anyway the
-  # default is to run iterations worth minimum 30 ms and most of our benchmarks
-  # are close to that or more.
-  $BENCH_PROG $ENABLE_QUICK \
-    --include-first-iter \
-    --min-samples 3 \
-    --min-duration 0 \
-    --match exact \
-    --csvraw=$OUTPUT_FILE \
+  mkdir -p `dirname $output_file`
+
+  echo "Running benchmark $bench_name ..."
+
+  $bench_prog $SPEED_OPTIONS \
+    --csvraw=$output_file \
     -v 2 \
-    --measure-with $BENCH_PROG $GAUGE_ARGS || die "Benchmarking failed"
+    --measure-with $bench_prog $GAUGE_ARGS || die "Benchmarking failed"
 }
 
-if test "$MEASURE" != "0"
-  then
-  if test -e $OUTPUT_FILE -a "$APPEND" != 1
-  then
-    mv -f -v $OUTPUT_FILE ${OUTPUT_FILE}.prev
-  fi
+run_benches() {
+    for i in $1
+    do
+      run_bench $i
+    done
+}
 
-  if test "$COMPARE" = "0"
-  then
-    run_bench
-  else
+run_benches_comparing() {
+    local bench_list=$1
+
     if test -z "$CANDIDATE"
     then
       CANDIDATE=$(git rev-parse HEAD)
@@ -161,18 +162,132 @@ if test "$MEASURE" != "0"
     fi
     echo "Checking out base commit for benchmarking"
     git checkout "$BASE" || die "Checkout of base commit failed"
-    run_bench
+
+    run_benches "$bench_list"
+
     echo "Checking out candidate commit for benchmarking"
     git checkout "$CANDIDATE" || die "Checkout of candidate commit failed"
-    run_bench
+
+    run_benches "$bench_list"
+    # XXX reset back to the original commit
+}
+
+backup_output_file() {
+  local bench_name=$1
+  local output_file=$(bench_output_file $bench_name)
+
+  if test -e $output_file -a "$APPEND" != 1
+  then
+      mv -f -v $output_file ${output_file}.prev
   fi
-fi
+}
 
-if test "$GRAPH" != "0"
+run_measurements() {
+  local bench_list=$1
+
+  for i in $bench_list
+  do
+      backup_output_file $i
+  done
+
+  if test "$COMPARE" = "0"
+  then
+    run_benches "$bench_list"
+  else
+    run_benches_comparing "$bench_list"
+  fi
+}
+
+run_report() {
+  local bench_name=$1
+  local input_file=$2
+
+  if test "$RAW" = "0"
+  then
+    local prog
+    prog=$(find_report_prog $bench_name) || \
+      die "Cannot find bench-graph executable for benchmark $bench_name"
+    echo
+    echo "Generating reports for ${bench_name}..."
+    $prog
+  fi
+}
+
+run_reports() {
+    for i in $1
+    do
+      run_report $i
+    done
+}
+
+#-----------------------------------------------------------------------------
+# Execution starts here
+#-----------------------------------------------------------------------------
+
+DEFAULT_BENCHMARKS="linear"
+
+COMPARE=0
+BASE=
+CANDIDATE=
+
+APPEND=0
+RAW=0
+GRAPH=0
+MEASURE=1
+SPEED_OPTIONS="--quick --min-samples 10 --time-limit 1 --min-duration 0"
+
+STACK=stack
+GAUGE_ARGS=
+
+BUILD_ONCE=0
+
+#-----------------------------------------------------------------------------
+# Read command line
+#-----------------------------------------------------------------------------
+
+while test -n "$1"
+do
+  case $1 in
+    -h|--help|help) print_help ;;
+    --slow) SPEED_OPTIONS="--min-duration 0"; shift ;;
+    --append) APPEND=1; shift ;;
+    --benchmark) shift; BENCHMARKS=$1; shift ;;
+    --base) shift; BASE=$1; shift ;;
+    --candidate) shift; CANDIDATE=$1; shift ;;
+    --compare) COMPARE=1; shift ;;
+    --raw) RAW=1; shift ;;
+    --graphs) GRAPH=1; shift ;;
+    --no-measure) MEASURE=0; shift ;;
+    --) shift; break ;;
+    -*|--*) print_help ;;
+    *) break ;;
+  esac
+done
+GAUGE_ARGS=$*
+
+echo "Using stack command [$STACK]"
+set_benchmarks
+
+#-----------------------------------------------------------------------------
+# Build stuff
+#-----------------------------------------------------------------------------
+
+# We need to build the report progs first at the current (latest) commit before
+# checking out any other commit for benchmarking.
+build_report_progs "$BENCHMARKS"
+
+#-----------------------------------------------------------------------------
+# Run benchmarks
+#-----------------------------------------------------------------------------
+
+if test "$MEASURE" = "1"
 then
-  echo
-  echo "Generating charts from ${OUTPUT_FILE}..."
-  $CHART_PROG
+  $STACK build --bench --no-run-benchmarks || die "build failed"
+  run_measurements "$BENCHMARKS"
 fi
 
-# XXX reset back to the original commit
+#-----------------------------------------------------------------------------
+# Run reports
+#-----------------------------------------------------------------------------
+
+run_reports "$BENCHMARKS"

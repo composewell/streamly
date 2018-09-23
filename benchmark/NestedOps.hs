@@ -20,7 +20,7 @@ sumCount :: Int
 sumCount = 1000000
 
 prodCount :: Int
-prodCount = 1000
+prodCount = 100
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination

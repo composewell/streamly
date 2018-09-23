@@ -94,7 +94,7 @@ main = do
             (Ops.sequence serially) (Ops.sourceUnfoldrMAction n)
         , benchIO "findIndices" Ops.findIndices
         , benchIO "elemIndices" Ops.elemIndices
-        , benchIO "concat" Ops.concat
+        -- , benchIO "concat" Ops.concat
         ]
       , bgroup "filtering"
         [ benchIO "filter-even" Ops.filterEven
