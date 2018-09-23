@@ -2,7 +2,7 @@
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving#-} -- AheadT ?when testing?
+{-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE StandaloneDeriving        #-}
