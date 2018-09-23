@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns              #-}
+-- {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -379,7 +379,7 @@ unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 -- @since 0.4.0
 {-# INLINE yield #-}
 yield :: IsStream t => a -> t m a
-yield a = K.yield a
+yield = K.yield
 
 -- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
 -- but more efficient.
@@ -393,7 +393,7 @@ yield a = K.yield a
 -- @since 0.4.0
 {-# INLINE yieldM #-}
 yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM m = K.yieldM m
+yieldM = K.yieldM
 
 -- | Generate a stream by performing a monadic action @n@ times. Can be
 -- expressed as @stimes n (yieldM m)@.
@@ -627,49 +627,49 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- @since 0.1.1
 {-# INLINE null #-}
 null :: Monad m => SerialT m a -> m Bool
-null m = K.null m
+null = K.null
 
 -- | Extract the first element of the stream, if any.
 --
 -- @since 0.1.0
 {-# INLINE head #-}
 head :: Monad m => SerialT m a -> m (Maybe a)
-head m = K.head m
+head = K.head
 
 -- | Extract all but the first element of the stream, if any.
 --
 -- @since 0.1.1
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-tail m = K.tail (K.adapt m)
+tail = K.tail . K.adapt
 
 -- | Extract all but the last element of the stream, if any.
 --
 -- @since 0.5.0
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (t m a))
-init m = K.init (K.adapt m)
+init = K.init . K.adapt
 
 -- | Extract the last element of the stream, if any.
 --
 -- @since 0.1.1
 {-# INLINE last #-}
 last :: Monad m => SerialT m a -> m (Maybe a)
-last m = S.last $ toStreamS m
+last = S.last . toStreamS
 
 -- | Determine whether an element is present in the stream.
 --
 -- @since 0.1.0
 {-# INLINE elem #-}
 elem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
-elem e m = S.elem e (toStreamS m)
+elem e = S.elem e . toStreamS
 
 -- | Determine whether an element is not present in the stream.
 --
 -- @since 0.1.0
 {-# INLINE notElem #-}
 notElem :: (Monad m, Eq a) => a -> SerialT m a -> m Bool
-notElem e m = S.notElem e (toStreamS m)
+notElem e = S.notElem e . toStreamS
 
 -- | Determine the length of the stream.
 --
@@ -683,14 +683,14 @@ length = foldl' (\n _ -> n + 1) 0
 -- @since 0.1.0
 {-# INLINE all #-}
 all :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-all p m = S.all p (toStreamS m)
+all p = S.all p . toStreamS
 
 -- | Determine whether any of the elements of a stream satisfy a predicate.
 --
 -- @since 0.1.0
 {-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> SerialT m a -> m Bool
-any p m = S.any p (toStreamS m)
+any p = S.any p . toStreamS
 
 -- | Determines if all elements of a boolean stream are True.
 --
@@ -725,14 +725,14 @@ product = foldl' (*) 1
 -- @since 0.1.0
 {-# INLINE minimum #-}
 minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-minimum m = S.minimum (toStreamS m)
+minimum = S.minimum . toStreamS
 
 -- | Determine the maximum element in a stream.
 --
 -- @since 0.1.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-maximum m = S.maximum (toStreamS m)
+maximum = S.maximum . toStreamS
 
 -- | Looks the given key up, treating the given stream as an association list.
 --
@@ -791,7 +791,7 @@ elemIndex a = findIndex (==a)
 -- @since 0.1.0
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> SerialT m a -> m ()
-mapM_ f m = S.mapM_ f $ toStreamS m
+mapM_ f = S.mapM_ f . toStreamS
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -802,19 +802,19 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
-toList m = S.toList $ toStreamS m
+toList = S.toList . toStreamS
 
 -- | Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
-toHandle h m = go (toStream m)
+toHandle h = go . toStream
     where
     go m1 =
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in (K.unStream m1) defState stop single yieldk
+        in K.unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -841,7 +841,7 @@ scan = scanx
 -- @since 0.4.0
 {-# INLINE scanlM' #-}
 scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
-scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
+scanlM' step begin = fromStreamD . D.scanlM' step begin . toStreamD
 
 -- | Strict left scan. Like 'foldl'', but returns the folded value at each
 -- step, generating a stream of all intermediate fold results. The first
@@ -864,7 +864,7 @@ scanl' step = scanlM' (\a b -> return (step a b))
 #if __GLASGOW_HASKELL__ != 802
 -- GHC 8.2.2 crashes with this code, when used with "stack"
 filter :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-filter p m = fromStreamS $ S.filter p $ toStreamS m
+filter p = fromStreamS . S.filter p . toStreamS
 #else
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter = K.filter
@@ -875,36 +875,36 @@ filter = K.filter
 -- @since 0.4.0
 {-# INLINE filterM #-}
 filterM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
-filterM p m = fromStreamD $ D.filterM p $ toStreamD m
+filterM p = fromStreamD . D.filterM p . toStreamD
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
 -- @since 0.1.0
 {-# INLINE take #-}
 take :: (IsStream t, Monad m) => Int -> t m a -> t m a
-take n m = fromStreamS $ S.take n $ toStreamS
-    (maxYields (Just (fromIntegral n)) m)
+take n = fromStreamS . S.take n . toStreamS .
+    maxYields (Just $ fromIntegral n)
 
 -- | End the stream as soon as the predicate fails on an element.
 --
 -- @since 0.1.0
 {-# INLINE takeWhile #-}
 takeWhile :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m a
-takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
+takeWhile p = fromStreamS . S.takeWhile p . toStreamS
 
 -- | Same as 'takeWhile' but with a monadic predicate.
 --
 -- @since 0.4.0
 {-# INLINE takeWhileM #-}
 takeWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
-takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
+takeWhileM p = fromStreamD . D.takeWhileM p . toStreamD
 
 -- | Discard first 'n' elements from the stream and take the rest.
 --
 -- @since 0.1.0
 {-# INLINE drop #-}
 drop :: (IsStream t, Monad m) => Int -> t m a -> t m a
-drop n m = fromStreamS $ S.drop n $ toStreamS m
+drop n = fromStreamS . S.drop n . toStreamS
 
 -- | Drop elements in the stream as long as the predicate succeeds and then
 -- take the rest of the stream.
@@ -919,7 +919,7 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 -- @since 0.4.0
 {-# INLINE dropWhileM #-}
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
-dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
+dropWhileM p = fromStreamD . D.dropWhileM p . toStreamD
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
@@ -976,7 +976,7 @@ sequence = K.sequence
 -- @since 0.3.0
 {-# INLINE mapMaybe #-}
 mapMaybe :: (IsStream t, Monad m) => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
+mapMaybe f = fromStreamS . S.mapMaybe f . toStreamS
 
 -- | Like 'mapMaybe' but maps a monadic function.
 --
@@ -1000,7 +1000,7 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 --
 -- @since 0.1.1
 reverse :: (IsStream t) => t m a -> t m a
-reverse m = fromStream $ go K.nil (toStream m)
+reverse = fromStream . go K.nil . toStream
     where
     go rev rest = K.Stream $ \st stp sng yld ->
         let runIt x = K.unStream x (rstState st) stp sng yld

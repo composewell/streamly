@@ -182,7 +182,7 @@ uncons (Stream step state) = go state
     go st = do
         r <- step defState st
         return $ case r of
-            Yield x s -> Just (x, (Stream step s))
+            Yield x s -> Just (x, Stream step s)
             Stop      -> Nothing
 
 ------------------------------------------------------------------------------
@@ -191,7 +191,7 @@ uncons (Stream step state) = go state
 
 {-# INLINE_NORMAL unfoldrM #-}
 unfoldrM :: Monad m => (s -> m (Maybe (a, s))) -> s -> Stream m a
-unfoldrM next state = Stream step state
+unfoldrM next = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ st = do
@@ -217,8 +217,8 @@ enumFromStepN from stride n =
     from `seq` stride `seq` n `seq` Stream step (from, n)
     where
         {-# INLINE_LATE step #-}
-        step _ (x, i) | i > 0   = return $ Yield x (x + stride, i - 1)
-                    | otherwise = return $ Stop
+        step _ (x, i) | i > 0     = return (Yield x (x + stride, i - 1))
+                      | otherwise = return Stop
 
 -------------------------------------------------------------------------------
 -- Generation by Conversion
@@ -246,7 +246,7 @@ yieldM m = Stream step True
 -- | Convert a list of monadic actions to a 'Stream'
 {-# INLINE_LATE fromListM #-}
 fromListM :: MonadAsync m => [m a] -> Stream m a
-fromListM zs = Stream step zs
+fromListM = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
@@ -255,7 +255,7 @@ fromListM zs = Stream step zs
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
 fromList :: Monad m => [a] -> Stream m a
-fromList zs = Stream step zs
+fromList = Stream step
   where
     {-# INLINE_LATE step #-}
     step _ (x:xs) = return $ Yield x xs
@@ -264,7 +264,7 @@ fromList zs = Stream step zs
 -- XXX pass the state to streamD
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
-fromStreamK m = Stream step m
+fromStreamK = Stream step
     where
     step gst m1 =
         let stop       = return Stop
@@ -530,7 +530,7 @@ takeWhileM f (Stream step state) = Stream step' state
             Yield x s -> do
                 b <- f x
                 return $ if b then Yield x s else Stop
-            Stop -> return $ Stop
+            Stop -> return Stop
 
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
@@ -593,7 +593,7 @@ filterM f (Stream step state) = Stream step' state
                 if b
                 then return $ Yield x s
                 else step' gst s
-            Stop -> return $ Stop
+            Stop -> return Stop
 
 {-# INLINE filter #-}
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a

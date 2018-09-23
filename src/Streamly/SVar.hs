@@ -496,11 +496,9 @@ getStreamRate = _maxStreamRate
 setStreamLatency :: Int -> State t m a -> State t m a
 setStreamLatency n st =
     st { _streamLatency =
-            if n < 0
+            if n <= 0
             then Nothing
-            else if n == 0
-                 then Nothing
-                 else Just (fromIntegral n)
+            else Just (fromIntegral n)
        }
 
 getStreamLatency :: State t m a -> Maybe NanoSecs
@@ -513,14 +511,14 @@ getStreamLatency = _streamLatency
 cleanupSVar :: SVar t m a -> IO ()
 cleanupSVar sv = do
     workers <- readIORef (workerThreads sv)
-    Prelude.mapM_ (\tid -> throwTo tid ThreadAbort)
+    Prelude.mapM_ (`throwTo` ThreadAbort)
           (S.toList workers)
 
 cleanupSVarFromWorker :: SVar t m a -> IO ()
 cleanupSVarFromWorker sv = do
     workers <- readIORef (workerThreads sv)
     self <- myThreadId
-    mapM_ (\tid -> throwTo tid ThreadAbort)
+    mapM_ (`throwTo` ThreadAbort)
           (S.toList workers \\ [self])
 
 -------------------------------------------------------------------------------
@@ -770,7 +768,8 @@ type MonadAsync m = (MonadIO m, MonadBaseControl IO m, MonadThrow m)
 {-# INLINE rawForkIO #-}
 rawForkIO :: IO () -> IO ThreadId
 rawForkIO action = IO $ \ s ->
-   case (fork# action s) of (# s1, tid #) -> (# s1, ThreadId tid #)
+   case fork# action s of
+     (# s1, tid #) -> (# s1, ThreadId tid #)
 
 {-# INLINE doFork #-}
 doFork :: MonadBaseControl IO m
@@ -857,7 +856,7 @@ send sv msg = do
         Unlimited -> return True
         Limited lim -> do
             active <- readIORef (workerCount sv)
-            return $ len < ((fromIntegral lim) - active)
+            return $ len < (fromIntegral lim - active)
 
 workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecs))
 workerCollectLatency winfo = do
@@ -865,7 +864,7 @@ workerCollectLatency winfo = do
     cnt1 <- readIORef (workerYieldCount winfo)
     let cnt = cnt1 - cnt0
 
-    if (cnt > 0)
+    if cnt > 0
     then do
         t1 <- getTime Monotonic
         let period = fromInteger $ toNanoSecs (t1 - t0)
@@ -919,7 +918,7 @@ checkRatePeriodic :: SVar t m a
 checkRatePeriodic sv yinfo winfo ycnt = do
     i <- readIORef (workerPollingInterval yinfo)
     -- XXX use generation count to check if the interval has been updated
-    if (i /= 0 && (ycnt `mod` i) == 0)
+    if i /= 0 && (ycnt `mod` i) == 0
     then do
         workerUpdateLatency yinfo winfo
         -- XXX not required for parallel streams
@@ -961,13 +960,28 @@ workerStopUpdate winfo info = do
 sendStop :: SVar t m a -> Maybe WorkerInfo -> IO ()
 sendStop sv mwinfo = do
     atomicModifyIORefCAS_ (workerCount sv) $ \n -> n - 1
-    case mwinfo of
-        Just winfo ->
-            case yieldRateInfo sv of
-                Nothing -> return ()
-                Just info -> workerStopUpdate winfo info
-        Nothing -> return ()
+    case (mwinfo, yieldRateInfo sv) of
+      (Just winfo, Just info) ->
+          workerStopUpdate winfo info
+      _ ->
+        return ()
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
+
+
+{-# INLINE tryPutDoorBell #-}
+tryPutDoorBell :: SVar t m a -> IO ()
+tryPutDoorBell sv = do
+    storeLoadBarrier
+    w <- readIORef $ needDoorBell sv
+    when w $ do
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
+        -- then we may set the flag to False to later making the consumer lose
+        -- the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
+
 
 -------------------------------------------------------------------------------
 -- Async
@@ -981,20 +995,12 @@ sendStop sv mwinfo = do
 enqueueLIFO :: SVar t m a -> IORef [t m a] -> t m a -> IO ()
 enqueueLIFO sv q m = do
     atomicModifyIORefCAS_ q $ \ms -> m : ms
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -------------------------------------------------------------------------------
 -- WAsync
 -------------------------------------------------------------------------------
+
 
 -- XXX we can use the Ahead style sequence/heap mechanism to make the best
 -- effort to always try to finish the streams on the left side of an expression
@@ -1004,16 +1010,7 @@ enqueueLIFO sv q m = do
 enqueueFIFO :: SVar t m a -> LinkedQueue (t m a) -> t m a -> IO ()
 enqueueFIFO sv q m = do
     pushL q m
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -------------------------------------------------------------------------------
 -- Ahead
@@ -1085,16 +1082,7 @@ enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n + 1)  -- increment sequence
         _ -> error "not empty"
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -- enqueue without incrementing the sequence number
 {-# INLINE reEnqueueAhead #-}
@@ -1103,11 +1091,7 @@ reEnqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n)  -- DO NOT increment sequence
         _ -> error "not empty"
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
+    tryPutDoorBell sv
 
 -- Normally the thread that has the token should never go away. The token gets
 -- handed over to another thread, but someone or the other has the token at any
@@ -1138,7 +1122,7 @@ queueEmptyAhead q = liftIO $ do
 {-# INLINE dequeueAhead #-}
 dequeueAhead :: MonadIO m
     => IORef ([t m a], Int) -> m (Maybe (t m a, Int))
-dequeueAhead q = liftIO $ do
+dequeueAhead q = liftIO $
     atomicModifyIORefCAS q $ \case
             ([], n) -> (([], n), Nothing)
             (x : [], n) -> (([], n), Just (x, n))
@@ -1235,7 +1219,7 @@ addThread sv tid =
 {-# INLINE delThread #-}
 delThread :: MonadIO m => SVar t m a -> ThreadId -> m ()
 delThread sv tid =
-    liftIO $ modifyIORef (workerThreads sv) $ (\s -> S.delete tid s)
+    liftIO $ modifyIORef (workerThreads sv) (S.delete tid)
 
 -- If present then delete else add. This takes care of out of order add and
 -- delete i.e. a delete arriving before we even added a thread.
@@ -1245,21 +1229,19 @@ delThread sv tid =
 modifyThread :: MonadIO m => SVar t m a -> ThreadId -> m ()
 modifyThread sv tid = do
     changed <- liftIO $ atomicModifyIORefCAS (workerThreads sv) $ \old ->
-        if (S.member tid old)
-        then let new = (S.delete tid old) in (new, new)
-        else let new = (S.insert tid old) in (new, old)
-    if null changed
-    then liftIO $ do
-        writeBarrier
-        void $ tryPutMVar (outputDoorBell sv) ()
-    else return ()
+        if S.member tid old
+        then let new = S.delete tid old in (new, new)
+        else let new = S.insert tid old in (new, old)
+    when (null changed) . liftIO $
+        do writeBarrier
+           void $ tryPutMVar (outputDoorBell sv) ()
 
 -- | This is safe even if we are adding more threads concurrently because if
 -- a child thread is adding another thread then anyway 'workerThreads' will
 -- not be empty.
 {-# INLINE allThreadsDone #-}
 allThreadsDone :: MonadIO m => SVar t m a -> m Bool
-allThreadsDone sv = liftIO $ S.null <$> readIORef (workerThreads sv)
+allThreadsDone sv = liftIO $ S.null `fmap` readIORef (workerThreads sv)
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: SVar t m a -> SomeException -> IO ()
@@ -1292,7 +1274,7 @@ pushWorker yieldMax sv = do
                 cntRef <- newIORef 0
                 t <- getTime Monotonic
                 lat <- newIORef (0, t)
-                return $ Just $ WorkerInfo
+                return $ Just WorkerInfo
                     { workerYieldMax = yieldMax
                     , workerYieldCount = cntRef
                     , workerLatencyStart = lat
@@ -1309,10 +1291,11 @@ pushWorker yieldMax sv = do
 -- using a CAS based modification.
 {-# NOINLINE pushWorkerPar #-}
 pushWorkerPar :: MonadAsync m => SVar t m a -> (Maybe WorkerInfo -> m ()) -> m ()
-pushWorkerPar sv wloop = do
+pushWorkerPar sv wloop =
     -- We do not use workerCount in case of ParallelVar but still there is no
     -- harm in maintaining it correctly.
 #ifdef DIAGNOSTICS
+  do
     liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
     recordMaxWorkers sv
     -- This allocation matters when significant number of workers are being
@@ -1347,14 +1330,14 @@ dispatchWorker yieldCount sv = do
     -- Note, "done" may not mean that the work is actually finished if there
     -- are workers active, because there may be a worker which has not yet
     -- queued the leftover work.
-    if (not done)
+    if not done
     then do
         qDone <- liftIO $ isQueueDone sv
         -- Note that the worker count is only decremented during event
         -- processing in fromStreamVar and therefore it is safe to read and
         -- use it without a lock.
         active <- liftIO $ readIORef $ workerCount sv
-        if (not qDone)
+        if not qDone
         then do
             -- Note that we may deadlock if the previous workers (tasks in the
             -- stream) wait/depend on the future workers (tasks in the stream)
@@ -1408,7 +1391,7 @@ rateRecoveryTime :: NanoSecs
 rateRecoveryTime = 1000000
 
 nanoToMicroSecs :: NanoSecs -> Int
-nanoToMicroSecs s = (fromIntegral s) `div` 1000
+nanoToMicroSecs s = fromIntegral s `div` 1000
 
 -- We either block, or send one worker with limited yield count or one or more
 -- workers with unlimited yield count.
@@ -1493,7 +1476,7 @@ estimateWorkers workerLimit svarYields gainLossYields
                 in assert (sleepTime >= 0) $
                     -- if s is less than 0 it means our maxSleepTime is less
                     -- than the worker latency.
-                    if (s > 0) then BlockWait s else ManyWorkers 1 (Count 0)
+                    if s > 0 then BlockWait s else ManyWorkers 1 (Count 0)
     where
         withLimit n =
             case workerLimit of
@@ -1519,7 +1502,7 @@ getWorkerLatency yinfo  = do
         pendingTime  = colTime + time
         new =
             if pendingCount > 0
-            then let lat = pendingTime `div` (fromIntegral pendingCount)
+            then let lat = pendingTime `div` fromIntegral pendingCount
                  -- XXX Give more weight to new?
                  in (lat + prev) `div` 2
             else prev
@@ -1583,9 +1566,9 @@ collectLatency _ss yinfo = do
         lcount' = lcount + pendingCount
         tripleWith lat = (lcount', ltime, lat)
 
-    if (pendingCount > 0)
+    if pendingCount > 0
     then do
-        let new = pendingTime `div` (fromIntegral pendingCount)
+        let new = pendingTime `div` fromIntegral pendingCount
 #ifdef DIAGNOSTICS
         minLat <- readIORef (minWorkerLatency _ss)
         when (new < minLat || minLat == 0) $
@@ -1599,7 +1582,7 @@ collectLatency _ss yinfo = do
         -- return the previous latency derived from the previous batch.
         if     (pendingCount > fromIntegral magicMaxBuffer)
             || (pendingTime > minThreadDelay)
-            || (let r = (fromIntegral new) / (fromIntegral prev) :: Double
+            || (let r = fromIntegral new / fromIntegral prev :: Double
                  in prev > 0 && (r > 2 || r < 0.5))
             || (prev == 0)
         then do
@@ -1698,7 +1681,7 @@ dispatchWorkerPaced sv = do
                     liftIO $ writeIORef periodRef period
 
                 cnt <- liftIO $ readIORef $ workerCount sv
-                if (cnt < netWorkers)
+                if cnt < netWorkers
                 then do
                     let total = netWorkers - cnt
                         batch = max 1 $ fromIntegral $
@@ -1723,7 +1706,7 @@ dispatchWorkerPaced sv = do
                    else yields + buf
             liftIO $ modifyIORef (svarGainedLostYields yinfo) (+ delta)
 
-    dispatchN n = do
+    dispatchN n =
         if n == 0
         then return True
         else do
@@ -1736,12 +1719,13 @@ sendWorkerDelayPaced :: SVar t m a -> IO ()
 sendWorkerDelayPaced _ = return ()
 
 sendWorkerDelay :: SVar t m a -> IO ()
-sendWorkerDelay _sv = do
+sendWorkerDelay _sv =
     -- XXX we need a better way to handle this than hardcoded delays. The
     -- delays may be different for different systems.
     -- If there is a usecase where this is required we can create a combinator
     -- to set it as a config in the state.
     {-
+   do
     ncpu <- getNumCapabilities
     if ncpu <= 1
     then
@@ -1816,7 +1800,7 @@ sendWorkerWait delay dispatch sv = do
         -- doorbell on the next enqueue.
 
         liftIO $ atomicModifyIORefCAS_ (needDoorBell sv) $ const True
-        liftIO $ storeLoadBarrier
+        liftIO storeLoadBarrier
         canDoMore <- dispatch sv
 
         -- XXX test for the case when we miss sending a worker when the worker
@@ -1870,7 +1854,8 @@ readOutputQBounded sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelay (dispatchWorker 0) sv
-        liftIO $ (readOutputQRaw sv >>= return . fst)
+        -- liftIO $ readOutputQRaw sv >>= return . fst
+        liftIO $ fst `fmap` readOutputQRaw sv
 
 readOutputQPaced :: MonadAsync m => SVar t m a -> m [ChildEvent a]
 readOutputQPaced sv = do
@@ -1888,7 +1873,7 @@ readOutputQPaced sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelayPaced dispatchWorkerPaced sv
-        liftIO $ (readOutputQRaw sv >>= return . fst)
+        liftIO $ fst `fmap` readOutputQRaw sv
 
 postProcessBounded :: MonadAsync m => SVar t m a -> m Bool
 postProcessBounded sv = do
@@ -1991,7 +1976,7 @@ getAheadSVar st f = do
     stopMVar <- newMVar ()
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
-            Just x -> Just <$> newIORef x
+            Just x -> Just `fmap` newIORef x
     rateInfo <- getYieldRateInfo st
 
     disp   <- newIORef 0
@@ -2087,7 +2072,7 @@ getParallelSVar st = do
     running <- newIORef S.empty
     yl <- case getYieldLimit st of
             Nothing -> return Nothing
-            Just x -> Just <$> newIORef x
+            Just x -> Just `fmap` newIORef x
     rateInfo <- getYieldRateInfo st
 
     disp <- newIORef 0
@@ -2150,7 +2135,7 @@ getParallelSVar st = do
         case yieldRateInfo sv of
             Nothing -> return ()
             Just yinfo -> void $ collectLatency (svarStats sv) yinfo
-        readOutputQRaw sv >>= return . fst
+        fst `fmap` readOutputQRaw sv
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
 sendFirstWorker sv m = do
@@ -2159,8 +2144,9 @@ sendFirstWorker sv m = do
     -- chance to push.
     liftIO $ enqueue sv m
     case yieldRateInfo sv of
-        Nothing -> pushWorker 0 sv
-        Just yinfo  -> do
+        Nothing ->
+            pushWorker 0 sv
+        Just yinfo ->
             if svarLatencyTarget yinfo == maxBound
             then liftIO $ threadDelay maxBound
             else pushWorker 1 sv
@@ -2190,7 +2176,7 @@ newParallelVar st = liftIO $ getParallelSVar st
 -- be read back from the SVar using 'fromSVar'.
 toStreamVar :: MonadAsync m => SVar t m a -> t m a -> m ()
 toStreamVar sv m = do
-    liftIO $ (enqueue sv) m
+    liftIO $ enqueue sv m
     done <- allThreadsDone sv
     -- XXX This is safe only when called from the consumer thread or when no
     -- consumer is present.  There may be a race if we are not running in the
