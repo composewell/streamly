@@ -469,12 +469,10 @@ newAsyncVar st m = do
 -- @since 0.2.0
 {-# INLINABLE mkAsync #-}
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
--- mkAsync m = newAsyncVar defState (toStream m) >>= return . fromSVar
 mkAsync m = fromSVar `fmap` newAsyncVar defState (toStream m)
 
 {-# INLINABLE mkAsync' #-}
 mkAsync' :: (IsStream t, MonadAsync m) => State Stream m a -> t m a -> m (t m a)
--- mkAsync' st m = newAsyncVar st (toStream m) >>= return . fromSVar
 mkAsync' st m = fromSVar `fmap` newAsyncVar st (toStream m)
 
 -- | Create a new SVar and enqueue one stream computation on it.

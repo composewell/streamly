@@ -484,7 +484,6 @@ foldr1 step m = do
     case r of
         Nothing -> return Nothing
         Just (h, t) -> fmap Just (go h (toStream t))
-        -- Just (h, t) -> (fmap Just . go h . toStream) t
     where
     go p m1 =
         let stp = return p

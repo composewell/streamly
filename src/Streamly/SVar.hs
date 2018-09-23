@@ -499,11 +499,6 @@ setStreamLatency n st =
             if n <= 0
             then Nothing
             else Just (fromIntegral n)
-            -- if n < 0
-            -- then Nothing
-            -- else if n == 0
-            --      then Nothing
-            --      else Just (fromIntegral n)
        }
 
 getStreamLatency :: State t m a -> Maybe NanoSecs
@@ -970,12 +965,6 @@ sendStop sv mwinfo = do
           workerStopUpdate winfo info
       _ ->
         return ()
-    -- case mwinfo of
-    --     Just winfo ->
-    --         case yieldRateInfo sv of
-    --             Just info -> workerStopUpdate winfo info
-    --             Nothing -> return ()
-    --     Nothing -> return ()
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
 
 
@@ -1243,11 +1232,6 @@ modifyThread sv tid = do
         if S.member tid old
         then let new = S.delete tid old in (new, new)
         else let new = S.insert tid old in (new, old)
-    -- if null changed
-    -- then liftIO $ do
-    --     writeBarrier
-    --     void $ tryPutMVar (outputDoorBell sv) ()
-    -- else return ()
     when (null changed) . liftIO $
         do writeBarrier
            void $ tryPutMVar (outputDoorBell sv) ()
@@ -1290,7 +1274,7 @@ pushWorker yieldMax sv = do
                 cntRef <- newIORef 0
                 t <- getTime Monotonic
                 lat <- newIORef (0, t)
-                return $ Just $ WorkerInfo
+                return $ Just WorkerInfo
                     { workerYieldMax = yieldMax
                     , workerYieldCount = cntRef
                     , workerLatencyStart = lat
@@ -1889,7 +1873,6 @@ readOutputQPaced sv = do
     {-# INLINE blockingRead #-}
     blockingRead = do
         sendWorkerWait sendWorkerDelayPaced dispatchWorkerPaced sv
-        -- liftIO $ (readOutputQRaw sv >>= return . fst)
         liftIO $ fst `fmap` readOutputQRaw sv
 
 postProcessBounded :: MonadAsync m => SVar t m a -> m Bool
@@ -2152,7 +2135,6 @@ getParallelSVar st = do
         case yieldRateInfo sv of
             Nothing -> return ()
             Just yinfo -> void $ collectLatency (svarStats sv) yinfo
-        -- readOutputQRaw sv >>= return . fst
         fst `fmap` readOutputQRaw sv
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
