@@ -379,7 +379,7 @@ unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 -- @since 0.4.0
 {-# INLINE yield #-}
 yield :: IsStream t => a -> t m a
-yield a = K.yield a
+yield = K.yield
 
 -- | Create a singleton stream from a monadic action. Same as @m \`consM` nil@
 -- but more efficient.
@@ -393,7 +393,7 @@ yield a = K.yield a
 -- @since 0.4.0
 {-# INLINE yieldM #-}
 yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM m = K.yieldM m
+yieldM = K.yieldM
 
 -- | Generate a stream by performing a monadic action @n@ times. Can be
 -- expressed as @stimes n (yieldM m)@.
@@ -627,14 +627,14 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- @since 0.1.1
 {-# INLINE null #-}
 null :: Monad m => SerialT m a -> m Bool
-null m = K.null m
+null = K.null
 
 -- | Extract the first element of the stream, if any.
 --
 -- @since 0.1.0
 {-# INLINE head #-}
 head :: Monad m => SerialT m a -> m (Maybe a)
-head m = K.head m
+head = K.head
 
 -- | Extract all but the first element of the stream, if any.
 --
@@ -814,7 +814,7 @@ toHandle h m = go (toStream m)
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in (K.unStream m1) defState stop single yieldk
+        in K.unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

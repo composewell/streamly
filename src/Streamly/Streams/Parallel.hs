@@ -91,7 +91,7 @@ forkSVarPar m r = Stream $ \st stp sng yld -> do
     sv <- newParallelVar st
     pushWorkerPar sv (runOne st{streamVar = Just sv} m)
     pushWorkerPar sv (runOne st{streamVar = Just sv} r)
-    (unStream (fromSVar sv)) (rstState st) stp sng yld
+    unStream (fromSVar sv) (rstState st) stp sng yld
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: MonadAsync m
@@ -119,7 +119,7 @@ consMParallel m r = K.yieldM m `parallelStream` r
 -- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallel m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
+parallel m1 m2 = fromStream $ Stream $ \st stp sng yld ->
     unStream (parallelStream (toStream m1) (toStream m2))
              st stp sng yld
 

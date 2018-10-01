@@ -81,8 +81,9 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 
     where
 
-    allDone stp = do
+    allDone stp =
 #ifdef DIAGNOSTICS
+        do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
 #ifdef DIAGNOSTICS_VERBOSE
@@ -114,7 +115,7 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
 
 {-# INLINE fromSVar #-}
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a
-fromSVar sv = do
+fromSVar sv =
     fromStream $ Stream $ \st stp sng yld -> do
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref hook
@@ -124,8 +125,9 @@ fromSVar sv = do
         unStream (fromStreamVar sv{svarRef = Just ref}) st stp sng yld
     where
 
-    hook = do
+    hook =
 #ifdef DIAGNOSTICS_VERBOSE
+      do
         printSVar sv "SVar Garbage Collected"
 #endif
         cleanupSVar sv
@@ -154,7 +156,7 @@ toSVar sv m = toStreamVar sv (toStream m)
 -- @since 0.4.0
 {-# INLINE_NORMAL maxThreads #-}
 maxThreads :: IsStream t => Int -> t m a -> t m a
-maxThreads n m = fromStream $ Stream $ \st stp sng yld -> do
+maxThreads n m = fromStream $ Stream $ \st stp sng yld ->
     unStream (toStream m) (setMaxThreads n st) stp sng yld
 
 {-
@@ -179,7 +181,7 @@ maxThreadsSerial _ = id
 -- @since 0.4.0
 {-# INLINE_NORMAL maxBuffer #-}
 maxBuffer :: IsStream t => Int -> t m a -> t m a
-maxBuffer n m = fromStream $ Stream $ \st stp sng yld -> do
+maxBuffer n m = fromStream $ Stream $ \st stp sng yld ->
     unStream (toStream m) (setMaxBuffer n st) stp sng yld
 
 {-
@@ -203,7 +205,7 @@ maxBufferSerial _ = id
 -- @since 0.5.0
 {-# INLINE_NORMAL rate #-}
 rate :: IsStream t => Maybe Rate -> t m a -> t m a
-rate r m = fromStream $ Stream $ \st stp sng yld -> do
+rate r m = fromStream $ Stream $ \st stp sng yld ->
     case r of
         Just (Rate low goal _ _) | goal < low ->
             error "rate: Target rate cannot be lower than minimum rate."
@@ -281,7 +283,7 @@ constRate r = rate (Just $ Rate r r r 0)
 --
 {-# INLINE_NORMAL _serialLatency #-}
 _serialLatency :: IsStream t => Int -> t m a -> t m a
-_serialLatency n m = fromStream $ Stream $ \st stp sng yld -> do
+_serialLatency n m = fromStream $ Stream $ \st stp sng yld ->
     unStream (toStream m) (setStreamLatency n st) stp sng yld
 
 {-
@@ -296,7 +298,7 @@ serialLatencySerial _ = id
 -- inherited by everything in enclosed scope.
 {-# INLINE_NORMAL maxYields #-}
 maxYields :: IsStream t => Maybe Int64 -> t m a -> t m a
-maxYields n m = fromStream $ Stream $ \st stp sng yld -> do
+maxYields n m = fromStream $ Stream $ \st stp sng yld ->
     unStream (toStream m) (setYieldLimit n st) stp sng yld
 
 {-# RULES "maxYields serial" maxYields = maxYieldsSerial #-}
