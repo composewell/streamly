@@ -148,15 +148,13 @@ underMaxHeap sv hp = do
     -- XXX simplify this
     let maxHeap = case maxBufferLimit sv of
             Limited lim -> Limited $
-                if (fromIntegral lim) >= len
-                then lim - (fromIntegral len)
-                else 0
+                max 0 (lim - fromIntegral len)
             Unlimited -> Unlimited
 
     case maxHeap of
         Limited lim -> do
             active <- readIORef (workerCount sv)
-            return $ H.size hp + active <= (fromIntegral lim)
+            return $ H.size hp + active <= fromIntegral lim
         Unlimited -> return True
 
 -- Return value:
@@ -166,7 +164,7 @@ preStopCheck ::
        SVar Stream m a
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)) , Maybe Int)
     -> IO Bool
-preStopCheck sv heap = do
+preStopCheck sv heap =
     -- check the stop condition under a lock before actually
     -- stopping so that the whole herd does not stop at once.
     withIORef heap $ \(hp, _) -> do
@@ -230,7 +228,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             sendStop sv winfo
         else runStreamWithYieldLimit True seqNo r
 
-    loopHeap seqNo ent = do
+    loopHeap seqNo ent =
         case ent of
             AheadEntryPure a -> do
                 -- Use 'send' directly so that we do not account this in worker
@@ -239,7 +237,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                 -- transferring available results from heap to outputQueue.
                 void $ liftIO $ send sv (ChildYield a)
                 nextHeap seqNo
-            AheadEntryStream r -> do
+            AheadEntryStream r ->
                 if stopping
                 then stopIfNeeded ent seqNo r
                 else runStreamWithYieldLimit True seqNo r
@@ -249,7 +247,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         case res of
             Ready (Entry seqNo hent) -> loopHeap seqNo hent
             Clearing -> liftIO $ sendStop sv winfo
-            _ -> do
+            _ ->
                 if stopping
                 then do
                     r <- liftIO $ preStopCheck sv heap
@@ -265,7 +263,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             Just (m, seqNo) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
-                then do
+                then
                     if seqNo == prevSeqNo + 1
                     then processWithToken q heap st sv winfo m seqNo
                     else processWithoutToken q heap st sv winfo m seqNo
@@ -368,7 +366,7 @@ processWithoutToken q heap st sv winfo m sno = do
         status <-
             case yieldRateInfo sv of
                 Nothing -> return HContinue
-                Just yinfo -> do
+                Just yinfo ->
                     case winfo of
                         Just info -> do
                             rateOk <- liftIO $ workerRateControl sv yinfo info
@@ -445,7 +443,7 @@ processWithToken q heap st sv winfo action sno = do
             Just (m, seqNo) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
-                then do
+                then
                     if seqNo == prevSeqNo + 1
                     then do
                         let stop = do
@@ -525,7 +523,7 @@ workLoopAhead q heap st sv winfo = do
                     Just (m, seqNo) -> do
                         yieldLimitOk <- liftIO $ decrementYieldLimit sv
                         if yieldLimitOk
-                        then do
+                        then
                             if seqNo == 0
                             then processWithToken q heap st sv winfo m seqNo
                             else processWithoutToken q heap st sv winfo m seqNo
@@ -560,7 +558,7 @@ forkSVarAhead m1 m2 = Stream $ \st stp sng yld -> do
 
 {-# INLINE aheadS #-}
 aheadS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-aheadS m1 m2 = Stream $ \st stp sng yld -> do
+aheadS m1 m2 = Stream $ \st stp sng yld ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
             liftIO $ enqueue sv m2
