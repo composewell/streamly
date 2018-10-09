@@ -39,8 +39,7 @@ set_benchmarks() {
 
 # $1: benchmark name (linear, nested, base)
 find_report_prog() {
-    local bench_name=$1
-    local prog_name="chart-$bench_name"
+    local prog_name="chart"
     hash -r
     local prog_path=$($STACK exec which $prog_name)
     if test -x "$prog_path"
@@ -53,8 +52,7 @@ find_report_prog() {
 
 # $1: benchmark name (linear, nested, base)
 build_report_prog() {
-    local bench_name=$1
-    local prog_name="chart-$bench_name"
+    local prog_name="chart"
     local prog_path=$($STACK exec which $prog_name)
 
     hash -r
@@ -71,18 +69,13 @@ build_report_prog() {
 }
 
 build_report_progs() {
-  local bench_list=$1
-
   if test "$RAW" = "0"
   then
-    for i in $bench_list
-    do
-      build_report_prog $i || exit 1
+      build_report_prog || exit 1
       local prog
-      prog=$(find_report_prog $i) || \
-          die "Cannot find bench-graph executable for benchmark $i"
+      prog=$(find_report_prog) || \
+          die "Cannot find bench-graph executable"
       echo "Using bench-graph executable [$prog]"
-    done
   fi
 }
 
@@ -198,25 +191,16 @@ run_measurements() {
   fi
 }
 
-run_report() {
-  local bench_name=$1
-  local input_file=$2
-
-  if test "$RAW" = "0"
-  then
-    local prog
-    prog=$(find_report_prog $bench_name) || \
-      die "Cannot find bench-graph executable for benchmark $bench_name"
-    echo
-    echo "Generating reports for ${bench_name}..."
-    $prog
-  fi
-}
-
 run_reports() {
+    local prog
+    prog=$(find_report_prog) || \
+      die "Cannot find bench-graph executable"
+    echo
+
     for i in $1
     do
-      run_report $i
+        echo "Generating reports for ${i}..."
+        $prog --benchmark $i
     done
 }
 
@@ -290,4 +274,7 @@ fi
 # Run reports
 #-----------------------------------------------------------------------------
 
-run_reports "$BENCHMARKS"
+if test "$RAW" = "0"
+then
+    run_reports "$BENCHMARKS"
+fi

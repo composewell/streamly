@@ -323,6 +323,34 @@ benchmark linear
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.3 && < 0.3
 
+benchmark linear-async
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: LinearAsync.hs
+  other-modules: LinearOps
+  default-language: Haskell2010
+  ghc-options:  -O2 -Wall
+  cpp-options: -DLINEAR_ASYNC
+  if flag(dev)
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+                    -fno-ignore-asserts
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.0 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.3 && < 0.3
+
 benchmark nested
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
@@ -410,31 +438,15 @@ benchmark base
       build-depends:
           semigroups    >= 0.18   && < 0.19
 
-executable chart-linear
+executable chart
   default-language: Haskell2010
   hs-source-dirs: benchmark
-  main-is: ChartLinear.hs
-  other-modules: Utils
+  main-is: Chart.hs
   if flag(dev)
     buildable: True
     build-Depends:
         base >= 4.8 && < 5
-      , bench-graph >= 0.1 && < 0.2
-      , split
-      , transformers
-  else
-    buildable: False
-
-executable chart-nested
-  default-language: Haskell2010
-  hs-source-dirs: benchmark
-  main-is: ChartNested.hs
-  other-modules: Utils
-  if flag(dev)
-    buildable: True
-    build-Depends:
-        base >= 4.8 && < 5
-      , bench-graph >= 0.1 && < 0.2
+      , bench-graph >= 0.2 && < 0.3
       , split
       , transformers
   else

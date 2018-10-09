@@ -5,6 +5,7 @@
 -- License     : MIT
 -- Maintainer  : harendra.kumar@gmail.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module LinearOps where
@@ -18,8 +19,12 @@ import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
 
 value, maxValue :: Int
+#ifdef LINEAR_ASYNC
+value = 10000
+#else
 value = 100000
-maxValue = value + 1000
+#endif
+maxValue = value + 1
 
 -------------------------------------------------------------------------------
 -- Benchmark ops

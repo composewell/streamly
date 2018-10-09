@@ -10,9 +10,9 @@ extra-deps:
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
     - math-functions-0.3.0.2
-    - git: git@github.com:composewell/bench-graph
+    - git: https://github.com/composewell/bench-graph
       commit: 27ea72037f01e252364197e4771e25478af97972
-    - git: git@github.com:harendra-kumar/statistics
+    - git: https://github.com/harendra-kumar/statistics
       commit: d3c4743c28fdd83d578039867f1a046596f77140
       subdirs:
       - dense-linear-algebra
