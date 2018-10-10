@@ -10,12 +10,10 @@ print_help () {
   echo "       [--append] "
   echo "       -- <gauge options>"
   echo
-  # XXX in the report the base and candidate are shown in reverse order as we
-  # run the benchmarks for candidate first and then base.
-  #echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
-  #echo "commit is generated, in the 'charts' directory."
-  #echo "Use --base and --candidate to select the commits to compare."
-  #echo
+  echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
+  echo "commit is generated, in the 'charts' directory."
+  echo "Use --base and --candidate to select the commits to compare."
+  echo
   echo "Any arguments after a '--' are passed directly to guage"
   echo "You can omit '--' if the gauge args used do not start with a '-'."
   exit

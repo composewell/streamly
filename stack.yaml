@@ -5,17 +5,13 @@ allow-newer: true
 extra-deps:
     - SDL-0.6.6.0
     - gauge-0.2.3
-    #- bench-graph-0.1.4
     - Chart-1.9
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
-    - math-functions-0.3.0.2
+
+    #- bench-graph-0.1.4
     - git: https://github.com/composewell/bench-graph
-      commit: 27ea72037f01e252364197e4771e25478af97972
-    - git: https://github.com/harendra-kumar/statistics
-      commit: d3c4743c28fdd83d578039867f1a046596f77140
-      subdirs:
-      - dense-linear-algebra
+      commit: 40bcf995a1bb02dbce40117db3b73555b3921f35
 
 flags: {}
 extra-package-dbs: []

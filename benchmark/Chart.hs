@@ -158,8 +158,12 @@ benchShow Options{..} cfg func inp out =
         ignoringErr $ report inp Nothing $ cfg
             { selectBenchmarks =
                   \f ->
-                      reverse $ map fst $
-                      sortBy (comparing snd) $ f $ ColumnIndex 1
+                        reverse
+                      $ map fst
+                      $ either
+                          (const $ either error id $ f $ ColumnIndex 0)
+                          (sortBy (comparing snd))
+                          $ f $ ColumnIndex 1
             }
 
 main :: IO ()
