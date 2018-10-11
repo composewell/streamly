@@ -3,7 +3,7 @@
 print_help () {
   echo "Usage: $0 "
   echo "       [--compare] [--base commit] [--candidate commit]"
-  echo "       [--benchmark <linear|nested|base>]"
+  echo "       [--benchmark <linear|linear-async|linear-rate|nested|base>]"
   echo "       [--graphs]"
   echo "       [--slow]"
   echo "       [--no-measure]"

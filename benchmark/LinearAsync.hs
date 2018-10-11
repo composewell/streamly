@@ -52,23 +52,6 @@ main = do
         , benchSrcIO asyncly "unfoldrM maxBuffer 1 (1000 ops)"
             (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         ]
-      , bgroup "asyncly/rate"
-        [ -- benchIO "unfoldr" $ Ops.toNull asyncly
-          benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO asyncly "unfoldrM/Nothing"
-            (rate Nothing . Ops.sourceUnfoldrM)
-        , benchSrcIO asyncly "unfoldrM/AvgRate/1,000,000"
-            (avgRate 1000000 . Ops.sourceUnfoldrM)
-        , benchSrcIO asyncly "unfoldrM/AvgRate/3,000,000"
-            (avgRate 3000000 . Ops.sourceUnfoldrM)
-        , benchSrcIO asyncly "unfoldrM/AvgRate/10,000,000/maxThreads1"
-            (maxThreads 1 . avgRate 10000000 . Ops.sourceUnfoldrM)
-          -- XXX arbitrarily large rate should be the same as rate Nothing
-        , benchSrcIO asyncly "unfoldrM/AvgRate/10,000,000"
-            (avgRate 10000000 . Ops.sourceUnfoldrM)
-        , benchSrcIO asyncly "unfoldrM/AvgRate/20,000,000"
-            (avgRate 20000000 . Ops.sourceUnfoldrM)
-        ]
       , bgroup "wAsyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull wAsyncly
           benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
@@ -92,12 +75,6 @@ main = do
         , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
             (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
-        ]
-      , bgroup "aheadly/rate"
-        [
-          -- XXX arbitrarily large maxRate should be the same as maxRate -1
-          benchSrcIO aheadly "unfoldrM rate AvgRate 1000000"
-            (avgRate 1000000 . Ops.sourceUnfoldrM)
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"

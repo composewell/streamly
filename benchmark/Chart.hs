@@ -20,7 +20,7 @@ import BenchGraph
 -- Command line parsing
 ------------------------------------------------------------------------------
 
-data BenchType = Linear | LinearAsync | Nested | Base
+data BenchType = Linear | LinearAsync | LinearRate | Nested | Base
 
 data Options = Options
     { genGraphs :: Bool
@@ -51,6 +51,7 @@ parseBench = do
     case x of
         Just "linear" -> setBenchType Linear
         Just "linear-async" -> setBenchType LinearAsync
+        Just "linear-rate" -> setBenchType LinearRate
         Just "nested" -> setBenchType Nested
         Just "base" -> setBenchType Base
         Just str -> do
@@ -138,6 +139,11 @@ makeLinearAsyncGraphs cfg inputFile = do
     putStrLn "Not implemented"
     return ()
 
+makeLinearRateGraphs :: Config -> String -> IO ()
+makeLinearRateGraphs cfg inputFile = do
+    putStrLn "Not implemented"
+    return ()
+
 ------------------------------------------------------------------------------
 -- Charts for base streams
 ------------------------------------------------------------------------------
@@ -183,6 +189,9 @@ main = do
                 LinearAsync -> benchShow opts cfg makeLinearAsyncGraphs
                             "charts/linear-async/results.csv"
                             "charts/linear-async"
+                LinearRate -> benchShow opts cfg makeLinearRateGraphs
+                            "charts/linear-rate/results.csv"
+                            "charts/linear-rate"
                 Nested -> benchShow opts cfg makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
