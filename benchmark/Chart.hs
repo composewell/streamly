@@ -14,7 +14,7 @@ import System.Environment (getArgs)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad (mzero)
 
-import BenchGraph
+import BenchShow
 
 ------------------------------------------------------------------------------
 -- Command line parsing

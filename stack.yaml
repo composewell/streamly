@@ -9,9 +9,8 @@ extra-deps:
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
 
-    #- bench-graph-0.1.4
-    - git: https://github.com/composewell/bench-graph
-      commit: 40bcf995a1bb02dbce40117db3b73555b3921f35
+    - git: https://github.com/composewell/bench-show
+      commit: 38cb1b547d1a7ac62de09d59e28f4a1f71dba31b
 
 flags: {}
 extra-package-dbs: []

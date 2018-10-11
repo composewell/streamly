@@ -473,7 +473,7 @@ executable chart
     buildable: True
     build-Depends:
         base >= 4.8 && < 5
-      , bench-graph >= 0.2 && < 0.3
+      , bench-show >= 0.2 && < 0.3
       , split
       , transformers
   else
