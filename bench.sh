@@ -3,12 +3,15 @@
 print_help () {
   echo "Usage: $0 "
   echo "       [--compare] [--base commit] [--candidate commit]"
-  echo "       [--benchmark <linear|linear-async|linear-rate|nested|base>]"
+  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|base>]"
   echo "       [--graphs]"
   echo "       [--slow]"
   echo "       [--no-measure]"
   echo "       [--append] "
   echo "       -- <gauge options>"
+  echo
+  echo "Multiple benchmarks can be specified as a space separate list"
+  echo " e.g. --benchmarks \"linear nested\""
   echo
   echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
   echo "commit is generated, in the 'charts' directory."
@@ -29,10 +32,11 @@ set_benchmarks() {
   if test -z "$BENCHMARKS"
   then
     BENCHMARKS=$DEFAULT_BENCHMARKS
-    echo "Using default benchmark suite [$BENCHMARKS], use --benchmark to specify another"
-  else
-    echo "Using benchmark suite [$BENCHMARKS]"
+  elif test "$BENCHMARKS" = "all"
+  then
+    BENCHMARKS=$ALL_BENCHMARKS
   fi
+  echo "Using benchmark suites [$BENCHMARKS]"
 }
 
 # $1: benchmark name (linear, nested, base)
@@ -155,12 +159,14 @@ run_benches_comparing() {
     echo "Checking out base commit [$BASE] for benchmarking"
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
+    $STACK build --bench --no-run-benchmarks || die "build failed"
     run_benches "$bench_list"
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
+    $STACK build --bench --no-run-benchmarks || die "build failed"
     run_benches "$bench_list"
     # XXX reset back to the original commit
 }
@@ -209,6 +215,7 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
+ALL_BENCHMARKS="linear linear-async linear-rate nested base"
 
 COMPARE=0
 BASE=
@@ -235,7 +242,7 @@ do
     -h|--help|help) print_help ;;
     --slow) SPEED_OPTIONS="--min-duration 0"; shift ;;
     --append) APPEND=1; shift ;;
-    --benchmark) shift; BENCHMARKS=$1; shift ;;
+    --benchmarks) shift; BENCHMARKS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
     --compare) COMPARE=1; shift ;;
