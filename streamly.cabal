@@ -189,7 +189,7 @@ test-suite test
   type: exitcode-stdio-1.0
   main-is: Main.hs
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N
+  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N -fno-ignore-asserts
   if flag(dev)
     cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
@@ -217,7 +217,7 @@ test-suite properties
   type: exitcode-stdio-1.0
   main-is: Prop.hs
   hs-source-dirs: test
-  ghc-options:  -Wall -O0 -threaded -with-rtsopts=-N
+  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
   if flag(dev)
     cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
@@ -236,6 +236,9 @@ test-suite properties
     , base              >= 4.8   && < 5
     , QuickCheck        >= 2.10  && < 2.13
     , hspec             >= 2.0   && < 3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
 test-suite maxrate
@@ -243,7 +246,7 @@ test-suite maxrate
   default-language: Haskell2010
   main-is: MaxRate.hs
   hs-source-dirs:  test
-  ghc-options:  -O2 -Wall -threaded -with-rtsopts=-N
+  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     buildable: True
     build-Depends:
@@ -260,6 +263,7 @@ test-suite loops
   default-language: Haskell2010
   main-is: loops.hs
   hs-source-dirs:  test
+  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base >= 4.8   && < 5
@@ -269,6 +273,7 @@ test-suite nested-loops
   default-language: Haskell2010
   main-is: nested-loops.hs
   hs-source-dirs:  test
+  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base   >= 4.8   && < 5
@@ -279,6 +284,7 @@ test-suite parallel-loops
   default-language: Haskell2010
   main-is: parallel-loops.hs
   hs-source-dirs:  test
+  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base   >= 4.8   && < 5

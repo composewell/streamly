@@ -2,35 +2,36 @@ import Streamly
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import Streamly.Prelude (nil, yieldM)
 
+main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
 
-    putStrLn $ "\nloopTail:\n"
+    putStrLn "\nloopTail:\n"
     runStream $ do
         x <- loopTail 0
         yieldM $ print (x :: Int)
 
-    putStrLn $ "\nloopHead:\n"
+    putStrLn "\nloopHead:\n"
     runStream $ do
         x <- loopHead 0
         yieldM $ print (x :: Int)
 
-    putStrLn $ "\nloopTailA:\n"
+    putStrLn "\nloopTailA:\n"
     runStream $ do
         x <- loopTailA 0
         yieldM $ print (x :: Int)
 
-    putStrLn $ "\nloopHeadA:\n"
+    putStrLn "\nloopHeadA:\n"
     runStream $ do
         x <- loopHeadA 0
         yieldM $ print (x :: Int)
 
-    putStrLn $ "\nwSerial:\n"
+    putStrLn "\nwSerial:\n"
     runStream $ do
         x <- (return 0 <> return 1) `wSerial` (return 100 <> return 101)
         yieldM $ print (x :: Int)
 
-    putStrLn $ "\nParallel interleave:\n"
+    putStrLn "\nParallel interleave:\n"
     runStream $ do
         x <- (return 0 <> return 1) `wAsync` (return 100 <> return 101)
         yieldM $ print (x :: Int)

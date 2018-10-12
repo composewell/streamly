@@ -5,7 +5,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -28,6 +27,7 @@ module Streamly.Streams.Ahead
 where
 
 import Control.Concurrent.MVar (putMVar, takeMVar)
+import Control.Exception (assert)
 import Control.Monad (ap, void, when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -177,6 +177,17 @@ preStopCheck sv heap =
                     if rateOk then continue else stop
         else stop
 
+abortExecution ::
+       IORef ([Stream m a], Int)
+    -> SVar Stream m a
+    -> Maybe WorkerInfo
+    -> Stream m a
+    -> IO ()
+abortExecution q sv winfo m = do
+    reEnqueueAhead sv q m
+    incrementYieldLimit sv
+    sendStop sv winfo
+
 -- XXX In absence of a "noyield" primitive (i.e. do not pre-empt inside a
 -- critical section) from GHC RTS, we have a difficult problem. Assume we have
 -- a 100,000 threads producing output and queuing it to the heap for
@@ -240,14 +251,14 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         case res of
             Ready (Entry seqNo hent) -> loopHeap seqNo hent
             Clearing -> liftIO $ sendStop sv winfo
-            _ ->
+            Waiting _ ->
                 if stopping
                 then do
                     r <- liftIO $ preStopCheck sv heap
                     if r
                     then liftIO $ sendStop sv winfo
                     else processWorkQueue prevSeqNo
-                else (inline processWorkQueue) prevSeqNo
+                else inline processWorkQueue prevSeqNo
 
     processWorkQueue prevSeqNo = do
         work <- dequeueAhead q
@@ -260,10 +271,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
                     if seqNo == prevSeqNo + 1
                     then processWithToken q heap st sv winfo m seqNo
                     else processWithoutToken q heap st sv winfo m seqNo
-                else liftIO $ do
-                    liftIO $ reEnqueueAhead sv q m
-                    incrementYieldLimit sv
-                    sendStop sv winfo
+                else liftIO $ abortExecution q sv winfo m
 
     -- We do not stop the worker on buffer full here as we want to proceed to
     -- nextHeap anyway so that we can clear any subsequent entries. We stop
@@ -327,7 +335,7 @@ processWithoutToken :: MonadIO m
     -> Stream m a
     -> Int
     -> m ()
-processWithoutToken q heap st sv winfo m sno = do
+processWithoutToken q heap st sv winfo m seqNo = do
     -- we have already decremented the yield limit for m
     let stop = do
             liftIO (incrementYieldLimit sv)
@@ -336,21 +344,23 @@ processWithoutToken q heap st sv winfo m sno = do
             -- then it will keep waiting forever, because we are never going to
             -- put it on heap. So we have to put a null entry on heap even when
             -- we stop.
-            toHeap sno AheadEntryNull
+            toHeap AheadEntryNull
 
-    unStream m st stop (singleToHeap sno) (yieldToHeap sno)
+    unStream m st stop
+        (toHeap . AheadEntryPure)
+        (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
 
     where
 
     -- XXX to reduce contention each CPU can have its own heap
-    toHeap seqNo ent = do
+    toHeap ent = do
         -- Heap insertion is an expensive affair so we use a non CAS based
         -- modification, otherwise contention and retries can make a thread
         -- context switch and throw it behind other threads which come later in
         -- sequence.
         newHp <- liftIO $ atomicModifyIORef heap $ \(hp, snum) ->
             let hp' = H.insert (Entry seqNo ent) hp
-            in ((hp', snum), hp')
+            in assert (heapIsSane snum seqNo) ((hp', snum), hp')
 
         when (svarInspectMode sv) $
             liftIO $ do
@@ -379,9 +389,6 @@ processWithoutToken q heap st sv winfo m sno = do
                 HContinue -> mainLoop
                 HStop -> drainAndStop
         else drainAndStop
-
-    singleToHeap seqNo a = toHeap seqNo (AheadEntryPure a)
-    yieldToHeap seqNo a r = toHeap seqNo (AheadEntryStream (a `K.cons` r))
 
 processWithToken :: MonadIO m
     => IORef ([Stream m a], Int)
@@ -440,6 +447,10 @@ processWithToken q heap st sv winfo action sno = do
 
             Just (m, seqNo) -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
+                let undo = liftIO $ do
+                        updateHeapSeq heap nextSeqNo
+                        reEnqueueAhead sv q m
+                        incrementYieldLimit sv
                 if yieldLimitOk
                 then
                     if seqNo == nextSeqNo
@@ -450,9 +461,7 @@ processWithToken q heap st sv winfo action sno = do
                         unStream m st stop
                                       (singleOutput seqNo)
                                       (yieldOutput seqNo)
-                    else do
-                        liftIO $ updateHeapSeq heap nextSeqNo
-                        liftIO (incrementYieldLimit sv)
+                    else
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
                         -- a doorBell and we will not clear the heap before
@@ -460,13 +469,8 @@ processWithToken q heap st sv winfo action sno = do
                         -- on the output that is stuck in the heap then this
                         -- will result in a deadlock. So we always clear the
                         -- heap before executing the next action.
-                        liftIO $ reEnqueueAhead sv q m
-                        workLoopAhead q heap st sv winfo
-                else do
-                    liftIO $ updateHeapSeq heap nextSeqNo
-                    liftIO $ reEnqueueAhead sv q m
-                    liftIO $ incrementYieldLimit sv
-                    drainHeap q heap st sv winfo
+                        undo >> workLoopAhead q heap st sv winfo
+                else undo >> drainHeap q heap st sv winfo
 
 -- XXX the yield limit changes increased the performance overhead by 30-40%.
 -- Just like AsyncT we can use an implementation without yeidlimit and even
@@ -520,15 +524,12 @@ workLoopAhead q heap st sv winfo = do
                             if seqNo == 0
                             then processWithToken q heap st sv winfo m seqNo
                             else processWithoutToken q heap st sv winfo m seqNo
-                        else liftIO $ do
-                            -- If some worker decremented the yield limit but
-                            -- then did not yield anything and therefore
-                            -- incremented it later, then if we did not requeue
-                            -- m here we may find the work queue empty and
-                            -- therefore miss executing the remaining action.
-                            liftIO $ reEnqueueAhead sv q m
-                            incrementYieldLimit sv
-                            sendStop sv winfo
+                        -- If some worker decremented the yield limit but then
+                        -- did not yield anything and therefore incremented it
+                        -- later, then if we did not requeue m here we may find
+                        -- the work queue empty and therefore miss executing
+                        -- the remaining action.
+                        else liftIO $ abortExecution q sv winfo m
 
 -------------------------------------------------------------------------------
 -- WAhead

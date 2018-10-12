@@ -2,16 +2,18 @@
 
 module Main (main) where
 
-import Control.Exception (BlockedIndefinitelyOnMVar(..), catches,
-                          BlockedIndefinitelyOnSTM(..), Handler(..))
-import Control.Monad (when, forM_)
 import Control.Applicative (ZipList(..))
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
-import Control.Monad (replicateM, replicateM_)
+import Control.Exception
+       (BlockedIndefinitelyOnMVar(..), catches,
+        BlockedIndefinitelyOnSTM(..), Handler(..))
+import Control.Monad (when, forM_, replicateM, replicateM_)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
 import Data.IORef (readIORef, modifyIORef, newIORef)
-import Data.List (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-                  elemIndex, find, intersperse, foldl1')
+import Data.List
+       (sort, foldl', scanl', findIndices, findIndex, elemIndices,
+        elemIndex, find, intersperse, foldl1', (\\))
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -46,7 +48,28 @@ equals eq stream list = do
     when (not $ stream `eq` list) $
         monitor
             (counterexample $
-             "stream " ++ show stream ++ " /= list " ++ show list)
+             "stream " ++ show stream
+             ++ "\nlist   " ++ show list
+            )
+    assert (stream `eq` list)
+
+listEquals
+    :: (Show a, Eq a, MonadIO m)
+    => ([a] -> [a] -> Bool) -> [a] -> [a] -> PropertyM m ()
+listEquals eq stream list = do
+    when (not $ stream `eq` list) $ liftIO $ putStrLn $
+                  "stream " ++ show stream
+             ++ "\nlist   " ++ show list
+             ++ "\nstream \\\\ list " ++ show (stream \\ list)
+             ++ "\nlist \\\\ stream " ++ show (list \\ stream)
+    when (not $ stream `eq` list) $
+        monitor
+            (counterexample $
+                  "stream " ++ show stream
+             ++ "\nlist   " ++ show list
+             ++ "\nstream \\\\ list " ++ show (stream \\ list)
+             ++ "\nlist \\\\ stream " ++ show (list \\ stream)
+             )
     assert (stream `eq` list)
 
 constructWithReplicateM
@@ -59,10 +82,10 @@ constructWithReplicateM op len = withMaxSuccess maxTestCount $
         let x = return (1 :: Int)
         stream <- run $ (S.toList . op) (S.replicateM (fromIntegral len) x)
         list <- run $ replicateM (fromIntegral len) x
-        equals (==) stream list
+        listEquals (==) stream list
 
 transformFromList
-    :: Show b =>
+    :: (Eq b, Show b) =>
        ([a] -> t IO a)
     -> ([b] -> [b] -> Bool)
     -> ([a] -> [b])
@@ -73,14 +96,14 @@ transformFromList constr eq listOp op a =
     monadicIO $ do
         stream <- run ((S.toList . op) (constr a))
         let list = listOp a
-        equals eq stream list
+        listEquals eq stream list
 
 mvarExcHandler :: String -> BlockedIndefinitelyOnMVar -> IO ()
-mvarExcHandler label BlockedIndefinitelyOnMVar = do
+mvarExcHandler label BlockedIndefinitelyOnMVar =
     error $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n"
 
 stmExcHandler :: String -> BlockedIndefinitelyOnSTM -> IO ()
-stmExcHandler label BlockedIndefinitelyOnSTM = do
+stmExcHandler label BlockedIndefinitelyOnSTM =
     error $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n"
 
 dbgMVar :: String -> IO () -> IO ()
@@ -110,7 +133,7 @@ concurrentMapM constr eq op n =
         stream <- run $ do
             mv <- newEmptyMVar :: IO (MVar ())
             (S.toList . (op n mv)) (constr list)
-        equals eq stream list
+        listEquals eq stream list
 
 concurrentFromFoldable
     :: IsStream t
@@ -124,7 +147,7 @@ concurrentFromFoldable eq op n =
         stream <- run $ do
             mv <- newEmptyMVar :: IO (MVar ())
             (S.toList . op) (S.fromFoldableM (map (mvarSequenceOp mv n) list))
-        equals eq stream list
+        listEquals eq stream list
 
 sourceUnfoldrM :: IsStream t => MVar () -> Word8 -> t IO Word8
 sourceUnfoldrM mv n = S.unfoldrM step 0
@@ -178,7 +201,7 @@ concurrentUnfoldrM eq op n =
                         else return ()
                     else return ()
                 return x
-        equals eq stream list
+        listEquals eq stream list
 
 concurrentApplication :: IsStream t
     => ([Word8] -> [Word8] -> Bool)
@@ -209,7 +232,7 @@ concurrentApplication eq t n = withMaxSuccess maxTestCount $
                             else return ()
                         else return ()
                         return x)
-        equals eq stream list
+        listEquals eq stream list
 
 sourceUnfoldrM1 :: IsStream t => Word8 -> t IO Word8
 sourceUnfoldrM1 n = S.unfoldrM step 0
@@ -228,7 +251,7 @@ concurrentFoldlApplication n =
         let list = [0..n]
         stream <- run $ do
             sourceUnfoldrM1 n |&. S.foldlM' (\xs x -> return (x : xs)) []
-        equals (==) (reverse stream) list
+        listEquals (==) (reverse stream) list
 
 concurrentFoldrApplication :: Word8 -> Property
 concurrentFoldrApplication n =
@@ -237,7 +260,7 @@ concurrentFoldrApplication n =
         let list = [0..n]
         stream <- run $ do
             sourceUnfoldrM1 n |&. S.foldrM (\x xs -> return (x : xs)) []
-        equals (==) stream list
+        listEquals (==) stream list
 
 transformCombineFromList
     :: Semigroup (t IO Int)
@@ -256,7 +279,7 @@ transformCombineFromList constr eq listOp t op a b c =
             stream <- run ((S.toList . t) $
                 constr a <> op (constr b <> constr c))
             let list = a <> listOp (b <> c)
-            equals eq stream list
+            listEquals eq stream list
 
 foldFromList
     :: ([Int] -> t IO Int)
@@ -582,7 +605,7 @@ applicativeOps constr eq t (a, b) = withMaxSuccess maxTestCount $
     monadicIO $ do
         stream <- run ((S.toList . t) ((,) <$> (constr a) <*> (constr b)))
         let list = (,) <$> a <*> b
-        equals eq stream list
+        listEquals eq stream list
 
 zipApplicative
     :: (IsStream t, Applicative (t IO))
@@ -597,9 +620,9 @@ zipApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
         stream2 <- run ((S.toList . t) (pure (,) <*> (constr a) <*> (constr b)))
         stream3 <- run ((S.toList . t) (S.zipWith (,) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-        equals eq stream1 list
-        equals eq stream2 list
-        equals eq stream3 list
+        listEquals eq stream1 list
+        listEquals eq stream2 list
+        listEquals eq stream3 list
 
 zipMonadic
     :: IsStream t
@@ -615,7 +638,7 @@ zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
                 ((S.toList . t)
                      (S.zipWithM (\x y -> return (x, y)) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-        equals eq stream1 list
+        listEquals eq stream1 list
 
 zipAsyncMonadic
     :: IsStream t
@@ -635,8 +658,8 @@ zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
                 ((S.toList . t)
                      (S.zipAsyncWithM (\x y -> return (x, y)) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
-        equals eq stream1 list
-        equals eq stream2 list
+        listEquals eq stream1 list
+        listEquals eq stream2 list
 
 monadThen
     :: Monad (t IO)
@@ -648,7 +671,7 @@ monadThen
 monadThen constr eq t (a, b) = withMaxSuccess maxTestCount $ monadicIO $ do
     stream <- run ((S.toList . t) ((constr a) >> (constr b)))
     let list = a >> b
-    equals eq stream list
+    listEquals eq stream list
 
 monadBind
     :: Monad (t IO)
@@ -664,7 +687,7 @@ monadBind constr eq t (a, b) = withMaxSuccess maxTestCount $
                 ((S.toList . t)
                      ((constr a) >>= \x -> (constr b) >>= return . (+ x)))
         let list = a >>= \x -> b >>= return . (+ x)
-        equals eq stream list
+        listEquals eq stream list
 
 constructWithIterate :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
 constructWithIterate t = do

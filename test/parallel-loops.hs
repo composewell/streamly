@@ -4,6 +4,7 @@ import System.Random (randomIO)
 import Streamly
 import qualified Streamly.Prelude as S
 
+main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
     runStream $ do

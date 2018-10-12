@@ -74,9 +74,11 @@ module Streamly.SVar
     , requeueOnHeapTop
     , updateHeapSeq
     , withIORef
+    , heapIsSane
 
     , Rate (..)
     , getYieldRateInfo
+    , newSVarStats
     , collectLatency
     , workerUpdateLatency
     , isBeyondMaxRate
@@ -612,10 +614,10 @@ dumpSVarStats sv ss style = do
                     Nothing -> do
                         now <- getTime Monotonic
                         let interval = toNanoSecs (now - startTime)
-                        return $ (cnt, gl, interval `div` fromIntegral cnt)
+                        return (cnt, gl, interval `div` fromIntegral cnt)
                     Just stopTime -> do
                         let interval = toNanoSecs (stopTime - startTime)
-                        return $ (cnt, gl, interval `div` fromIntegral cnt)
+                        return (cnt, gl, interval `div` fromIntegral cnt)
             else return (0, 0, 0)
 
     return $ unlines
@@ -1151,9 +1153,11 @@ dequeueFromHeap hpVar =
             Just n -> do
                 let r = H.uncons hp
                 case r of
-                    Just (ent@(Entry seqNo _ev), hp') | seqNo == n ->
-                            ((hp', Nothing), Ready ent)
-                    _ -> (pair, Waiting n)
+                    Just (ent@(Entry seqNo _ev), hp') ->
+                            if seqNo == n
+                            then ((hp', Nothing), Ready ent)
+                            else assert (seqNo >= n) (pair, Waiting n)
+                    Nothing -> (pair, Waiting n)
 
 {-# INLINE dequeueFromHeapSeq #-}
 dequeueFromHeapSeq
@@ -1166,10 +1170,18 @@ dequeueFromHeapSeq hpVar i =
             Nothing -> do
                 let r = H.uncons hp
                 case r of
-                    Just (ent@(Entry seqNo _ev), hp') | seqNo == i ->
-                            ((hp', Nothing), Ready ent)
-                    _ -> ((hp, Just i), Waiting i)
+                    Just (ent@(Entry seqNo _ev), hp') ->
+                        if seqNo == i
+                        then ((hp', Nothing), Ready ent)
+                        else assert (seqNo >= i) ((hp, Just i), Waiting i)
+                    Nothing -> ((hp, Just i), Waiting i)
             Just _ -> error "dequeueFromHeapSeq: unreachable"
+
+heapIsSane :: Maybe Int -> Int -> Bool
+heapIsSane snum seqNo =
+    case snum of
+        Nothing -> True
+        Just n -> seqNo >= n
 
 {-# INLINE requeueOnHeapTop #-}
 requeueOnHeapTop
@@ -1178,7 +1190,8 @@ requeueOnHeapTop
     -> Int
     -> IO ()
 requeueOnHeapTop hpVar ent seqNo =
-    atomicModifyIORef_ hpVar $ \(hp, _) -> (H.insert ent hp, Just seqNo)
+    atomicModifyIORef_ hpVar $ \(hp, snum) ->
+        assert (heapIsSane snum seqNo) (H.insert ent hp, Just seqNo)
 
 {-# INLINE updateHeapSeq #-}
 updateHeapSeq
@@ -1186,7 +1199,8 @@ updateHeapSeq
     -> Int
     -> IO ()
 updateHeapSeq hpVar seqNo =
-    atomicModifyIORef_ hpVar $ \(hp, _) -> (hp, Just seqNo)
+    atomicModifyIORef_ hpVar $ \(hp, snum) ->
+        assert (heapIsSane snum seqNo) (hp, Just seqNo)
 
 -------------------------------------------------------------------------------
 -- WAhead
@@ -1309,7 +1323,7 @@ pushWorkerPar sv wloop =
                     cntRef <- newIORef 0
                     t <- getTime Monotonic
                     lat <- newIORef (0, t)
-                    return $ Just $ WorkerInfo
+                    return $ Just WorkerInfo
                         { workerYieldMax = 0
                         , workerYieldCount = cntRef
                         , workerLatencyStart = lat
@@ -1950,6 +1964,30 @@ getYieldRateInfo st = do
             , svarAllTimeLatency     = wlong
             }
 
+newSVarStats :: IO SVarStats
+newSVarStats = do
+    disp   <- newIORef 0
+    maxWrk <- newIORef 0
+    maxOq  <- newIORef 0
+    maxHs  <- newIORef 0
+    maxWq  <- newIORef 0
+    avgLat <- newIORef (0, NanoSecs 0)
+    maxLat <- newIORef (NanoSecs 0)
+    minLat <- newIORef (NanoSecs 0)
+    stpTime <- newIORef Nothing
+
+    return SVarStats
+        { totalDispatches  = disp
+        , maxWorkers       = maxWrk
+        , maxOutQSize      = maxOq
+        , maxHeapSize      = maxHs
+        , maxWorkQSize     = maxWq
+        , avgWorkerLatency = avgLat
+        , minWorkerLatency = minLat
+        , maxWorkerLatency = maxLat
+        , svarStopTime     = stpTime
+        }
+
 getAheadSVar :: MonadAsync m
     => State t m a
     -> (   IORef ([t m a], Int)
@@ -1969,6 +2007,8 @@ getAheadSVar st f = do
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
+    -- Sequence number is incremented whenever something is queued, therefore,
+    -- first sequence number would be 0
     q <- newIORef ([], -1)
     stopMVar <- newMVar ()
     yl <- case getYieldLimit st of
@@ -1976,15 +2016,7 @@ getAheadSVar st f = do
             Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-    disp   <- newIORef 0
-    maxWrk <- newIORef 0
-    maxOq  <- newIORef 0
-    maxHs  <- newIORef 0
-    maxWq  <- newIORef 0
-    avgLat <- newIORef (0, NanoSecs 0)
-    maxLat <- newIORef (NanoSecs 0)
-    minLat <- newIORef (NanoSecs 0)
-    stpTime <- newIORef Nothing
+    stats <- newSVarStats
     tid <- myThreadId
 
     let getSVar sv readOutput postProc = SVar
@@ -2011,17 +2043,7 @@ getAheadSVar st f = do
             , svarCreator      = tid
             , aheadWorkQueue   = q
             , outputHeap       = outH
-            , svarStats        = SVarStats
-                { totalDispatches  = disp
-                , maxWorkers       = maxWrk
-                , maxOutQSize      = maxOq
-                , maxHeapSize      = maxHs
-                , maxWorkQSize     = maxWq
-                , avgWorkerLatency = avgLat
-                , minWorkerLatency = minLat
-                , maxWorkerLatency = maxLat
-                , svarStopTime     = stpTime
-                }
+            , svarStats        = stats
             }
 
     let sv =
@@ -2069,15 +2091,7 @@ getParallelSVar st = do
             Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-    disp <- newIORef 0
-    maxWrk <- newIORef 0
-    maxOq  <- newIORef 0
-    maxHs  <- newIORef 0
-    maxWq  <- newIORef 0
-    avgLat <- newIORef (0, NanoSecs 0)
-    maxLat <- newIORef (NanoSecs 0)
-    minLat <- newIORef (NanoSecs 0)
-    stpTime <- newIORef Nothing
+    stats <- newSVarStats
     tid <- myThreadId
 
     let sv =
@@ -2105,17 +2119,7 @@ getParallelSVar st = do
                  , svarCreator      = tid
                  , aheadWorkQueue   = undefined
                  , outputHeap       = undefined
-                 , svarStats        = SVarStats
-                    { totalDispatches  = disp
-                    , maxWorkers       = maxWrk
-                    , maxOutQSize      = maxOq
-                    , maxHeapSize      = maxHs
-                    , maxWorkQSize     = maxWq
-                    , avgWorkerLatency = avgLat
-                    , minWorkerLatency = minLat
-                    , maxWorkerLatency = maxLat
-                    , svarStopTime     = stpTime
-                    }
+                 , svarStats        = stats
                  }
      in return sv
 

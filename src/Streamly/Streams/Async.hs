@@ -7,7 +7,6 @@
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -263,15 +262,7 @@ getLifoSVar st = do
                 Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-    disp   <- newIORef 0
-    maxWrk <- newIORef 0
-    maxOq  <- newIORef 0
-    maxHs  <- newIORef 0
-    maxWq  <- newIORef 0
-    avgLat <- newIORef (0, NanoSecs 0)
-    maxLat <- newIORef (NanoSecs 0)
-    minLat <- newIORef (NanoSecs 0)
-    stpTime <- newIORef Nothing
+    stats <- newSVarStats
     tid <- myThreadId
 
     let isWorkFinished _ = null <$> readIORef q
@@ -320,17 +311,7 @@ getLifoSVar st = do
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-            , svarStats        = SVarStats
-                { totalDispatches  = disp
-                , maxWorkers       = maxWrk
-                , maxOutQSize      = maxOq
-                , maxHeapSize      = maxHs
-                , maxWorkQSize     = maxWq
-                , avgWorkerLatency = avgLat
-                , minWorkerLatency = minLat
-                , maxWorkerLatency = maxLat
-                , svarStopTime     = stpTime
-                }
+            , svarStats        = stats
             }
 
     let sv =
@@ -371,15 +352,7 @@ getFifoSVar st = do
                 Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
 
-    disp <- newIORef 0
-    maxWrk <- newIORef 0
-    maxOq  <- newIORef 0
-    maxHs  <- newIORef 0
-    maxWq  <- newIORef 0
-    avgLat <- newIORef (0, NanoSecs 0)
-    maxLat <- newIORef (NanoSecs 0)
-    minLat <- newIORef (NanoSecs 0)
-    stpTime <- newIORef Nothing
+    stats <- newSVarStats
     tid <- myThreadId
 
     let isWorkFinished _ = nullQ q
@@ -427,18 +400,8 @@ getFifoSVar st = do
             , svarCreator      = tid
             , aheadWorkQueue   = undefined
             , outputHeap       = undefined
-            , svarStats        = SVarStats
-                { totalDispatches  = disp
-                , maxWorkers       = maxWrk
-                , maxOutQSize      = maxOq
-                , maxHeapSize      = maxHs
-                , maxWorkQSize     = maxWq
-                , avgWorkerLatency = avgLat
-                , minWorkerLatency = minLat
-                , maxWorkerLatency = maxLat
-                , svarStopTime     = stpTime
-                }
-             }
+            , svarStats        = stats
+            }
 
     let sv =
             case getStreamRate st of

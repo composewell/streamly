@@ -4,6 +4,7 @@ import System.Random (randomIO)
 import Streamly
 import Streamly.Prelude (nil, yieldM)
 
+main :: IO ()
 main = runStream $ do
     yieldM $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
@@ -19,6 +20,6 @@ main = runStream $ do
     loop :: String -> Int -> SerialT IO String
     loop name n = do
         rnd <- yieldM (randomIO :: IO Int)
-        let result = (name ++ show rnd)
-            repeat = if n > 1 then loop name (n - 1) else nil
-         in (return result) `wAsync` repeat
+        let result = name <> show rnd
+            repeatIt = if n > 1 then loop name (n - 1) else nil
+         in return result `wAsync` repeatIt
