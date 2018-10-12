@@ -151,13 +151,15 @@ run_benches_comparing() {
       # XXX Should be where the current branch is forked from master
       BASE="$CANDIDATE^"
     fi
-    echo "Checking out base commit for benchmarking"
-    git checkout "$BASE" || die "Checkout of base commit failed"
+    echo "Comparing baseline commit [$BASE] with candidate [$CANDIDATE]"
+    echo "Checking out base commit [$BASE] for benchmarking"
+    git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
     run_benches "$bench_list"
 
-    echo "Checking out candidate commit for benchmarking"
-    git checkout "$CANDIDATE" || die "Checkout of candidate commit failed"
+    echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
+    git checkout "$CANDIDATE" || \
+        die "Checkout of candidate [$CANDIDATE] commit failed"
 
     run_benches "$bench_list"
     # XXX reset back to the original commit
