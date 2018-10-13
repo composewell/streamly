@@ -4,11 +4,8 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE LambdaCase                #-}
-{-# LANGUAGE MagicHash                 #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |

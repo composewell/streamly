@@ -5,7 +5,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |

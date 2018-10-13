@@ -2,11 +2,8 @@
 {-# LANGUAGE ConstraintKinds           #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE LambdaCase                #-}
-{-# LANGUAGE MagicHash                 #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 #include "inline.h"
@@ -43,9 +40,9 @@ import Control.Monad (when)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
-import Data.IORef (newIORef, readIORef, mkWeakIORef)
-import Data.IORef (writeIORef)
+import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
+import Data.Semigroup ((<>))
 import System.IO (hPutStrLn, stderr)
 import System.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
@@ -57,7 +54,7 @@ import Streamly.Streams.Serial (SerialT)
 printSVar :: SVar t m a -> String -> IO ()
 printSVar sv how = do
     svInfo <- dumpSVar sv
-    hPutStrLn stderr $ "\n" ++ how ++ "\n" ++ svInfo
+    hPutStrLn stderr $ "\n" <> how <> "\n" <> svInfo
 
 printState :: MonadIO m => State Stream m a -> m ()
 printState st = liftIO $ do
@@ -305,5 +302,5 @@ maxYieldsSerial _ = id
 
 -- | Print debug information about an SVar when the stream ends
 inspectMode :: IsStream t => t m a -> t m a
-inspectMode m = fromStream $ Stream $ \st stp sng yld -> do
+inspectMode m = fromStream $ Stream $ \st stp sng yld ->
      unStream (toStream m) (setInspectMode st) stp sng yld

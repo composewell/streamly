@@ -125,6 +125,7 @@ import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.List ((\\))
 import Data.Maybe (fromJust)
+import Data.Semigroup ((<>))
 import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
@@ -621,34 +622,34 @@ dumpSVarStats sv ss style = do
             else return (0, 0, 0)
 
     return $ unlines
-        [ "total dispatches = " ++ show dispatches
-        , "max workers = " ++ show maxWrk
-        , "max outQSize = " ++ show maxOq
-            ++ (if style == AheadVar
-               then "\nheap max size = " ++ show maxHp
+        [ "total dispatches = " <> show dispatches
+        , "max workers = " <> show maxWrk
+        , "max outQSize = " <> show maxOq
+            <> (if style == AheadVar
+               then "\nheap max size = " <> show maxHp
                else "")
-            ++ (if minLat > 0
+            <> (if minLat > 0
                then "\nmin worker latency = "
-                    ++ secs (fromIntegral minLat * 1e-9)
+                    <> secs (fromIntegral minLat * 1e-9)
                else "")
-            ++ (if maxLat > 0
+            <> (if maxLat > 0
                then "\nmax worker latency = "
-                    ++ secs (fromIntegral maxLat * 1e-9)
+                    <> secs (fromIntegral maxLat * 1e-9)
                else "")
-            ++ (if avgCnt > 0
+            <> (if avgCnt > 0
                 then let lat = avgTime `div` fromIntegral avgCnt
                      in "\navg worker latency = "
-                        ++ secs (fromIntegral lat * 1e-9)
+                        <> secs (fromIntegral lat * 1e-9)
                 else "")
-            ++ (if svarLat > 0
+            <> (if svarLat > 0
                then "\nSVar latency = "
-                        ++ secs (fromIntegral svarLat * 1e-9)
+                        <> secs (fromIntegral svarLat * 1e-9)
                else "")
-            ++ (if svarCnt > 0
-               then "\nSVar yield count = " ++ show svarCnt
+            <> (if svarCnt > 0
+               then "\nSVar yield count = " <> show svarCnt
                else "")
-            ++ (if svarGainLossCnt > 0
-               then "\nSVar gain/loss yield count = " ++ show svarGainLossCnt
+            <> (if svarGainLossCnt > 0
+               then "\nSVar gain/loss yield count = " <> show svarGainLossCnt
                else "")
         ]
 
@@ -663,10 +664,10 @@ dumpSVar sv = do
             (oheap, oheapSeq) <- readIORef $ outputHeap sv
             (wq, wqSeq) <- readIORef $ aheadWorkQueue sv
             return $ unlines
-                [ "heap length = " ++ show (H.size oheap)
-                , "heap seqeunce = " ++ show oheapSeq
-                , "work queue length = " ++ show (length wq)
-                , "work queue sequence = " ++ show wqSeq
+                [ "heap length = " <> show (H.size oheap)
+                , "heap seqeunce = " <> show oheapSeq
+                , "work queue length = " <> show (length wq)
+                , "work queue sequence = " <> show wqSeq
                 ]
         else return []
 
@@ -681,23 +682,23 @@ dumpSVar sv = do
 
     return $ unlines
         [
-          "Creator tid = " ++ show (svarCreator sv),
-          "style = " ++ show (svarStyle sv)
+          "Creator tid = " <> show (svarCreator sv),
+          "style = " <> show (svarStyle sv)
         , "---------CURRENT STATE-----------"
-        , "outputQueue length computed  = " ++ show (length oqList)
-        , "outputQueue length maintained = " ++ show oqLen
+        , "outputQueue length computed  = " <> show (length oqList)
+        , "outputQueue length maintained = " <> show oqLen
         -- XXX print the types of events in the outputQueue, first 5
-        , "outputDoorBell = " ++ show db
+        , "outputDoorBell = " <> show db
         ]
-        ++ aheadDump
-        ++ unlines
-        [ "needDoorBell = " ++ show waiting
-        , "running threads = " ++ show rthread
+        <> aheadDump
+        <> unlines
+        [ "needDoorBell = " <> show waiting
+        , "running threads = " <> show rthread
         -- XXX print the status of first 5 threads
-        , "running thread count = " ++ show workers
+        , "running thread count = " <> show workers
         ]
-        ++ "---------STATS-----------\n"
-        ++ stats
+        <> "---------STATS-----------\n"
+        <> stats
 
 -- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
 -- can keep it on in production to debug problems quickly if and when they
@@ -708,14 +709,14 @@ dumpSVar sv = do
 mvarExcHandler :: SVar t m a -> String -> BlockedIndefinitelyOnMVar -> IO ()
 mvarExcHandler sv label e@BlockedIndefinitelyOnMVar = do
     svInfo <- dumpSVar sv
-    hPutStrLn stderr $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n" ++ svInfo
+    hPutStrLn stderr $ label <> " " <> "BlockedIndefinitelyOnMVar\n" <> svInfo
     throwIO e
 
 {-# NOINLINE stmExcHandler #-}
 stmExcHandler :: SVar t m a -> String -> BlockedIndefinitelyOnSTM -> IO ()
 stmExcHandler sv label e@BlockedIndefinitelyOnSTM = do
     svInfo <- dumpSVar sv
-    hPutStrLn stderr $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n" ++ svInfo
+    hPutStrLn stderr $ label <> " " <> "BlockedIndefinitelyOnSTM\n" <> svInfo
     throwIO e
 
 withDiagMVar :: SVar t m a -> String -> IO () -> IO ()

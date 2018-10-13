@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -230,7 +229,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Maybe (isJust, fromJust)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
+               foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1)
 import qualified Prelude
