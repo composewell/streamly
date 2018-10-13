@@ -48,7 +48,7 @@ sourceUnfoldr start n = S.unfoldr step start
     step cnt =
         if cnt > start + n
         then Nothing
-        else (Just (cnt, cnt + 1))
+        else Just (cnt, cnt + 1)
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
@@ -98,7 +98,7 @@ filterAllOut t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
     let s = x + y
-    if (s < 0)
+    if s < 0
     then return s
     else S.nil
 
@@ -110,7 +110,7 @@ filterAllIn t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
     let s = x + y
-    if (s > 0)
+    if s > 0
     then return s
     else S.nil
 
@@ -122,7 +122,7 @@ filterSome t start = runStream . t $ do
     x <- source start prodCount
     y <- source start prodCount
     let s = x + y
-    if (s > 1100000)
+    if s > 1100000
     then return s
     else S.nil
 
@@ -135,7 +135,7 @@ breakAfterSome t start = do
         x <- source start prodCount
         y <- source start prodCount
         let s = x + y
-        if (s > 1100000)
+        if s > 1100000
         then error "break"
         else return s
     return ()

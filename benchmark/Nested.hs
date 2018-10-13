@@ -19,7 +19,7 @@ _benchId :: (NFData b) => String -> (Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (\g -> runIdentity (g 1))  f
 
 main :: IO ()
-main = do
+main =
   -- TBD Study scaling with 10, 100, 1000 loop iterations
   defaultMain
     [ bgroup "serially"

@@ -31,7 +31,7 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main = do
+main =
   defaultMain
     -- XXX arbitrarily large rate should be the same as rate Nothing
     [ bgroup "avgrate"

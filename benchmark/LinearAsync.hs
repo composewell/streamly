@@ -37,7 +37,7 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main = do
+main =
   defaultMain
     [ bgroup "asyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull asyncly
@@ -86,7 +86,7 @@ main = do
         , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIO "mapM" $ Ops.mapM parallely
         -- Zip has only one parallel flavor
-        , benchIO "zip" $ Ops.zipAsync
-        , benchIO "zipM" $ Ops.zipAsyncM
+        , benchIO "zip" Ops.zipAsync
+        , benchIO "zipM" Ops.zipAsyncM
         ]
       ]

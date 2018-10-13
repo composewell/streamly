@@ -9,9 +9,10 @@
 
 module StreamDOps where
 
+import Control.Monad (when)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=),
-         subtract, undefined, Maybe(..), not)
+         subtract, undefined, Maybe(..), not, mapM_, (>>=))
 
 import qualified Streamly.Streams.StreamD as S
 
@@ -76,7 +77,7 @@ sourceUnfoldr n = S.unfoldr step n
     step cnt =
         if cnt > n + value
         then Nothing
-        else (Just (cnt, cnt + 1))
+        else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Stream m Int
@@ -97,7 +98,7 @@ sourceFromList n = S.fromList [n..n+value]
 
 {-# INLINE source #-}
 source :: Monad m => Int -> Stream m Int
-source n = sourceUnfoldrM n
+source = sourceUnfoldrM
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -115,14 +116,9 @@ uncons s = do
         Just (_, t) -> uncons t
 nullHeadTail s = do
     r <- S.null s
-    if not r
-    then do
+    when (not r) $ do
         _ <- S.head s
-        t <- S.tail s
-        case t of
-            Nothing -> return ()
-            Just x -> nullHeadTail x
-    else return ()
+        S.tail s >>= mapM_ nullHeadTail
 toList = S.toList
 foldl  = S.foldl' (+) 0
 last   = S.last
@@ -151,7 +147,7 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ (S.zipWith (,) src src)
+zip src       = transform $ S.zipWith (,) src src
 -- concat _n     = return ()
 
 -------------------------------------------------------------------------------

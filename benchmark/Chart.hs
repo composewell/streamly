@@ -55,10 +55,10 @@ parseBench = do
         Just "nested" -> setBenchType Nested
         Just "base" -> setBenchType Base
         Just str -> do
-                liftIO $ putStrLn $ "unrecognized benchmark type " ++ str
+                liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
         Nothing -> do
-                liftIO $ putStrLn $ "please provide a benchmark type "
+                liftIO $ putStrLn "please provide a benchmark type "
                 mzero
 
 -- totally imperative style option parsing
@@ -71,13 +71,13 @@ parseOptions = do
             Just "--graphs" -> setGenGraphs True
             Just "--benchmark" -> parseBench
             Just str -> do
-                liftIO $ putStrLn $ "Unrecognized option " ++ str
+                liftIO $ putStrLn $ "Unrecognized option " <> str
                 mzero
             Nothing -> return ()
         fmap snd get
 
 ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
-    putStrLn $ "Failed with error:\n" ++ err ++ "\nSkipping.")
+    putStrLn $ "Failed with error:\n" <> err <> "\nSkipping.")
 
 ------------------------------------------------------------------------------
 -- Linear composition charts
@@ -88,7 +88,7 @@ makeLinearGraphs cfg inputFile = do
     ignoringErr $ graph inputFile "operations" $ cfg
         { title = Just "Streamly operations"
         , classifyBenchmark = \b ->
-                if (not $ "serially/" `isPrefixOf` b)
+                if not ("serially/" `isPrefixOf` b)
                    || "/generation" `isInfixOf` b
                    || "/compose" `isInfixOf` b
                    || "/concat" `isSuffixOf` b
@@ -120,7 +120,7 @@ makeLinearGraphs cfg inputFile = do
 ------------------------------------------------------------------------------
 
 makeNestedGraphs :: Config -> String -> IO ()
-makeNestedGraphs cfg inputFile = do
+makeNestedGraphs cfg inputFile =
     ignoringErr $ graph inputFile "nested-serial-diff" $ cfg
         { title = Just "Nested serial"
         , classifyBenchmark = \b ->
@@ -165,10 +165,10 @@ benchShow Options{..} cfg func inp out =
             { selectBenchmarks =
                   \f ->
                         reverse
-                      $ map fst
+                      $ fmap fst
                       $ either
                           (const $ either error id $ f $ ColumnIndex 0)
-                          (sortBy (comparing snd))
+                          (sortOn snd)
                           $ f $ ColumnIndex 1
             }
 
@@ -181,7 +181,7 @@ main = do
         Nothing -> do
             putStrLn "cannot parse options"
             return ()
-        Just opts@Options{..} -> do
+        Just opts@Options{..} ->
             case benchType of
                 Linear -> benchShow opts cfg makeLinearGraphs
                             "charts/linear/results.csv"

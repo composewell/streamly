@@ -10,10 +10,11 @@
 
 module LinearOps where
 
+import Control.Monad (when)
 import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
-        subtract, undefined, Maybe(..), odd, Bool, not)
+        subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -74,7 +75,7 @@ sourceUnfoldr n = S.unfoldr step n
     step cnt =
         if cnt > n + value
         then Nothing
-        else (Just (cnt, cnt + 1))
+        else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
@@ -154,32 +155,19 @@ uncons s = do
 
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
-init s = do
-    r <- S.init s
-    case r of
-        Nothing -> return ()
-        Just x -> S.runStream x
+init s = S.init s >>= Prelude.mapM_ S.runStream
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
-tail s = do
-    r <- S.tail s
-    case r of
-        Nothing -> return ()
-        Just x -> tail x
+tail s = S.tail s >>= Prelude.mapM_ tail
 
 {-# INLINE nullHeadTail #-}
 nullHeadTail :: Monad m => Stream m Int -> m ()
 nullHeadTail s = do
     r <- S.null s
-    if not r
-    then do
+    when (not r) $ do
         _ <- S.head s
-        t <- S.tail s
-        case t of
-            Nothing -> return ()
-            Just x -> nullHeadTail x
-    else return ()
+        S.tail s >>= Prelude.mapM_ nullHeadTail
 
 mapM_  = S.mapM_ (\_ -> return ())
 toList = S.toList
@@ -254,7 +242,7 @@ mapM t        = transform . t . S.mapM return
 mapMaybe      = transform . S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just ())
 mapMaybeM     = transform . S.mapMaybeM
-    (\x -> if Prelude.odd x then (return Nothing) else return $ Just ())
+    (\x -> if Prelude.odd x then return Nothing else return $ Just ())
 sequence t    = transform . t . S.sequence
 filterEven    = transform . S.filter even
 filterAllOut  = transform . S.filter (> maxValue)
@@ -285,19 +273,19 @@ zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
 zip src       = do
     r <- S.tail src
     let src1 = fromJust r
-    transform $ (S.zipWith (,) src src1)
+    transform (S.zipWith (,) src src1)
 zipM src      =  do
     r <- S.tail src
     let src1 = fromJust r
-    transform $ (S.zipWithM (\a b -> return (a,b)) src src1)
+    transform (S.zipWithM (curry return) src src1)
 zipAsync src  = do
     r <- S.tail src
     let src1 = fromJust r
-    transform $ (S.zipAsyncWith (,) src src1)
+    transform (S.zipAsyncWith (,) src src1)
 zipAsyncM src = do
     r <- S.tail src
     let src1 = fromJust r
-    transform $ (S.zipAsyncWithM (\a b -> return (a,b)) src src1)
+    transform (S.zipAsyncWithM (curry return) src src1)
 concat _n     = return ()
 
 -------------------------------------------------------------------------------

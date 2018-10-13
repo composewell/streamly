@@ -78,7 +78,7 @@ randomVar :: IsStream t => (t IO Int -> SerialT IO Int) -> IO ()
 randomVar = run (low,high) (low,high)
 
 main :: IO ()
-main = do
+main =
   defaultMain
     [
       bgroup "serialConstantSlowConsumer"

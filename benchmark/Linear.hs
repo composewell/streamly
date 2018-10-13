@@ -37,12 +37,12 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main = do
+main =
   defaultMain
     [ bgroup "serially"
       [ bgroup "generation"
         [ -- Most basic, barely stream continuations running
-          benchSrcIO serially "unfoldr" $ Ops.sourceUnfoldr
+          benchSrcIO serially "unfoldr" Ops.sourceUnfoldr
         , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
         , benchSrcIO serially "fromList" Ops.sourceFromList
         , benchSrcIO serially "fromListM" Ops.sourceFromListM
@@ -91,7 +91,7 @@ main = do
         , benchIO "mapMaybe" Ops.mapMaybe
         , benchIO "mapMaybeM" Ops.mapMaybeM
         , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
-            (Ops.sequence serially) (Ops.sourceUnfoldrMAction n)
+            Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIO "findIndices" Ops.findIndices
         , benchIO "elemIndices" Ops.elemIndices
         -- , benchIO "concat" Ops.concat
@@ -107,8 +107,8 @@ main = do
         , benchIO "dropWhile-true" Ops.dropWhileTrue
         , benchIO "dropWhileM-true" Ops.dropWhileMTrue
         ]
-      , benchIO "zip" $ Ops.zip
-      , benchIO "zipM" $ Ops.zipM
+      , benchIO "zip" Ops.zip
+      , benchIO "zipM" Ops.zipM
       , bgroup "compose"
         [ benchIO "mapM" Ops.composeMapM
         , benchIO "map-with-all-in-filter" Ops.composeMapAllInFilter

@@ -31,7 +31,7 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main = do
+main =
   defaultMain
     [ bgroup "streamD"
       [ bgroup "generation"

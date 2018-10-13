@@ -9,9 +9,10 @@
 
 module StreamKOps where
 
+import Control.Monad (when)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
-        subtract, undefined, Maybe(..), not)
+        subtract, undefined, Maybe(..), not, mapM_, (>>=))
 
 import qualified Streamly.Streams.StreamK as S
 import qualified Streamly.Streams.Prelude as S
@@ -76,7 +77,7 @@ sourceUnfoldr n = S.unfoldr step n
     step cnt =
         if cnt > n + value
         then Nothing
-        else (Just (cnt, cnt + 1))
+        else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: S.MonadAsync m => Int -> Stream m Int
@@ -105,15 +106,15 @@ sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Stream m Int
-sourceFoldMapWith n = S.foldMapWith (S.serial) S.yield [n..n+value]
+sourceFoldMapWith n = S.foldMapWith S.serial S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = S.foldMapWith (S.serial) (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n = S.foldMapWith S.serial (S.yieldM . return) [n..n+value]
 
 {-# INLINE source #-}
 source :: S.MonadAsync m => Int -> Stream m Int
-source n = sourceUnfoldrM n
+source = sourceUnfoldrM
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -133,31 +134,20 @@ uncons s = do
 {-# INLINE init #-}
 init :: (Monad m, S.IsStream t) => t m a -> m ()
 init s = do
-    r <- S.init s
-    case r of
-        Nothing -> return ()
-        Just x -> S.runStream x
+    t <- S.init s
+    mapM_ S.runStream t
 
 {-# INLINE tail #-}
 tail :: (Monad m, S.IsStream t) => t m a -> m ()
-tail s = do
-    r <- S.tail s
-    case r of
-        Nothing -> return ()
-        Just x -> tail x
+tail s = S.tail s >>= mapM_ tail
 
 -- | If the stream is not null get its head and tail and then do the same to
 -- the tail.
 nullHeadTail s = do
     r <- S.null s
-    if not r
-    then do
+    when (not r) $ do
         _ <- S.head s
-        t <- S.tail s
-        case t of
-            Nothing -> return ()
-            Just x -> nullHeadTail x
-    else return ()
+        S.tail s >>= mapM_ nullHeadTail
 
 toList = S.toList
 foldl  = S.foldl' (+) 0
@@ -187,7 +177,7 @@ dropWhileTrue = transform . S.dropWhile (<= maxValue)
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ (S.zipWith (,) src src)
+zip src       = transform $ S.zipWith (,) src src
 concat _n     = return ()
 
 -------------------------------------------------------------------------------
