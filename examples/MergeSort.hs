@@ -30,11 +30,11 @@ merge a b = do
             case b1 of
                 Nothing -> return x <> ma
                 Just (y, mb) ->
-                    if (y < x)
-                        then (return y) <> merge (return x <> ma) mb
-                        else (return x) <> merge ma (return y <> mb)
+                    if y < x
+                    then return y <> merge (return x <> ma) mb
+                    else return x <> merge ma (return y <> mb)
 
 main :: IO ()
 main = do
     xs <- A.toList $ mergeAsync getSorted getSorted
-    putStrLn $ show $ length xs
+    print $ length xs

@@ -33,7 +33,7 @@ game = do
 
     h <- get
     when (h <= 0) $ fail "You die!"
-    liftIO $ putStrLn $ "Health = " ++ show h
+    liftIO $ putStrLn $ "Health = " <> show h
 
 main :: IO ()
 main = do

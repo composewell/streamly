@@ -55,8 +55,7 @@ updateController :: IORef (Double, Double) -> IO ()
 updateController ref = do
     e <- pollEvent
     case e of
-        MouseMotion x y _ _ -> do
-            writeIORef ref (fromIntegral x, fromIntegral y)
+        MouseMotion x y _ _ -> writeIORef ref (fromIntegral x, fromIntegral y)
         _ -> return ()
 
 ------------------------------------------------------------------------------
@@ -67,7 +66,7 @@ updateDisplay :: IORef (Double, Double) -> IO ()
 updateDisplay cref = do
     time <- SDL.getTicks
     (x, y) <- readIORef cref
-    let t = (fromIntegral time) * speed / 1000
+    let t = fromIntegral time * speed / 1000
      in display (x + cos t * radius, y + sin t * radius)
 
     where

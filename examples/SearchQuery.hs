@@ -21,7 +21,7 @@ main = do
 
     where
         get :: String -> IO ()
-        get s = httpNoBody (parseRequest_ s) >> putStrLn (show s)
+        get s = httpNoBody (parseRequest_ s) >> print s
 
         google, bing, duckduckgo :: IO ()
         google     = get "https://www.google.com/search?q=haskell"
