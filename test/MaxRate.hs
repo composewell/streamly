@@ -13,10 +13,10 @@ durationShouldBe d@(tMin, tMax) action = do
         t0 <- getTime Monotonic
         action
         t1 <- getTime Monotonic
-        let t = (fromIntegral $ toNanoSecs (t1 - t0)) / 1e9
+        let t = fromIntegral (toNanoSecs (t1 - t0)) / 1e9
             -- tMax = fromNanoSecs (round $ d*10^9*1.2)
             -- tMin = fromNanoSecs (round $ d*10^9*0.8)
-        putStrLn $ "Expected: " ++ show d ++ " Took: " ++ show t
+        putStrLn $ "Expected: " <> show d <> " Took: " <> show t
         (t <= tMax && t >= tMin) `shouldBe` True
 
 toMicroSecs :: Num a => a -> a
@@ -30,11 +30,11 @@ measureRate' :: IsStream t
     -> (Double, Double)
     -> (Double, Double)
     -> Spec
-measureRate' desc t rval consumerDelay producerDelay dur = do
-    it (desc ++ " rate: " ++ show rval
-             ++ ", consumer latency: " ++ show consumerDelay
-             ++ ", producer latency: " ++ show producerDelay)
-    $ durationShouldBe dur $ do
+measureRate' desc t rval consumerDelay producerDelay dur =
+    it (desc <> " rate: " <> show rval
+             <> ", consumer latency: " <> show consumerDelay
+             <> ", producer latency: " <> show producerDelay)
+    $ durationShouldBe dur $
         runStream
             $ (if consumerDelay > 0
               then S.mapM $ \x ->
@@ -51,14 +51,14 @@ measureRate' desc t rval consumerDelay producerDelay dur = do
                      then return $ round $ toMicroSecs t1
                      else randomRIO ( round $ toMicroSecs t1
                                     , round $ toMicroSecs t2)
-                when (r > 0) $ do
+                when (r > 0) $ -- do
                     -- t1 <- getTime Monotonic
                     threadDelay r
                     -- t2 <- getTime Monotonic
                     -- let delta = fromIntegral (toNanoSecs (t2 - t1)) / 1000000000
-                    -- putStrLn $ "delay took: " ++ show delta
+                    -- putStrLn $ "delay took: " <> show delta
                     -- when (delta > 2) $ do
-                    --     putStrLn $ "delay took high: " ++ show delta
+                    --     putStrLn $ "delay took high: " <> show delta
                 return 1
 
 measureRate :: IsStream t
@@ -82,37 +82,37 @@ main = hspec $ do
     -- lower (1 or lower). For rate 1 we lose 1 second in the end and for rate
     -- 10 0.1 second.
     let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
-     in describe "asyncly no consumer delay no producer delay" $ do
+     in describe "asyncly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 0 range)
 
     -- XXX try staggering the dispatches to achieve higher rates
     let rates = [1, 10, 100, 1000, 10000, 25000]
-     in describe "asyncly no consumer delay and 1 sec producer delay" $ do
+     in describe "asyncly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 1 range)
 
     -- At lower rates (1/10) this is likely to vary quite a bit depending on
     -- the spread of random producer latencies generated.
     let rates = [1, 10, 100, 1000, 10000, 25000]
-     in describe "asyncly no consumer delay and variable producer delay" $ do
+     in describe "asyncly no consumer delay and variable producer delay" $
             forM_ rates $ \r ->
                 measureRate' "asyncly" asyncly r 0 (0.1, 3) range
 
     let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
-     in describe "wAsyncly no consumer delay no producer delay" $ do
+     in describe "wAsyncly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 0 range)
 
     let rates = [1, 10, 100, 1000, 10000, 25000]
-     in describe "wAsyncly no consumer delay and 1 sec producer delay" $ do
+     in describe "wAsyncly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 1 range)
 
     let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
-     in describe "aheadly no consumer delay no producer delay" $ do
+     in describe "aheadly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 0 range)
 
     -- XXX after the change to stop workers when the heap is clearing
     -- thi does not work well at a 25000 ops per second, need to fix.
     let rates = [1, 10, 100, 1000, 10000, 12500]
-     in describe "aheadly no consumer delay and 1 sec producer delay" $ do
+     in describe "aheadly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 1 range)
 
     describe "asyncly with 1 sec producer delay and some consumer delay" $ do

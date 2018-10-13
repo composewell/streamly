@@ -48,8 +48,8 @@ equals eq stream list = do
     when (not $ stream `eq` list) $
         monitor
             (counterexample $
-             "stream " ++ show stream
-             ++ "\nlist   " ++ show list
+             "stream " <> show stream
+             <> "\nlist   " <> show list
             )
     assert (stream `eq` list)
 
@@ -58,17 +58,17 @@ listEquals
     => ([a] -> [a] -> Bool) -> [a] -> [a] -> PropertyM m ()
 listEquals eq stream list = do
     when (not $ stream `eq` list) $ liftIO $ putStrLn $
-                  "stream " ++ show stream
-             ++ "\nlist   " ++ show list
-             ++ "\nstream \\\\ list " ++ show (stream \\ list)
-             ++ "\nlist \\\\ stream " ++ show (list \\ stream)
+                  "stream " <> show stream
+             <> "\nlist   " <> show list
+             <> "\nstream \\\\ list " <> show (stream \\ list)
+             <> "\nlist \\\\ stream " <> show (list \\ stream)
     when (not $ stream `eq` list) $
         monitor
             (counterexample $
-                  "stream " ++ show stream
-             ++ "\nlist   " ++ show list
-             ++ "\nstream \\\\ list " ++ show (stream \\ list)
-             ++ "\nlist \\\\ stream " ++ show (list \\ stream)
+                  "stream " <> show stream
+             <> "\nlist   " <> show list
+             <> "\nstream \\\\ list " <> show (stream \\ list)
+             <> "\nlist \\\\ stream " <> show (list \\ stream)
              )
     assert (stream `eq` list)
 
@@ -100,11 +100,11 @@ transformFromList constr eq listOp op a =
 
 mvarExcHandler :: String -> BlockedIndefinitelyOnMVar -> IO ()
 mvarExcHandler label BlockedIndefinitelyOnMVar =
-    error $ label ++ " " ++ "BlockedIndefinitelyOnMVar\n"
+    error $ label <> " " <> "BlockedIndefinitelyOnMVar\n"
 
 stmExcHandler :: String -> BlockedIndefinitelyOnSTM -> IO ()
 stmExcHandler label BlockedIndefinitelyOnSTM =
-    error $ label ++ " " ++ "BlockedIndefinitelyOnSTM\n"
+    error $ label <> " " <> "BlockedIndefinitelyOnSTM\n"
 
 dbgMVar :: String -> IO () -> IO ()
 dbgMVar label action =
@@ -115,10 +115,10 @@ dbgMVar label action =
 -- | first n actions takeMVar and the last action performs putMVar n times
 mvarSequenceOp :: MVar () -> Word8 -> Word8 -> IO Word8
 mvarSequenceOp mv n x = do
-    let msg = show x ++ "/" ++ show n
+    let msg = show x <> "/" <> show n
     if x < n
-    then dbgMVar ("take mvarSequenceOp " ++ msg) (takeMVar mv) >>  return x
-    else dbgMVar ("put mvarSequenceOp" ++ msg)
+    then dbgMVar ("take mvarSequenceOp " <> msg) (takeMVar mv) >>  return x
+    else dbgMVar ("put mvarSequenceOp" <> msg)
             (replicateM_ (fromIntegral n) (putMVar mv ())) >> return x
 
 concurrentMapM
@@ -132,7 +132,7 @@ concurrentMapM constr eq op n =
         let list = [0..n]
         stream <- run $ do
             mv <- newEmptyMVar :: IO (MVar ())
-            (S.toList . (op n mv)) (constr list)
+            (S.toList . op n mv) (constr list)
         listEquals eq stream list
 
 concurrentFromFoldable
@@ -146,7 +146,7 @@ concurrentFromFoldable eq op n =
         let list = [0..n]
         stream <- run $ do
             mv <- newEmptyMVar :: IO (MVar ())
-            (S.toList . op) (S.fromFoldableM (map (mvarSequenceOp mv n) list))
+            (S.toList . op) (S.fromFoldableM (fmap (mvarSequenceOp mv n) list))
         listEquals eq stream list
 
 sourceUnfoldrM :: IsStream t => MVar () -> Word8 -> t IO Word8
@@ -155,11 +155,11 @@ sourceUnfoldrM mv n = S.unfoldrM step 0
     -- argument must be integer to avoid overflow of word8 at 255
     step :: Int -> IO (Maybe (Word8, Int))
     step cnt = do
-        let msg = show cnt ++ "/" ++ show n
+        let msg = show cnt <> "/" <> show n
         if cnt > fromIntegral n
         then return Nothing
         else do
-            dbgMVar ("put sourceUnfoldrM " ++ msg) (putMVar mv ())
+            dbgMVar ("put sourceUnfoldrM " <> msg) (putMVar mv ())
             return (Just (fromIntegral cnt, cnt + 1))
 
 -- Note that this test is not guaranteed to succeed, because there is no
@@ -175,7 +175,7 @@ concurrentUnfoldrM eq op n =
         -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $ do
-            -- putStrLn $ "concurrentUnfoldrM: " ++ show n
+            -- putStrLn $ "concurrentUnfoldrM: " <> show n
             mv <- newEmptyMVar :: IO (MVar ())
             cnt <- newIORef 0
             -- since unfoldr happens in parallel with the stream processing we
@@ -188,18 +188,14 @@ concurrentUnfoldrM eq op n =
                 -- instead.
                 i <- S.yieldM $ readIORef cnt
                 S.yieldM $ modifyIORef cnt (+1)
-                let msg = show i ++ "/" ++ show n
-                S.yieldM $ do
-                    if even i
-                    then do
-                        dbgMVar ("first take concurrentUnfoldrM " ++ msg)
+                let msg = show i <> "/" <> show n
+                S.yieldM $
+                    when (even i) $ do
+                        dbgMVar ("first take concurrentUnfoldrM " <> msg)
                                 (takeMVar mv)
-                        if n > i
-                        then do
-                            dbgMVar ("second take concurrentUnfoldrM " ++ msg)
+                        when (n > i) $
+                            dbgMVar ("second take concurrentUnfoldrM " <> msg)
                                      (takeMVar mv)
-                        else return ()
-                    else return ()
                 return x
         listEquals eq stream list
 
@@ -213,24 +209,21 @@ concurrentApplication eq t n = withMaxSuccess maxTestCount $
         -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $ do
-            -- putStrLn $ "concurrentApplication: " ++ show n
+            -- putStrLn $ "concurrentApplication: " <> show n
             mv <- newEmptyMVar :: IO (MVar ())
             -- since unfoldr happens in parallel with the stream processing we
             -- can do two takeMVar in one iteration. If it is not parallel then
             -- this will not work and the test will fail.
-            (S.toList . t) $ do
+            (S.toList . t) $
                 sourceUnfoldrM mv n |&
-                    (S.mapM $ \x -> do
-                        let msg = show x ++ "/" ++ show n
-                        if even x
-                        then do
-                            dbgMVar ("first take concurrentApp " ++ msg)
+                    S.mapM (\x -> do
+                        let msg = show x <> "/" <> show n
+                        when (even x) $ do
+                            dbgMVar ("first take concurrentApp " <> msg)
                                     (takeMVar mv)
-                            if n > x
-                            then dbgMVar ("second take concurrentApp " ++ msg)
+                            when (n > x) $
+                                dbgMVar ("second take concurrentApp " <> msg)
                                          (takeMVar mv)
-                            else return ()
-                        else return ()
                         return x)
         listEquals eq stream list
 
@@ -239,7 +232,7 @@ sourceUnfoldrM1 n = S.unfoldrM step 0
     where
     -- argument must be integer to avoid overflow of word8 at 255
     step :: Int -> IO (Maybe (Word8, Int))
-    step cnt = do
+    step cnt =
         if cnt > fromIntegral n
         then return Nothing
         else return (Just (fromIntegral cnt, cnt + 1))
@@ -249,7 +242,7 @@ concurrentFoldlApplication n =
     monadicIO $ do
         -- XXX we should test empty list case as well
         let list = [0..n]
-        stream <- run $ do
+        stream <- run $
             sourceUnfoldrM1 n |&. S.foldlM' (\xs x -> return (x : xs)) []
         listEquals (==) (reverse stream) list
 
@@ -258,7 +251,7 @@ concurrentFoldrApplication n =
     monadicIO $ do
         -- XXX we should test empty list case as well
         let list = [0..n]
-        stream <- run $ do
+        stream <- run $
             sourceUnfoldrM1 n |&. S.foldrM (\x xs -> return (x : xs)) []
         listEquals (==) stream list
 
@@ -287,7 +280,7 @@ foldFromList
     -> ([Int] -> [Int] -> Bool)
     -> [Int]
     -> Property
-foldFromList constr op eq a = transformFromList constr eq id op a
+foldFromList constr op eq = transformFromList constr eq id op
 
 eliminateOp
     :: (Show a, Eq a)
@@ -323,8 +316,8 @@ functorOps
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 functorOps constr desc eq t = do
-    prop (desc ++ " id") $ transformFromList constr eq id $ t
-    prop (desc ++ " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . (fmap (+1))
+    prop (desc <> " id") $ transformFromList constr eq id t
+    prop (desc <> " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . fmap (+1)
 
 transformOps
     :: IsStream t
@@ -336,48 +329,48 @@ transformOps
 transformOps constr desc eq t = do
     let transform = transformFromList constr eq
     -- Filtering
-    prop (desc ++ " filter False") $
-        transform (filter (const False)) $ t . (S.filter (const False))
-    prop (desc ++ " filter True") $
-        transform (filter (const True)) $ t . (S.filter (const True))
-    prop (desc ++ " filter even") $
-        transform (filter even) $ t . (S.filter even)
+    prop (desc <> " filter False") $
+        transform (filter (const False)) $ t . S.filter (const False)
+    prop (desc <> " filter True") $
+        transform (filter (const True)) $ t . S.filter (const True)
+    prop (desc <> " filter even") $
+        transform (filter even) $ t . S.filter even
 
-    prop (desc ++ " take maxBound") $
-        transform (take maxBound) $ t . (S.take maxBound)
-    prop (desc ++ " take 0") $ transform (take 0) $ t . (S.take 0)
-    prop (desc ++ " take 1") $ transform (take 1) $ t . (S.take 1)
-    prop (desc ++ " take 10") $ transform (take 10) $ t . (S.take 10)
+    prop (desc <> " take maxBound") $
+        transform (take maxBound) $ t . S.take maxBound
+    prop (desc <> " take 0") $ transform (take 0) $ t . S.take 0
+    prop (desc <> " take 1") $ transform (take 1) $ t . S.take 1
+    prop (desc <> " take 10") $ transform (take 10) $ t . S.take 10
 
-    prop (desc ++ " takeWhile True") $
-        transform (takeWhile (const True)) $ t . (S.takeWhile (const True))
-    prop (desc ++ " takeWhile False") $
-        transform (takeWhile (const False)) $ t . (S.takeWhile (const False))
-    prop (desc ++ " takeWhile > 0") $
-        transform (takeWhile (> 0)) $ t . (S.takeWhile (> 0))
+    prop (desc <> " takeWhile True") $
+        transform (takeWhile (const True)) $ t . S.takeWhile (const True)
+    prop (desc <> " takeWhile False") $
+        transform (takeWhile (const False)) $ t . S.takeWhile (const False)
+    prop (desc <> " takeWhile > 0") $
+        transform (takeWhile (> 0)) $ t . S.takeWhile (> 0)
 
     let f x = if odd x then Just (x + 100) else Nothing
-    prop (desc ++ " mapMaybe") $ transform (mapMaybe f) $ t . (S.mapMaybe f)
+    prop (desc <> " mapMaybe") $ transform (mapMaybe f) $ t . S.mapMaybe f
 
-    prop (desc ++ " drop maxBound") $
-        transform (drop maxBound) $ t . (S.drop maxBound)
-    prop (desc ++ " drop 0") $ transform (drop 0) $ t . (S.drop 0)
-    prop (desc ++ " drop 1") $ transform (drop 1) $ t . (S.drop 1)
-    prop (desc ++ " drop 10") $ transform (drop 10) $ t . (S.drop 10)
+    prop (desc <> " drop maxBound") $
+        transform (drop maxBound) $ t . S.drop maxBound
+    prop (desc <> " drop 0") $ transform (drop 0) $ t . S.drop 0
+    prop (desc <> " drop 1") $ transform (drop 1) $ t . S.drop 1
+    prop (desc <> " drop 10") $ transform (drop 10) $ t . S.drop 10
 
-    prop (desc ++ " dropWhile True") $
-        transform (dropWhile (const True)) $ t . (S.dropWhile (const True))
-    prop (desc ++ " dropWhile False") $
-        transform (dropWhile (const False)) $ t . (S.dropWhile (const False))
-    prop (desc ++ " dropWhile > 0") $
-        transform (dropWhile (> 0)) $ t . (S.dropWhile (> 0))
-    prop (desc ++ " scan") $ transform (scanl' (+) 0) $ t . (S.scanl' (+) 0)
-    prop (desc ++ " reverse") $ transform reverse $ t . S.reverse
+    prop (desc <> " dropWhile True") $
+        transform (dropWhile (const True)) $ t . S.dropWhile (const True)
+    prop (desc <> " dropWhile False") $
+        transform (dropWhile (const False)) $ t . S.dropWhile (const False)
+    prop (desc <> " dropWhile > 0") $
+        transform (dropWhile (> 0)) $ t . S.dropWhile (> 0)
+    prop (desc <> " scan") $ transform (scanl' (+) 0) $ t . S.scanl' (+) 0
+    prop (desc <> " reverse") $ transform reverse $ t . S.reverse
 
-    prop (desc ++ " findIndices") $ transform (findIndices odd) $ t . (S.findIndices odd)
-    prop (desc ++ " elemIndices") $ transform (elemIndices 3) $ t . (S.elemIndices 3)
+    prop (desc <> " findIndices") $ transform (findIndices odd) $ t . S.findIndices odd
+    prop (desc <> " elemIndices") $ transform (elemIndices 3) $ t . S.elemIndices 3
 
-    prop (desc ++ " intersperseM") $ transform (intersperse 3) $ t . (S.intersperseM (return 3))
+    prop (desc <> " intersperseM") $ transform (intersperse 3) $ t . S.intersperseM (return 3)
 
 
 concurrentOps
@@ -390,15 +383,15 @@ concurrentOps
 concurrentOps constr desc eq t = do
     let prop1 d p = prop d $ withMaxSuccess maxTestCount p
 
-    prop1 (desc ++ " fromFoldableM") $ concurrentFromFoldable eq t
-    prop1 (desc ++ " unfoldrM") $ concurrentUnfoldrM eq t
+    prop1 (desc <> " fromFoldableM") $ concurrentFromFoldable eq t
+    prop1 (desc <> " unfoldrM") $ concurrentUnfoldrM eq t
     -- we pass it the length of the stream n and an mvar mv.
     -- The stream is [0..n]. The threads communicate in such a way that the
     -- actions coming first in the stream are dependent on the last action. So
     -- if the stream is not processed concurrently it will block forever.
     -- Note that if the size of the stream is bigger than the thread limit
     -- then it will block even if it is concurrent.
-    prop1 (desc ++ " mapM") $
+    prop1 (desc <> " mapM") $
         concurrentMapM constr eq $ \n mv stream ->
             t $ S.mapM (mvarSequenceOp mv n) stream
 
@@ -414,58 +407,58 @@ transformCombineOpsCommon
 transformCombineOpsCommon constr desc eq t = do
     let transform = transformCombineFromList constr eq
     -- Filtering
-    prop (desc ++ " filter False") $
+    prop (desc <> " filter False") $
         transform (filter (const False)) t (S.filter (const False))
-    prop (desc ++ " filter True") $
+    prop (desc <> " filter True") $
         transform (filter (const True)) t (S.filter (const True))
-    prop (desc ++ " filter even") $
+    prop (desc <> " filter even") $
         transform (filter even) t (S.filter even)
 
-    prop (desc ++ " filterM False") $
+    prop (desc <> " filterM False") $
         transform (filter (const False)) t (S.filterM (const $ return False))
-    prop (desc ++ " filterM True") $
+    prop (desc <> " filterM True") $
         transform (filter (const True)) t (S.filterM (const $ return True))
-    prop (desc ++ " filterM even") $
+    prop (desc <> " filterM even") $
         transform (filter even) t (S.filterM (return . even))
 
-    prop (desc ++ " take maxBound") $
+    prop (desc <> " take maxBound") $
         transform (take maxBound) t (S.take maxBound)
-    prop (desc ++ " take 0") $ transform (take 0) t (S.take 0)
+    prop (desc <> " take 0") $ transform (take 0) t (S.take 0)
 
-    prop (desc ++ " takeWhile True") $
+    prop (desc <> " takeWhile True") $
         transform (takeWhile (const True)) t (S.takeWhile (const True))
-    prop (desc ++ " takeWhile False") $
+    prop (desc <> " takeWhile False") $
         transform (takeWhile (const False)) t (S.takeWhile (const False))
 
-    prop (desc ++ " takeWhileM True") $
+    prop (desc <> " takeWhileM True") $
         transform (takeWhile (const True)) t (S.takeWhileM (const $ return True))
-    prop (desc ++ " takeWhileM False") $
+    prop (desc <> " takeWhileM False") $
         transform (takeWhile (const False)) t (S.takeWhileM (const $ return False))
 
-    prop (desc ++ " drop maxBound") $
+    prop (desc <> " drop maxBound") $
         transform (drop maxBound) t (S.drop maxBound)
-    prop (desc ++ " drop 0") $ transform (drop 0) t (S.drop 0)
+    prop (desc <> " drop 0") $ transform (drop 0) t (S.drop 0)
 
-    prop (desc ++ " dropWhile True") $
+    prop (desc <> " dropWhile True") $
         transform (dropWhile (const True)) t (S.dropWhile (const True))
-    prop (desc ++ " dropWhile False") $
+    prop (desc <> " dropWhile False") $
         transform (dropWhile (const False)) t (S.dropWhile (const False))
 
-    prop (desc ++ " dropWhileM True") $
+    prop (desc <> " dropWhileM True") $
         transform (dropWhile (const True)) t (S.dropWhileM (const $ return True))
-    prop (desc ++ " dropWhileM False") $
+    prop (desc <> " dropWhileM False") $
         transform (dropWhile (const False)) t (S.dropWhileM (const $ return False))
 
-    prop (desc ++ " mapM (+1)") $
-        transform (map (+1)) t (S.mapM (\x -> return (x + 1)))
+    prop (desc <> " mapM (+1)") $
+        transform (fmap (+1)) t (S.mapM (\x -> return (x + 1)))
 
-    prop (desc ++ " scan") $ transform (scanl' (flip const) 0) t
+    prop (desc <> " scan") $ transform (scanl' (flip const) 0) t
                                        (S.scanl' (flip const) 0)
-    prop (desc ++ " scanlM'") $ transform (scanl' (flip const) 0) t
+    prop (desc <> " scanlM'") $ transform (scanl' (flip const) 0) t
                                        (S.scanlM' (\_ a -> return a) 0)
-    prop (desc ++ " reverse") $ transform reverse t S.reverse
+    prop (desc <> " reverse") $ transform reverse t S.reverse
 
-    prop (desc ++ " intersperseM") $
+    prop (desc <> " intersperseM") $
         transform (intersperse 3) t (S.intersperseM $ return 3)
 
 transformCombineOpsOrdered
@@ -478,40 +471,36 @@ transformCombineOpsOrdered
 transformCombineOpsOrdered constr desc eq t = do
     let transform = transformCombineFromList constr eq
     -- Filtering
-    prop (desc ++ " take 1") $ transform (take 1) t (S.take 1)
+    prop (desc <> " take 1") $ transform (take 1) t (S.take 1)
 #ifdef DEVBUILD
-    prop (desc ++ " take 2") $ transform (take 2) t (S.take 2)
-    prop (desc ++ " take 3") $ transform (take 3) t (S.take 3)
-    prop (desc ++ " take 4") $ transform (take 4) t (S.take 4)
-    prop (desc ++ " take 5") $ transform (take 5) t (S.take 5)
+    prop (desc <> " take 2") $ transform (take 2) t (S.take 2)
+    prop (desc <> " take 3") $ transform (take 3) t (S.take 3)
+    prop (desc <> " take 4") $ transform (take 4) t (S.take 4)
+    prop (desc <> " take 5") $ transform (take 5) t (S.take 5)
 #endif
-    prop (desc ++ " take 10") $ transform (take 10) t (S.take 10)
+    prop (desc <> " take 10") $ transform (take 10) t (S.take 10)
 
-    prop (desc ++ " takeWhile > 0") $
+    prop (desc <> " takeWhile > 0") $
         transform (takeWhile (> 0)) t (S.takeWhile (> 0))
 
-    prop (desc ++ " drop 1") $ transform (drop 1) t (S.drop 1)
-    prop (desc ++ " drop 10") $ transform (drop 10) t (S.drop 10)
+    prop (desc <> " drop 1") $ transform (drop 1) t (S.drop 1)
+    prop (desc <> " drop 10") $ transform (drop 10) t (S.drop 10)
 
-    prop (desc ++ " dropWhile > 0") $
+    prop (desc <> " dropWhile > 0") $
         transform (dropWhile (> 0)) t (S.dropWhile (> 0))
-    prop (desc ++ " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
+    prop (desc <> " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
 
     -- XXX this does not fail when the SVar is shared, need to fix.
-    prop (desc ++ " concurrent application") $
-        transform (& (map (+1))) t (|& (S.map (+1)))
+    prop (desc <> " concurrent application") $
+        transform (& fmap (+1)) t (|& S.map (+1))
 
-    prop (desc ++ " findIndices") $
+    prop (desc <> " findIndices") $
         transform (findIndices odd) t (S.findIndices odd)
-    prop (desc ++ " elemIndices") $
+    prop (desc <> " elemIndices") $
         transform (elemIndices 0) t (S.elemIndices 0)
 
-wrapMaybe :: Eq a1 => ([a1] -> a2) -> [a1] -> Maybe a2
-wrapMaybe f =
-    \x ->
-        if x == []
-            then Nothing
-            else Just (f x)
+wrapMaybe :: ([a1] -> a2) -> [a1] -> Maybe a2
+wrapMaybe f x = if null x then Nothing else Just (f x)
 
 eliminationOps
     :: ([Int] -> t IO Int)
@@ -520,31 +509,31 @@ eliminationOps
     -> Spec
 eliminationOps constr desc t = do
     -- Elimination
-    prop (desc ++ " null") $ eliminateOp constr null $ S.null . t
-    prop (desc ++ " foldl'") $
-        eliminateOp constr (foldl' (+) 0) $ (S.foldl' (+) 0) . t
-    prop (desc ++ " foldl1'") $
-        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ (S.foldl1' (+)) . t
-    prop (desc ++ " foldr1") $
-        eliminateOp constr (wrapMaybe $ foldr1 (+)) $ (S.foldr1 (+)) . t
-    prop (desc ++ " all") $ eliminateOp constr (all even) $ (S.all even) . t
-    prop (desc ++ " any") $ eliminateOp constr (any even) $ (S.any even) . t
-    prop (desc ++ " and") $ eliminateOp constr (and . map (> 0)) $
+    prop (desc <> " null") $ eliminateOp constr null $ S.null . t
+    prop (desc <> " foldl'") $
+        eliminateOp constr (foldl' (+) 0) $ S.foldl' (+) 0 . t
+    prop (desc <> " foldl1'") $
+        eliminateOp constr (wrapMaybe $ foldl1' (+)) $ S.foldl1' (+) . t
+    prop (desc <> " foldr1") $
+        eliminateOp constr (wrapMaybe $ foldr1 (+)) $ S.foldr1 (+) . t
+    prop (desc <> " all") $ eliminateOp constr (all even) $ S.all even . t
+    prop (desc <> " any") $ eliminateOp constr (any even) $ S.any even . t
+    prop (desc <> " and") $ eliminateOp constr (and . fmap (> 0)) $
         (S.and . S.map (> 0)) . t
-    prop (desc ++ " or") $ eliminateOp constr (or . map (> 0)) $
+    prop (desc <> " or") $ eliminateOp constr (or . fmap (> 0)) $
         (S.or . S.map (> 0)) . t
-    prop (desc ++ " length") $ eliminateOp constr length $ S.length . t
-    prop (desc ++ " sum") $ eliminateOp constr sum $ S.sum . t
-    prop (desc ++ " product") $ eliminateOp constr product $ S.product . t
+    prop (desc <> " length") $ eliminateOp constr length $ S.length . t
+    prop (desc <> " sum") $ eliminateOp constr sum $ S.sum . t
+    prop (desc <> " product") $ eliminateOp constr product $ S.product . t
 
-    prop (desc ++ " maximum") $ eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
-    prop (desc ++ " minimum") $ eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
+    prop (desc <> " maximum") $ eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
+    prop (desc <> " minimum") $ eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
 
-    prop (desc ++ " findIndex") $ eliminateOp constr (findIndex odd) $ (S.findIndex odd) . t
-    prop (desc ++ " elemIndex") $ eliminateOp constr (elemIndex 3) $ (S.elemIndex 3) . t
+    prop (desc <> " findIndex") $ eliminateOp constr (findIndex odd) $ S.findIndex odd . t
+    prop (desc <> " elemIndex") $ eliminateOp constr (elemIndex 3) $ S.elemIndex 3 . t
 
-    prop (desc ++ " find") $ eliminateOp constr (find even) $ (S.find even) . t
-    prop (desc ++ " lookup") $
+    prop (desc <> " find") $ eliminateOp constr (find even) $ S.find even . t
+    prop (desc <> " lookup") $
         eliminateOp constr (lookup 3 . flip zip [1..]) $
             S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
 
@@ -556,18 +545,18 @@ serialEliminationOps
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 serialEliminationOps constr desc t = do
-    prop (desc ++ " head") $ eliminateOp constr (wrapMaybe head) $ S.head . t
-    prop (desc ++ " tail") $ eliminateOp constr (wrapMaybe tail) $ \x -> do
+    prop (desc <> " head") $ eliminateOp constr (wrapMaybe head) $ S.head . t
+    prop (desc <> " tail") $ eliminateOp constr (wrapMaybe tail) $ \x -> do
         r <- S.tail (t x)
         case r of
             Nothing -> return Nothing
-            Just s -> S.toList s >>= return . Just
-    prop (desc ++ " last") $ eliminateOp constr (wrapMaybe last) $ S.last . t
-    prop (desc ++ " init") $ eliminateOp constr (wrapMaybe init) $ \x -> do
+            Just s -> Just <$> S.toList s
+    prop (desc <> " last") $ eliminateOp constr (wrapMaybe last) $ S.last . t
+    prop (desc <> " init") $ eliminateOp constr (wrapMaybe init) $ \x -> do
         r <- S.init (t x)
         case r of
             Nothing -> return Nothing
-            Just s -> S.toList s >>= return . Just
+            Just s -> Just <$> S.toList s
 
 transformOpsWord8
     :: ([Word8] -> t IO Word8)
@@ -575,8 +564,8 @@ transformOpsWord8
     -> (t IO Word8 -> SerialT IO Word8)
     -> Spec
 transformOpsWord8 constr desc t = do
-    prop (desc ++ " elem") $ elemOp constr t S.elem elem
-    prop (desc ++ " elem") $ elemOp constr t S.notElem notElem
+    prop (desc <> " elem") $ elemOp constr t S.elem elem
+    prop (desc <> " elem") $ elemOp constr t S.notElem notElem
 
 -- XXX concatenate streams of multiple elements rather than single elements
 semigroupOps
@@ -591,8 +580,8 @@ semigroupOps
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 semigroupOps desc eq t = do
-    prop (desc ++ " <>") $ foldFromList (foldMapWith (<>) singleton) t eq
-    prop (desc ++ " mappend") $ foldFromList (foldMapWith mappend singleton) t eq
+    prop (desc <> " <>") $ foldFromList (foldMapWith (<>) singleton) t eq
+    prop (desc <> " mappend") $ foldFromList (foldMapWith mappend singleton) t eq
 
 applicativeOps
     :: Applicative (t IO)
@@ -603,7 +592,7 @@ applicativeOps
     -> Property
 applicativeOps constr eq t (a, b) = withMaxSuccess maxTestCount $
     monadicIO $ do
-        stream <- run ((S.toList . t) ((,) <$> (constr a) <*> (constr b)))
+        stream <- run ((S.toList . t) ((,) <$> constr a <*> constr b))
         let list = (,) <$> a <*> b
         listEquals eq stream list
 
@@ -616,8 +605,8 @@ zipApplicative
     -> Property
 zipApplicative constr eq t (a, b) = withMaxSuccess maxTestCount $
     monadicIO $ do
-        stream1 <- run ((S.toList . t) ((,) <$> (constr a) <*> (constr b)))
-        stream2 <- run ((S.toList . t) (pure (,) <*> (constr a) <*> (constr b)))
+        stream1 <- run ((S.toList . t) ((,) <$> constr a <*> constr b))
+        stream2 <- run ((S.toList . t) (pure (,) <*> constr a <*> constr b))
         stream3 <- run ((S.toList . t) (S.zipWith (,) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
@@ -636,7 +625,7 @@ zipMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
         stream1 <-
             run
                 ((S.toList . t)
-                     (S.zipWithM (\x y -> return (x, y)) (constr a) (constr b)))
+                     (S.zipWithM (curry return) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
 
@@ -652,11 +641,11 @@ zipAsyncMonadic constr eq t (a, b) = withMaxSuccess maxTestCount $
         stream1 <-
             run
                 ((S.toList . t)
-                     (S.zipWithM (\x y -> return (x, y)) (constr a) (constr b)))
+                     (S.zipWithM (curry return) (constr a) (constr b)))
         stream2 <-
             run
                 ((S.toList . t)
-                     (S.zipAsyncWithM (\x y -> return (x, y)) (constr a) (constr b)))
+                     (S.zipAsyncWithM (curry return) (constr a) (constr b)))
         let list = getZipList $ (,) <$> ZipList a <*> ZipList b
         listEquals eq stream1 list
         listEquals eq stream2 list
@@ -669,7 +658,7 @@ monadThen
     -> ([Int], [Int])
     -> Property
 monadThen constr eq t (a, b) = withMaxSuccess maxTestCount $ monadicIO $ do
-    stream <- run ((S.toList . t) ((constr a) >> (constr b)))
+    stream <- run ((S.toList . t) (constr a >> constr b))
     let list = a >> b
     listEquals eq stream list
 
@@ -685,19 +674,19 @@ monadBind constr eq t (a, b) = withMaxSuccess maxTestCount $
         stream <-
             run
                 ((S.toList . t)
-                     ((constr a) >>= \x -> (constr b) >>= return . (+ x)))
-        let list = a >>= \x -> b >>= return . (+ x)
+                     (constr a >>= \x -> (+ x) <$> constr b))
+        let list = a >>= \x -> (+ x) <$> b
         listEquals eq stream list
 
 constructWithIterate :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
 constructWithIterate t = do
     it "iterate" $
-        (S.toList . t . (S.take 100) $ (S.iterate (+ 1) (0 :: Int)))
-        `shouldReturn` (take 100 $ iterate (+ 1) 0)
+        (S.toList . t . S.take 100) (S.iterate (+ 1) (0 :: Int))
+        `shouldReturn` take 100 (iterate (+ 1) 0)
     it "iterateM" $ do
-        let addM = (\ y -> return (y + 1))
-        S.toList . t . (S.take 100) $ S.iterateM addM (0 :: Int)
-        `shouldReturn` (take 100 $ iterate (+ 1) 0)
+        let addM y = return (y + 1)
+        S.toList . t . S.take 100 $ S.iterateM addM (0 :: Int)
+        `shouldReturn` take 100 (iterate (+ 1) 0)
 
 main :: IO ()
 main = hspec
@@ -728,43 +717,43 @@ main = hspec
 
     let mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
-        serialOps spec = mapOps spec $ (makeOps serially)
+        serialOps spec = mapOps spec $ makeOps serially
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
-            ++ [("maxBuffer -1", serially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
+            <> [("maxBuffer -1", serially . maxBuffer (-1))]
 #endif
     let wSerialOps :: IsStream t => ((WSerialT IO a -> t IO a) -> Spec) -> Spec
         wSerialOps spec = mapOps spec $ makeOps wSerially
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", wSerially . avgRate 0.00000001)]
-            ++ [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", wSerially . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", wSerially . maxBuffer (-1))]
 #endif
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
         asyncOps spec = mapOps spec $ makeOps asyncly
 #ifndef COVERAGE_BUILD
-            ++ [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
+            <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
 #endif
     let wAsyncOps :: IsStream t => ((WAsyncT IO a -> t IO a) -> Spec) -> Spec
         wAsyncOps spec = mapOps spec $ makeOps wAsyncly
 #ifndef COVERAGE_BUILD
-            ++ [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
+            <> [("maxBuffer (-1)", wAsyncly . maxBuffer (-1))]
 #endif
     let aheadOps :: IsStream t => ((AheadT IO a -> t IO a) -> Spec) -> Spec
         aheadOps spec = mapOps spec $ makeOps aheadly
 #ifndef COVERAGE_BUILD
-              ++ [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
+              <> [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
 #endif
     let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
         parallelOps spec = mapOps spec $ makeOps parallely
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
-            ++ [("maxBuffer (-1)", parallely . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
     let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps spec = mapOps spec $ makeOps zipSerially
 #ifndef COVERAGE_BUILD
-            ++ [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
-            ++ [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
+            <> [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
+            <> [("maxBuffer (-1)", zipSerially . maxBuffer (-1))]
 #endif
     -- Note, the "pure" of applicative Zip streams generates and infinite
     -- stream and therefore maxBuffer (-1) must not be used for that case.
@@ -943,9 +932,9 @@ main = hspec
         aheadOps $ prop "ahead" . concurrentApplication (==)
         parallelOps $ prop "parallel" . concurrentApplication sortEq
 
-        prop "concurrent foldr application" $ withMaxSuccess maxTestCount $
+        prop "concurrent foldr application" $ withMaxSuccess maxTestCount
             concurrentFoldrApplication
-        prop "concurrent foldl application" $ withMaxSuccess maxTestCount $
+        prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
 
     -- These tests are specifically targeted towards detecting illegal sharing

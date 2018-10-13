@@ -178,10 +178,10 @@ checkCleanupFold t op = do
 testFoldOpsCleanup :: String -> (SerialT IO Int -> IO a) -> Spec
 testFoldOpsCleanup name f = do
     let testOp op x = op x >> return Nothing
-    it (name ++ " asyncly") $ checkCleanupFold asyncly (testOp f)
-    it (name ++ " wAsyncly") $ checkCleanupFold wAsyncly (testOp f)
-    it (name ++ " aheadly") $ checkCleanupFold aheadly (testOp f)
-    it (name ++ " parallely") $ checkCleanupFold parallely (testOp f)
+    it (name <> " asyncly") $ checkCleanupFold asyncly (testOp f)
+    it (name <> " wAsyncly") $ checkCleanupFold wAsyncly (testOp f)
+    it (name <> " aheadly") $ checkCleanupFold aheadly (testOp f)
+    it (name <> " parallely") $ checkCleanupFold parallely (testOp f)
 #endif
 
 parallelTests :: SpecWith ()
@@ -194,9 +194,9 @@ parallelTests = H.parallel $ do
         it "simple serially with IO" $
             (runStream . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
 
-    describe "Empty" $ do
+    describe "Empty" $ -- do
         it "Monoid - mempty" $
-            (toListSerial mempty) `shouldReturn` ([] :: [Int])
+            toListSerial mempty `shouldReturn` ([] :: [Int])
         -- it "Alternative - empty" $
         --     (toListSerial empty) `shouldReturn` ([] :: [Int])
         -- it "MonadPlus - mzero" $
@@ -210,11 +210,11 @@ parallelTests = H.parallel $ do
         -- XXX we should do these through property tests by using a
         -- construction via list fold construction method.
         it "fmap on composed (<>)" $
-            (toListSerial $ fmap (+1) (return 1 <> return 2))
+            toListSerial (fmap (+1) (return 1 <> return 2))
                 `shouldReturn` ([2,3] :: [Int])
 
         it "fmap on composed (<>)" $
-            ((toListParallel $ fmap (+1) (return 1 <> return 2)) >>= return .  sort)
+            sort <$> toListParallel (fmap (+1) (return 1 <> return 2))
                 `shouldReturn` ([2,3] :: [Int])
 
     ---------------------------------------------------------------------------
@@ -225,19 +225,19 @@ parallelTests = H.parallel $ do
         -- XXX we should do these through property tests by using a
         -- construction via list fold construction method.
         it "Apply - serial composed first argument" $
-            (toListSerial $ (,) <$> (return 1 <> return 2) <*> (return 3))
+            toListSerial ((,) <$> (return 1 <> return 2) <*> return 3)
                 `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
 
         it "Apply - serial composed second argument" $
-            (toListSerial $ (,) <$> (return 1) <*> (return 2 <> return 3))
+            toListSerial ((,) <$> return 1 <*> (return 2 <> return 3))
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
         it "Apply - parallel composed first argument" $
-            (toListParallel ((,) <$> (return 1 <> return 2) <*> (return 3)) >>= return . sort)
+            sort <$> toListParallel ((,) <$> (return 1 <> return 2) <*> return 3)
                 `shouldReturn` ([(1,3),(2,3)] :: [(Int, Int)])
 
         it "Apply - parallel composed second argument" $
-            (toListParallel ((,) <$> (return 1) <*> (return 2 <> return 3)) >>= return . sort)
+            sort <$> toListParallel ((,) <$> return 1 <*> (return 2 <> return 3))
                 `shouldReturn` ([(1,2),(1,3)] :: [(Int, Int)])
 
     ---------------------------------------------------------------------------
@@ -259,37 +259,41 @@ parallelTests = H.parallel $ do
     ---------------------------------------------------------------------------
 
     -- TBD need more such combinations to be tested.
-    describe "serial <> and serial <>" $ composeAndComposeSimple serially serially (cycle [[1 .. 9]])
-    describe "ahead <> and ahead <>" $ composeAndComposeSimple aheadly aheadly (cycle [[1 .. 9]])
-    describe "ahead <> and serial <>" $ composeAndComposeSimple aheadly serially (cycle [[1 .. 9]])
-    describe "serial <> and ahead <>" $ composeAndComposeSimple serially aheadly (cycle [[1 .. 9]])
+    describe "serial <> and serial <>" $
+        composeAndComposeSimple serially serially (repeat [1 .. 9])
+    describe "ahead <> and ahead <>" $
+        composeAndComposeSimple aheadly aheadly (repeat [1 .. 9])
+    describe "ahead <> and serial <>" $
+        composeAndComposeSimple aheadly serially (repeat [1 .. 9])
+    describe "serial <> and ahead <>" $
+        composeAndComposeSimple serially aheadly (repeat [1 .. 9])
 
     describe "<> and <=>" $ composeAndComposeSimple
       serially
       wSerially
-      ([ [1 .. 9]
+      [ [1 .. 9]
        , [1 .. 9]
        , [1, 3, 2, 4, 6, 5, 7, 9, 8]
        , [1, 3, 2, 4, 6, 5, 7, 9, 8]
-       ])
+      ]
 
     describe "<=> and <=>" $ composeAndComposeSimple
       wSerially
       wSerially
-      ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+      [ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 3, 7, 2, 6, 9, 5, 8]
        , [1, 7, 4, 9, 3, 8, 6, 2, 5]
-       ])
+      ]
 
     describe "<=> and <>" $ composeAndComposeSimple
       wSerially
       serially
-      ([ [1, 4, 2, 7, 3, 5, 8, 6, 9]
+      [ [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
        , [1, 4, 2, 7, 3, 5, 8, 6, 9]
        , [1, 7, 4, 8, 2, 9, 5, 3, 6]
-       ])
+      ]
 
     ---------------------------------------------------------------------------
     -- Monoidal composition recursion loops
@@ -514,7 +518,7 @@ takeCombined :: (Monad m, Semigroup (t m Int), Show a, Eq a, IsStream t)
 takeCombined n t = do
     let constr = S.fromFoldable
     r <- (S.toList . t) $
-            S.take n ((constr ([] :: [Int])) <> constr ([] :: [Int]))
+            S.take n (constr ([] :: [Int]) <> constr ([] :: [Int]))
     r `shouldBe` []
 
 checkFoldxStrictness :: IO ()
@@ -575,12 +579,10 @@ checkScanl'Strictness = do
         `shouldReturn` "success"
 
 foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
-foldlM'StrictCheck ref s =
-  S.foldlM' (\_ _ -> writeIORef ref 1) () s
+foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) ()
 
 foldxMStrictCheck :: IORef Int -> SerialT IO Int -> IO ()
-foldxMStrictCheck ref s =
-  S.foldxM (\_ _ -> writeIORef ref 1) (return ()) return s
+foldxMStrictCheck ref = S.foldxM (\_ _ -> writeIORef ref 1) (return ()) return
 
 checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()
 checkFoldMStrictness f = do
@@ -590,8 +592,7 @@ checkFoldMStrictness f = do
   readIORef ref `shouldReturn` 1
 
 scanlM'StrictCheck :: IORef Int -> SerialT IO Int -> SerialT IO ()
-scanlM'StrictCheck ref s =
-  S.scanlM' (\_ _ -> writeIORef ref 1) () s
+scanlM'StrictCheck ref = S.scanlM' (\_ _ -> writeIORef ref 1) ()
 
 checkScanlMStrictness :: (IORef Int -> SerialT IO Int -> SerialT IO ()) -> IO ()
 checkScanlMStrictness f = do
@@ -601,17 +602,16 @@ checkScanlMStrictness f = do
   readIORef ref `shouldReturn` 1
 
 takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
-takeInfinite t = do
+takeInfinite t =
     it "take 1" $
-        (runStream $ t $
-            S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
+        runStream (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
         `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error
 -- XXX We can also check the output that we are expected to get before the
 -- error occurs.
 
-data ExampleException = ExampleException String deriving (Eq, Show)
+newtype ExampleException = ExampleException String deriving (Eq, Show)
 
 instance Exception ExampleException
 
@@ -624,11 +624,11 @@ simpleMonadError = do
     it "simple runExceptT with error" $ do
         (runExceptT $ runStream $ throwError "E") `shouldReturn` Left "E"
         -}
-    it "simple try" $ do
-        (try $ runStream $ return ())
+    it "simple try" $
+        try (runStream $ return ())
         `shouldReturn` (Right () :: Either ExampleException ())
-    it "simple try with throw error" $ do
-        (try $ runStream $ throwM $ ExampleException "E")
+    it "simple try with throw error" $
+        try (runStream $ throwM $ ExampleException "E")
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException ())
 
 composeWithMonadThrow
@@ -639,10 +639,10 @@ composeWithMonadThrow
     => (t IO Int -> SerialT IO Int) -> Spec
 composeWithMonadThrow t = do
     it "Compose throwM, nil" $
-        (try $ tl (throwM (ExampleException "E") <> S.nil))
+        try (tl (throwM (ExampleException "E") <> S.nil))
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
     it "Compose nil, throwM" $
-        (try $ tl (S.nil <> throwM (ExampleException "E")))
+        try (tl (S.nil <> throwM (ExampleException "E")))
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
     oneLevelNestedSum "serially" serially
     oneLevelNestedSum "wSerially" wSerially
@@ -658,20 +658,20 @@ composeWithMonadThrow t = do
     where
     tl = S.toList . t
     oneLevelNestedSum desc t1 =
-        it ("One level nested sum " ++ desc) $ do
-            let nested = (S.fromFoldable [1..10] <> throwM (ExampleException "E")
-                         <> S.fromFoldable [1..10])
-            (try $ tl (S.nil <> t1 nested <> S.fromFoldable [1..10]))
+        it ("One level nested sum " <> desc) $ do
+            let nested = S.fromFoldable [1..10] <> throwM (ExampleException "E")
+                         <> S.fromFoldable [1..10]
+            try (tl (S.nil <> t1 nested <> S.fromFoldable [1..10]))
             `shouldReturn` (Left (ExampleException "E") :: Either ExampleException [Int])
 
     oneLevelNestedProduct desc t1 =
-        it ("One level nested product" ++ desc) $ do
+        it ("One level nested product" <> desc) $ do
             let s1 = t $ foldMapWith (<>) return [1..4]
                 s2 = t1 $ foldMapWith (<>) return [5..8]
             try $ tl (do
                 x <- adapt s1
                 y <- s2
-                if (x + y > 10)
+                if x + y > 10
                 then throwM (ExampleException "E")
                 else return (x + y)
                 )
@@ -686,9 +686,9 @@ _composeWithMonadError
 _composeWithMonadError t = do
     let tl = S.toList . t
     it "Compose throwError, nil" $
-        (runExceptT $ tl (throwError "E" <> S.nil)) `shouldReturn` Left "E"
+        runExceptT (tl (throwError "E" <> S.nil)) `shouldReturn` Left "E"
     it "Compose nil, error" $
-        (runExceptT $ tl (S.nil <> throwError "E")) `shouldReturn` Left "E"
+        runExceptT (tl (S.nil <> throwError "E")) `shouldReturn` Left "E"
 
 nestTwoSerial :: Expectation
 nestTwoSerial =
@@ -745,54 +745,51 @@ nestTwoAsync :: Expectation
 nestTwoAsync =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in (toListAsync (do
+    in sort <$> toListAsync (do
         x <- s1
         y <- s2
-        return (x + y)
-        ) >>= return . sort)
+        return (x + y))
     `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoAsyncApp :: Expectation
 nestTwoAsyncApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in (toListAsync ((+) <$> s1 <*> s2) >>= return . sort)
+    in sort <$> toListAsync ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,8,9,7,8,9,10,8,9,10,11,9,10,11,12] :: [Int])
 
 nestTwoWAsync :: Expectation
 nestTwoWAsync =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((S.toList . wAsyncly) (do
+    in sort <$> (S.toList . wAsyncly) (do
         x <- s1
         y <- s2
-        return (x + y)
-        ) >>= return . sort)
+        return (x + y))
     `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoParallel :: Expectation
 nestTwoParallel =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((S.toList . parallely) (do
+    in sort <$> (S.toList . parallely) (do
         x <- s1
         y <- s2
-        return (x + y)
-        ) >>= return . sort)
+        return (x + y))
     `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoWAsyncApp :: Expectation
 nestTwoWAsyncApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((S.toList . wAsyncly) ((+) <$> s1 <*> s2) >>= return . sort)
+    in sort <$> (S.toList . wAsyncly) ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 nestTwoParallelApp :: Expectation
 nestTwoParallelApp =
     let s1 = foldMapWith (<>) return [1..4]
         s2 = foldMapWith (<>) return [5..8]
-    in ((S.toList . parallely) ((+) <$> s1 <*> s2) >>= return . sort)
+    in sort <$> (S.toList . parallely) ((+) <$> s1 <*> s2)
         `shouldReturn` sort ([6,7,7,8,8,8,9,9,9,9,10,10,10,11,11,12] :: [Int])
 
 interleaveCheck :: IsStream t
@@ -802,7 +799,7 @@ interleaveCheck :: IsStream t
 interleaveCheck t f =
     it "Interleave four" $
         (S.toList . t) ((singleton 0 `f` singleton 1) `f` (singleton 100 `f` singleton 101))
-            `shouldReturn` ([0, 100, 1, 101])
+            `shouldReturn` [0, 100, 1, 101]
 
 parallelCheck :: (IsStream t, Monad (t IO))
     => (t IO Int -> SerialT IO Int)
@@ -811,45 +808,45 @@ parallelCheck :: (IsStream t, Monad (t IO))
 parallelCheck t f = do
     it "Parallel ordering left associated" $
         (S.toList . t) (((event 4 `f` event 3) `f` event 2) `f` event 1)
-            `shouldReturn` ([1..4])
+            `shouldReturn` [1..4]
 
     it "Parallel ordering right associated" $
         (S.toList . t) (event 4 `f` (event 3 `f` (event 2 `f` event 1)))
-            `shouldReturn` ([1..4])
+            `shouldReturn` [1..4]
 
-    where event n = (S.yieldM $ threadDelay (n * 200000)) >> (return n)
+    where event n = S.yieldM (threadDelay (n * 200000)) >> return n
 
 compose :: (IsStream t, Semigroup (t IO Int))
     => (t IO Int -> SerialT IO Int) -> t IO Int -> ([Int] -> [Int]) -> Spec
 compose t z srt = do
     -- XXX these should get covered by the property tests
     it "Compose mempty, mempty" $
-        (tl (z <> z)) `shouldReturn` ([] :: [Int])
+        tl (z <> z) `shouldReturn` ([] :: [Int])
     it "Compose empty at the beginning" $
-        (tl $ (z <> singleton 1)) `shouldReturn` [1]
+        tl (z <> singleton 1) `shouldReturn` [1]
     it "Compose empty at the end" $
-        (tl $ (singleton 1 <> z)) `shouldReturn` [1]
+        tl (singleton 1 <> z) `shouldReturn` [1]
     it "Compose two" $
-        (tl (singleton 0 <> singleton 1) >>= return . srt)
+        srt <$> tl (singleton 0 <> singleton 1)
             `shouldReturn` [0, 1]
     it "Compose many" $
-        ((tl $ forEachWith (<>) [1..100] singleton) >>= return . srt)
+        srt <$> tl (forEachWith (<>) [1..100] singleton)
             `shouldReturn` [1..100]
 
     -- These are not covered by the property tests
     it "Compose three - empty in the middle" $
-        ((tl $ (singleton 0 <> z <> singleton 1)) >>= return . srt)
+        srt <$> tl (singleton 0 <> z <> singleton 1)
             `shouldReturn` [0, 1]
     it "Compose left associated" $
-        ((tl $ (((singleton 0 <> singleton 1) <> singleton 2) <> singleton 3))
-            >>= return . srt) `shouldReturn` [0, 1, 2, 3]
+        srt <$> tl (((singleton 0 <> singleton 1) <> singleton 2) <> singleton 3)
+            `shouldReturn` [0, 1, 2, 3]
     it "Compose right associated" $
-        ((tl $ (singleton 0 <> (singleton 1 <> (singleton 2 <> singleton 3))))
-            >>= return . srt) `shouldReturn` [0, 1, 2, 3]
+        srt <$> tl (singleton 0 <> (singleton 1 <> (singleton 2 <> singleton 3)))
+            `shouldReturn` [0, 1, 2, 3]
     it "Compose hierarchical (multiple levels)" $
-        ((tl $ (((singleton 0 <> singleton 1) <> (singleton 2 <> singleton 3))
+        srt <$> tl (((singleton 0 <> singleton 1) <> (singleton 2 <> singleton 3))
                 <> ((singleton 4 <> singleton 5) <> (singleton 6 <> singleton 7)))
-            ) >>= return . srt) `shouldReturn` [0..7]
+            `shouldReturn` [0..7]
     where tl = S.toList . t
 
 composeAndComposeSimple
@@ -865,20 +862,20 @@ composeAndComposeSimple
 composeAndComposeSimple t1 t2 answer = do
     let rfold = adapt . t2 . foldMapWith (<>) return
     it "Compose right associated outer expr, right folded inner" $
-         ((S.toList . t1) (rfold [1,2,3] <> (rfold [4,5,6] <> rfold [7,8,9])))
-            `shouldReturn` (answer !! 0)
+         (S.toList . t1) (rfold [1,2,3] <> (rfold [4,5,6] <> rfold [7,8,9]))
+            `shouldReturn` head answer
 
     it "Compose left associated outer expr, right folded inner" $
-         ((S.toList . t1) ((rfold [1,2,3] <> rfold [4,5,6]) <> rfold [7,8,9]))
+         (S.toList . t1) ((rfold [1,2,3] <> rfold [4,5,6]) <> rfold [7,8,9])
             `shouldReturn` (answer !! 1)
 
-    let lfold xs = adapt $ t2 $ foldl (<>) mempty $ map return xs
+    let lfold xs = adapt $ t2 $ foldl (<>) mempty $ fmap return xs
     it "Compose right associated outer expr, left folded inner" $
-         ((S.toList . t1) (lfold [1,2,3] <> (lfold [4,5,6] <> lfold [7,8,9])))
+         (S.toList . t1) (lfold [1,2,3] <> (lfold [4,5,6] <> lfold [7,8,9]))
             `shouldReturn` (answer !! 2)
 
     it "Compose left associated outer expr, left folded inner" $
-         ((S.toList . t1) ((lfold [1,2,3] <> lfold [4,5,6]) <> lfold [7,8,9]))
+         (S.toList . t1) ((lfold [1,2,3] <> lfold [4,5,6]) <> lfold [7,8,9])
             `shouldReturn` (answer !! 3)
 
 loops
@@ -888,10 +885,10 @@ loops
     -> ([Int] -> [Int])
     -> Spec
 loops t tsrt hsrt = do
-    it "Tail recursive loop" $ ((S.toList . adapt) (loopTail 0) >>= return . tsrt)
+    it "Tail recursive loop" $ (tsrt <$> (S.toList . adapt) (loopTail 0))
             `shouldReturn` [0..3]
 
-    it "Head recursive loop" $ ((S.toList . adapt) (loopHead 0) >>= return . hsrt)
+    it "Head recursive loop" $ (hsrt <$> (S.toList . adapt) (loopHead 0))
             `shouldReturn` [0..3]
 
     where
@@ -913,13 +910,14 @@ bindAndComposeSimple
 bindAndComposeSimple t1 t2 = do
     -- XXX need a bind in the body of forEachWith instead of a simple return
     it "Compose many (right fold) with bind" $
-        ((S.toList . t1) (adapt . t2 $ forEachWith (<>) [1..10 :: Int] return)
-            >>= return . sort) `shouldReturn` [1..10]
+        (sort <$> (S.toList . t1)
+                    (adapt . t2 $ forEachWith (<>) [1..10 :: Int] return))
+            `shouldReturn` [1..10]
 
     it "Compose many (left fold) with bind" $
-        let forL xs k = foldl (<>) nil $ map k xs
-         in ((S.toList . t1) (adapt . t2 $ forL [1..10 :: Int] return)
-                >>= return . sort) `shouldReturn` [1..10]
+        let forL xs k = foldl (<>) nil $ fmap k xs
+         in (sort <$> (S.toList . t1) (adapt . t2 $ forL [1..10 :: Int] return))
+            `shouldReturn` [1..10]
 
 bindAndComposeHierarchy
     :: ( IsStream t1, Monad (t1 IO)
@@ -928,16 +926,16 @@ bindAndComposeHierarchy
     -> (t2 IO Int -> t2 IO Int)
     -> ([t2 IO Int] -> t2 IO Int)
     -> Spec
-bindAndComposeHierarchy t1 t2 g = do
+bindAndComposeHierarchy t1 t2 g =
     it "Bind and compose nested" $
-        ((S.toList . t1) bindComposeNested >>= return . sort)
+        (sort <$> (S.toList . t1) bindComposeNested)
             `shouldReturn` (sort (
                    [12, 18]
-                ++ replicate 3 13
-                ++ replicate 3 17
-                ++ replicate 6 14
-                ++ replicate 6 16
-                ++ replicate 7 15) :: [Int])
+                <> replicate 3 13
+                <> replicate 3 17
+                <> replicate 6 14
+                <> replicate 6 16
+                <> replicate 7 15) :: [Int])
 
     where
 
@@ -960,9 +958,9 @@ bindAndComposeHierarchy t1 t2 g = do
            >>= \z -> return (x + y + z)
 
 mixedOps :: Spec
-mixedOps = do
+mixedOps =
     it "Compose many ops" $
-        (toListSerial composeMixed >>= return . sort)
+        (sort <$> toListSerial composeMixed)
             `shouldReturn` ([8,9,9,9,9,9,10,10,10,10,10,10,10,10,10,10,11,11
                             ,11,11,11,11,11,11,11,11,12,12,12,12,12,13
                             ] :: [Int])
@@ -972,8 +970,8 @@ mixedOps = do
     composeMixed = do
         S.yieldM $ return ()
         S.yieldM $ putStr ""
-        x <- return 1
-        y <- return 2
+        let x = 1
+        let y = 2
         z <- do
                 x1 <- wAsyncly $ return 1 <> return 2
                 S.yieldM $ return ()
@@ -990,9 +988,9 @@ mixedOps = do
         return (x + y + z)
 
 mixedOpsAheadly :: Spec
-mixedOpsAheadly = do
+mixedOpsAheadly =
     it "Compose many ops" $
-        (toListSerial composeMixed >>= return . sort)
+        (sort <$> toListSerial composeMixed)
             `shouldReturn` ([8,9,9,9,9,9,10,10,10,10,10,10,10,10,10,10,11,11
                             ,11,11,11,11,11,11,11,11,12,12,12,12,12,13
                             ] :: [Int])
@@ -1002,8 +1000,8 @@ mixedOpsAheadly = do
     composeMixed = do
         S.yieldM $ return ()
         S.yieldM $ putStr ""
-        x <- return 1
-        y <- return 2
+        let x = 1
+        let y = 2
         z <- do
                 x1 <- wAsyncly $ return 1 <> return 2
                 S.yieldM $ return ()

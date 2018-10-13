@@ -9,7 +9,7 @@ import System.Clock
 withTimeStamp msg = do
     t <- getTime Monotonic
     let ns = toNanoSecs t `mod` 10^11
-    putStrLn $ show (fromIntegral ns / 1.0e9) ++ " " ++ msg
+    putStrLn $ show (fromIntegral ns / 1.0e9) <> " " <> msg
 
 -- acidRain :: MonadAsync m => SerialT m Event
 producer =
