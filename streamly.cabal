@@ -319,7 +319,7 @@ benchmark linear
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.3 && < 0.3
+    , gauge               >= 0.2.4 && < 0.3
 
 benchmark linear-async
   type: exitcode-stdio-1.0
@@ -347,7 +347,7 @@ benchmark linear-async
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.3 && < 0.3
+    , gauge               >= 0.2.4 && < 0.3
 
 benchmark linear-rate
   type: exitcode-stdio-1.0
@@ -374,7 +374,7 @@ benchmark linear-rate
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.3 && < 0.3
+    , gauge               >= 0.2.4 && < 0.3
 
 benchmark nested
   type: exitcode-stdio-1.0
@@ -401,7 +401,7 @@ benchmark nested
     , base                >= 4.8   && < 5
     , deepseq             >= 1.4.0 && < 1.5
     , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.3 && < 0.3
+    , gauge               >= 0.2.4 && < 0.3
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
@@ -442,7 +442,7 @@ benchmark base
       base              >= 4.8   && < 5
     , deepseq           >= 1.4.0 && < 1.5
     , random            >= 1.0   && < 2.0
-    , gauge             >= 0.2.3 && < 0.3
+    , gauge             >= 0.2.4 && < 0.3
 
     , ghc-prim          >= 0.2   && < 0.6
     , containers        >= 0.5   && < 0.7

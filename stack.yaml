@@ -4,7 +4,7 @@ packages:
 allow-newer: true
 extra-deps:
     - SDL-0.6.6.0
-    - gauge-0.2.3
+    - gauge-0.2.4
     - Chart-1.9
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
