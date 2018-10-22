@@ -31,8 +31,8 @@ description:
   .
   For file IO, currently the library provides only one API to stream the lines
   in the file as Strings.  Future versions will provide better streaming file
-  IO options.  Streamly interworks with the popular streaming libraries, see
-  the interworking section in "Streamly.Tutorial".
+  IO options.  Streamly interoperates with the popular streaming libraries, see
+  the interoperation section in "Streamly.Tutorial".
   .
   Why use streamly?
   .
