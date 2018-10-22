@@ -55,9 +55,13 @@ description:
   .
   Where to find more information:
   .
-  * @README@ shipped with the package for a quick overview
-  * "Streamly.Tutorial" module in the haddock documentation for a detailed introduction
-  * @examples@ directory in the package for some simple practical examples
+  * /Quick Overview/: <src/README.md README file> in the package
+  * /Detailed Tutorial/: "Streamly.Tutorial" module in the haddock documentation
+  * /Reference Documentation/: Haddock documentation for the respective modules
+  * /Examples/: <src/examples examples directory> in the package
+  * /Guides/: <src/docs docs directory> in the package, for documentation on
+    advanced topics, limitations, semantics of the library or on specific use
+    cases.
 
 homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
@@ -75,7 +79,8 @@ cabal-version:       >= 1.10
 extra-source-files:
     Changelog.md
     README.md
-    docs/Async.md
+    docs/streamly-vs-async.md
+    docs/transformers.md
     bench.sh
     stack-7.10.yaml
     stack-8.0.yaml

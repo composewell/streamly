@@ -11,46 +11,57 @@
 ## Streaming Concurrently
 
 Haskell lists express pure computations using composable stream operations like
-`:`, `unfold`, `map`, `filter`, `zip` and `fold`.  Streamly extends this data
-flow programming model of pure lists to lists of concurrent monadic
-computations (streams) using the same primitives.
+`:`, `unfold`, `map`, `filter`, `zip` and `fold`.  Streamly is exactly like
+lists except that it can express sequences of pure as well as monadic
+computations aka streams. More importantly, it can express monadic sequences
+with concurrent execution semantics without introducing any additional APIs.
 
-Streamly expresses concurrency using the list primitives, and standard, well
-known abstractions, without having to know any low level notions of concurrency
-like threads, locking or synchronization. Concurrency is automatically scaled
-up or down based on the need of the application, so that we can say goodbye to
-managing thread pools and associated sizing issues as well.  This is true,
-fearless and declarative concurrency.  Streamly can be thought of as concurrent
-monadic lists, if you know Haskell lists then you already know how to use
-streamly.
+Streamly expresses concurrency using standard, well known abstractions.
+Concurrency semantics are defined for list operations, semigroup, applicative
+and monadic compositions. Programmer does not need to know any low level
+notions of concurrency like threads, locking or synchronization.  Concurrent
+and non-concurrent programs are fundamentally the same.  A chosen segment of
+the program can be made concurrent by annotating it with an appropriate
+combinator.  We can choose a combinator for lookahead style or asynchronous
+concurrency.  Concurrency is automatically scaled up or down based on the
+demand from the consumer application, we can finally say goodbye to managing
+thread pools and associated sizing issues.  The result is truly fearless
+and declarative monadic concurrency.
 
 ## Where to use streamly?
 
-Everywhere.  The answer to this question would be similar to the answer to -
-"Where do I use Haskell lists?".  Streamly generalizes lists to monadic
-streams, and IO monad to non-deterministic stream composition with concurrency.  The
-`IO` monad becomes a special case of streamly, if we use single element streams
-the behavior of streamly is identical to the IO monad.  It can be replaced with
-streamly by just prefixing IO actions with `liftIO`, without any loss of
-performance.  Pure lists too become a special case of streamly; if we use the
-`Identity` monad, streams turn into pure lists.  Non-concurrent programs become
-a special case of concurrent ones, by just adding a combinator, a non-concurrent
-program becomes concurrent.
+Streamly is a general purpose programming framwework.  It can be used equally
+efficiently from a simple `Hello World!` program to a massively concurrent
+application. The answer to the question, "where to use streamly?" - would be
+similar to the answer to - "Where to use Haskell lists or the IO monad?".
+Streamly generalizes lists to monadic streams, and the `IO` monad to
+non-deterministic and concurrent stream composition. The `IO` monad is a
+special case of streamly; if we use single element streams the behavior of
+streamly becomes identical to the IO monad.  The IO monad code can be replaced
+with streamly by just prefixing the IO actions with `liftIO`, without any other
+changes, and without any loss of performance.  Pure lists too are a special
+case of streamly; if we use `Identity` as the underlying monad, streamly
+streams turn into pure lists.  Non-concurrent programs are just a special case
+of concurrent ones, simply adding a combinator turns a non-concurrent program
+into a concurrent one.
 
-We can say that streamly is a superset of lists and IO, with builtin
-concurrency.  If you want to write a program that involves IO, concurrent or
-not, then you can just use streamly as the base monad, heck, you could even use
-streamly for pure computations, as streamly performs at par with pure lists or
-`vector`. In fact, streamly is better than lists because it appends much
-faster than lists, you do not need difference lists for that.
+In other words, streamly combines the functionality of lists and IO, with
+builtin concurrency.  If you want to write a program that involves IO,
+concurrent or not, then you can just use streamly as the base monad, in fact,
+you could even use streamly for pure computations, as streamly performs at par
+with pure lists or `vector`.
 
-If you need convincing for using streaming or data flow programming paradigm
-itself then try to answer this question - why do we use lists? It boils down to
-why we use functional programming in the first place, and Haskell is successful
-in enforcing this for pure computations, but not for monadic computations. In
-the absence of a standard, easy to use or enforced data flow programming
-library for monadic computations, and the IO monad providing an escape hatch to
-an imperative model, we just love to fall into the imperative trap.
+## Why data flow programming?
+
+If you need some convincing for using streaming or data flow programming
+paradigm itself then try to answer this question - why do we use lists in
+Haskell? It boils down to why we use functional programming in the first place.
+Haskell is successful in enforcing the functional data flow paradigm for pure
+computations using lists, but not for monadic computations. In the absence of a
+standard and easy to use data flow programming paradigm for monadic
+computations, and the IO monad providing an escape hatch to an imperative
+model, we just love to fall into the imperative trap, and start asking the same
+fundamental question again - why do we have to use the streaming data model?
 
 ## Show me an example
 
@@ -89,9 +100,9 @@ main = runStream $ aheadly $ listDirRecursive
 ```
 
 Isn't that magical? What's going on here? Streamly does not introduce any new
-abstractions, it just uses the standard abstractions like `Semigroup` or
+abstractions, it just uses standard abstractions like `Semigroup` or
 `Monoid` to combine monadic streams concurrently, the way lists combine a
-sequence of pure values non-concurrently. Therefore, the `foldMap` in the code
+sequence of pure values non-concurrently. The `foldMap` in the code
 above turns into a concurrent monoidal composition of a stream of `readdir`
 computations.
 
@@ -348,6 +359,22 @@ rate. Rate control works precisely even at throughputs as high as millions of
 yields per second. For more sophisticated rate control see the haddock
 documentation.
 
+## Exceptions
+
+From a library user point of view, there is nothing much to learn or talk about
+exceptions.  Synchronous exceptions work just the way they are supposed to work
+in any standard non-concurrent code. When concurrent streams are combined
+together, exceptions from the constituent streams are propagated to the
+consumer stream. When an exception occurs in any of the constituent streams
+other concurrent streams are promptly terminated. Exceptions can be thrown
+using the `MonadThrow` instance.
+
+There is no notion of explicit threads in streamly, therefore, no
+asynchronous exceptions to deal with. You can just ignore the zillions of
+blogs, talks, caveats about async exceptions. Async exceptions just don't
+exist.  Please don't use things like `myThreadId` and `throwTo` just for fun!
+
+
 ## Reactive Programming (FRP)
 
 Streamly is a foundation for first class reactive programming as well by virtue
@@ -418,6 +445,12 @@ For more information, see:
   * [Streaming benchmarks comparing streamly with other streaming libraries](https://github.com/composewell/streaming-benchmarks)
   * [Quick tutorial comparing streamly with the async package](https://github.com/composewell/streamly/blob/master/docs/Async.md)
   * [Concurrency benchmarks comparing streamly with async](https://github.com/composewell/concurrency-benchmarks)
+
+## Support
+
+If you require professional support, consulting, training or timely
+enhancements to the library please contact
+[support@composewell.com](mailto:support@composewell.com).
 
 ## Contributing
 
