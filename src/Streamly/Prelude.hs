@@ -589,6 +589,7 @@ foldl' step begin m = S.foldl' step begin $ toStreamS m
 -- starting value. Returns 'Nothing' if the stream is empty.
 --
 -- @since 0.5.0
+{-# INLINE foldl1' #-}
 foldl1' :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldl1' step m = do
     r <- uncons m
