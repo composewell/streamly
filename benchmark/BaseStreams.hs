@@ -45,7 +45,9 @@ main =
       , bgroup "elimination"
         [ benchIO "toNull" D.toNull D.sourceUnfoldrM
         , benchIO "uncons" D.uncons D.sourceUnfoldrM
-        , benchIO "nullHeadTail" D.nullHeadTail D.sourceUnfoldrM
+        , benchFold "tail" D.tail   D.sourceUnfoldrM
+        , benchIO "nullTail" D.nullTail D.sourceUnfoldrM
+        , benchIO "headTail" D.headTail D.sourceUnfoldrM
         ]
       , bgroup "transformation"
         [ benchIO "scanlM'" D.scan D.sourceUnfoldrM
@@ -96,7 +98,8 @@ main =
         , benchIO "uncons" K.uncons K.sourceUnfoldrM
         , benchFold "init" K.init   K.sourceUnfoldrM
         , benchFold "tail" K.tail   K.sourceUnfoldrM
-        , benchIO "nullHeadTail" K.nullHeadTail K.sourceUnfoldrM
+        , benchIO "nullTail" K.nullTail K.sourceUnfoldrM
+        , benchIO "headTail" K.headTail K.sourceUnfoldrM
         , benchFold "toList" K.toList K.sourceUnfoldrM
         , benchFold "fold"   K.foldl  K.sourceUnfoldrM
         , benchFold "last"   K.last   K.sourceUnfoldrM

@@ -266,10 +266,6 @@ elemIndices    = transform . S.elemIndices maxValue
 {-# INLINE concat #-}
 zip, zipM, concat  :: Monad m => Stream m Int -> m ()
 
-{-# INLINE zipAsync #-}
-{-# INLINE zipAsyncM #-}
-zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
-
 zip src       = do
     r <- S.tail src
     let src1 = fromJust r
@@ -278,6 +274,11 @@ zipM src      =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipWithM (curry return) src src1)
+
+{-# INLINE zipAsync #-}
+{-# INLINE zipAsyncM #-}
+zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
+
 zipAsync src  = do
     r <- S.tail src
     let src1 = fromJust r

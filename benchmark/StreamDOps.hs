@@ -10,6 +10,7 @@
 module StreamDOps where
 
 import Control.Monad (when)
+import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=),
          subtract, undefined, Maybe(..), not, mapM_, (>>=))
@@ -25,7 +26,8 @@ maxValue = value + 1000
 -------------------------------------------------------------------------------
 
 {-# INLINE uncons #-}
-{-# INLINE nullHeadTail #-}
+{-# INLINE nullTail #-}
+{-# INLINE headTail #-}
 {-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
@@ -43,7 +45,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-uncons, nullHeadTail, map, scan, filterEven, filterAllOut,
+uncons, nullTail, headTail, map, scan, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     -- concat,
     composeAllInFilters, composeAllOutFilters, composeMapAllInFilter
@@ -109,16 +111,27 @@ runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
 toNull = runStream
+
 uncons s = do
     r <- S.uncons s
     case r of
         Nothing -> return ()
         Just (_, t) -> uncons t
-nullHeadTail s = do
+
+{-# INLINE tail #-}
+tail :: Monad m => Stream m a -> m ()
+tail s = S.tail s >>= mapM_ tail
+
+nullTail s = do
     r <- S.null s
     when (not r) $ do
-        _ <- S.head s
-        S.tail s >>= mapM_ nullHeadTail
+        S.tail s >>= mapM_ nullTail
+
+headTail s = do
+    h <- S.head s
+    when (isJust h) $
+        S.tail s >>= mapM_ headTail
+
 toList = S.toList
 foldl  = S.foldl' (+) 0
 last   = S.last
@@ -163,7 +176,7 @@ composeAllInFilters   = compose (S.filter (<= maxValue))
 composeAllOutFilters  = compose (S.filter (> maxValue))
 composeMapAllInFilter = compose (S.filter (<= maxValue) . S.map (subtract 1))
 
-{-# INLINABLE composeScaling #-}
+{-# INLINE composeScaling #-}
 composeScaling :: Monad m => Int -> Stream m Int -> m ()
 composeScaling m =
     case m of
