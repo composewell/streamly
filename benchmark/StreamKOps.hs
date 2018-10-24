@@ -10,6 +10,7 @@
 module StreamKOps where
 
 import Control.Monad (when)
+import Data.Maybe (isJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
         subtract, undefined, Maybe(..), not, mapM_, (>>=))
@@ -28,7 +29,8 @@ maxValue = value + 1000
 
 {-# INLINE toNull #-}
 {-# INLINE uncons #-}
-{-# INLINE nullHeadTail #-}
+{-# INLINE nullTail #-}
+{-# INLINE headTail #-}
 {-# INLINE scan #-}
 {-# INLINE map #-}
 {-# INLINE filterEven #-}
@@ -44,7 +46,7 @@ maxValue = value + 1000
 {-# INLINE composeAllInFilters #-}
 {-# INLINE composeAllOutFilters #-}
 {-# INLINE composeMapAllInFilter #-}
-toNull, uncons, nullHeadTail, scan, map, filterEven, filterAllOut,
+toNull, uncons, nullTail, headTail, scan, map, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue, zip,
     concat, composeAllInFilters, composeAllOutFilters,
     composeMapAllInFilter
@@ -141,13 +143,15 @@ init s = do
 tail :: (Monad m, S.IsStream t) => t m a -> m ()
 tail s = S.tail s >>= mapM_ tail
 
--- | If the stream is not null get its head and tail and then do the same to
--- the tail.
-nullHeadTail s = do
+nullTail s = do
     r <- S.null s
     when (not r) $ do
-        _ <- S.head s
-        S.tail s >>= mapM_ nullHeadTail
+        S.tail s >>= mapM_ nullTail
+
+headTail s = do
+    h <- S.head s
+    when (isJust h) $
+        S.tail s >>= mapM_ headTail
 
 toList = S.toList
 foldl  = S.foldl' (+) 0
