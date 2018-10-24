@@ -101,7 +101,7 @@ fromStreamVar sv = Stream $ \st stp sng yld -> do
                         case fromException ex of
                             Just ThreadAbort ->
                                 unStream rest (rstState st) stp sng yld
-                            Nothing -> throwM ex
+                            Nothing -> liftIO (cleanupSVar sv) >> throwM ex
 
 {-# INLINE fromSVar #-}
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a

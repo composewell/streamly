@@ -2,6 +2,7 @@
 
 ### Bug Fixes
 
+* Cleanup any pending threads when an exception occurs.
 * Fixed a livelock in ahead style streams. The problem manifests sometimes when
   multiple streams are merged together in ahead style and one of them is a nil
   stream.
