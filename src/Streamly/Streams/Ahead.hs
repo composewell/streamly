@@ -625,7 +625,7 @@ newtype AheadT m a = AheadT {getAheadT :: Stream m a}
 -- 'AheadT' documentation for more details.
 --
 -- @since 0.3.0
-type Ahead a = AheadT IO a
+type Ahead = AheadT IO
 
 -- | Fix the type of a polymorphic stream as 'AheadT'.
 --

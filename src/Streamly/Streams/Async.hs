@@ -641,7 +641,7 @@ newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
 -- type @a@.  See 'AsyncT' documentation for more details.
 --
 -- @since 0.2.0
-type Async a = AsyncT IO a
+type Async = AsyncT IO
 
 -- | Fix the type of a polymorphic stream as 'AsyncT'.
 --
@@ -768,7 +768,7 @@ newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
 -- See 'WAsyncT' documentation for more details.
 --
 -- @since 0.2.0
-type WAsync a = WAsyncT IO a
+type WAsync = WAsyncT IO
 
 -- | Fix the type of a polymorphic stream as 'WAsyncT'.
 --

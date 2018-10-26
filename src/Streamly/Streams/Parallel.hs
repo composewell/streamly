@@ -331,7 +331,7 @@ newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
 -- See 'ParallelT' documentation for more details.
 --
 -- @since 0.2.0
-type Parallel a = ParallelT IO a
+type Parallel = ParallelT IO
 
 -- | Fix the type of a polymorphic stream as 'ParallelT'.
 --

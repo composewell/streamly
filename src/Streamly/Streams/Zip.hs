@@ -82,7 +82,7 @@ type ZipStream = ZipSerialM
 -- | An IO stream whose applicative instance zips streams serially.
 --
 -- @since 0.2.0
-type ZipSerial a = ZipSerialM IO a
+type ZipSerial = ZipSerialM IO
 
 -- | Fix the type of a polymorphic stream as 'ZipSerialM'.
 --
@@ -171,7 +171,7 @@ newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
 -- | An IO stream whose applicative instance zips streams wAsyncly.
 --
 -- @since 0.2.0
-type ZipAsync a = ZipAsyncM IO a
+type ZipAsync = ZipAsyncM IO
 
 -- | Fix the type of a polymorphic stream as 'ZipAsyncM'.
 --

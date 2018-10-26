@@ -127,7 +127,7 @@ newtype SerialT m a = SerialT {getSerialT :: Stream m a}
 -- for more details.
 --
 -- @since 0.2.0
-type Serial a = SerialT IO a
+type Serial = SerialT IO
 
 -- |
 -- @since 0.1.0
@@ -247,7 +247,7 @@ newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
 -- documentation for more details.
 --
 -- @since 0.2.0
-type WSerial a = WSerialT IO a
+type WSerial = WSerialT IO
 
 -- |
 -- @since 0.1.0
