@@ -103,17 +103,45 @@ function:
 
 ### race
 
-To run multiple actions and use the first result:
+There are two ways to achieve the race functionality, using `take` or using
+exceptions.
+
+#### `race` Using `take`
+
+We can run multiple actions concurrently and take the first result that
+arrives:
 
 ```haskell
   urls <- S.toList $ S.take 1 $ parallely $ getURL 1 |: getURL 2 |: S.nil
 ```
 
 After the first result arrives, the rest of the actions are canceled
-automatically.  You can take first `n` results as they arrive:
+automatically.  In general, we can take first `n` results as they arrive:
 
 ```haskell
   urls <- S.toList $ S.take 2 $ parallely $ getURL 1 |: getURL 2 |: S.nil
+```
+
+#### `race` Using Exceptions
+
+When an exception occurs in a concurrent stream all the concurrently running
+actions are cacnceled on arrival of the exception. This can be used to
+implement the race functionality. Each action in the stream can use an
+exception to communicate the result. As soon as the first result arrives all
+other actions will be canceled, for example:
+
+```haskell
+  data Result = Result String deriving Show
+  instance Exception Result
+
+  main = do
+      url <- try $ runStream $ parallely $
+                   (getURL 2 >>= throwM . Result)
+                |: (getURL 1 >>= throwM . Result)
+                |: S.nil
+      case url of
+          Left (e :: SomeException) -> print e
+          Right _ -> undefined
 ```
 
 ### mapConcurrently
