@@ -62,6 +62,8 @@ description:
   * /Guides/: <src/docs docs directory> in the package, for documentation on
     advanced topics, limitations, semantics of the library or on specific use
     cases.
+  * <https://github.com/composewell/streaming-benchmarks Streaming Benchmarks>
+  * <https://github.com/composewell/concurrency-benchmarks Concurrency Benchmarks>
 
 homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues

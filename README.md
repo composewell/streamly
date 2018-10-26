@@ -434,17 +434,19 @@ streaming with concurrency we can write FRP applications similar in concept to
 [Yampa](https://hackage.haskell.org/package/Yampa) or
 [reflex](https://hackage.haskell.org/package/reflex).
 
+See the `Comparison with existing packages` section at the end of the
+[tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
+
 ## Further Reading
 
 For more information, see:
 
-  * [A comprehensive tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
-  * [Some practical examples](https://github.com/composewell/streamly/tree/master/examples)
-  * See the `Comparison with existing packages` section at the end of the
-    [tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
-  * [Streaming benchmarks comparing streamly with other streaming libraries](https://github.com/composewell/streaming-benchmarks)
-  * [Quick tutorial comparing streamly with the async package](https://github.com/composewell/streamly/blob/master/docs/Async.md)
-  * [Concurrency benchmarks comparing streamly with async](https://github.com/composewell/concurrency-benchmarks)
+  * [Detailed tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
+  * [Reference documentation](https://hackage.haskell.org/package/streamly)
+  * [Examples](https://github.com/composewell/streamly/tree/master/examples)
+  * [Guides](https://github.com/composewell/streamly/blob/master/docs)
+  * [Streaming benchmarks](https://github.com/composewell/streaming-benchmarks)
+  * [Concurrency benchmarks](https://github.com/composewell/concurrency-benchmarks)
 
 ## Support
 
