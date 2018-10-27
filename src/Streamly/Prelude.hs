@@ -9,7 +9,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 #endif
 
-#include "Streams/inline.h"
+#include "Streams/inline.hs"
 
 -- |
 -- Module      : Streamly.Prelude

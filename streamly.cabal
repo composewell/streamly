@@ -88,7 +88,7 @@ extra-source-files:
     stack-8.0.yaml
     stack.yaml
     src/Streamly/Streams/Instances.hs
-    src/Streamly/Streams/inline.h
+    src/Streamly/Streams/inline.hs
 
 source-repository head
     type: git

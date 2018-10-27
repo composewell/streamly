@@ -7,7 +7,7 @@
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
 
-#include "inline.h"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Streams.StreamD

@@ -58,7 +58,7 @@ import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 
 #include "Instances.hs"
-#include "inline.h"
+#include "inline.hs"
 
 ------------------------------------------------------------------------------
 -- SerialT

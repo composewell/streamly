@@ -6,7 +6,7 @@
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
-#include "inline.h"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Streams.SVar
