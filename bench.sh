@@ -18,7 +18,6 @@ print_help () {
   echo "Use --base and --candidate to select the commits to compare."
   echo
   echo "Any arguments after a '--' are passed directly to guage"
-  echo "You can omit '--' if the gauge args used do not start with a '-'."
   exit
 }
 
