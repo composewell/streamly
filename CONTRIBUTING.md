@@ -75,6 +75,9 @@ any of the existing performance benchmarks. If you introduced something new
 then you may want to add benchmarks to check if it performs as well as expected
 by the programmers to deem it usable.
 
+See the README file in the `benchmark` directory for more details on how to run
+the benchmarks.
+
 ### Changelog
 
 Any new changes that affect the user of the library in some way must be
