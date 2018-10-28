@@ -1,7 +1,6 @@
 resolver: lts-12.11
 packages:
 - '.'
-allow-newer: true
 extra-deps:
     - SDL-0.6.6.0
     - gauge-0.2.4
@@ -9,6 +8,9 @@ extra-deps:
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
     - bench-show-0.2.1
+    - statistics-0.15.0.0
+    - dense-linear-algebra-0.1.0.0
+    - math-functions-0.3.0.2
 
 flags: {}
 extra-package-dbs: []

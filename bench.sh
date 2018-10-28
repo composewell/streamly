@@ -205,7 +205,7 @@ run_reports() {
     for i in $1
     do
         echo "Generating reports for ${i}..."
-        $prog --benchmark $i
+        $prog $(test "$GRAPH" = 1 && echo "--graphs") --benchmark $i
     done
 }
 
@@ -282,5 +282,5 @@ fi
 
 if test "$RAW" = "0"
 then
-    run_reports "$BENCHMARKS"
+  run_reports "$BENCHMARKS"
 fi
