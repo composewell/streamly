@@ -86,7 +86,9 @@ matrix:
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
-  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
+  # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
+  # So disable the benchmarks for this build.
+  - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y DISABLE_BENCH=y
     addons: {apt: {packages: [cabal-install-1.24,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
@@ -116,11 +118,11 @@ matrix:
 
   # Using stack builds, cabal builds get terminated because the tests
   # take more than 10 minutes and it does not produce any output until the end.
-  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3
-    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
+  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.4
+    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.3 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
-    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.3], sources: [hvr-ghc]}}
+  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.4 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
+    addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
     addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
@@ -133,8 +135,8 @@ matrix:
   # OS X builds
   # --------------------------------------------------------------------------
 
-  # GHC 8.2.2/cabal build using stack!
-  - env: BUILD=cabal-new RESOLVER=lts-11 GHCVER=8.2.2 GHC_OPTIONS=""
+  # GHC 8.4/cabal build using stack!
+  - env: BUILD=cabal-new RESOLVER=lts-12 GHCVER=8.4 GHC_OPTIONS=""
     os: osx
 
   # GHC 8.2.2/stack
