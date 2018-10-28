@@ -84,43 +84,66 @@ main =
         , benchIO "product" Ops.product
         ]
       , bgroup "transformation"
-        [ benchIO "scan" Ops.scan
-        , benchIO "map" Ops.map
-        , benchIO "fmap" Ops.fmap
-        , benchIO "mapM" (Ops.mapM serially)
-        , benchIO "mapMaybe" Ops.mapMaybe
-        , benchIO "mapMaybeM" Ops.mapMaybeM
+        [ benchIO "scan" (Ops.scan 1)
+        , benchIO "map" (Ops.map 1)
+        , benchIO "fmap" (Ops.fmap 1)
+        , benchIO "mapM" (Ops.mapM serially 1)
+        , benchIO "mapMaybe" (Ops.mapMaybe 1)
+        , benchIO "mapMaybeM" (Ops.mapMaybeM 1)
         , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
             Ops.sequence serially (Ops.sourceUnfoldrMAction n)
-        , benchIO "findIndices" Ops.findIndices
-        , benchIO "elemIndices" Ops.elemIndices
+        , benchIO "findIndices" (Ops.findIndices 1)
+        , benchIO "elemIndices" (Ops.elemIndices 1)
+        -- , benchIO "concat" Ops.concat
+        ]
+      , bgroup "transformationN"
+        [ benchIO "scan" (Ops.scan 4)
+        , benchIO "map" (Ops.map 4)
+        , benchIO "fmap" (Ops.fmap 4)
+        , benchIO "mapM" (Ops.mapM serially 4)
+        , benchIO "mapMaybe" (Ops.mapMaybe 4)
+        , benchIO "mapMaybeM" (Ops.mapMaybeM 4)
+        -- , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
+            -- Ops.sequence serially (Ops.sourceUnfoldrMAction n)
+        , benchIO "findIndices" (Ops.findIndices 4)
+        , benchIO "elemIndices" (Ops.elemIndices 4)
         -- , benchIO "concat" Ops.concat
         ]
       , bgroup "filtering"
-        [ benchIO "filter-even" Ops.filterEven
-        , benchIO "filter-all-out" Ops.filterAllOut
-        , benchIO "filter-all-in" Ops.filterAllIn
-        , benchIO "take-all" Ops.takeAll
-        , benchIO "takeWhile-true" Ops.takeWhileTrue
-        , benchIO "takeWhileM-true" Ops.takeWhileMTrue
-        , benchIO "drop-all" Ops.dropAll
-        , benchIO "dropWhile-true" Ops.dropWhileTrue
-        , benchIO "dropWhileM-true" Ops.dropWhileMTrue
+        [ benchIO "filter-even"     (Ops.filterEven 1)
+        , benchIO "filter-all-out"  (Ops.filterAllOut 1)
+        , benchIO "filter-all-in"   (Ops.filterAllIn 1)
+        , benchIO "take-all"        (Ops.takeAll 1)
+        , benchIO "takeWhile-true"  (Ops.takeWhileTrue 1)
+        , benchIO "takeWhileM-true" (Ops.takeWhileMTrue 1)
+        , benchIO "drop-all"        (Ops.dropAll 1)
+        , benchIO "dropWhile-true"  (Ops.dropWhileTrue 1)
+        , benchIO "dropWhileM-true" (Ops.dropWhileMTrue 1)
+        ]
+      , bgroup "filteringN"
+        [ benchIO "filter-even"     (Ops.filterEven 4)
+        , benchIO "filter-all-out"  (Ops.filterAllOut 4)
+        , benchIO "filter-all-in"   (Ops.filterAllIn 4)
+        , benchIO "take-all"        (Ops.takeAll 4)
+        , benchIO "takeWhile-true"  (Ops.takeWhileTrue 4)
+        , benchIO "takeWhileM-true" (Ops.takeWhileMTrue 4)
+        , benchIO "drop-all"        (Ops.dropAll 4)
+        , benchIO "dropWhile-true"  (Ops.dropWhileTrue 4)
+        , benchIO "dropWhileM-true" (Ops.dropWhileMTrue 4)
         ]
       , benchIO "zip" Ops.zip
       , benchIO "zipM" Ops.zipM
-      , bgroup "compose"
-        [ benchIO "mapM" Ops.composeMapM
-        , benchIO "map-with-all-in-filter" Ops.composeMapAllInFilter
-        , benchIO "all-in-filters" Ops.composeAllInFilters
-        , benchIO "all-out-filters" Ops.composeAllOutFilters
-        ]
-        -- Scaling with same operation in sequence
-      , bgroup "compose-scaling"
-        [ benchIO "1" $ Ops.composeScaling 1
-        , benchIO "2" $ Ops.composeScaling 2
-        , benchIO "3" $ Ops.composeScaling 3
-        , benchIO "4" $ Ops.composeScaling 4
-        ]
+    , bgroup "composed"
+      [ benchIO "scan-map"    (Ops.scanMap 4)
+      , benchIO "drop-map"    (Ops.dropMap 4)
+      , benchIO "drop-scan"   (Ops.dropScan 4)
+      , benchIO "take-drop"   (Ops.takeDrop 4)
+      , benchIO "take-scan"   (Ops.takeScan 4)
+      , benchIO "take-map"    (Ops.takeMap 4)
+      , benchIO "filter-drop" (Ops.filterDrop 4)
+      , benchIO "filter-take" (Ops.filterTake 4)
+      , benchIO "filter-scan" (Ops.filterScan 4)
+      , benchIO "filter-map"  (Ops.filterMap 4)
       ]
       ]
+    ]

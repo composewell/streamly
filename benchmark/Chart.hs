@@ -85,34 +85,51 @@ ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
 
 makeLinearGraphs :: Config -> String -> IO ()
 makeLinearGraphs cfg inputFile = do
-    ignoringErr $ graph inputFile "operations" $ cfg
-        { title = Just "Streamly operations"
-        , classifyBenchmark = \b ->
-                if not ("serially/" `isPrefixOf` b)
-                   || "/generation" `isInfixOf` b
-                   || "/compose" `isInfixOf` b
-                   || "/concat" `isSuffixOf` b
-                then Nothing
-                else Just ("Streamly", last $ splitOn "/" b)
+    ignoringErr $ graph inputFile "generation" $ cfg
+        { title = Just "Generation"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/generation/"
         }
 
-    ignoringErr $ graph inputFile "generation" $ cfg
-        { title = Just "Stream generation"
+    ignoringErr $ graph inputFile "elimination" $ cfg
+        { title = Just "Elimination"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/elimination/"
+        }
+
+    ignoringErr $ graph inputFile "transformation-zip" $ cfg
+        { title = Just "Transformation & Zip"
         , classifyBenchmark = \b ->
-                if "serially/generation" `isPrefixOf` b
+                if    "serially/transformation/" `isPrefixOf` b
+                   || "serially/zip" `isPrefixOf` b
                 then Just ("Streamly", last $ splitOn "/" b)
                 else Nothing
         }
 
-    ignoringErr $ graph inputFile "composition" $ cfg
-        { title = Just "Streamly composition performance"
-        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "serially/compose/"
+    ignoringErr $ graph inputFile "filtering" $ cfg
+        { title = Just "Filtering"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/filtering/"
         }
 
-    ignoringErr $ graph inputFile "composition-scaling"
+    ignoringErr $ graph inputFile "composed-transformation" $ cfg
+        { title = Just "Composed Transformation"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/transformationN/"
+        }
+
+    ignoringErr $ graph inputFile "composed-filtering"
         $ cfg
-        { title = Just "Streamly composition scaling"
-        , classifyBenchmark = fmap ("Streamly",) . stripPrefix "serially/compose-"
+        { title = Just "Composed Filtering"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/filteringN/"
+        }
+
+    ignoringErr $ graph inputFile "composed-mixed"
+        $ cfg
+        { title = Just "Composed Mixed"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/composed/"
         }
 
 ------------------------------------------------------------------------------
@@ -121,7 +138,7 @@ makeLinearGraphs cfg inputFile = do
 
 makeNestedGraphs :: Config -> String -> IO ()
 makeNestedGraphs cfg inputFile =
-    ignoringErr $ graph inputFile "nested-serial-diff" $ cfg
+    ignoringErr $ graph inputFile "nested-serial" $ cfg
         { title = Just "Nested serial"
         , classifyBenchmark = \b ->
             let ls = splitOn "/" b

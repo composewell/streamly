@@ -46,7 +46,7 @@ main =
         , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIO "mapM"   $ Ops.mapM asyncly
+        , benchIO "mapM"   $ Ops.mapM asyncly 1
         , benchSrcIO asyncly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
         , benchSrcIO asyncly "unfoldrM maxBuffer 1 (1000 ops)"
@@ -59,7 +59,7 @@ main =
         , benchSrcIO wAsyncly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO wAsyncly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIO "mapM"   $ Ops.mapM wAsyncly
+        , benchIO "mapM"   $ Ops.mapM wAsyncly 1
         ]
       -- unfoldr and fromFoldable are always serial and thereofore the same for
       -- all stream types.
@@ -69,7 +69,7 @@ main =
         , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIO       "mapM"  $ Ops.mapM aheadly
+        , benchIO       "mapM"  $ Ops.mapM aheadly 1
         , benchSrcIO aheadly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
         , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
@@ -84,7 +84,7 @@ main =
         , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
         -- , benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
         , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIO "mapM" $ Ops.mapM parallely
+        , benchIO "mapM" $ Ops.mapM parallely 1
         -- Zip has only one parallel flavor
         , benchIO "zip" Ops.zipAsync
         , benchIO "zipM" Ops.zipAsyncM
