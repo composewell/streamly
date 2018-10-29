@@ -43,41 +43,52 @@ main =
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM
         ]
       , bgroup "elimination"
-        [ benchIO "toNull" D.toNull D.sourceUnfoldrM
-        , benchIO "uncons" D.uncons D.sourceUnfoldrM
-        , benchFold "tail" D.tail   D.sourceUnfoldrM
+        [ benchIO "toNull"   D.toNull D.sourceUnfoldrM
+        , benchIO "uncons"   D.uncons D.sourceUnfoldrM
+        , benchFold "tail"   D.tail   D.sourceUnfoldrM
         , benchIO "nullTail" D.nullTail D.sourceUnfoldrM
         , benchIO "headTail" D.headTail D.sourceUnfoldrM
         ]
       , bgroup "transformation"
-        [ benchIO "scanlM'" D.scan D.sourceUnfoldrM
-        , benchIO "map"  D.map D.sourceUnfoldrM
-        , benchIO "mapM" D.mapM D.sourceUnfoldrM
+        [ benchIO "scan"    (D.scan 1) D.sourceUnfoldrM
+        , benchIO "map"     (D.map  1)  D.sourceUnfoldrM
+        , benchIO "mapM"    (D.mapM 1) D.sourceUnfoldrM
+        ]
+      , bgroup "transformationN"
+        [ benchIO "scan"    (D.scan 4) D.sourceUnfoldrM
+        , benchIO "map"     (D.map  4)  D.sourceUnfoldrM
+        , benchIO "mapM"    (D.mapM 4) D.sourceUnfoldrM
         ]
       , bgroup "filtering"
-        [ benchIO "filter-even"    D.filterEven D.sourceUnfoldrM
-        , benchIO "filter-all-out" D.filterAllOut D.sourceUnfoldrM
-        , benchIO "filter-all-in"  D.filterAllIn D.sourceUnfoldrM
-        , benchIO "take-all"       D.takeAll D.sourceUnfoldrM
-        , benchIO "takeWhile-true" D.takeWhileTrue D.sourceUnfoldrM
-        , benchIO "drop-all"       D.dropAll D.sourceUnfoldrM
-        , benchIO "dropWhile-true" D.dropWhileTrue D.sourceUnfoldrM
+        [ benchIO "filter-even"    (D.filterEven    1) D.sourceUnfoldrM
+        , benchIO "filter-all-out" (D.filterAllOut  1) D.sourceUnfoldrM
+        , benchIO "filter-all-in"  (D.filterAllIn   1) D.sourceUnfoldrM
+        , benchIO "take-all"       (D.takeAll       1) D.sourceUnfoldrM
+        , benchIO "takeWhile-true" (D.takeWhileTrue 1) D.sourceUnfoldrM
+        , benchIO "drop-all"       (D.dropAll       1) D.sourceUnfoldrM
+        , benchIO "dropWhile-true" (D.dropWhileTrue 1) D.sourceUnfoldrM
+        ]
+      , bgroup "filteringN"
+        [ benchIO "filter-even"    (D.filterEven    4) D.sourceUnfoldrM
+        , benchIO "filter-all-out" (D.filterAllOut  4) D.sourceUnfoldrM
+        , benchIO "filter-all-in"  (D.filterAllIn   4) D.sourceUnfoldrM
+        , benchIO "take-all"       (D.takeAll       4) D.sourceUnfoldrM
+        , benchIO "takeWhile-true" (D.takeWhileTrue 4) D.sourceUnfoldrM
+        , benchIO "drop-all"       (D.dropAll       4) D.sourceUnfoldrM
+        , benchIO "dropWhile-true" (D.dropWhileTrue 4) D.sourceUnfoldrM
         ]
       , benchIO "zip" D.zip D.sourceUnfoldrM
-      , bgroup "compose"
-        [ benchIO "mapM" D.composeMapM D.sourceUnfoldrM
-#if __GLASGOW_HASKELL__ != 802
-        , benchIO "map-with-all-in-filter" D.composeMapAllInFilter D.sourceUnfoldrM
-        , benchIO "all-in-filters" D.composeAllInFilters D.sourceUnfoldrM
-        , benchIO "all-out-filters" D.composeAllOutFilters D.sourceUnfoldrM
-#endif
-        ]
-        -- Scaling with same operation in sequence
-      , bgroup "compose-scaling"
-        [ benchIO "1" (D.composeScaling 1) D.sourceUnfoldrM
-        , benchIO "2" (D.composeScaling 2) D.sourceUnfoldrM
-        , benchIO "3" (D.composeScaling 3) D.sourceUnfoldrM
-        , benchIO "4" (D.composeScaling 4) D.sourceUnfoldrM
+      , bgroup "composed"
+        [ benchIO "scan-map"    (D.scanMap    4) D.sourceUnfoldrM
+        , benchIO "drop-map"    (D.dropMap    4) D.sourceUnfoldrM
+        , benchIO "drop-scan"   (D.dropScan   4) D.sourceUnfoldrM
+        , benchIO "take-drop"   (D.takeDrop   4) D.sourceUnfoldrM
+        , benchIO "take-scan"   (D.takeScan   4) D.sourceUnfoldrM
+        , benchIO "take-map"    (D.takeMap    4) D.sourceUnfoldrM
+        , benchIO "filter-drop" (D.filterDrop 4) D.sourceUnfoldrM
+        , benchIO "filter-take" (D.filterTake 4) D.sourceUnfoldrM
+        , benchIO "filter-scan" (D.filterScan 4) D.sourceUnfoldrM
+        , benchIO "filter-map"  (D.filterMap  4) D.sourceUnfoldrM
         ]
       ]
     , bgroup "streamK"
@@ -105,33 +116,47 @@ main =
         , benchFold "last"   K.last   K.sourceUnfoldrM
         ]
       , bgroup "transformation"
-        [ benchIO "scan"   K.scan K.sourceUnfoldrM
-        , benchIO "map"    K.map K.sourceUnfoldrM
-        , benchIO "mapM"   K.mapM K.sourceUnfoldrM
+        [ benchIO "scan"   (K.scan 1) K.sourceUnfoldrM
+        , benchIO "map"    (K.map  1) K.sourceUnfoldrM
+        , benchIO "mapM"   (K.mapM 1) K.sourceUnfoldrM
+        -- , benchIO "concat" K.concat K.sourceUnfoldrM
+        ]
+      , bgroup "transformationN"
+        [ benchIO "scan"   (K.scan 4) K.sourceUnfoldrM
+        , benchIO "map"    (K.map  4) K.sourceUnfoldrM
+        , benchIO "mapM"   (K.mapM 4) K.sourceUnfoldrM
         -- , benchIO "concat" K.concat K.sourceUnfoldrM
         ]
       , bgroup "filtering"
-        [ benchIO "filter-even"    K.filterEven K.sourceUnfoldrM
-        , benchIO "filter-all-out" K.filterAllOut K.sourceUnfoldrM
-        , benchIO "filter-all-in"  K.filterAllIn K.sourceUnfoldrM
-        , benchIO "take-all"       K.takeAll K.sourceUnfoldrM
-        , benchIO "takeWhile-true" K.takeWhileTrue K.sourceUnfoldrM
-        , benchIO "drop-all"       K.dropAll K.sourceUnfoldrM
-        , benchIO "dropWhile-true" K.dropWhileTrue K.sourceUnfoldrM
+        [ benchIO "filter-even"    (K.filterEven    1) K.sourceUnfoldrM
+        , benchIO "filter-all-out" (K.filterAllOut  1) K.sourceUnfoldrM
+        , benchIO "filter-all-in"  (K.filterAllIn   1) K.sourceUnfoldrM
+        , benchIO "take-all"       (K.takeAll       1) K.sourceUnfoldrM
+        , benchIO "takeWhile-true" (K.takeWhileTrue 1) K.sourceUnfoldrM
+        , benchIO "drop-all"       (K.dropAll       1) K.sourceUnfoldrM
+        , benchIO "dropWhile-true" (K.dropWhileTrue 1) K.sourceUnfoldrM
+        ]
+      , bgroup "filteringN"
+        [ benchIO "filter-even"    (K.filterEven    4) K.sourceUnfoldrM
+        , benchIO "filter-all-out" (K.filterAllOut  4) K.sourceUnfoldrM
+        , benchIO "filter-all-in"  (K.filterAllIn   4) K.sourceUnfoldrM
+        , benchIO "take-all"       (K.takeAll       4) K.sourceUnfoldrM
+        , benchIO "takeWhile-true" (K.takeWhileTrue 4) K.sourceUnfoldrM
+        , benchIO "drop-all"       (K.dropAll       4) K.sourceUnfoldrM
+        , benchIO "dropWhile-true" (K.dropWhileTrue 4) K.sourceUnfoldrM
         ]
       , benchIO "zip" K.zip K.sourceUnfoldrM
-      , bgroup "compose"
-        [ benchIO "mapM" K.composeMapM K.sourceUnfoldrM
-        , benchIO "map-with-all-in-filter" K.composeMapAllInFilter K.sourceUnfoldrM
-        , benchIO "all-in-filters" K.composeAllInFilters K.sourceUnfoldrM
-        , benchIO "all-out-filters" K.composeAllOutFilters K.sourceUnfoldrM
-        ]
-        -- Scaling with same operation in sequence
-      , bgroup "compose-scaling"
-        [ benchIO "1" (K.composeScaling 1) K.sourceUnfoldrM
-        , benchIO "2" (K.composeScaling 2) K.sourceUnfoldrM
-        , benchIO "3" (K.composeScaling 3) K.sourceUnfoldrM
-        , benchIO "4" (K.composeScaling 4) K.sourceUnfoldrM
+      , bgroup "composed"
+        [ benchIO "scan-map"    (K.scanMap    4) K.sourceUnfoldrM
+        , benchIO "drop-map"    (K.dropMap    4) K.sourceUnfoldrM
+        , benchIO "drop-scan"   (K.dropScan   4) K.sourceUnfoldrM
+        , benchIO "take-drop"   (K.takeDrop   4) K.sourceUnfoldrM
+        , benchIO "take-scan"   (K.takeScan   4) K.sourceUnfoldrM
+        , benchIO "take-map"    (K.takeMap    4) K.sourceUnfoldrM
+        , benchIO "filter-drop" (K.filterDrop 4) K.sourceUnfoldrM
+        , benchIO "filter-take" (K.filterTake 4) K.sourceUnfoldrM
+        , benchIO "filter-scan" (K.filterScan 4) K.sourceUnfoldrM
+        , benchIO "filter-map"  (K.filterMap  4) K.sourceUnfoldrM
         ]
       ]
     ]

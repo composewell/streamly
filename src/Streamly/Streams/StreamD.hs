@@ -93,6 +93,7 @@ module Streamly.Streams.StreamD
     -- * Transformation
     -- ** By folding (scans)
     , scanlM'
+    , scanl'
 
     -- * Filtering
     , filter
@@ -499,6 +500,10 @@ postscanlM' fstep begin (Stream step state) =
 {-# INLINE scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
+
+{-# INLINE scanl' #-}
+scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+scanl' f = scanlM' (\a b -> return (f a b))
 
 -------------------------------------------------------------------------------
 -- Filtering

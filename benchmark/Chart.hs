@@ -174,20 +174,39 @@ makeBaseGraphs cfg inputFile = do
 -- text reports
 ------------------------------------------------------------------------------
 
+selectBench :: (SortColumn -> Either String [(String, Double)]) -> [String]
+selectBench f =
+    reverse
+    $ fmap fst
+    $ either
+      (const $ either error id $ f $ ColumnIndex 0)
+      (sortOn snd)
+      $ f $ ColumnIndex 1
+
 benchShow Options{..} cfg func inp out =
     if genGraphs
     then func cfg {outputDir = Just out} inp
-    else
-        ignoringErr $ report inp Nothing $ cfg
-            { selectBenchmarks =
-                  \f ->
-                        reverse
-                      $ fmap fst
-                      $ either
-                          (const $ either error id $ f $ ColumnIndex 0)
-                          (sortOn snd)
-                          $ f $ ColumnIndex 1
+    else ignoringErr $ report inp Nothing $ cfg
+            { selectBenchmarks = selectBench }
+
+showStreamDVsK Options{..} cfg func inp out =
+    let cfg' = cfg
+            { classifyBenchmark = classify
+            , selectBenchmarks = selectBench
             }
+    in if genGraphs
+       then ignoringErr $ graph inp "streamD-vs-streamK"
+                cfg' {outputDir = Just out}
+       else ignoringErr $ report inp Nothing cfg'
+
+    where
+        classify b =
+                if "streamD/" `isPrefixOf` b
+                then fmap ("streamD",) $ stripPrefix "streamD/" b
+                else
+                    if "streamK/" `isPrefixOf` b
+                    then fmap ("streamK",) $ stripPrefix "streamK/" b
+                    else Nothing
 
 main :: IO ()
 main = do
@@ -212,6 +231,6 @@ main = do
                 Nested -> benchShow opts cfg makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
-                Base -> benchShow opts cfg makeBaseGraphs
+                Base -> showStreamDVsK opts cfg makeBaseGraphs
                             "charts/base/results.csv"
                             "charts/base"
