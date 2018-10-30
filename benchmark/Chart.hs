@@ -207,13 +207,11 @@ showStreamDVsK Options{..} cfg func inp out =
        else ignoringErr $ report inp Nothing cfg'
 
     where
-        classify b =
-                if "streamD/" `isPrefixOf` b
-                then fmap ("streamD",) $ stripPrefix "streamD/" b
-                else
-                    if "streamK/" `isPrefixOf` b
-                    then fmap ("streamK",) $ stripPrefix "streamK/" b
-                    else Nothing
+
+    classify b
+        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
+        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
+        | otherwise = Nothing
 
 main :: IO ()
 main = do

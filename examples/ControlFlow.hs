@@ -48,7 +48,7 @@ getSequenceMaybeBelow = do
     liftIO $ putStrLn "MaybeT below streamly: Enter one char per line: "
 
     i <- S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r1 <- liftIO getLine
     when (r1 /= "x") $ lift mzero
@@ -78,13 +78,13 @@ getSequenceMaybeAbove = do
     liftIO $ putStrLn "MaybeT above streamly: Enter one char per line: "
 
     i <- lift $ S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r1 <- liftIO getLine
-    when (r1 /= "x") $ mzero
+    when (r1 /= "x") mzero
 
     r2 <- liftIO getLine
-    when (r2 /= "y") $ mzero
+    when (r2 /= "y") mzero
 
 mainMaybeAbove :: (IsStream t, MonadIO (t m)) => MaybeT (t m) ()
 mainMaybeAbove = do
@@ -111,13 +111,13 @@ getSequenceEitherBelow = do
     liftIO $ putStrLn "ExceptT below streamly: Enter one char per line: "
 
     i <- S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r1 <- liftIO getLine
-    when (r1 /= "x") $ lift $ throwE $ "Expecting x got: " ++ r1
+    when (r1 /= "x") $ lift $ throwE $ "Expecting x got: " <> r1
 
     r2 <- liftIO getLine
-    when (r2 /= "y") $ lift $ throwE $ "Expecting y got: " ++ r2
+    when (r2 /= "y") $ lift $ throwE $ "Expecting y got: " <> r2
 
 mainEitherBelow :: IO ()
 mainEitherBelow = do
@@ -140,7 +140,7 @@ getSequenceEitherAsyncBelow
        , MonadAsync m
        , MonadIO (t m)
        , MonadIO (t (ExceptT String m))
-       , Semigroup (t (ExceptT [Char] m) Integer)
+       , Semigroup (t (ExceptT String m) Integer)
        )
     => t (ExceptT String m) ()
 getSequenceEitherAsyncBelow = do
@@ -151,11 +151,11 @@ getSequenceEitherAsyncBelow = do
             >> return 1)
             <> (lift (throwE "Second task") >> return 2)
             <> S.yield (3 :: Integer)
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
 mainEitherAsyncBelow :: IO ()
 mainEitherAsyncBelow = do
-    r <- runExceptT (runStream $ asyncly $ getSequenceEitherAsyncBelow)
+    r <- runExceptT (runStream $ asyncly getSequenceEitherAsyncBelow)
     case r of
         Right _ -> liftIO $ putStrLn "Bingo"
         Left s  -> liftIO $ putStrLn s
@@ -178,25 +178,25 @@ getSequenceEitherAbove = do
     liftIO $ putStrLn "ExceptT above streamly: Enter one char per line: "
 
     i <- lift $ S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r1 <- liftIO getLine
-    when (r1 /= "x") $ throwE $ "Expecting x got: " ++ r1
+    when (r1 /= "x") $ throwE $ "Expecting x got: " <> r1
 
     r2 <- liftIO getLine
-    when (r2 /= "y") $ throwE $ "Expecting y got: " ++ r2
+    when (r2 /= "y") $ throwE $ "Expecting y got: " <> r2
 
 mainEitherAbove :: (IsStream t, Monad m, MonadIO (t m))
     => ExceptT String (t m) ()
-mainEitherAbove = do
+mainEitherAbove =
     catchE (getSequenceEitherAbove >> liftIO (putStrLn "Bingo"))
-           (\e -> liftIO $ putStrLn e)
+           (liftIO . putStrLn)
 
 -------------------------------------------------------------------------------
 -- Using MonadThrow to throw exceptions in streamly
 -------------------------------------------------------------------------------
 --
-data Unexpected = Unexpected String deriving Show
+newtype Unexpected = Unexpected String deriving Show
 
 instance Exception Unexpected
 
@@ -209,18 +209,18 @@ getSequenceMonadThrow = do
     liftIO $ putStrLn "MonadThrow in streamly: Enter one char per line: "
 
     i <- S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r1 <- liftIO getLine
-    when (r1 /= "x") $ throwM $ Unexpected $ "Expecting x got: " ++ r1
+    when (r1 /= "x") $ throwM $ Unexpected $ "Expecting x got: " <> r1
 
     r2 <- liftIO getLine
-    when (r2 /= "y") $ throwM $ Unexpected $ "Expecting y got: " ++ r2
+    when (r2 /= "y") $ throwM $ Unexpected $ "Expecting y got: " <> r2
 
 mainMonadThrow :: IO ()
-mainMonadThrow = do
+mainMonadThrow =
     catch (runStream getSequenceMonadThrow >> liftIO (putStrLn "Bingo"))
-          (\(e :: SomeException) -> liftIO $ putStrLn $ show e)
+          (\(e :: SomeException) -> liftIO $ print e)
 
 -------------------------------------------------------------------------------
 -- Using ContT below streamly
@@ -238,19 +238,19 @@ getSequenceContBelow = do
     liftIO $ putStrLn "ContT below streamly: Enter one char per line: "
 
     i <- S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     r <- lift $ callCC $ \exit -> do
         r1 <- liftIO getLine
         _ <- if r1 /= "x"
-             then exit $ Left $ "Expecting x got: " ++ r1
+             then exit $ Left $ "Expecting x got: " <> r1
              else return $ Right ()
 
         r2 <- liftIO getLine
         if r2 /= "y"
-        then exit $ Left $ "Expecting y got: " ++ r2
+        then exit $ Left $ "Expecting y got: " <> r2
         else return $ Right ()
-    liftIO $ putStrLn $ "done iteration = " ++ show i
+    liftIO $ putStrLn $ "done iteration = " <> show i
     return r
 
 mainContBelow
@@ -272,17 +272,17 @@ getSequenceContAbove = do
     liftIO $ putStrLn "ContT above streamly: Enter one char per line: "
 
     i <- lift $ S.fromFoldable [1..2 :: Int]
-    liftIO $ putStrLn $ "iteration = " ++ show i
+    liftIO $ putStrLn $ "iteration = " <> show i
 
     callCC $ \exit -> do
         r1 <- liftIO getLine
         _ <- if r1 /= "x"
-             then exit $ Left $ "Expecting x got: " ++ r1
+             then exit $ Left $ "Expecting x got: " <> r1
              else return $ Right ()
 
         r2 <- liftIO getLine
         if r2 /= "y"
-        then exit $ Left $ "Expecting y got: " ++ r2
+        then exit $ Left $ "Expecting y got: " <> r2
         else return $ Right ()
 
 mainContAbove :: (IsStream t, Monad m, MonadIO (t m)) => ContT r (t m) ()

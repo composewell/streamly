@@ -124,13 +124,11 @@ tail s = S.tail s >>= mapM_ tail
 
 nullTail s = do
     r <- S.null s
-    when (not r) $ do
-        S.tail s >>= mapM_ nullTail
+    when (not r) $ S.tail s >>= mapM_ nullTail
 
 headTail s = do
     h <- S.head s
-    when (isJust h) $
-        S.tail s >>= mapM_ headTail
+    when (isJust h) $ S.tail s >>= mapM_ headTail
 
 toList = S.toList
 foldl  = S.foldl' (+) 0
