@@ -1,3 +1,8 @@
+## Unreleased
+
+* Add benchmarks to measure composed and iterated operations
+* Performance improvements
+
 ## 0.5.2
 
 ### Bug Fixes
