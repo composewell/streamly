@@ -158,9 +158,11 @@ nil :: Monad m => Stream m a
 nil = Stream (\_ _ -> return Stop) ()
 
 -- | Can fuse but has O(n^2) complexity.
+{-# INLINE_NORMAL cons #-}
 cons :: Monad m => a -> Stream m a -> Stream m a
 cons x (Stream step state) = Stream step1 Nothing
     where
+    {-# INLINE_LATE step1 #-}
     step1 _ Nothing   = return $ Yield x (Just state)
     step1 gst (Just st) = do
         r <- step (rstState gst) st
@@ -497,7 +499,7 @@ postscanlM' fstep begin (Stream step state) =
                 y `seq` return (Yield y (s, y))
             Stop -> return Stop
 
-{-# INLINE scanlM' #-}
+{-# INLINE_LATE scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
 
