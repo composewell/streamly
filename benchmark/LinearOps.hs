@@ -7,6 +7,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module LinearOps where
 
@@ -16,6 +17,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound)
+import qualified Prelude as P
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -284,6 +286,41 @@ dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
+
+-------------------------------------------------------------------------------
+-- Iteration
+-------------------------------------------------------------------------------
+
+{-# INLINE iterateSource #-}
+iterateSource
+    :: S.MonadAsync m
+    => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
+iterateSource g i n = f i (sourceUnfoldrMN 10 n)
+    where
+        f (0 :: Int) m = g m
+        f x m = g (f (x P.- 1) m)
+
+{-# INLINE iterateMapM #-}
+{-# INLINE iterateScan #-}
+{-# INLINE iterateFilterEven #-}
+{-# INLINE iterateTakeAll #-}
+{-# INLINE iterateDropOne #-}
+{-# INLINE iterateDropWhileFalse #-}
+{-# INLINE iterateDropWhileTrue #-}
+iterateMapM, iterateScan, iterateFilterEven, iterateTakeAll, iterateDropOne,
+    iterateDropWhileFalse, iterateDropWhileTrue
+    :: S.MonadAsync m
+    => Int -> Stream m Int
+
+-- this is quadratic
+iterateScan            = iterateSource (S.scanl' (+) 0) 1000
+
+iterateMapM            = iterateSource (S.mapM return) 100000
+iterateFilterEven      = iterateSource (S.filter even) 100000
+iterateTakeAll         = iterateSource (S.take maxValue) 100000
+iterateDropOne         = iterateSource (S.drop 1) 100000
+iterateDropWhileFalse  = iterateSource (S.dropWhile (<= 1)) 100000
+iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) 100000
 
 -------------------------------------------------------------------------------
 -- Zipping and concat

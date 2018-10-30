@@ -132,6 +132,13 @@ makeLinearGraphs cfg inputFile = do
             fmap ("Streamly",) . stripPrefix "serially/composed/"
         }
 
+    ignoringErr $ graph inputFile "iterated"
+        $ cfg
+        { title = Just "Iterated Ops"
+        , classifyBenchmark =
+            fmap ("Streamly",) . stripPrefix "serially/iterated/"
+        }
+
 ------------------------------------------------------------------------------
 -- Nested composition charts
 ------------------------------------------------------------------------------

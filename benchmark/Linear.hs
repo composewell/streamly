@@ -145,5 +145,14 @@ main =
       , benchIO "filter-scan" (Ops.filterScan 4)
       , benchIO "filter-map"  (Ops.filterMap 4)
       ]
+    , bgroup "iterated"
+      [ benchSrcIO serially "mapM"           Ops.iterateMapM
+      , benchSrcIO serially "scan"           Ops.iterateScan
+      , benchSrcIO serially "filterEven"     Ops.iterateFilterEven
+      , benchSrcIO serially "takeAll"        Ops.iterateTakeAll
+      , benchSrcIO serially "dropOne"        Ops.iterateDropOne
+      , benchSrcIO serially "dropWhileFalse" Ops.iterateDropWhileFalse
+      , benchSrcIO serially "dropWhileTrue"  Ops.iterateDropWhileTrue
+      ]
       ]
     ]
