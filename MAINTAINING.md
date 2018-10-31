@@ -50,7 +50,7 @@
         * Check haddocks on Hackage, upload if not built
         * Announce to haskell-cafe@haskell.org
 
-## Managing Changes
+## Issue Labels
 
 ### User Impacting Changes
 
@@ -63,6 +63,7 @@ breaking, enhancement:
 * deprecating
 * enhancement
 * performance
+* usability
 * documentation
 * bug
 
@@ -81,6 +82,19 @@ following:
 * question
 * wontfix
 * maintenance
+* testing
+
+### Feature Labels
+
+For big features with many issues we can introduce a custom feature label to
+group the issues together.
+
+### Other Labels
+
+* help wanted
+* duplicate
+
+## Managing Changes
 
 ### Planning and Tracking Changes
 
