@@ -242,14 +242,16 @@ composeN' n f =
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
 {-# INLINE takeWhileMTrue #-}
+{-# INLINE dropOne #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileMTrue #-}
+{-# INLINE dropWhileFalse #-}
 {-# INLINE findIndices #-}
 {-# INLINE elemIndices #-}
 scan, map, fmap, mapMaybe, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropAll,
-    dropWhileTrue, dropWhileMTrue,
+    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices
     :: Monad m
     => Int -> Stream m Int -> m ()
@@ -281,9 +283,11 @@ takeOne       n = composeN n $ S.take 1
 takeAll       n = composeN n $ S.take maxValue
 takeWhileTrue n = composeN n $ S.takeWhile (<= maxValue)
 takeWhileMTrue n = composeN n $ S.takeWhileM (return . (<= maxValue))
+dropOne        n = composeN n $ S.drop 1
 dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
+dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
 

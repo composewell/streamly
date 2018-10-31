@@ -115,10 +115,12 @@ main =
         , benchIO "filter-all-in"   (Ops.filterAllIn 1)
         , benchIO "take-all"        (Ops.takeAll 1)
         , benchIO "takeWhile-true"  (Ops.takeWhileTrue 1)
-        , benchIO "takeWhileM-true" (Ops.takeWhileMTrue 1)
+        --, benchIO "takeWhileM-true" (Ops.takeWhileMTrue 1)
+        , benchIO "drop-one"        (Ops.dropOne 1)
         , benchIO "drop-all"        (Ops.dropAll 1)
         , benchIO "dropWhile-true"  (Ops.dropWhileTrue 1)
-        , benchIO "dropWhileM-true" (Ops.dropWhileMTrue 1)
+        --, benchIO "dropWhileM-true" (Ops.dropWhileMTrue 1)
+        , benchIO "dropWhile-false" (Ops.dropWhileFalse 1)
         ]
       , bgroup "filteringN"
         [ benchIO "filter-even"     (Ops.filterEven 4)
@@ -126,10 +128,12 @@ main =
         , benchIO "filter-all-in"   (Ops.filterAllIn 4)
         , benchIO "take-all"        (Ops.takeAll 4)
         , benchIO "takeWhile-true"  (Ops.takeWhileTrue 4)
-        , benchIO "takeWhileM-true" (Ops.takeWhileMTrue 4)
+        --, benchIO "takeWhileM-true" (Ops.takeWhileMTrue 4)
+        , benchIO "drop-one"        (Ops.dropOne 4)
         , benchIO "drop-all"        (Ops.dropAll 4)
         , benchIO "dropWhile-true"  (Ops.dropWhileTrue 4)
-        , benchIO "dropWhileM-true" (Ops.dropWhileMTrue 4)
+        --, benchIO "dropWhileM-true" (Ops.dropWhileMTrue 4)
+        , benchIO "dropWhile-false" (Ops.dropWhileFalse 4)
         ]
       , benchIO "zip" Ops.zip
       , benchIO "zipM" Ops.zipM
@@ -147,7 +151,7 @@ main =
       ]
     , bgroup "iterated"
       [ benchSrcIO serially "mapM"           Ops.iterateMapM
-      , benchSrcIO serially "scan"           Ops.iterateScan
+      , benchSrcIO serially "scan(1/100)"    Ops.iterateScan
       , benchSrcIO serially "filterEven"     Ops.iterateFilterEven
       , benchSrcIO serially "takeAll"        Ops.iterateTakeAll
       , benchSrcIO serially "dropOne"        Ops.iterateDropOne
