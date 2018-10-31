@@ -9,26 +9,53 @@ we will appreciate if you provide as much detail as possible to reproduce or
 understand the problem, but nevertheless you are encouraged to open an issue
 for any problem that you may encounter.
 
-## Developer documentation
-
-Build haddock with the `--show-all` option to see the documentation for all
-modules including the ones not exposed to users of the library.
-For example,
-`stack haddock --haddock-arguments "--show-all" --no-haddock-deps`.
-
 ## Pull Requests (PR)
 
 Please feel free to [send a pull
-request (PR)](https://github.com/composewell/streamly/pulls) whether it is a single
-letter typo fix in documentation or a more complex change. If the feature makes
-significant changes to design, we encourage you to open an issue as early as
-possible so that you do not have to redo much work because of changes in design
-decisions. However, if you are confident, you can still go ahead and take that
-risk.
+request (PR)](https://github.com/composewell/streamly/pulls) whether it is a
+single letter typo fix or a complex change.  We will accept any PR that makes a
+net positive change to the package. We encourage you to provide a complete,
+consistent change with test, documentation and benchmarks. You can contact the
+[maintainers](https://gitter.im/composewell/streamly) for any help or
+collaboration needed in that regard. However, if due to lack of time you are
+not able to complete the PR, you are still welcome to submit it, maintainers
+will try their best to actively contribute and pick up your change as long as
+the change is approved.
+
+## Pull Request (PR) Checklist
+
+Here is a quick checklist for a PR, for details please see the next section:
+
+* PR contains one logical changeset
+* Each commit in the PR consists of a logical change
+* Commits are rebased/squashed/fixup/reordered as needed
+* Stylistic changes to irrelevant parts of the code are separated in
+  independent commits.
+* Code is formatted as per the style of the file or that of other files
+* Compiler warnings are fixed
+* Reasonable hlint suggestions are accepted
+* Tests are added to cover the changed parts
+* All [tests](test) pass
+* [Performance benchmarks](benchmark) are added, where applicable
+* No significant regressions are reported by [performance benchmarks](benchmark/README.md)
+* Haddock documentation is added to user visible APIs and data types
+* Tutorial module, [README](README.md), and [guides](docs) are updated if
+  necessary.
+* [Changelog](Changelog.md) is updated if needed
+
+## Contributing A Change
+
+If the feature makes significant changes to design, we encourage you to open an
+issue as early as possible so that you do not have to redo much work because of
+changes in design decisions. However, if you are confident, you can still go
+ahead and take that risk as the maintainers are supposed to be reasonable
+people.
 
 ### Picking Issues to Work on
 
-Beginners are encouraged to pick up issues that are marked `help wanted`.
+Beginners are encouraged to pick up issues that are marked `help wanted`. It is
+a good idea to update the issue expressing your intent so that others do not
+duplicate the effort and people with a background on the issue can help.
 
 ### Changeset in a PR
 
@@ -60,13 +87,16 @@ BRANCH.
 
 ### Testing
 
-It is a good idea to include tests for the changes where applicable.
+It is a good idea to include tests for the changes where applicable. See the
+existing tests [here](test).
 
 ### Documentation
 
 For user visible APIs, it is a good idea to provide haddock documentation that
 is easily understood by the end programmer and does not sound highfalutin,
-and preferably with examples.
+and preferably with examples. If your change affects the tutorial or needs to
+be mentioned in the tutorial then please update the tutorial. Check if the
+additional [guides](docs) are affected or need to updated.
 
 ### Performance Benchmarks
 
@@ -75,8 +105,8 @@ any of the existing performance benchmarks. If you introduced something new
 then you may want to add benchmarks to check if it performs as well as expected
 by the programmers to deem it usable.
 
-See the README file in the `benchmark` directory for more details on how to run
-the benchmarks.
+See the [README](benchmark/README) file in the `benchmark` directory for more
+details on how to run the benchmarks.
 
 ### Changelog
 
@@ -98,6 +128,13 @@ If you make changes that are incompatible with the released versions
 of the library please indicate that in the `Changelog` as `Breaking Changes`
 and also write short notes regarding what the programmers need to do to adapt
 their existing code to the new change.
+
+## Developer documentation
+
+Build haddock with the `--show-all` option to see the documentation for all
+modules including the ones not exposed to users of the library.
+For example,
+`stack haddock --haddock-arguments "--show-all" --no-haddock-deps`.
 
 ## Coding
 

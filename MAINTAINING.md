@@ -1,5 +1,16 @@
 # Maintainers' Guide
 
+## PR Merge Checklist
+
+* All the CI tests pass
+* New tests are added where applicable
+* Benchmarks are added where applicable
+* hlint
+* Run benchmarks locally if you suspect any regressions
+* If the PR is by someone other than you yourself then merge with a merge
+  commit, otherwise merge by rebasing on master without a separate merge
+  commit.
+
 ## Release Checklist
 
 * Check if any critical pending bugs or issues are to be included
@@ -50,11 +61,11 @@
         * Check haddocks on Hackage, upload if not built
         * Announce to haskell-cafe@haskell.org
 
-## Issue Labels
+## Managing Issues
 
 ### User Impacting Changes
 
-__RULE__ Any commit that may affect the end user in some way MUST have either a
+__RULE__: Any commit that may affect the end user in some way MUST have either a
 changelog entry OR MUST have an issue marked with one of the following labels
 OR both.  We can have more than one of these labels on the same issue e.g.
 breaking, enhancement:
@@ -78,11 +89,12 @@ changelog entry or an issue.  Issues that do not have a corresponding commit
 may be left without a label but preferably should be marked with one of the
 following:
 
-* invalid
 * question
-* wontfix
+* discussion
 * maintenance
 * testing
+* invalid
+* wontfix
 
 ### Feature Labels
 
@@ -93,10 +105,9 @@ group the issues together.
 
 * help wanted
 * duplicate
+* deferred
 
-## Managing Changes
-
-### Planning and Tracking Changes
+## Correlating Changes, Issues and Releases
 
 For planning purposes, open issues may be marked with milestones or target
 releases.  However, it may not always be known which release a fix will finally
@@ -121,7 +132,7 @@ following:
   release that affects the end user, especially bugs and breaking changes MUST
   have the target release correctly set.
 
-### Changelog Management
+## Changelog Management
 
 Keep the unreleased changes in the `Unreleased` section at the top of changelog
 file.  Using `Unreleased` instead of the next release number for unreleased
