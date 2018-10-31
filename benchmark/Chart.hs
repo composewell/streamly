@@ -186,21 +186,17 @@ selectBench f =
     reverse
     $ fmap fst
     $ either
-      (const $ either error id $ f $ ColumnIndex 0)
+      (const $ either error (sortOn snd) $ f $ ColumnIndex 0)
       (sortOn snd)
       $ f $ ColumnIndex 1
 
 benchShow Options{..} cfg func inp out =
     if genGraphs
     then func cfg {outputDir = Just out} inp
-    else ignoringErr $ report inp Nothing $ cfg
-            { selectBenchmarks = selectBench }
+    else ignoringErr $ report inp Nothing cfg
 
 showStreamDVsK Options{..} cfg func inp out =
-    let cfg' = cfg
-            { classifyBenchmark = classify
-            , selectBenchmarks = selectBench
-            }
+    let cfg' = cfg { classifyBenchmark = classify }
     in if genGraphs
        then ignoringErr $ graph inp "streamD-vs-streamK"
                 cfg' {outputDir = Just out}
@@ -215,7 +211,10 @@ showStreamDVsK Options{..} cfg func inp out =
 
 main :: IO ()
 main = do
-    let cfg = defaultConfig { presentation = Groups PercentDiff }
+    let cfg = defaultConfig
+            { presentation = Groups PercentDiff
+            , selectBenchmarks = selectBench
+            }
     res <- parseOptions
 
     case res of
