@@ -228,3 +228,8 @@ the concurrent actions are executed.
 See the [haddock documentation on
 hackage](https://hackage.haskell.org/package/streamly) and [a comprehensive tutorial
 here](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
+
+## References
+
+* https://hackage.haskell.org/package/async
+* https://hackage.haskell.org/package/lifted-async
