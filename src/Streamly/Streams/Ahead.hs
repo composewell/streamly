@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -619,7 +620,7 @@ consMAhead m r = K.yieldM m `aheadS` r
 --
 -- @since 0.3.0
 newtype AheadT m a = AheadT {getAheadT :: Stream m a}
-    deriving (MonadTrans)
+    deriving (MonadTrans, Foldable, Traversable)
 
 -- | A serial IO stream of elements of type @a@ with concurrent lookahead.  See
 -- 'AheadT' documentation for more details.
