@@ -15,7 +15,7 @@ import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
          subtract, undefined, Maybe(..), not, mapM_, (>>=),
-         maxBound, fmap, odd)
+         maxBound, fmap, odd, (==))
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
@@ -23,32 +23,6 @@ import qualified Streamly.Streams.StreamD as S
 value, maxValue :: Int
 value = 100000
 maxValue = value + 1000
-
--------------------------------------------------------------------------------
--- Benchmark ops
--------------------------------------------------------------------------------
-
-{-# INLINE uncons #-}
-{-# INLINE nullTail #-}
-{-# INLINE headTail #-}
-{-# INLINE zip #-}
-{-
-{-# INLINE concat #-}
--}
-uncons, nullTail, headTail, zip
-    -- concat,
-    :: Monad m
-    => Stream m Int -> m ()
-
-{-# INLINE toList #-}
-toList :: Monad m => Stream m Int -> m [Int]
-{-# INLINE foldl #-}
-foldl :: Monad m => Stream m Int -> m Int
-{-# INLINE last #-}
-last :: Monad m => Stream m Int -> m (Maybe Int)
-
-{-# INLINE toNull #-}
-toNull :: Monad m => Stream m Int -> m ()
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -103,7 +77,16 @@ source = sourceUnfoldrM
 runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
+{-# INLINE toNull #-}
+toNull :: Monad m => Stream m Int -> m ()
 toNull = runStream
+
+{-# INLINE uncons #-}
+{-# INLINE nullTail #-}
+{-# INLINE headTail #-}
+uncons, nullTail, headTail
+    :: Monad m
+    => Stream m Int -> m ()
 
 uncons s = do
     r <- S.uncons s
@@ -123,8 +106,16 @@ headTail s = do
     h <- S.head s
     when (isJust h) $ S.tail s >>= mapM_ headTail
 
+{-# INLINE toList #-}
+toList :: Monad m => Stream m Int -> m [Int]
 toList = S.toList
+
+{-# INLINE foldl #-}
+foldl :: Monad m => Stream m Int -> m Int
 foldl  = S.foldl' (+) 0
+
+{-# INLINE last #-}
+last :: Monad m => Stream m Int -> m (Maybe Int)
 last   = S.last
 
 -------------------------------------------------------------------------------
@@ -236,8 +227,22 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 -- Zipping and concat
 -------------------------------------------------------------------------------
 
-zip src       = transform $ S.zipWith (,) src src
--- concat _n     = return ()
+{-# INLINE eqBy #-}
+eqBy :: (Monad m, P.Eq a) => S.Stream m a -> m P.Bool
+eqBy src = S.eqBy (==) src src
+
+{-# INLINE cmpBy #-}
+cmpBy :: (Monad m, P.Ord a) => S.Stream m a -> m P.Ordering
+cmpBy src = S.cmpBy P.compare src src
+
+{-# INLINE zip #-}
+zip :: Monad m => Stream m Int -> m ()
+zip src = transform $ S.zipWith (,) src src
+
+{-
+{-# INLINE concat #-}
+concat _n     = return ()
+-}
 
 -------------------------------------------------------------------------------
 -- Mixed Composition

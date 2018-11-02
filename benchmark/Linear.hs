@@ -6,157 +6,189 @@
 -- Maintainer  : harendra.kumar@gmail.com
 
 import Control.DeepSeq (NFData)
--- import Data.Functor.Identity (Identity, runIdentity)
+import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
+
+import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
 
 import Streamly
+import qualified Streamly.Prelude as S
 import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
---
+
 -- | Takes a fold method, and uses it with a default source.
-{-# INLINE benchIO #-}
-benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
-benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
+{-# INLINE benchIOSink #-}
+benchIOSink
+    :: (IsStream t, NFData b)
+    => String -> (t IO Int -> IO b) -> Benchmark
+benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 
 -- | Takes a source, and uses it with a default drain/fold method.
-{-# INLINE benchSrcIO #-}
-benchSrcIO
+{-# INLINE benchIOSrc #-}
+benchIOSrc
     :: (t IO Int -> SerialT IO Int)
     -> String
     -> (Int -> t IO Int)
     -> Benchmark
-benchSrcIO t name f
-    = bench name $ nfIO $ randomRIO (1,1) >>= Ops.toNull t . f
+benchIOSrc t name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= (Ops.toNull t) . f
 
-{-
-_benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
-_benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
--}
+{-# INLINE benchPure #-}
+benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
+benchPure name src f = bench name $ nfIO $ randomRIO (1,1) >>= return . f . src
+
+{-# INLINE benchPureSink #-}
+benchPureSink :: NFData b => String -> (SerialT Identity Int -> b) -> Benchmark
+benchPureSink name f = benchPure name Ops.sourceUnfoldr f
+
+{-# INLINE benchPureSrc #-}
+benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
+benchPureSrc name src = benchPure name src (runIdentity . runStream)
 
 main :: IO ()
 main =
   defaultMain
     [ bgroup "serially"
-      [ bgroup "generation"
+      [ bgroup "pure"
+        [ benchPureSink "eqBy" Ops.eqBy
+        , benchPureSink "==" Ops.eqInstance
+        , benchPureSink "/=" Ops.eqInstanceNotEq
+        , benchPureSink "cmpBy" Ops.cmpBy
+        , benchPureSink "<" Ops.ordInstance
+        , benchPureSink "min" Ops.ordInstanceMin
+        , benchPureSrc "IsList.fromList" Ops.sourceIsList
+        , benchPureSink "IsList.toList" GHC.toList
+        , benchPureSrc "IsString.fromString" Ops.sourceIsString
+        , benchPure "readsPrec" (\n -> S.fromList [1..n :: Int])
+                    Ops.readInstance
+        , benchPureSink "showsPrec" Ops.showInstance
+        , benchPure "showsPrecList" (\n -> S.fromList [1..n :: Int])
+                    Ops.showInstanceList
+        ]
+      , bgroup "generation"
         [ -- Most basic, barely stream continuations running
-          benchSrcIO serially "unfoldr" Ops.sourceUnfoldr
-        , benchSrcIO serially "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO serially "fromList" Ops.sourceFromList
-        , benchSrcIO serially "fromListM" Ops.sourceFromListM
+          benchIOSrc serially "unfoldr" Ops.sourceUnfoldr
+        , benchIOSrc serially "unfoldrM" Ops.sourceUnfoldrM
+        , benchIOSrc serially "fromList" Ops.sourceFromList
+        , benchIOSrc serially "fromListM" Ops.sourceFromListM
         -- These are essentially cons and consM
-        , benchSrcIO serially "fromFoldable" Ops.sourceFromFoldable
-        , benchSrcIO serially "fromFoldableM" Ops.sourceFromFoldableM
+        , benchIOSrc serially "fromFoldable" Ops.sourceFromFoldable
+        , benchIOSrc serially "fromFoldableM" Ops.sourceFromFoldableM
         -- These are essentially appends
-        , benchSrcIO serially "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO serially "foldMapWithM" Ops.sourceFoldMapWithM
+        , benchIOSrc serially "foldMapWith" Ops.sourceFoldMapWith
+        , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
         ]
       , bgroup "elimination"
-        [ benchIO "toNull" $ Ops.toNull serially
-        , benchIO "uncons" Ops.uncons
-        , benchIO "init" Ops.init
-        , benchIO "tail" Ops.tail
-        , benchIO "nullHeadTail" Ops.nullHeadTail
-        , benchIO "mapM_" Ops.mapM_
-        , benchIO "toList" Ops.toList
-        , benchIO "foldr" Ops.foldr
-        , benchIO "foldr1" Ops.foldr1
-        , benchIO "foldrM" Ops.foldrM
-        , benchIO "foldl'" Ops.foldl'
-        , benchIO "foldl1'" Ops.foldl1'
+        [ benchIOSink "toNull" $ Ops.toNull serially
+        , benchIOSink "uncons" Ops.uncons
+        , benchIOSink "init" Ops.init
+        , benchIOSink "tail" Ops.tail
+        , benchIOSink "nullHeadTail" Ops.nullHeadTail
+        , benchIOSink "mapM_" Ops.mapM_
+        , benchIOSink "toList" Ops.toList
+        , benchIOSink "foldr" Ops.foldr
+        , benchIOSink "foldr1" Ops.foldr1
+        , benchIOSink "foldrM" Ops.foldrM
+        , benchIOSink "foldl'" Ops.foldl'
+        , benchIOSink "foldl1'" Ops.foldl1'
 
-        , benchIO "last" Ops.last
-        , benchIO "length" Ops.length
-        , benchIO "elem" Ops.elem
-        , benchIO "notElem" Ops.notElem
-        , benchIO "all" Ops.all
-        , benchIO "any" Ops.any
-        , benchIO "and" Ops.and
-        , benchIO "or" Ops.or
-        , benchIO "find" Ops.find
-        , benchIO "findIndex" Ops.findIndex
-        , benchIO "elemIndex" Ops.elemIndex
-        , benchIO "maximum" Ops.maximum
-        , benchIO "minimum" Ops.minimum
-        , benchIO "sum" Ops.sum
-        , benchIO "product" Ops.product
+        , benchIOSink "last" Ops.last
+        , benchIOSink "length" Ops.length
+        , benchIOSink "elem" Ops.elem
+        , benchIOSink "notElem" Ops.notElem
+        , benchIOSink "all" Ops.all
+        , benchIOSink "any" Ops.any
+        , benchIOSink "and" Ops.and
+        , benchIOSink "or" Ops.or
+        , benchIOSink "find" Ops.find
+        , benchIOSink "findIndex" Ops.findIndex
+        , benchIOSink "elemIndex" Ops.elemIndex
+        , benchIOSink "maximum" Ops.maximum
+        , benchIOSink "minimum" Ops.minimum
+        , benchIOSink "sum" Ops.sum
+        , benchIOSink "product" Ops.product
         ]
       , bgroup "transformation"
-        [ benchIO "scan" (Ops.scan 1)
-        , benchIO "map" (Ops.map 1)
-        , benchIO "fmap" (Ops.fmap 1)
-        , benchIO "mapM" (Ops.mapM serially 1)
-        , benchIO "mapMaybe" (Ops.mapMaybe 1)
-        , benchIO "mapMaybeM" (Ops.mapMaybeM 1)
+        [ benchIOSink "scan" (Ops.scan 1)
+        , benchIOSink "map" (Ops.map 1)
+        , benchIOSink "fmap" (Ops.fmap 1)
+        , benchIOSink "mapM" (Ops.mapM serially 1)
+        , benchIOSink "mapMaybe" (Ops.mapMaybe 1)
+        , benchIOSink "mapMaybeM" (Ops.mapMaybeM 1)
         , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
             Ops.sequence serially (Ops.sourceUnfoldrMAction n)
-        , benchIO "findIndices" (Ops.findIndices 1)
-        , benchIO "elemIndices" (Ops.elemIndices 1)
-        -- , benchIO "concat" Ops.concat
+        , benchIOSink "findIndices" (Ops.findIndices 1)
+        , benchIOSink "elemIndices" (Ops.elemIndices 1)
+        -- , benchIOSink "concat" Ops.concat
         ]
       , bgroup "transformationX4"
-        [ benchIO "scan" (Ops.scan 4)
-        , benchIO "map" (Ops.map 4)
-        , benchIO "fmap" (Ops.fmap 4)
-        , benchIO "mapM" (Ops.mapM serially 4)
-        , benchIO "mapMaybe" (Ops.mapMaybe 4)
-        , benchIO "mapMaybeM" (Ops.mapMaybeM 4)
+        [ benchIOSink "scan" (Ops.scan 4)
+        , benchIOSink "map" (Ops.map 4)
+        , benchIOSink "fmap" (Ops.fmap 4)
+        , benchIOSink "mapM" (Ops.mapM serially 4)
+        , benchIOSink "mapMaybe" (Ops.mapMaybe 4)
+        , benchIOSink "mapMaybeM" (Ops.mapMaybeM 4)
         -- , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
             -- Ops.sequence serially (Ops.sourceUnfoldrMAction n)
-        , benchIO "findIndices" (Ops.findIndices 4)
-        , benchIO "elemIndices" (Ops.elemIndices 4)
-        -- , benchIO "concat" Ops.concat
+        , benchIOSink "findIndices" (Ops.findIndices 4)
+        , benchIOSink "elemIndices" (Ops.elemIndices 4)
+        -- , benchIOSink "concat" Ops.concat
         ]
       , bgroup "filtering"
-        [ benchIO "filter-even"     (Ops.filterEven 1)
-        , benchIO "filter-all-out"  (Ops.filterAllOut 1)
-        , benchIO "filter-all-in"   (Ops.filterAllIn 1)
-        , benchIO "take-all"        (Ops.takeAll 1)
-        , benchIO "takeWhile-true"  (Ops.takeWhileTrue 1)
-        --, benchIO "takeWhileM-true" (Ops.takeWhileMTrue 1)
-        , benchIO "drop-one"        (Ops.dropOne 1)
-        , benchIO "drop-all"        (Ops.dropAll 1)
-        , benchIO "dropWhile-true"  (Ops.dropWhileTrue 1)
-        --, benchIO "dropWhileM-true" (Ops.dropWhileMTrue 1)
-        , benchIO "dropWhile-false" (Ops.dropWhileFalse 1)
+        [ benchIOSink "filter-even"     (Ops.filterEven 1)
+        , benchIOSink "filter-all-out"  (Ops.filterAllOut 1)
+        , benchIOSink "filter-all-in"   (Ops.filterAllIn 1)
+        , benchIOSink "take-all"        (Ops.takeAll 1)
+        , benchIOSink "takeWhile-true"  (Ops.takeWhileTrue 1)
+        --, benchIOSink "takeWhileM-true" (Ops.takeWhileMTrue 1)
+        , benchIOSink "drop-one"        (Ops.dropOne 1)
+        , benchIOSink "drop-all"        (Ops.dropAll 1)
+        , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 1)
+        --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 1)
+        , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 1)
         ]
       , bgroup "filteringX4"
-        [ benchIO "filter-even"     (Ops.filterEven 4)
-        , benchIO "filter-all-out"  (Ops.filterAllOut 4)
-        , benchIO "filter-all-in"   (Ops.filterAllIn 4)
-        , benchIO "take-all"        (Ops.takeAll 4)
-        , benchIO "takeWhile-true"  (Ops.takeWhileTrue 4)
-        --, benchIO "takeWhileM-true" (Ops.takeWhileMTrue 4)
-        , benchIO "drop-one"        (Ops.dropOne 4)
-        , benchIO "drop-all"        (Ops.dropAll 4)
-        , benchIO "dropWhile-true"  (Ops.dropWhileTrue 4)
-        --, benchIO "dropWhileM-true" (Ops.dropWhileMTrue 4)
-        , benchIO "dropWhile-false" (Ops.dropWhileFalse 4)
+        [ benchIOSink "filter-even"     (Ops.filterEven 4)
+        , benchIOSink "filter-all-out"  (Ops.filterAllOut 4)
+        , benchIOSink "filter-all-in"   (Ops.filterAllIn 4)
+        , benchIOSink "take-all"        (Ops.takeAll 4)
+        , benchIOSink "takeWhile-true"  (Ops.takeWhileTrue 4)
+        --, benchIOSink "takeWhileM-true" (Ops.takeWhileMTrue 4)
+        , benchIOSink "drop-one"        (Ops.dropOne 4)
+        , benchIOSink "drop-all"        (Ops.dropAll 4)
+        , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 4)
+        --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 4)
+        , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 4)
         ]
-      , benchIO "zip" Ops.zip
-      , benchIO "zipM" Ops.zipM
+      , bgroup "zipping"
+        [ benchIOSink "eqBy" Ops.eqBy
+        , benchIOSink "cmpBy" Ops.cmpBy
+        , benchIOSink "zip" Ops.zip
+        , benchIOSink "zipM" Ops.zipM
+        ]
     , bgroup "mixedX4"
-      [ benchIO "scan-map"    (Ops.scanMap 4)
-      , benchIO "drop-map"    (Ops.dropMap 4)
-      , benchIO "drop-scan"   (Ops.dropScan 4)
-      , benchIO "take-drop"   (Ops.takeDrop 4)
-      , benchIO "take-scan"   (Ops.takeScan 4)
-      , benchIO "take-map"    (Ops.takeMap 4)
-      , benchIO "filter-drop" (Ops.filterDrop 4)
-      , benchIO "filter-take" (Ops.filterTake 4)
-      , benchIO "filter-scan" (Ops.filterScan 4)
-      , benchIO "filter-map"  (Ops.filterMap 4)
+      [ benchIOSink "scan-map"    (Ops.scanMap 4)
+      , benchIOSink "drop-map"    (Ops.dropMap 4)
+      , benchIOSink "drop-scan"   (Ops.dropScan 4)
+      , benchIOSink "take-drop"   (Ops.takeDrop 4)
+      , benchIOSink "take-scan"   (Ops.takeScan 4)
+      , benchIOSink "take-map"    (Ops.takeMap 4)
+      , benchIOSink "filter-drop" (Ops.filterDrop 4)
+      , benchIOSink "filter-take" (Ops.filterTake 4)
+      , benchIOSink "filter-scan" (Ops.filterScan 4)
+      , benchIOSink "filter-map"  (Ops.filterMap 4)
       ]
     , bgroup "iterated"
-      [ benchSrcIO serially "mapM"           Ops.iterateMapM
-      , benchSrcIO serially "scan(1/100)"    Ops.iterateScan
-      , benchSrcIO serially "filterEven"     Ops.iterateFilterEven
-      , benchSrcIO serially "takeAll"        Ops.iterateTakeAll
-      , benchSrcIO serially "dropOne"        Ops.iterateDropOne
-      , benchSrcIO serially "dropWhileFalse" Ops.iterateDropWhileFalse
-      , benchSrcIO serially "dropWhileTrue"  Ops.iterateDropWhileTrue
+      [ benchIOSrc serially "mapM"           Ops.iterateMapM
+      , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
+      , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
+      , benchIOSrc serially "takeAll"        Ops.iterateTakeAll
+      , benchIOSrc serially "dropOne"        Ops.iterateDropOne
+      , benchIOSrc serially "dropWhileFalse" Ops.iterateDropWhileFalse
+      , benchIOSrc serially "dropWhileTrue"  Ops.iterateDropWhileTrue
       ]
       ]
     ]

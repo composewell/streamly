@@ -12,12 +12,14 @@
 module LinearOps where
 
 import Control.Monad (when)
+import Data.Functor.Identity (Identity)
 import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div)
 import qualified Prelude as P
+import qualified GHC.Exts as GHC
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -108,6 +110,18 @@ sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
         else return (Just (return cnt, cnt + 1))
 
 -------------------------------------------------------------------------------
+-- Pure stream generation
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceIsList #-}
+sourceIsList :: Int -> S.SerialT Identity Int
+sourceIsList n = GHC.fromList [n..n+value]
+
+{-# INLINE sourceIsString #-}
+sourceIsString :: Int -> S.SerialT Identity P.Char
+sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
+
+-------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
@@ -128,7 +142,8 @@ toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
 {-# INLINE elemIndex #-}
 {-# INLINE foldl1' #-}
 {-# INLINE foldr1 #-}
-last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1 :: Monad m => Stream m Int -> m (Maybe Int)
+last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1
+    :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE foldl' #-}
 {-# INLINE length #-}
@@ -360,7 +375,16 @@ zipAsyncM src = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipAsyncWithM (curry return) src src1)
+
 concat _n     = return ()
+
+{-# INLINE eqBy #-}
+eqBy :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
+eqBy src = S.eqBy (==) src src
+
+{-# INLINE cmpBy #-}
+cmpBy :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
+cmpBy src = S.cmpBy P.compare src src
 
 -------------------------------------------------------------------------------
 -- Mixed Composition
@@ -390,3 +414,40 @@ filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+-------------------------------------------------------------------------------
+-- Pure stream operations
+-------------------------------------------------------------------------------
+
+{-# INLINE eqInstance #-}
+eqInstance :: Stream Identity Int -> Bool
+eqInstance src = src == src
+
+{-# INLINE eqInstanceNotEq #-}
+eqInstanceNotEq :: Stream Identity Int -> Bool
+eqInstanceNotEq src = src P./= src
+
+{-# INLINE ordInstance #-}
+ordInstance :: Stream Identity Int -> Bool
+ordInstance src = src P.< src
+
+{-# INLINE ordInstanceMin #-}
+ordInstanceMin :: Stream Identity Int -> Stream Identity Int
+ordInstanceMin src = P.min src src
+
+{-# INLINE showInstance #-}
+showInstance :: Stream Identity Int -> P.String
+showInstance src = P.showsPrec 0 src ""
+
+{-# INLINE showInstanceList #-}
+showInstanceList :: Stream Identity Int -> P.String
+showInstanceList src = P.showsPrec 0 (GHC.toList src P.++ [2..value]) ""
+
+{-# INLINE readInstance #-}
+readInstance :: Stream Identity Int -> Stream Identity Int
+readInstance src =
+    let r = P.readsPrec 0 ("fromList [1"
+                P.++ P.concat (P.replicate value ",1") P.++ "]")
+    in case r of
+        [(x,"")] -> src S.<> x
+        _ -> P.error "readInstance: no parse"

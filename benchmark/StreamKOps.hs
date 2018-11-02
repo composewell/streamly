@@ -19,7 +19,7 @@ import Prelude
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamK as S
-import qualified Streamly.Streams.Prelude as S
+import qualified Streamly.Streams.Prelude as SP
 import qualified Streamly.SVar as S
 
 value, maxValue :: Int
@@ -98,11 +98,11 @@ sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Stream m Int
-sourceFoldMapWith n = S.foldMapWith S.serial S.yield [n..n+value]
+sourceFoldMapWith n = SP.foldMapWith S.serial S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
-sourceFoldMapWithM n = S.foldMapWith S.serial (S.yieldM . return) [n..n+value]
+sourceFoldMapWithM n = SP.foldMapWith S.serial (S.yieldM . return) [n..n+value]
 
 {-# INLINE source #-}
 source :: S.MonadAsync m => Int -> Stream m Int

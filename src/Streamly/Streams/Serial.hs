@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -42,6 +43,7 @@ module Streamly.Streams.Serial
     )
 where
 
+import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -50,11 +52,16 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (map, mapM)
+import GHC.Exts (IsList(..), IsString(..))
+import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
+                  readListPrecDefault)
+import Prelude hiding (map, mapM, String)
 
 import Streamly.SVar (rstState)
 import Streamly.Streams.StreamK (IsStream(..), adapt, Stream(..))
+import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 
@@ -343,3 +350,67 @@ instance Monad m => Monad (WSerialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
+
+------------------------------------------------------------------------------
+-- Lists
+------------------------------------------------------------------------------
+
+-- Serial streams can act like regular lists using the Identity monad
+
+-- XXX Show instance is 10x slower compared to read, we can do much better.
+-- The list show instance itself is really slow.
+
+-- XXX The default definitions of "<" in the Ord instance etc. do not perform
+-- well, because they do not get inlined. Need to add INLINE in Ord class in
+-- base?
+
+#define LIST_INSTANCES(STREAM)                                                \
+instance IsList (STREAM Identity a) where {                                   \
+    type (Item (STREAM Identity a)) = a;                                      \
+    {-# INLINE fromList #-};                                                  \
+    fromList = P.fromList;                                                    \
+    {-# INLINE toList #-};                                                    \
+    toList = runIdentity . P.toList };                                        \
+                                                                              \
+instance Eq a => Eq (STREAM Identity a) where {                               \
+    {-# INLINE (==) #-};                                                      \
+    (==) xs ys = runIdentity $ P.eqBy (==) xs ys };                           \
+                                                                              \
+instance Ord a => Ord (STREAM Identity a) where {                             \
+    {-# INLINE compare #-};                                                   \
+    compare xs ys = runIdentity $ P.cmpBy compare xs ys;                      \
+    {-# INLINE (<) #-};                                                       \
+    x <  y = case compare x y of { LT -> True;  _ -> False };                 \
+    {-# INLINE (<=) #-};                                                      \
+    x <= y = case compare x y of { GT -> False; _ -> True };                  \
+    {-# INLINE (>) #-};                                                       \
+    x >  y = case compare x y of { GT -> True;  _ -> False };                 \
+    {-# INLINE (>=) #-};                                                      \
+    x >= y = case compare x y of { LT -> False; _ -> True };                  \
+    {-# INLINE max #-};                                                       \
+    max x y = if x <= y then y else x;                                        \
+    {-# INLINE min #-};                                                       \
+    min x y = if x <= y then x else y; };                                     \
+                                                                              \
+instance Show a => Show (STREAM Identity a) where {                           \
+    showsPrec p dl = showParen (p > 10) $                                     \
+        showString "fromList " . shows (toList dl) };                         \
+                                                                              \
+instance Read a => Read (STREAM Identity a) where {                           \
+    readPrec = parens $ prec 10 $ do {                                        \
+        Ident "fromList" <- lexP;                                             \
+        dl <- readPrec;                                                       \
+        return (fromList dl) };                                               \
+    readListPrec = readListPrecDefault };                                     \
+                                                                              \
+instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
+    {-# INLINE fromString #-};                                                \
+    fromString = P.fromList };                                                \
+                                                                              \
+instance NFData a => NFData (STREAM Identity a) where { rnf = rnf1 };         \
+instance NFData1 (STREAM Identity) where {                                    \
+    {-# INLINE liftRnf #-};                                                   \
+    liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
+
+LIST_INSTANCES(SerialT)
+LIST_INSTANCES(WSerialT)

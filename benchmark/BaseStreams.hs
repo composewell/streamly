@@ -99,7 +99,11 @@ main =
         , benchIO "dropWhile-true"  (D.dropWhileTrue  4) D.sourceUnfoldrM
         , benchIO "dropWhile-false" (D.dropWhileFalse 4) D.sourceUnfoldrM
         ]
-      , benchIO "zip" D.zip D.sourceUnfoldrM
+      , bgroup "zipping"
+        [ benchFold "eqBy"  D.eqBy  D.sourceUnfoldrM
+        , benchFold "cmpBy" D.cmpBy D.sourceUnfoldrM
+        , benchIO   "zip"   D.zip   D.sourceUnfoldrM
+        ]
       , bgroup "mixed"
         [ benchIO "scan-map"    (D.scanMap    1) D.sourceUnfoldrM
         , benchIO "drop-map"    (D.dropMap    1) D.sourceUnfoldrM
@@ -206,7 +210,9 @@ main =
         , benchIO "dropWhile-true"  (K.dropWhileTrue  4) K.sourceUnfoldrM
         , benchIO "dropWhile-false" (K.dropWhileFalse 4) K.sourceUnfoldrM
         ]
-      , benchIO "zip" K.zip K.sourceUnfoldrM
+      , bgroup "zipping"
+        [ benchIO "zip" K.zip K.sourceUnfoldrM
+        ]
       , bgroup "mixed"
         [ benchIO "scan-map"    (K.scanMap    1) K.sourceUnfoldrM
         , benchIO "drop-map"    (K.dropMap    1) K.sourceUnfoldrM

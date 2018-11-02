@@ -8,6 +8,7 @@ extra-deps:
     - SDL-0.6.5.1
     - gauge-0.2.4
     - basement-0.0.4
+    - deepseq-1.4.4.0
 flags: {}
 extra-package-dbs: []
 rebuild-ghc-options: true

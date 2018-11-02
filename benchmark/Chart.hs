@@ -119,7 +119,7 @@ makeLinearGraphs cfg@Config{..} inputFile = do
         { title = (++) <$> title <*> Just " Transformation & Zip"
         , classifyBenchmark = \b ->
                 if    "serially/transformation/" `isPrefixOf` b
-                   || "serially/zip" `isPrefixOf` b
+                   || "serially/zipping" `isPrefixOf` b
                 then Just ("Streamly", last $ splitOn "/" b)
                 else Nothing
         }

@@ -12,6 +12,7 @@ extra-deps:
     - SDL-0.6.5.1
     - gauge-0.2.4
     - basement-0.0.7
+    - deepseq-1.4.4.0
 flags: {}
 extra-package-dbs: []
 # For mac ports installed SDL library on Mac OS X

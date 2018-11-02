@@ -51,6 +51,7 @@ module Streamly.Prelude
       K.nil
     , K.cons
     , (K..:)
+
     , consM
     , (|:)
     , yield
@@ -89,7 +90,7 @@ module Streamly.Prelude
     -- ** Generate From
     -- | Convert an input structure, container or source into a stream. All of
     -- these can be expressed in terms of primitives.
-    , fromList
+    , P.fromList
     , fromListM
     , K.fromFoldable
     , fromFoldableM
@@ -136,6 +137,8 @@ module Streamly.Prelude
     , any
     , and
     , or
+    , eqBy
+    , cmpBy
 
     -- Full folds - need to go through all elements
     , length
@@ -233,9 +236,12 @@ import qualified System.IO as IO
 
 import Streamly.SVar (MonadAsync, defState, rstState)
 import Streamly.Streams.Combinators (maxYields)
+import Streamly.Streams.Prelude (fromStreamS, toStreamS)
+import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 
+import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Zip as Z
@@ -248,27 +254,6 @@ import qualified Streamly.Streams.StreamD as S
 #endif
 
 import qualified Streamly.Streams.Serial as Serial
-
-------------------------------------------------------------------------------
--- Conversion to and from direct style stream
-------------------------------------------------------------------------------
-
--- These definitions are dependent on what is imported as S
-{-# INLINE fromStreamS #-}
-fromStreamS :: (IsStream t, Monad m) => S.Stream m a -> t m a
-fromStreamS = fromStream . S.toStreamK
-
-{-# INLINE toStreamS #-}
-toStreamS :: (IsStream t, Monad m) => t m a -> S.Stream m a
-toStreamS = S.fromStreamK . toStream
-
-{-# INLINE fromStreamD #-}
-fromStreamD :: (IsStream t, Monad m) => D.Stream m a -> t m a
-fromStreamD = fromStream . D.toStreamK
-
-{-# INLINE toStreamD #-}
-toStreamD :: (IsStream t, Monad m) => t m a -> D.Stream m a
-toStreamD = D.fromStreamK . toStream
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -460,17 +445,6 @@ iterateM step = go
 -- Conversions
 ------------------------------------------------------------------------------
 
--- | Construct a stream from a list containing pure values. More efficient list
--- specific implementation of 'K.fromFoldable' as it works well with fusion
--- optimization.
---
--- @since 0.4.0
-{-# INLINE_EARLY fromList #-}
-fromList :: (Monad m, IsStream t) => [a] -> t m a
-fromList = fromStreamS . S.fromList
-{-# RULES "fromList fallback to StreamK" [1]
-    forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
-
 -- | Construct a stream from a list containing monadic actions. More efficient
 -- list specific implementation of 'fromFoldableM' especially for serial
 -- streams as it works well with fusion optimization.
@@ -579,7 +553,7 @@ foldl = foldx
 -- @since 0.2.0
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> SerialT m a -> m b
-foldl' step begin m = S.foldl' step begin $ toStreamS m
+foldl' = P.foldl'
 
 -- | Strict left fold, for non-empty streams, using first element as the
 -- starting value. Returns 'Nothing' if the stream is empty.
@@ -798,7 +772,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
-toList m = S.toList $ toStreamS m
+toList = P.toList
 
 -- | Write a stream of Strings to an IO Handle.
 --
@@ -1039,3 +1013,23 @@ zipWithM f m1 m2 = fromStreamS $ S.zipWithM f (toStreamS m1) (toStreamS m2)
 {-# INLINABLE zipWith #-}
 zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)
+
+------------------------------------------------------------------------------
+-- Comparison
+------------------------------------------------------------------------------
+
+-- | Compare two streams for equality using a equality function.
+--
+-- @since 0.5.3
+{-# INLINABLE eqBy #-}
+eqBy :: Monad m => (a -> b -> Bool) -> SerialT m a -> SerialT m b -> m Bool
+eqBy = P.eqBy
+
+-- | Compare two streams using a comparison function.
+--
+-- @since 0.5.3
+{-# INLINABLE cmpBy #-}
+cmpBy
+    :: Monad m
+    => (a -> b -> Ordering) -> SerialT m a -> SerialT m b -> m Ordering
+cmpBy = P.cmpBy
