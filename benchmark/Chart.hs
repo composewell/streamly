@@ -21,17 +21,23 @@ import BenchShow
 ------------------------------------------------------------------------------
 
 data BenchType = Linear | LinearAsync | LinearRate | Nested | Base
+    deriving Show
 
 data Options = Options
     { genGraphs :: Bool
+    , groupDiff :: Bool
     , benchType :: BenchType
-    }
+    } deriving Show
 
-defaultOptions = Options False Linear
+defaultOptions = Options False False Linear
 
 setGenGraphs val = do
     (args, opts) <- get
     put (args, opts { genGraphs = val })
+
+setGroupDiff val = do
+    (args, opts) <- get
+    put (args, opts { groupDiff = val })
 
 setBenchType val = do
     (args, opts) <- get
@@ -66,15 +72,25 @@ parseOptions :: IO (Maybe Options)
 parseOptions = do
     args <- getArgs
     runMaybeT $ flip evalStateT (args, defaultOptions) $ do
-        x <- shift
-        case x of
-            Just "--graphs" -> setGenGraphs True
-            Just "--benchmark" -> parseBench
-            Just str -> do
+        parseLoop
+        fmap snd get
+
+    where
+
+    parseOpt opt =
+        case opt of
+            "--graphs"     -> setGenGraphs True
+            "--group-diff" -> setGroupDiff True
+            "--benchmark"  -> parseBench
+            str -> do
                 liftIO $ putStrLn $ "Unrecognized option " <> str
                 mzero
+
+    parseLoop = do
+        next <- shift
+        case next of
+            Just opt -> parseOpt opt >> parseLoop
             Nothing -> return ()
-        fmap snd get
 
 ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
     putStrLn $ "Failed with error:\n" <> err <> "\nSkipping.")
@@ -169,13 +185,27 @@ makeLinearRateGraphs cfg inputFile = do
     return ()
 
 ------------------------------------------------------------------------------
--- Charts for base streams
+-- Reports/Charts for base streams
 ------------------------------------------------------------------------------
 
-makeBaseGraphs :: Config -> String -> IO ()
-makeBaseGraphs cfg inputFile = do
-    putStrLn "Not implemented"
-    return ()
+classifyBase b
+        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
+        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
+        | otherwise = Nothing
+
+showStreamDVsK Options{..} cfg inp out =
+    let cfg' = cfg { classifyBenchmark = classifyBase }
+    in if genGraphs
+       then ignoringErr $ graph inp "streamD-vs-streamK"
+                cfg' {outputDir = Just out}
+       else ignoringErr $ report inp Nothing cfg'
+
+showBaseStreams Options{..} cfg inp out =
+    let cfg' = cfg { classifyBenchmark = classifyBase }
+    in if genGraphs
+       then ignoringErr $ graph inp "streamD"
+                cfg' {outputDir = Just out}
+       else ignoringErr $ report inp Nothing cfg'
 
 ------------------------------------------------------------------------------
 -- text reports
@@ -194,20 +224,6 @@ benchShow Options{..} cfg func inp out =
     if genGraphs
     then func cfg {outputDir = Just out} inp
     else ignoringErr $ report inp Nothing cfg
-
-showStreamDVsK Options{..} cfg func inp out =
-    let cfg' = cfg { classifyBenchmark = classify }
-    in if genGraphs
-       then ignoringErr $ graph inp "streamD-vs-streamK"
-                cfg' {outputDir = Just out}
-       else ignoringErr $ report inp Nothing cfg'
-
-    where
-
-    classify b
-        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
-        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
-        | otherwise = Nothing
 
 main :: IO ()
 main = do
@@ -235,6 +251,11 @@ main = do
                 Nested -> benchShow opts cfg makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
-                Base -> showStreamDVsK opts cfg makeBaseGraphs
-                            "charts/base/results.csv"
-                            "charts/base"
+                Base ->
+                    if groupDiff
+                    then showStreamDVsK opts cfg
+                                "charts/base/results.csv"
+                                "charts/base"
+                    else showBaseStreams opts cfg
+                                "charts/base/results.csv"
+                                "charts/base"

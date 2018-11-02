@@ -162,27 +162,32 @@ composeN n f =
 {-# INLINE takeOne #-}
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
+{-# INLINE dropOne #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
+{-# INLINE dropWhileFalse #-}
 scan, map, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue
+    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
+    dropWhileTrue, dropWhileFalse
     :: Monad m
     => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
 mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
-scan          n = composeN n $ S.scanl' (+) 0
-map           n = composeN n $ fmap (+1)
-mapM          n = composeN n $ S.mapM return
-filterEven    n = composeN n $ S.filter even
-filterAllOut  n = composeN n $ S.filter (> maxValue)
-filterAllIn   n = composeN n $ S.filter (<= maxValue)
-takeOne       n = composeN n $ S.take 1
-takeAll       n = composeN n $ S.take maxValue
-takeWhileTrue n = composeN n $ S.takeWhile (<= maxValue)
-dropAll       n = composeN n $ S.drop maxValue
-dropWhileTrue n = composeN n $ S.dropWhile (<= maxValue)
+scan           n = composeN n $ S.scanl' (+) 0
+map            n = composeN n $ fmap (+1)
+mapM           n = composeN n $ S.mapM return
+filterEven     n = composeN n $ S.filter even
+filterAllOut   n = composeN n $ S.filter (> maxValue)
+filterAllIn    n = composeN n $ S.filter (<= maxValue)
+takeOne        n = composeN n $ S.take 1
+takeAll        n = composeN n $ S.take maxValue
+takeWhileTrue  n = composeN n $ S.takeWhile (<= maxValue)
+dropOne        n = composeN n $ S.drop 1
+dropAll        n = composeN n $ S.drop maxValue
+dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
+dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 
 -------------------------------------------------------------------------------
 -- Zipping and concat

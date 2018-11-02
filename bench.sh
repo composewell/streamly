@@ -2,16 +2,20 @@
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--compare] [--base commit] [--candidate commit]"
   echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|base>]"
+  echo "       [--group-diff]"
   echo "       [--graphs]"
-  echo "       [--slow]"
   echo "       [--no-measure]"
   echo "       [--append] "
+  echo "       [--compare] [--base commit] [--candidate commit]"
+  echo "       [--slow]"
   echo "       -- <gauge options>"
   echo
   echo "Multiple benchmarks can be specified as a space separate list"
   echo " e.g. --benchmarks \"linear nested\""
+  echo
+  echo "--group-diff is used to compare groups within a single benchmark"
+  echo " e.g. StreamD vs StreamK in base benchmark."
   echo
   echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
   echo "commit is generated, in the 'charts' directory."
@@ -205,7 +209,9 @@ run_reports() {
     for i in $1
     do
         echo "Generating reports for ${i}..."
-        $prog $(test "$GRAPH" = 1 && echo "--graphs") --benchmark $i
+        $prog $(test "$GRAPH" = 1 && echo "--graphs") \
+              $(test "$GROUP_DIFF" = 1 && echo "--group-diff") \
+              --benchmark $i
     done
 }
 
@@ -215,6 +221,7 @@ run_reports() {
 
 DEFAULT_BENCHMARKS="linear"
 ALL_BENCHMARKS="linear linear-async linear-rate nested base"
+GROUP_DIFF=0
 
 COMPARE=0
 BASE=
@@ -239,13 +246,16 @@ while test -n "$1"
 do
   case $1 in
     -h|--help|help) print_help ;;
+    # options with arguments
     --slow) SPEED_OPTIONS="--min-duration 0"; shift ;;
-    --append) APPEND=1; shift ;;
     --benchmarks) shift; BENCHMARKS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
+    # flags
     --compare) COMPARE=1; shift ;;
     --raw) RAW=1; shift ;;
+    --append) APPEND=1; shift ;;
+    --group-diff) GROUP_DIFF=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;

@@ -14,7 +14,7 @@ import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=),
          subtract, undefined, Maybe(..), not, mapM_, (>>=),
-         maxBound)
+         maxBound, fmap, odd)
 
 import qualified Streamly.Streams.StreamD as S
 
@@ -138,31 +138,47 @@ composeN n f =
 
 {-# INLINE scan #-}
 {-# INLINE map #-}
+{-# INLINE fmap #-}
 {-# INLINE mapM #-}
+{-# INLINE mapMaybe #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
 {-# INLINE takeOne #-}
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
+{-# INLINE takeWhileMTrue #-}
+{-# INLINE dropOne #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
-scan, map, mapM, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropWhileTrue
+{-# INLINE dropWhileMTrue #-}
+{-# INLINE dropWhileFalse #-}
+scan, map, fmap, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
+    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse
     :: Monad m
     => Int -> Stream m Int -> m ()
 
 scan          n = composeN n $ S.scanl' (+) 0
+fmap          n = composeN n $ Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
 mapM          n = composeN n $ S.mapM return
+mapMaybe      n = composeN n $ S.mapMaybe
+    (\x -> if Prelude.odd x then Nothing else Just x)
+mapMaybeM     n = composeN n $ S.mapMaybeM
+    (\x -> if Prelude.odd x then return Nothing else return $ Just x)
 filterEven    n = composeN n $ S.filter even
 filterAllOut  n = composeN n $ S.filter (> maxValue)
 filterAllIn   n = composeN n $ S.filter (<= maxValue)
 takeOne       n = composeN n $ S.take 1
 takeAll       n = composeN n $ S.take maxValue
 takeWhileTrue n = composeN n $ S.takeWhile (<= maxValue)
-dropAll       n = composeN n $ S.drop maxValue
-dropWhileTrue n = composeN n $ S.dropWhile (<= maxValue)
+takeWhileMTrue n = composeN n $ S.takeWhileM (return . (<= maxValue))
+dropOne        n = composeN n $ S.drop 1
+dropAll        n = composeN n $ S.drop maxValue
+dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
+dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
+dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 
 -------------------------------------------------------------------------------
 -- Zipping and concat
