@@ -16,4 +16,4 @@ module Streamly.Internal
     )
 where
 
-import Streamly.Streams.SVar
+import Streamly.Streams.Combinators (inspectMode)

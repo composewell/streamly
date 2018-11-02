@@ -173,16 +173,16 @@ module Streamly
     )
 where
 
-import Streamly.Streams.StreamK hiding (runStream, serial)
-import Streamly.Streams.Serial
-import Streamly.Streams.Async
-import Streamly.Streams.Ahead
-import Streamly.Streams.Parallel
-import Streamly.Streams.Zip
-import Streamly.Streams.Prelude
-import Streamly.Streams.SVar
-import Streamly.SVar (MonadAsync, Rate (..))
 import Data.Semigroup (Semigroup(..))
+import Streamly.SVar (MonadAsync, Rate(..))
+import Streamly.Streams.Ahead
+import Streamly.Streams.Async
+import Streamly.Streams.Combinators
+import Streamly.Streams.Parallel
+import Streamly.Streams.Prelude
+import Streamly.Streams.Serial
+import Streamly.Streams.StreamK hiding (runStream, serial)
+import Streamly.Streams.Zip
 
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K

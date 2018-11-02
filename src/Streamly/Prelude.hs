@@ -1,9 +1,5 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -236,7 +232,7 @@ import qualified Prelude
 import qualified System.IO as IO
 
 import Streamly.SVar (MonadAsync, defState, rstState)
-import Streamly.Streams.SVar (maxYields)
+import Streamly.Streams.Combinators (maxYields)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 
