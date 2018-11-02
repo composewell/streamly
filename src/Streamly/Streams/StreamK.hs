@@ -153,6 +153,7 @@ import Prelude
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
                foldr1)
+import qualified Data.Foldable as F
 import qualified Prelude
 
 import Streamly.SVar
@@ -187,6 +188,20 @@ newtype Stream m a =
             -> (a -> Stream m a -> m r)  -- yield
             -> m r
     }
+
+instance (Foldable m, Monad m) => Foldable (Stream m) where
+  {-# INLINE foldMap #-}
+  foldMap f = F.fold . toFoldable . map f
+    where
+      toFoldable :: (Monad m, Monoid a) => Stream m a -> m a
+      toFoldable = foldr mappend mempty
+
+instance (Traversable m, Monad m) => Traversable (Stream m) where
+  {-# INLINE traverse #-}
+  traverse f = sequenceA . fmap f
+
+  {-# INLINE sequenceA #-}
+  sequenceA  = traverse id
 
 -- XXX make this the default "unStream"
 -- | unwraps the Stream type producing the stream function that can be run with
