@@ -979,10 +979,15 @@ mapMaybe f m = fromStreamS $ S.mapMaybe f $ toStreamS m
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @since 0.3.0
-{-# INLINE mapMaybeM #-}
+{-# INLINE_EARLY mapMaybeM #-}
 mapMaybeM :: (IsStream t, MonadAsync m, Functor (t m))
           => (a -> m (Maybe b)) -> t m a -> t m b
-mapMaybeM f = fmap fromJust . filter isJust . mapM f
+mapMaybeM f = fmap fromJust . filter isJust . K.mapM f
+
+{-# RULES "mapMaybeM serial" mapMaybeM = mapMaybeMSerial #-}
+{-# INLINE mapMaybeMSerial #-}
+mapMaybeMSerial :: Monad m => (a -> m (Maybe b)) -> SerialT m a -> SerialT m b
+mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Transformation by Reordering
