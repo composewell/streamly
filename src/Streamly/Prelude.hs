@@ -847,7 +847,7 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- @since 0.2.0
 {-# INLINE scanl' #-}
 scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
-scanl' step = scanlM' (\a b -> return (step a b))
+scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Transformation by Filtering
