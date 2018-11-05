@@ -128,29 +128,29 @@ makeLinearGraphs cfg inputFile = do
             fmap ("Streamly",) . stripPrefix "serially/filtering/"
         }
 
-    ignoringErr $ graph inputFile "composed-transformation" $ cfg
-        { title = Just "Composed Transformation"
+    ignoringErr $ graph inputFile "transformationX4" $ cfg
+        { title = Just "Transformation x 4"
         , classifyBenchmark =
-            fmap ("Streamly",) . stripPrefix "serially/transformationN/"
+            fmap ("Streamly",) . stripPrefix "serially/transformationX4/"
         }
 
-    ignoringErr $ graph inputFile "composed-filtering"
+    ignoringErr $ graph inputFile "filteringX4"
         $ cfg
-        { title = Just "Composed Filtering"
+        { title = Just "Filtering x 4"
         , classifyBenchmark =
-            fmap ("Streamly",) . stripPrefix "serially/filteringN/"
+            fmap ("Streamly",) . stripPrefix "serially/filteringX4/"
         }
 
-    ignoringErr $ graph inputFile "composed-mixed"
+    ignoringErr $ graph inputFile "mixedX4"
         $ cfg
-        { title = Just "Composed Mixed"
+        { title = Just "Mixed x 4"
         , classifyBenchmark =
-            fmap ("Streamly",) . stripPrefix "serially/composed/"
+            fmap ("Streamly",) . stripPrefix "serially/mixedX4/"
         }
 
     ignoringErr $ graph inputFile "iterated"
         $ cfg
-        { title = Just "Iterated Ops"
+        { title = Just "Iterate 10 x 100000"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/iterated/"
         }
@@ -200,12 +200,31 @@ showStreamDVsK Options{..} cfg inp out =
                 cfg' {outputDir = Just out}
        else ignoringErr $ report inp Nothing cfg'
 
-showBaseStreams Options{..} cfg inp out =
-    let cfg' = cfg { classifyBenchmark = classifyBase }
+showStreamD Options{..} cfg inp out =
+    let cfg' = cfg { classifyBenchmark = classifyStreamD }
     in if genGraphs
        then ignoringErr $ graph inp "streamD"
                 cfg' {outputDir = Just out}
        else ignoringErr $ report inp Nothing cfg'
+
+    where
+
+    classifyStreamD b
+        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
+        | otherwise = Nothing
+
+showStreamK Options{..} cfg inp out =
+    let cfg' = cfg { classifyBenchmark = classifyStreamK }
+    in if genGraphs
+       then ignoringErr $ graph inp "streamK"
+                cfg' {outputDir = Just out}
+       else ignoringErr $ report inp Nothing cfg'
+
+    where
+
+    classifyStreamK b
+        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
+        | otherwise = Nothing
 
 ------------------------------------------------------------------------------
 -- text reports
@@ -256,6 +275,10 @@ main = do
                     then showStreamDVsK opts cfg
                                 "charts/base/results.csv"
                                 "charts/base"
-                    else showBaseStreams opts cfg
+                    else do
+                        showStreamD opts cfg
+                                "charts/base/results.csv"
+                                "charts/base"
+                        showStreamK opts cfg
                                 "charts/base/results.csv"
                                 "charts/base"
