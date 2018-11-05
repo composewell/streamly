@@ -7,8 +7,10 @@ module Main where
 import Control.Exception (handle, catch, SomeException, ErrorCall(..))
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
+import Data.Function (on, (&))
 import Data.List
 import Data.List.Split
+import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import System.Environment (getArgs)
 import Control.Monad.IO.Class (liftIO)
@@ -100,21 +102,21 @@ ignoringErr a = catch a (\(ErrorCall err :: ErrorCall) ->
 ------------------------------------------------------------------------------
 
 makeLinearGraphs :: Config -> String -> IO ()
-makeLinearGraphs cfg inputFile = do
+makeLinearGraphs cfg@Config{..} inputFile = do
     ignoringErr $ graph inputFile "generation" $ cfg
-        { title = Just "Generation"
+        { title = (++) <$> title <*> Just " generation"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/generation/"
         }
 
     ignoringErr $ graph inputFile "elimination" $ cfg
-        { title = Just "Elimination"
+        { title = (++) <$> title <*> Just " Elimination"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/elimination/"
         }
 
     ignoringErr $ graph inputFile "transformation-zip" $ cfg
-        { title = Just "Transformation & Zip"
+        { title = (++) <$> title <*> Just " Transformation & Zip"
         , classifyBenchmark = \b ->
                 if    "serially/transformation/" `isPrefixOf` b
                    || "serially/zip" `isPrefixOf` b
@@ -123,34 +125,34 @@ makeLinearGraphs cfg inputFile = do
         }
 
     ignoringErr $ graph inputFile "filtering" $ cfg
-        { title = Just "Filtering"
+        { title = (++) <$> title <*> Just " Filtering"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/filtering/"
         }
 
     ignoringErr $ graph inputFile "transformationX4" $ cfg
-        { title = Just "Transformation x 4"
+        { title = (++) <$> title <*> Just " Transformation x 4"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/transformationX4/"
         }
 
     ignoringErr $ graph inputFile "filteringX4"
         $ cfg
-        { title = Just "Filtering x 4"
+        { title = (++) <$> title <*> Just " Filtering x 4"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/filteringX4/"
         }
 
     ignoringErr $ graph inputFile "mixedX4"
         $ cfg
-        { title = Just "Mixed x 4"
+        { title = (++) <$> title <*> Just " Mixed x 4"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/mixedX4/"
         }
 
     ignoringErr $ graph inputFile "iterated"
         $ cfg
-        { title = Just "Iterate 10 x 100000"
+        { title = Just "iterate 10,000 times over 10 elems"
         , classifyBenchmark =
             fmap ("Streamly",) . stripPrefix "serially/iterated/"
         }
@@ -161,23 +163,61 @@ makeLinearGraphs cfg inputFile = do
 
 makeNestedGraphs :: Config -> String -> IO ()
 makeNestedGraphs cfg inputFile =
-    ignoringErr $ graph inputFile "nested-serial" $ cfg
-        { title = Just "Nested serial"
-        , classifyBenchmark = \b ->
-            let ls = splitOn "/" b
-            in case head ls of
-                "serially" -> Just (head ls, last ls)
-                _ -> Nothing
+    ignoringErr $ graph inputFile "nested-all" $ cfg
+        { presentation = Groups Absolute
+        , classifyBenchmark = classifyNested
+        , selectGroups = \gs ->
+            groupBy ((==) `on` snd) gs
+            & fmap (\xs -> mapMaybe (\x -> (x,) <$> lookup x xs) order)
+            & concat
         }
+
+    where
+
+    order = ["serially", "asyncly", "wAsyncly", "aheadly", "parallely"]
+
+    classifyNested b
+        | "serially/" `isPrefixOf` b =
+            ("serially",) <$> stripPrefix "serially/" b
+        | "asyncly/" `isPrefixOf` b =
+            ("asyncly",) <$> stripPrefix "asyncly/" b
+        | "wAsyncly/" `isPrefixOf` b =
+            ("wAsyncly",) <$> stripPrefix "wAsyncly/" b
+        | "aheadly/" `isPrefixOf` b =
+            ("aheadly",) <$> stripPrefix "aheadly/" b
+        | "parallely/" `isPrefixOf` b =
+            ("parallely",) <$> stripPrefix "parallely/" b
+        | otherwise = Nothing
 
 ------------------------------------------------------------------------------
 -- Charts for parallel streams
 ------------------------------------------------------------------------------
 
 makeLinearAsyncGraphs :: Config -> String -> IO ()
-makeLinearAsyncGraphs cfg inputFile = do
-    putStrLn "Not implemented"
-    return ()
+makeLinearAsyncGraphs cfg inputFile =
+    ignoringErr $ graph inputFile "linear-async" cfg
+        { presentation = Groups Absolute
+        , classifyBenchmark = classifyAsync
+        , selectGroups = \gs ->
+            groupBy ((==) `on` snd) gs
+            & fmap (\xs -> mapMaybe (\x -> (x,) <$> lookup x xs) order)
+            & concat
+        }
+
+    where
+
+    order = ["asyncly", "wAsyncly", "aheadly", "parallely"]
+
+    classifyAsync b
+        | "asyncly/" `isPrefixOf` b =
+            ("asyncly",) <$> stripPrefix "asyncly/" b
+        | "wAsyncly/" `isPrefixOf` b =
+            ("wAsyncly",) <$> stripPrefix "wAsyncly/" b
+        | "aheadly/" `isPrefixOf` b =
+            ("aheadly",) <$> stripPrefix "aheadly/" b
+        | "parallely/" `isPrefixOf` b =
+            ("parallely",) <$> stripPrefix "parallely/" b
+        | otherwise = Nothing
 
 makeLinearRateGraphs :: Config -> String -> IO ()
 makeLinearRateGraphs cfg inputFile = do
@@ -188,17 +228,21 @@ makeLinearRateGraphs cfg inputFile = do
 -- Reports/Charts for base streams
 ------------------------------------------------------------------------------
 
-classifyBase b
-        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
-        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
-        | otherwise = Nothing
-
 showStreamDVsK Options{..} cfg inp out =
     let cfg' = cfg { classifyBenchmark = classifyBase }
     in if genGraphs
        then ignoringErr $ graph inp "streamD-vs-streamK"
-                cfg' {outputDir = Just out}
+                cfg' { outputDir = Just out
+                     , presentation = Groups Absolute
+                     }
        else ignoringErr $ report inp Nothing cfg'
+
+    where
+
+    classifyBase b
+        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
+        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
+        | otherwise = Nothing
 
 showStreamD Options{..} cfg inp out =
     let cfg' = cfg { classifyBenchmark = classifyStreamD }
@@ -258,27 +302,34 @@ main = do
             return ()
         Just opts@Options{..} ->
             case benchType of
-                Linear -> benchShow opts cfg makeLinearGraphs
+                Linear -> benchShow opts cfg
+                            { title = Just "100,000 elems" }
+                            makeLinearGraphs
                             "charts/linear/results.csv"
                             "charts/linear"
-                LinearAsync -> benchShow opts cfg makeLinearAsyncGraphs
+                LinearAsync -> benchShow opts cfg
+                            { title = Just "Async 10,000 elems" }
+                            makeLinearAsyncGraphs
                             "charts/linear-async/results.csv"
                             "charts/linear-async"
                 LinearRate -> benchShow opts cfg makeLinearRateGraphs
                             "charts/linear-rate/results.csv"
                             "charts/linear-rate"
-                Nested -> benchShow opts cfg makeNestedGraphs
+                Nested -> benchShow opts cfg
+                            { title = Just "Nested loops 100 x 100 elems" }
+                            makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
-                Base ->
+                Base -> do
+                    let cfg' = cfg { title = Just "100,000 elems" }
                     if groupDiff
-                    then showStreamDVsK opts cfg
+                    then showStreamDVsK opts cfg'
                                 "charts/base/results.csv"
                                 "charts/base"
                     else do
-                        showStreamD opts cfg
+                        showStreamD opts cfg'
                                 "charts/base/results.csv"
                                 "charts/base"
-                        showStreamK opts cfg
+                        showStreamK opts cfg'
                                 "charts/base/results.csv"
                                 "charts/base"

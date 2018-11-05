@@ -6,15 +6,17 @@
 -- Maintainer  : harendra.kumar@gmail.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module StreamKOps where
 
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=),
+       (Monad, Int, (+), ($), (.), return, even, (>), (<=), div,
         subtract, undefined, Maybe(..), not, mapM_, (>>=),
         maxBound)
+import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamK as S
 import qualified Streamly.Streams.Prelude as S
@@ -66,6 +68,15 @@ sourceUnfoldrM n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldrMN #-}
+sourceUnfoldrMN :: S.MonadAsync m => Int -> Int -> Stream m Int
+sourceUnfoldrMN m n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + m
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
@@ -156,6 +167,7 @@ composeN n f =
 
 {-# INLINE scan #-}
 {-# INLINE map #-}
+{-# INLINE fmap #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
@@ -166,7 +178,7 @@ composeN n f =
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileFalse #-}
-scan, map, filterEven, filterAllOut,
+scan, map, fmap, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
     dropWhileTrue, dropWhileFalse
     :: Monad m
@@ -176,7 +188,8 @@ scan, map, filterEven, filterAllOut,
 mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 scan           n = composeN n $ S.scanl' (+) 0
-map            n = composeN n $ fmap (+1)
+map            n = composeN n $ P.fmap (+1)
+fmap           n = composeN n $ P.fmap (+1)
 mapM           n = composeN n $ S.mapM return
 filterEven     n = composeN n $ S.filter even
 filterAllOut   n = composeN n $ S.filter (> maxValue)
@@ -188,6 +201,46 @@ dropOne        n = composeN n $ S.drop 1
 dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
+
+-------------------------------------------------------------------------------
+-- Iteration
+-------------------------------------------------------------------------------
+
+iterStreamLen, maxIters :: Int
+iterStreamLen = 10
+maxIters = 10000
+
+{-# INLINE iterateSource #-}
+iterateSource
+    :: S.MonadAsync m
+    => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
+iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
+    where
+        f (0 :: Int) m = g m
+        f x m = g (f (x P.- 1) m)
+
+{-# INLINE iterateMapM #-}
+{-# INLINE iterateScan #-}
+{-# INLINE iterateFilterEven #-}
+{-# INLINE iterateTakeAll #-}
+{-# INLINE iterateDropOne #-}
+{-# INLINE iterateDropWhileFalse #-}
+{-# INLINE iterateDropWhileTrue #-}
+iterateMapM, iterateScan, iterateFilterEven, iterateTakeAll, iterateDropOne,
+    iterateDropWhileFalse, iterateDropWhileTrue
+    :: S.MonadAsync m
+    => Int -> Stream m Int
+
+-- this is quadratic
+iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
+iterateDropWhileFalse  = iterateSource (S.dropWhile (> maxValue))
+                                       (maxIters `div` 10)
+
+iterateMapM            = iterateSource (S.mapM return) maxIters
+iterateFilterEven      = iterateSource (S.filter even) maxIters
+iterateTakeAll         = iterateSource (S.take maxValue) maxIters
+iterateDropOne         = iterateSource (S.drop 1) maxIters
+iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 -------------------------------------------------------------------------------
 -- Zipping and concat

@@ -16,7 +16,7 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound)
+        maxBound, div)
 import qualified Prelude as P
 
 import qualified Streamly          as S
@@ -287,7 +287,7 @@ dropOne        n = composeN n $ S.drop 1
 dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
-dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
+dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
 
@@ -295,11 +295,15 @@ elemIndices    n = composeN n $ S.elemIndices maxValue
 -- Iteration
 -------------------------------------------------------------------------------
 
+iterStreamLen, maxIters :: Int
+iterStreamLen = 10
+maxIters = 10000
+
 {-# INLINE iterateSource #-}
 iterateSource
     :: S.MonadAsync m
     => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
-iterateSource g i n = f i (sourceUnfoldrMN 10 n)
+iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
     where
         f (0 :: Int) m = g m
         f x m = g (f (x P.- 1) m)
@@ -317,14 +321,14 @@ iterateMapM, iterateScan, iterateFilterEven, iterateTakeAll, iterateDropOne,
     => Int -> Stream m Int
 
 -- this is quadratic
-iterateScan            = iterateSource (S.scanl' (+) 0) 1000
+iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
 
-iterateMapM            = iterateSource (S.mapM return) 100000
-iterateFilterEven      = iterateSource (S.filter even) 100000
-iterateTakeAll         = iterateSource (S.take maxValue) 100000
-iterateDropOne         = iterateSource (S.drop 1) 100000
-iterateDropWhileFalse  = iterateSource (S.dropWhile (<= 1)) 100000
-iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) 100000
+iterateMapM            = iterateSource (S.mapM return) maxIters
+iterateFilterEven      = iterateSource (S.filter even) maxIters
+iterateTakeAll         = iterateSource (S.take maxValue) maxIters
+iterateDropOne         = iterateSource (S.drop 1) maxIters
+iterateDropWhileFalse  = iterateSource (S.dropWhile (> maxValue)) maxIters
+iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 -------------------------------------------------------------------------------
 -- Zipping and concat

@@ -96,7 +96,7 @@ main =
         , benchIO "elemIndices" (Ops.elemIndices 1)
         -- , benchIO "concat" Ops.concat
         ]
-      , bgroup "transformationN"
+      , bgroup "transformationX4"
         [ benchIO "scan" (Ops.scan 4)
         , benchIO "map" (Ops.map 4)
         , benchIO "fmap" (Ops.fmap 4)
@@ -122,7 +122,7 @@ main =
         --, benchIO "dropWhileM-true" (Ops.dropWhileMTrue 1)
         , benchIO "dropWhile-false" (Ops.dropWhileFalse 1)
         ]
-      , bgroup "filteringN"
+      , bgroup "filteringX4"
         [ benchIO "filter-even"     (Ops.filterEven 4)
         , benchIO "filter-all-out"  (Ops.filterAllOut 4)
         , benchIO "filter-all-in"   (Ops.filterAllIn 4)
@@ -137,7 +137,7 @@ main =
         ]
       , benchIO "zip" Ops.zip
       , benchIO "zipM" Ops.zipM
-    , bgroup "composed"
+    , bgroup "mixedX4"
       [ benchIO "scan-map"    (Ops.scanMap 4)
       , benchIO "drop-map"    (Ops.dropMap 4)
       , benchIO "drop-scan"   (Ops.dropScan 4)
