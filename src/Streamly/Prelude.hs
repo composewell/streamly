@@ -486,8 +486,8 @@ fromListM = fromStreamD . D.fromListM
 -- @'Prelude.foldr' 'consM' 'K.nil'@.
 --
 -- @
--- runStream $ serially $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
--- runStream $ asyncly  $ S.fromFoldableM $ replicate 10 (threadDelay 1000000 >> print 1)
+-- runStream $ serially $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
+-- runStream $ asyncly  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
 -- @
 --
 -- /Concurrent (do not use with 'parallely' on infinite containers)/
