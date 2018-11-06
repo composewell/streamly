@@ -162,14 +162,14 @@ run_benches_comparing() {
     echo "Checking out base commit [$BASE] for benchmarking"
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
-    $STACK build --bench --no-run-benchmarks || die "build failed"
+    $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
     run_benches "$bench_list"
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
-    $STACK build --bench --no-run-benchmarks || die "build failed"
+    $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
     run_benches "$bench_list"
     # XXX reset back to the original commit
 }
@@ -268,6 +268,11 @@ GAUGE_ARGS=$*
 echo "Using stack command [$STACK]"
 set_benchmarks
 
+if echo "$BENCHMARKS" | grep -q base
+then
+  STACK_BUILD_FLAGS="--flag streamly:dev"
+fi
+
 #-----------------------------------------------------------------------------
 # Build stuff
 #-----------------------------------------------------------------------------
@@ -282,7 +287,7 @@ build_report_progs "$BENCHMARKS"
 
 if test "$MEASURE" = "1"
 then
-  $STACK build --bench --no-run-benchmarks || die "build failed"
+  $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
   run_measurements "$BENCHMARKS"
 fi
 
