@@ -504,7 +504,7 @@ postscanlM' fstep begin (Stream step state) =
             Skip s -> return $ Skip (s, acc)
             Stop   -> return Stop
 
-{-# INLINE_LATE scanlM' #-}
+{-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
 
@@ -673,7 +673,7 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
         return $
           case r of
             Yield x sa' -> Skip (sa', sb, Just x)
-            Skip sa'    -> Skip (sa', sb, Nothing) 
+            Skip sa'    -> Skip (sa', sb, Nothing)
             Stop        -> Stop
 
     step gst (sa, sb, Just x) = do
