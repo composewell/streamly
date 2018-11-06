@@ -148,7 +148,7 @@ library
                      , Streamly.Internal
 
     default-language: Haskell2010
-    ghc-options:      -Wall
+    ghc-options:      -Wall -fspec-constr-recursive=10
 
     if flag(streamk)
       cpp-options:    -DUSE_STREAMK_ONLY
@@ -312,7 +312,7 @@ benchmark linear
   main-is: Linear.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -339,7 +339,7 @@ benchmark linear-async
   main-is: LinearAsync.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
   cpp-options: -DLINEAR_ASYNC
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
@@ -367,7 +367,7 @@ benchmark linear-rate
   main-is: LinearRate.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -394,7 +394,7 @@ benchmark nested
   main-is: Nested.hs
   other-modules: NestedOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -435,7 +435,7 @@ benchmark base
                    , StreamKOps
 
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
