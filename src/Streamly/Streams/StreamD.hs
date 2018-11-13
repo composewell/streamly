@@ -665,25 +665,37 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m
     => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
+zipWithM f (Stream stepa ta) (Stream stepb tb) =
+    Stream step (ta, tb, Nothing, Nothing)
   where
     {-# INLINE_LATE step #-}
-    step gst (sa, sb, Nothing) = do
-        r <- stepa (rstState gst) sa
-        return $
-          case r of
-            Yield x sa' -> Skip (sa', sb, Just x)
-            Skip sa'    -> Skip (sa', sb, Nothing)
+    step gst (sa, sb, Nothing, Nothing) = do
+        ra <- stepa (rstState gst) sa
+        rb <- stepb (rstState gst) sb
+        return $ case (ra, rb) of
+            (Yield a sa', Yield b sb') -> Skip (sa', sb', Just a, Just b)
+            (Yield a sa', Skip sb')    -> Skip (sa', sb', Just a, Nothing)
+            (Skip sa', Yield b sb')    -> Skip (sa', sb', Nothing, Just b)
+            (Skip sa', Skip sb')       -> Skip (sa', sb', Nothing, Nothing)
+            _ -> Stop
+
+    step _ (sa, sb, Just a, Just b) = do
+        z <- f a b
+        return $ Yield z (sa, sb, Nothing, Nothing)
+
+    step gst (sa, sb, Just a, Nothing) = do
+        rb <- stepb (rstState gst) sb
+        return $ case rb of
+            Yield b sb' -> Skip (sa, sb', Just a, Just b)
+            Skip sb'    -> Skip (sa, sb', Just a, Nothing)
             Stop        -> Stop
 
-    step gst (sa, sb, Just x) = do
-        r <- stepb (rstState gst) sb
-        case r of
-            Yield y sb' -> do
-                z <- f x y
-                return $ Yield z (sa, sb', Nothing)
-            Skip sb' -> return $ Skip (sa, sb', Just x)
-            Stop     -> return Stop
+    step gst (sa, sb, Nothing, Just b) = do
+        ra <- stepa (rstState gst) sa
+        return $ case ra of
+            Yield a sa' -> Skip (sa', sb, Just a, Just b)
+            Skip sa'    -> Skip (sa', sb, Nothing, Just b)
+            Stop        -> Stop
 
 {-# RULES "zipWithM xs xs"
     forall f xs. zipWithM f xs xs = mapM (\x -> f x x) xs #-}
