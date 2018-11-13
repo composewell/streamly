@@ -94,6 +94,7 @@ module Streamly.Streams.StreamK
     , findIndices
     , lookup
     , find
+    , (!!)
 
     -- ** Map and Fold
     , mapM_
@@ -121,6 +122,7 @@ module Streamly.Streams.StreamK
 
     -- ** Inserting
     , intersperseM
+    , insertBy
 
     -- ** Map and Filter
     , mapMaybe
@@ -128,6 +130,12 @@ module Streamly.Streams.StreamK
     -- ** Zipping
     , zipWith
     , zipWithM
+
+    -- ** Merging
+    , mergeBy
+
+    -- ** Transformation comprehensions
+    , the
 
     -- * Semigroup Style Composition
     , serial
@@ -152,7 +160,7 @@ import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1)
+               foldr1, (!!))
 import qualified Prelude
 
 import Streamly.SVar
@@ -726,6 +734,18 @@ maximum m = go Nothing (toStream m)
                 else go (Just res) r
         in unStream m1 defState stop single yieldk
 
+{-# INLINE (!!) #-}
+(!!) :: (IsStream t, Monad m) => t m a -> Int -> m (Maybe a)
+m !! i = go i (toStream m)
+    where
+    go n m1 =
+      let single a | n == 0 = return $ Just a
+                   | otherwise = return Nothing
+          yieldk a x | n < 0 = return Nothing
+                     | n == 0 = return $ Just a
+                     | otherwise = go (n - 1) x
+      in unStream m1 defState (return Nothing) single yieldk
+
 {-# INLINE lookup #-}
 lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
 lookup e m = go (toStream m)
@@ -914,6 +934,20 @@ intersperseM a m = fromStream $ prependingStart (toStream m)
             yieldk i x = unStream (a |: return i |: go x) st stp sng yld
          in unStream m2 (rstState st) stp single yieldk
 
+{-# INLINE insertBy #-}
+insertBy :: IsStream t => (a -> a -> Ordering) -> a -> t m a -> t m a
+insertBy cmp x m = fromStream $ go (toStream m)
+  where
+    go m1 = Stream $ \st _ _ yld ->
+        let single a = case cmp x a of
+                GT -> yld a (yield x)
+                _  -> yld x (yield a)
+            stop = yld x nil
+            yieldk a r = case cmp x a of
+                GT -> yld a (go r)
+                _  -> yld x (a `cons` r)
+         in unStream m1 (rstState st) stop single yieldk
+
 -------------------------------------------------------------------------------
 -- Map and Filter
 -------------------------------------------------------------------------------
@@ -970,6 +1004,78 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         let single1 a = merge a nil
             yield1 = merge
         unStream mx (rstState st) stp single1 yield1
+
+------------------------------------------------------------------------------
+-- Merging
+------------------------------------------------------------------------------
+
+data MergeWithState l r o
+    = MergeBoth l r
+    | MergeWithLeft l r o
+    | MergeWithRight l r o
+
+{-# INLINE mergeByS #-}
+mergeByS :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeByS cmp m1 m2 = go (MergeBoth m1 m2)
+  where
+    go (MergeBoth mx my) =
+        Stream $ \st stp sng yld -> do
+            let yield1 a ra =
+                    let single2 b = sng (cond a b)
+                        stop2 = yld a ra
+                        yield2 b rb =
+                            case cmp a b of
+                                LT -> yld a (go (MergeWithRight ra rb b))
+                                _ -> yld b (go (MergeWithLeft ra rb a))
+                    in unStream my (rstState st) stop2 single2 yield2
+                single1 a = sng a
+                stop1 = unStream my (rstState st) stp sng yld
+            unStream mx (rstState st) stop1 single1 yield1
+    go (MergeWithLeft mx my x) =
+        Stream $ \st _ sng yld -> do
+            let single2 b = sng (cond x b)
+                stop2 = yld x mx
+                yield2 b rb =
+                    case cmp x b of
+                        LT -> yld x (go (MergeWithRight mx rb b))
+                        _ -> yld b (go (MergeWithLeft mx rb x))
+            unStream my (rstState st) stop2 single2 yield2
+    go (MergeWithRight mx my x) =
+        Stream $ \st _ sng yld -> do
+            let single1 a = sng (cond a x)
+                stop1 = yld x my
+                yield1 a ra =
+                    case cmp a x of
+                        LT -> yld a (go (MergeWithRight ra my x))
+                        _ -> yld x (go (MergeWithLeft ra my a))
+            unStream mx (rstState st) stop1 single1 yield1
+    cond x y =
+        if cmp x y == LT
+            then x
+            else y
+
+{-# INLINABLE mergeBy #-}
+mergeBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy f m1 m2 = fromStream $ mergeByS f (toStream m1) (toStream m2)
+
+------------------------------------------------------------------------------
+-- Transformation comprehensions
+------------------------------------------------------------------------------
+
+{-# INLINE the #-}
+the :: (Eq a, IsStream t, Monad m) => t m a -> m (Maybe a)
+the m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> go h (toStream t)
+    where
+    go h m1 =
+        let single a   | h == a    = return $ Just h
+                       | otherwise = return Nothing
+            yieldk a r | h == a    = go h r
+                       | otherwise = return Nothing
+         in unStream m1 defState (return $ Just h) single yieldk
 
 ------------------------------------------------------------------------------
 -- Semigroup

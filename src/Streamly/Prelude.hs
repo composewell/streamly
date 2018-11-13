@@ -139,6 +139,7 @@ module Streamly.Prelude
     , or
     , eqBy
     , cmpBy
+    , (!!)
 
     -- Full folds - need to go through all elements
     , length
@@ -190,9 +191,11 @@ module Streamly.Prelude
     , drop
     , dropWhile
     , dropWhileM
+    , splitAt
 
     -- ** Inserting
     , intersperseM
+    , insertBy
 
     -- * Reordering
     , reverse
@@ -215,6 +218,13 @@ module Streamly.Prelude
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
+    -- * Merging
+    , mergeBy
+    , merge
+
+    -- * Transformation comprehensions
+    , the
+
     -- * Deprecated
     , K.once
     , each
@@ -230,7 +240,8 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1)
+               reverse, iterate, init, and, or, lookup, foldr1, (!!),
+               splitAt)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -528,7 +539,7 @@ foldr = P.foldr
 -- @since 0.5.0
 {-# INLINE foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
-foldr1 = K.foldr1
+foldr1 f m = S.foldr1 f (toStreamS m)
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -702,12 +713,18 @@ minimum m = S.minimum (toStreamS m)
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = S.maximum (toStreamS m)
 
+-- | Looks the element at the given index.
+--
+{-# INLINE (!!) #-}
+(!!) :: Monad m => SerialT m a -> Int -> m (Maybe a)
+m !! i = (toStreamS m) S.!! i
+
 -- | Looks the given key up, treating the given stream as an association list.
 --
 -- @since 0.5.0
 {-# INLINE lookup #-}
 lookup :: (Monad m, Eq a) => a -> SerialT m (a, b) -> m (Maybe b)
-lookup = K.lookup
+lookup a m = S.lookup a (toStreamS m)
 
 -- | Returns the first element of the stream satisfying the given predicate,
 -- if any.
@@ -715,15 +732,15 @@ lookup = K.lookup
 -- @since 0.5.0
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
-find = K.find
+find p m = S.find p (toStreamS m)
 
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
 -- @since 0.5.0
 {-# INLINE findIndices #-}
-findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
-findIndices = K.findIndices
+findIndices :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> t m Int
+findIndices p m = fromStreamS $ S.findIndices p (toStreamS m)
 
 -- | Gives the index of the first stream element satisfying the given
 -- preficate.
@@ -738,7 +755,7 @@ findIndex p = head . findIndices p
 --
 -- @since 0.5.0
 {-# INLINE elemIndices #-}
-elemIndices :: (IsStream t, Eq a) => a -> t m a -> t m Int
+elemIndices :: (IsStream t, Eq a, Monad m) => a -> t m a -> t m Int
 elemIndices a = findIndices (==a)
 
 -- | Gives the first index of an element in the stream, which equals the given.
@@ -889,6 +906,11 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 
+-- | Split the stream at position 'n'.
+{-# INLINE splitAt #-}
+splitAt :: (IsStream t, Monad m) => Int -> t m a -> (t m a, t m a)
+splitAt n m = (take n m, drop n m)
+
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
 ------------------------------------------------------------------------------
@@ -932,7 +954,7 @@ mapMSerial = Serial.mapM
 -- @since 0.1.0
 {-# INLINE sequence #-}
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence = K.sequence
+sequence m = fromStreamS $ S.sequence (toStreamS m)
 
 ------------------------------------------------------------------------------
 -- Transformation by Map and Filter
@@ -994,6 +1016,11 @@ reverse m = fromStream $ go K.nil (toStream m)
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM = K.intersperseM
 
+{-# INLINE insertBy #-}
+insertBy ::
+       (IsStream t, Monad m) => (a -> a -> Ordering) -> a -> t m a -> t m a
+insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
+
 ------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
@@ -1031,3 +1058,21 @@ cmpBy
     :: Monad m
     => (a -> b -> Ordering) -> SerialT m a -> SerialT m b -> m Ordering
 cmpBy = P.cmpBy
+
+-- | Non-overloaded version of merge.
+{-# INLINABLE mergeBy #-}
+mergeBy ::
+       (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy f m1 m2 = fromStreamS $ S.mergeBy f (toStreamS m1) (toStreamS m2)
+
+-- | Merge two sorted streams.
+{-# INLINABLE merge #-}
+merge ::
+       (IsStream t, Monad m, Ord a) => t m a -> t m a -> t m a
+merge = mergeBy compare
+
+-- | Ensures all the elements are identical and then returns
+-- that unique element.
+{-# INLINE the #-}
+the :: (Eq a, Monad m) => SerialT m a -> m (Maybe a)
+the m = S.the (toStreamS m)

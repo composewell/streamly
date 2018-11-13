@@ -2,6 +2,7 @@
 
 * Add benchmarks to measure composed and iterated operations
 * Performance improvements
+* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `splitAt`, `the` to Prelude.
 
 ## 0.5.2
 

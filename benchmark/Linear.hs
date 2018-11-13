@@ -181,6 +181,7 @@ main =
         , benchIOSink "zip" Ops.zip
         , benchIOSink "zipM" Ops.zipM
         ]
+      , benchIOSink "merge" Ops.merge
     , bgroup "mixedX4"
       [ benchIOSink "scan-map"    (Ops.scanMap 4)
       , benchIOSink "drop-map"    (Ops.dropMap 4)

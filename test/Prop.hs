@@ -13,7 +13,7 @@ import Data.Function ((&))
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-        elemIndex, find, intersperse, foldl1', (\\))
+        elemIndex, find, insertBy, intersperse, foldl1', (\\))
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -320,7 +320,7 @@ functorOps constr desc eq t = do
     prop (desc <> " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . fmap (+1)
 
 transformOps
-    :: IsStream t
+    :: (IsStream t, Semigroup (t IO Int))
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
@@ -358,6 +358,12 @@ transformOps constr desc eq t = do
     prop (desc <> " drop 1") $ transform (drop 1) $ t . S.drop 1
     prop (desc <> " drop 10") $ transform (drop 10) $ t . S.drop 10
 
+    prop (desc <> " splitAt maxBound") $
+        transform (\xs -> let (x, y) = splitAt maxBound xs in x++y) $
+        t . (\m -> let (x,y) = S.splitAt maxBound m in x<>y)
+    {-prop (desc <> " splitAt 4") $ transform (splitAt 4) $ t . S.splitAt 4
+    prop (desc <> " splitAt 0") $ transform (splitAt 0) $ t . S.splitAt 0-}
+
     prop (desc <> " dropWhile True") $
         transform (dropWhile (const True)) $ t . S.dropWhile (const True)
     prop (desc <> " dropWhile False") $
@@ -371,7 +377,12 @@ transformOps constr desc eq t = do
     prop (desc <> " elemIndices") $ transform (elemIndices 3) $ t . S.elemIndices 3
 
     prop (desc <> " intersperseM") $ transform (intersperse 3) $ t . S.intersperseM (return 3)
-
+    prop (desc <> " insertBy maxBound") $
+        transform (insertBy compare maxBound) $ t . S.insertBy compare maxBound
+    prop (desc <> " insertBy 0") $
+        transform (insertBy compare 0) $ t . S.insertBy compare 0
+    prop (desc <> " insertBy 4") $
+        transform (insertBy compare 4) $ t . S.insertBy compare 4
 
 concurrentOps
     :: IsStream t
@@ -502,6 +513,16 @@ transformCombineOpsOrdered constr desc eq t = do
 wrapMaybe :: ([a1] -> a2) -> [a1] -> Maybe a2
 wrapMaybe f x = if null x then Nothing else Just (f x)
 
+wrapOutOfBounds :: ([a1] -> Int -> a2) -> Int -> [a1] -> Maybe a2
+wrapOutOfBounds f i x | null x = Nothing
+                      | i >= length x = Nothing
+                      | otherwise = Just (f x i)
+
+wrapThe :: Eq a => [a] -> Maybe a
+wrapThe (x:xs) | all (x ==) xs = Just x
+                 | otherwise = Nothing
+wrapThe [] = Nothing
+
 eliminationOps
     :: ([Int] -> t IO Int)
     -> String
@@ -532,10 +553,15 @@ eliminationOps constr desc t = do
     prop (desc <> " findIndex") $ eliminateOp constr (findIndex odd) $ S.findIndex odd . t
     prop (desc <> " elemIndex") $ eliminateOp constr (elemIndex 3) $ S.elemIndex 3 . t
 
+    prop (desc <> " !!") $ eliminateOp constr (wrapOutOfBounds (!!) 5) $ (S.!! 5) . t
+    prop (desc <> " !!") $ eliminateOp constr (wrapOutOfBounds (!!) 0) $ (S.!! 0) . t
+
     prop (desc <> " find") $ eliminateOp constr (find even) $ S.find even . t
     prop (desc <> " lookup") $
         eliminateOp constr (lookup 3 . flip zip [1..]) $
             S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
+
+    prop (desc <> " the") $ eliminateOp constr wrapThe $ S.the . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.

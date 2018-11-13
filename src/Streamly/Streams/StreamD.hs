@@ -67,6 +67,7 @@ module Streamly.Streams.StreamD
     -- ** General Folds
     , foldr
     , foldrM
+    , foldr1
     , foldl'
     , foldlM'
 
@@ -82,6 +83,10 @@ module Streamly.Streams.StreamD
     , any
     , maximum
     , minimum
+    , findIndices
+    , lookup
+    , find
+    , (!!)
 
     -- ** Map and Fold
     , mapM_
@@ -110,6 +115,10 @@ module Streamly.Streams.StreamD
     -- * Mapping
     , map
     , mapM
+    , sequence
+
+    -- * Inserting
+    , insertBy
 
     -- ** Map and Filter
     , mapMaybe
@@ -122,6 +131,12 @@ module Streamly.Streams.StreamD
     -- * Comparisions
     , eqBy
     , cmpBy
+
+    -- * Merging
+    , mergeBy
+
+    -- * Transformation comprehensions
+    , the
     )
 where
 
@@ -130,7 +145,8 @@ import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
-               notElem, null, head, tail, zipWith)
+               notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
+               (!!))
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
@@ -306,6 +322,14 @@ foldrM f z (Stream step state) = go SPEC state
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
 foldr f = foldrM (\a b -> return (f a b))
 
+{-# INLINE_NORMAL foldr1 #-}
+foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
+foldr1 f m = do
+     r <- uncons m
+     case r of
+         Nothing   -> return Nothing
+         Just (h, t) -> fmap Just (foldr f h t)
+
 {-# INLINE_NORMAL foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
 foldlM' fstep begin (Stream step state) = go SPEC begin state
@@ -459,6 +483,53 @@ minimum (Stream step state) = go Nothing state
               | otherwise -> go (Just x) s
             Skip s -> go (Just acc) s
             Stop   -> return (Just acc)
+
+{-# INLINE_NORMAL (!!) #-}
+(!!) :: (Monad m) => Stream m a -> Int -> m (Maybe a)
+(Stream step state) !! i = go i state
+  where
+    go n st = do
+        r <- step defState st
+        case r of
+            Yield x s | n < 0 -> return Nothing
+                      | n == 0 -> return $ Just x
+                      | otherwise -> go (n - 1) s
+            Skip s -> go n s
+            Stop   -> return Nothing
+
+{-# INLINE_NORMAL lookup #-}
+lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
+lookup e (Stream step state) = go state
+  where
+    go st = do
+        r <- step defState st
+        case r of
+            Yield (a, b) s -> if e == a then return (Just b) else go s
+            Skip s -> go s
+            Stop -> return Nothing
+
+{-# INLINE_NORMAL find #-}
+find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
+find p (Stream step state) = go state
+  where
+    go st = do
+      r <- step defState st
+      case r of
+          Yield x s -> if p x then return (Just x) else go s
+          Skip s    -> go s
+          Stop      -> return Nothing
+
+{-# INLINE_NORMAL findIndices #-}
+findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
+findIndices p (Stream step state) = Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) = do
+      r <- step (rstState gst) st
+      return $ case r of
+          Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
+          Skip s -> Skip (s, i+1)
+          Stop   -> Stop
 
 ------------------------------------------------------------------------------
 -- Map and Fold
@@ -660,6 +731,41 @@ mapM f (Stream step state) = Stream step' state
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = mapM (return . f)
 
+{-# INLINE_NORMAL sequence #-}
+sequence :: Monad m => Stream m (m a) -> Stream m a
+sequence (Stream step state) = Stream step' state
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+         r <- step (rstState gst) st
+         case r of
+             Yield x s -> x >>= \a -> return (Yield a s)
+             Skip s    -> return $ Skip s
+             Stop      -> return Stop
+
+------------------------------------------------------------------------------
+-- Inserting
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL insertBy #-}
+insertBy :: Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a
+insertBy cmp a (Stream step state) = Stream step' (state, False)
+  where
+    step' gst (st, False) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> case cmp a x of
+                GT -> return $ Yield x (s, False)
+                _  -> return $ Yield a (st, True)
+            Skip s -> return $ Skip (s, False)
+            Stop   -> return $ Yield a (st, True)
+    step' gst (st, True) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> return $ Yield x (s, True)
+            Skip s    -> return $ Skip (s, True)
+            Stop      -> return Stop
+
 ------------------------------------------------------------------------------
 -- Transformation by Map and Filter
 ------------------------------------------------------------------------------
@@ -674,7 +780,7 @@ mapMaybeM :: Monad m => (a -> m (Maybe b)) -> Stream m a -> Stream m b
 mapMaybeM f = fmap fromJust . filter isJust . mapM f
 
 ------------------------------------------------------------------------------
--- Instances
+-- Zipping
 ------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL zipWithM #-}
@@ -767,6 +873,92 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
         Yield _ _ -> return LT
         Skip s2'  -> cmp_null s2'
         Stop      -> return EQ
+
+------------------------------------------------------------------------------
+-- Merging
+------------------------------------------------------------------------------
+
+data MergeWithState l r o
+    = MergeBoth l r
+    | MergeWithLeft l r o
+    | MergeWithRight l r o
+    | MergeNoMore (Either l r)
+
+{-# INLINE_NORMAL mergeBy #-}
+mergeBy :: (Monad m) => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeBy f (Stream stepa ta) (Stream stepb tb) =
+    Stream step (MergeBoth ta tb)
+    {-# INLINE_LATE step #-}
+    step gst (MergeBoth sa sb) = do
+        ra <- stepa (rstState gst) sa
+        rb <- stepb (rstState gst) sb
+        case (ra, rb) of
+            (Yield xa sa', Yield xb sb') -> do
+                case f xa xb of
+                    LT ->
+                        return $ Yield xa (MergeWithRight sa' sb' xb)
+                    _ ->
+                        return $ Yield xb (MergeWithLeft sa' sb' xa)
+            (Yield xa sa', Stop) -> return $ Yield xa (MergeNoMore (Left sa'))
+            (Stop, Yield xb sb') -> return $ Yield xb (MergeNoMore (Right sb'))
+            (Yield xa sa', Skip sb') -> return $ Skip (MergeWithLeft sa' sb' xa)
+            (Skip sa', Yield xb sb') -> return $ Skip (MergeWithRight sa' sb' xb)
+            (Skip sa', Skip sb') -> return $ Skip (MergeBoth sa' sb')
+            (Skip sa', Stop) -> return $ Skip (MergeNoMore (Left sa'))
+            (Stop, Skip sb') -> return $ Skip (MergeNoMore (Right sb'))
+            (Stop, Stop) -> return Stop
+    step gst (MergeWithLeft sa sb x) = do
+        rb <- stepb (rstState gst) sb
+        case rb of
+            Yield xb sb' -> do
+                case f x xb of
+                    LT -> return $ Yield x (MergeWithRight sa sb' xb)
+                    _ -> return $ Yield xb (MergeWithLeft sa sb' x)
+            Skip sb' -> return $ Skip (MergeWithLeft sa sb' x)
+            Stop -> return $ Yield x (MergeNoMore (Left sa))
+    step gst (MergeWithRight sa sb x) = do
+        ra <- stepa (rstState gst) sa
+        case ra of
+            Yield xa sa' -> do
+                case f xa x of
+                    LT -> return $ Yield xa (MergeWithRight sa' sb x)
+                    _ -> return $ Yield x (MergeWithLeft sa' sb xa)
+            Skip sa' -> return $ Skip (MergeWithRight sa' sb x)
+            Stop -> return $ Yield x (MergeNoMore (Right sb))
+    step gst (MergeNoMore (Left sa)) = do
+        ra <- stepa (rstState gst) sa
+        case ra of
+            Yield xa sa' -> return $ Yield xa (MergeNoMore (Left sa'))
+            Skip sa' -> return $ Skip (MergeNoMore (Left sa'))
+            Stop -> return Stop
+    step gst (MergeNoMore (Right sb)) = do
+        rb <- stepb (rstState gst) sb
+        case rb of
+            Yield xb sb' -> return $ Yield xb (MergeNoMore (Right sb'))
+            Skip sb' -> return $ Skip (MergeNoMore (Right sb'))
+            Stop -> return Stop
+
+------------------------------------------------------------------------------
+-- Transformation comprehensions
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL the #-}
+the :: (Eq a, Monad m) => Stream m a -> m (Maybe a)
+the (Stream step state) = go state
+  where
+    go st = do
+        r <- step defState st
+        case r of
+            Yield x s -> go' x s
+            Skip s    -> go s
+            Stop      -> return Nothing
+    go' n st = do
+        r <- step defState st
+        case r of
+            Yield x s | x == n -> go' n s
+                      | otherwise -> return Nothing
+            Skip s -> go' n s
+            Stop   -> return (Just n)
 
 ------------------------------------------------------------------------------
 -- Instances

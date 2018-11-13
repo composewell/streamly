@@ -352,8 +352,9 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 {-# INLINE zip #-}
 {-# INLINE zipM #-}
+{-# INLINE merge #-}
 {-# INLINE concat #-}
-zip, zipM, concat  :: Monad m => Stream m Int -> m ()
+zip, zipM, concat, merge  :: Monad m => Stream m Int -> m ()
 
 zip src       = do
     r <- S.tail src
@@ -363,6 +364,11 @@ zipM src      =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipWithM (curry return) src src1)
+
+merge src     =  do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform (S.mergeBy P.compare src src1)
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
