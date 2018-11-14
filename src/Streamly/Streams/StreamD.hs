@@ -878,65 +878,42 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 -- Merging
 ------------------------------------------------------------------------------
 
-data MergeWithState l r o
-    = MergeBoth l r
-    | MergeWithLeft l r o
-    | MergeWithRight l r o
-    | MergeNoMore (Either l r)
-
 {-# INLINE_NORMAL mergeBy #-}
 mergeBy :: (Monad m) => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeBy f (Stream stepa ta) (Stream stepb tb) =
-    Stream step (MergeBoth ta tb)
+    Stream step (Just ta, Just tb, Nothing, Nothing)
+  where
     {-# INLINE_LATE step #-}
-    step gst (MergeBoth sa sb) = do
-        ra <- stepa (rstState gst) sa
-        rb <- stepb (rstState gst) sb
-        case (ra, rb) of
-            (Yield xa sa', Yield xb sb') -> do
-                case f xa xb of
-                    LT ->
-                        return $ Yield xa (MergeWithRight sa' sb' xb)
-                    _ ->
-                        return $ Yield xb (MergeWithLeft sa' sb' xa)
-            (Yield xa sa', Stop) -> return $ Yield xa (MergeNoMore (Left sa'))
-            (Stop, Yield xb sb') -> return $ Yield xb (MergeNoMore (Right sb'))
-            (Yield xa sa', Skip sb') -> return $ Skip (MergeWithLeft sa' sb' xa)
-            (Skip sa', Yield xb sb') -> return $ Skip (MergeWithRight sa' sb' xb)
-            (Skip sa', Skip sb') -> return $ Skip (MergeBoth sa' sb')
-            (Skip sa', Stop) -> return $ Skip (MergeNoMore (Left sa'))
-            (Stop, Skip sb') -> return $ Skip (MergeNoMore (Right sb'))
-            (Stop, Stop) -> return Stop
-    step gst (MergeWithLeft sa sb x) = do
-        rb <- stepb (rstState gst) sb
-        case rb of
-            Yield xb sb' -> do
-                case f x xb of
-                    LT -> return $ Yield x (MergeWithRight sa sb' xb)
-                    _ -> return $ Yield xb (MergeWithLeft sa sb' x)
-            Skip sb' -> return $ Skip (MergeWithLeft sa sb' x)
-            Stop -> return $ Yield x (MergeNoMore (Left sa))
-    step gst (MergeWithRight sa sb x) = do
-        ra <- stepa (rstState gst) sa
-        case ra of
-            Yield xa sa' -> do
-                case f xa x of
-                    LT -> return $ Yield xa (MergeWithRight sa' sb x)
-                    _ -> return $ Yield x (MergeWithLeft sa' sb xa)
-            Skip sa' -> return $ Skip (MergeWithRight sa' sb x)
-            Stop -> return $ Yield x (MergeNoMore (Right sb))
-    step gst (MergeNoMore (Left sa)) = do
-        ra <- stepa (rstState gst) sa
-        case ra of
-            Yield xa sa' -> return $ Yield xa (MergeNoMore (Left sa'))
-            Skip sa' -> return $ Skip (MergeNoMore (Left sa'))
-            Stop -> return Stop
-    step gst (MergeNoMore (Right sb)) = do
-        rb <- stepb (rstState gst) sb
-        case rb of
-            Yield xb sb' -> return $ Yield xb (MergeNoMore (Right sb'))
-            Skip sb' -> return $ Skip (MergeNoMore (Right sb'))
-            Stop -> return Stop
+
+    -- one of the values is missing, and the corresponding stream is running
+    step gst (Just sa, sb, Nothing, b) = do
+        r <- stepa (rstState gst) sa
+        return $ case r of
+            Yield a sa' -> Skip (Just sa', sb, Just a, b)
+            Skip sa'    -> Skip (Just sa', sb, Nothing, b)
+            Stop        -> Skip (Nothing, sb, Nothing, b)
+
+    step gst (sa, Just sb, a, Nothing) = do
+        r <- stepb (rstState gst) sb
+        return $ case r of
+            Yield b sb' -> Skip (sa, Just sb', a, Just b)
+            Skip sb'    -> Skip (sa, Just sb', a, Nothing)
+            Stop        -> Skip (sa, Nothing, a, Nothing)
+
+    -- both the values are available
+    step _ (sa, sb, Just a, Just b) =
+        return $ case f a b of
+            LT -> Yield a (sa, sb, Nothing, Just b)
+            _ -> Yield b (sa, sb, Just a, Nothing)
+
+    -- one of the values is missing, corresponding stream is done
+    step _ (Nothing, sb, Nothing, Just b) = do
+            return $ Yield b (Nothing, sb, Nothing, Nothing)
+
+    step _ (sa, Nothing, Just a, Nothing) = do
+            return $ Yield a (sa, Nothing, Nothing, Nothing)
+
+    step _ (Nothing, Nothing, Nothing, Nothing) = return Stop
 
 ------------------------------------------------------------------------------
 -- Transformation comprehensions
