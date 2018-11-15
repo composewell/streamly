@@ -126,6 +126,9 @@ module Streamly.Streams.StreamK
     , intersperseM
     , insertBy
 
+    -- ** Deleting
+    , deleteBy
+
     -- ** Map and Filter
     , mapMaybe
 
@@ -989,6 +992,21 @@ insertBy cmp x m = fromStream $ go (toStream m)
                 GT -> yld a (go r)
                 _  -> yld x (a `cons` r)
          in unStream m1 (rstState st) stop single yieldk
+
+------------------------------------------------------------------------------
+-- Deleting
+------------------------------------------------------------------------------
+
+{-# INLINE deleteBy #-}
+deleteBy :: IsStream t => (a -> a -> Bool) -> a -> t m a -> t m a
+deleteBy eq x m = fromStream $ go (toStream m)
+  where
+    go m1 = Stream $ \st stp sng yld ->
+        let single a = if eq x a then stp else sng a
+            yieldk a r = if eq x a
+              then unStream r (rstState st) stp sng yld
+              else yld a (go r)
+         in unStream m1 (rstState st) stp single yieldk
 
 -------------------------------------------------------------------------------
 -- Map and Filter

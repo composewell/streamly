@@ -128,6 +128,9 @@ module Streamly.Streams.StreamD
     -- * Inserting
     , insertBy
 
+    -- * Deleting
+    , deleteBy
+
     -- ** Map and Filter
     , mapMaybe
     , mapMaybeM
@@ -867,22 +870,50 @@ sequence (Stream step state) = Stream step' state
 
 {-# INLINE_NORMAL insertBy #-}
 insertBy :: Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a
-insertBy cmp a (Stream step state) = Stream step' (state, False)
+insertBy cmp a (Stream step state) = Stream step' (state, False, Nothing)
   where
-    step' gst (st, False) = do
+    {-# INLINE_LATE step' #-}
+    step' gst (st, False, _) = do
         r <- step (rstState gst) st
         case r of
             Yield x s -> case cmp a x of
-                GT -> return $ Yield x (s, False)
-                _  -> return $ Yield a (st, True)
+                GT -> return $ Yield x (s, False, Nothing)
+                _  -> return $ Yield a (s, True, Just x)
+            Skip s -> return $ Skip (s, False, Nothing)
+            Stop   -> return $ Yield a (st, True, Nothing)
+
+    step' _ (_, True, Nothing) = return Stop
+
+    step' gst (st, True, Just prev) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> return $ Yield prev (s, True, Just x)
+            Skip s    -> return $ Skip (s, True, Just prev)
+            Stop      -> return $ Yield prev (st, True, Nothing)
+
+------------------------------------------------------------------------------
+-- Deleting
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL deleteBy #-}
+deleteBy :: Monad m => (a -> a -> Bool) -> a -> Stream m a -> Stream m a
+deleteBy eq x (Stream step state) = Stream step' (state, False)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, False) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield y s -> return $
+                if eq x y then Skip (s, True) else Yield y (s, False)
             Skip s -> return $ Skip (s, False)
-            Stop   -> return $ Yield a (st, True)
+            Stop   -> return Stop
+
     step' gst (st, True) = do
         r <- step (rstState gst) st
         case r of
-            Yield x s -> return $ Yield x (s, True)
-            Skip s    -> return $ Skip (s, True)
-            Stop      -> return Stop
+            Yield y s -> return $ Yield y (s, True)
+            Skip s -> return $ Skip (s, True)
+            Stop   -> return Stop
 
 ------------------------------------------------------------------------------
 -- Transformation by Map and Filter

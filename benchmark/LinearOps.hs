@@ -15,7 +15,7 @@ import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
+       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare)
 import qualified Prelude as P
@@ -275,7 +275,8 @@ composeN' n f =
 scan, scanl1, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices
+    findIndices, elemIndices, insertLarge, insertSmall, deleteLarge,
+    deleteSmall
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -314,6 +315,10 @@ dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
+insertLarge   n = composeN n $ S.insertBy compare maxValue
+insertSmall   n = composeN n $ S.insertBy compare 0
+deleteSmall   n = composeN n $ S.deleteBy (==) 0
+deleteLarge   n = composeN n $ S.deleteBy (>=) maxValue
 
 -------------------------------------------------------------------------------
 -- Iteration

@@ -138,6 +138,10 @@ main =
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
         -- , benchIOSink "concat" Ops.concat
+        , benchIOSink "insertLarge" (Ops.insertLarge 1)
+        , benchIOSink "insertSmall" (Ops.insertSmall 1)
+        , benchIOSink "deleteLarge" (Ops.deleteLarge 1)
+        , benchIOSink "deleteSmall" (Ops.deleteSmall 1)
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)
@@ -151,6 +155,10 @@ main =
             -- Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIOSink "findIndices" (Ops.findIndices 4)
         , benchIOSink "elemIndices" (Ops.elemIndices 4)
+        , benchIOSink "insertLarge" (Ops.insertLarge 4)
+        , benchIOSink "insertSmall" (Ops.insertSmall 4)
+        , benchIOSink "deleteLarge" (Ops.deleteLarge 4)
+        , benchIOSink "deleteSmall" (Ops.deleteSmall 4)
         -- , benchIOSink "concat" Ops.concat
         ]
       , bgroup "filtering"

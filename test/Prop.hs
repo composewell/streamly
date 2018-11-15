@@ -14,7 +14,7 @@ import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
-        maximumBy, minimumBy)
+        maximumBy, minimumBy, deleteBy)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -384,6 +384,12 @@ transformOps constr desc eq t = do
         transform (insertBy compare 0) $ t . S.insertBy compare 0
     prop (desc <> " insertBy 4") $
         transform (insertBy compare 4) $ t . S.insertBy compare 4
+    prop (desc <> " deleteBy (<=) maxBound") $
+        transform (deleteBy (<=) maxBound) $ t . S.deleteBy (<=) maxBound
+    prop (desc <> " deleteBy (<=) 0") $
+        transform (deleteBy (<=) 0) $ t . S.deleteBy (<=) 0
+    prop (desc <> " deleteBy (==) 4") $
+        transform (deleteBy (==) 4) $ t . S.deleteBy (==) 4
 
 concurrentOps
     :: IsStream t

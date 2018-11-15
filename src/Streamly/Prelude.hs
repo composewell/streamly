@@ -205,6 +205,9 @@ module Streamly.Prelude
     , intersperseM
     , insertBy
 
+    -- ** Deleting
+    , deleteBy
+
     -- * Reordering
     , reverse
 
@@ -1072,10 +1075,24 @@ reverse m = fromStream $ go K.nil (toStream m)
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM = K.intersperseM
 
+-- | Inserts @x@ before the first element in the Stream that is
+-- less than @x@, based on the user supplied comparison function.
+--
 {-# INLINE insertBy #-}
 insertBy ::
        (IsStream t, Monad m) => (a -> a -> Ordering) -> a -> t m a -> t m a
 insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
+
+------------------------------------------------------------------------------
+-- Deleting
+------------------------------------------------------------------------------
+
+-- | Deletes the first occurence of @x@ in the Stream that satisfies the
+-- equality predicate.
+--
+{-# INLINE deleteBy #-}
+deleteBy :: (IsStream t, Monad m) => (a -> a -> Bool) -> a -> t m a -> t m a
+deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 
 ------------------------------------------------------------------------------
 -- Zipping
