@@ -125,6 +125,11 @@ module Streamly.Prelude
     , last
     , init
 
+    -- Substreams
+    , isPrefixOf
+    , isSubsequenceOf
+    , stripPrefix
+
     -- Conditional folds: may terminate early based on a condition
     , null
     , elem
@@ -786,6 +791,33 @@ elemIndices a = findIndices (==a)
 {-# INLINE elemIndex #-}
 elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
 elemIndex a = findIndex (==a)
+
+------------------------------------------------------------------------------
+-- Substreams
+------------------------------------------------------------------------------
+
+-- | Takes two streams and returns 'True' iff the first stream is a prefix
+-- of the second.
+--
+{-# INLINE isPrefixOf #-}
+isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
+isPrefixOf m1 m2 = S.isPrefixOf (toStreamD m1) (toStreamD m2)
+
+-- | Takes two streams and returns 'True' if all the elements of the
+-- first stream occur, in order, in the second stream. The elements do
+-- not have to occur consecutively.
+--
+{-# INLINE isSubsequenceOf #-}
+isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
+isSubsequenceOf m1 m2 = S.isSubsequenceOf (toStreamD m1) (toStreamD m2)
+
+-- | Drops the given prefix from a stream. Returns Nothing if the stream
+-- doesn't start with the prefix given.
+--
+{-# INLINE stripPrefix #-}
+stripPrefix :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m (Maybe (t m a))
+stripPrefix m1 m2 = fmap (fmap fromStreamD) $
+    S.stripPrefix (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Map and Fold

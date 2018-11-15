@@ -90,6 +90,11 @@ module Streamly.Streams.StreamD
     , find
     , (!!)
 
+    -- ** Substreams
+    , isPrefixOf
+    , isSubsequenceOf
+    , stripPrefix
+
     -- ** Map and Fold
     , mapM_
 
@@ -579,6 +584,73 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i+1)
           Stop   -> Stop
+
+------------------------------------------------------------------------------
+-- Substreams
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL isPrefixOf #-}
+isPrefixOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return True
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else return False
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return False
+
+{-# INLINE_NORMAL isSubsequenceOf #-}
+isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
+isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return True
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else go (sa, sb', Just x)
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return False
+
+{-# INLINE_NORMAL stripPrefix #-}
+stripPrefix :: (Eq a, Monad m) => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
+  where
+    go (sa, sb, Nothing) = do
+        r <- stepa defState sa
+        case r of
+            Yield x sa' -> go (sa', sb, Just x)
+            Skip sa'    -> go (sa', sb, Nothing)
+            Stop        -> return $ Just (Stream stepb sb)
+
+    go (sa, sb, Just x) = do
+        r <- stepb defState sb
+        case r of
+            Yield y sb' ->
+                if x == y
+                    then go (sa, sb', Nothing)
+                    else return Nothing
+            Skip sb' -> go (sa, sb', Just x)
+            Stop     -> return Nothing
 
 ------------------------------------------------------------------------------
 -- Map and Fold

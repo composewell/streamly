@@ -324,6 +324,7 @@ insertSmall   n = composeN n $ S.insertBy compare 0
 deleteSmall   n = composeN n $ S.deleteBy (==) 0
 deleteLarge   n = composeN n $ S.deleteBy (>=) maxValue
 
+
 -------------------------------------------------------------------------------
 -- Iteration
 -------------------------------------------------------------------------------
@@ -374,7 +375,14 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 {-# INLINE zipM #-}
 {-# INLINE merge #-}
 {-# INLINE concat #-}
-zip, zipM, concat, merge  :: Monad m => Stream m Int -> m ()
+{-# INLINE isPrefixOf #-}
+{-# INLINE isPrefixAll #-}
+{-# INLINE isSubsequenceOf #-}
+{-# INLINE evenSubsequence #-}
+{-# INLINE stripPrefix #-}
+zip, zipM, concat, merge, isPrefixOf, isPrefixAll, isSubsequenceOf,
+    evenSubsequence, stripPrefix
+    :: Monad m => Stream m Int -> m ()
 
 zip src       = do
     r <- S.tail src
@@ -389,6 +397,30 @@ merge src     =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.mergeBy P.compare src src1)
+
+isPrefixOf src     =  do
+    let src1 = S.take 10 src
+    _ <- S.isPrefixOf src1 src
+    return ()
+
+isPrefixAll src = do
+    _ <- S.isPrefixOf src src
+    return ()
+
+isSubsequenceOf src = do
+    let src1 = S.take 10 src
+    _ <- S.isSubsequenceOf src1 src
+    return ()
+
+evenSubsequence src = do
+    let src1 = S.filter even src
+    _ <- S.isSubsequenceOf src1 src
+    return ()
+
+stripPrefix src = do
+    let src1 = S.take 10 src
+    _ <- S.stripPrefix src1 src
+    return ()
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}

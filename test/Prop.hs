@@ -14,7 +14,8 @@ import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
-        maximumBy, minimumBy, deleteBy)
+        maximumBy, minimumBy, deleteBy, isPrefixOf, isSubsequenceOf,
+        stripPrefix)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -584,13 +585,23 @@ eliminationOps constr desc t = do
     prop (desc <> " findIndex") $ eliminateOp constr (findIndex odd) $ S.findIndex odd . t
     prop (desc <> " elemIndex") $ eliminateOp constr (elemIndex 3) $ S.elemIndex 3 . t
 
-    prop (desc <> " !!") $ eliminateOp constr (wrapOutOfBounds (!!) 5) $ (S.!! 5) . t
-    prop (desc <> " !!") $ eliminateOp constr (wrapOutOfBounds (!!) 0) $ (S.!! 0) . t
+    prop (desc <> " !! 5") $ eliminateOp constr (wrapOutOfBounds (!!) 5) $ (S.!! 5) . t
+    prop (desc <> " !! 4") $ eliminateOp constr (wrapOutOfBounds (!!) 0) $ (S.!! 0) . t
 
     prop (desc <> " find") $ eliminateOp constr (find even) $ S.find even . t
     prop (desc <> " lookup") $
         eliminateOp constr (lookup 3 . flip zip [1..]) $
             S.lookup 3 . S.zipWith (\a b -> (b, a)) (S.fromList [(1::Int)..]) . t
+
+    -- XXX Write better tests for substreams.
+    prop (desc <> " isPrefixOf 10") $ eliminateOp constr (isPrefixOf [1..10]) $
+        S.isPrefixOf (S.fromList [(1::Int)..10]) . t
+    prop (desc <> " isSubsequenceOf 10") $
+        eliminateOp constr (isSubsequenceOf $ filter even [1..10]) $
+        S.isSubsequenceOf (S.fromList $ filter even [(1::Int)..10]) . t
+    prop (desc <> " stripPrefix 10") $ eliminateOp constr (stripPrefix [1..10]) $
+        (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
+        S.stripPrefix (S.fromList [(1::Int)..10]) . t
 
     prop (desc <> " the") $ eliminateOp constr wrapThe $ S.the . t
 

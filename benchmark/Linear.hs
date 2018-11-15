@@ -194,6 +194,11 @@ main =
         , benchIOSink "zipM" Ops.zipM
         ]
       , benchIOSink "merge" Ops.merge
+      , benchIOSink "isPrefixOf" Ops.isPrefixOf
+      , benchIOSink "isPrefixAll" Ops.isPrefixAll
+      , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
+      , benchIOSink "evenSubsequence" Ops.evenSubsequence
+      , benchIOSink "stripPrefix" Ops.stripPrefix
     , bgroup "mixedX4"
       [ benchIOSink "scan-map"    (Ops.scanMap 4)
       , benchIOSink "drop-map"    (Ops.dropMap 4)
