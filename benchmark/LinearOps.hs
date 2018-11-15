@@ -17,7 +17,7 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO)
+        maxBound, div, IO, compare)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -146,6 +146,10 @@ toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
 last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1
     :: Monad m => Stream m Int -> m (Maybe Int)
 
+{-# INLINE minimumBy #-}
+{-# INLINE maximumBy #-}
+minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
+
 {-# INLINE foldl' #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
@@ -213,6 +217,8 @@ maximum = S.maximum
 minimum = S.minimum
 sum    = S.sum
 product = S.product
+minimumBy = S.minimumBy compare
+maximumBy = S.maximumBy compare
 
 -------------------------------------------------------------------------------
 -- Transformation

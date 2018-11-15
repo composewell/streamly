@@ -82,7 +82,9 @@ module Streamly.Streams.StreamD
     , all
     , any
     , maximum
+    , maximumBy
     , minimum
+    , minimumBy
     , findIndices
     , lookup
     , find
@@ -465,6 +467,25 @@ maximum (Stream step state) = go Nothing state
             Skip s -> go (Just acc) s
             Stop   -> return (Just acc)
 
+{-# INLINE_NORMAL maximumBy #-}
+maximumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+maximumBy cmp (Stream step state) = go Nothing state
+  where
+    go Nothing st = do
+        r <- step defState st
+        case r of
+            Yield x s -> go (Just x) s
+            Skip  s   -> go Nothing s
+            Stop      -> return Nothing
+    go (Just acc) st = do
+        r <- step defState st
+        case r of
+            Yield x s -> case cmp acc x of
+                GT -> go (Just acc) s
+                _  -> go (Just x) s
+            Skip s -> go (Just acc) s
+            Stop   -> return (Just acc)
+
 {-# INLINE_NORMAL minimum #-}
 minimum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)
 minimum (Stream step state) = go Nothing state
@@ -481,6 +502,25 @@ minimum (Stream step state) = go Nothing state
             Yield x s
               | acc <= x  -> go (Just acc) s
               | otherwise -> go (Just x) s
+            Skip s -> go (Just acc) s
+            Stop   -> return (Just acc)
+
+{-# INLINE_NORMAL minimumBy #-}
+minimumBy :: Monad m => (a -> a -> Ordering) -> Stream m a -> m (Maybe a)
+minimumBy cmp (Stream step state) = go Nothing state
+  where
+    go Nothing st = do
+        r <- step defState st
+        case r of
+            Yield x s -> go (Just x) s
+            Skip  s   -> go Nothing s
+            Stop      -> return Nothing
+    go (Just acc) st = do
+        r <- step defState st
+        case r of
+            Yield x s -> case cmp acc x of
+                GT -> go (Just x) s
+                _  -> go (Just acc) s
             Skip s -> go (Just acc) s
             Stop   -> return (Just acc)
 

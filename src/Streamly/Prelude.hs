@@ -144,7 +144,9 @@ module Streamly.Prelude
     -- Full folds - need to go through all elements
     , length
     , maximum
+    , maximumBy
     , minimum
+    , minimumBy
     , sum
     , product
 
@@ -706,12 +708,23 @@ product = foldl' (*) 1
 minimum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 minimum m = S.minimum (toStreamS m)
 
+-- | Non-overloaded version of minimum.
+--
+{-# INLINE minimumBy #-}
+minimumBy :: Monad m => (a -> a -> Ordering) -> SerialT m a -> m (Maybe a)
+minimumBy cmp m = S.minimumBy cmp (toStreamS m)
+
 -- | Determine the maximum element in a stream.
 --
--- @since 0.1.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
 maximum m = S.maximum (toStreamS m)
+
+-- | Non-overloaded version of maximum.
+--
+{-# INLINE maximumBy #-}
+maximumBy :: Monad m => (a -> a -> Ordering) -> SerialT m a -> m (Maybe a)
+maximumBy cmp m = S.maximumBy cmp (toStreamS m)
 
 -- | Looks the element at the given index.
 --

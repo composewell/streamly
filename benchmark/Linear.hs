@@ -119,7 +119,9 @@ main =
         , benchIOSink "findIndex" Ops.findIndex
         , benchIOSink "elemIndex" Ops.elemIndex
         , benchIOSink "maximum" Ops.maximum
+        , benchIOSink "maximumBy" Ops.maximumBy
         , benchIOSink "minimum" Ops.minimum
+        , benchIOSink "minimumBy" Ops.minimumBy
         , benchIOSink "sum" Ops.sum
         , benchIOSink "product" Ops.product
         ]

@@ -13,7 +13,8 @@ import Data.Function ((&))
 import Data.IORef (readIORef, modifyIORef, newIORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
-        elemIndex, find, insertBy, intersperse, foldl1', (\\))
+        elemIndex, find, insertBy, intersperse, foldl1', (\\),
+        maximumBy, minimumBy)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -549,6 +550,17 @@ eliminationOps constr desc t = do
 
     prop (desc <> " maximum") $ eliminateOp constr (wrapMaybe maximum) $ S.maximum . t
     prop (desc <> " minimum") $ eliminateOp constr (wrapMaybe minimum) $ S.minimum . t
+
+    prop (desc <> " maximumBy compare") $
+        eliminateOp constr (wrapMaybe $ maximumBy compare) $ S.maximumBy compare . t
+    prop (desc <> " maximumBy flip compare") $
+        eliminateOp constr (wrapMaybe $ maximumBy $ flip compare) $
+        S.maximumBy (flip compare) . t
+    prop (desc <> " minimumBy compare") $
+        eliminateOp constr (wrapMaybe $ minimumBy compare) $ S.minimumBy compare . t
+    prop (desc <> " minimumBy flip compare") $
+        eliminateOp constr (wrapMaybe $ minimumBy $ flip compare) $
+        S.minimumBy (flip compare) . t
 
     prop (desc <> " findIndex") $ eliminateOp constr (findIndex odd) $ S.findIndex odd . t
     prop (desc <> " elemIndex") $ eliminateOp constr (elemIndex 3) $ S.elemIndex 3 . t

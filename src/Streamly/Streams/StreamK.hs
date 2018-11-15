@@ -90,7 +90,9 @@ module Streamly.Streams.StreamK
     , any
     , last
     , minimum
+    , minimumBy
     , maximum
+    , maximumBy
     , findIndices
     , lookup
     , find
@@ -712,6 +714,26 @@ minimum m = go Nothing (toStream m)
                 else go (Just a) r
         in unStream m1 defState stop single yieldk
 
+{-# INLINE minimumBy #-}
+minimumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
+minimumBy cmp m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 defState stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  = case cmp res a of
+                GT -> return (Just a)
+                _  -> return (Just res)
+            yieldk a r = case cmp res a of
+                GT -> go (Just a) r
+                _  -> go (Just res) r
+        in unStream m1 defState stop single yieldk
+
 {-# INLINE maximum #-}
 maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
 maximum m = go Nothing (toStream m)
@@ -732,6 +754,26 @@ maximum m = go Nothing (toStream m)
                 if res <= a
                 then go (Just a) r
                 else go (Just res) r
+        in unStream m1 defState stop single yieldk
+
+{-# INLINE maximumBy #-}
+maximumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
+maximumBy cmp m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 defState stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  = case cmp res a of
+                GT -> return (Just res)
+                _  -> return (Just a)
+            yieldk a r = case cmp res a of
+                GT -> go (Just res) r
+                _  -> go (Just a) r
         in unStream m1 defState stop single yieldk
 
 {-# INLINE (!!) #-}
