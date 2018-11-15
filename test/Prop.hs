@@ -464,10 +464,23 @@ transformCombineOpsCommon constr desc eq t = do
     prop (desc <> " mapM (+1)") $
         transform (fmap (+1)) t (S.mapM (\x -> return (x + 1)))
 
-    prop (desc <> " scan") $ transform (scanl' (flip const) 0) t
+    prop (desc <> " scanl'") $ transform (scanl' (flip const) 0) t
                                        (S.scanl' (flip const) 0)
     prop (desc <> " scanlM'") $ transform (scanl' (flip const) 0) t
                                        (S.scanlM' (\_ a -> return a) 0)
+    prop (desc <> " scanl") $ transform (scanl' (flip const) 0) t
+                                       (S.scanl' (flip const) 0)
+    prop (desc <> " scanlM") $ transform (scanl (flip const) 0) t
+                                       (S.scanlM (\_ a -> return a) 0)
+    prop (desc <> " scanl1") $ transform (scanl1 (flip const)) t
+                                         (S.scanl1 (flip const))
+    prop (desc <> " scanl1M") $ transform (scanl1 (flip const)) t
+                                          (S.scanl1M (\_ a -> return a))
+    prop (desc <> " scanl1'") $ transform (scanl1 (flip const)) t
+                                         (S.scanl1' (flip const))
+    prop (desc <> " scanl1M'") $ transform (scanl1 (flip const)) t
+                                          (S.scanl1M' (\_ a -> return a))
+
     prop (desc <> " reverse") $ transform reverse t S.reverse
 
     prop (desc <> " intersperseM") $

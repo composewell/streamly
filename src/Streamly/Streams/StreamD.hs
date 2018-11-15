@@ -103,6 +103,12 @@ module Streamly.Streams.StreamD
     -- ** By folding (scans)
     , scanlM'
     , scanl'
+    , scanlM
+    , scanl
+    , scanl1M'
+    , scanl1'
+    , scanl1M
+    , scanl1
 
     -- * Filtering
     , filter
@@ -148,7 +154,7 @@ import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!))
+               (!!), scanl, scanl1)
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
@@ -630,6 +636,20 @@ postscanlM' fstep begin (Stream step state) =
             Skip s -> return $ Skip (s, acc)
             Stop   -> return Stop
 
+{-# INLINE_NORMAL postscanlM #-}
+postscanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
+postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, acc) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> do
+                y <- fstep acc x
+                return (Yield y (s, y))
+            Skip s -> return $ Skip (s, acc)
+            Stop   -> return Stop
+
 {-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
@@ -637,6 +657,64 @@ scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 scanl' f = scanlM' (\a b -> return (f a b))
+
+{-# INLINE_NORMAL scanlM #-}
+scanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
+scanlM fstep begin s = begin `cons` postscanlM fstep begin s
+
+{-# INLINE scanl #-}
+scanl :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+scanl f = scanlM (\a b -> return (f a b))
+
+{-# INLINE_NORMAL scanl1M #-}
+scanl1M :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a
+scanl1M fstep (Stream step state) = Stream step' (state, Nothing)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, Nothing) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> return $ Yield x (s, Just x)
+            Skip s -> return $ Skip (s, Nothing)
+            Stop   -> return Stop
+
+    step' gst (st, Just acc) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield y s -> do
+                z <- fstep acc y
+                return $ Yield z (s, Just z)
+            Skip s -> return $ Skip (s, Just acc)
+            Stop   -> return Stop
+
+{-# INLINE scanl1 #-}
+scanl1 :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
+scanl1 f = scanl1M (\x y -> return (f x y))
+
+{-# INLINE_NORMAL scanl1M' #-}
+scanl1M' :: Monad m => (a -> a -> m a) -> Stream m a -> Stream m a
+scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, Nothing) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> x `seq` return $ Yield x (s, Just x)
+            Skip s -> return $ Skip (s, Nothing)
+            Stop   -> return Stop
+
+    step' gst (st, Just acc) = acc `seq` do
+        r <- step (rstState gst) st
+        case r of
+            Yield y s -> do
+                z <- fstep acc y
+                z `seq` return $ Yield z (s, Just z)
+            Skip s -> return $ Skip (s, Just acc)
+            Stop   -> return Stop
+
+{-# INLINE scanl1' #-}
+scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
+scanl1' f = scanl1M' (\x y -> return (f x y))
 
 -------------------------------------------------------------------------------
 -- Filtering

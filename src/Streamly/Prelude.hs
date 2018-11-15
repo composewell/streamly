@@ -169,6 +169,12 @@ module Streamly.Prelude
     -- transformation like map can be expressed in terms of this.
     , scanl'
     , scanlM'
+    , scanlM
+    , scanl
+    , scanl1M'
+    , scanl1'
+    , scanl1M
+    , scanl1
     , scanx
 
     -- ** Mapping
@@ -243,7 +249,7 @@ import Prelude
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               splitAt)
+               splitAt, scanl, scanl1)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -850,6 +856,43 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 {-# INLINE scanl' #-}
 scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
+
+-- | Like 'scanlM'' but with a non-strict accumulator.
+--
+{-# INLINE scanlM #-}
+scanlM :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
+scanlM step begin m = fromStreamD $ D.scanlM step begin $ toStreamD m
+
+-- | Like 'scanl'' but with a non-strict accumulator.
+{-# INLINE scanl #-}
+scanl :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
+scanl step z m = fromStreamD $ D.scanl step z $ toStreamD m
+
+-- | Left scan with a monadic step function. Uses the first element of
+-- the stream as the starting value. Returns an empty stream if the
+-- given stream is empty.
+--
+{-# INLINE scanl1M #-}
+scanl1M :: (IsStream t, Monad m) => (a -> a -> m a) -> t m a -> t m a
+scanl1M step m = fromStreamD $ D.scanl1M step $ toStreamD m
+
+-- | Like 'scanl1M' but with a strict accumulator.
+--
+{-# INLINE scanl1M' #-}
+scanl1M' :: (IsStream t, Monad m) => (a -> a -> m a) -> t m a -> t m a
+scanl1M' step m = fromStreamD $ D.scanl1M' step $ toStreamD m
+
+-- | Left scan, uses the first element of the stream as the starting
+-- value. Returns an empty stream if the given stream is empty.
+{-# INLINE scanl1 #-}
+scanl1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> t m a
+scanl1 step m = fromStreamD $ D.scanl1 step $ toStreamD m
+
+-- | Like 'scanl1'' but with a strict accumulator.
+--
+{-# INLINE scanl1' #-}
+scanl1' :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> t m a
+scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 
 ------------------------------------------------------------------------------
 -- Transformation by Filtering

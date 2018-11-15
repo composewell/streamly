@@ -254,6 +254,7 @@ composeN' n f =
         _ -> undefined
 
 {-# INLINE scan #-}
+{-# INLINE scanl1 #-}
 {-# INLINE map #-}
 {-# INLINE fmap #-}
 {-# INLINE mapMaybe #-}
@@ -271,7 +272,7 @@ composeN' n f =
 {-# INLINE dropWhileFalse #-}
 {-# INLINE findIndices #-}
 {-# INLINE elemIndices #-}
-scan, map, fmap, mapMaybe, filterEven, filterAllOut,
+scan, scanl1, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices
@@ -290,6 +291,7 @@ sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
 
 scan          n = composeN n $ S.scanl' (+) 0
+scanl1        n = composeN n $ S.scanl1' (+)
 fmap          n = composeN n $ Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
@@ -332,18 +334,21 @@ iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
 
 {-# INLINE iterateMapM #-}
 {-# INLINE iterateScan #-}
+{-# INLINE iterateScanl1 #-}
 {-# INLINE iterateFilterEven #-}
 {-# INLINE iterateTakeAll #-}
 {-# INLINE iterateDropOne #-}
 {-# INLINE iterateDropWhileFalse #-}
 {-# INLINE iterateDropWhileTrue #-}
-iterateMapM, iterateScan, iterateFilterEven, iterateTakeAll, iterateDropOne,
-    iterateDropWhileFalse, iterateDropWhileTrue
+iterateMapM, iterateScan, iterateScanl1, iterateFilterEven, iterateTakeAll,
+    iterateDropOne, iterateDropWhileFalse, iterateDropWhileTrue
     :: S.MonadAsync m
     => Int -> Stream m Int
 
 -- this is quadratic
 iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
+-- so is this
+iterateScanl1          = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
 
 iterateMapM            = iterateSource (S.mapM return) maxIters
 iterateFilterEven      = iterateSource (S.filter even) maxIters
@@ -412,9 +417,10 @@ cmpBy src = S.cmpBy P.compare src src
 {-# INLINE filterDrop #-}
 {-# INLINE filterTake #-}
 {-# INLINE filterScan #-}
+{-# INLINE filterScanl1 #-}
 {-# INLINE filterMap #-}
 scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
-    filterTake, filterScan, filterMap
+    filterTake, filterScan, filterScanl1, filterMap
     :: Monad m => Int -> Stream m Int -> m ()
 
 scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
@@ -426,6 +432,7 @@ takeMap    n = composeN n $ S.map (subtract 1) . S.take maxValue
 filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
 
 -------------------------------------------------------------------------------

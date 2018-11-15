@@ -127,6 +127,7 @@ main =
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)
+        , benchIOSink "scanl1" (Ops.scanl1 1)
         , benchIOSink "map" (Ops.map 1)
         , benchIOSink "fmap" (Ops.fmap 1)
         , benchIOSink "mapM" (Ops.mapM serially 1)
@@ -140,6 +141,7 @@ main =
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)
+        , benchIOSink "scanl1" (Ops.scanl1 4)
         , benchIOSink "map" (Ops.map 4)
         , benchIOSink "fmap" (Ops.fmap 4)
         , benchIOSink "mapM" (Ops.mapM serially 4)
@@ -194,11 +196,13 @@ main =
       , benchIOSink "filter-drop" (Ops.filterDrop 4)
       , benchIOSink "filter-take" (Ops.filterTake 4)
       , benchIOSink "filter-scan" (Ops.filterScan 4)
+      , benchIOSink "filter-scanl1" (Ops.filterScanl1 4)
       , benchIOSink "filter-map"  (Ops.filterMap 4)
       ]
     , bgroup "iterated"
       [ benchIOSrc serially "mapM"           Ops.iterateMapM
       , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
+      , benchIOSrc serially "scanl1(1/100)"  Ops.iterateScanl1
       , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
       , benchIOSrc serially "takeAll"        Ops.iterateTakeAll
       , benchIOSrc serially "dropOne"        Ops.iterateDropOne
