@@ -272,6 +272,10 @@ composeN' n f =
 {-# INLINE dropWhileFalse #-}
 {-# INLINE findIndices #-}
 {-# INLINE elemIndices #-}
+{-# INLINE insertLarge #-}
+{-# INLINE insertSmall #-}
+{-# INLINE deleteLarge #-}
+{-# INLINE deleteSmall #-}
 scan, scanl1, map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
