@@ -801,7 +801,7 @@ elemIndex a = findIndex (==a)
 --
 {-# INLINE isPrefixOf #-}
 isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
-isPrefixOf m1 m2 = S.isPrefixOf (toStreamD m1) (toStreamD m2)
+isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 
 -- | Takes two streams and returns 'True' if all the elements of the
 -- first stream occur, in order, in the second stream. The elements do
@@ -809,7 +809,7 @@ isPrefixOf m1 m2 = S.isPrefixOf (toStreamD m1) (toStreamD m2)
 --
 {-# INLINE isSubsequenceOf #-}
 isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
-isSubsequenceOf m1 m2 = S.isSubsequenceOf (toStreamD m1) (toStreamD m2)
+isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 
 -- | Drops the given prefix from a stream. Returns Nothing if the stream
 -- doesn't start with the prefix given.
@@ -817,7 +817,7 @@ isSubsequenceOf m1 m2 = S.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 {-# INLINE stripPrefix #-}
 stripPrefix :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m (Maybe (t m a))
 stripPrefix m1 m2 = fmap (fmap fromStreamD) $
-    S.stripPrefix (toStreamD m1) (toStreamD m2)
+    D.stripPrefix (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Map and Fold
