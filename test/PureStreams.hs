@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -9,79 +10,91 @@
 module Main (main) where
 
 import Test.Hspec
-import Data.Functor.Identity
 import qualified GHC.Exts as GHC
-import Prelude hiding (String)
 
+import Data.Functor.Identity
 import Streamly
+import Streamly.List (pattern Cons, pattern Nil)
 import qualified Streamly.Prelude as S
-
-type List = SerialT Identity
-type String = List Char
-
-------------------------------------------------------------------------------
--- Patterns
-------------------------------------------------------------------------------
-
--- | A pattern that matches an empty pure stream.
-pattern Nil :: SerialT Identity a
-pattern Nil <- (runIdentity . S.null -> True) where
-    Nil = S.nil
-
--- | A pattern that deconstructs a pure stream into its head and tail.
-pattern Cons :: a -> SerialT Identity a -> SerialT Identity a
-pattern Cons x xs <- (runIdentity . S.uncons -> Just (x, xs)) where
-    Cons x xs = S.cons x xs
+import qualified Streamly.List as S
 
 main :: IO ()
 main = hspec $ do
-    -- Need type annotation to resolve the monad ambiguity
-    -- Use toList or runIdentity . S.toList to convert to Haskell lists
+    describe "OverloadedLists for 'SerialT Identity' type" $ do
+        it "overloaded lists" $ do
+            ([1..3] :: SerialT Identity Int) `shouldBe` S.fromList [1..3]
+            GHC.toList ([1..3] :: SerialT Identity Int) `shouldBe` [1..3]
 
-    it "overloaded lists" $ do
-        ([1..3] :: Main.List Int) `shouldBe` S.fromList [1..3]
-        GHC.toList ([1..3] :: Main.List Int) `shouldBe` [1..3]
+        it "Show instance" $ do
+            show (S.fromList [1..3] :: SerialT Identity Int)
+                `shouldBe` "fromList [1,2,3]"
+        it "Read instance" $ do
+            (read "fromList [1,2,3]" :: SerialT Identity Int) `shouldBe` [1..3]
 
-    it "overloaded strings" $ do
-        ("hello" :: Main.String) `shouldBe` S.fromList "hello"
+        it "Eq instance" $ do
+            ([1,2,3] :: SerialT Identity Int) == [1,2,3] `shouldBe` True
 
-    it "pattern match constructs a list" $ do
-        ('x' `Cons` Nil) `shouldBe` ('x' `S.cons` S.nil :: Main.String)
-        (1 `Cons` [2] :: Main.List Int) `shouldBe` S.fromList [1,2]
+        it "Ord instance" $ do
+            ([1,2,3] :: SerialT Identity Int) > [1,2,1] `shouldBe` True
 
-    it "pattern match on empty string" $
-        case "" :: Main.String of
-            Nil -> return ()
-            _ -> expectationFailure "not reached"
+        it "Monad comprehension" $ do
+            [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
+                ([(1,1), (1,2), (2,1), (2,2)] :: SerialT Identity (Int, Int))
 
-    it "pattern matches on singleton string" $
-        case "a" :: Main.String of
-            Cons x Nil -> x `shouldBe` 'a'
-            _ -> expectationFailure "not reached"
+    describe "OverloadedLists for List type" $ do
+        it "overloaded lists" $ do
+            [1..3 :: Int] `shouldBe` S.fromSerial (S.fromList [1..3])
+            GHC.toList ([1..3] :: S.List Int) `shouldBe` [1..3]
 
-    it "pattern matches on non-empty string" $
-        case "hello" <> "world" :: Main.String of
-            Cons x1 (Cons x2 xs) -> do
-                x1 `shouldBe` 'h'
-                x2 `shouldBe` 'e'
-                xs `shouldBe` "lloworld"
-            _ -> expectationFailure "not reached"
+        it "pattern constructor constructs a list" $ do
+            ('x' `Cons` Nil) `shouldBe` ['x']
+            (1 `Cons` [2 :: Int]) `shouldBe` [1,2]
 
-    it "pattern match on non-empty list" $
-        case S.map (+1) [1..10] :: Main.List Int of
-            Cons x xs -> do
-                x `shouldBe` 2
-                xs `shouldBe` [3..11]
-            _ -> expectationFailure "not reached"
+        it "pattern match on non-empty list" $
+            case [1..10 :: Int] of
+                Cons x xs -> do
+                    x `shouldBe` 1
+                    xs `shouldBe` [2..10]
+                _ -> expectationFailure "not reached"
 
-    it "Shows as string" $ do
-        show (S.fromList [1..3] :: Main.List Int) `shouldBe` "fromList [1,2,3]"
+        it "Show instance" $ do
+            show ([1..3] :: S.List Int) `shouldBe` "fromList [1,2,3]"
 
-    it "Reads from a string" $ do
-        (read "fromList [1,2,3]" :: Main.List Int) `shouldBe` S.fromList [1..3]
+        it "Read instance" $ do
+            (read "fromList [1,2,3]" :: S.List Int) `shouldBe` [1..3]
 
-    it "Eq instance" $ do
-        (S.fromList [1,2,3] :: Main.List Int) == S.fromList [1,2,3] `shouldBe` True
+        it "Eq instance" $ do
+            ([1,2,3] :: S.List Int) == [1,2,3] `shouldBe` True
 
-    it "Ord instance" $ do
-        (S.fromList [1,2,3] :: Main.List Int) > S.fromList [1,2,1] `shouldBe` True
+        it "Ord instance" $ do
+            ([1,2,3] :: S.List Int) > [1,2,1] `shouldBe` True
+
+        it "Monad comprehension" $ do
+            [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
+                ([(1,1), (1,2), (2,1), (2,2)] :: S.List (Int, Int))
+
+    describe "OverloadedStrings for 'SerialT Identity' type" $ do
+        it "overloaded strings" $ do
+            ("hello" :: SerialT Identity Char) `shouldBe` S.fromList "hello"
+
+    describe "OverloadedStrings for List type" $ do
+        it "overloaded strings" $ do
+            "hello" `shouldBe` S.fromSerial (S.fromList "hello")
+
+        it "pattern match on empty string" $
+            case "" of
+                Nil -> return ()
+                _ -> expectationFailure "not reached"
+
+        it "pattern matches on singleton string" $
+            case "a" of
+                Cons x Nil -> x `shouldBe` 'a'
+                _ -> expectationFailure "not reached"
+
+        it "pattern matches on non-empty string" $
+            case "hello" <> "world" of
+                Cons x1 (Cons x2 xs) -> do
+                    x1 `shouldBe` 'h'
+                    x2 `shouldBe` 'e'
+                    xs `shouldBe` "lloworld"
+                _ -> expectationFailure "not reached"

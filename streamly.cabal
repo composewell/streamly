@@ -142,6 +142,8 @@ library
                      , Streamly.Streams.Combinators
 
     exposed-modules:   Streamly.Prelude
+                     , Streamly.List
+                     , Streamly.String
                      , Streamly.Time
                      , Streamly
                      , Streamly.Tutorial
