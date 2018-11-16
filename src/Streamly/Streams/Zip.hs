@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
+{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -72,7 +73,7 @@ import qualified Streamly.Streams.StreamK as K
 --
 -- @since 0.2.0
 newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
-        deriving (Semigroup, Monoid)
+        deriving (Semigroup, Monoid, Foldable, Traversable)
 
 -- |
 -- @since 0.1.0
@@ -166,7 +167,7 @@ zipAsyncWithM f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
 --
 -- @since 0.2.0
 newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
-        deriving (Semigroup, Monoid)
+        deriving (Semigroup, Monoid, Foldable, Traversable)
 
 -- | An IO stream whose applicative instance zips streams wAsyncly.
 --
