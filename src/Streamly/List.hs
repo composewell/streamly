@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -13,48 +15,67 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- The 'List' type in this module is just a newtype wrapper around the stream
--- type @SerialT Identity@. It provides better performance compared to the
--- standard Haskell lists and can be used almost as a drop-in replacement. The
--- type @List a@ is equivalent to @[a]@ with the following correspondences:
---
--- * constructor @[]@ corresponds to 'Nil'
--- * constructor @:@ corresponds to 'Cons'
---
--- If you use 'OverloadedLists', 'OverloadedStrings' and 'MonadComprehensions'
--- extensions then the standard list, string and list comprehension syntax can
--- be used. 'toList' and 'fromList' from the 'IsList' typeclass can be used to
--- convert to and from standard lists.  Conversion to stream types is free.
--- Stream combinators can be used on lists by converting them to streams, such
--- as:
+-- Lists are just a special case of monadic streams. The stream type @SerialT
+-- Identity a@ can be used as a replacement for @[a]@.  The 'List' type in this
+-- module is just a newtype wrapper around @SerialT Identity@ for better type
+-- inference when using the 'OverloadedLists' GHC extension. @List a@ provides
+-- better performance compared to @[a]@. Standard list, string and list
+-- comprehension syntax can be used with the 'List' type by enabling
+-- 'OverloadedLists', 'OverloadedStrings' and 'MonadComprehensions' GHC
+-- extensions.  If you want to replace streamly lists with standard lists, all
+-- you need to do is import these definitions:
 --
 -- @
--- fromSerial $ S.map (+ 1) $ toSerial (1 \`Cons\` Nil)
+-- type List = []
+-- pattern Nil <- [] where Nil = []
+-- pattern Cons x xs = x : xs
+-- infixr 5 `Cons`
+-- {-\# COMPLETE Cons, Nil #-}
 -- @
 --
--- This module provides combinators that work directly on the 'List' type and
--- therefore no conversion is needed.
+-- Other than that there would be a slight difference in the 'Show' and
+-- 'Read' strings.
 --
--- See <docs/streamly-vs-lists.md> for more details and
--- <test/PureStreams.hs> for comprehensive usage examples.
+-- Conversion to stream types is free, any stream combinator can be used on
+-- lists by converting them to streams.  However, for convenience, this module
+-- provides combinators that work directly on the 'List' type.
+--
+--
+-- @
+-- List $ S.map (+ 1) $ toSerial (1 \`Cons\` Nil)
+-- @
+--
+-- 'Data.Foldable.toList' from 'Foldable' and 'GHC.Exts.toList' and
+-- 'GHC.Exts.fromList' from 'IsList' can also be used to convert to and from
+-- standard lists.
+--
+-- See <src/docs/streamly-vs-lists.md> for more details and
+-- <src/test/PureStreams.hs> for comprehensive usage examples.
 --
 module Streamly.List
-    ( List
+    (
+#if __GLASGOW_HASKELL__ >= 800
+    List (.., Nil, Cons)
+#else
+    List (..)
     , pattern Nil
     , pattern Cons
-    , fromSerial
-    , toSerial
+#endif
+    , ZipList (..)
+    , fromZipList
+    , toZipList
     )
 where
 
 import Control.Arrow (second)
 import Control.DeepSeq (NFData(..), NFData1(..))
 import Data.Functor.Identity (Identity, runIdentity)
+import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
-import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
-                  readListPrecDefault)
 
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.Zip (ZipSerialM)
+
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 
@@ -63,23 +84,13 @@ import qualified Streamly.Streams.StreamK as K
 -- using a stream type the programmer needs to specify the Monad otherwise the
 -- type remains ambiguous.
 --
--- | A better replacement for the standard lists in 'base'.
+-- | @List a@ is a replacement for @[a]@.
 --
 -- @since 0.5.3
-newtype List a = List { unList :: SerialT Identity a }
-    deriving (Eq, Ord, IsList, NFData, NFData1
-             , Semigroup, Monoid, Functor, Applicative, Monad)
-
-instance Show a => Show (List a) where {
-    showsPrec p dl = showParen (p > 10) $
-        showString "fromList " . shows (toList dl) };
-
-instance Read a => Read (List a) where {
-    readPrec = parens $ prec 10 $ do {
-        Ident "fromList" <- lexP;
-        dl <- readPrec;
-        return (fromList dl) };
-    readListPrec = readListPrecDefault };
+newtype List a = List { toSerial :: SerialT Identity a }
+    deriving (Show, Read, Eq, Ord, IsList, NFData, NFData1
+             , Semigroup, Monoid, Functor, Foldable
+             , Applicative, Traversable, Monad)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
@@ -94,8 +105,10 @@ instance (a ~ Char) => IsString (List a) where
 --
 -- @since 0.5.3
 pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . unList -> True) where
+pattern Nil <- (runIdentity . K.null . toSerial -> True) where
     Nil = List K.nil
+
+infixr 5 `Cons`
 
 -- | A list constructor and pattern that deconstructs a 'List' into its head
 -- and tail. Corresponds to ':' for Haskell lists.
@@ -103,25 +116,36 @@ pattern Nil <- (runIdentity . K.null . unList -> True) where
 -- @since 0.5.3
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second List) . runIdentity . K.uncons . unList
+    (fmap (second List) . runIdentity . K.uncons . toSerial
         -> Just (x, xs)) where
-            Cons x xs = List $ K.cons x (unList xs)
+            Cons x xs = List $ K.cons x (toSerial xs)
+
+{-# COMPLETE Nil, Cons #-}
 
 ------------------------------------------------------------------------------
--- Conversion to and from stream
+-- ZipList
 ------------------------------------------------------------------------------
 
--- We do not expose the newtype wrapper as that would require the show
--- instance to show it which makes show and read more complicated.
-
--- | Convert a 'Serial' stream to a 'List'.
+-- | Just like 'List' except that it has a zipping 'Applicative' instance
+-- and no 'Monad' instance.
 --
 -- @since 0.5.3
-fromSerial :: SerialT Identity a -> List a
-fromSerial = List
+newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
+    deriving (Show, Read, Eq, Ord, IsList, NFData, NFData1
+             , Semigroup, Monoid, Functor, Applicative, Foldable)
 
--- | Convert a 'List' to a 'Serial' stream.
+instance (a ~ Char) => IsString (ZipList a) where
+    {-# INLINE fromString #-}
+    fromString = ZipList . P.fromList
+
+-- | Convert a 'ZipList' to a regular 'List'
 --
 -- @since 0.5.3
-toSerial :: List a -> SerialT Identity a
-toSerial = unList
+fromZipList :: ZipList a -> List a
+fromZipList = List . K.adapt . toZipSerial
+
+-- | Convert a regular 'List' to a 'ZipList'
+--
+-- @since 0.5.3
+toZipList :: List a -> ZipList a
+toZipList = ZipList . K.adapt . toSerial

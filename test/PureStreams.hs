@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -12,16 +13,33 @@ module Main (main) where
 import Test.Hspec
 import qualified GHC.Exts as GHC
 
-import Data.Functor.Identity
 import Streamly
-import Streamly.List (pattern Cons, pattern Nil)
+
+#ifdef USE_STREAMLY_LIST
+import Data.Functor.Identity
+import Streamly.List (List(..), pattern Cons, pattern Nil, ZipList(..),
+                     fromZipList, toZipList)
 import qualified Streamly.Prelude as S
-import qualified Streamly.List as S
+#else
+import Prelude -- to suppress compiler warning
+
+type List = []
+
+pattern Nil :: [a]
+pattern Nil <- [] where Nil = []
+
+pattern Cons :: a -> [a] -> [a]
+pattern Cons x xs = x : xs
+infixr 5 `Cons`
+
+{-# COMPLETE Nil, Cons #-}
+#endif
 
 main :: IO ()
 main = hspec $ do
+#ifdef USE_STREAMLY_LIST
     describe "OverloadedLists for 'SerialT Identity' type" $ do
-        it "overloaded lists" $ do
+        it "Overloaded lists" $ do
             ([1..3] :: SerialT Identity Int) `shouldBe` S.fromList [1..3]
             GHC.toList ([1..3] :: SerialT Identity Int) `shouldBe` [1..3]
 
@@ -41,60 +59,149 @@ main = hspec $ do
             [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
                 ([(1,1), (1,2), (2,1), (2,2)] :: SerialT Identity (Int, Int))
 
+        it "Foldable (sum)" $ sum (S.fromList [1..3] :: SerialT Identity Int)
+            `shouldBe` 6
+
+    describe "OverloadedStrings for 'SerialT Identity' type" $ do
+        it "overloaded strings" $ do
+            ("hello" :: SerialT Identity Char) `shouldBe` S.fromList "hello"
+#endif
+
     describe "OverloadedLists for List type" $ do
         it "overloaded lists" $ do
-            [1..3 :: Int] `shouldBe` S.fromSerial (S.fromList [1..3])
-            GHC.toList ([1..3] :: S.List Int) `shouldBe` [1..3]
+            ([1..3] :: List Int) `shouldBe` GHC.fromList [1..3]
+            GHC.toList ([1..3] :: List Int) `shouldBe` [1..3]
 
-        it "pattern constructor constructs a list" $ do
+        it "Construct empty list" $ (Nil :: List Int) `shouldBe` []
+
+        it "Construct a list" $ do
+            (Nil :: List Int) `shouldBe` []
             ('x' `Cons` Nil) `shouldBe` ['x']
             (1 `Cons` [2 :: Int]) `shouldBe` [1,2]
+            (1 `Cons` 2 `Cons` 3 `Cons` Nil :: List Int) `shouldBe` [1,2,3]
 
-        it "pattern match on non-empty list" $
+        it "pattern matches" $ do
+            case [] of
+                Nil -> return ()
+                _ -> expectationFailure "not reached"
+
+            case ['x'] of
+                Cons 'x' Nil -> return ()
+                _ -> expectationFailure "not reached"
+
             case [1..10 :: Int] of
                 Cons x xs -> do
                     x `shouldBe` 1
                     xs `shouldBe` [2..10]
                 _ -> expectationFailure "not reached"
 
+            case [1..10 :: Int] of
+                x `Cons` y `Cons` xs -> do
+                    x `shouldBe` 1
+                    y `shouldBe` 2
+                    xs `shouldBe` [3..10]
+                _ -> expectationFailure "not reached"
+
         it "Show instance" $ do
-            show ([1..3] :: S.List Int) `shouldBe` "fromList [1,2,3]"
+            show ([1..3] :: List Int) `shouldBe`
+#ifdef USE_STREAMLY_LIST
+                "List {toSerial = fromList [1,2,3]}"
+#else
+                "[1,2,3]"
+#endif
 
         it "Read instance" $ do
-            (read "fromList [1,2,3]" :: S.List Int) `shouldBe` [1..3]
+            (read
+#ifdef USE_STREAMLY_LIST
+                "List {toSerial = fromList [1,2,3]}"
+#else
+                "[1,2,3]"
+#endif
+                :: List Int) `shouldBe` [1..3]
 
         it "Eq instance" $ do
-            ([1,2,3] :: S.List Int) == [1,2,3] `shouldBe` True
+            ([1,2,3] :: List Int) == [1,2,3] `shouldBe` True
 
         it "Ord instance" $ do
-            ([1,2,3] :: S.List Int) > [1,2,1] `shouldBe` True
+            ([1,2,3] :: List Int) > [1,2,1] `shouldBe` True
 
         it "Monad comprehension" $ do
             [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
-                ([(1,1), (1,2), (2,1), (2,2)] :: S.List (Int, Int))
+                ([(1,1), (1,2), (2,1), (2,2)] :: List (Int, Int))
 
-    describe "OverloadedStrings for 'SerialT Identity' type" $ do
-        it "overloaded strings" $ do
-            ("hello" :: SerialT Identity Char) `shouldBe` S.fromList "hello"
+        it "Foldable (sum)" $ sum ([1..3] :: List Int) `shouldBe` 6
 
     describe "OverloadedStrings for List type" $ do
         it "overloaded strings" $ do
-            "hello" `shouldBe` S.fromSerial (S.fromList "hello")
+            ("hello" :: List Char) `shouldBe` GHC.fromList "hello"
 
-        it "pattern match on empty string" $
+        it "pattern matches" $ do
             case "" of
                 Nil -> return ()
                 _ -> expectationFailure "not reached"
 
-        it "pattern matches on singleton string" $
             case "a" of
                 Cons x Nil -> x `shouldBe` 'a'
                 _ -> expectationFailure "not reached"
 
-        it "pattern matches on non-empty string" $
             case "hello" <> "world" of
                 Cons x1 (Cons x2 xs) -> do
                     x1 `shouldBe` 'h'
                     x2 `shouldBe` 'e'
                     xs `shouldBe` "lloworld"
                 _ -> expectationFailure "not reached"
+
+#ifdef USE_STREAMLY_LIST
+    describe "OverloadedLists for ZipList type" $ do
+        it "overloaded lists" $ do
+            ([1..3] :: ZipList Int) `shouldBe` GHC.fromList [1..3]
+            GHC.toList ([1..3] :: ZipList Int) `shouldBe` [1..3]
+
+        it "toZipList" $ do
+            toZipList (Nil :: List Int) `shouldBe` []
+            toZipList ('x' `Cons` Nil) `shouldBe` ['x']
+            toZipList (1 `Cons` [2 :: Int]) `shouldBe` [1,2]
+            toZipList (1 `Cons` 2 `Cons` 3 `Cons` Nil :: List Int) `shouldBe` [1,2,3]
+
+        it "fromZipList" $ do
+            case fromZipList [] of
+                Nil -> return ()
+                _ -> expectationFailure "not reached"
+
+            case fromZipList ['x'] of
+                Cons 'x' Nil -> return ()
+                _ -> expectationFailure "not reached"
+
+            case fromZipList [1..10 :: Int] of
+                Cons x xs -> do
+                    x `shouldBe` 1
+                    xs `shouldBe` [2..10]
+                _ -> expectationFailure "not reached"
+
+            case fromZipList [1..10 :: Int] of
+                x `Cons` y `Cons` xs -> do
+                    x `shouldBe` 1
+                    y `shouldBe` 2
+                    xs `shouldBe` [3..10]
+                _ -> expectationFailure "not reached"
+
+        it "Show instance" $ do
+            show ([1..3] :: ZipList Int) `shouldBe`
+                "ZipList {toZipSerial = fromList [1,2,3]}"
+
+        it "Read instance" $ do
+            (read "ZipList {toZipSerial = fromList [1,2,3]}" :: ZipList Int)
+                `shouldBe` [1..3]
+
+        it "Eq instance" $ do
+            ([1,2,3] :: ZipList Int) == [1,2,3] `shouldBe` True
+
+        it "Ord instance" $ do
+            ([1,2,3] :: ZipList Int) > [1,2,1] `shouldBe` True
+
+        it "Foldable (sum)" $ sum ([1..3] :: ZipList Int) `shouldBe` 6
+
+        it "Applicative Zip" $ do
+            (,) <$> "abc" <*> [1..3] `shouldBe`
+                ([('a',1),('b',2),('c',3)] :: ZipList (Char, Int))
+#endif

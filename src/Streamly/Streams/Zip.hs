@@ -6,6 +6,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -38,7 +39,12 @@ module Streamly.Streams.Zip
     )
 where
 
+import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Semigroup (Semigroup(..))
+import GHC.Exts (IsList(..), IsString(..))
+import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
+                  readListPrecDefault)
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Streams.StreamK (IsStream(..), Stream(..))
@@ -46,6 +52,7 @@ import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Serial (map)
 import Streamly.SVar (MonadAsync, rstState)
 
+import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -111,6 +118,8 @@ instance IsStream ZipSerialM where
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
     m |: r = fromStream $ K.consMSerial m (toStream r)
+
+LIST_INSTANCES(ZipSerialM)
 
 instance Monad m => Functor (ZipSerialM m) where
     fmap = map

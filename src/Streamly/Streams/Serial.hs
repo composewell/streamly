@@ -57,7 +57,7 @@ import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
-import Prelude hiding (map, mapM, String)
+import Prelude hiding (map, mapM)
 
 import Streamly.SVar (rstState)
 import Streamly.Streams.StreamK (IsStream(..), adapt, Stream(..))
@@ -350,67 +350,6 @@ instance Monad m => Monad (WSerialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
-
-------------------------------------------------------------------------------
--- Lists
-------------------------------------------------------------------------------
-
--- Serial streams can act like regular lists using the Identity monad
-
--- XXX Show instance is 10x slower compared to read, we can do much better.
--- The list show instance itself is really slow.
-
--- XXX The default definitions of "<" in the Ord instance etc. do not perform
--- well, because they do not get inlined. Need to add INLINE in Ord class in
--- base?
-
-#define LIST_INSTANCES(STREAM)                                                \
-instance IsList (STREAM Identity a) where {                                   \
-    type (Item (STREAM Identity a)) = a;                                      \
-    {-# INLINE fromList #-};                                                  \
-    fromList = P.fromList;                                                    \
-    {-# INLINE toList #-};                                                    \
-    toList = runIdentity . P.toList };                                        \
-                                                                              \
-instance Eq a => Eq (STREAM Identity a) where {                               \
-    {-# INLINE (==) #-};                                                      \
-    (==) xs ys = runIdentity $ P.eqBy (==) xs ys };                           \
-                                                                              \
-instance Ord a => Ord (STREAM Identity a) where {                             \
-    {-# INLINE compare #-};                                                   \
-    compare xs ys = runIdentity $ P.cmpBy compare xs ys;                      \
-    {-# INLINE (<) #-};                                                       \
-    x <  y = case compare x y of { LT -> True;  _ -> False };                 \
-    {-# INLINE (<=) #-};                                                      \
-    x <= y = case compare x y of { GT -> False; _ -> True };                  \
-    {-# INLINE (>) #-};                                                       \
-    x >  y = case compare x y of { GT -> True;  _ -> False };                 \
-    {-# INLINE (>=) #-};                                                      \
-    x >= y = case compare x y of { LT -> False; _ -> True };                  \
-    {-# INLINE max #-};                                                       \
-    max x y = if x <= y then y else x;                                        \
-    {-# INLINE min #-};                                                       \
-    min x y = if x <= y then x else y; };                                     \
-                                                                              \
-instance Show a => Show (STREAM Identity a) where {                           \
-    showsPrec p dl = showParen (p > 10) $                                     \
-        showString "fromList " . shows (toList dl) };                         \
-                                                                              \
-instance Read a => Read (STREAM Identity a) where {                           \
-    readPrec = parens $ prec 10 $ do {                                        \
-        Ident "fromList" <- lexP;                                             \
-        dl <- readPrec;                                                       \
-        return (fromList dl) };                                               \
-    readListPrec = readListPrecDefault };                                     \
-                                                                              \
-instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
-    {-# INLINE fromString #-};                                                \
-    fromString = P.fromList };                                                \
-                                                                              \
-instance NFData a => NFData (STREAM Identity a) where { rnf = rnf1 };         \
-instance NFData1 (STREAM Identity) where {                                    \
-    {-# INLINE liftRnf #-};                                                   \
-    liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
 
 LIST_INSTANCES(SerialT)
 LIST_INSTANCES(WSerialT)

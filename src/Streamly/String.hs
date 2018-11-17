@@ -12,8 +12,8 @@
 -- type and can be used almost as a drop-in replacement, especially when used
 -- with @OverloadedStrings@ extension, with little differences.
 --
--- See "Streamly.List", <docs/streamly-vs-lists.md> for more details and
--- <test/PureStreams.hs> for comprehensive usage examples.
+-- See "Streamly.List", <src/docs/streamly-vs-lists.md> for more details and
+-- <src/test/PureStreams.hs> for comprehensive usage examples.
 --
 --
 module Streamly.String
