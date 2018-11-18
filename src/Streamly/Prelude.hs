@@ -84,6 +84,7 @@ module Streamly.Prelude
     -- number of steps can run concurrently. All of these can be expressed in
     -- terms of 'K.cons' and 'K.nil' primitives.
     , replicateM
+    , replicate
     , K.repeat
     , repeatM
 
@@ -257,7 +258,7 @@ import Prelude
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               splitAt, scanl, scanl1)
+               splitAt, scanl, scanl1, replicate)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -418,6 +419,13 @@ replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
 replicateM n m = go n
     where
     go cnt = if cnt <= 0 then K.nil else m |: go (cnt - 1)
+
+-- | Generate a stream by replicating the value @n@ times.
+--
+replicate :: IsStream t => Int -> a -> t m a
+replicate n a = go n
+    where
+    go cnt = if cnt <= 0 then K.nil else a `K.cons` go (cnt - 1)
 
 -- | Generate a stream by repeatedly executing a monadic action forever. Can be
 -- expressed as @cycle1 . yieldM@.

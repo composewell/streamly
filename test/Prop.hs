@@ -86,6 +86,18 @@ constructWithReplicateM op len = withMaxSuccess maxTestCount $
         list <- run $ replicateM (fromIntegral len) x
         listEquals (==) stream list
 
+constructWithReplicate
+    :: IsStream t
+    => (t IO Int -> SerialT IO Int)
+    -> Word8
+    -> Property
+constructWithReplicate op len = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        let x = (1 :: Int)
+        stream <- run $ (S.toList . op) (S.replicate (fromIntegral len) x)
+        let list = replicate (fromIntegral len) x
+        listEquals (==) stream list
+
 transformFromList
     :: (Eq b, Show b) =>
        ([a] -> t IO a)
@@ -837,6 +849,9 @@ main = hspec
         parallelOps $ prop "parallely replicateM" .  constructWithReplicateM
         -- XXX test for all types of streams
         constructWithIterate serially
+
+    describe "Construction with replicate" $ do
+        serialOps   $ prop "serially replicate" . constructWithReplicate
 
     describe "Functor operations" $ do
         serialOps    $ functorOps S.fromFoldable "serially" (==)
