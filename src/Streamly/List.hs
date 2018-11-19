@@ -88,13 +88,21 @@ import qualified Streamly.Streams.StreamK as K
 --
 -- @since 0.5.3
 newtype List a = List { toSerial :: SerialT Identity a }
-    deriving (Show, Read, Eq, Ord, IsList, NFData, NFData1
+    deriving (Show, Read, Eq, Ord, NFData, NFData1
              , Semigroup, Monoid, Functor, Foldable
              , Applicative, Traversable, Monad)
 
 instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
     fromString = List . P.fromList
+
+-- GHC versions 8.0 and below cannot derive IsList
+instance IsList (List a) where
+    type (Item (List a)) = a
+    {-# INLINE fromList #-}
+    fromList = List . P.fromList
+    {-# INLINE toList #-}
+    toList = runIdentity . P.toList . toSerial
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -120,7 +128,9 @@ pattern Cons x xs <-
         -> Just (x, xs)) where
             Cons x xs = List $ K.cons x (toSerial xs)
 
+#if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE Nil, Cons #-}
+#endif
 
 ------------------------------------------------------------------------------
 -- ZipList
@@ -131,12 +141,21 @@ pattern Cons x xs <-
 --
 -- @since 0.5.3
 newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
-    deriving (Show, Read, Eq, Ord, IsList, NFData, NFData1
-             , Semigroup, Monoid, Functor, Applicative, Foldable)
+    deriving (Show, Read, Eq, Ord, NFData, NFData1
+             , Semigroup, Monoid, Functor, Foldable
+             , Applicative, Traversable)
 
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}
     fromString = ZipList . P.fromList
+
+-- GHC versions 8.0 and below cannot derive IsList
+instance IsList (ZipList a) where
+    type (Item (ZipList a)) = a
+    {-# INLINE fromList #-}
+    fromList = ZipList . P.fromList
+    {-# INLINE toList #-}
+    toList = runIdentity . P.toList . toZipSerial
 
 -- | Convert a 'ZipList' to a regular 'List'
 --
