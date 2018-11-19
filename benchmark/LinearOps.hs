@@ -12,7 +12,7 @@
 module LinearOps where
 
 import Control.Monad (when)
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
@@ -452,6 +452,10 @@ readInstance src =
     in case r of
         [(x,"")] -> src S.<> x
         _ -> P.error "readInstance: no parse"
+
+{-# INLINE pureFoldl' #-}
+pureFoldl' :: Stream Identity Int -> Int
+pureFoldl' = runIdentity . S.foldl' (+) 0
 
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Stream Identity Int -> Int

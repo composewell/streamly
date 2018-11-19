@@ -75,9 +75,10 @@ main =
         , benchPureSink "showsPrec" Ops.showInstance
         , benchPure "showsPrecList" (\n -> S.fromList [1..n :: Int])
                     Ops.showInstanceList
-        , benchPureSink "foldable-foldl'" Ops.foldableFoldl'
-        , benchPureSink "foldable-sum" Ops.foldableSum
-        , benchPureSinkIO "traversable-mapM" Ops.traversableMapM
+        , benchPureSink "foldl'" Ops.pureFoldl'
+        , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
+        , benchPureSink "foldable/sum" Ops.foldableSum
+        , benchPureSinkIO "traversable/mapM" Ops.traversableMapM
         ]
       , bgroup "generation"
         [ -- Most basic, barely stream continuations running
