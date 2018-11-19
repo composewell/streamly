@@ -134,7 +134,6 @@ import Prelude
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
-import qualified Data.Foldable as F
 import qualified Streamly.Streams.StreamK as K
 
 ------------------------------------------------------------------------------
@@ -156,20 +155,6 @@ instance Functor (Step s) where
 -- | A stream consists of a step function that generates the next step given a
 -- current state, and the current state.
 data Stream m a = forall s. Stream (State K.Stream m a -> s -> m (Step s a)) s
-
-instance (Foldable m, Monad m) => Foldable (Stream m) where
-  {-# INLINE foldMap #-}
-  foldMap f = F.fold . toFoldable . map f
-    where
-      toFoldable :: (Monad m, Monoid a) => Stream m a -> m a
-      toFoldable = foldr mappend mempty
-
-instance (Traversable m, Monad m) => Traversable (Stream m) where
-  {-# INLINE traverse #-}
-  traverse f = sequenceA . fmap f
-
-  {-# INLINE sequenceA #-}
-  sequenceA  = traverse id
 
 ------------------------------------------------------------------------------
 -- Construction

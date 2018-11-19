@@ -44,6 +44,13 @@ benchPure name src f = bench name $ nfIO $ randomRIO (1,1) >>= return . f . src
 benchPureSink :: NFData b => String -> (SerialT Identity Int -> b) -> Benchmark
 benchPureSink name f = benchPure name Ops.sourceUnfoldr f
 
+{-# INLINE benchPureSinkIO #-}
+benchPureSinkIO
+    :: NFData b
+    => String -> (SerialT Identity Int -> IO b) -> Benchmark
+benchPureSinkIO name f =
+    bench name $ nfIO $ randomRIO (1, 1) >>= f . Ops.sourceUnfoldr
+
 {-# INLINE benchPureSrc #-}
 benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
 benchPureSrc name src = benchPure name src (runIdentity . runStream)
@@ -53,7 +60,8 @@ main =
   defaultMain
     [ bgroup "serially"
       [ bgroup "pure"
-        [ benchPureSink "eqBy" Ops.eqBy
+        [ benchPureSink "id" id
+        , benchPureSink "eqBy" Ops.eqBy
         , benchPureSink "==" Ops.eqInstance
         , benchPureSink "/=" Ops.eqInstanceNotEq
         , benchPureSink "cmpBy" Ops.cmpBy
@@ -67,6 +75,9 @@ main =
         , benchPureSink "showsPrec" Ops.showInstance
         , benchPure "showsPrecList" (\n -> S.fromList [1..n :: Int])
                     Ops.showInstanceList
+        , benchPureSink "foldable-foldl'" Ops.foldableFoldl'
+        , benchPureSink "foldable-sum" Ops.foldableSum
+        , benchPureSinkIO "traversable-mapM" Ops.traversableMapM
         ]
       , bgroup "generation"
         [ -- Most basic, barely stream continuations running

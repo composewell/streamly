@@ -101,3 +101,22 @@ instance NFData a => NFData (STREAM Identity a) where { rnf = rnf1 };         \
 instance NFData1 (STREAM Identity) where {                                    \
     {-# INLINE liftRnf #-};                                                   \
     liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
+
+-------------------------------------------------------------------------------
+-- Foldable
+-------------------------------------------------------------------------------
+
+#define FOLDABLE_INSTANCE(STREAM)                                             \
+instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
+  {-# INLINE foldMap #-};                                                     \
+  foldMap f = fold . P.foldr mappend mempty . fmap f }
+
+-------------------------------------------------------------------------------
+-- Traversable
+-------------------------------------------------------------------------------
+
+#define TRAVERSABLE_INSTANCE(STREAM)                                          \
+instance Traversable (STREAM Identity) where {                                \
+    {-# INLINE traverse #-};                                                  \
+    traverse f s = runIdentity $ P.foldr consA (pure mempty) s                \
+        where { consA x ys = liftA2 (K.cons) (f x) ys }}

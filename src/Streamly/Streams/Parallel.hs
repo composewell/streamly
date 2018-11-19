@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -326,7 +325,7 @@ x |&. f = f |$. x
 --
 -- @since 0.1.0
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
-    deriving (MonadTrans, Foldable, Traversable)
+    deriving (MonadTrans)
 
 -- | A parallely composing IO stream of elements of type @a@.
 -- See 'ParallelT' documentation for more details.

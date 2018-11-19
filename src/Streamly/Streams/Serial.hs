@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -43,6 +42,7 @@ module Streamly.Streams.Serial
     )
 where
 
+import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
@@ -52,7 +52,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Functor.Identity (Identity, runIdentity)
+import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.Foldable (fold)
 import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
@@ -129,7 +130,7 @@ import qualified Streamly.Streams.StreamD as D
 --
 -- @since 0.2.0
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
-    deriving (Semigroup, Monoid, MonadTrans, Foldable, Traversable)
+    deriving (Semigroup, Monoid, MonadTrans)
 
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
 -- for more details.
@@ -249,7 +250,7 @@ MONAD_COMMON_INSTANCES(SerialT,)
 --
 -- @since 0.2.0
 newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
-    deriving (MonadTrans, Foldable, Traversable)
+    deriving (MonadTrans)
 
 -- | An interleaving serial IO stream of elements of type @a@. See 'WSerialT'
 -- documentation for more details.
@@ -353,3 +354,9 @@ MONAD_COMMON_INSTANCES(WSerialT,)
 
 LIST_INSTANCES(SerialT)
 LIST_INSTANCES(WSerialT)
+
+FOLDABLE_INSTANCE(SerialT)
+FOLDABLE_INSTANCE(WSerialT)
+
+TRAVERSABLE_INSTANCE(SerialT)
+TRAVERSABLE_INSTANCE(WSerialT)

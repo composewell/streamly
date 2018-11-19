@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -39,8 +38,10 @@ module Streamly.Streams.Zip
     )
 where
 
+import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
 import Data.Functor.Identity (Identity, runIdentity)
+import Data.Foldable (fold)
 import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
@@ -80,7 +81,7 @@ import qualified Streamly.Streams.StreamK as K
 --
 -- @since 0.2.0
 newtype ZipSerialM m a = ZipSerialM {getZipSerialM :: Stream m a}
-        deriving (Semigroup, Monoid, Foldable, Traversable)
+        deriving (Semigroup, Monoid)
 
 -- |
 -- @since 0.1.0
@@ -127,6 +128,9 @@ instance Monad m => Functor (ZipSerialM m) where
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . K.repeat
     m1 <*> m2 = fromStream $ K.zipWith id (toStream m1) (toStream m2)
+
+FOLDABLE_INSTANCE(ZipSerialM)
+TRAVERSABLE_INSTANCE(ZipSerialM)
 
 ------------------------------------------------------------------------------
 -- Parallel Zipping
@@ -176,7 +180,7 @@ zipAsyncWithM f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
 --
 -- @since 0.2.0
 newtype ZipAsyncM m a = ZipAsyncM {getZipAsyncM :: Stream m a}
-        deriving (Semigroup, Monoid, Foldable, Traversable)
+        deriving (Semigroup, Monoid)
 
 -- | An IO stream whose applicative instance zips streams wAsyncly.
 --

@@ -17,8 +17,9 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div)
+        maxBound, div, IO)
 import qualified Prelude as P
+import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
 
 import qualified Streamly          as S
@@ -451,3 +452,15 @@ readInstance src =
     in case r of
         [(x,"")] -> src S.<> x
         _ -> P.error "readInstance: no parse"
+
+{-# INLINE foldableFoldl' #-}
+foldableFoldl' :: Stream Identity Int -> Int
+foldableFoldl' = F.foldl' (+) 0
+
+{-# INLINE foldableSum #-}
+foldableSum :: Stream Identity Int -> Int
+foldableSum = P.sum
+
+{-# INLINE traversableMapM #-}
+traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
+traversableMapM = P.mapM return

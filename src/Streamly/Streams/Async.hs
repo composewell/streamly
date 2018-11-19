@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE DeriveTraversable         #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving#-}
@@ -636,7 +635,7 @@ consMAsync m r = K.yieldM m `asyncS` r
 --
 -- @since 0.1.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
-    deriving (MonadTrans, Foldable, Traversable)
+    deriving (MonadTrans)
 
 -- | A demand driven left biased parallely composing IO stream of elements of
 -- type @a@.  See 'AsyncT' documentation for more details.
@@ -763,7 +762,7 @@ wAsync m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 --
 -- @since 0.2.0
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
-    deriving (MonadTrans, Foldable, Traversable)
+    deriving (MonadTrans)
 
 -- | A round robin parallely composing IO stream of elements of type @a@.
 -- See 'WAsyncT' documentation for more details.

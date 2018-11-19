@@ -508,7 +508,7 @@ fromHandle h = fromStream go
 -- @since 0.2.0
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
-foldrM step acc m = S.foldrM step acc $ toStreamS m
+foldrM = P.foldrM
 
 -- | Lazy right associative fold. For example, to fold a stream into a list:
 --
@@ -520,9 +520,7 @@ foldrM step acc m = S.foldrM step acc $ toStreamS m
 -- @since 0.1.0
 {-# INLINE foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
--- XXX somehow this definition does not perform well, need to investigate
--- foldr step acc m = S.foldr step acc $ S.fromStreamK (toStream m)
-foldr f = foldrM (\a b -> return (f a b))
+foldr = P.foldr
 
 -- | Right fold, for non-empty streams, using first element as the starting
 -- value. Returns 'Nothing' if the stream is empty.

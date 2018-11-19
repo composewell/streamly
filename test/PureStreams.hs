@@ -59,8 +59,12 @@ main = hspec $ do
             [(x,y) | x <- [1..2], y <- [1..2]] `shouldBe`
                 ([(1,1), (1,2), (2,1), (2,2)] :: SerialT Identity (Int, Int))
 
-        it "Foldable (sum)" $ sum (S.fromList [1..3] :: SerialT Identity Int)
+        it "Foldable (sum)" $ sum ([1..3] :: SerialT Identity Int)
             `shouldBe` 6
+
+        it "Traversable (mapM)" $
+            mapM return ([1..10] :: SerialT Identity Int)
+                `shouldReturn` [1..10]
 
     describe "OverloadedStrings for 'SerialT Identity' type" $ do
         it "overloaded strings" $ do
@@ -131,12 +135,20 @@ main = hspec $ do
 
         it "Foldable (sum)" $ sum ([1..3] :: List Int) `shouldBe` 6
 
+        it "Traversable (mapM)" $
+            mapM return ([1..10] :: List Int)
+                `shouldReturn` [1..10]
+
     describe "OverloadedStrings for List type" $ do
         it "overloaded strings" $ do
             ("hello" :: List Char) `shouldBe` GHC.fromList "hello"
 
         it "pattern matches" $ do
+#if __GLASGOW_HASKELL__ >= 802
             case "" of
+#else
+            case "" :: List Char of
+#endif
                 Nil -> return ()
                 _ -> expectationFailure "not reached"
 
@@ -200,6 +212,10 @@ main = hspec $ do
             ([1,2,3] :: ZipList Int) > [1,2,1] `shouldBe` True
 
         it "Foldable (sum)" $ sum ([1..3] :: ZipList Int) `shouldBe` 6
+
+        it "Traversable (mapM)" $
+            mapM return ([1..10] :: ZipList Int)
+                `shouldReturn` [1..10]
 
         it "Applicative Zip" $ do
             (,) <$> "abc" <*> [1..3] `shouldBe`
