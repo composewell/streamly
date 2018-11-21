@@ -91,6 +91,8 @@ module Streamly.Prelude
     -- ** Generate From
     -- | Convert an input structure, container or source into a stream. All of
     -- these can be expressed in terms of primitives.
+    , generate
+    , generateM
     , P.fromList
     , fromListM
     , K.fromFoldable
@@ -137,6 +139,7 @@ module Streamly.Prelude
     , elemIndex
     , notElem
     , lookup
+    , findM
     , find
     , findIndex
     , all
@@ -146,6 +149,8 @@ module Streamly.Prelude
     , eqBy
     , cmpBy
     , (!!)
+    , concatMapM
+    , concatMap
 
     -- Full folds - need to go through all elements
     , length
@@ -258,7 +263,7 @@ import Prelude
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               splitAt, scanl, scanl1, replicate)
+               splitAt, scanl, scanl1, replicate, concatMap)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -402,6 +407,19 @@ yield = K.yield
 {-# INLINE yieldM #-}
 yieldM :: (Monad m, IsStream t) => m a -> t m a
 yieldM = K.yieldM
+
+-- | Generate a stream of given length, from a given pure
+-- function of its indices.
+{-# INLINE generate #-}
+generate :: (IsStream t, Monad m) => Int -> (Int -> a) -> t m a
+generate n = fromStreamD . D.generate n
+
+-- | Generate a stream of given length, from a given monadic
+-- function of its indices.
+--
+{-# INLINE generateM #-}
+generateM :: (IsStream t, Monad m) => Int -> (Int -> m a) -> t m a
+generateM n = fromStreamD . D.generateM n
 
 -- | Generate a stream by performing a monadic action @n@ times. Can be
 -- expressed as @stimes n (yieldM m)@.
@@ -769,6 +787,12 @@ lookup a m = S.lookup a (toStreamS m)
 find :: Monad m => (a -> Bool) -> SerialT m a -> m (Maybe a)
 find p m = S.find p (toStreamS m)
 
+-- | Like 'find' but with a monadic predicate.
+--
+{-# INLINE findM #-}
+findM :: Monad m => (a -> m Bool) -> SerialT m a -> m (Maybe a)
+findM p m = S.findM p (toStreamS m)
+
 -- | Find all the indices where the element in the stream satisfies the given
 -- predicate.
 --
@@ -799,6 +823,14 @@ elemIndices a = findIndices (==a)
 {-# INLINE elemIndex #-}
 elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
 elemIndex a = findIndex (==a)
+
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (a -> SerialT m b) -> SerialT m a -> SerialT m b
+concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
+
+{-# INLINE concatMapM #-}
+concatMapM :: Monad m => (a -> m (SerialT m b)) -> SerialT m a -> SerialT m b
+concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Substreams

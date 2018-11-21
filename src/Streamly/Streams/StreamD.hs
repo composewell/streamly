@@ -58,6 +58,8 @@ module Streamly.Streams.StreamD
     -- | Direct style stream does not support @fromFoldable@.
     , yield
     , yieldM
+    , generate
+    , generateM
     , fromList
     , fromListM
     , fromStreamK
@@ -87,8 +89,11 @@ module Streamly.Streams.StreamD
     , minimumBy
     , findIndices
     , lookup
+    , findM
     , find
     , (!!)
+    , concatMapM
+    , concatMap
 
     -- ** Substreams
     , isPrefixOf
@@ -162,7 +167,7 @@ import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1)
+               (!!), scanl, scanl1, concatMap)
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
@@ -284,6 +289,20 @@ yieldM m = Stream step True
     {-# INLINE_LATE step #-}
     step _ True  = m >>= \x -> return $ Yield x False
     step _ False = return Stop
+
+{-# INLINE generate #-}
+generate :: Monad m => Int -> (Int -> a) -> Stream m a
+generate n gen = generateM n (return . gen)
+
+{-# INLINE_NORMAL generateM #-}
+generateM :: Monad m => Int -> (Int -> m a) -> Stream m a
+generateM n gen = n `seq` Stream step 0
+  where
+    {-# INLINE_LATE step #-}
+    step _ i | i < n     = do
+                           x <- gen i
+                           return $ Yield x (i+1)
+             | otherwise = return Stop
 
 -- XXX we need the MonadAsync constraint because of a rewrite rule.
 -- | Convert a list of monadic actions to a 'Stream'
@@ -562,16 +581,22 @@ lookup e (Stream step state) = go state
             Skip s -> go s
             Stop -> return Nothing
 
-{-# INLINE_NORMAL find #-}
-find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
-find p (Stream step state) = go state
+{-# INLINE_NORMAL findM #-}
+findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
+findM p (Stream step state) = go SPEC state
   where
-    go st = do
+    go !_ st = do
       r <- step defState st
       case r of
-          Yield x s -> if p x then return (Just x) else go s
-          Skip s    -> go s
+          Yield x s -> do
+              b <- p x
+              if b then return (Just x) else go SPEC s
+          Skip s    -> go SPEC s
           Stop      -> return Nothing
+
+{-# INLINE find #-}
+find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
+find p = findM (return . p)
 
 {-# INLINE_NORMAL findIndices #-}
 findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
@@ -584,6 +609,32 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i+1)
           Stop   -> Stop
+
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+concatMap f = concatMapM (return . f)
+
+{-# INLINE_NORMAL concatMapM #-}
+concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+concatMapM f (Stream step state) = Stream step' (Left state)
+  where
+    step' gst (Left st) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield a s -> do
+                b_stream <- f a
+                return $ Skip (Right (b_stream, s))
+            Skip s -> return $ Skip (Left s)
+            Stop -> return Stop
+
+    step' _ (Right (Stream inner_step inner_st, st)) = do
+        r <- inner_step defState inner_st
+        case r of
+            Yield b inner_s ->
+                return $ Yield b (Right (Stream inner_step inner_s, st))
+            Skip inner_s ->
+                return $ Skip (Right (Stream inner_step inner_s, st))
+            Stop -> return $ Skip (Left st)
 
 ------------------------------------------------------------------------------
 -- Substreams

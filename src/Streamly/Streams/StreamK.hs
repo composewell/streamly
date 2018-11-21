@@ -95,6 +95,7 @@ module Streamly.Streams.StreamK
     , maximumBy
     , findIndices
     , lookup
+    , findM
     , find
     , (!!)
 
@@ -802,16 +803,22 @@ lookup e m = go (toStream m)
                             | otherwise = go x
         in unStream m1 defState (return Nothing) single yieldk
 
-{-# INLINE find #-}
-find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
-find p m = go (toStream m)
+{-# INLINE findM #-}
+findM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> m (Maybe a)
+findM p m = go (toStream m)
     where
     go m1 =
-        let single a | p a = return $ Just a
-                     | otherwise = return Nothing
-            yieldk a x | p a = return $ Just a
-                       | otherwise = go x
+        let single a = do
+                b <- p a
+                if b then return $ Just a else return Nothing
+            yieldk a x = do
+                b <- p a
+                if b then return $ Just a else go x
         in unStream m1 defState (return Nothing) single yieldk
+
+{-# INLINE find #-}
+find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
+find p = findM (return . p)
 
 {-# INLINE findIndices #-}
 findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int

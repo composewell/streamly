@@ -404,6 +404,9 @@ transformOps constr desc eq t = do
     prop (desc <> " deleteBy (==) 4") $
         transform (deleteBy (==) 4) $ t . S.deleteBy (==) 4
 
+    prop (desc <> " concatMap") $ transform (concatMap (const [1..10])) $
+        t . (\g -> adapt (S.concatMap (const (S.fromList [1..10])) (adapt g)))
+
 concurrentOps
     :: IsStream t
     => ([Word8] -> t IO Word8)
