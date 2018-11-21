@@ -147,6 +147,7 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+import Data.Coerce (Coercible)
 import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
@@ -244,9 +245,13 @@ infixr 5 |:
 -- some monad 'm'.
 --
 -- @since 0.2.0
-class IsStream t where
+class (Coercible t Stream) => IsStream t where
     toStream :: t m a -> Stream m a
+    -- toStream = coerce
+
     fromStream :: Stream m a -> t m a
+    -- fromStream = coerce
+
     -- | Constructs a stream by adding a monadic action at the head of an
     -- existing stream. For example:
     --

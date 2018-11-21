@@ -21,7 +21,7 @@
 module Streamly.Streams.Serial
     (
     -- * Serial appending stream
-      SerialT
+      SerialT(SerialT)
     , StreamT           -- deprecated
     , Serial
     , serial

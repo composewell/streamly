@@ -25,7 +25,7 @@ module Streamly.Streams.Zip
     , zipAsyncWith
     , zipAsyncWithM
 
-    , ZipSerialM
+    , ZipSerialM (..)
     , ZipSerial
     , ZipStream         -- deprecated
     , zipSerially

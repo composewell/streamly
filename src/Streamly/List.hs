@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-} -- XXX
 {-# LANGUAGE ViewPatterns               #-}
@@ -36,13 +37,15 @@
 -- Other than that there would be a slight difference in the 'Show' and
 -- 'Read' strings.
 --
--- Conversion to stream types is free, any stream combinator can be used on
--- lists by converting them to streams.  However, for convenience, this module
--- provides combinators that work directly on the 'List' type.
+-- Since 'List' is a @newtype@ wrapper on a serial stream, it can be converted
+-- to stream types using 'coerce' without incurring any cost.  Functions
+-- working on stream types can be coerced to work on the 'List' type. However,
+-- for convenience, this module provides combinators that work directly on the
+-- 'List' type.
 --
 --
 -- @
--- List $ S.map (+ 1) $ toSerial (1 \`Cons\` Nil)
+-- coerce $ S.map (+ 1) (1 \`Cons\` Nil)
 -- @
 --
 -- 'Data.Foldable.toList' from 'Foldable' and 'GHC.Exts.toList' and
@@ -69,12 +72,13 @@ where
 
 import Control.Arrow (second)
 import Control.DeepSeq (NFData(..), NFData1(..))
+import Data.Coerce (coerce)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
 
-import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.Zip (ZipSerialM)
+import Streamly.Streams.Serial (SerialT(..))
+import Streamly.Streams.Zip (ZipSerialM(..))
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
@@ -87,7 +91,7 @@ import qualified Streamly.Streams.StreamK as K
 -- | @List a@ is a replacement for @[a]@.
 --
 -- @since 0.5.3
-newtype List a = List { toSerial :: SerialT Identity a }
+newtype List a = List (SerialT Identity a)
     deriving (Show, Read, Eq, Ord, NFData, NFData1
              , Semigroup, Monoid, Functor, Foldable
              , Applicative, Traversable, Monad)
@@ -96,13 +100,16 @@ instance (a ~ Char) => IsString (List a) where
     {-# INLINE fromString #-}
     fromString = List . P.fromList
 
+toSerial :: List a -> SerialT Identity a
+toSerial = coerce
+
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (List a) where
     type (Item (List a)) = a
     {-# INLINE fromList #-}
     fromList = List . P.fromList
     {-# INLINE toList #-}
-    toList = runIdentity . P.toList . toSerial
+    toList = runIdentity .  P.toList . toSerial
 
 ------------------------------------------------------------------------------
 -- Patterns
@@ -112,8 +119,8 @@ instance IsList (List a) where
 -- Corresponds to '[]' for Haskell lists.
 --
 -- @since 0.5.3
-pattern Nil :: List a
-pattern Nil <- (runIdentity . K.null . toSerial -> True) where
+pattern Nil :: forall a. List a
+pattern Nil <- (runIdentity . K.null . (id :: SerialT Identity a -> SerialT Identity a) . coerce -> True) where
     Nil = List K.nil
 
 infixr 5 `Cons`
@@ -124,9 +131,9 @@ infixr 5 `Cons`
 -- @since 0.5.3
 pattern Cons :: a -> List a -> List a
 pattern Cons x xs <-
-    (fmap (second List) . runIdentity . K.uncons . toSerial
+    (fmap (second List) . runIdentity . K.uncons . coerce
         -> Just (x, xs)) where
-            Cons x xs = List $ K.cons x (toSerial xs)
+            Cons x xs = List $ K.cons x (coerce xs)
 
 #if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE Nil, Cons #-}
@@ -140,7 +147,7 @@ pattern Cons x xs <-
 -- and no 'Monad' instance.
 --
 -- @since 0.5.3
-newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
+newtype ZipList a = ZipList (ZipSerialM Identity a)
     deriving (Show, Read, Eq, Ord, NFData, NFData1
              , Semigroup, Monoid, Functor, Foldable
              , Applicative, Traversable)
@@ -148,6 +155,9 @@ newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
 instance (a ~ Char) => IsString (ZipList a) where
     {-# INLINE fromString #-}
     fromString = ZipList . P.fromList
+
+toZipSerial :: ZipList a -> ZipSerialM Identity a
+toZipSerial = coerce
 
 -- GHC versions 8.0 and below cannot derive IsList
 instance IsList (ZipList a) where
@@ -161,10 +171,10 @@ instance IsList (ZipList a) where
 --
 -- @since 0.5.3
 fromZipList :: ZipList a -> List a
-fromZipList = List . K.adapt . toZipSerial
+fromZipList = coerce
 
 -- | Convert a regular 'List' to a 'ZipList'
 --
 -- @since 0.5.3
 toZipList :: List a -> ZipList a
-toZipList = ZipList . K.adapt . toSerial
+toZipList = coerce
