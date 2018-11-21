@@ -2,7 +2,11 @@
 
 * Add benchmarks to measure composed and iterated operations
 * Performance improvements
-* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `splitAt`, `the` to Prelude.
+* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `splitAt`, `the`, `maximumBy`,
+  `minimumBy`, `scanl1`, `scanl1M`, `scanl1'`, `scanl1M'`, `scanl`, `scanlM`,
+  `deleteBy`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
+  `replicate`, `generateM`, `generate`, `concatMap`, `concatMapM`,
+  `findM`, `uniq`, `indexed`, `indexedR` to Prelude.
 
 ## 0.5.2
 

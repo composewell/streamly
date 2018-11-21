@@ -123,6 +123,7 @@ module Streamly.Streams.StreamD
     -- * Filtering
     , filter
     , filterM
+    , uniq
     , take
     , takeWhile
     , takeWhileM
@@ -146,6 +147,8 @@ module Streamly.Streams.StreamD
     , mapMaybeM
 
     -- * Zipping
+    , indexed
+    , indexedR
     , zipWith
     , zipWithM
 
@@ -954,6 +957,25 @@ filterM f (Stream step state) = Stream step' state
 filter :: Monad m => (a -> Bool) -> Stream m a -> Stream m a
 filter f = filterM (return . f)
 
+{-# INLINE_NORMAL uniq #-}
+uniq :: (Eq a, Monad m) => Stream m a -> Stream m a
+uniq (Stream step state) = Stream step' (Nothing, state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (Nothing, st) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> return $ Yield x (Just x, s)
+            Skip  s   -> return $ Skip  (Nothing, s)
+            Stop      -> return Stop
+    step' gst (Just x, st)  = do
+         r <- step (rstState gst) st
+         case r of
+             Yield y s | x == y   -> return $ Skip (Just x, s)
+                       | otherwise -> return $ Yield x (Just y, s)
+             Skip  s   -> return $ Skip (Just x, s)
+             Stop      -> return Stop
+
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
 ------------------------------------------------------------------------------
@@ -1054,6 +1076,32 @@ mapMaybeM f = fmap fromJust . filter isJust . mapM f
 ------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL indexed #-}
+indexed :: Monad m => Stream m a -> Stream m (Int, a)
+indexed (Stream step state) = Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) = i `seq` do
+         r <- step (rstState gst) st
+         case r of
+             Yield x s -> return $ Yield (i, x) (s, i+1)
+             Skip    s -> return $ Skip (s, i)
+             Stop      -> return Stop
+
+{-# INLINE_NORMAL indexedR #-}
+indexedR :: Monad m => Int -> Stream m a -> Stream m (Int, a)
+indexedR m (Stream step state) = Stream step' (state, m)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) = i `seq` do
+         r <- step (rstState gst) st
+         case r of
+             Yield x s -> let i' = i - 1
+                          in
+                          return $ Yield (i', x) (s, i')
+             Skip    s -> return $ Skip (s, i)
+             Stop      -> return Stop
 
 {-# INLINE_NORMAL zipWithM #-}
 zipWithM :: Monad m

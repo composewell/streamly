@@ -204,6 +204,7 @@ module Streamly.Prelude
     -- ** Filtering
     , filter
     , filterM
+    , uniq
     , take
     , takeWhile
     , takeWhileM
@@ -235,6 +236,8 @@ module Streamly.Prelude
     , elemIndices
 
     -- * Zipping
+    , indexed
+    , indexedR
     , zipWith
     , zipWithM
     , Z.zipAsyncWith
@@ -993,6 +996,12 @@ filter = K.filter
 filterM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 filterM p m = fromStreamD $ D.filterM p $ toStreamD m
 
+-- | Drop repeated elements that are adjacent to each other.
+--
+{-# INLINE uniq #-}
+uniq :: (Eq a, IsStream t, Monad m) => t m a -> t m a
+uniq = fromStreamD . D.uniq . toStreamD
+
 -- | Take first 'n' elements from the stream and discard the rest.
 --
 -- @since 0.1.0
@@ -1169,6 +1178,19 @@ deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 ------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
+
+-- | Pair each element in a stream with its index.
+--
+{-# INLINE indexed #-}
+indexed :: (IsStream t, Monad m) => t m a -> t m (Int, a)
+indexed = fromStreamD . D.indexed . toStreamD
+
+-- | Pair each element in a stream with its index, starting from the
+-- given index @n@ and counting down.
+--
+{-# INLINE indexedR #-}
+indexedR :: (IsStream t, Monad m) => Int -> t m a -> t m (Int, a)
+indexedR n = fromStreamD . D.indexedR n . toStreamD
 
 -- | Zip two streams serially using a monadic zipping function.
 --
