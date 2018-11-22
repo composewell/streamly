@@ -2,7 +2,7 @@
 
 * Add benchmarks to measure composed and iterated operations
 * Performance improvements
-* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `splitAt`, `the`, `maximumBy`,
+* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `the`, `maximumBy`,
   `minimumBy`, `scanl1`, `scanl1M`, `scanl1'`, `scanl1M'`, `scanl`, `scanlM`,
   `deleteBy`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
   `replicate`, `generateM`, `generate`, `concatMap`, `concatMapM`,

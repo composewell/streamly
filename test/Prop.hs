@@ -334,7 +334,7 @@ functorOps constr desc eq t = do
     prop (desc <> " fmap (+1)") $ transformFromList constr eq (fmap (+1)) $ t . fmap (+1)
 
 transformOps
-    :: (IsStream t, Semigroup (t IO Int))
+    :: IsStream t
     => ([Int] -> t IO Int)
     -> String
     -> ([Int] -> [Int] -> Bool)
@@ -371,12 +371,6 @@ transformOps constr desc eq t = do
     prop (desc <> " drop 0") $ transform (drop 0) $ t . S.drop 0
     prop (desc <> " drop 1") $ transform (drop 1) $ t . S.drop 1
     prop (desc <> " drop 10") $ transform (drop 10) $ t . S.drop 10
-
-    prop (desc <> " splitAt maxBound") $
-        transform (\xs -> let (x, y) = splitAt maxBound xs in x++y) $
-        t . (\m -> let (x,y) = S.splitAt maxBound m in x<>y)
-    {-prop (desc <> " splitAt 4") $ transform (splitAt 4) $ t . S.splitAt 4
-    prop (desc <> " splitAt 0") $ transform (splitAt 0) $ t . S.splitAt 0-}
 
     prop (desc <> " dropWhile True") $
         transform (dropWhile (const True)) $ t . S.dropWhile (const True)

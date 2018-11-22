@@ -211,7 +211,6 @@ module Streamly.Prelude
     , drop
     , dropWhile
     , dropWhileM
-    , splitAt
 
     -- ** Inserting
     , intersperseM
@@ -266,7 +265,7 @@ import Prelude
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               splitAt, scanl, scanl1, replicate, concatMap)
+               scanl, scanl1, replicate, concatMap)
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -1045,11 +1044,6 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 {-# INLINE dropWhileM #-}
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
-
--- | Split the stream at position 'n'.
-{-# INLINE splitAt #-}
-splitAt :: (IsStream t, Monad m) => Int -> t m a -> (t m a, t m a)
-splitAt n m = (take n m, drop n m)
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
