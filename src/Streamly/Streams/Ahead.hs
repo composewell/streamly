@@ -48,7 +48,7 @@ import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK
-       (IsStream(..), Stream(..), unstreamShared, unStreamIsolated,
+       (IsStream(..), Stream(..), unStreamShared, unStreamIsolated,
         runStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
@@ -683,7 +683,7 @@ aheadbind m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-                let runShared x   = unstreamShared x st stp sng yld
+                let runShared x   = unStreamShared x st stp sng yld
                     runIsolated x = unStreamIsolated x st stp sng yld
 
                     single a   = runIsolated $ f a

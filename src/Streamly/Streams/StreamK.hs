@@ -35,7 +35,7 @@ module Streamly.Streams.StreamK
     , Stream (..)
     , unStreamIsolated
     , isolateStream
-    , unstreamShared
+    , unStreamShared
     , runStreamSVar
 
     -- * Construction
@@ -224,15 +224,15 @@ isolateStream x = Stream $ \st stp sng yld ->
     unStreamIsolated x st stp sng yld
 
 -- | Like unstream, but passes a shared SVar across continuations.
-{-# INLINE unstreamShared #-}
-unstreamShared ::
+{-# INLINE unStreamShared #-}
+unStreamShared ::
        Stream m a
     -> State Stream m a          -- state
     -> m r                       -- stop
     -> (a -> m r)                -- singleton
     -> (a -> Stream m a -> m r)  -- yield
     -> m r
-unstreamShared = unStream
+unStreamShared = unStream
 
 -- Run the stream using a run function associated with the SVar that runs the
 -- streams with a captured snapshot of the monadic state.
@@ -1208,7 +1208,7 @@ bindWith par m f = go m
     where
         go (Stream g) =
             Stream $ \st stp sng yld ->
-                let runShared x = unstreamShared x st stp sng yld
+                let runShared x = unStreamShared x st stp sng yld
                     runIsolated x = unStreamIsolated x st stp sng yld
 
                     single a   = runIsolated $ f a
