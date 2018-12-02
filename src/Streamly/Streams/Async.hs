@@ -57,7 +57,8 @@ import qualified Data.Set as S
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
-import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt, runStreamSVar)
+import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, unStream, adapt,
+                                 unStreamShared, runStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -528,25 +529,25 @@ newWAsyncVar st m = do
 
 forkSVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-forkSVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
+forkSVarAsync style m1 m2 = mkStream $ \st stp sng yld -> do
     sv <- case style of
         AsyncVar -> newAsyncVar st (concurrently m1 m2)
         WAsyncVar -> newWAsyncVar st (concurrently m1 m2)
         _ -> error "illegal svar type"
-    unStream (fromSVar sv) (rstState st) stp sng yld
+    unStream (fromSVar sv) st stp sng yld
     where
-    concurrently ma mb = Stream $ \st stp sng yld -> do
+    concurrently ma mb = mkStream $ \st stp sng yld -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
-        unStream ma st stp sng yld
+        unStreamShared ma st stp sng yld
 
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: MonadAsync m
     => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld ->
+joinStreamVarAsync style m1 m2 = mkStream $ \st stp sng yld ->
     case streamVar st of
         Just sv | svarStyle sv == style ->
-            liftIO (enqueue sv m2) >> unStream m1 st stp sng yld
-        _ -> unStream (forkSVarAsync style m1 m2) st stp sng yld
+            liftIO (enqueue sv m2) >> unStreamShared m1 st stp sng yld
+        _ -> unStreamShared (forkSVarAsync style m1 m2) st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
@@ -563,8 +564,8 @@ asyncS = joinStreamVarAsync AsyncVar
 -- @since 0.2.0
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-async m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (joinStreamVarAsync AsyncVar (toStream m1) (toStream m2))
+async m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
+    unStreamShared (joinStreamVarAsync AsyncVar (toStream m1) (toStream m2))
              st stp sng yld
 
 -- | Same as 'async'.
@@ -711,8 +712,8 @@ consMWAsync m r = K.yieldM m `wAsyncS` r
 -- @since 0.2.0
 {-# INLINE wAsync #-}
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-wAsync m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (wAsyncS (toStream m1) (toStream m2)) st stp sng yld
+wAsync m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
+    unStreamShared (wAsyncS (toStream m1) (toStream m2)) st stp sng yld
 
 -- | Wide async composition or async composition with breadth first traversal.
 -- The Semigroup instance of 'WAsyncT' concurrently /traverses/ the composed

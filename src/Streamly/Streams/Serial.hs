@@ -60,8 +60,8 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, mapM)
 
-import Streamly.SVar (rstState)
-import Streamly.Streams.StreamK (IsStream(..), adapt, Stream(..))
+import Streamly.Streams.StreamK (IsStream(..), adapt, Stream, mkStream,
+                                 unStream)
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
@@ -174,9 +174,9 @@ instance IsStream SerialT where
 -- @since 0.2.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+serial m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
     unStream (K.serial (toStream m1) (toStream m2))
-             (rstState st) stp sng yld
+             st stp sng yld
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -184,11 +184,11 @@ serial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 
 instance Monad m => Monad (SerialT m) where
     return = pure
-    (SerialT (Stream m)) >>= f = SerialT $ Stream $ \st stp sng yld ->
-        let run x = unStream x (rstState st) stp sng yld
+    (SerialT m) >>= f = SerialT $ mkStream $ \st stp sng yld ->
+        let run x = unStream x st stp sng yld
             single a   = run $ toStream (f a)
             yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
-        in m (rstState st) stp single yieldk
+        in unStream m st stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -306,11 +306,11 @@ instance IsStream WSerialT where
 
 {-# INLINE interleave #-}
 interleave :: Stream m a -> Stream m a -> Stream m a
-interleave m1 m2 = Stream $ \st stp sng yld -> do
-    let stop       = unStream m2 (rstState st) stp sng yld
+interleave m1 m2 = mkStream $ \st stp sng yld -> do
+    let stop       = unStream m2 st stp sng yld
         single a   = yld a m2
         yieldk a r = yld a (interleave m2 r)
-    unStream m1 (rstState st) stop single yieldk
+    unStream m1 st stop single yieldk
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
@@ -318,9 +318,9 @@ interleave m1 m2 = Stream $ \st stp sng yld -> do
 -- @since 0.2.0
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ Stream $ \st stp sng yld ->
+wSerial m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
     unStream (interleave (toStream m1) (toStream m2))
-             (rstState st) stp sng yld
+             st stp sng yld
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
@@ -349,11 +349,11 @@ instance Monoid (WSerialT m a) where
 
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    (WSerialT (Stream m)) >>= f = WSerialT $ Stream $ \st stp sng yld ->
-        let run x = unStream x (rstState st) stp sng yld
+    (WSerialT m) >>= f = WSerialT $ mkStream $ \st stp sng yld ->
+        let run x = unStream x st stp sng yld
             single a   = run $ toStream (f a)
             yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
-        in m (rstState st) stp single yieldk
+        in unStream m st stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Other instances

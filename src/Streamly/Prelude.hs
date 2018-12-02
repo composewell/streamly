@@ -840,9 +840,9 @@ iterate step = fromStream . go
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> a -> t m a
 iterateM step = go
     where
-    go s = fromStream $ K.Stream $ \svr stp sng yld -> do
+    go s = fromStream $ K.mkStream $ \svr stp sng yld -> do
        next <- step s
-       K.unStream (toStream (return s |: go next)) svr stp sng yld
+       K.unStreamShared (toStream (return s |: go next)) svr stp sng yld
 
 ------------------------------------------------------------------------------
 -- Conversions
@@ -896,7 +896,7 @@ each = K.fromFoldable
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = fromStream go
   where
-  go = K.Stream $ \_ stp _ yld -> do
+  go = K.mkStream $ \_ stp _ yld -> do
         eof <- liftIO $ IO.hIsEOF h
         if eof
         then stp
@@ -1449,7 +1449,7 @@ toHandle h m = go (toStream m)
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in K.unStream m1 defState stop single yieldk
+        in K.unStreamShared m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -1770,12 +1770,12 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 reverse :: (IsStream t) => t m a -> t m a
 reverse m = fromStream $ go K.nil (toStream m)
     where
-    go rev rest = K.Stream $ \st stp sng yld ->
-        let runIt x = K.unStream x (rstState st) stp sng yld
+    go rev rest = K.mkStream $ \st stp sng yld ->
+        let runIt x = K.unStream x st stp sng yld
             stop = runIt rev
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
-         in K.unStream rest (rstState st) stop single yieldk
+         in K.unStream rest st stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
@@ -1986,7 +1986,7 @@ merge = mergeBy compare
 -- @since 0.6.0
 mergeAsyncBy :: (IsStream t, MonadAsync m)
     => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeAsyncBy f m1 m2 = K.fromStream $ K.Stream $ \st stp sng yld -> do
+mergeAsyncBy f m1 m2 = K.fromStream $ K.mkStream $ \st stp sng yld -> do
     ma <- mkAsync' (rstState st) m1
     mb <- mkAsync' (rstState st) m2
     K.unStream (K.toStream (K.mergeBy f ma mb)) (rstState st) stp sng yld
@@ -1997,7 +1997,7 @@ mergeAsyncBy f m1 m2 = K.fromStream $ K.Stream $ \st stp sng yld -> do
 -- @since 0.6.0
 mergeAsyncByM :: (IsStream t, MonadAsync m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeAsyncByM f m1 m2 = K.fromStream $ K.Stream $ \st stp sng yld -> do
+mergeAsyncByM f m1 m2 = K.fromStream $ K.mkStream $ \st stp sng yld -> do
     ma <- mkAsync' (rstState st) m1
     mb <- mkAsync' (rstState st) m2
     K.unStream (K.toStream (K.mergeByM f ma mb)) (rstState st) stp sng yld

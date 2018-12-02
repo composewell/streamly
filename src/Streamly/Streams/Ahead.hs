@@ -48,7 +48,7 @@ import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK
-       (IsStream(..), Stream(..), unStreamShared, unStreamIsolated,
+       (IsStream(..), Stream, mkStream, unStream, unStreamShared,
         runStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
@@ -544,25 +544,25 @@ workLoopAhead q heap st sv winfo = do
 -- The only difference between forkSVarAsync and this is that we run the left
 -- computation without a shared SVar.
 forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarAhead m1 m2 = Stream $ \st stp sng yld -> do
+forkSVarAhead m1 m2 = mkStream $ \st stp sng yld -> do
         sv <- newAheadVar st (concurrently m1 m2) workLoopAhead
-        unStream (fromSVar sv) (rstState st) stp sng yld
+        unStream (fromSVar sv) st stp sng yld
     where
-    concurrently ma mb = Stream $ \st stp sng yld -> do
+    concurrently ma mb = mkStream $ \st stp sng yld -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
-        unStream ma (rstState st) stp sng yld
+        unStream ma st stp sng yld
 
 {-# INLINE aheadS #-}
 aheadS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-aheadS m1 m2 = Stream $ \st stp sng yld ->
+aheadS m1 m2 = mkStream $ \st stp sng yld ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
             liftIO $ enqueue sv m2
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
-            unStream m1 (rstState st) stp sng yld
-        _ -> unStream (forkSVarAhead m1 m2) st stp sng yld
+            unStream m1 st stp sng yld
+        _ -> unStreamShared (forkSVarAhead m1 m2) st stp sng yld
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
@@ -655,8 +655,8 @@ instance IsStream AheadT where
 -- @since 0.3.0
 {-# INLINE ahead #-}
 ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-ahead m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (aheadS (toStream m1) (toStream m2)) st stp sng yld
+ahead m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
+    unStreamShared (aheadS (toStream m1) (toStream m2)) st stp sng yld
 
 instance MonadAsync m => Semigroup (AheadT m a) where
     (<>) = ahead
@@ -681,15 +681,15 @@ aheadbind
     -> Stream m b
 aheadbind m f = go m
     where
-        go (Stream g) =
-            Stream $ \st stp sng yld ->
+        go g =
+            mkStream $ \st stp sng yld ->
                 let runShared x   = unStreamShared x st stp sng yld
-                    runIsolated x = unStreamIsolated x st stp sng yld
+                    runIsolated x = unStream x st stp sng yld
 
                     single a   = runIsolated $ f a
                     yieldk a r = runShared $
                         K.isolateStream (f a) `aheadS` go r
-                in g (rstState st) stp single yieldk
+                in unStream g st stp single yieldk
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
