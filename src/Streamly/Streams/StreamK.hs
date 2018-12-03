@@ -59,6 +59,8 @@ module Streamly.Streams.StreamK
 
     -- ** Specialized Generation
     , repeat
+    , replicate
+    , replicateM
 
     -- ** Conversions
     , yield
@@ -139,6 +141,7 @@ module Streamly.Streams.StreamK
 
     -- ** Merging
     , mergeBy
+    , mergeByM
 
     -- ** Transformation comprehensions
     , the
@@ -166,7 +169,7 @@ import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1, (!!))
+               foldr1, (!!), replicate)
 import qualified Prelude
 
 import Streamly.SVar
@@ -472,19 +475,38 @@ yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single
 once :: (Monad m, IsStream t) => m a -> t m a
 once = yieldM
 
--- | Generate an infinite stream by repeating a pure value.
--- Can be expressed as @cycle1 . yield@.
+-- |
+-- @
+-- repeatM = fix . cons
+-- repeatM = cycle1 . yield
+-- @
+--
+-- Generate an infinite stream by repeating a pure value.
 --
 -- @since 0.4.0
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
 
+replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
+replicateM n m = go n
+    where
+    go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
+
+replicate :: IsStream t => Int -> a -> t m a
+replicate n a = go n
+    where
+    go cnt = if cnt <= 0 then nil else a `cons` go (cnt - 1)
+
 -------------------------------------------------------------------------------
 -- Conversions
 -------------------------------------------------------------------------------
 
--- | Construct a stream from a 'Foldable' containing pure values. Same as
--- @'Prelude.foldr' 'cons' 'nil'@.
+-- |
+-- @
+-- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
+-- @
+--
+-- Construct a stream from a 'Foldable' containing pure values:
 --
 -- @since 0.2.0
 {-# INLINE fromFoldable #-}
@@ -556,6 +578,8 @@ foldr1 step m = do
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- Note that the accumulator is always evaluated including the initial value.
 {-# INLINE foldx #-}
 foldx :: (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
@@ -563,6 +587,8 @@ foldx step begin done m = get $ go (toStream m) begin
     where
     {-# NOINLINE get #-}
     get m1 =
+        -- XXX we are not strictly evaluating the accumulator here. Is this
+        -- okay?
         let single = return . done
          in unStream m1 undefined undefined single undefined
 
@@ -719,7 +745,9 @@ minimum m = go Nothing (toStream m)
         in unStream m1 defState stop single yieldk
 
 {-# INLINE minimumBy #-}
-minimumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
+minimumBy
+    :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> m (Maybe a)
 minimumBy cmp m = go Nothing (toStream m)
     where
     go Nothing m1 =
@@ -1076,54 +1104,42 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
 -- Merging
 ------------------------------------------------------------------------------
 
-data MergeWithState l r o
-    = MergeBoth l r
-    | MergeWithLeft l r o
-    | MergeWithRight l r o
-
 {-# INLINE mergeByS #-}
-mergeByS :: (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeByS cmp m1 m2 = go (MergeBoth m1 m2)
-  where
-    go (MergeBoth mx my) =
-        Stream $ \st stp sng yld -> do
-            let yield1 a ra =
-                    let single2 b = sng (cond a b)
-                        stop2 = yld a ra
-                        yield2 b rb =
-                            case cmp a b of
-                                LT -> yld a (go (MergeWithRight ra rb b))
-                                _ -> yld b (go (MergeWithLeft ra rb a))
-                    in unStream my (rstState st) stop2 single2 yield2
-                single1 a = sng a
-                stop1 = unStream my (rstState st) stp sng yld
-            unStream mx (rstState st) stop1 single1 yield1
-    go (MergeWithLeft mx my x) =
-        Stream $ \st _ sng yld -> do
-            let single2 b = sng (cond x b)
-                stop2 = yld x mx
-                yield2 b rb =
-                    case cmp x b of
-                        LT -> yld x (go (MergeWithRight mx rb b))
-                        _ -> yld b (go (MergeWithLeft mx rb x))
-            unStream my (rstState st) stop2 single2 yield2
-    go (MergeWithRight mx my x) =
-        Stream $ \st _ sng yld -> do
-            let single1 a = sng (cond a x)
-                stop1 = yld x my
-                yield1 a ra =
-                    case cmp a x of
-                        LT -> yld a (go (MergeWithRight ra my x))
-                        _ -> yld x (go (MergeWithLeft ra my a))
-            unStream mx (rstState st) stop1 single1 yield1
-    cond x y =
-        if cmp x y == LT
-            then x
-            else y
+mergeByS
+    :: Monad m
+    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeByS cmp = go
+    where
+    go mx my = Stream $ \st stp sng yld -> do
+        let mergeWithY a ra =
+                let stop2 = unStream mx (rstState st) stp sng yld
+                    single2 b = do
+                        r <- cmp a b
+                        case r of
+                            GT -> yld b (go (a `cons` ra) nil)
+                            _  -> yld a (go ra (b `cons` nil))
+                    yield2 b rb = do
+                        r <- cmp a b
+                        case r of
+                            GT -> yld b (go (a `cons` ra) rb)
+                            _  -> yld a (go ra (b `cons` rb))
+                 in unStream my (rstState st) stop2 single2 yield2
+        let stopX = unStream my (rstState st) stp sng yld
+            singleX a = mergeWithY a nil
+            yieldX = mergeWithY
+        unStream mx (rstState st) stopX singleX yieldX
+
+{-# INLINABLE mergeByM #-}
+mergeByM
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeByM f m1 m2 = fromStream $ mergeByS f (toStream m1) (toStream m2)
 
 {-# INLINABLE mergeBy #-}
-mergeBy :: IsStream t => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeBy f m1 m2 = fromStream $ mergeByS f (toStream m1) (toStream m2)
+mergeBy
+    :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 ------------------------------------------------------------------------------
 -- Transformation comprehensions

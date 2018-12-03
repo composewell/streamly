@@ -89,8 +89,7 @@ instance Show a => Show (STREAM Identity a) where {                           \
 instance Read a => Read (STREAM Identity a) where {                           \
     readPrec = parens $ prec 10 $ do {                                        \
         Ident "fromList" <- lexP;                                             \
-        dl <- readPrec;                                                       \
-        return (fromList dl) };                                               \
+        fromList <$> readPrec };                                              \
     readListPrec = readListPrecDefault };                                     \
                                                                               \
 instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
@@ -119,4 +118,4 @@ instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
 instance Traversable (STREAM Identity) where {                                \
     {-# INLINE traverse #-};                                                  \
     traverse f s = runIdentity $ P.foldr consA (pure mempty) s                \
-        where { consA x ys = liftA2 (K.cons) (f x) ys }}
+        where { consA x ys = liftA2 K.cons (f x) ys }}

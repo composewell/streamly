@@ -1,12 +1,24 @@
 ## Unreleased
 
+### Breaking changes
+
+* 'Monad' constraint may be needed on some of the existing APIs.
+
+### Enhancements
+
 * Add benchmarks to measure composed and iterated operations
 * Performance improvements
-* Add `(!!)`, `insertBy`, `mergeBy`, `merge`, `the`, `maximumBy`,
-  `minimumBy`, `scanl1`, `scanl1M`, `scanl1'`, `scanl1M'`, `scanl`, `scanlM`,
-  `deleteBy`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
-  `replicate`, `generateM`, `generate`, `concatMap`, `concatMapM`,
-  `findM`, `uniq`, `indexed`, `indexedR` to Prelude.
+* Add the following functions to Prelude:
+    * Generation: `replicate`, `fromIndices`, `fromIndicesM`
+    * Enumeration: `intFrom`, `intFromTo`, `intFromThen`, `intFromThenTo`,
+                   `intFromStep`, `fracFrom`, `fracFromThen`, `fracFromThenTo`,
+                   `numFromStep`
+    * Folds: `(!!)`, `maximumBy`, `minimumBy`, `the`
+    * Scans: `scanl1'`, `scanl1M'
+    * Filters: `uniq`, `insertBy`, `deleteBy`, `findM`
+    * Multi-stream: `eqBy`, `cmpBy`, `mergeBy`, `mergeByM`, `mergeAsyncBy`,
+      `mergeAsyncByM`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
+      `concatMap`, `concatMapM`, `indexed`, `indexedR`
 
 ## 0.5.2
 

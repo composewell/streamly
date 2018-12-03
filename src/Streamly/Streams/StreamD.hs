@@ -12,6 +12,7 @@
 -- |
 -- Module      : Streamly.Streams.StreamD
 -- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) Roman Leshchinskiy 2008-2010
 --
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -27,7 +28,7 @@
 -- import qualified Streamly.Streams.StreamD as D
 -- @
 
--- Some of functions in this file have been adapted from the vector
+-- Some of the functions in this file have been adapted from the vector
 -- library,  https://hackage.haskell.org/package/vector.
 
 module Streamly.Streams.StreamD
@@ -51,15 +52,31 @@ module Streamly.Streams.StreamD
     -- ** Specialized Generation
     -- | Generate a monadic stream from a seed.
     , repeat
-    , enumFromStepN
+    , replicate
+    , replicateM
+    , fromIndices
+    , fromIndicesM
+    , generate
+    , generateM
+
+    -- ** Enumerations
+    , intFromStep
+    , intFrom
+    , intFromThen
+    , intFromTo
+    , intFromThenTo
+
+    , numFromStep
+    , numFrom
+    , numFromThen
+    , fracFromTo
+    , fracFromThenTo
 
     -- ** Conversions
     -- | Transform an input structure into a stream.
     -- | Direct style stream does not support @fromFoldable@.
     , yield
     , yieldM
-    , generate
-    , generateM
     , fromList
     , fromListM
     , fromStreamK
@@ -120,6 +137,13 @@ module Streamly.Streams.StreamD
     , scanl1M
     , scanl1
 
+    , prescanl'
+    , prescanlM'
+    , postscanl
+    , postscanlM
+    , postscanl'
+    , postscanlM'
+
     -- * Filtering
     , filter
     , filterM
@@ -158,6 +182,7 @@ module Streamly.Streams.StreamD
 
     -- * Merging
     , mergeBy
+    , mergeByM
 
     -- * Transformation comprehensions
     , the
@@ -170,7 +195,7 @@ import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap)
+               (!!), scanl, scanl1, concatMap, replicate, enumFromTo)
 
 import Streamly.SVar (MonadAsync, State(..), defState, rstState)
 
@@ -262,14 +287,143 @@ unfoldr f = unfoldrM (return . f)
 repeat :: Monad m => a -> Stream m a
 repeat x = Stream (\_ _ -> return $ Yield x ()) ()
 
-{-# INLINE_NORMAL enumFromStepN #-}
-enumFromStepN :: (Num a, Monad m) => a -> a -> Int -> Stream m a
-enumFromStepN from stride n =
-    from `seq` stride `seq` n `seq` Stream step (from, n)
+{-# INLINE_NORMAL replicateM #-}
+replicateM :: Monad m => Int -> m a -> Stream m a
+replicateM n p = Stream step n
+  where
+    {-# INLINE_LATE step #-}
+    step _ i | i <= 0    = return Stop
+             | otherwise = do
+                x <- p
+                return $ Yield x (i - 1)
+
+{-# INLINE_NORMAL replicate #-}
+replicate :: Monad m => Int -> a -> Stream m a
+replicate n x = replicateM n (return x)
+
+-- This would not work properly for floats, therefore we put an Integral
+-- constraint.
+-- | Can be used to enumerate unbounded integrals. This does not check for
+-- overflow or underflow for bounded integrals.
+{-# INLINE_NORMAL intFromStep #-}
+intFromStep :: (Integral a, Monad m) => a -> a -> Stream m a
+intFromStep from stride =
+    from `seq` stride `seq` Stream step from
     where
         {-# INLINE_LATE step #-}
-        step _ (x, i) | i > 0     = return $ Yield x (x + stride, i - 1)
-                      | otherwise = return Stop
+        step _ !x = return $ Yield x $! (x + stride)
+
+-- We are assuming that "to" is constrained by the type to be within
+-- max/min bounds.
+{-# INLINE intFromTo #-}
+intFromTo :: (Monad m, Integral a) => a -> a -> Stream m a
+intFromTo from to = takeWhile (<= to) $ intFromStep from 1
+
+{-# INLINE intFrom #-}
+intFrom :: (Monad m, Integral a, Bounded a) => a -> Stream m a
+intFrom from = intFromTo from maxBound
+
+data EnumState a = EnumInit | EnumYield a a a | EnumStop
+
+{-# INLINE_NORMAL intFromThenToUp #-}
+intFromThenToUp :: (Monad m, Integral a) => a -> a -> a -> Stream m a
+intFromThenToUp from next to = Stream step EnumInit
+    where
+    {-# INLINE_LATE step #-}
+    step _ EnumInit =
+        return $
+            if to < next
+            then if to < from
+                 then Stop
+                 else Yield from EnumStop
+            else -- from <= next <= to
+                let stride = next - from
+                in Skip $ EnumYield from stride (to - stride)
+
+    step _ (EnumYield x stride toMinus) =
+        return $
+            if x > toMinus
+            then Yield x EnumStop
+            else Yield x $ EnumYield (x + stride) stride toMinus
+
+    step _ EnumStop = return Stop
+
+{-# INLINE_NORMAL intFromThenToDn #-}
+intFromThenToDn :: (Monad m, Integral a) => a -> a -> a -> Stream m a
+intFromThenToDn from next to = Stream step EnumInit
+    where
+    {-# INLINE_LATE step #-}
+    step _ EnumInit =
+        return $ if to > next
+            then if to > from
+                 then Stop
+                 else Yield from EnumStop
+            else -- from >= next >= to
+                let stride = next - from
+                in Skip $ EnumYield from stride (to - stride)
+
+    step _ (EnumYield x stride toMinus) =
+        return $
+            if x < toMinus
+            then Yield x EnumStop
+            else Yield x $ EnumYield (x + stride) stride toMinus
+
+    step _ EnumStop = return Stop
+
+-- {-# NOINLINE [1] efdtInt #-}
+{-# INLINE_NORMAL intFromThenTo #-}
+intFromThenTo :: (Monad m, Integral a) => a -> a -> a -> Stream m a
+intFromThenTo from next to
+    | next >= from = intFromThenToUp from next to
+    | otherwise    = intFromThenToDn from next to
+
+{-# INLINE_NORMAL intFromThen #-}
+intFromThen :: (Monad m, Integral a, Bounded a) => a -> a -> Stream m a
+intFromThen from next =
+    if next > from
+    then intFromThenToUp from next maxBound
+    else intFromThenToDn from next minBound
+
+-- For floating point numbers if the increment is less than the precision then
+-- it just gets lost. Therefore we cannot always increment it correctly by just
+-- repeated addition.
+-- 9007199254740992 + 1 + 1 :: Double => 9.007199254740992e15
+-- 9007199254740992 + 2     :: Double => 9.007199254740994e15
+
+-- Instead we accumulate the increment counter and compute the increment
+-- everytime before adding it to the starting number.
+--
+-- This works for Integrals as well as floating point numbers, but intFromStep
+-- is faster for integrals.
+{-# INLINE_NORMAL numFromStep #-}
+numFromStep :: (Monad m, Num a) => a -> a -> Stream m a
+numFromStep from stride = Stream step 0
+    where
+    {-# INLINE_LATE step #-}
+    step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
+
+{-# INLINE_NORMAL numFrom #-}
+numFrom :: (Monad m, Num a) => a -> Stream m a
+numFrom from = numFromStep from 1
+
+{-# INLINE_NORMAL numFromThen #-}
+numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
+numFromThen from next = numFromStep from (next - from)
+
+-- We cannot write a general function for Num.  The only way to write code
+-- portable between the two is to use a 'Real' constraint and convert between
+-- Fractional and Integral using fromRational which is horribly slow.
+{-# INLINE_NORMAL fracFromTo #-}
+fracFromTo :: (Monad m, Fractional a, Ord a) => a -> a -> Stream m a
+fracFromTo from to = takeWhile (<= to + 1/2) $ numFromStep from 1
+
+{-# INLINE_NORMAL fracFromThenTo #-}
+fracFromThenTo :: (Monad m, Fractional a, Ord a) => a -> a -> a -> Stream m a
+fracFromThenTo from next to = takeWhile predicate $ numFromThen from next
+    where
+    mid = (next - from) / 2
+    predicate | next >= from  = (<= to + mid)
+              | otherwise     = (>= to + mid)
 
 -------------------------------------------------------------------------------
 -- Generation by Conversion
@@ -293,9 +447,18 @@ yieldM m = Stream step True
     step _ True  = m >>= \x -> return $ Yield x False
     step _ False = return Stop
 
-{-# INLINE generate #-}
-generate :: Monad m => Int -> (Int -> a) -> Stream m a
-generate n gen = generateM n (return . gen)
+{-# INLINE_NORMAL fromIndicesM #-}
+fromIndicesM :: Monad m => (Int -> m a) -> Stream m a
+fromIndicesM gen = Stream step 0
+  where
+    {-# INLINE_LATE step #-}
+    step _ i = do
+       x <- gen i
+       return $ Yield x (i + 1)
+
+{-# INLINE fromIndices #-}
+fromIndices :: Monad m => (Int -> a) -> Stream m a
+fromIndices gen = fromIndicesM (return . gen)
 
 {-# INLINE_NORMAL generateM #-}
 generateM :: Monad m => Int -> (Int -> m a) -> Stream m a
@@ -304,8 +467,12 @@ generateM n gen = n `seq` Stream step 0
     {-# INLINE_LATE step #-}
     step _ i | i < n     = do
                            x <- gen i
-                           return $ Yield x (i+1)
+                           return $ Yield x (i + 1)
              | otherwise = return Stop
+
+{-# INLINE generate #-}
+generate :: Monad m => Int -> (Int -> a) -> Stream m a
+generate n gen = generateM n (return . gen)
 
 -- XXX we need the MonadAsync constraint because of a rewrite rule.
 -- | Convert a list of monadic actions to a 'Stream'
@@ -613,14 +780,11 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Skip s -> Skip (s, i+1)
           Stop   -> Stop
 
-{-# INLINE concatMap #-}
-concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap f = concatMapM (return . f)
-
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
 concatMapM f (Stream step state) = Stream step' (Left state)
   where
+    {-# INLINE_LATE step' #-}
     step' gst (Left st) = do
         r <- step (rstState gst) st
         case r of
@@ -638,6 +802,10 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip inner_s ->
                 return $ Skip (Right (Stream inner_step inner_s, st))
             Stop -> return $ Skip (Left st)
+
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+concatMap f = concatMapM (return . f)
 
 ------------------------------------------------------------------------------
 -- Substreams
@@ -686,7 +854,9 @@ isSubsequenceOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
             Stop     -> return False
 
 {-# INLINE_NORMAL stripPrefix #-}
-stripPrefix :: (Eq a, Monad m) => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripPrefix
+    :: (Eq a, Monad m)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
 stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
   where
     go (sa, sb, Nothing) = do
@@ -750,6 +920,43 @@ fromStreamD = K.fromStream . toStreamK
 -- Transformation by Folding (Scans)
 ------------------------------------------------------------------------------
 
+-- XXX Is a prescan useful, discarding the last step does not sound useful?  I
+-- am not sure about the utility of this function, so this is implemented but
+-- not exposed. We can expose it if someone provides good reasons why this is
+-- useful.
+--
+-- XXX We have to execute the stream one step ahead to know that we are at the
+-- last step.  The vector implementation of prescan executes the last fold step
+-- but does not yield the result. This means we have executed the effect but
+-- discarded value. This does not sound right. In this implementation we are
+-- not executing the last fold step.
+{-# INLINE_NORMAL prescanlM' #-}
+prescanlM' :: Monad m => (b -> a -> m b) -> m b -> Stream m a -> Stream m b
+prescanlM' f mz (Stream step state) = Stream step' (state, mz)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, prev) = do
+        r <- step (rstState gst) st
+        case r of
+            Yield x s -> do
+                acc <- prev
+                return $ Yield acc (s, f acc x)
+            Skip s -> return $ Skip (s, prev)
+            Stop   -> return Stop
+
+{-# INLINE prescanl' #-}
+prescanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
+prescanl' f z = prescanlM' (\a b -> return (f a b)) (return z)
+
+-- XXX if we make the initial value of the accumulator monadic then should we
+-- execute it even if the stream is empty? In that case we would have generated
+-- the effect but discarded the value, but that is what a fold does when the
+-- stream is empty. Whatever we decide, need to reconcile this with prescan.
+-- If we execute the initial value here without even using it then it is ok to
+-- execute the last step there as well without using the value.
+-- Looking at the duality with right fold, in case of right fold we always
+-- perform the action when the construction terminates, so in case of left fold
+-- we should perform it only when the reduction starts.
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 postscanlM' fstep begin (Stream step state) =
@@ -765,6 +972,10 @@ postscanlM' fstep begin (Stream step state) =
             Skip s -> return $ Skip (s, acc)
             Stop   -> return Stop
 
+{-# INLINE_NORMAL postscanl' #-}
+postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
+postscanl' f = postscanlM' (\a b -> return (f a b))
+
 {-# INLINE_NORMAL postscanlM #-}
 postscanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
@@ -778,6 +989,10 @@ postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
                 return (Yield y (s, y))
             Skip s -> return $ Skip (s, acc)
             Stop   -> return Stop
+
+{-# INLINE_NORMAL postscanl #-}
+postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
+postscanl f = postscanlM (\a b -> return (f a b))
 
 {-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
@@ -1198,9 +1413,11 @@ cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
 -- Merging
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL mergeBy #-}
-mergeBy :: (Monad m) => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeBy f (Stream stepa ta) (Stream stepb tb) =
+{-# INLINE_NORMAL mergeByM #-}
+mergeByM
+    :: (Monad m)
+    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
     Stream step (Just ta, Just tb, Nothing, Nothing)
   where
     {-# INLINE_LATE step #-}
@@ -1221,19 +1438,26 @@ mergeBy f (Stream stepa ta) (Stream stepb tb) =
             Stop        -> Skip (sa, Nothing, a, Nothing)
 
     -- both the values are available
-    step _ (sa, sb, Just a, Just b) =
-        return $ case f a b of
-            LT -> Yield a (sa, sb, Nothing, Just b)
-            _ -> Yield b (sa, sb, Just a, Nothing)
+    step _ (sa, sb, Just a, Just b) = do
+        res <- cmp a b
+        return $ case res of
+            GT -> Yield b (sa, sb, Just a, Nothing)
+            _  -> Yield a (sa, sb, Nothing, Just b)
 
     -- one of the values is missing, corresponding stream is done
-    step _ (Nothing, sb, Nothing, Just b) = do
+    step _ (Nothing, sb, Nothing, Just b) =
             return $ Yield b (Nothing, sb, Nothing, Nothing)
 
-    step _ (sa, Nothing, Just a, Nothing) = do
+    step _ (sa, Nothing, Just a, Nothing) =
             return $ Yield a (sa, Nothing, Nothing, Nothing)
 
     step _ (Nothing, Nothing, Nothing, Nothing) = return Stop
+
+{-# INLINE mergeBy #-}
+mergeBy
+    :: (Monad m)
+    => (a -> a -> Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
 
 ------------------------------------------------------------------------------
 -- Transformation comprehensions

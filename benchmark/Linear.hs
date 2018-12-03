@@ -29,12 +29,12 @@ benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
 benchIOSrc
-    :: (t IO Int -> SerialT IO Int)
+    :: (t IO a -> SerialT IO a)
     -> String
-    -> (Int -> t IO Int)
+    -> (Int -> t IO a)
     -> Benchmark
 benchIOSrc t name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= (Ops.toNull t) . f
+    bench name $ nfIO $ randomRIO (1,1) >>= Ops.toNull t . f
 
 {-# INLINE benchPure #-}
 benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
@@ -84,6 +84,11 @@ main =
         [ -- Most basic, barely stream continuations running
           benchIOSrc serially "unfoldr" Ops.sourceUnfoldr
         , benchIOSrc serially "unfoldrM" Ops.sourceUnfoldrM
+        , benchIOSrc serially "intFromTo" Ops.sourceIntFromTo
+        , benchIOSrc serially "intFromThenTo" Ops.sourceIntFromThenTo
+        , benchIOSrc serially "integerFromStep" Ops.sourceIntegerFromStep
+        , benchIOSrc serially "fracFromThenTo" Ops.sourceFracFromThenTo
+        , benchIOSrc serially "fracFromTo" Ops.sourceFracFromTo
         , benchIOSrc serially "fromList" Ops.sourceFromList
         , benchIOSrc serially "fromListM" Ops.sourceFromListM
         -- These are essentially cons and consM
@@ -127,7 +132,7 @@ main =
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)
-        , benchIOSink "scanl1" (Ops.scanl1 1)
+        , benchIOSink "scanl1'" (Ops.scanl1' 1)
         , benchIOSink "map" (Ops.map 1)
         , benchIOSink "fmap" (Ops.fmap 1)
         , benchIOSink "mapM" (Ops.mapM serially 1)
@@ -137,15 +142,10 @@ main =
             Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
-        -- , benchIOSink "concat" Ops.concat
-        , benchIOSink "insertLarge" (Ops.insertLarge 1)
-        , benchIOSink "insertSmall" (Ops.insertSmall 1)
-        , benchIOSink "deleteLarge" (Ops.deleteLarge 1)
-        , benchIOSink "deleteSmall" (Ops.deleteSmall 1)
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)
-        , benchIOSink "scanl1" (Ops.scanl1 4)
+        , benchIOSink "scanl1'" (Ops.scanl1' 4)
         , benchIOSink "map" (Ops.map 4)
         , benchIOSink "fmap" (Ops.fmap 4)
         , benchIOSink "mapM" (Ops.mapM serially 4)
@@ -155,11 +155,6 @@ main =
             -- Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIOSink "findIndices" (Ops.findIndices 4)
         , benchIOSink "elemIndices" (Ops.elemIndices 4)
-        , benchIOSink "insertLarge" (Ops.insertLarge 4)
-        , benchIOSink "insertSmall" (Ops.insertSmall 4)
-        , benchIOSink "deleteLarge" (Ops.deleteLarge 4)
-        , benchIOSink "deleteSmall" (Ops.deleteSmall 4)
-        -- , benchIOSink "concat" Ops.concat
         ]
       , bgroup "filtering"
         [ benchIOSink "filter-even"     (Ops.filterEven 1)
@@ -173,6 +168,8 @@ main =
         , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 1)
         --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 1)
         , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 1)
+        , benchIOSink "deleteBy" (Ops.deleteBy 1)
+        , benchIOSink "insertBy" (Ops.insertBy 1)
         ]
       , bgroup "filteringX4"
         [ benchIOSink "filter-even"     (Ops.filterEven 4)
@@ -186,23 +183,24 @@ main =
         , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 4)
         --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 4)
         , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 4)
+        , benchIOSink "deleteBy" (Ops.deleteBy 4)
+        , benchIOSink "insertBy" (Ops.insertBy 4)
         ]
-      , bgroup "zipping"
+      , bgroup "multi-stream"
         [ benchIOSink "eqBy" Ops.eqBy
         , benchIOSink "cmpBy" Ops.cmpBy
         , benchIOSink "zip" Ops.zip
         , benchIOSink "zipM" Ops.zipM
-        ]
-      , bgroup "merging"
-        [ benchIOSink "merge" Ops.merge
-        ]
-      , bgroup "subsequences"
-        [ benchIOSink "isPrefixOf" Ops.isPrefixOf
-        , benchIOSink "isPrefixAll" Ops.isPrefixAll
+        , benchIOSink "mergeBy" Ops.mergeBy
+        , benchIOSink "isPrefixOf" Ops.isPrefixOf
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
-        , benchIOSink "evenSubsequence" Ops.evenSubsequence
         , benchIOSink "stripPrefix" Ops.stripPrefix
+        , benchIOSrc  serially "concatMap" Ops.concatMap
         ]
+    , bgroup "mixed"
+      [ benchIOSink "sum-product-fold"  Ops.sumProductFold
+      , benchIOSink "sum-product-scan"  Ops.sumProductScan
+      ]
     , bgroup "mixedX4"
       [ benchIOSink "scan-map"    (Ops.scanMap 4)
       , benchIOSink "drop-map"    (Ops.dropMap 4)
