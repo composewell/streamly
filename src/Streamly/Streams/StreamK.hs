@@ -426,7 +426,7 @@ uncons m =
     let stop = return Nothing
         single a = return (Just (a, nil))
         yieldk a r = return (Just (a, fromStream r))
-    in unStreamShared (toStream m) defState stop single yieldk
+    in unStream (toStream m) defState stop single yieldk
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -543,7 +543,7 @@ foldr step acc m = go (toStream m)
         let stop = return acc
             single a = return (step a acc)
             yieldk a r = go r >>= \b -> return (step a b)
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE foldrM #-}
@@ -554,7 +554,7 @@ foldrM step acc m = go (toStream m)
         let stop = return acc
             single a = step a acc
             yieldk a r = go r >>= step a
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE foldr1 #-}
 foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
@@ -568,7 +568,7 @@ foldr1 step m = do
         let stp = return p
             single a = return $ step a p
             yieldk a r = fmap (step p) (go a r)
-         in unStreamShared m1 defState stp single yieldk
+         in unStream m1 defState stp single yieldk
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -597,8 +597,8 @@ foldx step begin done m = get $ go (toStream m) begin
             single a = sng $ step acc a
             yieldk a r =
                 let stream = go r (step acc a)
-                in unStreamShared stream defState undefined sng yld
-        in unStreamShared m1 defState stop single yieldk
+                in unStream stream defState undefined sng yld
+        in unStream m1 defState stop single yieldk
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
@@ -615,7 +615,7 @@ foldxM step begin done m = go begin (toStream m)
         let stop = acc >>= done
             single a = acc >>= \b -> step b a >>= done
             yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
-         in unStreamShared m1 defState stop single yieldk
+         in unStream m1 defState stop single yieldk
 
 -- | Like 'foldl'' but with a monadic step function.
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
@@ -633,7 +633,7 @@ runStream m = go (toStream m)
         let stop = return ()
             single _ = return ()
             yieldk _ r = go (toStream r)
-         in unStreamShared m1 defState stop single yieldk
+         in unStream m1 defState stop single yieldk
 
 {-# INLINE null #-}
 null :: (IsStream t, Monad m) => t m a -> m Bool
@@ -641,7 +641,7 @@ null m =
     let stop      = return True
         single _  = return False
         yieldk _ _ = return False
-    in unStreamShared (toStream m) defState stop single yieldk
+    in unStream (toStream m) defState stop single yieldk
 
 {-# INLINE head #-}
 head :: (IsStream t, Monad m) => t m a -> m (Maybe a)
@@ -649,7 +649,7 @@ head m =
     let stop      = return Nothing
         single a  = return (Just a)
         yieldk a _ = return (Just a)
-    in unStreamShared (toStream m) defState stop single yieldk
+    in unStream (toStream m) defState stop single yieldk
 
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
@@ -657,7 +657,7 @@ tail m =
     let stop      = return Nothing
         single _  = return $ Just nil
         yieldk _ r = return $ Just $ fromStream r
-    in unStreamShared (toStream m) defState stop single yieldk
+    in unStream (toStream m) defState stop single yieldk
 
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
@@ -671,7 +671,7 @@ init m = go1 (toStream m)
     go p m1 = Stream $ \_ stp sng yld ->
         let single _ = sng p
             yieldk a x = yld p $ go a x
-         in unStreamShared m1 defState stp single yieldk
+         in unStream m1 defState stp single yieldk
 
 {-# INLINE elem #-}
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -681,7 +681,7 @@ elem e m = go (toStream m)
         let stop      = return False
             single a  = return (a == e)
             yieldk a r = if a == e then return True else go r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE notElem #-}
 notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
@@ -691,7 +691,7 @@ notElem e m = go (toStream m)
         let stop      = return True
             single a  = return (a /= e)
             yieldk a r = if a == e then return False else go r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 all p m = go (toStream m)
@@ -701,7 +701,7 @@ all p m = go (toStream m)
                        | otherwise = return False
             yieldk a r | p a       = go r
                        | otherwise = return False
-         in unStreamShared m1 defState (return True) single yieldk
+         in unStream m1 defState (return True) single yieldk
 
 any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 any p m = go (toStream m)
@@ -711,7 +711,7 @@ any p m = go (toStream m)
                        | otherwise = return False
             yieldk a r | p a       = return True
                        | otherwise = go r
-         in unStreamShared m1 defState (return False) single yieldk
+         in unStream m1 defState (return False) single yieldk
 
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
@@ -726,7 +726,7 @@ minimum m = go Nothing (toStream m)
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -738,7 +738,7 @@ minimum m = go Nothing (toStream m)
                 if res <= a
                 then go (Just res) r
                 else go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE minimumBy #-}
 minimumBy
@@ -750,7 +750,7 @@ minimumBy cmp m = go Nothing (toStream m)
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -760,7 +760,7 @@ minimumBy cmp m = go Nothing (toStream m)
             yieldk a r = case cmp res a of
                 GT -> go (Just a) r
                 _  -> go (Just res) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE maximum #-}
 maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
@@ -770,7 +770,7 @@ maximum m = go Nothing (toStream m)
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -782,7 +782,7 @@ maximum m = go Nothing (toStream m)
                 if res <= a
                 then go (Just a) r
                 else go (Just res) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE maximumBy #-}
 maximumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
@@ -792,7 +792,7 @@ maximumBy cmp m = go Nothing (toStream m)
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -802,7 +802,7 @@ maximumBy cmp m = go Nothing (toStream m)
             yieldk a r = case cmp res a of
                 GT -> go (Just res) r
                 _  -> go (Just a) r
-        in unStreamShared m1 defState stop single yieldk
+        in unStream m1 defState stop single yieldk
 
 {-# INLINE (!!) #-}
 (!!) :: (IsStream t, Monad m) => t m a -> Int -> m (Maybe a)
@@ -814,7 +814,7 @@ m !! i = go i (toStream m)
           yieldk a x | n < 0 = return Nothing
                      | n == 0 = return $ Just a
                      | otherwise = go (n - 1) x
-      in unStreamShared m1 defState (return Nothing) single yieldk
+      in unStream m1 defState (return Nothing) single yieldk
 
 {-# INLINE lookup #-}
 lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
@@ -825,7 +825,7 @@ lookup e m = go (toStream m)
                           | otherwise = return Nothing
             yieldk (a, b) x | a == e = return $ Just b
                             | otherwise = go x
-        in unStreamShared m1 defState (return Nothing) single yieldk
+        in unStream m1 defState (return Nothing) single yieldk
 
 {-# INLINE findM #-}
 findM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> m (Maybe a)
@@ -838,7 +838,7 @@ findM p m = go (toStream m)
             yieldk a x = do
                 b <- p a
                 if b then return $ Just a else go x
-        in unStreamShared m1 defState (return Nothing) single yieldk
+        in unStream m1 defState (return Nothing) single yieldk
 
 {-# INLINE find #-}
 find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
@@ -868,7 +868,7 @@ mapM_ f m = go (toStream m)
         let stop = return ()
             single a = void (f a)
             yieldk a r = f a >> go r
-         in unStreamShared m1 defState stop single yieldk
+         in unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Converting folds
@@ -1154,7 +1154,7 @@ the m = do
                        | otherwise = return Nothing
             yieldk a r | h == a    = go h r
                        | otherwise = return Nothing
-         in unStreamShared m1 defState (return $ Just h) single yieldk
+         in unStream m1 defState (return $ Just h) single yieldk
 
 ------------------------------------------------------------------------------
 -- Semigroup
