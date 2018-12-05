@@ -940,11 +940,11 @@ takeWhile p m = fromStream $ go (toStream m)
 
 drop :: IsStream t => Int -> t m a -> t m a
 drop n m = fromStream $ Stream $ \st stp sng yld ->
-    unStream (go n (toStream m)) (rstState st) stp sng yld
+    unStream (go n (toStream m)) st stp sng yld
     where
     go n1 m1 = Stream $ \st stp sng yld ->
         let single _ = stp
-            yieldk _ r = (unStream $ go (n1 - 1) r) st stp sng yld
+            yieldk _ r = (unStreamShared $ go (n1 - 1) r) st stp sng yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
            then unStreamShared m1 st stp sng yld
@@ -1166,11 +1166,11 @@ the m = do
 serial :: Stream m a -> Stream m a -> Stream m a
 serial m1 m2 = go m1
     where
-    go (Stream m) = Stream $ \st stp sng yld ->
-            let stop       = unStream m2 st stp sng yld
-                single a   = yld a m2
-                yieldk a r = yld a (go r)
-            in m (rstState st) stop single yieldk
+    go m = Stream $ \st stp sng yld ->
+               let stop       = unStream m2 st stp sng yld
+                   single a   = yld a m2
+                   yieldk a r = yld a (go r)
+               in unStream m st stop single yieldk
 
 instance Semigroup (Stream m a) where
     (<>) = serial
@@ -1200,16 +1200,16 @@ bindWith
     -> Stream m a
     -> (a -> Stream m b)
     -> Stream m b
-bindWith par m f = go m
+bindWith par m1 f = go m1
     where
-        go (Stream g) =
+        go m =
             Stream $ \st stp sng yld ->
                 let runShared x = unStreamShared x st stp sng yld
                     runIsolated x = unStream x st stp sng yld
 
                     single a   = runIsolated $ f a
                     yieldk a r = runShared $ isolateStream (f a) `par` go r
-                in g (rstState st) stp single yieldk
+                in unStream m st stp single yieldk
 
 ------------------------------------------------------------------------------
 -- Alternative & MonadPlus
