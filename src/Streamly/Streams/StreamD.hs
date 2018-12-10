@@ -370,7 +370,6 @@ intFromThenToDn from next to = Stream step EnumInit
 
     step _ EnumStop = return Stop
 
--- {-# NOINLINE [1] efdtInt #-}
 {-# INLINE_NORMAL intFromThenTo #-}
 intFromThenTo :: (Monad m, Integral a) => a -> a -> a -> Stream m a
 intFromThenTo from next to
