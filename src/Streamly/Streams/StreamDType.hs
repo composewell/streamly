@@ -60,12 +60,12 @@ instance Functor (Step s) where
 data Stream m a =
     forall s. UnStream (State K.Stream m a -> s -> m (Step s a)) s
 
-detachStream :: Stream m a -> Stream m a
-detachStream (UnStream step state) = UnStream step' state
+unShare :: Stream m a -> Stream m a
+unShare (UnStream step state) = UnStream step' state
     where step' gst = step (adaptState gst)
 
 pattern Stream :: (State K.Stream m a -> s -> m (Step s a)) -> s -> Stream m a
-pattern Stream step state <- (detachStream -> UnStream step state)
+pattern Stream step state <- (unShare -> UnStream step state)
     where Stream = UnStream
 
 #if __GLASGOW_HASKELL__ >= 802

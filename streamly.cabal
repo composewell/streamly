@@ -128,6 +128,7 @@ library
     other-modules:     Streamly.SVar
 
                     -- Base streams
+                     , Streamly.Streams.StreamKType
                      , Streamly.Streams.StreamK
                      , Streamly.Streams.StreamDType
                      , Streamly.Streams.StreamD

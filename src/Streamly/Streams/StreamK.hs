@@ -161,10 +161,7 @@ module Streamly.Streams.StreamK
 where
 
 import Control.Monad (void)
-import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Reader.Class  (MonadReader(..))
-import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Semigroup (Semigroup(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
@@ -173,179 +170,17 @@ import Prelude
 import qualified Prelude
 
 import Streamly.SVar
-
-------------------------------------------------------------------------------
--- The basic stream type
-------------------------------------------------------------------------------
-
--- | The type @Stream m a@ represents a monadic stream of values of type 'a'
--- constructed using actions in monad 'm'. It uses stop, singleton and yield
--- continuations equivalent to the following direct style type:
---
--- @
--- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
--- @
---
--- To facilitate parallel composition we maintain a local state in an 'SVar'
--- that is shared across and is used for synchronization of the streams being
--- composed.
---
--- The singleton case can be expressed in terms of stop and yield but we have
--- it as a separate case to optimize composition operations for streams with
--- single element.  We build singleton streams in the implementation of 'pure'
--- for Applicative and Monad, and in 'lift' for MonadTrans.
---
-newtype Stream m a =
-    Stream (forall r.
-               State Stream m a          -- state
-            -> m r                       -- stop
-            -> (a -> m r)                -- singleton
-            -> (a -> Stream m a -> m r)  -- yield
-            -> m r
-            )
-
--- Run a stream in detached mode i.e. not joining an SVar
-{-# INLINE unStream #-}
-unStream ::
-       Stream m a
-    -> State Stream m b          -- state
-    -> m r                       -- stop
-    -> (a -> m r)                -- singleton
-    -> (a -> Stream m a -> m r)  -- yield
-    -> m r
-unStream (Stream runner) st = runner (adaptState st)
+import Streamly.Streams.StreamKType
 
 -- | Detach a stream from an SVar
 {-# INLINE unShare #-}
 unShare :: Stream m a -> Stream m a
-unShare x = Stream $ \st stp sng yld ->
+unShare x = mkStream $ \st stp sng yld ->
     unStream x st stp sng yld
-
--- | Like unstream, but passes a shared SVar across continuations.
-{-# INLINE unStreamShared #-}
-unStreamShared ::
-       Stream m a
-    -> State Stream m a          -- state
-    -> m r                       -- stop
-    -> (a -> m r)                -- singleton
-    -> (a -> Stream m a -> m r)  -- yield
-    -> m r
-unStreamShared (Stream runner) st stp sng yld = runner st stp sng yld
-
--- Run the stream using a run function associated with the SVar that runs the
--- streams with a captured snapshot of the monadic state.
-{-# INLINE runStreamSVar #-}
-runStreamSVar
-    :: MonadIO m
-    => SVar Stream m a
-    -> Stream m a
-    -> State Stream m a          -- state
-    -> m r                       -- stop
-    -> (a -> m r)                -- singleton
-    -> (a -> Stream m a -> m r)  -- yield
-    -> m ()
-runStreamSVar sv m st stp sng yld =
-    let mrun = runInIO $ svarMrun sv
-    in void $ liftIO $ mrun $ unStreamShared m st stp sng yld
-
-------------------------------------------------------------------------------
--- Types that can behave as a Stream
-------------------------------------------------------------------------------
-
-infixr 5 `consM`
-infixr 5 |:
-
--- | Class of types that can represent a stream of elements of some type 'a' in
--- some monad 'm'.
---
--- @since 0.2.0
-class IsStream t where
-    toStream :: t m a -> Stream m a
-    fromStream :: Stream m a -> t m a
-    -- | Constructs a stream by adding a monadic action at the head of an
-    -- existing stream. For example:
-    --
-    -- @
-    -- > toList $ getLine \`consM` getLine \`consM` nil
-    -- hello
-    -- world
-    -- ["hello","world"]
-    -- @
-    --
-    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
-    --
-    -- @since 0.2.0
-    consM :: MonadAsync m => m a -> t m a -> t m a
-    -- | Operator equivalent of 'consM'. We can read it as "@parallel colon@"
-    -- to remember that @|@ comes before ':'.
-    --
-    -- @
-    -- > toList $ getLine |: getLine |: nil
-    -- hello
-    -- world
-    -- ["hello","world"]
-    -- @
-    --
-    -- @
-    -- let delay = threadDelay 1000000 >> print 1
-    -- runStream $ serially  $ delay |: delay |: delay |: nil
-    -- runStream $ parallely $ delay |: delay |: delay |: nil
-    -- @
-    --
-    -- /Concurrent (do not use 'parallely' to construct infinite streams)/
-    --
-    -- @since 0.2.0
-    (|:) :: MonadAsync m => m a -> t m a -> t m a
-    -- We can define (|:) just as 'consM' but it is defined explicitly for each
-    -- type because we want to use SPECIALIZE pragma on the definition.
-
--- | Same as 'IsStream'.
---
--- @since 0.1.0
-{-# DEPRECATED Streaming "Please use IsStream instead." #-}
-type Streaming = IsStream
-
--------------------------------------------------------------------------------
--- Type adapting combinators
--------------------------------------------------------------------------------
-
--- | Adapt any specific stream type to any other specific stream type.
---
--- @since 0.1.0
-adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
-adapt = fromStream . toStream
-
-------------------------------------------------------------------------------
--- Building a stream
-------------------------------------------------------------------------------
-
--- | Build a stream from an 'SVar', a stop continuation, a singleton stream
--- continuation and a yield continuation.
-mkStream:: IsStream t
-    => (forall r. State Stream m a
-        -> m r
-        -> (a -> m r)
-        -> (a -> t m a -> m r)
-        -> m r)
-    -> t m a
-mkStream k = fromStream $ Stream $ \st stp sng yld ->
-    let yieldk a r = yld a (toStream r)
-     in k st stp sng yieldk
 
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
-
--- | An empty stream.
---
--- @
--- > toList nil
--- []
--- @
---
--- @since 0.1.0
-nil :: IsStream t => t m a
-nil = fromStream $ Stream $ \_ stp _ _ -> stp
 
 infixr 5 `cons`
 
@@ -362,7 +197,7 @@ infixr 5 `cons`
 --
 -- @since 0.1.0
 cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ Stream $ \_ _ _ yld -> yld a (toStream r)
+cons a r = fromStream $ mkStream $ \_ _ _ yld -> yld a (toStream r)
 
 infixr 5 .:
 
@@ -377,46 +212,24 @@ infixr 5 .:
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
 
-{-# INLINE consMSerial #-}
-consMSerial :: (Monad m) => m a -> Stream m a -> Stream m a
-consMSerial m r = Stream $ \_ _ _ yld -> m >>= \a -> yld a r
-
 ------------------------------------------------------------------------------
 -- Asynchronous construction
 ------------------------------------------------------------------------------
 
 -- | Make an empty stream from a callback function.
 nilK :: IsStream t => (forall r. m r -> m r) -> t m a
-nilK k = fromStream $ Stream $ \_ stp _ _ -> k stp
+nilK k = fromStream $ mkStream $ \_ stp _ _ -> k stp
 
 -- | Make a singleton stream from a one shot callback function.
 yieldK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-yieldK k = fromStream $ Stream $ \_ _ sng _ -> k sng
+yieldK k = fromStream $ mkStream $ \_ _ sng _ -> k sng
 
 -- | Construct a stream from a callback function.
 consK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a -> t m a
-consK k r = fromStream $ Stream $ \_ _ _ yld -> k (\x -> yld x (toStream r))
+consK k r = fromStream $ mkStream $ \_ _ _ yld -> k (\x -> yld x (toStream r))
 
 -- XXX consK with concurrent callbacks
 -- XXX Build a stream from a repeating callback function.
-
--------------------------------------------------------------------------------
--- IsStream Stream
--------------------------------------------------------------------------------
-
-instance IsStream Stream where
-    toStream = id
-    fromStream = id
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
-    consM :: Monad m => m a -> Stream m a -> Stream m a
-    consM = consMSerial
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> Stream IO a -> Stream IO a #-}
-    (|:) :: Monad m => m a -> Stream m a -> Stream m a
-    (|:) = consMSerial
 
 -------------------------------------------------------------------------------
 -- Deconstruction
@@ -438,7 +251,7 @@ uncons m =
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step = fromStream . go
     where
-    go s = Stream $ \_ stp _ yld ->
+    go s = mkStream $ \_ stp _ yld ->
         case step s of
             Nothing -> stp
             Just (a, b) -> yld a (go b)
@@ -447,7 +260,7 @@ unfoldr step = fromStream . go
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = go
     where
-    go s = fromStream $ Stream $ \svr stp sng yld -> do
+    go s = fromStream $ mkStream $ \svr stp sng yld -> do
         mayb <- step s
         case mayb of
             Nothing -> stp
@@ -459,11 +272,7 @@ unfoldrM step = go
 -------------------------------------------------------------------------------
 
 yield :: IsStream t => a -> t m a
-yield a = fromStream $ Stream $ \_ _ single _ -> single a
-
-{-# INLINE yieldM #-}
-yieldM :: (Monad m, IsStream t) => m a -> t m a
-yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single
+yield a = fromStream $ mkStream $ \_ _ single _ -> single a
 
 -- | Same as yieldM
 --
@@ -523,20 +332,6 @@ fromStreamK = id
 -- Elimination by Folding
 -------------------------------------------------------------------------------
 
--- | Fold a stream by providing an SVar, a stop continuation, a singleton
--- continuation and a yield continuation.
-foldStream
-    :: IsStream t
-    => State Stream m a
-    -> m r
-    -> (a -> m r)
-    -> (a -> t m a -> m r)
-    -> t m a
-    -> m r
-foldStream st blank single step m =
-    let yieldk a x = step a (fromStream x)
-     in unStreamShared (toStream m) st blank single yieldk
-
 -- | Lazy right associative fold.
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc m = go (toStream m)
@@ -594,7 +389,7 @@ foldx step begin done m = get $ go (toStream m) begin
     -- however that is more expensive because of unnecessary recursion
     -- that cannot be tail call optimized. Unfolding recursion explicitly via
     -- continuations is much more efficient.
-    go m1 !acc = Stream $ \_ _ sng yld ->
+    go m1 !acc = mkStream $ \_ _ sng yld ->
         let stop = sng acc
             single a = sng $ step acc a
             yieldk a r =
@@ -670,7 +465,7 @@ init m = go1 (toStream m)
         case r of
             Nothing -> return Nothing
             Just (h, t) -> return . Just . fromStream $ go h t
-    go p m1 = Stream $ \_ stp sng yld ->
+    go p m1 = mkStream $ \_ stp sng yld ->
         let single _ = sng p
             yieldk a x = yld p $ go a x
          in unStream m1 defState stp single yieldk
@@ -850,7 +645,7 @@ find p = findM (return . p)
 findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
 findIndices p = fromStream . go 0 . toStream
     where
-    go offset m1 = Stream $ \st stp sng yld ->
+    go offset m1 = mkStream $ \st stp sng yld ->
         let single a | p a = sng offset
                      | otherwise = stp
             yieldk a x | p a = yld offset $ go (offset + 1) x
@@ -893,7 +688,7 @@ scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx step begin done m =
     cons (done begin) $ fromStream $ go (toStream m) begin
     where
-    go m1 !acc = Stream $ \st stp sng yld ->
+    go m1 !acc = mkStream $ \st stp sng yld ->
         let single a = sng (done $ step acc a)
             yieldk a r =
                 let s = step acc a
@@ -912,7 +707,7 @@ scanl' step begin = scanx step begin id
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
 filter p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = sng a
                        | otherwise = stp
             yieldk a r | p a       = yld a (go r)
@@ -923,7 +718,7 @@ filter p m = fromStream $ go (toStream m)
 take :: IsStream t => Int -> t m a -> t m a
 take n m = fromStream $ go n (toStream m)
     where
-    go n1 m1 = Stream $ \st stp sng yld ->
+    go n1 m1 = mkStream $ \st stp sng yld ->
         let yieldk a r = yld a (go (n1 - 1) r)
         in if n1 <= 0
            then stp
@@ -933,7 +728,7 @@ take n m = fromStream $ go n (toStream m)
 takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 takeWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = sng a
                        | otherwise = stp
             yieldk a r | p a       = yld a (go r)
@@ -941,10 +736,10 @@ takeWhile p m = fromStream $ go (toStream m)
          in unStream m1 st stp single yieldk
 
 drop :: IsStream t => Int -> t m a -> t m a
-drop n m = fromStream $ Stream $ \st stp sng yld ->
+drop n m = fromStream $ mkStream $ \st stp sng yld ->
     unStream (go n (toStream m)) st stp sng yld
     where
-    go n1 m1 = Stream $ \st stp sng yld ->
+    go n1 m1 = mkStream $ \st stp sng yld ->
         let single _ = stp
             yieldk _ r = (unStream $ go (n1 - 1) r) st stp sng yld
         -- Somehow "<=" check performs better than a ">"
@@ -956,7 +751,7 @@ drop n m = fromStream $ Stream $ \st stp sng yld ->
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
 dropWhile p m = fromStream $ go (toStream m)
     where
-    go m1 = Stream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = stp
                        | otherwise = sng a
             yieldk a r | p a = unStream r st stp single yieldk
@@ -967,20 +762,13 @@ dropWhile p m = fromStream $ go (toStream m)
 -- Mapping
 -------------------------------------------------------------------------------
 
-{-# INLINE map #-}
-map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
-map f m = fromStream $ Stream $ \st stp sng yld ->
-    let single     = sng . f
-        yieldk a r = yld (f a) (fmap f r)
-    in unStream (toStream m) st stp single yieldk
-
 -- Be careful when modifying this, this uses a consM (|:) deliberately to allow
 -- other stream types to overload it.
 {-# INLINE mapM #-}
 mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
 mapM f m = go (toStream m)
     where
-    go m1 = fromStream $ Stream $ \st stp sng yld ->
+    go m1 = fromStream $ mkStream $ \st stp sng yld ->
         let single a  = f a >>= sng
             yieldk a r = unStreamShared (toStream (f a |: go r)) st stp sng yld
          in unStream m1 st stp single yieldk
@@ -991,7 +779,7 @@ mapM f m = go (toStream m)
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
 sequence m = go (toStream m)
     where
-    go m1 = fromStream $ Stream $ \st stp sng yld ->
+    go m1 = fromStream $ mkStream $ \st stp sng yld ->
         let single ma = ma >>= sng
             yieldk ma r = unStreamShared (toStream $ ma |: go r) st stp sng yld
          in unStream m1 st stp single yieldk
@@ -1004,10 +792,10 @@ sequence m = go (toStream m)
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM a m = fromStream $ prependingStart (toStream m)
     where
-    prependingStart m1 = Stream $ \st stp sng yld ->
+    prependingStart m1 = mkStream $ \st stp sng yld ->
         let yieldk i x = unStreamShared (return i |: go x) st stp sng yld
          in unStream m1 st stp sng yieldk
-    go m2 = fromStream $ Stream $ \st stp sng yld ->
+    go m2 = fromStream $ mkStream $ \st stp sng yld ->
         let single i = unStreamShared (a |: yield i) st stp sng yld
             yieldk i x = unStreamShared (a |: return i |: go x) st stp sng yld
          in unStream m2 st stp single yieldk
@@ -1016,7 +804,7 @@ intersperseM a m = fromStream $ prependingStart (toStream m)
 insertBy :: IsStream t => (a -> a -> Ordering) -> a -> t m a -> t m a
 insertBy cmp x m = fromStream $ go (toStream m)
   where
-    go m1 = Stream $ \st _ _ yld ->
+    go m1 = mkStream $ \st _ _ yld ->
         let single a = case cmp x a of
                 GT -> yld a (yield x)
                 _  -> yld x (yield a)
@@ -1034,7 +822,7 @@ insertBy cmp x m = fromStream $ go (toStream m)
 deleteBy :: IsStream t => (a -> a -> Bool) -> a -> t m a -> t m a
 deleteBy eq x m = fromStream $ go (toStream m)
   where
-    go m1 = Stream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a = if eq x a then stp else sng a
             yieldk a r = if eq x a
               then unStream r st stp sng yld
@@ -1049,7 +837,7 @@ deleteBy eq x m = fromStream $ go (toStream m)
 mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
 mapMaybe f m = go (toStream m)
   where
-    go m1 = fromStream $ Stream $ \st stp sng yld ->
+    go m1 = fromStream $ mkStream $ \st stp sng yld ->
         let single a = case f a of
                 Just b  -> sng b
                 Nothing -> stp
@@ -1066,7 +854,7 @@ mapMaybe f m = go (toStream m)
 zipWithS :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWithS f = go
     where
-    go mx my = Stream $ \st stp sng yld -> do
+    go mx my = mkStream $ \st stp sng yld -> do
         let merge a ra =
                 let single2 b = sng (f a b)
                     yield2 b rb = yld (f a b) (go ra rb)
@@ -1088,7 +876,7 @@ zipWith f m1 m2 = fromStream $ zipWithS f (toStream m1) (toStream m2)
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
     where
-    go mx my = Stream $ \st stp sng yld -> do
+    go mx my = mkStream $ \st stp sng yld -> do
         let merge a ra =
                 let runIt x = unStream x st stp sng yld
                     single2 b   = f a b >>= sng
@@ -1108,7 +896,7 @@ mergeByS
     => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
 mergeByS cmp = go
     where
-    go mx my = Stream $ \st stp sng yld -> do
+    go mx my = mkStream $ \st stp sng yld -> do
         let mergeWithY a ra =
                 let stop2 = unStream mx st stp sng yld
                     single2 b = do
@@ -1158,40 +946,6 @@ the m = do
                        | otherwise = return Nothing
          in unStream m1 defState (return $ Just h) single yieldk
 
-------------------------------------------------------------------------------
--- Semigroup
-------------------------------------------------------------------------------
-
--- | Concatenates two streams sequentially i.e. the first stream is
--- exhausted completely before yielding any element from the second stream.
-{-# INLINE serial #-}
-serial :: Stream m a -> Stream m a -> Stream m a
-serial m1 m2 = go m1
-    where
-    go m = Stream $ \st stp sng yld ->
-               let stop       = unStream m2 st stp sng yld
-                   single a   = yld a m2
-                   yieldk a r = yld a (go r)
-               in unStream m st stop single yieldk
-
-instance Semigroup (Stream m a) where
-    (<>) = serial
-
-------------------------------------------------------------------------------
--- Monoid
-------------------------------------------------------------------------------
-
-instance Monoid (Stream m a) where
-    mempty = nil
-    mappend = (<>)
-
--------------------------------------------------------------------------------
--- Functor
--------------------------------------------------------------------------------
-
-instance Monad m => Functor (Stream m) where
-    fmap = map
-
 -------------------------------------------------------------------------------
 -- Bind utility
 -------------------------------------------------------------------------------
@@ -1205,7 +959,7 @@ bindWith
 bindWith par m1 f = go m1
     where
         go m =
-            Stream $ \st stp sng yld ->
+            mkStream $ \st stp sng yld ->
                 let runShared x = unStreamShared x st stp sng yld
                     runIsolated x = unStream x st stp sng yld
 
@@ -1218,7 +972,7 @@ bindWith par m1 f = go m1
 ------------------------------------------------------------------------------
 
 _alt :: Stream m a -> Stream m a -> Stream m a
-_alt m1 m2 = Stream $ \st stp sng yld ->
+_alt m1 m2 = mkStream $ \st stp sng yld ->
     let stop  = unStream m2 st stp sng yld
     in unStream m1 st stop sng yld
 
@@ -1228,7 +982,7 @@ _alt m1 m2 = Stream $ \st stp sng yld ->
 
 withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
 withLocal f m =
-    Stream $ \st stp sng yld ->
+    mkStream $ \st stp sng yld ->
         let single = local f . sng
             yieldk a r = local f $ yld a (withLocal f r)
         in unStream m st (local f stp) single yieldk
@@ -1243,16 +997,10 @@ withCatchError
     :: MonadError e m
     => Stream m a -> (e -> Stream m a) -> Stream m a
 withCatchError m h =
-    Stream $ \_ stp sng yld ->
+    mkStream $ \_ stp sng yld ->
         let run x = unStream x Nothing stp sng yieldk
             handle r = r `catchError` \e -> run $ h e
             yieldk a r = yld a (withCatchError r h)
         in handle $ run m
 -}
 
--------------------------------------------------------------------------------
--- Transformers
--------------------------------------------------------------------------------
-
-instance MonadTrans Stream where
-    lift = yieldM
