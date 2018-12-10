@@ -363,7 +363,7 @@ import Prelude
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.SVar (MonadAsync, defState, rstState)
+import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
 import Streamly.Streams.Prelude (fromStreamS, toStreamS)
@@ -1449,7 +1449,7 @@ toHandle h m = go (toStream m)
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in K.unStreamShared m1 defState stop single yieldk
+        in K.unStream m1 defState stop single yieldk
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -1987,9 +1987,9 @@ merge = mergeBy compare
 mergeAsyncBy :: (IsStream t, MonadAsync m)
     => (a -> a -> Ordering) -> t m a -> t m a -> t m a
 mergeAsyncBy f m1 m2 = K.fromStream $ K.mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
-    K.unStream (K.toStream (K.mergeBy f ma mb)) (rstState st) stp sng yld
+    ma <- mkAsync' st m1
+    mb <- mkAsync' st m2
+    K.unStream (K.toStream (K.mergeBy f ma mb)) st stp sng yld
 
 -- | Like 'mergeByM' but merges concurrently (i.e. both the elements being
 -- merged are generated concurrently).
@@ -1998,6 +1998,6 @@ mergeAsyncBy f m1 m2 = K.fromStream $ K.mkStream $ \st stp sng yld -> do
 mergeAsyncByM :: (IsStream t, MonadAsync m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
 mergeAsyncByM f m1 m2 = K.fromStream $ K.mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
-    K.unStream (K.toStream (K.mergeByM f ma mb)) (rstState st) stp sng yld
+    ma <- mkAsync' st m1
+    mb <- mkAsync' st m2
+    K.unStream (K.toStream (K.mergeByM f ma mb)) st stp sng yld

@@ -688,7 +688,7 @@ aheadbind m f = go m
 
                     single a   = runIsolated $ f a
                     yieldk a r = runShared $
-                        K.isolateStream (f a) `aheadS` go r
+                        K.unShare (f a) `aheadS` go r
                 in unStream g st stp single yieldk
 
 instance MonadAsync m => Monad (AheadT m) where

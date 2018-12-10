@@ -142,7 +142,7 @@ mkParallel m = do
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
 applyWith f m = fromStream $ mkStream $ \st stp sng yld -> do
-    sv <- newParallelVar (rstState st)
+    sv <- newParallelVar (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
     unStream (toStream $ f $ fromSVar sv) st stp sng yld
 

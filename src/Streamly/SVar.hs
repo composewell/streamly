@@ -31,7 +31,7 @@ module Streamly.SVar
     , Limit (..)
     , State (streamVar)
     , defState
-    , rstState
+    , adaptState
     , getMaxThreads
     , setMaxThreads
     , getMaxBuffer
@@ -433,8 +433,15 @@ defState = State
 -- We can optimize this so that we clear it only if it is a Just value, it
 -- results in slightly better perf for zip/zipM but the performance of scan
 -- worsens a lot, it does not fuse.
-rstState :: State t m a -> State t m b
-rstState st = st
+--
+-- This has a side effect of clearing the SVar and yieldLimit, therefore it
+-- should not be used to convert from the same type to the same type, unless
+-- you want to clear the SVar. For clearing the SVar you should be using the
+-- appropriate unStream functions instead.
+--
+-- | Adapt the stream state from one type to another.
+adaptState :: State t m a -> State t m b
+adaptState st = st
     { streamVar = Nothing
     , _yieldLimit = Nothing
     }

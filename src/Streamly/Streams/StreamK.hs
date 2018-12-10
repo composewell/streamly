@@ -34,8 +34,8 @@ module Streamly.Streams.StreamK
     -- * The stream type
     , Stream
     , unStream
-    , isolateStream
     , unStreamShared
+    , unShare
     , runStreamSVar
 
     -- * Construction
@@ -204,6 +204,7 @@ newtype Stream m a =
             -> m r
             )
 
+-- Run a stream in detached mode i.e. not joining an SVar
 {-# INLINE unStream #-}
 unStream ::
        Stream m a
@@ -212,11 +213,12 @@ unStream ::
     -> (a -> m r)                -- singleton
     -> (a -> Stream m a -> m r)  -- yield
     -> m r
-unStream (Stream runner) st = runner (rstState st)
+unStream (Stream runner) st = runner (adaptState st)
 
-{-# INLINE isolateStream #-}
-isolateStream :: Stream m a -> Stream m a
-isolateStream x = Stream $ \st stp sng yld ->
+-- | Detach a stream from an SVar
+{-# INLINE unShare #-}
+unShare :: Stream m a -> Stream m a
+unShare x = Stream $ \st stp sng yld ->
     unStream x st stp sng yld
 
 -- | Like unstream, but passes a shared SVar across continuations.
@@ -944,11 +946,11 @@ drop n m = fromStream $ Stream $ \st stp sng yld ->
     where
     go n1 m1 = Stream $ \st stp sng yld ->
         let single _ = stp
-            yieldk _ r = (unStreamShared $ go (n1 - 1) r) st stp sng yld
+            yieldk _ r = (unStream $ go (n1 - 1) r) st stp sng yld
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then unStreamShared m1 st stp sng yld
-           else unStreamShared m1 st stp single yieldk
+           then unStream m1 st stp sng yld
+           else unStream m1 st stp single yieldk
 
 {-# INLINE dropWhile #-}
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
@@ -1108,7 +1110,7 @@ mergeByS cmp = go
     where
     go mx my = Stream $ \st stp sng yld -> do
         let mergeWithY a ra =
-                let stop2 = unStream mx (rstState st) stp sng yld
+                let stop2 = unStream mx st stp sng yld
                     single2 b = do
                         r <- cmp a b
                         case r of
@@ -1119,11 +1121,11 @@ mergeByS cmp = go
                         case r of
                             GT -> yld b (go (a `cons` ra) rb)
                             _  -> yld a (go ra (b `cons` rb))
-                 in unStream my (rstState st) stop2 single2 yield2
-        let stopX = unStream my (rstState st) stp sng yld
+                 in unStream my st stop2 single2 yield2
+        let stopX = unStream my st stp sng yld
             singleX a = mergeWithY a nil
             yieldX = mergeWithY
-        unStream mx (rstState st) stopX singleX yieldX
+        unStream mx st stopX singleX yieldX
 
 {-# INLINABLE mergeByM #-}
 mergeByM
@@ -1208,7 +1210,7 @@ bindWith par m1 f = go m1
                     runIsolated x = unStream x st stp sng yld
 
                     single a   = runIsolated $ f a
-                    yieldk a r = runShared $ isolateStream (f a) `par` go r
+                    yieldk a r = runShared $ unShare (f a) `par` go r
                 in unStream m st stp single yieldk
 
 ------------------------------------------------------------------------------

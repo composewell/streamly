@@ -5,6 +5,8 @@
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE PatternSynonyms           #-}
+{-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
 #include "inline.hs"
@@ -197,7 +199,7 @@ import Prelude
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo)
 
-import Streamly.SVar (MonadAsync, State(..), defState, rstState)
+import Streamly.SVar (MonadAsync, State(..), defState, adaptState)
 
 import qualified Streamly.Streams.StreamK as K
 
@@ -219,7 +221,24 @@ instance Functor (Step s) where
 -- gst = global state
 -- | A stream consists of a step function that generates the next step given a
 -- current state, and the current state.
-data Stream m a = forall s. Stream (State K.Stream m a -> s -> m (Step s a)) s
+data Stream m a =
+    forall s. UnStream (State K.Stream m a -> s -> m (Step s a)) s
+
+-- Do not use the UnStream constructor directly, use the pattern synonym
+-- instead.  XXX we should perhaps put the type in a separate module and do not
+-- export the constructor.
+
+detachStream :: Stream m a -> Stream m a
+detachStream (UnStream step state) = UnStream step' state
+    where step' gst = step (adaptState gst)
+
+pattern Stream :: (State K.Stream m a -> s -> m (Step s a)) -> s -> Stream m a
+pattern Stream step state <- (detachStream -> UnStream step state)
+    where Stream = UnStream
+
+#if __GLASGOW_HASKELL__ >= 802
+{-# COMPLETE Stream #-}
+#endif
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -238,7 +257,7 @@ cons x (Stream step state) = Stream step1 Nothing
     {-# INLINE_LATE step1 #-}
     step1 _ Nothing   = return $ Yield x (Just state)
     step1 gst (Just st) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         return $
           case r of
             Yield a s -> Yield a (Just s)
@@ -492,7 +511,6 @@ fromList = Stream step
     step _ (x:xs) = return $ Yield x xs
     step _ []     = return Stop
 
--- XXX pass the state to streamD
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
 fromStreamK = Stream step
@@ -773,7 +791,7 @@ findIndices p (Stream step state) = Stream step' (state, 0)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, i) = do
-      r <- step (rstState gst) st
+      r <- step (adaptState gst) st
       return $ case r of
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i+1)
@@ -785,7 +803,7 @@ concatMapM f (Stream step state) = Stream step' (Left state)
   where
     {-# INLINE_LATE step' #-}
     step' gst (Left st) = do
-        r <- step (rstState gst) st
+        r <- step (adaptState gst) st
         case r of
             Yield a s -> do
                 b_stream <- f a
@@ -935,7 +953,7 @@ prescanlM' f mz (Stream step state) = Stream step' (state, mz)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, prev) = do
-        r <- step (rstState gst) st
+        r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 acc <- prev
@@ -963,7 +981,7 @@ postscanlM' fstep begin (Stream step state) =
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, acc) = acc `seq` do
-        r <- step (rstState gst) st
+        r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 y <- fstep acc x
@@ -981,7 +999,7 @@ postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, acc) = do
-        r <- step (rstState gst) st
+        r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 y <- fstep acc x
@@ -1015,14 +1033,14 @@ scanl1M fstep (Stream step state) = Stream step' (state, Nothing)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, Nothing) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> return $ Yield x (s, Just x)
             Skip s -> return $ Skip (s, Nothing)
             Stop   -> return Stop
 
     step' gst (st, Just acc) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield y s -> do
                 z <- fstep acc y
@@ -1040,14 +1058,14 @@ scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, Nothing) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> x `seq` return $ Yield x (s, Just x)
             Skip s -> return $ Skip (s, Nothing)
             Stop   -> return Stop
 
     step' gst (st, Just acc) = acc `seq` do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield y s -> do
                 z <- fstep acc y
@@ -1069,7 +1087,7 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, i) | i < n = do
-        r <- step (rstState gst) st
+        r <- step gst st
         return $ case r of
             Yield x s -> Yield x (s, i + 1)
             Skip s    -> Skip (s, i)
@@ -1082,7 +1100,7 @@ takeWhileM f (Stream step state) = Stream step' state
   where
     {-# INLINE_LATE step' #-}
     step' gst st = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> do
                 b <- f x
@@ -1101,7 +1119,7 @@ drop n (Stream step state) = Stream step' (state, Just n)
     {-# INLINE_LATE step' #-}
     step' gst (st, Just i)
       | i > 0 = do
-          r <- step (rstState gst) st
+          r <- step gst st
           return $
             case r of
               Yield _ s -> Skip (s, Just (i - 1))
@@ -1110,7 +1128,7 @@ drop n (Stream step state) = Stream step' (state, Just n)
       | otherwise = return $ Skip (st, Nothing)
 
     step' gst (st, Nothing) = do
-      r <- step (rstState gst) st
+      r <- step gst st
       return $
         case r of
           Yield x s -> Yield x (s, Nothing)
@@ -1128,7 +1146,7 @@ dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
   where
     {-# INLINE_LATE step' #-}
     step' gst (DropWhileDrop st) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> do
                 b <- f x
@@ -1139,7 +1157,7 @@ dropWhileM f (Stream step state) = Stream step' (DropWhileDrop state)
             Stop -> return Stop
 
     step' gst (DropWhileNext st) =  do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> return $ Skip (DropWhileYield x s)
             Skip s    -> return $ Skip (DropWhileNext s)
@@ -1157,7 +1175,7 @@ filterM f (Stream step state) = Stream step' state
   where
     {-# INLINE_LATE step' #-}
     step' gst st = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> do
                 b <- f x
@@ -1177,13 +1195,13 @@ uniq (Stream step state) = Stream step' (Nothing, state)
   where
     {-# INLINE_LATE step' #-}
     step' gst (Nothing, st) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> return $ Yield x (Just x, s)
             Skip  s   -> return $ Skip  (Nothing, s)
             Stop      -> return Stop
     step' gst (Just x, st)  = do
-         r <- step (rstState gst) st
+         r <- step gst st
          case r of
              Yield y s | x == y   -> return $ Skip (Just x, s)
                        | otherwise -> return $ Yield x (Just y, s)
@@ -1201,7 +1219,7 @@ mapM f (Stream step state) = Stream step' state
   where
     {-# INLINE_LATE step' #-}
     step' gst st = do
-        r <- step (rstState gst) st
+        r <- step (adaptState gst) st
         case r of
             Yield x s -> f x >>= \a -> return $ Yield a s
             Skip s    -> return $ Skip s
@@ -1217,7 +1235,7 @@ sequence (Stream step state) = Stream step' state
   where
     {-# INLINE_LATE step' #-}
     step' gst st = do
-         r <- step (rstState gst) st
+         r <- step (adaptState gst) st
          case r of
              Yield x s -> x >>= \a -> return (Yield a s)
              Skip s    -> return $ Skip s
@@ -1233,7 +1251,7 @@ insertBy cmp a (Stream step state) = Stream step' (state, False, Nothing)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, False, _) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> case cmp a x of
                 GT -> return $ Yield x (s, False, Nothing)
@@ -1244,7 +1262,7 @@ insertBy cmp a (Stream step state) = Stream step' (state, False, Nothing)
     step' _ (_, True, Nothing) = return Stop
 
     step' gst (st, True, Just prev) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield x s -> return $ Yield prev (s, True, Just x)
             Skip s    -> return $ Skip (s, True, Just prev)
@@ -1260,7 +1278,7 @@ deleteBy eq x (Stream step state) = Stream step' (state, False)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, False) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield y s -> return $
                 if eq x y then Skip (s, True) else Yield y (s, False)
@@ -1268,7 +1286,7 @@ deleteBy eq x (Stream step state) = Stream step' (state, False)
             Stop   -> return Stop
 
     step' gst (st, True) = do
-        r <- step (rstState gst) st
+        r <- step gst st
         case r of
             Yield y s -> return $ Yield y (s, True)
             Skip s -> return $ Skip (s, True)
@@ -1297,7 +1315,7 @@ indexed (Stream step state) = Stream step' (state, 0)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, i) = i `seq` do
-         r <- step (rstState gst) st
+         r <- step (adaptState gst) st
          case r of
              Yield x s -> return $ Yield (i, x) (s, i+1)
              Skip    s -> return $ Skip (s, i)
@@ -1309,7 +1327,7 @@ indexedR m (Stream step state) = Stream step' (state, m)
   where
     {-# INLINE_LATE step' #-}
     step' gst (st, i) = i `seq` do
-         r <- step (rstState gst) st
+         r <- step (adaptState gst) st
          case r of
              Yield x s -> let i' = i - 1
                           in
@@ -1324,7 +1342,7 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
   where
     {-# INLINE_LATE step #-}
     step gst (sa, sb, Nothing) = do
-        r <- stepa (rstState gst) sa
+        r <- stepa (adaptState gst) sa
         return $
           case r of
             Yield x sa' -> Skip (sa', sb, Just x)
@@ -1332,7 +1350,7 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
             Stop        -> Stop
 
     step gst (sa, sb, Just x) = do
-        r <- stepb (rstState gst) sb
+        r <- stepb (adaptState gst) sb
         case r of
             Yield y sb' -> do
                 z <- f x y
@@ -1423,14 +1441,14 @@ mergeByM cmp (Stream stepa ta) (Stream stepb tb) =
 
     -- one of the values is missing, and the corresponding stream is running
     step gst (Just sa, sb, Nothing, b) = do
-        r <- stepa (rstState gst) sa
+        r <- stepa gst sa
         return $ case r of
             Yield a sa' -> Skip (Just sa', sb, Just a, b)
             Skip sa'    -> Skip (Just sa', sb, Nothing, b)
             Stop        -> Skip (Nothing, sb, Nothing, b)
 
     step gst (sa, Just sb, a, Nothing) = do
-        r <- stepb (rstState gst) sb
+        r <- stepb gst sb
         return $ case r of
             Yield b sb' -> Skip (sa, Just sb', a, Just b)
             Skip sb'    -> Skip (sa, Just sb', a, Nothing)

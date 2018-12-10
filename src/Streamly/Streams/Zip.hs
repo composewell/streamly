@@ -51,7 +51,7 @@ import Prelude hiding (map, repeat, zipWith)
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, unStream)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Serial (map)
-import Streamly.SVar (MonadAsync, rstState)
+import Streamly.SVar (MonadAsync, adaptState)
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
@@ -143,8 +143,8 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
 zipAsyncWith f m1 m2 = fromStream $ mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
+    ma <- mkAsync' (adaptState st) m1
+    mb <- mkAsync' (adaptState st) m2
     unStream (toStream (K.zipWith f ma mb)) st stp sng yld
 
 -- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
@@ -154,8 +154,8 @@ zipAsyncWith f m1 m2 = fromStream $ mkStream $ \st stp sng yld -> do
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 = fromStream $ mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
+    ma <- mkAsync' (adaptState st) m1
+    mb <- mkAsync' (adaptState st) m2
     unStream (toStream (K.zipWithM f ma mb)) st stp sng yld
 
 ------------------------------------------------------------------------------
