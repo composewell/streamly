@@ -129,6 +129,7 @@ library
 
                     -- Base streams
                      , Streamly.Streams.StreamK
+                     , Streamly.Streams.StreamDType
                      , Streamly.Streams.StreamD
                      , Streamly.Streams.Prelude
 
