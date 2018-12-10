@@ -72,9 +72,13 @@ toStreamS = S.fromStreamK . toStream
 -- Conversions
 ------------------------------------------------------------------------------
 
--- | Construct a stream from a list containing pure values. More efficient list
--- specific implementation of 'K.fromFoldable' as it works well with fusion
--- optimization.
+-- |
+-- @
+-- fromList = 'Prelude.foldr' 'K.cons' 'K.nil'
+-- @
+--
+-- Construct a stream from a list of pure values. This is more efficient than
+-- 'K.fromFoldable' for serial streams.
 --
 -- @since 0.4.0
 {-# INLINE_EARLY fromList #-}

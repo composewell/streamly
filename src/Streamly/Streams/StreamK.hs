@@ -59,6 +59,8 @@ module Streamly.Streams.StreamK
 
     -- ** Specialized Generation
     , repeat
+    , replicate
+    , replicateM
 
     -- ** Conversions
     , yield
@@ -90,10 +92,14 @@ module Streamly.Streams.StreamK
     , any
     , last
     , minimum
+    , minimumBy
     , maximum
+    , maximumBy
     , findIndices
     , lookup
+    , findM
     , find
+    , (!!)
 
     -- ** Map and Fold
     , mapM_
@@ -121,6 +127,10 @@ module Streamly.Streams.StreamK
 
     -- ** Inserting
     , intersperseM
+    , insertBy
+
+    -- ** Deleting
+    , deleteBy
 
     -- ** Map and Filter
     , mapMaybe
@@ -128,6 +138,13 @@ module Streamly.Streams.StreamK
     -- ** Zipping
     , zipWith
     , zipWithM
+
+    -- ** Merging
+    , mergeBy
+    , mergeByM
+
+    -- ** Transformation comprehensions
+    , the
 
     -- * Semigroup Style Composition
     , serial
@@ -152,7 +169,7 @@ import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1)
+               foldr1, (!!), replicate)
 import qualified Prelude
 
 import Streamly.SVar
@@ -458,19 +475,38 @@ yieldM m = fromStream $ Stream $ \_ _ single _ -> m >>= single
 once :: (Monad m, IsStream t) => m a -> t m a
 once = yieldM
 
--- | Generate an infinite stream by repeating a pure value.
--- Can be expressed as @cycle1 . yield@.
+-- |
+-- @
+-- repeatM = fix . cons
+-- repeatM = cycle1 . yield
+-- @
+--
+-- Generate an infinite stream by repeating a pure value.
 --
 -- @since 0.4.0
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
 
+replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
+replicateM n m = go n
+    where
+    go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
+
+replicate :: IsStream t => Int -> a -> t m a
+replicate n a = go n
+    where
+    go cnt = if cnt <= 0 then nil else a `cons` go (cnt - 1)
+
 -------------------------------------------------------------------------------
 -- Conversions
 -------------------------------------------------------------------------------
 
--- | Construct a stream from a 'Foldable' containing pure values. Same as
--- @'Prelude.foldr' 'cons' 'nil'@.
+-- |
+-- @
+-- fromFoldable = 'Prelude.foldr' 'cons' 'nil'
+-- @
+--
+-- Construct a stream from a 'Foldable' containing pure values:
 --
 -- @since 0.2.0
 {-# INLINE fromFoldable #-}
@@ -542,6 +578,8 @@ foldr1 step m = do
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- Note that the accumulator is always evaluated including the initial value.
 {-# INLINE foldx #-}
 foldx :: (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
@@ -549,6 +587,8 @@ foldx step begin done m = get $ go (toStream m) begin
     where
     {-# NOINLINE get #-}
     get m1 =
+        -- XXX we are not strictly evaluating the accumulator here. Is this
+        -- okay?
         let single = return . done
          in unStream m1 undefined undefined single undefined
 
@@ -704,6 +744,28 @@ minimum m = go Nothing (toStream m)
                 else go (Just a) r
         in unStream m1 defState stop single yieldk
 
+{-# INLINE minimumBy #-}
+minimumBy
+    :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> m (Maybe a)
+minimumBy cmp m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 defState stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  = case cmp res a of
+                GT -> return (Just a)
+                _  -> return (Just res)
+            yieldk a r = case cmp res a of
+                GT -> go (Just a) r
+                _  -> go (Just res) r
+        in unStream m1 defState stop single yieldk
+
 {-# INLINE maximum #-}
 maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
 maximum m = go Nothing (toStream m)
@@ -726,6 +788,38 @@ maximum m = go Nothing (toStream m)
                 else go (Just res) r
         in unStream m1 defState stop single yieldk
 
+{-# INLINE maximumBy #-}
+maximumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
+maximumBy cmp m = go Nothing (toStream m)
+    where
+    go Nothing m1 =
+        let stop      = return Nothing
+            single a  = return (Just a)
+            yieldk a r = go (Just a) r
+        in unStream m1 defState stop single yieldk
+
+    go (Just res) m1 =
+        let stop      = return (Just res)
+            single a  = case cmp res a of
+                GT -> return (Just res)
+                _  -> return (Just a)
+            yieldk a r = case cmp res a of
+                GT -> go (Just res) r
+                _  -> go (Just a) r
+        in unStream m1 defState stop single yieldk
+
+{-# INLINE (!!) #-}
+(!!) :: (IsStream t, Monad m) => t m a -> Int -> m (Maybe a)
+m !! i = go i (toStream m)
+    where
+    go n m1 =
+      let single a | n == 0 = return $ Just a
+                   | otherwise = return Nothing
+          yieldk a x | n < 0 = return Nothing
+                     | n == 0 = return $ Just a
+                     | otherwise = go (n - 1) x
+      in unStream m1 defState (return Nothing) single yieldk
+
 {-# INLINE lookup #-}
 lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
 lookup e m = go (toStream m)
@@ -737,16 +831,22 @@ lookup e m = go (toStream m)
                             | otherwise = go x
         in unStream m1 defState (return Nothing) single yieldk
 
-{-# INLINE find #-}
-find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
-find p m = go (toStream m)
+{-# INLINE findM #-}
+findM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> m (Maybe a)
+findM p m = go (toStream m)
     where
     go m1 =
-        let single a | p a = return $ Just a
-                     | otherwise = return Nothing
-            yieldk a x | p a = return $ Just a
-                       | otherwise = go x
+        let single a = do
+                b <- p a
+                if b then return $ Just a else return Nothing
+            yieldk a x = do
+                b <- p a
+                if b then return $ Just a else go x
         in unStream m1 defState (return Nothing) single yieldk
+
+{-# INLINE find #-}
+find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
+find p = findM (return . p)
 
 {-# INLINE findIndices #-}
 findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
@@ -914,6 +1014,35 @@ intersperseM a m = fromStream $ prependingStart (toStream m)
             yieldk i x = unStream (a |: return i |: go x) st stp sng yld
          in unStream m2 (rstState st) stp single yieldk
 
+{-# INLINE insertBy #-}
+insertBy :: IsStream t => (a -> a -> Ordering) -> a -> t m a -> t m a
+insertBy cmp x m = fromStream $ go (toStream m)
+  where
+    go m1 = Stream $ \st _ _ yld ->
+        let single a = case cmp x a of
+                GT -> yld a (yield x)
+                _  -> yld x (yield a)
+            stop = yld x nil
+            yieldk a r = case cmp x a of
+                GT -> yld a (go r)
+                _  -> yld x (a `cons` r)
+         in unStream m1 (rstState st) stop single yieldk
+
+------------------------------------------------------------------------------
+-- Deleting
+------------------------------------------------------------------------------
+
+{-# INLINE deleteBy #-}
+deleteBy :: IsStream t => (a -> a -> Bool) -> a -> t m a -> t m a
+deleteBy eq x m = fromStream $ go (toStream m)
+  where
+    go m1 = Stream $ \st stp sng yld ->
+        let single a = if eq x a then stp else sng a
+            yieldk a r = if eq x a
+              then unStream r (rstState st) stp sng yld
+              else yld a (go r)
+         in unStream m1 (rstState st) stp single yieldk
+
 -------------------------------------------------------------------------------
 -- Map and Filter
 -------------------------------------------------------------------------------
@@ -970,6 +1099,66 @@ zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
         let single1 a = merge a nil
             yield1 = merge
         unStream mx (rstState st) stp single1 yield1
+
+------------------------------------------------------------------------------
+-- Merging
+------------------------------------------------------------------------------
+
+{-# INLINE mergeByS #-}
+mergeByS
+    :: Monad m
+    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
+mergeByS cmp = go
+    where
+    go mx my = Stream $ \st stp sng yld -> do
+        let mergeWithY a ra =
+                let stop2 = unStream mx (rstState st) stp sng yld
+                    single2 b = do
+                        r <- cmp a b
+                        case r of
+                            GT -> yld b (go (a `cons` ra) nil)
+                            _  -> yld a (go ra (b `cons` nil))
+                    yield2 b rb = do
+                        r <- cmp a b
+                        case r of
+                            GT -> yld b (go (a `cons` ra) rb)
+                            _  -> yld a (go ra (b `cons` rb))
+                 in unStream my (rstState st) stop2 single2 yield2
+        let stopX = unStream my (rstState st) stp sng yld
+            singleX a = mergeWithY a nil
+            yieldX = mergeWithY
+        unStream mx (rstState st) stopX singleX yieldX
+
+{-# INLINABLE mergeByM #-}
+mergeByM
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeByM f m1 m2 = fromStream $ mergeByS f (toStream m1) (toStream m2)
+
+{-# INLINABLE mergeBy #-}
+mergeBy
+    :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+mergeBy cmp = mergeByM (\a b -> return $ cmp a b)
+
+------------------------------------------------------------------------------
+-- Transformation comprehensions
+------------------------------------------------------------------------------
+
+{-# INLINE the #-}
+the :: (Eq a, IsStream t, Monad m) => t m a -> m (Maybe a)
+the m = do
+    r <- uncons m
+    case r of
+        Nothing -> return Nothing
+        Just (h, t) -> go h (toStream t)
+    where
+    go h m1 =
+        let single a   | h == a    = return $ Just h
+                       | otherwise = return Nothing
+            yieldk a r | h == a    = go h r
+                       | otherwise = return Nothing
+         in unStream m1 defState (return $ Just h) single yieldk
 
 ------------------------------------------------------------------------------
 -- Semigroup

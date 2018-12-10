@@ -136,8 +136,8 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- Parallel Zipping
 ------------------------------------------------------------------------------
 
--- | Zip two streams concurrently (i.e. both the elements being zipped are
--- generated concurrently) using a pure zipping function.
+-- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
 --
 -- @since 0.1.0
 zipAsyncWith :: (IsStream t, MonadAsync m)
@@ -147,8 +147,8 @@ zipAsyncWith f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
     mb <- mkAsync' (rstState st) m2
     unStream (toStream (K.zipWith f ma mb)) (rstState st) stp sng yld
 
--- | Zip two streams asyncly (i.e. both the elements being zipped are generated
--- concurrently) using a monadic zipping function.
+-- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
 --
 -- @since 0.4.0
 zipAsyncWithM :: (IsStream t, MonadAsync m)

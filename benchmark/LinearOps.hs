@@ -8,6 +8,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module LinearOps where
 
@@ -15,12 +17,14 @@ import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (<=),
+       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO)
+        maxBound, div, IO, compare, Double, fromIntegral, Integer)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
+import Control.DeepSeq (NFData)
+import GHC.Generics (Generic)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
@@ -46,7 +50,27 @@ type Stream m a = S.SerialT m a
 {-# INLINE source #-}
 source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
 source n = S.serially $ sourceUnfoldrM n
--- source n = S.serially $ sourceFromList n
+
+{-# INLINE sourceIntFromTo #-}
+sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceIntFromTo n = S.intFromTo n (n + value)
+
+{-# INLINE sourceIntFromThenTo #-}
+sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceIntFromThenTo n = S.intFromThenTo n (n + 1) (n + value)
+
+{-# INLINE sourceFracFromTo #-}
+sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> t m Double
+sourceFracFromTo n = S.fracFromTo (fromIntegral n) (fromIntegral (n + value))
+
+{-# INLINE sourceFracFromThenTo #-}
+sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Double
+sourceFracFromThenTo n = S.fracFromThenTo (fromIntegral n)
+    (fromIntegral n + 1.0001) (fromIntegral (n + value))
+
+{-# INLINE sourceIntegerFromStep #-}
+sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> t m Integer
+sourceIntegerFromStep n = S.take value $ S.intFromStep (fromIntegral n) 1
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -131,9 +155,7 @@ runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
 {-# INLINE toList #-}
-{-# INLINE foldr #-}
-{-# INLINE foldrM #-}
-toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
+toList :: Monad m => Stream m Int -> m [Int]
 
 {-# INLINE last #-}
 {-# INLINE maximum #-}
@@ -146,11 +168,15 @@ toList, foldr, foldrM :: Monad m => Stream m Int -> m [Int]
 last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1
     :: Monad m => Stream m Int -> m (Maybe Int)
 
+{-# INLINE minimumBy #-}
+{-# INLINE maximumBy #-}
+minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
+
 {-# INLINE foldl' #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
 {-# INLINE product #-}
-foldl', length, sum, product :: Monad m => Stream m Int -> m Int
+foldl', foldr, foldrM, length, sum, product :: Monad m => Stream m Int -> m Int
 
 {-# INLINE all #-}
 {-# INLINE any #-}
@@ -161,7 +187,7 @@ foldl', length, sum, product :: Monad m => Stream m Int -> m Int
 elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
 
 {-# INLINE toNull #-}
-toNull :: Monad m => (t m Int -> S.SerialT m Int) -> t m Int -> m ()
+toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
 toNull t = runStream . t
 
 {-# INLINE uncons #-}
@@ -193,9 +219,9 @@ mapM_ :: Monad m => Stream m Int -> m ()
 mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
-foldr  = S.foldr (:) []
+foldr  = S.foldr (+) 0
 foldr1 = S.foldr1 (+)
-foldrM = S.foldrM (\a xs -> return (a : xs)) []
+foldrM = S.foldrM (\a xs -> return $ a + xs) 0
 foldl' = S.foldl' (+) 0
 foldl1' = S.foldl1' (+)
 last   = S.last
@@ -213,6 +239,8 @@ maximum = S.maximum
 minimum = S.minimum
 sum    = S.sum
 product = S.product
+minimumBy = S.minimumBy compare
+maximumBy = S.maximumBy compare
 
 -------------------------------------------------------------------------------
 -- Transformation
@@ -248,6 +276,7 @@ composeN' n f =
         _ -> undefined
 
 {-# INLINE scan #-}
+{-# INLINE scanl1' #-}
 {-# INLINE map #-}
 {-# INLINE fmap #-}
 {-# INLINE mapMaybe #-}
@@ -265,10 +294,12 @@ composeN' n f =
 {-# INLINE dropWhileFalse #-}
 {-# INLINE findIndices #-}
 {-# INLINE elemIndices #-}
-scan, map, fmap, mapMaybe, filterEven, filterAllOut,
+{-# INLINE insertBy #-}
+{-# INLINE deleteBy #-}
+scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices
+    findIndices, elemIndices, insertBy, deleteBy
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -284,6 +315,7 @@ sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
 
 scan          n = composeN n $ S.scanl' (+) 0
+scanl1'       n = composeN n $ S.scanl1' (+)
 fmap          n = composeN n $ Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
@@ -306,6 +338,8 @@ dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
+insertBy       n = composeN n $ S.insertBy compare maxValue
+deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -326,18 +360,21 @@ iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
 
 {-# INLINE iterateMapM #-}
 {-# INLINE iterateScan #-}
+{-# INLINE iterateScanl1 #-}
 {-# INLINE iterateFilterEven #-}
 {-# INLINE iterateTakeAll #-}
 {-# INLINE iterateDropOne #-}
 {-# INLINE iterateDropWhileFalse #-}
 {-# INLINE iterateDropWhileTrue #-}
-iterateMapM, iterateScan, iterateFilterEven, iterateTakeAll, iterateDropOne,
-    iterateDropWhileFalse, iterateDropWhileTrue
+iterateMapM, iterateScan, iterateScanl1, iterateFilterEven, iterateTakeAll,
+    iterateDropOne, iterateDropWhileFalse, iterateDropWhileTrue
     :: S.MonadAsync m
     => Int -> Stream m Int
 
 -- this is quadratic
 iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
+-- so is this
+iterateScanl1          = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
 
 iterateMapM            = iterateSource (S.mapM return) maxIters
 iterateFilterEven      = iterateSource (S.filter even) maxIters
@@ -352,8 +389,8 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 {-# INLINE zip #-}
 {-# INLINE zipM #-}
-{-# INLINE concat #-}
-zip, zipM, concat  :: Monad m => Stream m Int -> m ()
+{-# INLINE mergeBy #-}
+zip, zipM, mergeBy :: Monad m => Stream m Int -> m ()
 
 zip src       = do
     r <- S.tail src
@@ -363,6 +400,24 @@ zipM src      =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipWithM (curry return) src src1)
+
+mergeBy src     =  do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform (S.mergeBy P.compare src src1)
+
+{-# INLINE isPrefixOf #-}
+{-# INLINE isSubsequenceOf #-}
+isPrefixOf, isSubsequenceOf :: Monad m => Stream m Int -> m Bool
+
+isPrefixOf src = S.isPrefixOf src src
+isSubsequenceOf src = S.isSubsequenceOf src src
+
+{-# INLINE stripPrefix #-}
+stripPrefix :: Monad m => Stream m Int -> m ()
+stripPrefix src = do
+    _ <- S.stripPrefix src src
+    return ()
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
@@ -377,8 +432,6 @@ zipAsyncM src = do
     let src1 = fromJust r
     transform (S.zipAsyncWithM (curry return) src src1)
 
-concat _n     = return ()
-
 {-# INLINE eqBy #-}
 eqBy :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
 eqBy src = S.eqBy (==) src src
@@ -386,6 +439,15 @@ eqBy src = S.eqBy (==) src src
 {-# INLINE cmpBy #-}
 cmpBy :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
 cmpBy src = S.cmpBy P.compare src src
+
+concatStreamLen, maxNested :: Int
+concatStreamLen = 1
+maxNested = 100000
+
+{-# INLINE concatMap #-}
+concatMap :: S.MonadAsync m => Int -> Stream m Int
+concatMap n = S.concatMap (\_ -> sourceUnfoldrMN maxNested n)
+                          (sourceUnfoldrMN concatStreamLen n)
 
 -------------------------------------------------------------------------------
 -- Mixed Composition
@@ -400,9 +462,10 @@ cmpBy src = S.cmpBy P.compare src src
 {-# INLINE filterDrop #-}
 {-# INLINE filterTake #-}
 {-# INLINE filterScan #-}
+{-# INLINE filterScanl1 #-}
 {-# INLINE filterMap #-}
 scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
-    filterTake, filterScan, filterMap
+    filterTake, filterScan, filterScanl1, filterMap
     :: Monad m => Int -> Stream m Int -> m ()
 
 scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
@@ -414,7 +477,19 @@ takeMap    n = composeN n $ S.map (subtract 1) . S.take maxValue
 filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+data Pair a b = Pair !a !b deriving (Generic, NFData)
+
+{-# INLINE sumProductFold #-}
+sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
+sumProductFold = S.foldl' (\(s,p) x -> (s + x, p P.* x)) (0,1)
+
+{-# INLINE sumProductScan #-}
+sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
+sumProductScan = S.foldl' (\(Pair _  p) (s0,x) -> Pair s0 (p P.* x)) (Pair 0 1)
+    . S.scanl' (\(s,_) x -> (s + x,x)) (0,0)
 
 -------------------------------------------------------------------------------
 -- Pure stream operations
@@ -438,16 +513,16 @@ ordInstanceMin src = P.min src src
 
 {-# INLINE showInstance #-}
 showInstance :: Stream Identity Int -> P.String
-showInstance src = P.showsPrec 0 src ""
+showInstance src = P.show src
 
 {-# INLINE showInstanceList #-}
 showInstanceList :: Stream Identity Int -> P.String
-showInstanceList src = P.showsPrec 0 (GHC.toList src P.++ [2..value]) ""
+showInstanceList src = P.show (GHC.toList src P.++ [2..value])
 
 {-# INLINE readInstance #-}
 readInstance :: Stream Identity Int -> Stream Identity Int
 readInstance src =
-    let r = P.readsPrec 0 ("fromList [1"
+    let r = P.reads ("fromList [1"
                 P.++ P.concat (P.replicate value ",1") P.++ "]")
     in case r of
         [(x,"")] -> src S.<> x

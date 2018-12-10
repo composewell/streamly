@@ -235,19 +235,17 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- asynchronous consumption the outputs are consumed as they arrive i.e. first
 -- come first serve order.
 --
--- @
 -- +------------+--------------+--------------+--------------+
 -- | Type       | Execution    | Consumption  | Concurrency  |
 -- +============+==============+==============+==============+
--- | 'Serial'     | Serial       | Serial       | None         |
+-- | 'Serial'   | Serial       | Serial       | None         |
 -- +------------+--------------+--------------+--------------+
--- | 'Ahead'      | Asynchronous | Serial       | bounded      |
+-- | 'Ahead'    | Asynchronous | Serial       | bounded      |
 -- +------------+--------------+--------------+--------------+
--- | 'Async'      | Asynchronous | Asynchronous | bounded      |
+-- | 'Async'    | Asynchronous | Asynchronous | bounded      |
 -- +------------+--------------+--------------+--------------+
--- | 'Parallel'   | Asynchronous | Asynchronous | unbounded    |
+-- | 'Parallel' | Asynchronous | Asynchronous | unbounded    |
 -- +------------+--------------+--------------+--------------+
--- @
 --
 -- All these types can be freely inter-converted using type conversion
 -- combinators or type annotations, without any cost, to achieve the desired
