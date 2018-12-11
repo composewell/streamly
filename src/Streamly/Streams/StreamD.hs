@@ -483,7 +483,7 @@ fromStreamK = Stream step
         let stop       = return Stop
             single a   = return $ Yield a K.nil
             yieldk a r = return $ Yield a r
-         in K.unStreamShared m1 gst stop single yieldk
+         in K.foldStreamShared gst stop single yieldk m1
 
 {-# INLINE toStreamD #-}
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
@@ -883,7 +883,7 @@ toStreamK (Stream step state) = go state
         r <- step gst st
         case r of
             Yield x s -> yld x (go s)
-            Skip  s   -> K.unStreamShared (go s) gst stp sng yld
+            Skip  s   -> K.foldStreamShared gst stp sng yld $ go s
             Stop      -> stp
 
 #ifndef DISABLE_FUSION

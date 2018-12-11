@@ -434,7 +434,7 @@ defState = State
 -- results in slightly better perf for zip/zipM but the performance of scan
 -- worsens a lot, it does not fuse.
 --
--- This has a side effect of clearing the SVar and yieldLimit, therefore it
+-- XXX This has a side effect of clearing the SVar and yieldLimit, therefore it
 -- should not be used to convert from the same type to the same type, unless
 -- you want to clear the SVar. For clearing the SVar you should be using the
 -- appropriate unStream functions instead.

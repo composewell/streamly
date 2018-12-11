@@ -24,7 +24,7 @@ module Streamly.Streams.Serial
       SerialT
     , StreamT           -- deprecated
     , Serial
-    , serial
+    , K.serial
     , serially
 
     -- * Serial interleaving stream
@@ -60,8 +60,9 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, mapM)
 
+import Streamly.SVar (adaptState)
 import Streamly.Streams.StreamK (IsStream(..), adapt, Stream, mkStream,
-                                 unStream)
+                                 foldStream)
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
@@ -156,39 +157,28 @@ instance IsStream SerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
     consM :: Monad m => m a -> SerialT m a -> SerialT m a
-    consM m r = fromStream $ K.consMSerial m (toStream r)
+    consM = K.consMSerial
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
     (|:) :: Monad m => m a -> SerialT m a -> SerialT m a
-    m |: r = fromStream $ K.consMSerial m (toStream r)
-
-------------------------------------------------------------------------------
--- Semigroup
-------------------------------------------------------------------------------
-
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'SerialT'.
--- Appends two streams sequentially, yielding all elements from the first
--- stream, and then all elements from the second stream.
---
--- @since 0.2.0
-{-# INLINE serial #-}
-serial :: IsStream t => t m a -> t m a -> t m a
-serial m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
-    unStream (K.serial (toStream m1) (toStream m2))
-             st stp sng yld
+    (|:) = K.consMSerial
 
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
+-- XXX if foldStreamShared/unShare/adaptState are not efficient in serial case
+-- we can use a rewrite rule for that for the serial case and then just use a
+-- bindWith serial here.
+--
 instance Monad m => Monad (SerialT m) where
     return = pure
-    (SerialT m) >>= f = SerialT $ mkStream $ \st stp sng yld ->
-        let run x = unStream x st stp sng yld
-            single a   = run $ toStream (f a)
-            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
-        in unStream m st stp single yieldk
+    m >>= f = mkStream $ \st stp sng yld ->
+        let run x = foldStream st stp sng yld x
+            single a   = run $ f a
+            yieldk a r = run $ f a <> (r >>= f)
+        in foldStream (adaptState st) stp single yieldk m
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -293,24 +283,16 @@ instance IsStream WSerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    consM m r = fromStream $ K.consMSerial m (toStream r)
+    consM = K.consMSerial
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    m |: r = fromStream $ K.consMSerial m (toStream r)
+    (|:) = K.consMSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
-
-{-# INLINE interleave #-}
-interleave :: Stream m a -> Stream m a -> Stream m a
-interleave m1 m2 = mkStream $ \st stp sng yld -> do
-    let stop       = unStream m2 st stp sng yld
-        single a   = yld a m2
-        yieldk a r = yld a (interleave m2 r)
-    unStream m1 st stop single yieldk
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
@@ -318,9 +300,11 @@ interleave m1 m2 = mkStream $ \st stp sng yld -> do
 -- @since 0.2.0
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = fromStream $ mkStream $ \st stp sng yld ->
-    unStream (interleave (toStream m1) (toStream m2))
-             st stp sng yld
+wSerial m1 m2 = mkStream $ \st stp sng yld -> do
+    let stop       = foldStream st stp sng yld m2
+        single a   = yld a m2
+        yieldk a r = yld a (wSerial m2 r)
+    foldStream st stop single yieldk m1
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
@@ -347,13 +331,17 @@ instance Monoid (WSerialT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+-- XXX if foldStreamShared/unShare/adaptState are not efficient in serial case
+-- we can use a rewrite rule for that for the serial case and then just use a
+-- bindWith interleave here.
+--
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    (WSerialT m) >>= f = WSerialT $ mkStream $ \st stp sng yld ->
-        let run x = unStream x st stp sng yld
-            single a   = run $ toStream (f a)
-            yieldk a r = run $ toStream $ f a <> (fromStream r >>= f)
-        in unStream m st stp single yieldk
+    m >>= f = mkStream $ \st stp sng yld ->
+        let run x = foldStream st stp sng yld x
+            single a   = run $ f a
+            yieldk a r = run $ f a <> (r >>= f)
+        in foldStream (adaptState st) stp single yieldk m
 
 ------------------------------------------------------------------------------
 -- Other instances

@@ -6,6 +6,7 @@
 {-# LANGUAGE InstanceSigs              #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
@@ -33,16 +34,20 @@ module Streamly.Streams.StreamK
 
     -- * The stream type
     , Stream
-    , unStream
-    , unStreamShared
-    , unShare
-    , runStreamSVar
 
-    -- * Construction
+    -- * Construction Primitives
     , mkStream
     , nil
     , cons
     , (.:)
+
+    -- * Elimination Primitives
+    , foldStream
+    , foldStreamShared
+    , foldStreamSVar
+
+    -- * Transformation Primitives
+    , unShare
 
     -- * Asynchronous construction
     , nilK
@@ -71,7 +76,6 @@ module Streamly.Streams.StreamK
 
     -- * Elimination
     -- ** General Folds
-    , foldStream
     , foldr
     , foldrM
     , foldr1
@@ -174,9 +178,9 @@ import Streamly.Streams.StreamKType
 
 -- | Detach a stream from an SVar
 {-# INLINE unShare #-}
-unShare :: Stream m a -> Stream m a
+unShare :: IsStream t => t m a -> t m a
 unShare x = mkStream $ \st stp sng yld ->
-    unStream x st stp sng yld
+    foldStream st stp sng yld x
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -197,7 +201,7 @@ infixr 5 `cons`
 --
 -- @since 0.1.0
 cons :: IsStream t => a -> t m a -> t m a
-cons a r = fromStream $ mkStream $ \_ _ _ yld -> yld a (toStream r)
+cons a r = mkStream $ \_ _ _ yld -> yld a r
 
 infixr 5 .:
 
@@ -218,15 +222,15 @@ infixr 5 .:
 
 -- | Make an empty stream from a callback function.
 nilK :: IsStream t => (forall r. m r -> m r) -> t m a
-nilK k = fromStream $ mkStream $ \_ stp _ _ -> k stp
+nilK k = mkStream $ \_ stp _ _ -> k stp
 
 -- | Make a singleton stream from a one shot callback function.
 yieldK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-yieldK k = fromStream $ mkStream $ \_ _ sng _ -> k sng
+yieldK k = mkStream $ \_ _ sng _ -> k sng
 
 -- | Construct a stream from a callback function.
 consK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a -> t m a
-consK k r = fromStream $ mkStream $ \_ _ _ yld -> k (\x -> yld x (toStream r))
+consK k r = mkStream $ \_ _ _ yld -> k (\x -> yld x r)
 
 -- XXX consK with concurrent callbacks
 -- XXX Build a stream from a repeating callback function.
@@ -240,8 +244,8 @@ uncons :: (IsStream t, Monad m) => t m a -> m (Maybe (a, t m a))
 uncons m =
     let stop = return Nothing
         single a = return (Just (a, nil))
-        yieldk a r = return (Just (a, fromStream r))
-    in unStream (toStream m) defState stop single yieldk
+        yieldk a r = return (Just (a, r))
+    in foldStream defState stop single yieldk m
 
 -------------------------------------------------------------------------------
 -- Generation
@@ -249,7 +253,7 @@ uncons m =
 
 {-# INLINE unfoldr #-}
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step = fromStream . go
+unfoldr step = go
     where
     go s = mkStream $ \_ stp _ yld ->
         case step s of
@@ -260,19 +264,19 @@ unfoldr step = fromStream . go
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step = go
     where
-    go s = fromStream $ mkStream $ \svr stp sng yld -> do
+    go s = mkStream $ \st stp sng yld -> do
         mayb <- step s
         case mayb of
             Nothing -> stp
             Just (a, b) ->
-                unStreamShared (toStream (return a |: go b)) svr stp sng yld
+                foldStreamShared st stp sng yld $ return a |: go b
 
 -------------------------------------------------------------------------------
 -- Special generation
 -------------------------------------------------------------------------------
 
 yield :: IsStream t => a -> t m a
-yield a = fromStream $ mkStream $ \_ _ single _ -> single a
+yield a = mkStream $ \_ _ single _ -> single a
 
 -- | Same as yieldM
 --
@@ -325,8 +329,8 @@ fromList :: IsStream t => [a] -> t m a
 fromList = fromFoldable
 
 {-# INLINE fromStreamK #-}
-fromStreamK :: Stream m a -> Stream m a
-fromStreamK = id
+fromStreamK :: IsStream t => Stream m a -> t m a
+fromStreamK = fromStream
 
 -------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -334,24 +338,24 @@ fromStreamK = id
 
 -- | Lazy right associative fold.
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
-foldr step acc m = go (toStream m)
+foldr step acc m = go m
     where
     go m1 =
         let stop = return acc
             single a = return (step a acc)
             yieldk a r = go r >>= \b -> return (step a b)
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE foldrM #-}
 foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
-foldrM step acc m = go (toStream m)
+foldrM step acc m = go m
     where
     go m1 =
         let stop = return acc
             single a = step a acc
             yieldk a r = go r >>= step a
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE foldr1 #-}
 foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
@@ -359,13 +363,13 @@ foldr1 step m = do
     r <- uncons m
     case r of
         Nothing -> return Nothing
-        Just (h, t) -> fmap Just (go h (toStream t))
+        Just (h, t) -> fmap Just (go h t)
     where
     go p m1 =
         let stp = return p
             single a = return $ step a p
             yieldk a r = fmap (step p) (go a r)
-         in unStream m1 defState stp single yieldk
+         in foldStream defState stp single yieldk m1
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -374,28 +378,31 @@ foldr1 step m = do
 --
 -- Note that the accumulator is always evaluated including the initial value.
 {-# INLINE foldx #-}
-foldx :: (IsStream t, Monad m)
+foldx :: forall t m a b x. (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldx step begin done m = get $ go (toStream m) begin
+foldx step begin done m = get $ go m begin
     where
     {-# NOINLINE get #-}
+    get :: t m x -> m b
     get m1 =
         -- XXX we are not strictly evaluating the accumulator here. Is this
         -- okay?
         let single = return . done
-         in unStreamShared m1 undefined undefined single undefined
+        -- XXX this is foldSingleton. why foldStreamShared?
+         in foldStreamShared undefined undefined single undefined m1
 
     -- Note, this can be implemented by making a recursive call to "go",
     -- however that is more expensive because of unnecessary recursion
     -- that cannot be tail call optimized. Unfolding recursion explicitly via
     -- continuations is much more efficient.
+    go :: t m a -> x -> t m x
     go m1 !acc = mkStream $ \_ _ sng yld ->
         let stop = sng acc
             single a = sng $ step acc a
-            yieldk a r =
-                let stream = go r (step acc a)
-                in unStream stream defState undefined sng yld
-        in unStream m1 defState stop single yieldk
+            -- XXX this is foldNonEmptyStream
+            yieldk a r = foldStream defState undefined sng yld $
+                go r (step acc a)
+        in foldStream defState stop single yieldk m1
 
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
@@ -406,13 +413,13 @@ foldl' step begin = foldx step begin id
 -- | Like 'foldx', but with a monadic step function.
 foldxM :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
-foldxM step begin done m = go begin (toStream m)
+foldxM step begin done m = go begin m
     where
     go !acc m1 =
         let stop = acc >>= done
             single a = acc >>= \b -> step b a >>= done
             yieldk a r = acc >>= \b -> step b a >>= \x -> go (return x) r
-         in unStream m1 defState stop single yieldk
+         in foldStream defState stop single yieldk m1
 
 -- | Like 'foldl'' but with a monadic step function.
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
@@ -424,13 +431,13 @@ foldlM' step begin = foldxM step (return begin) return
 
 {-# INLINE runStream #-}
 runStream :: (Monad m, IsStream t) => t m a -> m ()
-runStream m = go (toStream m)
+runStream = go
     where
     go m1 =
         let stop = return ()
             single _ = return ()
-            yieldk _ r = go (toStream r)
-         in unStream m1 defState stop single yieldk
+            yieldk _ r = go r
+         in foldStream defState stop single yieldk m1
 
 {-# INLINE null #-}
 null :: (IsStream t, Monad m) => t m a -> m Bool
@@ -438,7 +445,7 @@ null m =
     let stop      = return True
         single _  = return False
         yieldk _ _ = return False
-    in unStream (toStream m) defState stop single yieldk
+    in foldStream defState stop single yieldk m
 
 {-# INLINE head #-}
 head :: (IsStream t, Monad m) => t m a -> m (Maybe a)
@@ -446,69 +453,69 @@ head m =
     let stop      = return Nothing
         single a  = return (Just a)
         yieldk a _ = return (Just a)
-    in unStream (toStream m) defState stop single yieldk
+    in foldStream defState stop single yieldk m
 
 {-# INLINE tail #-}
 tail :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
 tail m =
     let stop      = return Nothing
         single _  = return $ Just nil
-        yieldk _ r = return $ Just $ fromStream r
-    in unStream (toStream m) defState stop single yieldk
+        yieldk _ r = return $ Just r
+    in foldStream defState stop single yieldk m
 
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))
-init m = go1 (toStream m)
+init m = go1 m
     where
     go1 m1 = do
         r <- uncons m1
         case r of
             Nothing -> return Nothing
-            Just (h, t) -> return . Just . fromStream $ go h t
+            Just (h, t) -> return . Just $ go h t
     go p m1 = mkStream $ \_ stp sng yld ->
         let single _ = sng p
             yieldk a x = yld p $ go a x
-         in unStream m1 defState stp single yieldk
+         in foldStream defState stp single yieldk m1
 
 {-# INLINE elem #-}
 elem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
-elem e m = go (toStream m)
+elem e m = go m
     where
     go m1 =
         let stop      = return False
             single a  = return (a == e)
             yieldk a r = if a == e then return True else go r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE notElem #-}
 notElem :: (IsStream t, Monad m, Eq a) => a -> t m a -> m Bool
-notElem e m = go (toStream m)
+notElem e m = go m
     where
     go m1 =
         let stop      = return True
             single a  = return (a /= e)
             yieldk a r = if a == e then return False else go r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
-all p m = go (toStream m)
+all p m = go m
     where
     go m1 =
         let single a   | p a       = return True
                        | otherwise = return False
             yieldk a r | p a       = go r
                        | otherwise = return False
-         in unStream m1 defState (return True) single yieldk
+         in foldStream defState (return True) single yieldk m1
 
 any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
-any p m = go (toStream m)
+any p m = go m
     where
     go m1 =
         let single a   | p a       = return True
                        | otherwise = return False
             yieldk a r | p a       = return True
                        | otherwise = go r
-         in unStream m1 defState (return False) single yieldk
+         in foldStream defState (return False) single yieldk m1
 
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
@@ -517,13 +524,13 @@ last = foldx (\_ y -> Just y) Nothing id
 
 {-# INLINE minimum #-}
 minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
-minimum m = go Nothing (toStream m)
+minimum m = go Nothing m
     where
     go Nothing m1 =
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -535,19 +542,19 @@ minimum m = go Nothing (toStream m)
                 if res <= a
                 then go (Just res) r
                 else go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE minimumBy #-}
 minimumBy
     :: (IsStream t, Monad m)
     => (a -> a -> Ordering) -> t m a -> m (Maybe a)
-minimumBy cmp m = go Nothing (toStream m)
+minimumBy cmp m = go Nothing m
     where
     go Nothing m1 =
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -557,17 +564,17 @@ minimumBy cmp m = go Nothing (toStream m)
             yieldk a r = case cmp res a of
                 GT -> go (Just a) r
                 _  -> go (Just res) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE maximum #-}
 maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
-maximum m = go Nothing (toStream m)
+maximum m = go Nothing m
     where
     go Nothing m1 =
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -579,17 +586,17 @@ maximum m = go Nothing (toStream m)
                 if res <= a
                 then go (Just a) r
                 else go (Just res) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE maximumBy #-}
 maximumBy :: (IsStream t, Monad m) => (a -> a -> Ordering) -> t m a -> m (Maybe a)
-maximumBy cmp m = go Nothing (toStream m)
+maximumBy cmp m = go Nothing m
     where
     go Nothing m1 =
         let stop      = return Nothing
             single a  = return (Just a)
             yieldk a r = go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
     go (Just res) m1 =
         let stop      = return (Just res)
@@ -599,11 +606,11 @@ maximumBy cmp m = go Nothing (toStream m)
             yieldk a r = case cmp res a of
                 GT -> go (Just res) r
                 _  -> go (Just a) r
-        in unStream m1 defState stop single yieldk
+        in foldStream defState stop single yieldk m1
 
 {-# INLINE (!!) #-}
 (!!) :: (IsStream t, Monad m) => t m a -> Int -> m (Maybe a)
-m !! i = go i (toStream m)
+m !! i = go i m
     where
     go n m1 =
       let single a | n == 0 = return $ Just a
@@ -611,22 +618,22 @@ m !! i = go i (toStream m)
           yieldk a x | n < 0 = return Nothing
                      | n == 0 = return $ Just a
                      | otherwise = go (n - 1) x
-      in unStream m1 defState (return Nothing) single yieldk
+      in foldStream defState (return Nothing) single yieldk m1
 
 {-# INLINE lookup #-}
 lookup :: (IsStream t, Monad m, Eq a) => a -> t m (a, b) -> m (Maybe b)
-lookup e m = go (toStream m)
+lookup e m = go m
     where
     go m1 =
         let single (a, b) | a == e = return $ Just b
                           | otherwise = return Nothing
             yieldk (a, b) x | a == e = return $ Just b
                             | otherwise = go x
-        in unStream m1 defState (return Nothing) single yieldk
+        in foldStream defState (return Nothing) single yieldk m1
 
 {-# INLINE findM #-}
 findM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> m (Maybe a)
-findM p m = go (toStream m)
+findM p m = go m
     where
     go m1 =
         let single a = do
@@ -635,7 +642,7 @@ findM p m = go (toStream m)
             yieldk a x = do
                 b <- p a
                 if b then return $ Just a else go x
-        in unStream m1 defState (return Nothing) single yieldk
+        in foldStream defState (return Nothing) single yieldk m1
 
 {-# INLINE find #-}
 find :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m (Maybe a)
@@ -643,14 +650,15 @@ find p = findM (return . p)
 
 {-# INLINE findIndices #-}
 findIndices :: IsStream t => (a -> Bool) -> t m a -> t m Int
-findIndices p = fromStream . go 0 . toStream
+findIndices p = go 0
     where
     go offset m1 = mkStream $ \st stp sng yld ->
         let single a | p a = sng offset
                      | otherwise = stp
             yieldk a x | p a = yld offset $ go (offset + 1) x
-                       | otherwise = unStream (go (offset + 1) x) st stp sng yld
-        in unStream m1 st stp single yieldk
+                       | otherwise = foldStream (adaptState st) stp sng yld $
+                            go (offset + 1) x
+        in foldStream (adaptState st) stp single yieldk m1
 
 ------------------------------------------------------------------------------
 -- Map and Fold
@@ -659,13 +667,13 @@ findIndices p = fromStream . go 0 . toStream
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
 mapM_ :: (IsStream t, Monad m) => (a -> m b) -> t m a -> m ()
-mapM_ f m = go (toStream m)
+mapM_ f m = go m
     where
     go m1 =
         let stop = return ()
             single a = void (f a)
             yieldk a r = f a >> go r
-         in unStream m1 defState stop single yieldk
+         in foldStream defState stop single yieldk m1
 
 ------------------------------------------------------------------------------
 -- Converting folds
@@ -686,14 +694,14 @@ toStreamK = id
 {-# INLINE scanx #-}
 scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx step begin done m =
-    cons (done begin) $ fromStream $ go (toStream m) begin
+    cons (done begin) $ go m begin
     where
     go m1 !acc = mkStream $ \st stp sng yld ->
         let single a = sng (done $ step acc a)
             yieldk a r =
                 let s = step acc a
                 in yld (done s) (go r s)
-        in unStream m1 st stp single yieldk
+        in foldStream (adaptState st) stp single yieldk m1
 
 {-# INLINE scanl' #-}
 scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
@@ -705,58 +713,58 @@ scanl' step begin = scanx step begin id
 
 {-# INLINE filter #-}
 filter :: IsStream t => (a -> Bool) -> t m a -> t m a
-filter p m = fromStream $ go (toStream m)
+filter p m = go m
     where
     go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = sng a
                        | otherwise = stp
             yieldk a r | p a       = yld a (go r)
-                       | otherwise = unStream r st stp single yieldk
-         in unStream m1 st stp single yieldk
+                       | otherwise = foldStream st stp single yieldk r
+         in foldStream st stp single yieldk m1
 
 {-# INLINE take #-}
 take :: IsStream t => Int -> t m a -> t m a
-take n m = fromStream $ go n (toStream m)
+take n m = go n m
     where
     go n1 m1 = mkStream $ \st stp sng yld ->
         let yieldk a r = yld a (go (n1 - 1) r)
         in if n1 <= 0
            then stp
-           else unStream m1 st stp sng yieldk
+           else foldStream st stp sng yieldk m1
 
 {-# INLINE takeWhile #-}
 takeWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
-takeWhile p m = fromStream $ go (toStream m)
+takeWhile p m = go m
     where
     go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = sng a
                        | otherwise = stp
             yieldk a r | p a       = yld a (go r)
                        | otherwise = stp
-         in unStream m1 st stp single yieldk
+         in foldStream st stp single yieldk m1
 
 drop :: IsStream t => Int -> t m a -> t m a
-drop n m = fromStream $ mkStream $ \st stp sng yld ->
-    unStream (go n (toStream m)) st stp sng yld
+drop n m = mkStream $ \st stp sng yld ->
+    foldStream st stp sng yld $ go n m
     where
     go n1 m1 = mkStream $ \st stp sng yld ->
         let single _ = stp
-            yieldk _ r = (unStream $ go (n1 - 1) r) st stp sng yld
+            yieldk _ r = foldStream st stp sng yld $ go (n1 - 1) r
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then unStream m1 st stp sng yld
-           else unStream m1 st stp single yieldk
+           then foldStream st stp sng yld m1
+           else foldStream st stp single yieldk m1
 
 {-# INLINE dropWhile #-}
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
-dropWhile p m = fromStream $ go (toStream m)
+dropWhile p m = go m
     where
     go m1 = mkStream $ \st stp sng yld ->
         let single a   | p a       = stp
                        | otherwise = sng a
-            yieldk a r | p a = unStream r st stp single yieldk
+            yieldk a r | p a = foldStream st stp single yieldk r
                        | otherwise = yld a r
-         in unStream m1 st stp single yieldk
+         in foldStream st stp single yieldk m1
 
 -------------------------------------------------------------------------------
 -- Mapping
@@ -766,23 +774,23 @@ dropWhile p m = fromStream $ go (toStream m)
 -- other stream types to overload it.
 {-# INLINE mapM #-}
 mapM :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m b
-mapM f m = go (toStream m)
+mapM f m = go m
     where
-    go m1 = fromStream $ mkStream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a  = f a >>= sng
-            yieldk a r = unStreamShared (toStream (f a |: go r)) st stp sng yld
-         in unStream m1 st stp single yieldk
+            yieldk a r = foldStreamShared st stp sng yld $ f a |: go r
+         in foldStream (adaptState st) stp single yieldk m1
 
 -- Be careful when modifying this, this uses a consM (|:) deliberately to allow
 -- other stream types to overload it.
 {-# INLINE sequence #-}
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
-sequence m = go (toStream m)
+sequence m = go m
     where
-    go m1 = fromStream $ mkStream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single ma = ma >>= sng
-            yieldk ma r = unStreamShared (toStream $ ma |: go r) st stp sng yld
-         in unStream m1 st stp single yieldk
+            yieldk ma r = foldStreamShared st stp sng yld $ ma |: go r
+         in foldStream (adaptState st) stp single yieldk m1
 
 -------------------------------------------------------------------------------
 -- Inserting
@@ -790,19 +798,19 @@ sequence m = go (toStream m)
 
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-intersperseM a m = fromStream $ prependingStart (toStream m)
+intersperseM a m = prependingStart m
     where
     prependingStart m1 = mkStream $ \st stp sng yld ->
-        let yieldk i x = unStreamShared (return i |: go x) st stp sng yld
-         in unStream m1 st stp sng yieldk
-    go m2 = fromStream $ mkStream $ \st stp sng yld ->
-        let single i = unStreamShared (a |: yield i) st stp sng yld
-            yieldk i x = unStreamShared (a |: return i |: go x) st stp sng yld
-         in unStream m2 st stp single yieldk
+        let yieldk i x = foldStreamShared st stp sng yld $ return i |: go x
+         in foldStream st stp sng yieldk m1
+    go m2 = mkStream $ \st stp sng yld ->
+        let single i = foldStreamShared st stp sng yld $ a |: yield i
+            yieldk i x = foldStreamShared st stp sng yld $ a |: return i |: go x
+         in foldStream st stp single yieldk m2
 
 {-# INLINE insertBy #-}
 insertBy :: IsStream t => (a -> a -> Ordering) -> a -> t m a -> t m a
-insertBy cmp x m = fromStream $ go (toStream m)
+insertBy cmp x m = go m
   where
     go m1 = mkStream $ \st _ _ yld ->
         let single a = case cmp x a of
@@ -812,7 +820,7 @@ insertBy cmp x m = fromStream $ go (toStream m)
             yieldk a r = case cmp x a of
                 GT -> yld a (go r)
                 _  -> yld x (a `cons` r)
-         in unStream m1 st stop single yieldk
+         in foldStream st stop single yieldk m1
 
 ------------------------------------------------------------------------------
 -- Deleting
@@ -820,14 +828,14 @@ insertBy cmp x m = fromStream $ go (toStream m)
 
 {-# INLINE deleteBy #-}
 deleteBy :: IsStream t => (a -> a -> Bool) -> a -> t m a -> t m a
-deleteBy eq x m = fromStream $ go (toStream m)
+deleteBy eq x m = go m
   where
     go m1 = mkStream $ \st stp sng yld ->
         let single a = if eq x a then stp else sng a
             yieldk a r = if eq x a
-              then unStream r st stp sng yld
+              then foldStream st stp sng yld r
               else yld a (go r)
-         in unStream m1 st stp single yieldk
+         in foldStream st stp single yieldk m1
 
 -------------------------------------------------------------------------------
 -- Map and Filter
@@ -835,70 +843,66 @@ deleteBy eq x m = fromStream $ go (toStream m)
 
 {-# INLINE mapMaybe #-}
 mapMaybe :: IsStream t => (a -> Maybe b) -> t m a -> t m b
-mapMaybe f m = go (toStream m)
+mapMaybe f m = go m
   where
-    go m1 = fromStream $ mkStream $ \st stp sng yld ->
+    go m1 = mkStream $ \st stp sng yld ->
         let single a = case f a of
                 Just b  -> sng b
                 Nothing -> stp
             yieldk a r = case f a of
-                Just b  -> yld b (toStream $ go r)
-                Nothing -> unStream r st stp single yieldk
-        in unStream m1 st stp single yieldk
+                Just b  -> yld b $ go r
+                Nothing -> foldStream (adaptState st) stp single yieldk r
+        in foldStream (adaptState st) stp single yieldk m1
 
 ------------------------------------------------------------------------------
 -- Serial Zipping
 ------------------------------------------------------------------------------
-
-{-# INLINE zipWithS #-}
-zipWithS :: (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipWithS f = go
-    where
-    go mx my = mkStream $ \st stp sng yld -> do
-        let merge a ra =
-                let single2 b = sng (f a b)
-                    yield2 b rb = yld (f a b) (go ra rb)
-                 in unStream my st stp single2 yield2
-        let single1 a = merge a nil
-            yield1 = merge
-        unStream mx st stp single1 yield1
 
 -- | Zip two streams serially using a pure zipping function.
 --
 -- @since 0.1.0
 {-# INLINABLE zipWith #-}
 zipWith :: IsStream t => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStream $ zipWithS f (toStream m1) (toStream m2)
+zipWith f = go
+    where
+    go mx my = mkStream $ \st stp sng yld -> do
+        let merge a ra =
+                let single2 b = sng (f a b)
+                    yield2 b rb = yld (f a b) (go ra rb)
+                 in foldStream (adaptState st) stp single2 yield2 my
+        let single1 a = merge a nil
+            yield1 = merge
+        foldStream (adaptState st) stp single1 yield1 mx
 
 -- | Zip two streams serially using a monadic zipping function.
 --
 -- @since 0.1.0
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipWithM f m1 m2 = fromStream $ go (toStream m1) (toStream m2)
+zipWithM f m1 m2 = go m1 m2
     where
     go mx my = mkStream $ \st stp sng yld -> do
         let merge a ra =
-                let runIt x = unStream x st stp sng yld
+                let runIt x = foldStream st stp sng yld x
                     single2 b   = f a b >>= sng
                     yield2 b rb = f a b >>= \x -> runIt (x `cons` go ra rb)
-                 in unStream my st stp single2 yield2
+                 in foldStream (adaptState st) stp single2 yield2 my
         let single1 a = merge a nil
             yield1 = merge
-        unStream mx st stp single1 yield1
+        foldStream (adaptState st) stp single1 yield1 mx
 
 ------------------------------------------------------------------------------
 -- Merging
 ------------------------------------------------------------------------------
 
-{-# INLINE mergeByS #-}
-mergeByS
-    :: Monad m
-    => (a -> a -> m Ordering) -> Stream m a -> Stream m a -> Stream m a
-mergeByS cmp = go
+{-# INLINE mergeByM #-}
+mergeByM
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeByM cmp = go
     where
     go mx my = mkStream $ \st stp sng yld -> do
         let mergeWithY a ra =
-                let stop2 = unStream mx st stp sng yld
+                let stop2 = foldStream st stp sng yld mx
                     single2 b = do
                         r <- cmp a b
                         case r of
@@ -909,17 +913,11 @@ mergeByS cmp = go
                         case r of
                             GT -> yld b (go (a `cons` ra) rb)
                             _  -> yld a (go ra (b `cons` rb))
-                 in unStream my st stop2 single2 yield2
-        let stopX = unStream my st stp sng yld
+                 in foldStream st stop2 single2 yield2 my
+        let stopX = foldStream st stp sng yld my
             singleX a = mergeWithY a nil
             yieldX = mergeWithY
-        unStream mx st stopX singleX yieldX
-
-{-# INLINABLE mergeByM #-}
-mergeByM
-    :: (IsStream t, Monad m)
-    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeByM f m1 m2 = fromStream $ mergeByS f (toStream m1) (toStream m2)
+        foldStream st stopX singleX yieldX mx
 
 {-# INLINABLE mergeBy #-}
 mergeBy
@@ -937,14 +935,14 @@ the m = do
     r <- uncons m
     case r of
         Nothing -> return Nothing
-        Just (h, t) -> go h (toStream t)
+        Just (h, t) -> go h t
     where
     go h m1 =
         let single a   | h == a    = return $ Just h
                        | otherwise = return Nothing
             yieldk a r | h == a    = go h r
                        | otherwise = return Nothing
-         in unStream m1 defState (return $ Just h) single yieldk
+         in foldStream defState (return $ Just h) single yieldk m1
 
 -------------------------------------------------------------------------------
 -- Bind utility
@@ -952,20 +950,19 @@ the m = do
 
 {-# INLINE bindWith #-}
 bindWith
-    :: (forall c. Stream m c -> Stream m c -> Stream m c)
-    -> Stream m a
-    -> (a -> Stream m b)
-    -> Stream m b
+    :: IsStream t
+    => (forall c. t m c -> t m c -> t m c)
+    -> t m a
+    -> (a -> t m b)
+    -> t m b
 bindWith par m1 f = go m1
     where
         go m =
             mkStream $ \st stp sng yld ->
-                let runShared x = unStreamShared x st stp sng yld
-                    runIsolated x = unStream x st stp sng yld
-
-                    single a   = runIsolated $ f a
-                    yieldk a r = runShared $ unShare (f a) `par` go r
-                in unStream m st stp single yieldk
+                let foldShared = foldStreamShared st stp sng yld
+                    single a   = foldShared $ unShare (f a)
+                    yieldk a r = foldShared $ unShare (f a) `par` go r
+                in foldStream (adaptState st) stp single yieldk m
 
 ------------------------------------------------------------------------------
 -- Alternative & MonadPlus
@@ -973,8 +970,8 @@ bindWith par m1 f = go m1
 
 _alt :: Stream m a -> Stream m a -> Stream m a
 _alt m1 m2 = mkStream $ \st stp sng yld ->
-    let stop  = unStream m2 st stp sng yld
-    in unStream m1 st stop sng yld
+    let stop  = foldStream st stp sng yld m2
+    in foldStream st stop sng yld m1
 
 ------------------------------------------------------------------------------
 -- MonadReader
@@ -985,7 +982,7 @@ withLocal f m =
     mkStream $ \st stp sng yld ->
         let single = local f . sng
             yieldk a r = local f $ yld a (withLocal f r)
-        in unStream m st (local f stp) single yieldk
+        in foldStream st (local f stp) single yieldk m
 
 ------------------------------------------------------------------------------
 -- MonadError
@@ -1003,4 +1000,3 @@ withCatchError m h =
             yieldk a r = yld a (withCatchError r h)
         in handle $ run m
 -}
-

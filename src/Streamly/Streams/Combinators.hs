@@ -52,8 +52,8 @@ import Streamly.Streams.Serial (SerialT)
 -- @since 0.4.0
 {-# INLINE_NORMAL maxThreads #-}
 maxThreads :: IsStream t => Int -> t m a -> t m a
-maxThreads n m = fromStream $ mkStream $ \st stp sng yld ->
-    unStreamShared (toStream m) (setMaxThreads n st) stp sng yld
+maxThreads n m = mkStream $ \st stp sng yld ->
+    foldStreamShared (setMaxThreads n st) stp sng yld m
 
 {-
 {-# RULES "maxThreadsSerial serial" maxThreads = maxThreadsSerial #-}
@@ -77,8 +77,8 @@ maxThreadsSerial _ = id
 -- @since 0.4.0
 {-# INLINE_NORMAL maxBuffer #-}
 maxBuffer :: IsStream t => Int -> t m a -> t m a
-maxBuffer n m = fromStream $ mkStream $ \st stp sng yld ->
-    unStreamShared (toStream m) (setMaxBuffer n st) stp sng yld
+maxBuffer n m = mkStream $ \st stp sng yld ->
+    foldStreamShared (setMaxBuffer n st) stp sng yld m
 
 {-
 {-# RULES "maxBuffer serial" maxBuffer = maxBufferSerial #-}
@@ -101,7 +101,7 @@ maxBufferSerial _ = id
 -- @since 0.5.0
 {-# INLINE_NORMAL rate #-}
 rate :: IsStream t => Maybe Rate -> t m a -> t m a
-rate r m = fromStream $ mkStream $ \st stp sng yld ->
+rate r m = mkStream $ \st stp sng yld ->
     case r of
         Just (Rate low goal _ _) | goal < low ->
             error "rate: Target rate cannot be lower than minimum rate."
@@ -109,7 +109,7 @@ rate r m = fromStream $ mkStream $ \st stp sng yld ->
             error "rate: Target rate cannot be greater than maximum rate."
         Just (Rate low _ high _) | low > high ->
             error "rate: Minimum rate cannot be greater than maximum rate."
-        _ -> unStreamShared (toStream m) (setStreamRate r st) stp sng yld
+        _ -> foldStreamShared (setStreamRate r st) stp sng yld m
 
 -- XXX implement for serial streams as well, as a simple delay
 
@@ -181,8 +181,8 @@ constRate r = rate (Just $ Rate r r r 0)
 --
 {-# INLINE_NORMAL _serialLatency #-}
 _serialLatency :: IsStream t => Int -> t m a -> t m a
-_serialLatency n m = fromStream $ mkStream $ \st stp sng yld ->
-    unStreamShared (toStream m) (setStreamLatency n st) stp sng yld
+_serialLatency n m = mkStream $ \st stp sng yld ->
+    foldStreamShared (setStreamLatency n st) stp sng yld m
 
 {-
 {-# RULES "serialLatency serial" _serialLatency = serialLatencySerial #-}
@@ -196,8 +196,8 @@ serialLatencySerial _ = id
 -- inherited by everything in enclosed scope.
 {-# INLINE_NORMAL maxYields #-}
 maxYields :: IsStream t => Maybe Int64 -> t m a -> t m a
-maxYields n m = fromStream $ mkStream $ \st stp sng yld ->
-    unStreamShared (toStream m) (setYieldLimit n st) stp sng yld
+maxYields n m = mkStream $ \st stp sng yld ->
+    foldStreamShared (setYieldLimit n st) stp sng yld m
 
 {-# RULES "maxYields serial" maxYields = maxYieldsSerial #-}
 maxYieldsSerial :: Maybe Int64 -> SerialT m a -> SerialT m a
@@ -212,5 +212,5 @@ printState st = liftIO $ do
 
 -- | Print debug information about an SVar when the stream ends
 inspectMode :: IsStream t => t m a -> t m a
-inspectMode m = fromStream $ mkStream $ \st stp sng yld ->
-     unStreamShared (toStream m) (setInspectMode st) stp sng yld
+inspectMode m = mkStream $ \st stp sng yld ->
+     foldStreamShared (setInspectMode st) stp sng yld m
