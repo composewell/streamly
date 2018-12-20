@@ -5,11 +5,11 @@
 
 import Streamly
 import Streamly.Prelude as S
-import Control.Monad (when)
+import Control.Monad (void, when)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT, put)
 
-data Event = Harm Int | Heal Int deriving (Show)
+data Event = Quit | Harm Int | Heal Int deriving (Show)
 
 userAction :: MonadAsync m => SerialT m Event
 userAction = S.repeatM $ liftIO askUser
@@ -18,26 +18,34 @@ userAction = S.repeatM $ liftIO askUser
         command <- getLine
         case command of
             "potion" -> return (Heal 10)
-            "quit"   -> fail "quit"
-            _        -> putStrLn "What?" >> askUser
+            "harm"   -> return (Harm 10)
+            "quit"   -> return Quit
+            _        -> putStrLn "Type potion or harm or quit" >> askUser
 
 acidRain :: MonadAsync m => SerialT m Event
 acidRain = asyncly $ constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
 
-game :: (MonadAsync m, MonadState Int m) => SerialT m ()
-game = do
+data Status = Check | Done
+
+processEvents :: (MonadAsync m, MonadState Int m) => SerialT m Status
+processEvents = do
     event <- userAction `parallel` acidRain
     case event of
-        Harm n -> modify $ \h -> h - n
-        Heal n -> modify $ \h -> h + n
+        Harm n -> modify (\h -> h - n) >> return Check
+        Heal n -> modify (\h -> h + n) >> return Check
+        Quit -> return Done
 
-    h <- get
-    when (h <= 0) $ fail "You die!"
-    liftIO $ putStrLn $ "Health = " <> show h
+checkStatus status =
+    case status of
+        Done  -> liftIO $ putStrLn "You quit!" >> return False
+        Check -> do
+            h <- get
+            liftIO $ if (h <= 0)
+                     then putStrLn "You die!" >> return False
+                     else putStrLn ("Health = " <> show h) >> return True
 
 main :: IO ()
 main = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
-    _ <- runStateT (runStream game) 60
-    return ()
+    void $ runStateT (S.any (== False) $ S.mapM checkStatus $ processEvents) 60
