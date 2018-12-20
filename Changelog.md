@@ -2,7 +2,7 @@
 
 ### Breaking changes
 
-* 'Monad' constraint may be needed on some of the existing APIs.
+* `Monad` constraint may be needed on some of the existing APIs.
 
 ### Enhancements
 
@@ -10,9 +10,8 @@
 * Performance improvements
 * Add the following functions to Prelude:
     * Generation: `replicate`, `fromIndices`, `fromIndicesM`
-    * Enumeration: `intFrom`, `intFromTo`, `intFromThen`, `intFromThenTo`,
-                   `intFromStep`, `fracFrom`, `fracFromThen`, `fracFromThenTo`,
-                   `numFromStep`
+    * Enumeration: `Enumerable`, `enumerateFrom`, `enumerateFromTo`,
+      `enumerateFromThen`, `enumerateFromThenTo`, `enumerate`
     * Folds: `(!!)`, `maximumBy`, `minimumBy`, `the`
     * Scans: `scanl1'`, `scanl1M'
     * Filters: `uniq`, `insertBy`, `deleteBy`, `findM`

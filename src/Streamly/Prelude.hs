@@ -68,25 +68,25 @@ module Streamly.Prelude
     , replicate
     , replicateM
 
+    -- Note: Using enumeration functions e.g. 'Prelude.enumFromThen' turns out
+    -- to be slightly faster than the idioms like @[from, then..]@.
+    --
     -- ** Enumeration
-    -- | The haskell 'Enum' typeclass provides enumerations for member types.
-    -- However, the typeclass is tied to lists, it is impossible to use it to
-    -- write enumeration functions producing something other than a list in a
-    -- generic way.
-    -- We can use the 'Enum' facilities to enumerate the type producing a list
+    -- | We can use the 'Enum' type class to enumerate a type producing a list
     -- and then convert it to a stream:
     --
     -- @
     -- 'fromList' $ 'Prelude.enumFromThen' from then
     -- @
     --
-    -- However, this is not particularly efficient.  Note that using
-    -- enumeration functions e.g. 'Prelude.enumFromThen' is slightly faster
-    -- than the idioms like @[from, then..]@.
+    -- However, this is not particularly efficient.
+    -- The 'Enumerable' type class provides corresponding functions that
+    -- generate a stream instead of a list. This library implements generic
+    -- functions for 'Integral' type enumerations with bounds check and
+    -- numerically stable 'Fractional' type enumerations. These functions are
+    -- not exposed but can be exposed if needed to write new instances.
     --
-    -- For the cases where speed matters, we have provided specific 'Enum' like
-    -- implementations for enumeration.
-    --
+    {-
     , intFrom
     , intFromTo
     , intFromThen
@@ -98,6 +98,10 @@ module Streamly.Prelude
     , fracFromThen
     , fracFromThenTo
     , numFromStep
+    -}
+
+    , Enumerable (..)
+    , enumerate
 
     -- ** From Generators
     -- | Generate a monadic stream from a seed value and a generator function.
@@ -360,6 +364,15 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap)
+
+-- Numeric Types
+import Data.Fixed
+import Data.Int
+import Data.Ratio
+import Data.Word
+import Numeric.Natural
+import Data.Functor.Identity (Identity(..))
+
 import qualified Prelude
 import qualified System.IO as IO
 
@@ -613,9 +626,9 @@ intFromThenTo from next to = fromStreamD $ D.intFromThenTo from next to
 -- @
 --
 -- @since 0.6.0
-{-# INLINE numFromStep #-}
-numFromStep :: (IsStream t, Monad m, Num a) => a -> a -> t m a
-numFromStep from stride = fromStreamD $ D.numFromStep from stride
+{-# INLINE _numFromStep #-}
+_numFromStep :: (IsStream t, Monad m, Num a) => a -> a -> t m a
+_numFromStep from stride = fromStreamD $ D.numFromStep from stride
 
 -- Even though the underlying implementation of fracFrom and fracFromThen works
 -- for any 'Num' we have restricted these to 'Fractional' because these do not
@@ -704,6 +717,204 @@ fracFromThenTo
     :: (IsStream t, Monad m, Fractional a, Ord a)
     => a -> a -> a -> t m a
 fracFromThenTo from next to = fromStreamD $ D.fracFromThenTo from next to
+
+-- NOTE: We would like to rewrite calls to fromList [1..] etc. to stream
+-- enumerations like this:
+--
+-- {-# RULES "fromList enumFrom" [1]
+--     forall (a :: Int). D.fromList (enumFrom a) = D.intFrom a #-}
+--
+-- But this does not work because enumFrom is a class method and GHC rewrites
+-- it quickly, so we do not get a chance to have our rule fired.
+--
+-- NOTE: the default definitions will not work for:
+-- * unbounded types
+-- * bounded types larger than Int
+-- * fractional types.
+--
+-- For unbounded or larger integral types use intFrom, intFromThen etc to
+-- define the instance.  For fractional types use fracFrom, fracFromThen etc to
+-- define the instance.
+--
+-- | Types that can be enumerated as a stream. The operations in this type
+-- class are equivalent to those in the 'Enum' type class, except that these
+-- generate a stream instead of a list.
+--
+-- @since 0.6.0
+class Enum a => Enumerable a where
+    -- | @enumerateFrom from@ generates a stream starting with the element
+    -- @from@, enumerating up to 'maxBound' when the type is 'Bounded' or
+    -- generating an infinite stream when the type is not 'Bounded'.
+    --
+    -- @
+    -- > S.toList $ S.take 4 $ S.enumerateFrom (0 :: Int)
+    -- [0,1,2,3]
+    -- @
+    --
+    -- For 'Fractional' types, enumeration is numerically stable. However, no
+    -- overflow or underflow checks are performed.
+    --
+    -- @
+    -- > S.toList $ S.take 4 $ S.enumerateFrom 1.1
+    -- [1.1,2.1,3.1,4.1]
+    -- @
+    --
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom :: (IsStream t, Monad m) => a -> t m a
+    enumerateFrom from = Serial.map toEnum $
+        intFrom (fromEnum from)
+
+    -- | Generate a finite stream starting with the element @from@, enumerating
+    -- the type up to the value @to@. If @to@ is smaller than @from@ then an
+    -- empty stream is returned.
+    --
+    -- @
+    -- > S.toList $ S.enumerateFromTo 0 4
+    -- [0,1,2,3,4]
+    -- @
+    --
+    -- For 'Fractional' types, the last element is equal to the specified @to@
+    -- value after rounding to the nearest integral value.
+    --
+    -- @
+    -- > S.toList $ S.enumerateFromTo 1.1 4
+    -- [1.1,2.1,3.1,4.1]
+    -- > S.toList $ S.enumerateFromTo 1.1 4.6
+    -- [1.1,2.1,3.1,4.1,5.1]
+    -- @
+    --
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo :: (IsStream t, Monad m) => a -> a -> t m a
+    enumerateFromTo from to = Serial.map toEnum $
+        intFromTo (fromEnum from) (fromEnum to)
+
+    -- | @enumerateFromThen from then@ generates a stream whose first element
+    -- is @from@, the second element is @then@ and the successive elements are
+    -- in increments of @then - from@.  Enumeration can occur downwards or
+    -- upwards depending on whether @then@ comes before or after @from@. For
+    -- 'Bounded' types the stream ends when 'maxBound' is reached, for
+    -- unbounded types it keeps enumerating infinitely.
+    --
+    -- @
+    -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 2
+    -- [0,2,4,6]
+    -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 (-2)
+    -- [0,-2,-4,-6]
+    -- @
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen :: (IsStream t, Monad m) => a -> a -> t m a
+    enumerateFromThen from next = Serial.map toEnum $
+        intFromThen (fromEnum from) (fromEnum next)
+
+    -- | @enumerateFromThenTo from then to@ generates a finite stream whose
+    -- first element is @from@, the second element is @then@ and the successive
+    -- elements are in increments of @then - from@ up to @to@. Enumeration can
+    -- occur downwards or upwards depending on whether @then@ comes before or
+    -- after @from@.
+    --
+    -- @
+    -- > S.toList $ S.enumerateFromThenTo 0 2 6
+    -- [0,2,4,6]
+    -- > S.toList $ S.enumerateFromThenTo 0 (-2) (-6)
+    -- [0,-2,-4,-6]
+    -- @
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo :: (IsStream t, Monad m) => a -> a -> a -> t m a
+    enumerateFromThenTo from next to = Serial.map toEnum $
+        intFromThenTo (fromEnum from) (fromEnum next) (fromEnum to)
+
+-- For types smaller than or equal to Int default definitions will work.
+
+instance Enumerable ()
+instance Enumerable Bool
+instance Enumerable Ordering
+instance Enumerable Char
+instance Enumerable Int
+instance Enumerable Int8
+instance Enumerable Int16
+instance Enumerable Int32
+instance Enumerable Word
+instance Enumerable Word8
+instance Enumerable Word16
+instance Enumerable Word32
+
+#define ENUMERABLE_BOUNDED_INTEGRAL(INTEGRAL_TYPE)  \
+instance Enumerable INTEGRAL_TYPE where {           \
+    {-# INLINE enumerateFrom #-};                   \
+    enumerateFrom = intFrom;                        \
+    {-# INLINE enumerateFromThen #-};               \
+    enumerateFromThen = intFromThen;                \
+    {-# INLINE enumerateFromTo #-};                 \
+    enumerateFromTo = intFromTo;                    \
+    {-# INLINE enumerateFromThenTo #-};             \
+    enumerateFromThenTo = intFromThenTo }
+
+-- The default definitions for these will work only if the size of Int is same
+-- as Int64. So we just use safe definitions.
+ENUMERABLE_BOUNDED_INTEGRAL(Int64)
+ENUMERABLE_BOUNDED_INTEGRAL(Word64)
+
+-- For unbounded cases use intFromStep
+#define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
+instance Enumerable INTEGRAL_TYPE where {                         \
+    {-# INLINE enumerateFrom #-};                                 \
+    enumerateFrom from = intFromStep from 1;                      \
+    {-# INLINE enumerateFromThen #-};                             \
+    enumerateFromThen from next = intFromStep from (next - from); \
+    {-# INLINE enumerateFromTo #-};                               \
+    enumerateFromTo = intFromTo;                                  \
+    {-# INLINE enumerateFromThenTo #-};                           \
+    enumerateFromThenTo = intFromThenTo }
+
+ENUMERABLE_UNBOUNDED_INTEGRAL(Integer)
+ENUMERABLE_UNBOUNDED_INTEGRAL(Natural)
+
+#define ENUMERABLE_FRACTIONAL(FRACTIONAL_TYPE,CONSTRAINT)         \
+instance (CONSTRAINT) => Enumerable (FRACTIONAL_TYPE) where {     \
+    {-# INLINE enumerateFrom #-};                                 \
+    enumerateFrom = fracFrom;                                     \
+    {-# INLINE enumerateFromThen #-};                             \
+    enumerateFromThen = fracFromThen;                             \
+    {-# INLINE enumerateFromTo #-};                               \
+    enumerateFromTo = fracFromTo;                                 \
+    {-# INLINE enumerateFromThenTo #-};                           \
+    enumerateFromThenTo = fracFromThenTo }
+
+ENUMERABLE_FRACTIONAL(Float,)
+ENUMERABLE_FRACTIONAL(Double,)
+ENUMERABLE_FRACTIONAL(Fixed a,HasResolution a)
+ENUMERABLE_FRACTIONAL(Ratio a,Integral a)
+
+#if __GLASGOW_HASKELL__ >= 800
+instance Enumerable a => Enumerable (Identity a) where
+    {-# INLINE enumerateFrom #-}
+    enumerateFrom (Identity from) = Serial.map Identity $
+        enumerateFrom from
+    {-# INLINE enumerateFromThen #-}
+    enumerateFromThen (Identity from) (Identity next) = Serial.map Identity $
+        enumerateFromThen from next
+    {-# INLINE enumerateFromTo #-}
+    enumerateFromTo (Identity from) (Identity to) = Serial.map Identity $
+        enumerateFromTo from to
+    {-# INLINE enumerateFromThenTo #-}
+    enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
+        Serial.map Identity $ enumerateFromThenTo from next to
+#endif
+{-
+-- TODO
+instance Enumerable a => Enumerable (Last a)
+instance Enumerable a => Enumerable (First a)
+instance Enumerable a => Enumerable (Max a)
+instance Enumerable a => Enumerable (Min a)
+instance Enumerable a => Enumerable (Const a b)
+instance Enumerable (f a) => Enumerable (Alt f a)
+instance Enumerable (f a) => Enumerable (Ap f a)
+-}
+
+-- | Enumerate a finite ('Bounded') data type from its 'minBound' to 'maxBound'
+{-# INLINE enumerate #-}
+enumerate :: (IsStream t, Monad m, Bounded a, Enumerable a) => t m a
+enumerate = enumerateFrom minBound
 
 -- |
 -- @

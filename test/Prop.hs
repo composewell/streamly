@@ -123,7 +123,7 @@ constructWithIntFromThenTo op l =
     forAll (choose (minBound, maxBound)) $ \next ->
     forAll (choose (minBound, maxBound)) $ \to ->
         let list len = take len [from,next..to]
-            stream len = S.take len $ S.intFromThenTo from next to
+            stream len = S.take len $ S.enumerateFromThenTo from next to
         in constructWithLen stream list op l
 
 #if __GLASGOW_HASKELL__ >= 806

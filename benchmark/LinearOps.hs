@@ -53,24 +53,26 @@ source n = sourceUnfoldrM n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromTo n = S.intFromTo n (n + value)
+sourceIntFromTo n = S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromThenTo #-}
 sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromThenTo n = S.intFromThenTo n (n + 1) (n + value)
+sourceIntFromThenTo n = S.enumerateFromThenTo n (n + 1) (n + value)
 
 {-# INLINE sourceFracFromTo #-}
 sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromTo n = S.fracFromTo (fromIntegral n) (fromIntegral (n + value))
+sourceFracFromTo n =
+    S.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
 
 {-# INLINE sourceFracFromThenTo #-}
 sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromThenTo n = S.fracFromThenTo (fromIntegral n)
+sourceFracFromThenTo n = S.enumerateFromThenTo (fromIntegral n)
     (fromIntegral n + 1.0001) (fromIntegral (n + value))
 
 {-# INLINE sourceIntegerFromStep #-}
 sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> t m Integer
-sourceIntegerFromStep n = S.take value $ S.intFromStep (fromIntegral n) 1
+sourceIntegerFromStep n =
+    S.take value $ S.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
