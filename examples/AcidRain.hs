@@ -25,27 +25,31 @@ userAction = S.repeatM $ liftIO askUser
 acidRain :: MonadAsync m => SerialT m Event
 acidRain = asyncly $ constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
 
-data Status = Check | Done
+data Result = Check | Done
 
-processEvents :: (MonadAsync m, MonadState Int m) => SerialT m Status
-processEvents = do
+runEvents :: (MonadAsync m, MonadState Int m) => SerialT m Result
+runEvents = do
     event <- userAction `parallel` acidRain
     case event of
         Harm n -> modify (\h -> h - n) >> return Check
         Heal n -> modify (\h -> h + n) >> return Check
         Quit -> return Done
 
-checkStatus status =
-    case status of
-        Done  -> liftIO $ putStrLn "You quit!" >> return False
+data Status = Alive | GameOver deriving Eq
+
+getStatus :: (MonadAsync m, MonadState Int m) => Result -> m Status
+getStatus result =
+    case result of
+        Done  -> liftIO $ putStrLn "You quit!" >> return GameOver
         Check -> do
             h <- get
             liftIO $ if (h <= 0)
-                     then putStrLn "You die!" >> return False
-                     else putStrLn ("Health = " <> show h) >> return True
+                     then putStrLn "You die!" >> return GameOver
+                     else putStrLn ("Health = " <> show h) >> return Alive
 
 main :: IO ()
 main = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
-    void $ runStateT (S.any (== False) $ S.mapM checkStatus $ processEvents) 60
+    let runGame = S.runWhile (== Alive) $ S.mapM getStatus runEvents
+    void $ runStateT runGame 60

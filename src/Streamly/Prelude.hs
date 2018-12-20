@@ -180,6 +180,11 @@ module Streamly.Prelude
     , foldx
     , foldxM
 
+    -- ** Run Effects
+    , runStream
+    , runN
+    , runWhile
+
     -- ** To Elements
     -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
@@ -1345,6 +1350,35 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 ------------------------------------------------------------------------------
 -- Specialized folds
 ------------------------------------------------------------------------------
+
+-- | Run a stream, discarding the results. By default it interprets the stream
+-- as 'SerialT', to run other types of streams use the type adapting
+-- combinators for example @runStream . 'asyncly'@.
+--
+-- @since 0.2.0
+{-# INLINE runStream #-}
+runStream :: Monad m => SerialT m a -> m ()
+runStream = P.runStream
+
+-- |
+-- > runN n = runStream . take n
+--
+-- Run maximum up to @n@ iterations of a stream.
+--
+-- @since 0.6.0
+{-# INLINE runN #-}
+runN :: Monad m => Int -> SerialT m a -> m ()
+runN n = runStream . take n
+
+-- |
+-- > runWhile p = runStream . takeWhile p
+--
+-- Run a stream as long as the predicate holds true.
+--
+-- @since 0.6.0
+{-# INLINE runWhile #-}
+runWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
+runWhile p = runStream . takeWhile p
 
 -- | Determine whether the stream is empty.
 --

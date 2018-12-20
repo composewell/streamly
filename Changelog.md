@@ -12,6 +12,7 @@
     * Generation: `replicate`, `fromIndices`, `fromIndicesM`
     * Enumeration: `Enumerable`, `enumerateFrom`, `enumerateFromTo`,
       `enumerateFromThen`, `enumerateFromThenTo`, `enumerate`
+    * Running: `runIters`, `runWhile`
     * Folds: `(!!)`, `maximumBy`, `minimumBy`, `the`
     * Scans: `scanl1'`, `scanl1M'
     * Filters: `uniq`, `insertBy`, `deleteBy`, `findM`
