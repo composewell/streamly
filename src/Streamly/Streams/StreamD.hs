@@ -62,17 +62,17 @@ module Streamly.Streams.StreamD
     , generateM
 
     -- ** Enumerations
-    , intFromStep
-    , intFrom
-    , intFromThen
-    , intFromTo
-    , intFromThenTo
+    , enumerateFromStepIntegral
+    , enumerateFromIntegral
+    , enumerateFromThenIntegral
+    , enumerateFromToIntegral
+    , enumerateFromThenToIntegral
 
-    , numFromStep
+    , enumerateFromStepNum
     , numFrom
     , numFromThen
-    , fracFromTo
-    , fracFromThenTo
+    , enumerateFromToFractional
+    , enumerateFromThenToFractional
 
     -- ** Conversions
     -- | Transform an input structure into a stream.
@@ -288,9 +288,9 @@ replicate n x = replicateM n (return x)
 -- constraint.
 -- | Can be used to enumerate unbounded integrals. This does not check for
 -- overflow or underflow for bounded integrals.
-{-# INLINE_NORMAL intFromStep #-}
-intFromStep :: (Integral a, Monad m) => a -> a -> Stream m a
-intFromStep from stride =
+{-# INLINE_NORMAL enumerateFromStepIntegral #-}
+enumerateFromStepIntegral :: (Integral a, Monad m) => a -> a -> Stream m a
+enumerateFromStepIntegral from stride =
     from `seq` stride `seq` Stream step from
     where
         {-# INLINE_LATE step #-}
@@ -298,19 +298,22 @@ intFromStep from stride =
 
 -- We are assuming that "to" is constrained by the type to be within
 -- max/min bounds.
-{-# INLINE intFromTo #-}
-intFromTo :: (Monad m, Integral a) => a -> a -> Stream m a
-intFromTo from to = takeWhile (<= to) $ intFromStep from 1
+{-# INLINE enumerateFromToIntegral #-}
+enumerateFromToIntegral :: (Monad m, Integral a) => a -> a -> Stream m a
+enumerateFromToIntegral from to =
+    takeWhile (<= to) $ enumerateFromStepIntegral from 1
 
-{-# INLINE intFrom #-}
-intFrom :: (Monad m, Integral a, Bounded a) => a -> Stream m a
-intFrom from = intFromTo from maxBound
+{-# INLINE enumerateFromIntegral #-}
+enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => a -> Stream m a
+enumerateFromIntegral from = enumerateFromToIntegral from maxBound
 
 data EnumState a = EnumInit | EnumYield a a a | EnumStop
 
-{-# INLINE_NORMAL intFromThenToUp #-}
-intFromThenToUp :: (Monad m, Integral a) => a -> a -> a -> Stream m a
-intFromThenToUp from next to = Stream step EnumInit
+{-# INLINE_NORMAL enumerateFromThenToIntegralUp #-}
+enumerateFromThenToIntegralUp
+    :: (Monad m, Integral a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToIntegralUp from next to = Stream step EnumInit
     where
     {-# INLINE_LATE step #-}
     step _ EnumInit =
@@ -331,9 +334,11 @@ intFromThenToUp from next to = Stream step EnumInit
 
     step _ EnumStop = return Stop
 
-{-# INLINE_NORMAL intFromThenToDn #-}
-intFromThenToDn :: (Monad m, Integral a) => a -> a -> a -> Stream m a
-intFromThenToDn from next to = Stream step EnumInit
+{-# INLINE_NORMAL enumerateFromThenToIntegralDn #-}
+enumerateFromThenToIntegralDn
+    :: (Monad m, Integral a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToIntegralDn from next to = Stream step EnumInit
     where
     {-# INLINE_LATE step #-}
     step _ EnumInit =
@@ -353,18 +358,22 @@ intFromThenToDn from next to = Stream step EnumInit
 
     step _ EnumStop = return Stop
 
-{-# INLINE_NORMAL intFromThenTo #-}
-intFromThenTo :: (Monad m, Integral a) => a -> a -> a -> Stream m a
-intFromThenTo from next to
-    | next >= from = intFromThenToUp from next to
-    | otherwise    = intFromThenToDn from next to
+{-# INLINE_NORMAL enumerateFromThenToIntegral #-}
+enumerateFromThenToIntegral
+    :: (Monad m, Integral a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToIntegral from next to
+    | next >= from = enumerateFromThenToIntegralUp from next to
+    | otherwise    = enumerateFromThenToIntegralDn from next to
 
-{-# INLINE_NORMAL intFromThen #-}
-intFromThen :: (Monad m, Integral a, Bounded a) => a -> a -> Stream m a
-intFromThen from next =
+{-# INLINE_NORMAL enumerateFromThenIntegral #-}
+enumerateFromThenIntegral
+    :: (Monad m, Integral a, Bounded a)
+    => a -> a -> Stream m a
+enumerateFromThenIntegral from next =
     if next > from
-    then intFromThenToUp from next maxBound
-    else intFromThenToDn from next minBound
+    then enumerateFromThenToIntegralUp from next maxBound
+    else enumerateFromThenToIntegralDn from next minBound
 
 -- For floating point numbers if the increment is less than the precision then
 -- it just gets lost. Therefore we cannot always increment it correctly by just
@@ -375,33 +384,39 @@ intFromThen from next =
 -- Instead we accumulate the increment counter and compute the increment
 -- everytime before adding it to the starting number.
 --
--- This works for Integrals as well as floating point numbers, but intFromStep
--- is faster for integrals.
-{-# INLINE_NORMAL numFromStep #-}
-numFromStep :: (Monad m, Num a) => a -> a -> Stream m a
-numFromStep from stride = Stream step 0
+-- This works for Integrals as well as floating point numbers, but
+-- enumerateFromStepIntegral is faster for integrals.
+{-# INLINE_NORMAL enumerateFromStepNum #-}
+enumerateFromStepNum :: (Monad m, Num a) => a -> a -> Stream m a
+enumerateFromStepNum from stride = Stream step 0
     where
     {-# INLINE_LATE step #-}
     step _ !i = return $ (Yield $! (from + i * stride)) $! (i + 1)
 
 {-# INLINE_NORMAL numFrom #-}
 numFrom :: (Monad m, Num a) => a -> Stream m a
-numFrom from = numFromStep from 1
+numFrom from = enumerateFromStepNum from 1
 
 {-# INLINE_NORMAL numFromThen #-}
 numFromThen :: (Monad m, Num a) => a -> a -> Stream m a
-numFromThen from next = numFromStep from (next - from)
+numFromThen from next = enumerateFromStepNum from (next - from)
 
 -- We cannot write a general function for Num.  The only way to write code
 -- portable between the two is to use a 'Real' constraint and convert between
 -- Fractional and Integral using fromRational which is horribly slow.
-{-# INLINE_NORMAL fracFromTo #-}
-fracFromTo :: (Monad m, Fractional a, Ord a) => a -> a -> Stream m a
-fracFromTo from to = takeWhile (<= to + 1/2) $ numFromStep from 1
+{-# INLINE_NORMAL enumerateFromToFractional #-}
+enumerateFromToFractional
+    :: (Monad m, Fractional a, Ord a)
+    => a -> a -> Stream m a
+enumerateFromToFractional from to =
+    takeWhile (<= to + 1 / 2) $ enumerateFromStepNum from 1
 
-{-# INLINE_NORMAL fracFromThenTo #-}
-fracFromThenTo :: (Monad m, Fractional a, Ord a) => a -> a -> a -> Stream m a
-fracFromThenTo from next to = takeWhile predicate $ numFromThen from next
+{-# INLINE_NORMAL enumerateFromThenToFractional #-}
+enumerateFromThenToFractional
+    :: (Monad m, Fractional a, Ord a)
+    => a -> a -> a -> Stream m a
+enumerateFromThenToFractional from next to =
+    takeWhile predicate $ numFromThen from next
     where
     mid = (next - from) / 2
     predicate | next >= from  = (<= to + mid)

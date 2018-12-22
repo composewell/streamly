@@ -146,6 +146,7 @@ library
     exposed-modules:   Streamly.Prelude
                      , Streamly.List
                      , Streamly.String
+                     , Streamly.Enumeration
                      , Streamly.Time
                      , Streamly
                      , Streamly.Tutorial
