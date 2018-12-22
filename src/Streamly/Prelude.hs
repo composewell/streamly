@@ -723,6 +723,40 @@ fracFromThenTo
     => a -> a -> a -> t m a
 fracFromThenTo from next to = fromStreamD $ D.fracFromThenTo from next to
 
+-------------------------------------------------------------------------------
+-- Enumeration of Enum types
+-------------------------------------------------------------------------------
+--
+-- | 'enumerateFromTo' for 'Enum' types not larger than 'Int'.
+{-# INLINE enumerateFromToSmall #-}
+enumerateFromToSmall :: (IsStream t, Monad m, Enum a) => a -> a -> t m a
+enumerateFromToSmall from to = Serial.map toEnum $
+    intFromTo (fromEnum from) (fromEnum to)
+
+-- | 'enumerateFrom' for 'Bounded' 'Enum' types.
+{-# INLINE enumerateFromBounded #-}
+enumerateFromBounded :: (IsStream t, Monad m, Enumerable a, Bounded a)
+    => a -> t m a
+enumerateFromBounded from = enumerateFromTo from maxBound
+
+{-# INLINE enumerateFromThenToSmall #-}
+enumerateFromThenToSmall :: (IsStream t, Monad m, Enum a)
+    => a -> a -> a -> t m a
+enumerateFromThenToSmall from next to = Serial.map toEnum $
+    intFromThenTo (fromEnum from) (fromEnum next) (fromEnum to)
+
+-- | 'enumerateFromThen' for 'Bounded' 'Enum' types not larger than 'Int'.  For
+-- types smaller than 'Int' we know it is 'Bounded' as well. Though it is not
+-- necessary to require 'Bounded' instance for all small types, we require it
+-- anyway because it is safe that way.
+{-# INLINE enumerateFromThenBoundedSmall #-}
+enumerateFromThenBoundedSmall :: (IsStream t, Monad m, Enumerable a, Bounded a)
+    => a -> a -> t m a
+enumerateFromThenBoundedSmall from next =
+    case fromEnum next >= fromEnum from of
+        True -> enumerateFromThenTo from next maxBound
+        False -> enumerateFromThenTo from next minBound
+
 -- NOTE: We would like to rewrite calls to fromList [1..] etc. to stream
 -- enumerations like this:
 --
@@ -732,18 +766,10 @@ fracFromThenTo from next to = fromStreamD $ D.fracFromThenTo from next to
 -- But this does not work because enumFrom is a class method and GHC rewrites
 -- it quickly, so we do not get a chance to have our rule fired.
 --
--- NOTE: the default definitions will not work for:
--- * unbounded types
--- * bounded types larger than Int
--- * fractional types.
---
--- For unbounded or larger integral types use intFrom, intFromThen etc to
--- define the instance.  For fractional types use fracFrom, fracFromThen etc to
--- define the instance.
---
 -- | Types that can be enumerated as a stream. The operations in this type
 -- class are equivalent to those in the 'Enum' type class, except that these
--- generate a stream instead of a list.
+-- generate a stream instead of a list. Use the functions in
+-- "Streamly.Enumeration" module to define new instances.
 --
 -- @since 0.6.0
 class Enum a => Enumerable a where
@@ -764,10 +790,7 @@ class Enum a => Enumerable a where
     -- [1.1,2.1,3.1,4.1]
     -- @
     --
-    {-# INLINE enumerateFrom #-}
     enumerateFrom :: (IsStream t, Monad m) => a -> t m a
-    enumerateFrom from = Serial.map toEnum $
-        intFrom (fromEnum from)
 
     -- | Generate a finite stream starting with the element @from@, enumerating
     -- the type up to the value @to@. If @to@ is smaller than @from@ then an
@@ -788,10 +811,7 @@ class Enum a => Enumerable a where
     -- [1.1,2.1,3.1,4.1,5.1]
     -- @
     --
-    {-# INLINE enumerateFromTo #-}
     enumerateFromTo :: (IsStream t, Monad m) => a -> a -> t m a
-    enumerateFromTo from to = Serial.map toEnum $
-        intFromTo (fromEnum from) (fromEnum to)
 
     -- | @enumerateFromThen from then@ generates a stream whose first element
     -- is @from@, the second element is @then@ and the successive elements are
@@ -806,10 +826,7 @@ class Enum a => Enumerable a where
     -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 (-2)
     -- [0,-2,-4,-6]
     -- @
-    {-# INLINE enumerateFromThen #-}
     enumerateFromThen :: (IsStream t, Monad m) => a -> a -> t m a
-    enumerateFromThen from next = Serial.map toEnum $
-        intFromThen (fromEnum from) (fromEnum next)
 
     -- | @enumerateFromThenTo from then to@ generates a finite stream whose
     -- first element is @from@, the second element is @then@ and the successive
@@ -823,26 +840,27 @@ class Enum a => Enumerable a where
     -- > S.toList $ S.enumerateFromThenTo 0 (-2) (-6)
     -- [0,-2,-4,-6]
     -- @
-    {-# INLINE enumerateFromThenTo #-}
     enumerateFromThenTo :: (IsStream t, Monad m) => a -> a -> a -> t m a
-    enumerateFromThenTo from next to = Serial.map toEnum $
-        intFromThenTo (fromEnum from) (fromEnum next) (fromEnum to)
 
--- For types smaller than or equal to Int default definitions will work.
+-- For Enum types smaller than or equal to Int size.
+#define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
+instance Enumerable SMALL_TYPE where {                 \
+    {-# INLINE enumerateFrom #-};                      \
+    enumerateFrom = enumerateFromBounded;              \
+    {-# INLINE enumerateFromThen #-};                  \
+    enumerateFromThen = enumerateFromThenBoundedSmall; \
+    {-# INLINE enumerateFromTo #-};                    \
+    enumerateFromTo = enumerateFromToSmall;            \
+    {-# INLINE enumerateFromThenTo #-};                \
+    enumerateFromThenTo = enumerateFromThenToSmall }
 
-instance Enumerable ()
-instance Enumerable Bool
-instance Enumerable Ordering
-instance Enumerable Char
-instance Enumerable Int
-instance Enumerable Int8
-instance Enumerable Int16
-instance Enumerable Int32
-instance Enumerable Word
-instance Enumerable Word8
-instance Enumerable Word16
-instance Enumerable Word32
 
+ENUMERABLE_BOUNDED_SMALL(())
+ENUMERABLE_BOUNDED_SMALL(Bool)
+ENUMERABLE_BOUNDED_SMALL(Ordering)
+ENUMERABLE_BOUNDED_SMALL(Char)
+
+-- For bounded Integral Enum types, may be larger than Int.
 #define ENUMERABLE_BOUNDED_INTEGRAL(INTEGRAL_TYPE)  \
 instance Enumerable INTEGRAL_TYPE where {           \
     {-# INLINE enumerateFrom #-};                   \
@@ -854,12 +872,18 @@ instance Enumerable INTEGRAL_TYPE where {           \
     {-# INLINE enumerateFromThenTo #-};             \
     enumerateFromThenTo = intFromThenTo }
 
--- The default definitions for these will work only if the size of Int is same
--- as Int64. So we just use safe definitions.
+ENUMERABLE_BOUNDED_INTEGRAL(Int)
+ENUMERABLE_BOUNDED_INTEGRAL(Int8)
+ENUMERABLE_BOUNDED_INTEGRAL(Int16)
+ENUMERABLE_BOUNDED_INTEGRAL(Int32)
 ENUMERABLE_BOUNDED_INTEGRAL(Int64)
+ENUMERABLE_BOUNDED_INTEGRAL(Word)
+ENUMERABLE_BOUNDED_INTEGRAL(Word8)
+ENUMERABLE_BOUNDED_INTEGRAL(Word16)
+ENUMERABLE_BOUNDED_INTEGRAL(Word32)
 ENUMERABLE_BOUNDED_INTEGRAL(Word64)
 
--- For unbounded cases use intFromStep
+-- For unbounded Integral Enum types.
 #define ENUMERABLE_UNBOUNDED_INTEGRAL(INTEGRAL_TYPE)              \
 instance Enumerable INTEGRAL_TYPE where {                         \
     {-# INLINE enumerateFrom #-};                                 \
