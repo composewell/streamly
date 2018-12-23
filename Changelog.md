@@ -10,9 +10,9 @@
 * Performance improvements
 * Add the following functions to Prelude:
     * Generation: `replicate`, `fromIndices`, `fromIndicesM`
-    * Enumeration: `Enumerable`, `enumerateFrom`, `enumerateFromTo`,
-      `enumerateFromThen`, `enumerateFromThenTo`, `enumerate`
-    * Running: `runIters`, `runWhile`
+    * Enumeration: `Enumerable` type class, `enumerateFrom`, `enumerateFromTo`,
+      `enumerateFromThen`, `enumerateFromThenTo`, `enumerate`, `enumerateTo`
+    * Running: `runN`, `runWhile`
     * Folds: `(!!)`, `maximumBy`, `minimumBy`, `the`
     * Scans: `scanl1'`, `scanl1M'
     * Filters: `uniq`, `insertBy`, `deleteBy`, `findM`

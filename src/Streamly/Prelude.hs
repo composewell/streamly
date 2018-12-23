@@ -85,6 +85,7 @@ module Streamly.Prelude
 
     , Enumerable (..)
     , enumerate
+    , enumerateTo
 
     -- ** From Generators
     -- | Generate a monadic stream from a seed value and a generator function.
@@ -356,7 +357,7 @@ import Prelude
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.Enumeration (Enumerable(..), enumerate)
+import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.SVar (MonadAsync, defState, rstState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)

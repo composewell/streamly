@@ -25,31 +25,33 @@
 module Streamly.Enumeration
     (
       Enumerable (..)
-    , enumerate
 
-    -- ** Enumerating 'Enum' Types
+    -- ** Enumerating 'Bounded' 'Enum' Types
+    , enumerate
+    , enumerateTo
+    , enumerateFromBounded
+
+    -- ** Enumerating 'Enum' Types not larger than 'Int'
     , enumerateFromToSmall
     , enumerateFromThenToSmall
     , enumerateFromThenSmallBounded
-    , enumerateFromBounded
 
     -- ** Enumerating 'Bounded' 'Integral' Types
     , enumerateFromIntegral
     , enumerateFromThenIntegral
 
-    -- ** Enumerating unbounded 'Integral' Types
+    -- ** Enumerating 'Integral' Types
     , enumerateFromToIntegral
     , enumerateFromThenToIntegral
+
+    -- ** Enumerating unbounded 'Integral' Types
     , enumerateFromStepIntegral
 
-    -- ** Enumerating unbounded 'Fractional' Types
+    -- ** Enumerating 'Fractional' Types
     , enumerateFromFractional
     , enumerateFromToFractional
     , enumerateFromThenFractional
     , enumerateFromThenToFractional
-
-    -- ** Enumerating unbounded 'Num' Types
-    , enumerateFromStepNum
     )
 where
 
@@ -72,8 +74,10 @@ import qualified Streamly.Streams.Serial as Serial
 --
 -- | @enumerateFromStepIntegral from step@ generates an infinite stream whose
 -- first element is @from@ and the successive elements are in increments of
--- @step@. This does not check for overflow or underflow if the 'Integral' type
--- is bounded.
+-- @step@.
+--
+-- CAUTION: This function is not safe for finite integral types. It does not
+-- check for overflow, underflow or bounds.
 --
 -- @
 -- > S.toList $ S.take 4 $ S.enumerateFromStepIntegral 0 2
@@ -161,30 +165,6 @@ enumerateFromThenToIntegral
     => a -> a -> a -> t m a
 enumerateFromThenToIntegral from next to =
     fromStreamD $ D.enumerateFromThenToIntegral from next to
-
--------------------------------------------------------------------------------
--- Enumeration of Num types
--------------------------------------------------------------------------------
---
--- | @enumerateFromStepNum from step@ generates an infinite stream whose first
--- element is @from@ and the successive elements are in increments of @step@.
--- This is numerically stable but does not check for overflow or underflow for
--- bounded types. Note, for 'Integral' types 'enumerateFromStepIntegral' is
--- faster.
---
---
--- @
--- > S.toList $ S.take 4 $ S.enumerateFromStepNum 0.1 2
--- [0.1,2.1,4.1,6.1]
--- > S.toList $ S.take 3 $ S.enumerateFromStepNum 0.1 (-2)
--- [0.1,-1.9,-3.9,-5.9]
--- @
---
--- @since 0.6.0
-{-# INLINE enumerateFromStepNum #-}
-enumerateFromStepNum :: (IsStream t, Monad m, Num a) => a -> a -> t m a
-enumerateFromStepNum from stride =
-    fromStreamD $ D.enumerateFromStepNum from stride
 
 -------------------------------------------------------------------------------
 -- Enumeration of Fractional types
@@ -287,40 +267,35 @@ enumerateFromThenToFractional from next to =
     fromStreamD $ D.enumerateFromThenToFractional from next to
 
 -------------------------------------------------------------------------------
--- Enumeration of Enum types
+-- Enumeration of Enum types not larger than Int
 -------------------------------------------------------------------------------
 --
--- | 'enumerateFromTo' for 'Enum' types not larger than 'Int'. This function
--- does not check the bounds for 'Bounded' types, it assumes that the @to@
--- parameter is constrained by the type to be within the range representable by
--- the type.
+-- | 'enumerateFromTo' for 'Enum' types not larger than 'Int'.
+--
+-- @since 0.6.0
 {-# INLINE enumerateFromToSmall #-}
 enumerateFromToSmall :: (IsStream t, Monad m, Enum a) => a -> a -> t m a
 enumerateFromToSmall from to = Serial.map toEnum $
     enumerateFromToIntegral (fromEnum from) (fromEnum to)
 
--- | 'enumerateFrom' for 'Bounded' 'Enum' types. This is defined in terms of
--- 'enumerateFromTo', therefore it will work even for types larger than 'Int'
--- depending on 'enumerateFromTo'.
-{-# INLINE enumerateFromBounded #-}
-enumerateFromBounded :: (IsStream t, Monad m, Enumerable a, Bounded a)
-    => a -> t m a
-enumerateFromBounded from = enumerateFromTo from maxBound
-
--- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.  This
--- function does not check the bounds for 'Bounded' types, it assumes that the
--- @to@ parameter is constrained by the type to be within the range
--- representable by the type.
+-- | 'enumerateFromThenTo' for 'Enum' types not larger than 'Int'.
+--
+-- @since 0.6.0
 {-# INLINE enumerateFromThenToSmall #-}
 enumerateFromThenToSmall :: (IsStream t, Monad m, Enum a)
     => a -> a -> a -> t m a
 enumerateFromThenToSmall from next to = Serial.map toEnum $
     enumerateFromThenToIntegral (fromEnum from) (fromEnum next) (fromEnum to)
 
--- | 'enumerateFromThen' for 'Bounded' 'Enum' types not larger than 'Int'.  For
--- types smaller than 'Int' we know it is bounded though it may not have a
--- 'Bounded' instance. It is not necessary to require 'Bounded' instance for
--- all small types, we require it anyway because it is safe that way.
+-- | 'enumerateFromThen' for 'Enum' types not larger than 'Int'.
+--
+-- Note: We convert the 'Enum' to 'Int' and enumerate the 'Int'. If a
+-- type is bounded but does not have a 'Bounded' instance then we can go on
+-- enumerating it beyond the legal values of the type, resulting in the failure
+-- of 'toEnum' when converting back to 'Enum'. Therefore we require a 'Bounded'
+-- instance for this function to be safely used.
+--
+-- @since 0.6.0
 {-# INLINE enumerateFromThenSmallBounded #-}
 enumerateFromThenSmallBounded :: (IsStream t, Monad m, Enumerable a, Bounded a)
     => a -> a -> t m a
@@ -366,6 +341,7 @@ class Enum a => Enumerable a where
     -- [1.1,2.1,3.1,4.1]
     -- @
     --
+    -- @since 0.6.0
     enumerateFrom :: (IsStream t, Monad m) => a -> t m a
 
     -- | Generate a finite stream starting with the element @from@, enumerating
@@ -387,6 +363,7 @@ class Enum a => Enumerable a where
     -- [1.1,2.1,3.1,4.1,5.1]
     -- @
     --
+    -- @since 0.6.0
     enumerateFromTo :: (IsStream t, Monad m) => a -> a -> t m a
 
     -- | @enumerateFromThen from then@ generates a stream whose first element
@@ -402,6 +379,8 @@ class Enum a => Enumerable a where
     -- > S.toList $ S.take 4 $ S.enumerateFromThen 0 (-2)
     -- [0,-2,-4,-6]
     -- @
+    --
+    -- @since 0.6.0
     enumerateFromThen :: (IsStream t, Monad m) => a -> a -> t m a
 
     -- | @enumerateFromThenTo from then to@ generates a finite stream whose
@@ -416,8 +395,60 @@ class Enum a => Enumerable a where
     -- > S.toList $ S.enumerateFromThenTo 0 (-2) (-6)
     -- [0,-2,-4,-6]
     -- @
+    --
+    -- @since 0.6.0
     enumerateFromThenTo :: (IsStream t, Monad m) => a -> a -> a -> t m a
 
+-- MAYBE: Sometimes it is more convenient to know the count rather then the
+-- ending or starting element. For those cases we can define the folllowing
+-- APIs. All of these will work only for bounded types if we represent the
+-- count by Int.
+--
+-- enumerateN
+-- enumerateFromN
+-- enumerateToN
+-- enumerateFromStep
+-- enumerateFromStepN
+
+-------------------------------------------------------------------------------
+-- Convenient functions for bounded types
+-------------------------------------------------------------------------------
+--
+-- |
+-- > enumerate = enumerateFrom minBound
+--
+-- Enumerate a 'Bounded' type from its 'minBound' to 'maxBound'
+--
+-- @since 0.6.0
+{-# INLINE enumerate #-}
+enumerate :: (IsStream t, Monad m, Bounded a, Enumerable a) => t m a
+enumerate = enumerateFrom minBound
+
+-- |
+-- > enumerateTo = enumerateFromTo minBound
+--
+-- Enumerate a 'Bounded' type from its 'minBound' to specified value.
+--
+-- @since 0.6.0
+{-# INLINE enumerateTo #-}
+enumerateTo :: (IsStream t, Monad m, Bounded a, Enumerable a) => a -> t m a
+enumerateTo = enumerateFromTo minBound
+
+-- |
+-- > enumerateFromBounded = enumerateFromTo from maxBound
+--
+-- 'enumerateFrom' for 'Bounded' 'Enum' types.
+--
+-- @since 0.6.0
+{-# INLINE enumerateFromBounded #-}
+enumerateFromBounded :: (IsStream t, Monad m, Enumerable a, Bounded a)
+    => a -> t m a
+enumerateFromBounded from = enumerateFromTo from maxBound
+
+-------------------------------------------------------------------------------
+-- Enumerable Instances
+-------------------------------------------------------------------------------
+--
 -- For Enum types smaller than or equal to Int size.
 #define ENUMERABLE_BOUNDED_SMALL(SMALL_TYPE)           \
 instance Enumerable SMALL_TYPE where {                 \
@@ -506,8 +537,9 @@ instance Enumerable a => Enumerable (Identity a) where
     enumerateFromThenTo (Identity from) (Identity next) (Identity to) =
         Serial.map Identity $ enumerateFromThenTo from next to
 #endif
-{-
+
 -- TODO
+{-
 instance Enumerable a => Enumerable (Last a)
 instance Enumerable a => Enumerable (First a)
 instance Enumerable a => Enumerable (Max a)
@@ -516,8 +548,3 @@ instance Enumerable a => Enumerable (Const a b)
 instance Enumerable (f a) => Enumerable (Alt f a)
 instance Enumerable (f a) => Enumerable (Ap f a)
 -}
-
--- | Enumerate a finite ('Bounded') data type from its 'minBound' to 'maxBound'
-{-# INLINE enumerate #-}
-enumerate :: (IsStream t, Monad m, Bounded a, Enumerable a) => t m a
-enumerate = enumerateFrom minBound
