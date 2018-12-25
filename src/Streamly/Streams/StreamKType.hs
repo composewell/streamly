@@ -34,6 +34,9 @@ module Streamly.Streams.StreamKType
 
     -- * Construction
     , mkStream
+    , fromStopK
+    , fromYieldK
+    , consK
 
     -- * Elimination
     , foldStream
@@ -42,6 +45,7 @@ module Streamly.Streams.StreamKType
 
     -- instances
     , consMSerial
+
     , nil
     , serial
     , map
@@ -58,6 +62,39 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 
 import Streamly.SVar
+
+------------------------------------------------------------------------------
+-- Basic stream type
+------------------------------------------------------------------------------
+
+-- | The type @Stream m a@ represents a monadic stream of values of type 'a'
+-- constructed using actions in monad 'm'. It uses stop, singleton and yield
+-- continuations equivalent to the following direct style type:
+--
+-- @
+-- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
+-- @
+--
+-- To facilitate parallel composition we maintain a local state in an 'SVar'
+-- that is shared across and is used for synchronization of the streams being
+-- composed.
+--
+-- The singleton case can be expressed in terms of stop and yield but we have
+-- it as a separate case to optimize composition operations for streams with
+-- single element.  We build singleton streams in the implementation of 'pure'
+-- for Applicative and Monad, and in 'lift' for MonadTrans.
+--
+-- XXX remove the Stream type parameter from State as it is always constant.
+-- We can remove it from SVar as well
+--
+newtype Stream m a =
+    MkStream (forall r.
+               State Stream m a         -- state
+            -> m r                      -- stop
+            -> (a -> m r)               -- singleton
+            -> (a -> Stream m a -> m r) -- yield
+            -> m r
+            )
 
 ------------------------------------------------------------------------------
 -- Types that can behave as a Stream
@@ -135,39 +172,6 @@ adapt :: (IsStream t1, IsStream t2) => t1 m a -> t2 m a
 adapt = fromStream . toStream
 
 ------------------------------------------------------------------------------
--- Basic stream type
-------------------------------------------------------------------------------
-
--- | The type @Stream m a@ represents a monadic stream of values of type 'a'
--- constructed using actions in monad 'm'. It uses stop, singleton and yield
--- continuations equivalent to the following direct style type:
---
--- @
--- data Stream m a = Stop | Singleton a | Yield a (Stream m a)
--- @
---
--- To facilitate parallel composition we maintain a local state in an 'SVar'
--- that is shared across and is used for synchronization of the streams being
--- composed.
---
--- The singleton case can be expressed in terms of stop and yield but we have
--- it as a separate case to optimize composition operations for streams with
--- single element.  We build singleton streams in the implementation of 'pure'
--- for Applicative and Monad, and in 'lift' for MonadTrans.
---
--- XXX remove the Stream type parameter from State as it is always constant.
--- We can remove it from SVar as well
---
-newtype Stream m a =
-    MkStream (forall r.
-               State Stream m a     -- state
-            -> m r                  -- stop
-            -> (a -> m r)           -- singleton
-            -> (a -> Stream m a -> m r)  -- yield
-            -> m r
-            )
-
-------------------------------------------------------------------------------
 -- Building a stream
 ------------------------------------------------------------------------------
 
@@ -193,6 +197,32 @@ mkStream:: IsStream t
 mkStream k = fromStream $ MkStream $ \st stp sng yld ->
     let yieldk a r = yld a (toStream r)
      in k st stp sng yieldk
+
+-- | A terminal function that has no continuation to follow.
+type StopK m = forall r. m r -> m r
+
+-- | A monadic continuation, it is a function that yields a value of type "a"
+-- and calls the argument (a -> m r) as a continuation with that value. We can
+-- also think of it as a callback with a handler (a -> m r).  Category
+-- theorists call it a codensity type, a special type of right kan extension.
+type YieldK m a = forall r. (a -> m r) -> m r
+
+_wrapM :: Monad m => m a -> YieldK m a
+_wrapM m = \k -> m >>= k
+
+-- | Make an empty stream from a stop function.
+fromStopK :: IsStream t => StopK m -> t m a
+fromStopK k = mkStream $ \_ stp _ _ -> k stp
+
+-- | Make a singleton stream from a yield function.
+fromYieldK :: IsStream t => YieldK m a -> t m a
+fromYieldK k = mkStream $ \_ _ sng _ -> k sng
+
+-- | Add a yield function at the head of the stream.
+consK :: IsStream t => YieldK m a -> t m a -> t m a
+consK k r = mkStream $ \_ _ _ yld -> k (\x -> yld x r)
+
+-- XXX Build a stream from a repeating callback function.
 
 ------------------------------------------------------------------------------
 -- Folding a stream

@@ -49,11 +49,6 @@ module Streamly.Streams.StreamK
     -- * Transformation Primitives
     , unShare
 
-    -- * Asynchronous construction
-    , nilK
-    , yieldK
-    , consK
-
     -- * Deconstruction
     , uncons
 
@@ -215,25 +210,6 @@ infixr 5 .:
 -- @since 0.1.1
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
-
-------------------------------------------------------------------------------
--- Asynchronous construction
-------------------------------------------------------------------------------
-
--- | Make an empty stream from a callback function.
-nilK :: IsStream t => (forall r. m r -> m r) -> t m a
-nilK k = mkStream $ \_ stp _ _ -> k stp
-
--- | Make a singleton stream from a one shot callback function.
-yieldK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a
-yieldK k = mkStream $ \_ _ sng _ -> k sng
-
--- | Construct a stream from a callback function.
-consK :: IsStream t => (forall r. (a -> m r) -> m r) -> t m a -> t m a
-consK k r = mkStream $ \_ _ _ yld -> k (\x -> yld x r)
-
--- XXX consK with concurrent callbacks
--- XXX Build a stream from a repeating callback function.
 
 -------------------------------------------------------------------------------
 -- Deconstruction
