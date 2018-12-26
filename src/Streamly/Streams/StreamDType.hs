@@ -24,10 +24,12 @@ module Streamly.Streams.StreamDType
     (
     -- * The stream type
       Step (..)
+    -- XXX UnStream is exported to avoid a performance issue in concatMap if we
+    -- use the pattern synonym "Stream".
 #if __GLASGOW_HASKELL__ >= 800
-    , Stream (Stream)
+    , Stream (Stream, UnStream)
 #else
-    , Stream ()
+    , Stream (UnStream)
     , pattern Stream
 #endif
     , map

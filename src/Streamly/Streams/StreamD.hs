@@ -775,7 +775,10 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    step' _ (Right (Stream inner_step inner_st, st)) = do
+    -- XXX using the pattern synonym Stream causes a major performance issue
+    -- here even if the synonym does not include a adaptState call. Need to
+    -- find out why. Is that something to be fixed in GHC?
+    step' _ (Right (UnStream inner_step inner_st, st)) = do
         r <- inner_step defState inner_st
         case r of
             Yield b inner_s ->
