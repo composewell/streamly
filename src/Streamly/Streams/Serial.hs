@@ -60,7 +60,6 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, mapM)
 
-import Streamly.SVar (adaptState)
 import Streamly.Streams.StreamK (IsStream(..), adapt, Stream, mkStream,
                                  foldStream)
 import qualified Streamly.Streams.Prelude as P
@@ -168,17 +167,9 @@ instance IsStream SerialT where
 -- Monad
 ------------------------------------------------------------------------------
 
--- XXX if foldStreamShared/unShare/adaptState are not efficient in serial case
--- we can use a rewrite rule for that for the serial case and then just use a
--- bindWith serial here.
---
 instance Monad m => Monad (SerialT m) where
     return = pure
-    m >>= f = mkStream $ \st yld sng stp ->
-        let run x = foldStream st yld sng stp x
-            single a   = run $ f a
-            yieldk a r = run $ f a <> (r >>= f)
-        in foldStream (adaptState st) yieldk single stp m
+    (>>=) = K.bindWith K.serial
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -331,17 +322,9 @@ instance Monoid (WSerialT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
--- XXX if foldStreamShared/unShare/adaptState are not efficient in serial case
--- we can use a rewrite rule for that for the serial case and then just use a
--- bindWith interleave here.
---
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    m >>= f = mkStream $ \st yld sng stp ->
-        let run x = foldStream st yld sng stp x
-            single a   = run $ f a
-            yieldk a r = run $ f a <> (r >>= f)
-        in foldStream (adaptState st) yieldk single stp m
+    (>>=) = K.bindWith wSerial
 
 ------------------------------------------------------------------------------
 -- Other instances

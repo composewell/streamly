@@ -49,7 +49,7 @@ import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared,
-        foldStreamSVar, unShare)
+        foldStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 import Prelude hiding (map)
@@ -677,26 +677,9 @@ instance MonadAsync m => Monoid (AheadT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
--- XXX use bindWith instead
-
-{-# INLINE aheadbind #-}
-aheadbind
-    :: MonadAsync m
-    => Stream m a
-    -> (a -> Stream m b)
-    -> Stream m b
-aheadbind m f = go m
-    where
-        go g =
-            mkStream $ \st yld sng stp ->
-                let foldShared = foldStreamShared st yld sng stp
-                    single a   = foldShared $ unShare (f a)
-                    yieldk a r = foldShared $ unShare (f a) `ahead` go r
-                in foldStream (adaptState st) yieldk single stp g
-
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
-    (AheadT m) >>= f = AheadT $ aheadbind m (getAheadT . f)
+    (>>=) = K.bindWith ahead
 
 ------------------------------------------------------------------------------
 -- Other instances
