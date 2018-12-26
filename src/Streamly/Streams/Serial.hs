@@ -174,11 +174,11 @@ instance IsStream SerialT where
 --
 instance Monad m => Monad (SerialT m) where
     return = pure
-    m >>= f = mkStream $ \st stp sng yld ->
-        let run x = foldStream st stp sng yld x
+    m >>= f = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
             single a   = run $ f a
             yieldk a r = run $ f a <> (r >>= f)
-        in foldStream (adaptState st) stp single yieldk m
+        in foldStream (adaptState st) yieldk single stp m
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -300,11 +300,11 @@ instance IsStream WSerialT where
 -- @since 0.2.0
 {-# INLINE wSerial #-}
 wSerial :: IsStream t => t m a -> t m a -> t m a
-wSerial m1 m2 = mkStream $ \st stp sng yld -> do
-    let stop       = foldStream st stp sng yld m2
+wSerial m1 m2 = mkStream $ \st yld sng stp -> do
+    let stop       = foldStream st yld sng stp m2
         single a   = yld a m2
         yieldk a r = yld a (wSerial m2 r)
-    foldStream st stop single yieldk m1
+    foldStream st yieldk single stop m1
 
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
@@ -337,11 +337,11 @@ instance Monoid (WSerialT m a) where
 --
 instance Monad m => Monad (WSerialT m) where
     return = pure
-    m >>= f = mkStream $ \st stp sng yld ->
-        let run x = foldStream st stp sng yld x
+    m >>= f = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
             single a   = run $ f a
             yieldk a r = run $ f a <> (r >>= f)
-        in foldStream (adaptState st) stp single yieldk m
+        in foldStream (adaptState st) yieldk single stp m
 
 ------------------------------------------------------------------------------
 -- Other instances

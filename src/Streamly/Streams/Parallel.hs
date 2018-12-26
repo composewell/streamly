@@ -63,7 +63,7 @@ import qualified Streamly.Streams.StreamK as K
 runOne
     :: MonadIO m
     => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
-runOne st m winfo = foldStreamShared st stop single yieldk m
+runOne st m winfo = foldStreamShared st yieldk single stop m
 
     where
 
@@ -89,21 +89,21 @@ runOne st m winfo = foldStreamShared st stop single yieldk m
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-forkSVarPar m r = mkStream $ \st stp sng yld -> do
+forkSVarPar m r = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar st
     pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
     pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream r)
-    foldStream st stp sng yld (fromSVar sv)
+    foldStream st yld sng stp (fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: (IsStream t, MonadAsync m)
     => SVarStyle -> t m a -> t m a -> t m a
-joinStreamVarPar style m1 m2 = mkStream $ \st stp sng yld ->
+joinStreamVarPar style m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
             pushWorkerPar sv (runOne st $ toStream m1)
-            foldStreamShared st stp sng yld m2
-        _ -> foldStreamShared st stp sng yld (forkSVarPar m1 m2)
+            foldStreamShared st yld sng stp m2
+        _ -> foldStreamShared st yld sng stp (forkSVarPar m1 m2)
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using parallel.
@@ -135,10 +135,10 @@ mkParallel m = do
 
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-applyWith f m = mkStream $ \st stp sng yld -> do
+applyWith f m = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
-    foldStream st stp sng yld $ f $ fromSVar sv
+    foldStream st yld sng stp $ f $ fromSVar sv
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application

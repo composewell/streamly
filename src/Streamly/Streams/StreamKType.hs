@@ -90,9 +90,9 @@ import Streamly.SVar
 newtype Stream m a =
     MkStream (forall r.
                State Stream m a         -- state
-            -> m r                      -- stop
-            -> (a -> m r)               -- singleton
             -> (a -> Stream m a -> m r) -- yield
+            -> (a -> m r)               -- singleton
+            -> m r                      -- stop
             -> m r
             )
 
@@ -182,21 +182,18 @@ adapt = fromStream . toStream
 -- Currently we always use "SVar Stream" and therefore a different State type
 -- parameterized by that stream.
 --
--- XXX change the order of arguments to match the standard fold function
--- convention i.e.  st yield single stop.
---
 -- | Build a stream from an 'SVar', a stop continuation, a singleton stream
 -- continuation and a yield continuation.
 mkStream:: IsStream t
     => (forall r. State Stream m a
-        -> m r
-        -> (a -> m r)
         -> (a -> t m a -> m r)
+        -> (a -> m r)
+        -> m r
         -> m r)
     -> t m a
-mkStream k = fromStream $ MkStream $ \st stp sng yld ->
+mkStream k = fromStream $ MkStream $ \st yld sng stp ->
     let yieldk a r = yld a (toStream r)
-     in k st stp sng yieldk
+     in k st yieldk sng stp
 
 -- | A terminal function that has no continuation to follow.
 type StopK m = forall r. m r -> m r
@@ -212,7 +209,7 @@ _wrapM m = \k -> m >>= k
 
 -- | Make an empty stream from a stop function.
 fromStopK :: IsStream t => StopK m -> t m a
-fromStopK k = mkStream $ \_ stp _ _ -> k stp
+fromStopK k = mkStream $ \_ _ _ stp -> k stp
 
 -- | Make a singleton stream from a yield function.
 fromYieldK :: IsStream t => YieldK m a -> t m a
@@ -220,7 +217,7 @@ fromYieldK k = mkStream $ \_ _ sng _ -> k sng
 
 -- | Add a yield function at the head of the stream.
 consK :: IsStream t => YieldK m a -> t m a -> t m a
-consK k r = mkStream $ \_ _ _ yld -> k (\x -> yld x r)
+consK k r = mkStream $ \_ yld _ _ -> k (\x -> yld x r)
 
 -- XXX Build a stream from a repeating callback function.
 
@@ -235,15 +232,15 @@ consK k r = mkStream $ \_ _ _ yld -> k (\x -> yld x r)
 foldStreamShared
     :: IsStream t
     => State Stream m a
-    -> m r
-    -> (a -> m r)
     -> (a -> t m a -> m r)
+    -> (a -> m r)
+    -> m r
     -> t m a
     -> m r
-foldStreamShared st stp sng yld m =
+foldStreamShared st yld sng stp m =
     let yieldk a x = yld a (fromStream x)
         MkStream k = toStream m
-     in k st stp sng yieldk
+     in k st yieldk sng stp
 
 -- | Fold a stream by providing a State, stop continuation, a singleton
 -- continuation and a yield continuation. The stream will not use the SVar
@@ -252,15 +249,15 @@ foldStreamShared st stp sng yld m =
 foldStream
     :: IsStream t
     => State Stream m a
-    -> m r
-    -> (a -> m r)
     -> (a -> t m a -> m r)
+    -> (a -> m r)
+    -> m r
     -> t m a
     -> m r
-foldStream st stp sng yld m =
+foldStream st yld sng stp m =
     let yieldk a x = yld a (fromStream x)
         MkStream k = toStream m
-     in k (adaptState st) stp sng yieldk
+     in k (adaptState st) yieldk sng stp
 
 -- Run the stream using a run function associated with the SVar that runs the
 -- streams with a captured snapshot of the monadic state.
@@ -269,14 +266,14 @@ foldStreamSVar
     :: (IsStream t, MonadIO m)
     => SVar Stream m a
     -> State Stream m a          -- state
-    -> m r                       -- stop
-    -> (a -> m r)                -- singleton
     -> (a -> t m a -> m r)       -- yield
+    -> (a -> m r)                -- singleton
+    -> m r                       -- stop
     -> t m a
     -> m ()
-foldStreamSVar sv st stp sng yld m =
+foldStreamSVar sv st yld sng stp m =
     let mrun = runInIO $ svarMrun sv
-    in void $ liftIO $ mrun $ foldStreamShared st stp sng yld m
+    in void $ liftIO $ mrun $ foldStreamShared st yld sng stp m
 
 -------------------------------------------------------------------------------
 -- Instances
@@ -284,7 +281,7 @@ foldStreamSVar sv st stp sng yld m =
 
 {-# INLINE consMSerial #-}
 consMSerial :: (IsStream t, Monad m) => m a -> t m a -> t m a
-consMSerial m r = mkStream $ \_ _ _ yld -> m >>= \a -> yld a r
+consMSerial m r = mkStream $ \_ yld _ _ -> m >>= \a -> yld a r
 
 -------------------------------------------------------------------------------
 -- IsStream Stream
@@ -317,11 +314,11 @@ instance IsStream Stream where
 serial :: IsStream t => t m a -> t m a -> t m a
 serial m1 m2 = go m1
     where
-    go m = mkStream $ \st stp sng yld ->
-               let stop       = foldStream st stp sng yld m2
+    go m = mkStream $ \st yld sng stp ->
+               let stop       = foldStream st yld sng stp m2
                    single a   = yld a m2
                    yieldk a r = yld a (go r)
-               in foldStream st stop single yieldk m
+               in foldStream st yieldk single stop m
 
 instance Semigroup (Stream m a) where
     (<>) = serial
@@ -339,7 +336,7 @@ instance Semigroup (Stream m a) where
 --
 -- @since 0.1.0
 nil :: IsStream t => t m a
-nil = mkStream $ \_ stp _ _ -> stp
+nil = mkStream $ \_ _ _ stp -> stp
 
 instance Monoid (Stream m a) where
     mempty = nil
@@ -352,10 +349,10 @@ instance Monoid (Stream m a) where
 
 {-# INLINE map #-}
 map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
-map f m = mkStream $ \st stp sng yld ->
+map f m = mkStream $ \st yld sng stp ->
     let single     = sng . f
         yieldk a r = yld (f a) (map f r)
-    in foldStream (adaptState st) stp single yieldk m
+    in foldStream (adaptState st) yieldk single stp m
 
 instance Monad m => Functor (Stream m) where
     fmap = map

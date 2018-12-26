@@ -84,7 +84,7 @@ workLoopLIFO q st sv winfo = run
         work <- dequeue
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> foldStreamSVar sv st run single yieldk m
+            Just m -> foldStreamSVar sv st yieldk single run m
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -93,7 +93,7 @@ workLoopLIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then foldStreamSVar sv st run single yieldk r
+        then foldStreamSVar sv st yieldk single run r
         else liftIO $ do
             enqueueLIFO sv q r
             sendStop sv winfo
@@ -134,7 +134,7 @@ workLoopLIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    foldStreamSVar sv st stop single yieldk m
+                    foldStreamSVar sv st yieldk single stop m
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
@@ -153,7 +153,7 @@ workLoopLIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then foldStreamSVar sv st stop single yieldk r
+        then foldStreamSVar sv st yieldk single stop r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueLIFO sv q r
@@ -185,7 +185,7 @@ workLoopFIFO q st sv winfo = run
         work <- liftIO $ tryPopR q
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> foldStreamSVar sv st run single yieldk m
+            Just m -> foldStreamSVar sv st yieldk single run m
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -194,7 +194,7 @@ workLoopFIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then foldStreamSVar sv st run single yieldk r
+        then foldStreamSVar sv st yieldk single run r
         else liftIO $ do
             enqueueFIFO sv q r
             sendStop sv winfo
@@ -220,7 +220,7 @@ workLoopFIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    foldStreamSVar sv st stop single yieldk m
+                    foldStreamSVar sv st yieldk single stop m
                 else liftIO $ do
                     enqueueFIFO sv q m
                     incrementYieldLimit sv
@@ -235,7 +235,7 @@ workLoopFIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then foldStreamSVar sv st stop single yieldk r
+        then foldStreamSVar sv st yieldk single stop r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueFIFO sv q r

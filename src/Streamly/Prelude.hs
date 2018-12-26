@@ -896,7 +896,7 @@ each = K.fromFoldable
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
-  go = K.mkStream $ \_ stp _ yld -> do
+  go = K.mkStream $ \_ yld _ stp -> do
         eof <- liftIO $ IO.hIsEOF h
         if eof
         then stp
@@ -1449,7 +1449,7 @@ toHandle h m = go m
         let stop = return ()
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
-        in K.foldStream defState stop single yieldk m1
+        in K.foldStream defState yieldk single stop m1
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -1770,12 +1770,12 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 reverse :: (IsStream t) => t m a -> t m a
 reverse m = go K.nil m
     where
-    go rev rest = K.mkStream $ \st stp sng yld ->
-        let runIt x = K.foldStream st stp sng yld x
+    go rev rest = K.mkStream $ \st yld sng stp ->
+        let runIt x = K.foldStream st yld sng stp x
             stop = runIt rev
             single a = runIt $ a `K.cons` rev
             yieldk a r = runIt $ go (a `K.cons` rev) r
-         in K.foldStream st stop single yieldk rest
+         in K.foldStream st yieldk single stop rest
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting

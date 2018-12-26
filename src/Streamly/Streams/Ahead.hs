@@ -298,9 +298,10 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             let stop = do
                   liftIO (incrementYieldLimit sv)
                   nextHeap seqNo
-            foldStreamSVar sv st stop
-                          (singleStreamFromHeap seqNo)
+            foldStreamSVar sv st
                           (yieldStreamFromHeap seqNo)
+                          (singleStreamFromHeap seqNo)
+                          stop
                           r
         else liftIO $ do
             let ent = Entry seqNo (AheadEntryStream r)
@@ -349,9 +350,10 @@ processWithoutToken q heap st sv winfo m seqNo = do
             -- we stop.
             toHeap AheadEntryNull
 
-    foldStreamSVar sv st stop
-        (toHeap . AheadEntryPure)
+    foldStreamSVar sv st
         (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
+        (toHeap . AheadEntryPure)
+        stop
         m
 
     where
@@ -410,7 +412,7 @@ processWithToken q heap st sv winfo action sno = do
             liftIO (incrementYieldLimit sv)
             loopWithToken (sno + 1)
 
-    foldStreamSVar sv st stop (singleOutput sno) (yieldOutput sno) action
+    foldStreamSVar sv st (yieldOutput sno) (singleOutput sno) stop action
 
     where
 
@@ -433,9 +435,10 @@ processWithToken q heap st sv winfo action sno = do
             let stop = do
                     liftIO (incrementYieldLimit sv)
                     loopWithToken (seqNo + 1)
-            foldStreamSVar sv st stop
-                          (singleOutput seqNo)
+            foldStreamSVar sv st
                           (yieldOutput seqNo)
+                          (singleOutput seqNo)
+                          stop
                           r
         else do
             let ent = Entry seqNo (AheadEntryStream r)
@@ -463,9 +466,10 @@ processWithToken q heap st sv winfo action sno = do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
                                 loopWithToken (seqNo + 1)
-                        foldStreamSVar sv st stop
-                                      (singleOutput seqNo)
+                        foldStreamSVar sv st
                                       (yieldOutput seqNo)
+                                      (singleOutput seqNo)
+                                      stop
                                       m
                     else
                         -- To avoid a race when another thread puts something
@@ -684,11 +688,11 @@ aheadbind
 aheadbind m f = go m
     where
         go g =
-            mkStream $ \st stp sng yld ->
-                let foldShared = foldStreamShared st stp sng yld
+            mkStream $ \st yld sng stp ->
+                let foldShared = foldStreamShared st yld sng stp
                     single a   = foldShared $ unShare (f a)
                     yieldk a r = foldShared $ unShare (f a) `ahead` go r
-                in foldStream (adaptState st) stp single yieldk g
+                in foldStream (adaptState st) yieldk single stp g
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
