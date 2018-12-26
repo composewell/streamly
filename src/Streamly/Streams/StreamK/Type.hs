@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.StreamKType
+-- Module      : Streamly.Streams.StreamK.Type
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3

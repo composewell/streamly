@@ -59,7 +59,7 @@ sourceUnfoldrM n = S.unfoldrM step n
 
 {-# INLINE sourceFromEnum #-}
 sourceFromEnum :: Monad m => Int -> Stream m Int
-sourceFromEnum n = S.enumFromStepN n 1 value
+sourceFromEnum n = S.intFromTo n (n + value)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: Monad m => Int -> Stream m Int

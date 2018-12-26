@@ -12,7 +12,7 @@
 #include "../inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamDType
+-- Module      : Streamly.Streams.StreamD.Type
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3

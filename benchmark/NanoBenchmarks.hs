@@ -4,8 +4,9 @@
 -------------------------------------------------------------------------------
 
 {-# LANGUAGE ScopedTypeVariables #-}
-import qualified Streamly.Streams.StreamD as S
+import qualified Streamly.Streams.StreamK as S
 import Gauge
+import System.Random
 
 maxValue :: Int
 maxValue = 100000
@@ -27,6 +28,15 @@ sourceUnfoldrMN n = S.unfoldrM step n
         if cnt > n
         then return Nothing
         else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: Monad m => Int -> S.Stream m Int
+sourceUnfoldr n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + maxValue
+        then Nothing
+        else Just (cnt, cnt + 1)
 
 -------------------------------------------------------------------------------
 -- take-drop composition
@@ -75,6 +85,8 @@ iterateSource g i n = f i (sourceUnfoldrMN n)
 -- We keep all of them enabled by default for testing the build.
 main :: IO ()
 main = do
+    defaultMain [bench "unfoldr" $ nfIO $
+        randomRIO (1,1) >>= \n -> S.runStream (sourceUnfoldr n)]
     defaultMain [bench "take-drop" $ nfIO $ takeDrop sourceUnfoldrM]
     defaultMain [bench "dropWhileFalseX4" $
         nfIO $ dropWhileFalseX4 sourceUnfoldrM]
