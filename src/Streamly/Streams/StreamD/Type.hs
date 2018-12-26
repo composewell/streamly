@@ -9,7 +9,7 @@
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
-#include "inline.hs"
+#include "../inline.hs"
 
 -- |
 -- Module      : Streamly.Streams.StreamDType
@@ -20,7 +20,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Streams.StreamDType
+module Streamly.Streams.StreamD.Type
     (
     -- * The stream type
       Step (..)

@@ -169,7 +169,7 @@ import Prelude
 import qualified Prelude
 
 import Streamly.SVar
-import Streamly.Streams.StreamKType
+import Streamly.Streams.StreamK.Type
 
 -- | Detach a stream from an SVar
 {-# INLINE unShare #-}

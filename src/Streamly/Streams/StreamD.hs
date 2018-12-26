@@ -201,7 +201,7 @@ import Prelude
 
 import Streamly.SVar (MonadAsync, defState, adaptState)
 
-import Streamly.Streams.StreamDType
+import Streamly.Streams.StreamD.Type
 import qualified Streamly.Streams.StreamK as K
 
 ------------------------------------------------------------------------------

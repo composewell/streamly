@@ -23,7 +23,7 @@
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
-module Streamly.Streams.StreamKType
+module Streamly.Streams.StreamK.Type
     (
     -- * A class for streams
       IsStream (..)
