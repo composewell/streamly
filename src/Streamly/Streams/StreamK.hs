@@ -151,7 +151,7 @@ module Streamly.Streams.StreamK
     , serial
 
     -- * Utilities
-    , consMSerial
+    , consMStream
     , bindWith
     , withLocal
 
@@ -197,6 +197,7 @@ infixr 5 `cons`
 -- @
 --
 -- @since 0.1.0
+{-# INLINE cons #-}
 cons :: IsStream t => a -> t m a -> t m a
 cons a r = mkStream $ \_ yld _ _ -> yld a r
 
@@ -210,6 +211,7 @@ infixr 5 .:
 -- @
 --
 -- @since 0.1.1
+{-# INLINE (.:) #-}
 (.:) :: IsStream t => a -> t m a -> t m a
 (.:) = cons
 
@@ -269,6 +271,7 @@ unfoldrM step = go
 -- Special generation
 -------------------------------------------------------------------------------
 
+{-# INLINE yield #-}
 yield :: IsStream t => a -> t m a
 yield a = mkStream $ \_ _ single _ -> single a
 
@@ -289,14 +292,17 @@ once = yieldM
 -- Generate an infinite stream by repeating a pure value.
 --
 -- @since 0.4.0
+{-# INLINE repeat #-}
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x
 
+{-# INLINE replicateM #-}
 replicateM :: (IsStream t, MonadAsync m) => Int -> m a -> t m a
 replicateM n m = go n
     where
     go cnt = if cnt <= 0 then nil else m |: go (cnt - 1)
 
+{-# INLINE replicate #-}
 replicate :: IsStream t => Int -> a -> t m a
 replicate n a = go n
     where
@@ -331,6 +337,7 @@ fromStreamK = fromStream
 -------------------------------------------------------------------------------
 
 -- | Lazy right associative fold.
+{-# INLINE foldr #-}
 foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc m = go m
     where
@@ -405,6 +412,7 @@ foldl' step begin = foldx step begin id
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
+{-# INLINABLE foldxM #-}
 foldxM :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
 foldxM step begin done m = go begin m
@@ -416,6 +424,7 @@ foldxM step begin done m = go begin m
          in foldStream defState yieldk single stop m1
 
 -- | Like 'foldl'' but with a monadic step function.
+{-# INLINE foldlM' #-}
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
 foldlM' step begin = foldxM step (return begin) return
 
@@ -494,6 +503,7 @@ notElem e m = go m
             yieldk a r = if a == e then return False else go r
         in foldStream defState yieldk single stop m1
 
+{-# INLINABLE all #-}
 all :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 all p m = go m
     where
@@ -504,6 +514,7 @@ all p m = go m
                        | otherwise = return False
          in foldStream defState yieldk single (return True) m1
 
+{-# INLINABLE any #-}
 any :: (IsStream t, Monad m) => (a -> Bool) -> t m a -> m Bool
 any p m = go m
     where
@@ -741,6 +752,7 @@ takeWhile p m = go m
                        | otherwise = stp
          in foldStream st yieldk single stp m1
 
+{-# INLINE drop #-}
 drop :: IsStream t => Int -> t m a -> t m a
 drop n m = go n m
     where
@@ -874,6 +886,7 @@ zipWith f = go
 -- | Zip two streams serially using a monadic zipping function.
 --
 -- @since 0.1.0
+{-# INLINABLE zipWithM #-}
 zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipWithM f m1 m2 = go m1 m2
     where
@@ -974,6 +987,7 @@ _alt m1 m2 = mkStream $ \st yld sng stp ->
 -- MonadReader
 ------------------------------------------------------------------------------
 
+{-# INLINABLE withLocal #-}
 withLocal :: MonadReader r m => (r -> r) -> Stream m a -> Stream m a
 withLocal f m =
     mkStream $ \st yld sng stp ->

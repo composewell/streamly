@@ -235,7 +235,7 @@ cons x (Stream step state) = Stream step1 Nothing
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL uncons #-}
 uncons :: Monad m => Stream m a -> m (Maybe (a, Stream m a))
-uncons (Stream step state) = go state
+uncons (UnStream step state) = go state
   where
     go st = do
         r <- step defState st
@@ -575,7 +575,7 @@ head (Stream step state) = go state
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}
 tail :: Monad m => Stream m a -> m (Maybe (Stream m a))
-tail (Stream step state) = go state
+tail (UnStream step state) = go state
   where
     go st = do
         r <- step defState st

@@ -44,7 +44,7 @@ module Streamly.Streams.StreamK.Type
     , foldStreamSVar
 
     -- instances
-    , consMSerial
+    , consMStream
 
     , nil
     , serial
@@ -184,6 +184,7 @@ adapt = fromStream . toStream
 --
 -- | Build a stream from an 'SVar', a stop continuation, a singleton stream
 -- continuation and a yield continuation.
+{-# INLINABLE mkStream #-}
 mkStream:: IsStream t
     => (forall r. State Stream m a
         -> (a -> t m a -> m r)
@@ -279,9 +280,9 @@ foldStreamSVar sv st yld sng stp m =
 -- Instances
 -------------------------------------------------------------------------------
 
-{-# INLINE consMSerial #-}
-consMSerial :: (IsStream t, Monad m) => m a -> t m a -> t m a
-consMSerial m r = mkStream $ \_ yld _ _ -> m >>= \a -> yld a r
+{-# INLINE consMStream #-}
+consMStream :: (Monad m) => m a -> Stream m a -> Stream m a
+consMStream m r = MkStream $ \_ yld _ _ -> m >>= \a -> yld a r
 
 -------------------------------------------------------------------------------
 -- IsStream Stream
@@ -294,12 +295,12 @@ instance IsStream Stream where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> Stream IO a -> Stream IO a #-}
     consM :: Monad m => m a -> Stream m a -> Stream m a
-    consM = consMSerial
+    consM = consMStream
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> Stream IO a -> Stream IO a #-}
     (|:) :: Monad m => m a -> Stream m a -> Stream m a
-    (|:) = consMSerial
+    (|:) = consMStream
 
 ------------------------------------------------------------------------------
 -- Semigroup

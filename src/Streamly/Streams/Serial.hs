@@ -149,6 +149,9 @@ type StreamT = SerialT
 serially :: IsStream t => SerialT m a -> t m a
 serially = adapt
 
+consMSerial :: Monad m => m a -> SerialT m a -> SerialT m a
+consMSerial m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream SerialT where
     toStream = getSerialT
     fromStream = SerialT
@@ -156,12 +159,12 @@ instance IsStream SerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> SerialT IO a -> SerialT IO a #-}
     consM :: Monad m => m a -> SerialT m a -> SerialT m a
-    consM = K.consMSerial
+    consM = consMSerial
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> SerialT IO a -> SerialT IO a #-}
     (|:) :: Monad m => m a -> SerialT m a -> SerialT m a
-    (|:) = K.consMSerial
+    (|:) = consMSerial
 
 ------------------------------------------------------------------------------
 -- Monad
@@ -267,6 +270,9 @@ wSerially = adapt
 interleaving :: IsStream t => WSerialT m a -> t m a
 interleaving = wSerially
 
+consMWSerial :: Monad m => m a -> WSerialT m a -> WSerialT m a
+consMWSerial m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream WSerialT where
     toStream = getWSerialT
     fromStream = WSerialT
@@ -274,12 +280,12 @@ instance IsStream WSerialT where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     consM :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    consM = K.consMSerial
+    consM = consMWSerial
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> WSerialT IO a -> WSerialT IO a #-}
     (|:) :: Monad m => m a -> WSerialT m a -> WSerialT m a
-    (|:) = K.consMSerial
+    (|:) = consMWSerial
 
 ------------------------------------------------------------------------------
 -- Semigroup

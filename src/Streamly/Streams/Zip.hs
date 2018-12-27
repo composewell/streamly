@@ -106,6 +106,9 @@ zipSerially = K.adapt
 zipping :: IsStream t => ZipSerialM m a -> t m a
 zipping = zipSerially
 
+consMZip :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
+consMZip m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream ZipSerialM where
     toStream = getZipSerialM
     fromStream = ZipSerialM
@@ -113,12 +116,12 @@ instance IsStream ZipSerialM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    consM = K.consMSerial
+    consM = consMZip
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    (|:) = K.consMSerial
+    (|:) = consMZip
 
 LIST_INSTANCES(ZipSerialM)
 
@@ -199,6 +202,10 @@ zipAsyncly = K.adapt
 {-# DEPRECATED zippingAsync "Please use zipAsyncly instead." #-}
 zippingAsync :: IsStream t => ZipAsyncM m a -> t m a
 zippingAsync = zipAsyncly
+
+consMZipAsync :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
+consMZipAsync m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream ZipAsyncM where
     toStream = getZipAsyncM
     fromStream = ZipAsyncM
@@ -206,12 +213,12 @@ instance IsStream ZipAsyncM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     consM :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    consM = K.consMSerial
+    consM = consMZipAsync
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     (|:) :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    (|:) = K.consMSerial
+    (|:) = consMZipAsync
 
 instance Monad m => Functor (ZipAsyncM m) where
     fmap = map
