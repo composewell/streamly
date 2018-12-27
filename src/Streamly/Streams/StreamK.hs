@@ -9,6 +9,8 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Streams.StreamK
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -227,14 +229,30 @@ uncons m =
 -- Generation
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL build #-}
+build :: IsStream t => forall a. (forall b. (a -> b -> b) -> b -> b) -> t m a
+build g = g cons nil
+
+{-# INLINE_NORMAL _augment #-}
+_augment
+    :: IsStream t
+    => forall a. (forall b. (a -> b -> b) -> b -> b) -> t m a -> t m a
+_augment g xs = g cons xs
+
+{-# INLINE_NORMAL _buildM #-}
+_buildM
+    :: (IsStream t, MonadAsync m)
+    => forall a. ((m a -> t m a -> t m a) -> t m a -> t m a) -> t m a
+_buildM g = g consM nil
+
 {-# INLINE unfoldr #-}
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step = go
-    where
-    go s = mkStream $ \_ yld _ stp ->
-        case step s of
-            Nothing -> stp
-            Just (a, b) -> yld a (go b)
+unfoldr step b0 = build $ \cns nl ->
+    let go s =
+            case step s of
+                Just (a, b) -> a `cns` go b
+                Nothing -> nl
+    in go b0
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
@@ -405,6 +423,9 @@ foldlM' step begin = foldxM step (return begin) return
 -- Specialized folds
 ------------------------------------------------------------------------------
 
+-- |
+-- > runStream = foldl' (\_ _ -> ()) ()
+-- > runStream = mapM_ (\_ -> return ())
 {-# INLINE runStream #-}
 runStream :: (Monad m, IsStream t) => t m a -> m ()
 runStream = go
@@ -642,6 +663,7 @@ findIndices p = go 0
 
 -- | Apply a monadic action to each element of the stream and discard the
 -- output of the action.
+{-# INLINE mapM_ #-}
 mapM_ :: (IsStream t, Monad m) => (a -> m b) -> t m a -> m ()
 mapM_ f m = go m
     where
