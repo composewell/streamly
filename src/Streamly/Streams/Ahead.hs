@@ -580,8 +580,9 @@ ahead m1 m2 = mkStream $ \st stp sng yld ->
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
 {-# INLINE consMAhead #-}
-consMAhead :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-consMAhead m r = K.yieldM m `ahead` r
+{-# SPECIALIZE consMAhead :: IO a -> AheadT IO a -> AheadT IO a #-}
+consMAhead :: MonadAsync m => m a -> AheadT m a -> AheadT m a
+consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AheadT
@@ -649,21 +650,20 @@ aheadly = K.adapt
 instance IsStream AheadT where
     toStream = getAheadT
     fromStream = AheadT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
     consM = consMAhead
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> AheadT IO a -> AheadT IO a #-}
-    (|:) = consM
+    (|:) = consMAhead
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
+{-# INLINE mappendAhead #-}
+{-# SPECIALIZE mappendAhead :: AheadT IO a -> AheadT IO a -> AheadT IO a #-}
+mappendAhead :: MonadAsync m => AheadT m a -> AheadT m a -> AheadT m a
+mappendAhead m1 m2 = fromStream $ ahead (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (AheadT m a) where
-    (<>) = ahead
+    (<>) = mappendAhead
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -677,9 +677,14 @@ instance MonadAsync m => Monoid (AheadT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindAhead #-}
+{-# SPECIALIZE bindAhead :: AheadT IO a -> (a -> AheadT IO b) -> AheadT IO b #-}
+bindAhead :: MonadAsync m => AheadT m a -> (a -> AheadT m b) -> AheadT m b
+bindAhead m f = fromStream $ K.bindWith ahead (K.adapt m) (\a -> K.adapt $ f a)
+
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
-    (>>=) = K.bindWith ahead
+    (>>=) = bindAhead
 
 ------------------------------------------------------------------------------
 -- Other instances

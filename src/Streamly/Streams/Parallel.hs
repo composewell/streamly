@@ -108,8 +108,9 @@ joinStreamVarPar style m1 m2 = mkStream $ \st yld sng stp ->
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using parallel.
 {-# INLINE consMParallel #-}
-consMParallel :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-consMParallel m r = K.yieldM m `parallel` r
+{-# SPECIALIZE consMParallel :: IO a -> ParallelT IO a -> ParallelT IO a #-}
+consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
+consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
@@ -350,8 +351,13 @@ instance IsStream ParallelT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
+{-# INLINE mappendParallel #-}
+{-# SPECIALIZE mappendParallel :: ParallelT IO a -> ParallelT IO a -> ParallelT IO a #-}
+mappendParallel :: MonadAsync m => ParallelT m a -> ParallelT m a -> ParallelT m a
+mappendParallel m1 m2 = fromStream $ parallel (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (ParallelT m a) where
-    (<>) = parallel
+    (<>) = mappendParallel
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -365,9 +371,14 @@ instance MonadAsync m => Monoid (ParallelT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindParallel #-}
+{-# SPECIALIZE bindParallel :: ParallelT IO a -> (a -> ParallelT IO b) -> ParallelT IO b #-}
+bindParallel :: MonadAsync m => ParallelT m a -> (a -> ParallelT m b) -> ParallelT m b
+bindParallel m f = fromStream $ K.bindWith parallel (K.adapt m) (\a -> K.adapt $ f a)
+
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
-    (>>=) = K.bindWith parallel
+    (>>=) = bindParallel
 
 ------------------------------------------------------------------------------
 -- Other instances

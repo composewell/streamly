@@ -97,6 +97,7 @@ main =
         -- These are essentially appends
         , benchIOSrc serially "foldMapWith" Ops.sourceFoldMapWith
         , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
+        , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
         ]
       , bgroup "elimination"
         [ benchIOSink "toNull" $ Ops.toNull serially

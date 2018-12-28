@@ -2016,6 +2016,7 @@ newSVarStats = do
         , svarStopTime     = stpTime
         }
 
+-- XXX remove polymorphism in t, inline f
 getAheadSVar :: MonadAsync m
     => State t m a
     -> (   IORef ([t m a], Int)

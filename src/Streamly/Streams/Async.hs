@@ -572,11 +572,16 @@ async = joinStreamVarAsync AsyncVar
 (<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 (<|) = async
 
+-- IMPORTANT: using a monomorphically typed and SPECIALIZED consMAsync makes a
+-- huge difference in the performance of consM in IsStream instance even we
+-- have a SPECIALIZE in the instance.
+--
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using async.
 {-# INLINE consMAsync #-}
-consMAsync :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-consMAsync m r = K.yieldM m `async` r
+{-# SPECIALIZE consMAsync :: IO a -> AsyncT IO a -> AsyncT IO a #-}
+consMAsync :: MonadAsync m => m a -> AsyncT m a -> AsyncT m a
+consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -649,21 +654,22 @@ asyncly = adapt
 instance IsStream AsyncT where
     toStream = getAsyncT
     fromStream = AsyncT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> AsyncT IO a -> AsyncT IO a #-}
     consM = consMAsync
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> AsyncT IO a -> AsyncT IO a #-}
-    (|:) = consM
+    (|:) = consMAsync
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
+-- Monomorphically typed version of "async" for better performance of Semigroup
+-- instance.
+{-# INLINE mappendAsync #-}
+{-# SPECIALIZE mappendAsync :: AsyncT IO a -> AsyncT IO a -> AsyncT IO a #-}
+mappendAsync :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+mappendAsync m1 m2 = fromStream $ async (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (AsyncT m a) where
-    (<>) = async
+    (<>) = mappendAsync
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -677,13 +683,20 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindAsync #-}
+{-# SPECIALIZE bindAsync :: AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
+bindAsync :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
+bindAsync m f = fromStream $ K.bindWith async (adapt m) (\a -> adapt $ f a)
+
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
-    (>>=) = K.bindWith async
+    (>>=) = bindAsync
 
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
+
+-- XXX SPECIALIZE the applicative as well?
 
 MONAD_APPLICATIVE_INSTANCE(AsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
@@ -695,8 +708,9 @@ MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using wAsync.
 {-# INLINE consMWAsync #-}
-consMWAsync :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-consMWAsync m r = K.yieldM m `wAsync` r
+{-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
+consMWAsync m r = fromStream $ K.yieldM m `wAsync` (toStream r)
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.
@@ -771,21 +785,20 @@ wAsyncly = adapt
 instance IsStream WAsyncT where
     toStream = getWAsyncT
     fromStream = WAsyncT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
     consM = consMWAsync
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-    (|:) = consM
+    (|:) = consMWAsync
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
+{-# INLINE mappendWAsync #-}
+{-# SPECIALIZE mappendWAsync :: WAsyncT IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+mappendWAsync :: MonadAsync m => WAsyncT m a -> WAsyncT m a -> WAsyncT m a
+mappendWAsync m1 m2 = fromStream $ wAsync (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (WAsyncT m a) where
-    (<>) = wAsync
+    (<>) = mappendWAsync
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -799,9 +812,16 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindWAsync #-}
+{-# SPECIALIZE bindWAsync :: WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
+bindWAsync :: MonadAsync m => WAsyncT m a -> (a -> WAsyncT m b) -> WAsyncT m b
+bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (\a -> adapt $ f a)
+
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
-    (>>=) = K.bindWith wAsync
+    (>>=) = bindWAsync
+
+-- XXX SPECIALIZE the applicative as well?
 
 ------------------------------------------------------------------------------
 -- Other instances

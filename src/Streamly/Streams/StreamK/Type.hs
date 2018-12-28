@@ -184,7 +184,7 @@ adapt = fromStream . toStream
 --
 -- | Build a stream from an 'SVar', a stop continuation, a singleton stream
 -- continuation and a yield continuation.
-{-# INLINABLE mkStream #-}
+{-# INLINE mkStream #-}
 mkStream:: IsStream t
     => (forall r. State Stream m a
         -> (a -> t m a -> m r)
@@ -280,7 +280,11 @@ foldStreamSVar sv st yld sng stp m =
 -- Instances
 -------------------------------------------------------------------------------
 
+-- NOTE: specializing the function outside the instance definition seems to
+-- improve performance quite a bit at times, even if we have the same
+-- SPECIALIZE in the instance definition.
 {-# INLINE consMStream #-}
+{-# SPECIALIZE consMStream :: IO a -> Stream IO a -> Stream IO a #-}
 consMStream :: (Monad m) => m a -> Stream m a -> Stream m a
 consMStream m r = MkStream $ \_ yld _ _ -> m >>= \a -> yld a r
 
@@ -336,6 +340,7 @@ instance Semigroup (Stream m a) where
 -- @
 --
 -- @since 0.1.0
+{-# INLINE nil #-}
 nil :: IsStream t => t m a
 nil = mkStream $ \_ _ _ stp -> stp
 
@@ -347,14 +352,18 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
-
 {-# INLINE map #-}
-map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
-map f m = mkStream $ \st yld sng stp ->
-    let single     = sng . f
-        yieldk a r = yld (f a) (map f r)
-    in foldStream (adaptState st) yieldk single stp m
+map :: IsStream t => (a -> b) -> t m a -> t m b
+map f m = go m
+    where
+        go m1 =
+            mkStream $ \st yld sng stp ->
+            let single     = sng . f
+                yieldk a r = yld (f a) (go r)
+            in foldStream (adaptState st) yieldk single stp m1
 
+-- in fact use the Stream type everywhere and only use polymorphism in the high
+-- level modules/prelude.
 instance Monad m => Functor (Stream m) where
     fmap = map
 
