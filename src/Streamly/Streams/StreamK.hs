@@ -754,15 +754,15 @@ takeWhile p m = go m
 
 {-# INLINE drop #-}
 drop :: IsStream t => Int -> t m a -> t m a
-drop n m = go n m
+drop n m = fromStream $ unShare (go n (toStream m))
     where
     go n1 m1 = mkStream $ \st yld sng stp ->
         let single _ = stp
-            yieldk _ r = foldStream st yld sng stp $ go (n1 - 1) r
+            yieldk _ r = foldStreamShared st yld sng stp $ go (n1 - 1) r
         -- Somehow "<=" check performs better than a ">"
         in if n1 <= 0
-           then foldStream st yld sng stp m1
-           else foldStream st yieldk single stp m1
+           then foldStreamShared st yld sng stp m1
+           else foldStreamShared st yieldk single stp m1
 
 {-# INLINE dropWhile #-}
 dropWhile :: IsStream t => (a -> Bool) -> t m a -> t m a
