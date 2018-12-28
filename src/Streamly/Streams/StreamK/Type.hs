@@ -10,6 +10,8 @@
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#include "../inline.hs"
+
 -- |
 -- Module      : Streamly.Streams.StreamK.Type
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -182,10 +184,13 @@ adapt = fromStream . toStream
 -- Currently we always use "SVar Stream" and therefore a different State type
 -- parameterized by that stream.
 --
+-- XXX Since t is coercible we should be able to coerce k
+-- mkStream k = fromStream $ MkStream $ coerce k
+--
 -- | Build a stream from an 'SVar', a stop continuation, a singleton stream
 -- continuation and a yield continuation.
-{-# INLINE mkStream #-}
-mkStream:: IsStream t
+{-# INLINE_EARLY mkStream #-}
+mkStream :: IsStream t
     => (forall r. State Stream m a
         -> (a -> t m a -> m r)
         -> (a -> m r)
@@ -195,6 +200,26 @@ mkStream:: IsStream t
 mkStream k = fromStream $ MkStream $ \st yld sng stp ->
     let yieldk a r = yld a (toStream r)
      in k st yieldk sng stp
+
+{-# RULES "mkStream from stream" mkStream = mkStreamFromStream #-}
+mkStreamFromStream :: IsStream t
+    => (forall r. State Stream m a
+        -> (a -> Stream m a -> m r)
+        -> (a -> m r)
+        -> m r
+        -> m r)
+    -> t m a
+mkStreamFromStream k = fromStream $ MkStream k
+
+{-# RULES "mkStream stream" mkStream = mkStreamStream #-}
+mkStreamStream
+    :: (forall r. State Stream m a
+        -> (a -> Stream m a -> m r)
+        -> (a -> m r)
+        -> m r
+        -> m r)
+    -> Stream m a
+mkStreamStream = MkStream
 
 -- | A terminal function that has no continuation to follow.
 type StopK m = forall r. m r -> m r
@@ -229,7 +254,7 @@ consK k r = mkStream $ \_ yld _ _ -> k (\x -> yld x r)
 -- | Fold a stream by providing an SVar, a stop continuation, a singleton
 -- continuation and a yield continuation. The stream would share the current
 -- SVar passed via the State.
-{-# INLINE foldStreamShared #-}
+{-# INLINE_EARLY foldStreamShared #-}
 foldStreamShared
     :: IsStream t
     => State Stream m a
@@ -242,6 +267,20 @@ foldStreamShared st yld sng stp m =
     let yieldk a x = yld a (fromStream x)
         MkStream k = toStream m
      in k st yieldk sng stp
+
+-- XXX write a similar rule for foldStream as well?
+{-# RULES "foldStreamShared from stream"
+   foldStreamShared = foldStreamSharedStream #-}
+foldStreamSharedStream
+    :: State Stream m a
+    -> (a -> Stream m a -> m r)
+    -> (a -> m r)
+    -> m r
+    -> Stream m a
+    -> m r
+foldStreamSharedStream st yld sng stp m =
+    let MkStream k = toStream m
+     in k st yld sng stp
 
 -- | Fold a stream by providing a State, stop continuation, a singleton
 -- continuation and a yield continuation. The stream will not use the SVar
