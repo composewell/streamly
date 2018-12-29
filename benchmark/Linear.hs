@@ -26,6 +26,14 @@ benchIOSink
     => String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 
+-- XXX We should be using sourceUnfoldrM for fair comparison with IO monad, but
+-- we can't use it as it requires MonadAsync constraint.
+{-# INLINE benchIdentitySink #-}
+benchIdentitySink
+    :: (IsStream t, NFData b)
+    => String -> (t Identity Int -> Identity b) -> Benchmark
+benchIdentitySink name f = bench name $ nf (f . Ops.sourceUnfoldr) 1
+
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
 benchIOSrc
@@ -107,11 +115,38 @@ main =
         , benchIOSink "nullHeadTail" Ops.nullHeadTail
         , benchIOSink "mapM_" Ops.mapM_
         , benchIOSink "toList" Ops.toList
-        , benchIOSink "foldr" Ops.foldr
-        , benchIOSink "foldr1" Ops.foldr1
-        , benchIOSink "foldrM" Ops.foldrM
-        , benchIOSink "foldl'" Ops.foldl'
-        , benchIOSink "foldl1'" Ops.foldl1'
+
+        , bgroup "reduce"
+          [ bgroup "IO"
+            [ benchIOSink "foldr" Ops.foldrReduce
+            , benchIOSink "foldr1" Ops.foldr1Reduce
+            , benchIOSink "foldl'" Ops.foldl'Reduce
+            , benchIOSink "foldl1'" Ops.foldl1'Reduce
+            , benchIOSink "foldlM'" Ops.foldlM'Reduce
+            ]
+          , bgroup "Identity"
+            [ benchIdentitySink "foldr" Ops.foldrReduce
+            , benchIdentitySink "foldr1" Ops.foldr1Reduce
+            , benchIdentitySink "foldl'" Ops.foldl'Reduce
+            , benchIdentitySink "foldl1'" Ops.foldl1'Reduce
+            , benchIdentitySink "foldlM'" Ops.foldlM'Reduce
+            ]
+          ]
+
+        , bgroup "build"
+          [ bgroup "IO"
+            [ benchIOSink "foldr" Ops.foldrBuild
+            , benchIOSink "foldrM" Ops.foldrMBuild
+            , benchIOSink "foldl'" Ops.foldl'Build
+            , benchIOSink "foldlM'" Ops.foldlM'Build
+            ]
+          , bgroup "Identity"
+            [ benchIdentitySink "foldr" Ops.foldrBuild
+            , benchIdentitySink "foldrM" Ops.foldrMBuild
+            , benchIdentitySink "foldl'" Ops.foldl'Build
+            , benchIdentitySink "foldlM'" Ops.foldlM'Build
+            ]
+          ]
 
         , benchIOSink "last" Ops.last
         , benchIOSink "length" Ops.length

@@ -19,7 +19,8 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>), (<*>))
+        maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
+        (<*>), flip)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -170,22 +171,32 @@ toList :: Monad m => Stream m Int -> m [Int]
 {-# INLINE find #-}
 {-# INLINE findIndex #-}
 {-# INLINE elemIndex #-}
-{-# INLINE foldl1' #-}
-{-# INLINE foldr1 #-}
-last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1
+{-# INLINE foldl1'Reduce #-}
+{-# INLINE foldr1Reduce #-}
+last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce, foldr1Reduce
     :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE minimumBy #-}
 {-# INLINE maximumBy #-}
 minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 
-{-# INLINE foldl' #-}
-{-# INLINE foldr #-}
-{-# INLINE foldrM #-}
+{-# INLINE foldl'Reduce #-}
+{-# INLINE foldlM'Reduce #-}
+{-# INLINE foldrReduce #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
 {-# INLINE product #-}
-foldl', foldr, foldrM, length, sum, product :: Monad m => Stream m Int -> m Int
+foldl'Reduce, foldlM'Reduce, foldrReduce, length, sum, product
+    :: Monad m
+    => Stream m Int -> m Int
+
+{-# INLINE foldl'Build #-}
+{-# INLINE foldlM'Build #-}
+{-# INLINE foldrBuild #-}
+{-# INLINE foldrMBuild #-}
+foldrBuild, foldrMBuild, foldl'Build, foldlM'Build
+    :: Monad m
+    => Stream m Int -> m [Int]
 
 {-# INLINE all #-}
 {-# INLINE any #-}
@@ -228,11 +239,18 @@ mapM_ :: Monad m => Stream m Int -> m ()
 mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
-foldr  = S.foldr (+) 0
-foldr1 = S.foldr1 (+)
-foldrM = S.foldrM (\a xs -> return $ a + xs) 0
-foldl' = S.foldl' (+) 0
-foldl1' = S.foldl1' (+)
+
+foldl'Build = S.foldl' (flip (:)) []
+foldrBuild  = S.foldr (:) []
+foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
+foldrMBuild  = S.foldrM  (\x xs -> return $ x : xs) []
+
+foldrReduce = S.foldr (+) 0
+foldr1Reduce = S.foldr1 (+)
+foldl'Reduce = S.foldl' (+) 0
+foldl1'Reduce = S.foldl1' (+)
+foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
+
 last   = S.last
 elem   = S.elem maxValue
 notElem = S.notElem maxValue

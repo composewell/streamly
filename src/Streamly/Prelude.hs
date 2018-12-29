@@ -809,6 +809,9 @@ foldrM = P.foldrM
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 foldr = P.foldr
 
+-- XXX This seems to be of limited use as it cannot be used to construct
+-- recursive structures and for reduction foldl1' is better.
+--
 -- | Lazy right fold for non-empty streams, using first element as the starting
 -- value. Returns 'Nothing' if the stream is empty.
 --
@@ -927,6 +930,7 @@ foldl1' step m = do
 -- | Like 'foldx', but with a monadic step function.
 --
 -- @since 0.2.0
+{-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldxM = K.foldxM
 
@@ -939,6 +943,7 @@ foldlM = foldxM
 -- | Like 'foldl'' but with a monadic step function.
 --
 -- @since 0.2.0
+{-# INLINE foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> b -> SerialT m a -> m b
 foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
