@@ -394,6 +394,7 @@ import qualified Streamly.Streams.Serial as Serial
 -- the head of the stream and @ma@ its tail.
 --
 -- @since 0.1.0
+{-# INLINE uncons #-}
 uncons :: (IsStream t, Monad m) => SerialT m a -> m (Maybe (a, t m a))
 uncons m = K.uncons (K.adapt m)
 

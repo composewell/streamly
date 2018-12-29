@@ -143,6 +143,7 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- are generated concurrently.
 --
 -- @since 0.1.0
+{-# INLINABLE zipAsyncWith #-}
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
 zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
@@ -154,6 +155,7 @@ zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
 -- are generated concurrently.
 --
 -- @since 0.4.0
+{-# INLINABLE zipAsyncWithM #-}
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 = mkStream $ \st stp sng yld -> do
