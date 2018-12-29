@@ -57,7 +57,9 @@ import qualified Data.Set as S
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
-import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt, runStreamSVar)
+import Streamly.Streams.StreamK
+       (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared,
+        foldStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -82,7 +84,7 @@ workLoopLIFO q st sv winfo = run
         work <- dequeue
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> runStreamSVar sv m st run single yieldk
+            Just m -> foldStreamSVar sv st yieldk single run m
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -91,7 +93,7 @@ workLoopLIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then runStreamSVar sv r st run single yieldk
+        then foldStreamSVar sv st yieldk single run r
         else liftIO $ do
             enqueueLIFO sv q r
             sendStop sv winfo
@@ -132,7 +134,7 @@ workLoopLIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    runStreamSVar sv m st stop single yieldk
+                    foldStreamSVar sv st yieldk single stop m
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
@@ -151,7 +153,7 @@ workLoopLIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then runStreamSVar sv r st stop single yieldk
+        then foldStreamSVar sv st yieldk single stop r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueLIFO sv q r
@@ -183,7 +185,7 @@ workLoopFIFO q st sv winfo = run
         work <- liftIO $ tryPopR q
         case work of
             Nothing -> liftIO $ sendStop sv winfo
-            Just m -> runStreamSVar sv m st run single yieldk
+            Just m -> foldStreamSVar sv st yieldk single run m
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
@@ -192,7 +194,7 @@ workLoopFIFO q st sv winfo = run
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then runStreamSVar sv r st run single yieldk
+        then foldStreamSVar sv st yieldk single run r
         else liftIO $ do
             enqueueFIFO sv q r
             sendStop sv winfo
@@ -218,7 +220,7 @@ workLoopFIFOLimited q st sv winfo = run
                 if yieldLimitOk
                 then do
                     let stop = liftIO (incrementYieldLimit sv) >> run
-                    runStreamSVar sv m st stop single yieldk
+                    foldStreamSVar sv st yieldk single stop m
                 else liftIO $ do
                     enqueueFIFO sv q m
                     incrementYieldLimit sv
@@ -233,7 +235,7 @@ workLoopFIFOLimited q st sv winfo = run
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then runStreamSVar sv r st stop single yieldk
+        then foldStreamSVar sv st yieldk single stop r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueFIFO sv q r
@@ -526,35 +528,32 @@ newWAsyncVar st m = do
 --   composition and vice-versa we create a new SVar to isolate the scheduling
 --   of the two.
 
-forkSVarAsync :: MonadAsync m
-    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-forkSVarAsync style m1 m2 = Stream $ \st stp sng yld -> do
+forkSVarAsync :: (IsStream t, MonadAsync m)
+    => SVarStyle -> t m a -> t m a -> t m a
+forkSVarAsync style m1 m2 = mkStream $ \st stp sng yld -> do
     sv <- case style of
-        AsyncVar -> newAsyncVar st (concurrently m1 m2)
-        WAsyncVar -> newWAsyncVar st (concurrently m1 m2)
+        AsyncVar -> newAsyncVar st (concurrently (toStream m1) (toStream m2))
+        WAsyncVar -> newWAsyncVar st (concurrently (toStream m1) (toStream m2))
         _ -> error "illegal svar type"
-    unStream (fromSVar sv) (rstState st) stp sng yld
+    foldStream st stp sng yld $ fromSVar sv
     where
-    concurrently ma mb = Stream $ \st stp sng yld -> do
+    concurrently ma mb = mkStream $ \st stp sng yld -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
-        unStream ma st stp sng yld
+        foldStreamShared st stp sng yld ma
 
 {-# INLINE joinStreamVarAsync #-}
-joinStreamVarAsync :: MonadAsync m
-    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarAsync style m1 m2 = Stream $ \st stp sng yld ->
+joinStreamVarAsync :: (IsStream t, MonadAsync m)
+    => SVarStyle -> t m a -> t m a -> t m a
+joinStreamVarAsync style m1 m2 = mkStream $ \st stp sng yld ->
     case streamVar st of
-        Just sv | svarStyle sv == style ->
-            liftIO (enqueue sv m2) >> unStream m1 st stp sng yld
-        _ -> unStream (forkSVarAsync style m1 m2) st stp sng yld
+        Just sv | svarStyle sv == style -> do
+            liftIO $ enqueue sv (toStream m2)
+            foldStreamShared st stp sng yld m1
+        _ -> foldStreamShared st stp sng yld (forkSVarAsync style m1 m2)
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
 ------------------------------------------------------------------------------
-
-{-# INLINE asyncS #-}
-asyncS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-asyncS = joinStreamVarAsync AsyncVar
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'AsyncT'.
 -- Merges two streams possibly concurrently, preferring the
@@ -563,9 +562,7 @@ asyncS = joinStreamVarAsync AsyncVar
 -- @since 0.2.0
 {-# INLINE async #-}
 async :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-async m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (joinStreamVarAsync AsyncVar (toStream m1) (toStream m2))
-             st stp sng yld
+async = joinStreamVarAsync AsyncVar
 
 -- | Same as 'async'.
 --
@@ -575,11 +572,16 @@ async m1 m2 = fromStream $ Stream $ \st stp sng yld ->
 (<|) :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 (<|) = async
 
+-- IMPORTANT: using a monomorphically typed and SPECIALIZED consMAsync makes a
+-- huge difference in the performance of consM in IsStream instance even we
+-- have a SPECIALIZE in the instance.
+--
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using async.
 {-# INLINE consMAsync #-}
-consMAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAsync m r = K.yieldM m `asyncS` r
+{-# SPECIALIZE consMAsync :: IO a -> AsyncT IO a -> AsyncT IO a #-}
+consMAsync :: MonadAsync m => m a -> AsyncT m a -> AsyncT m a
+consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AsyncT
@@ -652,21 +654,22 @@ asyncly = adapt
 instance IsStream AsyncT where
     toStream = getAsyncT
     fromStream = AsyncT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> AsyncT IO a -> AsyncT IO a #-}
-    consM m r = fromStream $ consMAsync m (toStream r)
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> AsyncT IO a -> AsyncT IO a #-}
-    (|:) = consM
+    consM = consMAsync
+    (|:) = consMAsync
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
+-- Monomorphically typed version of "async" for better performance of Semigroup
+-- instance.
+{-# INLINE mappendAsync #-}
+{-# SPECIALIZE mappendAsync :: AsyncT IO a -> AsyncT IO a -> AsyncT IO a #-}
+mappendAsync :: MonadAsync m => AsyncT m a -> AsyncT m a -> AsyncT m a
+mappendAsync m1 m2 = fromStream $ async (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (AsyncT m a) where
-    (<>) = async
+    (<>) = mappendAsync
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -680,30 +683,40 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindAsync #-}
+{-# SPECIALIZE bindAsync :: AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
+bindAsync :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
+bindAsync m f = fromStream $ K.bindWith async (adapt m) (\a -> adapt $ f a)
+
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
-    (AsyncT m) >>= f = AsyncT $ K.bindWith asyncS m (getAsyncT . f)
+    (>>=) = bindAsync
+
+{-# INLINE apAsync #-}
+{-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
+apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
+apAsync mf m = ap (adapt mf) (adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
+    pure = AsyncT . K.yield
+    (<*>) = apAsync
 
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(AsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
 -- WAsyncT
 ------------------------------------------------------------------------------
 
-{-# INLINE wAsyncS #-}
-wAsyncS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-wAsyncS = joinStreamVarAsync WAsyncVar
-
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using wAsync.
 {-# INLINE consMWAsync #-}
-consMWAsync :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMWAsync m r = K.yieldM m `wAsyncS` r
+{-# SPECIALIZE consMWAsync :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+consMWAsync :: MonadAsync m => m a -> WAsyncT m a -> WAsyncT m a
+consMWAsync m r = fromStream $ K.yieldM m `wAsync` (toStream r)
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WAsyncT'.
 -- Merges two streams concurrently choosing elements from both fairly.
@@ -711,8 +724,7 @@ consMWAsync m r = K.yieldM m `wAsyncS` r
 -- @since 0.2.0
 {-# INLINE wAsync #-}
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-wAsync m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (wAsyncS (toStream m1) (toStream m2)) st stp sng yld
+wAsync = joinStreamVarAsync WAsyncVar
 
 -- | Wide async composition or async composition with breadth first traversal.
 -- The Semigroup instance of 'WAsyncT' concurrently /traverses/ the composed
@@ -779,21 +791,20 @@ wAsyncly = adapt
 instance IsStream WAsyncT where
     toStream = getWAsyncT
     fromStream = WAsyncT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-    consM m r = fromStream $ consMWAsync m (toStream r)
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> WAsyncT IO a -> WAsyncT IO a #-}
-    (|:) = consM
+    consM = consMWAsync
+    (|:) = consMWAsync
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
+{-# INLINE mappendWAsync #-}
+{-# SPECIALIZE mappendWAsync :: WAsyncT IO a -> WAsyncT IO a -> WAsyncT IO a #-}
+mappendWAsync :: MonadAsync m => WAsyncT m a -> WAsyncT m a -> WAsyncT m a
+mappendWAsync m1 m2 = fromStream $ wAsync (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (WAsyncT m a) where
-    (<>) = wAsync
+    (<>) = mappendWAsync
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -807,14 +818,26 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindWAsync #-}
+{-# SPECIALIZE bindWAsync :: WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
+bindWAsync :: MonadAsync m => WAsyncT m a -> (a -> WAsyncT m b) -> WAsyncT m b
+bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (\a -> adapt $ f a)
+
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
-    (WAsyncT m) >>= f =
-        WAsyncT $ K.bindWith wAsyncS m (getWAsyncT . f)
+    (>>=) = bindWAsync
+
+{-# INLINE apWAsync #-}
+{-# SPECIALIZE apWAsync :: WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
+apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
+apWAsync mf m = ap (adapt mf) (adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
+    pure = WAsyncT . K.yield
+    (<*>) = apWAsync
 
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(WAsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)

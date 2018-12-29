@@ -48,8 +48,8 @@ import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK
-       (IsStream(..), Stream(..), unstreamShared, unStreamIsolated,
-        runStreamSVar)
+       (IsStream(..), Stream, mkStream, foldStream, foldStreamShared,
+        foldStreamSVar)
 import qualified Streamly.Streams.StreamK as K
 
 import Prelude hiding (map)
@@ -298,9 +298,11 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             let stop = do
                   liftIO (incrementYieldLimit sv)
                   nextHeap seqNo
-            runStreamSVar sv r st stop
-                          (singleStreamFromHeap seqNo)
+            foldStreamSVar sv st
                           (yieldStreamFromHeap seqNo)
+                          (singleStreamFromHeap seqNo)
+                          stop
+                          r
         else liftIO $ do
             let ent = Entry seqNo (AheadEntryStream r)
             liftIO $ requeueOnHeapTop heap ent seqNo
@@ -348,9 +350,11 @@ processWithoutToken q heap st sv winfo m seqNo = do
             -- we stop.
             toHeap AheadEntryNull
 
-    runStreamSVar sv m st stop
-        (toHeap . AheadEntryPure)
+    foldStreamSVar sv st
         (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
+        (toHeap . AheadEntryPure)
+        stop
+        m
 
     where
 
@@ -408,7 +412,7 @@ processWithToken q heap st sv winfo action sno = do
             liftIO (incrementYieldLimit sv)
             loopWithToken (sno + 1)
 
-    runStreamSVar sv action st stop (singleOutput sno) (yieldOutput sno)
+    foldStreamSVar sv st (yieldOutput sno) (singleOutput sno) stop action
 
     where
 
@@ -431,9 +435,11 @@ processWithToken q heap st sv winfo action sno = do
             let stop = do
                     liftIO (incrementYieldLimit sv)
                     loopWithToken (seqNo + 1)
-            runStreamSVar sv r st stop
-                          (singleOutput seqNo)
+            foldStreamSVar sv st
                           (yieldOutput seqNo)
+                          (singleOutput seqNo)
+                          stop
+                          r
         else do
             let ent = Entry seqNo (AheadEntryStream r)
             liftIO $ requeueOnHeapTop heap ent seqNo
@@ -460,9 +466,11 @@ processWithToken q heap st sv winfo action sno = do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
                                 loopWithToken (seqNo + 1)
-                        runStreamSVar sv m st stop
-                                      (singleOutput seqNo)
+                        foldStreamSVar sv st
                                       (yieldOutput seqNo)
+                                      (singleOutput seqNo)
+                                      stop
+                                      m
                     else
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
@@ -543,32 +551,38 @@ workLoopAhead q heap st sv winfo = do
 
 -- The only difference between forkSVarAsync and this is that we run the left
 -- computation without a shared SVar.
-forkSVarAhead :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarAhead m1 m2 = Stream $ \st stp sng yld -> do
-        sv <- newAheadVar st (concurrently m1 m2) workLoopAhead
-        unStream (fromSVar sv) (rstState st) stp sng yld
+forkSVarAhead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+forkSVarAhead m1 m2 = mkStream $ \st stp sng yld -> do
+        sv <- newAheadVar st (concurrently (toStream m1) (toStream m2))
+                          workLoopAhead
+        foldStream st stp sng yld (fromSVar sv)
     where
-    concurrently ma mb = Stream $ \st stp sng yld -> do
+    concurrently ma mb = mkStream $ \st stp sng yld -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
-        unStream ma (rstState st) stp sng yld
+        foldStream st stp sng yld ma
 
-{-# INLINE aheadS #-}
-aheadS :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-aheadS m1 m2 = Stream $ \st stp sng yld ->
+-- | Polymorphic version of the 'Semigroup' operation '<>' of 'AheadT'.
+-- Merges two streams sequentially but with concurrent lookahead.
+--
+-- @since 0.3.0
+{-# INLINE ahead #-}
+ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+ahead m1 m2 = mkStream $ \st stp sng yld ->
     case streamVar st of
         Just sv | svarStyle sv == AheadVar -> do
-            liftIO $ enqueue sv m2
+            liftIO $ enqueue sv (toStream m2)
             -- Always run the left side on a new SVar to avoid complexity in
             -- sequencing results. This means the left side cannot further
             -- split into more ahead computations on the same SVar.
-            unStream m1 (rstState st) stp sng yld
-        _ -> unStream (forkSVarAhead m1 m2) st stp sng yld
+            foldStream st stp sng yld m1
+        _ -> foldStreamShared st stp sng yld (forkSVarAhead m1 m2)
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using ahead.
 {-# INLINE consMAhead #-}
-consMAhead :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMAhead m r = K.yieldM m `aheadS` r
+{-# SPECIALIZE consMAhead :: IO a -> AheadT IO a -> AheadT IO a #-}
+consMAhead :: MonadAsync m => m a -> AheadT m a -> AheadT m a
+consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 
 ------------------------------------------------------------------------------
 -- AheadT
@@ -636,30 +650,20 @@ aheadly = K.adapt
 instance IsStream AheadT where
     toStream = getAheadT
     fromStream = AheadT
-
-    {-# INLINE consM #-}
-    {-# SPECIALIZE consM :: IO a -> AheadT IO a -> AheadT IO a #-}
-    consM m r = fromStream $ consMAhead m (toStream r)
-
-    {-# INLINE (|:) #-}
-    {-# SPECIALIZE (|:) :: IO a -> AheadT IO a -> AheadT IO a #-}
-    (|:) = consM
+    consM = consMAhead
+    (|:) = consMAhead
 
 ------------------------------------------------------------------------------
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- | Polymorphic version of the 'Semigroup' operation '<>' of 'AheadT'.
--- Merges two streams sequentially but with concurrent lookahead.
---
--- @since 0.3.0
-{-# INLINE ahead #-}
-ahead :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-ahead m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (aheadS (toStream m1) (toStream m2)) st stp sng yld
+{-# INLINE mappendAhead #-}
+{-# SPECIALIZE mappendAhead :: AheadT IO a -> AheadT IO a -> AheadT IO a #-}
+mappendAhead :: MonadAsync m => AheadT m a -> AheadT m a -> AheadT m a
+mappendAhead m1 m2 = fromStream $ ahead (toStream m1) (toStream m2)
 
 instance MonadAsync m => Semigroup (AheadT m a) where
-    (<>) = ahead
+    (<>) = mappendAhead
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -673,31 +677,26 @@ instance MonadAsync m => Monoid (AheadT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
-{-# INLINE aheadbind #-}
-aheadbind
-    :: MonadAsync m
-    => Stream m a
-    -> (a -> Stream m b)
-    -> Stream m b
-aheadbind m f = go m
-    where
-        go (Stream g) =
-            Stream $ \st stp sng yld ->
-                let runShared x   = unstreamShared x st stp sng yld
-                    runIsolated x = unStreamIsolated x st stp sng yld
-
-                    single a   = runIsolated $ f a
-                    yieldk a r = runShared $
-                        K.isolateStream (f a) `aheadS` go r
-                in g (rstState st) stp single yieldk
+{-# INLINE bindAhead #-}
+{-# SPECIALIZE bindAhead :: AheadT IO a -> (a -> AheadT IO b) -> AheadT IO b #-}
+bindAhead :: MonadAsync m => AheadT m a -> (a -> AheadT m b) -> AheadT m b
+bindAhead m f = fromStream $ K.bindWith ahead (K.adapt m) (\a -> K.adapt $ f a)
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
-    (AheadT m) >>= f = AheadT $ aheadbind m (getAheadT . f)
+    (>>=) = bindAhead
+
+{-# INLINE apAhead #-}
+{-# SPECIALIZE apAhead :: AheadT IO (a -> b) -> AheadT IO a -> AheadT IO b #-}
+apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
+apAhead mf m = ap (K.adapt mf) (K.adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
+    pure = AheadT . K.yield
+    (<*>) = apAhead
 
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(AheadT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(AheadT, MONADPARALLEL)

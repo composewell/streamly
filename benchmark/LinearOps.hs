@@ -19,7 +19,7 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO, compare, Double, fromIntegral, Integer)
+        maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>), (<*>))
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -49,7 +49,7 @@ type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
 source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-source n = S.serially $ sourceUnfoldrM n
+source n = sourceUnfoldrM n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -97,6 +97,11 @@ sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
     => Int -> t m Int
 sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+
+{-# INLINE sourceFoldMapM #-}
+sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
+    => Int -> t m Int
+sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -173,6 +178,8 @@ last, minimum, maximum, find, findIndex, elemIndex, foldl1', foldr1
 minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE foldl' #-}
+{-# INLINE foldr #-}
+{-# INLINE foldrM #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
 {-# INLINE product #-}
@@ -307,7 +314,12 @@ scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
-mapM :: (S.IsStream t, S.MonadAsync m)
+{-# INLINE map' #-}
+{-# INLINE fmap' #-}
+mapM, map' :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
+
+fmap' :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
 
 {-# INLINE sequence #-}
@@ -317,7 +329,9 @@ sequence :: (S.IsStream t, S.MonadAsync m)
 scan          n = composeN n $ S.scanl' (+) 0
 scanl1'       n = composeN n $ S.scanl1' (+)
 fmap          n = composeN n $ Prelude.fmap (+1)
+fmap' t       n = composeN' n $ t . Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
+map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
 mapMaybe      n = composeN n $ S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just x)
@@ -421,16 +435,24 @@ stripPrefix src = do
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
-zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
+{-# INLINE zipAsyncAp #-}
+zipAsync, zipAsyncAp, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
 
 zipAsync src  = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipAsyncWith (,) src src1)
+
 zipAsyncM src = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipAsyncWithM (curry return) src src1)
+
+zipAsyncAp src  = do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform (S.zipAsyncly $ (,) <$> S.serially src
+                                  <*> S.serially src1)
 
 {-# INLINE eqBy #-}
 eqBy :: (Monad m, P.Eq a) => Stream m a -> m P.Bool

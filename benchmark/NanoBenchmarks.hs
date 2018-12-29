@@ -3,15 +3,18 @@
 -- at GHC generated code for optimizing specific problematic cases.
 -------------------------------------------------------------------------------
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-import qualified Streamly.Streams.StreamD as S
+import Streamly.SVar (MonadAsync)
+import qualified Streamly.Streams.StreamK as S
 import Gauge
+import System.Random
 
 maxValue :: Int
 maxValue = 100000
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: Monad m => S.Stream m Int
+sourceUnfoldrM :: MonadAsync m => S.Stream m Int
 sourceUnfoldrM = S.unfoldrM step 0
     where
     step cnt =
@@ -20,13 +23,22 @@ sourceUnfoldrM = S.unfoldrM step 0
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: Monad m => Int -> S.Stream m Int
+sourceUnfoldrMN :: MonadAsync m => Int -> S.Stream m Int
 sourceUnfoldrMN n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n
         then return Nothing
         else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: Monad m => Int -> S.Stream m Int
+sourceUnfoldr n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + maxValue
+        then Nothing
+        else Just (cnt, cnt + 1)
 
 -------------------------------------------------------------------------------
 -- take-drop composition
@@ -64,7 +76,7 @@ dropWhileFalseX4 = S.runStream
 
 {-# INLINE iterateSource #-}
 iterateSource
-    :: Monad m
+    :: MonadAsync m
     => (S.Stream m Int -> S.Stream m Int) -> Int -> Int -> S.Stream m Int
 iterateSource g i n = f i (sourceUnfoldrMN n)
     where
@@ -75,6 +87,8 @@ iterateSource g i n = f i (sourceUnfoldrMN n)
 -- We keep all of them enabled by default for testing the build.
 main :: IO ()
 main = do
+    defaultMain [bench "unfoldr" $ nfIO $
+        randomRIO (1,1) >>= \n -> S.runStream (sourceUnfoldr n)]
     defaultMain [bench "take-drop" $ nfIO $ takeDrop sourceUnfoldrM]
     defaultMain [bench "dropWhileFalseX4" $
         nfIO $ dropWhileFalseX4 sourceUnfoldrM]

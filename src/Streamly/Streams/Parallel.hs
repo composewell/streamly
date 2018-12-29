@@ -49,7 +49,8 @@ import Prelude hiding (map)
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
-import Streamly.Streams.StreamK (IsStream(..), Stream(..), adapt)
+import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
+                                 foldStreamShared, adapt)
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -62,7 +63,7 @@ import qualified Streamly.Streams.StreamK as K
 runOne
     :: MonadIO m
     => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
-runOne st m winfo = unStream m st stop single yieldk
+runOne st m winfo = foldStreamShared st yieldk single stop m
 
     where
 
@@ -87,32 +88,29 @@ runOne st m winfo = unStream m st stop single yieldk
         >> withLimitCheck (void $ liftIO $ mrun $ runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}
-forkSVarPar :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-forkSVarPar m r = Stream $ \st stp sng yld -> do
+forkSVarPar :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+forkSVarPar m r = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar st
-    pushWorkerPar sv (runOne st{streamVar = Just sv} m)
-    pushWorkerPar sv (runOne st{streamVar = Just sv} r)
-    unStream (fromSVar sv) (rstState st) stp sng yld
+    pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
+    pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream r)
+    foldStream st yld sng stp (fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
-joinStreamVarPar :: MonadAsync m
-    => SVarStyle -> Stream m a -> Stream m a -> Stream m a
-joinStreamVarPar style m1 m2 = Stream $ \st stp sng yld ->
+joinStreamVarPar :: (IsStream t, MonadAsync m)
+    => SVarStyle -> t m a -> t m a -> t m a
+joinStreamVarPar style m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
-            pushWorkerPar sv (runOne st m1)
-            unStream m2 st stp sng yld
-        _ -> unStream (forkSVarPar m1 m2) st stp sng yld
-
-{-# INLINE parallelStream #-}
-parallelStream :: MonadAsync m => Stream m a -> Stream m a -> Stream m a
-parallelStream = joinStreamVarPar ParallelVar
+            pushWorkerPar sv (runOne st $ toStream m1)
+            foldStreamShared st yld sng stp m2
+        _ -> foldStreamShared st yld sng stp (forkSVarPar m1 m2)
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using parallel.
 {-# INLINE consMParallel #-}
-consMParallel :: MonadAsync m => m a -> Stream m a -> Stream m a
-consMParallel m r = K.yieldM m `parallelStream` r
+{-# SPECIALIZE consMParallel :: IO a -> ParallelT IO a -> ParallelT IO a #-}
+consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
+consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
@@ -120,9 +118,7 @@ consMParallel m r = K.yieldM m `parallelStream` r
 -- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallel m1 m2 = fromStream $ Stream $ \st stp sng yld ->
-    unStream (parallelStream (toStream m1) (toStream m2))
-             st stp sng yld
+parallel = joinStreamVarPar ParallelVar
 
 ------------------------------------------------------------------------------
 -- Convert a stream to parallel
@@ -140,10 +136,10 @@ mkParallel m = do
 
 {-# INLINE applyWith #-}
 applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-applyWith f m = fromStream $ Stream $ \st stp sng yld -> do
-    sv <- newParallelVar (rstState st)
+applyWith f m = mkStream $ \st yld sng stp -> do
+    sv <- newParallelVar (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
-    unStream (toStream $ f $ fromSVar sv) (rstState st) stp sng yld
+    foldStream st yld sng stp $ f $ fromSVar sv
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application
@@ -345,7 +341,7 @@ instance IsStream ParallelT where
 
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ParallelT IO a -> ParallelT IO a #-}
-    consM m r = fromStream $ consMParallel m (toStream r)
+    consM = consMParallel
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ParallelT IO a -> ParallelT IO a #-}
@@ -355,8 +351,13 @@ instance IsStream ParallelT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
+{-# INLINE mappendParallel #-}
+{-# SPECIALIZE mappendParallel :: ParallelT IO a -> ParallelT IO a -> ParallelT IO a #-}
+mappendParallel :: MonadAsync m => ParallelT m a -> ParallelT m a -> ParallelT m a
+mappendParallel m1 m2 = fromStream $ parallel (toStream m1) (toStream m2)
+
 instance MonadAsync m => Semigroup (ParallelT m a) where
-    (<>) = parallel
+    (<>) = mappendParallel
 
 ------------------------------------------------------------------------------
 -- Monoid
@@ -370,10 +371,16 @@ instance MonadAsync m => Monoid (ParallelT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+{-# INLINE bindParallel #-}
+{-# SPECIALIZE bindParallel :: ParallelT IO a -> (a -> ParallelT IO b) -> ParallelT IO b #-}
+bindParallel :: MonadAsync m => ParallelT m a -> (a -> ParallelT m b) -> ParallelT m b
+bindParallel m f = fromStream $ K.bindWith parallel (K.adapt m) (\a -> K.adapt $ f a)
+
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
-    (ParallelT m) >>= f
-        = ParallelT $ K.bindWith parallelStream m (getParallelT . f)
+    (>>=) = bindParallel
+
+-- XXX Specialize the applicative instance
 
 ------------------------------------------------------------------------------
 -- Other instances

@@ -48,10 +48,10 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, repeat, zipWith)
 
-import Streamly.Streams.StreamK (IsStream(..), Stream(..))
+import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Serial (map)
-import Streamly.SVar (MonadAsync, rstState)
+import Streamly.SVar (MonadAsync, adaptState)
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
@@ -106,6 +106,9 @@ zipSerially = K.adapt
 zipping :: IsStream t => ZipSerialM m a -> t m a
 zipping = zipSerially
 
+consMZip :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
+consMZip m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream ZipSerialM where
     toStream = getZipSerialM
     fromStream = ZipSerialM
@@ -113,12 +116,12 @@ instance IsStream ZipSerialM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     consM :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    consM m r = fromStream $ K.consMSerial m (toStream r)
+    consM = consMZip
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipSerialM IO a -> ZipSerialM IO a #-}
     (|:) :: Monad m => m a -> ZipSerialM m a -> ZipSerialM m a
-    m |: r = fromStream $ K.consMSerial m (toStream r)
+    (|:) = consMZip
 
 LIST_INSTANCES(ZipSerialM)
 
@@ -127,7 +130,7 @@ instance Monad m => Functor (ZipSerialM m) where
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . K.repeat
-    m1 <*> m2 = fromStream $ K.zipWith id (toStream m1) (toStream m2)
+    (<*>) = K.zipWith id
 
 FOLDABLE_INSTANCE(ZipSerialM)
 TRAVERSABLE_INSTANCE(ZipSerialM)
@@ -140,23 +143,25 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 -- are generated concurrently.
 --
 -- @since 0.1.0
+{-# INLINABLE zipAsyncWith #-}
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
-    unStream (toStream (K.zipWith f ma mb)) (rstState st) stp sng yld
+zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
+    ma <- mkAsync' (adaptState st) m1
+    mb <- mkAsync' (adaptState st) m2
+    foldStream st stp sng yld (K.zipWith f ma mb)
 
 -- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.
 --
 -- @since 0.4.0
+{-# INLINABLE zipAsyncWithM #-}
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = fromStream $ Stream $ \st stp sng yld -> do
-    ma <- mkAsync' (rstState st) m1
-    mb <- mkAsync' (rstState st) m2
-    unStream (toStream (K.zipWithM f ma mb)) (rstState st) stp sng yld
+zipAsyncWithM f m1 m2 = mkStream $ \st stp sng yld -> do
+    ma <- mkAsync' (adaptState st) m1
+    mb <- mkAsync' (adaptState st) m2
+    foldStream st stp sng yld (K.zipWithM f ma mb)
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -199,6 +204,10 @@ zipAsyncly = K.adapt
 {-# DEPRECATED zippingAsync "Please use zipAsyncly instead." #-}
 zippingAsync :: IsStream t => ZipAsyncM m a -> t m a
 zippingAsync = zipAsyncly
+
+consMZipAsync :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
+consMZipAsync m ms = fromStream $ K.consMStream m (toStream ms)
+
 instance IsStream ZipAsyncM where
     toStream = getZipAsyncM
     fromStream = ZipAsyncM
@@ -206,12 +215,12 @@ instance IsStream ZipAsyncM where
     {-# INLINE consM #-}
     {-# SPECIALIZE consM :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     consM :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    consM m r = fromStream $ K.consMSerial m (toStream r)
+    consM = consMZipAsync
 
     {-# INLINE (|:) #-}
     {-# SPECIALIZE (|:) :: IO a -> ZipAsyncM IO a -> ZipAsyncM IO a #-}
     (|:) :: Monad m => m a -> ZipAsyncM m a -> ZipAsyncM m a
-    m |: r = fromStream $ K.consMSerial m (toStream r)
+    (|:) = consMZipAsync
 
 instance Monad m => Functor (ZipAsyncM m) where
     fmap = map
