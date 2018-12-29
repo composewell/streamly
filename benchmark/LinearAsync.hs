@@ -100,5 +100,6 @@ main =
         -- Zip has only one parallel flavor
         , benchIO "zip" Ops.zipAsync
         , benchIO "zipM" Ops.zipAsyncM
+        , benchIO "zipAp" Ops.zipAsyncAp
         ]
       ]

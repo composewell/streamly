@@ -62,6 +62,13 @@ runToList = S.toList
 -- Benchmark ops
 -------------------------------------------------------------------------------
 
+{-# INLINE toNullAp #-}
+toNullAp
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+toNullAp t start = runStream . t $
+    (+) <$> source start prodCount <*> source start prodCount
+
 {-# INLINE toNull #-}
 toNull
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))

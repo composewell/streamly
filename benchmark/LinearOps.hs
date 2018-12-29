@@ -19,7 +19,7 @@ import Data.Maybe (fromJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO, compare, Double, fromIntegral, Integer)
+        maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>), (<*>))
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -435,16 +435,24 @@ stripPrefix src = do
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
-zipAsync, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
+{-# INLINE zipAsyncAp #-}
+zipAsync, zipAsyncAp, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
 
 zipAsync src  = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipAsyncWith (,) src src1)
+
 zipAsyncM src = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipAsyncWithM (curry return) src src1)
+
+zipAsyncAp src  = do
+    r <- S.tail src
+    let src1 = fromJust r
+    transform (S.zipAsyncly $ (,) <$> S.serially src
+                                  <*> S.serially src1)
 
 {-# INLINE eqBy #-}
 eqBy :: (Monad m, P.Eq a) => Stream m a -> m P.Bool

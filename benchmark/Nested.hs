@@ -23,7 +23,8 @@ main =
   -- TBD Study scaling with 10, 100, 1000 loop iterations
   defaultMain
     [ bgroup "serially"
-      [ benchIO "toNull"         $ Ops.toNull         serially
+      [ benchIO "toNullAp"       $ Ops.toNullAp       serially
+      , benchIO "toNull"         $ Ops.toNull         serially
       , benchIO "toList"         $ Ops.toList         serially
    --   , benchIO "toListSome"     $ Ops.toListSome     serially
       , benchIO "filterAllOut"   $ Ops.filterAllOut   serially
@@ -33,7 +34,8 @@ main =
       ]
 
     , bgroup "wSerially"
-      [ benchIO "toNull"         $ Ops.toNull         wSerially
+      [ benchIO "toNullAp"       $ Ops.toNullAp       wSerially
+      , benchIO "toNull"         $ Ops.toNull         wSerially
       , benchIO "toList"         $ Ops.toList         wSerially
     --  , benchIO "toListSome"     $ Ops.toListSome     wSerially
       , benchIO "filterAllOut"   $ Ops.filterAllOut   wSerially
@@ -43,7 +45,8 @@ main =
       ]
 
     , bgroup "aheadly"
-      [ benchIO "toNull"         $ Ops.toNull         aheadly
+      [ benchIO "toNullAp"       $ Ops.toNullAp       aheadly
+      , benchIO "toNull"         $ Ops.toNull         aheadly
       , benchIO "toList"         $ Ops.toList         aheadly
      -- , benchIO "toListSome"     $ Ops.toListSome     aheadly
       , benchIO "filterAllOut"   $ Ops.filterAllOut   aheadly
@@ -53,7 +56,8 @@ main =
       ]
 
     , bgroup "asyncly"
-      [ benchIO "toNull"         $ Ops.toNull         asyncly
+      [ benchIO "toNullAp"       $ Ops.toNullAp       asyncly
+      , benchIO "toNull"         $ Ops.toNull         asyncly
       , benchIO "toList"         $ Ops.toList         asyncly
     --  , benchIO "toListSome"     $ Ops.toListSome     asyncly
       , benchIO "filterAllOut"   $ Ops.filterAllOut   asyncly
@@ -63,7 +67,8 @@ main =
       ]
 
     , bgroup "wAsyncly"
-      [ benchIO "toNull"         $ Ops.toNull         wAsyncly
+      [ benchIO "toNullAp"       $ Ops.toNullAp       wAsyncly
+      , benchIO "toNull"         $ Ops.toNull         wAsyncly
       , benchIO "toList"         $ Ops.toList         wAsyncly
      -- , benchIO "toListSome"     $ Ops.toListSome     wAsyncly
       , benchIO "filterAllOut"   $ Ops.filterAllOut   wAsyncly
@@ -73,7 +78,8 @@ main =
       ]
 
     , bgroup "parallely"
-      [ benchIO "toNull"         $ Ops.toNull         parallely
+      [ benchIO "toNullAp"       $ Ops.toNullAp       parallely
+      , benchIO "toNull"         $ Ops.toNull         parallely
       , benchIO "toList"         $ Ops.toList         parallely
       --, benchIO "toListSome"     $ Ops.toListSome     parallely
       , benchIO "filterAllOut"   $ Ops.filterAllOut   parallely

@@ -380,6 +380,8 @@ instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (>>=) = bindParallel
 
+-- XXX Specialize the applicative instance
+
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------

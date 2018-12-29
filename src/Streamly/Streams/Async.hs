@@ -692,13 +692,19 @@ instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (>>=) = bindAsync
 
+{-# INLINE apAsync #-}
+{-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
+apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
+apAsync mf m = ap (adapt mf) (adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
+    pure = AsyncT . K.yield
+    (<*>) = apAsync
+
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
--- XXX SPECIALIZE the applicative as well?
-
-MONAD_APPLICATIVE_INSTANCE(AsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(AsyncT, MONADPARALLEL)
 
 ------------------------------------------------------------------------------
@@ -821,11 +827,17 @@ instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
     (>>=) = bindWAsync
 
--- XXX SPECIALIZE the applicative as well?
+{-# INLINE apWAsync #-}
+{-# SPECIALIZE apWAsync :: WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
+apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
+apWAsync mf m = ap (adapt mf) (adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
+    pure = WAsyncT . K.yield
+    (<*>) = apWAsync
 
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(WAsyncT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(WAsyncT, MONADPARALLEL)

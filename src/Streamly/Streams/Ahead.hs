@@ -686,9 +686,17 @@ instance MonadAsync m => Monad (AheadT m) where
     return = pure
     (>>=) = bindAhead
 
+{-# INLINE apAhead #-}
+{-# SPECIALIZE apAhead :: AheadT IO (a -> b) -> AheadT IO a -> AheadT IO b #-}
+apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
+apAhead mf m = ap (K.adapt mf) (K.adapt m)
+
+instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
+    pure = AheadT . K.yield
+    (<*>) = apAhead
+
 ------------------------------------------------------------------------------
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(AheadT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(AheadT, MONADPARALLEL)
