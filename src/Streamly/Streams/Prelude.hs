@@ -83,7 +83,7 @@ toStreamS = S.fromStreamK . toStream
 {-# INLINE_EARLY runStream #-}
 runStream :: (IsStream t, Monad m) => t m a -> m ()
 runStream m = D.runStream $ D.fromStreamK (toStream m)
-{-# RULES "run fallback to CPS" [1]
+{-# RULES "runStream fallback to CPS" [1]
     forall a. D.runStream (D.fromStreamK a) = K.runStream a #-}
 
 ------------------------------------------------------------------------------

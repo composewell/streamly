@@ -46,7 +46,7 @@ main =
       [ bgroup "generation"
         [ benchIO "unfoldr"      D.toNull D.sourceUnfoldr
         , benchIO "unfoldrM"     D.toNull D.sourceUnfoldrM
-        , benchIO "fromEnum"     D.toNull D.sourceFromEnum
+        , benchIO "intFromTo"    D.toNull D.sourceIntFromTo
 
         , benchIO "fromList" D.toNull D.sourceFromList
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM

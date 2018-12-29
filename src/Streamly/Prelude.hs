@@ -358,7 +358,7 @@ import qualified Prelude
 import qualified System.IO as IO
 
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
-import Streamly.SVar (MonadAsync, defState, rstState)
+import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
 import Streamly.Streams.Prelude (fromStreamS, toStreamS)

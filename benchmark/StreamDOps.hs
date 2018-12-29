@@ -57,9 +57,9 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE sourceFromEnum #-}
-sourceFromEnum :: Monad m => Int -> Stream m Int
-sourceFromEnum n = S.intFromTo n (n + value)
+{-# INLINE sourceIntFromTo #-}
+sourceIntFromTo :: Monad m => Int -> Stream m Int
+sourceIntFromTo n = S.enumerateFromToIntegral n (n + value)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: Monad m => Int -> Stream m Int
