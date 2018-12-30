@@ -1,5 +1,5 @@
 name:               streamly
-version:            0.5.2
+version:            0.6.0
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly, short for streaming concurrently, provides monadic streams, with a
@@ -15,7 +15,6 @@ description:
   .
   The basic streaming functionality of streamly is equivalent to that provided by
   streaming libraries like
-  <https://hackage.haskell.org/package/vector vector>,
   <https://hackage.haskell.org/package/streaming streaming>,
   <https://hackage.haskell.org/package/pipes pipes>, and
   <https://hackage.haskell.org/package/conduit conduit>.

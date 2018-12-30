@@ -1,4 +1,4 @@
-## Unreleased
+## 0.6.0
 
 ### Breaking changes
 
@@ -7,9 +7,7 @@
 
 ### Enhancements
 
-* Add benchmarks to measure composed and iterated operations
-* Performance improvements
-* Add the following functions to Prelude:
+* Add the following functions to Streamly.Prelude:
     * Generation: `replicate`, `fromIndices`, `fromIndicesM`
     * Enumeration: `Enumerable` type class, `enumerateFrom`, `enumerateFromTo`,
       `enumerateFromThen`, `enumerateFromThenTo`, `enumerate`, `enumerateTo`
@@ -25,6 +23,8 @@
   * When `m` ~ `Identity`: IsList, Eq, Ord, Show, Read, IsString, NFData,
     NFData1, Traversable
   * When `m` is `Foldable`: Foldable
+* Performance improvements
+* Add benchmarks to measure composed and iterated operations
 
 ## 0.5.2
 
