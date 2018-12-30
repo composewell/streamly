@@ -195,6 +195,9 @@ map f = mapM (return . f)
 
 MONAD_APPLICATIVE_INSTANCE(SerialT,)
 MONAD_COMMON_INSTANCES(SerialT,)
+LIST_INSTANCES(SerialT)
+FOLDABLE_INSTANCE(SerialT)
+TRAVERSABLE_INSTANCE(SerialT)
 
 ------------------------------------------------------------------------------
 -- WSerialT
@@ -332,12 +335,6 @@ instance Monad m => Monad (WSerialT m) where
 
 MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
-
-LIST_INSTANCES(SerialT)
 LIST_INSTANCES(WSerialT)
-
-FOLDABLE_INSTANCE(SerialT)
 FOLDABLE_INSTANCE(WSerialT)
-
-TRAVERSABLE_INSTANCE(SerialT)
 TRAVERSABLE_INSTANCE(WSerialT)

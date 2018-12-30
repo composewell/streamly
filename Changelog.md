@@ -2,7 +2,8 @@
 
 ### Breaking changes
 
-* `Monad` constraint may be needed on some of the existing APIs.
+* `Monad` constraint may be needed on some of the existing APIs (`findIndices`
+  and `elemIndices`).
 
 ### Enhancements
 
@@ -19,6 +20,11 @@
     * Multi-stream: `eqBy`, `cmpBy`, `mergeBy`, `mergeByM`, `mergeAsyncBy`,
       `mergeAsyncByM`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
       `concatMap`, `concatMapM`, `indexed`, `indexedR`
+* Following instances were added for `SerialT m`, `WSerialT m` and 
+  `ZipSerialM m`:
+  * When `m` ~ `Identity`: IsList, Eq, Ord, Show, Read, IsString, NFData,
+    NFData1, Traversable
+  * When `m` is `Foldable`: Foldable
 
 ## 0.5.2
 

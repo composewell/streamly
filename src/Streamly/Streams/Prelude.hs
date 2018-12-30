@@ -75,11 +75,6 @@ toStreamS = S.fromStreamK . toStream
 -- Conversions
 ------------------------------------------------------------------------------
 
--- | Run a streaming composition, discard the results. By default it interprets
--- the stream as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @run . 'asyncly'@.
---
--- @since 0.6.0
 {-# INLINE_EARLY runStream #-}
 runStream :: (IsStream t, Monad m) => t m a -> m ()
 runStream m = D.runStream $ D.fromStreamK (toStream m)
