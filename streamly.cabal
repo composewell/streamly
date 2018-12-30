@@ -142,11 +142,11 @@ library
                      , Streamly.Streams.Ahead
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
-
-    exposed-modules:   Streamly.Prelude
                      , Streamly.List
                      , Streamly.String
                      , Streamly.Enumeration
+
+    exposed-modules:   Streamly.Prelude
                      , Streamly.Time
                      , Streamly
                      , Streamly.Tutorial
