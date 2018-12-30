@@ -87,8 +87,9 @@ module Streamly.Tutorial
     -- *** Parallel Asynchronous Composition ('Parallel')
     -- $parallel
 
-    -- *** Custom composition
-    -- $custom
+    -- XXX we should deprecate and remove the mkAsync API
+    -- Custom composition
+    -- custom
 
     -- ** Monoid Style
     -- $monoid
@@ -892,6 +893,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- number of streams, as it will lead to an infinite sized scheduling queue.
 --
 
+-- XXX to be removed
 -- $custom
 --
 -- The 'mkAsync' API can be used to create references to asynchronously running
@@ -1439,7 +1441,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- and operators instead of the ugly pragmas.
 --
 -- For more concurrent programming examples see,
--- "ListDir.hs", "MergeSort.hs" and "SearchQuery.hs" in the examples directory.
+-- <src/examples/ListDir.hs ListDir.hs>,
+-- <src/examples/MergeSort.hs MergeSort.hs> and
+-- <src/examples/SearchQuery.hs SearchQuery.hs> in the examples directory.
 
 -- $reactive
 --
@@ -1462,52 +1466,65 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- {-\# LANGUAGE FlexibleContexts #-}
 --
 -- import "Streamly"
--- import Streamly.Prelude as S
--- import Control.Monad (when)
--- import Control.Monad.IO.Class (MonadIO(..))
--- import Control.Monad.State (MonadState, get, modify, runStateT)
+-- import "Streamly.Prelude" as S
+-- import Control.Monad (void, when)
+-- import Control.Monad.IO.Class (MonadIO(liftIO))
+-- import Control.Monad.State (MonadState, get, modify, runStateT, put)
 --
--- data Event = Harm Int | Heal Int | Quit deriving (Show)
+-- data Event = Quit | Harm Int | Heal Int deriving (Show)
 --
 -- userAction :: MonadAsync m => 'SerialT' m Event
--- userAction = S.repeatM $ liftIO askUser
+-- userAction = S.'repeatM' $ liftIO askUser
 --     where
 --     askUser = do
 --         command <- getLine
 --         case command of
 --             "potion" -> return (Heal 10)
---             "quit"   -> return  Quit
---             _        -> putStrLn "What?" >> askUser
+--             "harm"   -> return (Harm 10)
+--             "quit"   -> return Quit
+--             _        -> putStrLn "Type potion or harm or quit" >> askUser
 --
--- acidRain :: MonadAsync m => SerialT m Event
--- acidRain = asyncly $ constRate 1 $ S.repeatM $ liftIO $ return $ Harm 1
+-- acidRain :: MonadAsync m => 'SerialT' m Event
+-- acidRain = 'asyncly' $ 'constRate' 1 $ S.'repeatM' $ liftIO $ return $ Harm 1
 --
--- game :: ('MonadAsync' m, MonadState Int m) => 'SerialT' m ()
--- game = do
+-- data Result = Check | Done
+--
+-- runEvents :: (MonadAsync m, MonadState Int m) => 'SerialT' m Result
+-- runEvents = do
 --     event \<- userAction \`parallel` acidRain
 --     case event of
---         Harm n -> modify $ \\h -> h - n
---         Heal n -> modify $ \\h -> h + n
---         Quit   -> fail "quit"
+--         Harm n -> modify (\\h -> h - n) >> return Check
+--         Heal n -> modify (\\h -> h + n) >> return Check
+--         Quit -> return Done
 --
---     h <- get
---     when (h <= 0) $ fail "You die!"
---     liftIO $ putStrLn $ "Health = " ++ show h
+-- data Status = Alive | GameOver deriving Eq
 --
+-- getStatus :: (MonadAsync m, MonadState Int m) => Result -> m Status
+-- getStatus result =
+--     case result of
+--         Done  -> liftIO $ putStrLn "You quit!" >> return GameOver
+--         Check -> do
+--             h <- get
+--             liftIO $ if (h <= 0)
+--                      then putStrLn "You die!" >> return GameOver
+--                      else putStrLn ("Health = " <> show h) >> return Alive
+--
+-- main :: IO ()
 -- main = do
 --     putStrLn "Your health is deteriorating due to acid rain,\\
 --              \\ type \\"potion\\" or \\"quit\\""
---     _ <- runStateT ('runStream' game) 60
---     return ()
+--     let runGame = S.'runWhile' (== Alive) $ S.'mapM' getStatus runEvents
+--     void $ runStateT runGame 60
 -- @
 --
 -- You can also find the source of this example in the examples directory as
--- "AcidRain.hs". It has been adapted from Gabriel's
+-- <src/examples/AcidRain.hs AcidRain.hs>. It has been adapted from Gabriel's
 -- <https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html pipes-concurrency>
 -- package.
 -- This is much simpler compared to the pipes version because of the builtin
 -- concurrency in streamly. You can also find a SDL based reactive programming
--- example adapted from Yampa in "Streamly.Examples.CirclingSquare".
+-- example adapted from Yampa in
+-- <src/examples/CirclingSquare.hs CirclingSquare.hs>.
 
 -- $performance
 --
