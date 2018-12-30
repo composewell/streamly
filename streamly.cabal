@@ -627,7 +627,7 @@ executable ListDir
     build-Depends:
         streamly
       , base    >= 4.8   && < 5
-      , path-io >= 0.1.0 && < 1.4
+      , path-io >= 0.1.0 && < 1.5
     if impl(ghc < 8.0)
       build-depends:
           transformers  >= 0.4    && < 0.6

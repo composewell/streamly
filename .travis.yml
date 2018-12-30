@@ -82,14 +82,16 @@ matrix:
   - env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  # Disable warnings because COMPLETE pragma is not available in this GHC
+  # version
+  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 GHC_OPTIONS="" STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
   # So disable the benchmarks for this build.
   - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y DISABLE_BENCH=y
-    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
 
   # Use cabal-install-1.24 for stack solver to work
   #- env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
@@ -125,7 +127,7 @@ matrix:
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
 
   - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6.3 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   #- env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
@@ -168,7 +170,7 @@ matrix:
   allow_failures:
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
   - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
-  - env: BUILD=stack RESOLVER=lts-11 HLINT_COMMANDS="hlint lint ."
+  - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
 
 # ------------------------------------------------------------------------
 #  Settings beyond this point are advanced and normally not tweaked

@@ -138,7 +138,7 @@ constructWithDoubleFromThenTo op l =
     forAll (choose (-9007199254740999,9007199254740999)) $ \next ->
     forAll (choose (-9007199254740999,9007199254740999)) $ \to ->
         let list len = take len [from,next..to]
-            stream len = S.take len $ S.fracFromThenTo from next to
+            stream len = S.take len $ S.enumerateFromThenTo from next to
         in constructWithLen stream list op l
 #endif
 
