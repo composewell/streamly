@@ -1441,9 +1441,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- and operators instead of the ugly pragmas.
 --
 -- For more concurrent programming examples see,
--- <src/examples/ListDir.hs ListDir.hs>,
--- <src/examples/MergeSort.hs MergeSort.hs> and
--- <src/examples/SearchQuery.hs SearchQuery.hs> in the examples directory.
+-- <examples/ListDir.hs ListDir.hs>,
+-- <examples/MergeSort.hs MergeSort.hs> and
+-- <examples/SearchQuery.hs SearchQuery.hs> in the examples directory.
 
 -- $reactive
 --
@@ -1518,13 +1518,13 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- @
 --
 -- You can also find the source of this example in the examples directory as
--- <src/examples/AcidRain.hs AcidRain.hs>. It has been adapted from Gabriel's
+-- <examples/AcidRain.hs AcidRain.hs>. It has been adapted from Gabriel's
 -- <https://hackage.haskell.org/package/pipes-concurrency-2.0.8/docs/Pipes-Concurrent-Tutorial.html pipes-concurrency>
 -- package.
 -- This is much simpler compared to the pipes version because of the builtin
 -- concurrency in streamly. You can also find a SDL based reactive programming
 -- example adapted from Yampa in
--- <src/examples/CirclingSquare.hs CirclingSquare.hs>.
+-- <examples/CirclingSquare.hs CirclingSquare.hs>.
 
 -- $performance
 --
