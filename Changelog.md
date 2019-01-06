@@ -5,6 +5,10 @@
 * Add GHCJS support
 * Remove dependency on "clock" package
 
+### Deprecations
+* Remove deprecated operation Streamly.Prelude.scan
+* Deprecate `foldx`, `foldxM`, `scanx`
+
 ## 0.6.0
 
 ### Breaking changes

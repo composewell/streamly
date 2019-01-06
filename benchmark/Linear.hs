@@ -8,12 +8,15 @@
 import Control.DeepSeq (NFData)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
+import Data.Monoid (Last(..))
 
 import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
 
 import Streamly
 import qualified Streamly.Prelude as S
+import qualified Streamly.Foldl   as FL
+import qualified Streamly.Sink    as Sink
 import Gauge
 
 -- We need a monadic bind here to make sure that the function f does not get
@@ -107,16 +110,8 @@ main =
         , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
         , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
         ]
-      , bgroup "elimination"
-        [ benchIOSink "toNull" $ Ops.toNull serially
-        , benchIOSink "uncons" Ops.uncons
-        , benchIOSink "init" Ops.init
-        , benchIOSink "tail" Ops.tail
-        , benchIOSink "nullHeadTail" Ops.nullHeadTail
-        , benchIOSink "mapM_" Ops.mapM_
-        , benchIOSink "toList" Ops.toList
-
-        , bgroup "reduce"
+      , bgroup "generic-folds"
+        [ bgroup "reduce"
           [ bgroup "IO"
             [ benchIOSink "foldr" Ops.foldrReduce
             , benchIOSink "foldr1" Ops.foldr1Reduce
@@ -147,24 +142,106 @@ main =
             , benchIdentitySink "foldlM'" Ops.foldlM'Build
             ]
           ]
+        ]
+      , bgroup "specific-folds"
+        [
+          benchIOSink "uncons" Ops.uncons
+        , benchIOSink "toNull" $ Ops.toNull serially
+        , benchIOSink "mapM_" Ops.mapM_
+
+        , benchIOSink "init" Ops.init
+        , benchIOSink "tail" Ops.tail
+        , benchIOSink "nullHeadTail" Ops.nullHeadTail
 
         , benchIOSink "last" Ops.last
-        , benchIOSink "length" Ops.length
-        , benchIOSink "elem" Ops.elem
-        , benchIOSink "notElem" Ops.notElem
-        , benchIOSink "all" Ops.all
-        , benchIOSink "any" Ops.any
-        , benchIOSink "and" Ops.and
-        , benchIOSink "or" Ops.or
         , benchIOSink "find" Ops.find
         , benchIOSink "findIndex" Ops.findIndex
         , benchIOSink "elemIndex" Ops.elemIndex
-        , benchIOSink "maximum" Ops.maximum
-        , benchIOSink "maximumBy" Ops.maximumBy
-        , benchIOSink "minimum" Ops.minimum
-        , benchIOSink "minimumBy" Ops.minimumBy
+
+        , benchIOSink "elem" Ops.elem
+        , benchIOSink "notElem" Ops.notElem
+        , benchIdentitySink "all" Ops.all
+        , benchIOSink "any" Ops.any
+        , benchIOSink "and" Ops.and
+        , benchIOSink "or" Ops.or
+
+        , benchIOSink "length" Ops.length
         , benchIOSink "sum" Ops.sum
         , benchIOSink "product" Ops.product
+
+        , benchIOSink "maximumBy" Ops.maximumBy
+        , benchIOSink "maximum" Ops.maximum
+        , benchIOSink "minimumBy" Ops.minimumBy
+        , benchIOSink "minimum" Ops.minimum
+
+        , benchIOSink "toList" Ops.toList
+        ]
+      , bgroup "composable-folds"
+        [
+        -- ** Monoidal Folds
+          benchIOSink "mconcat" Ops.mconcatFold
+        -- , benchIOSink "foldMap" (FL.foldl (FL.foldlMap (Last . Just)))
+
+        -- ** Run Effects
+        -- , runStream
+        -- , runN
+        -- , runWhile
+        , benchIOSink "drain" (FL.foldl FL.drain)
+        , benchIOSink "sink" (Sink.sink Sink.drain)
+
+        -- ** To Elements
+        -- | Folds that extract selected elements of a stream or their properties.
+        -- , (!!)
+        , benchIOSink "index" (FL.foldl (FL.index Ops.maxValue))
+        , benchIOSink "head" (FL.foldl FL.head)
+        , benchIOSink "last" (FL.foldl FL.last)
+        -- , findM
+        , benchIOSink "find" (FL.foldl (FL.find (== Ops.maxValue)))
+        --, lookup
+        , benchIOSink "findIndex" (FL.foldl (FL.findIndex (== Ops.maxValue)))
+        , benchIOSink "elemIndex" (FL.foldl (FL.elemIndex Ops.maxValue))
+
+        -- ** To Parts
+        -- | Folds that extract selected parts of a stream.
+        -- , tail
+        -- , init
+
+        -- ** To Boolean
+        -- | Folds that summarize the stream to a boolean value.
+        , benchIOSink "null" (FL.foldl FL.null)
+        , benchIOSink "elem" (FL.foldl (FL.elem Ops.maxValue))
+        , benchIOSink "notElem" (FL.foldl (FL.notElem Ops.maxValue))
+        , benchIOSink "all" (FL.foldl (FL.all (<= Ops.maxValue)))
+        , benchIOSink "any" (FL.foldl (FL.any (> Ops.maxValue)))
+        , benchIOSink "and" (\s -> FL.foldl FL.and (S.map (<= Ops.maxValue) s))
+        , benchIOSink "or" (\s -> FL.foldl FL.or (S.map (> Ops.maxValue) s))
+
+        -- ** To Summary
+        -- | Folds that summarize the stream to a single value.
+        , benchIOSink "length" (FL.foldl FL.length)
+        , benchIOSink "sum" (FL.foldl FL.sum)
+        , benchIOSink "product" (FL.foldl FL.product)
+
+        -- ** To Summary (Statistical)
+        , benchIOSink "mean" (\s -> FL.foldl FL.mean (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "variance" (\s -> FL.foldl FL.variance (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "stdDev" (\s -> FL.foldl FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
+
+        -- ** To Summary (Maybe)
+        -- | Folds that summarize a non-empty stream to a 'Just' value and return
+        -- 'Nothing' for an empty stream.
+        , benchIOSink "maximumBy" (FL.foldl (FL.maximumBy compare))
+        , benchIOSink "maximum" (FL.foldl FL.maximum)
+        , benchIOSink "minimumBy" (FL.foldl (FL.minimumBy compare))
+        , benchIOSink "minimum" (FL.foldl FL.minimum)
+        -- , the
+
+        -- ** To Containers
+        -- | Convert or divert a stream into an output structure, container or
+        -- sink.
+        , benchIOSink "toList" (FL.foldl FL.toList)
+        , benchIOSink "toRevList" (FL.foldl FL.toRevList)
+        -- , toHandle
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)

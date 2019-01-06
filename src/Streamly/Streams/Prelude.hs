@@ -32,7 +32,14 @@ module Streamly.Streams.Prelude
     -- * Fold operations
     , foldrM
     , foldr
+    , foldx'
+    , foldxM'
     , foldl'
+
+    , scanx'
+    , scanxM'
+    , postscanx'
+    , postscanxM'
 
     -- * Zip style operations
     , eqBy
@@ -119,12 +126,64 @@ foldrM step acc m = S.foldrM step acc $ toStreamS m
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b
 foldr f = foldrM (\a b -> return (f a b))
 
+-- | Like 'foldx'', but with a monadic step function.
+--
+-- @since 0.7.0
+{-# INLINE foldxM' #-}
+foldxM' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldxM' step begin done m = S.foldxM' step begin done $ toStreamS m
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- @since 0.7.0
+{-# INLINE foldx' #-}
+foldx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldx' step begin done m = S.foldx' step begin done $ toStreamS m
+
 -- | Strict left associative fold.
 --
 -- @since 0.2.0
 {-# INLINE foldl' #-}
 foldl' :: (Monad m, IsStream t) => (b -> a -> b) -> b -> t m a -> m b
 foldl' step begin m = S.foldl' step begin $ toStreamS m
+
+------------------------------------------------------------------------------
+-- Scans
+------------------------------------------------------------------------------
+
+{-# INLINE postscanxM' #-}
+postscanxM' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
+postscanxM' step begin done m =
+    D.fromStreamD $ D.postscanxM' step begin done $ D.toStreamD m
+
+{-# INLINE postscanx' #-}
+postscanx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+postscanx' step begin done m =
+    D.fromStreamD $ D.postscanx' step begin done $ D.toStreamD m
+
+{-# INLINE scanxM' #-}
+scanxM' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
+scanxM' step begin done m =
+    D.fromStreamD $ D.scanxM' step begin done $ D.toStreamD m
+
+-- | Strict left scan with an extraction function. Like 'scanl'', but applies a
+-- user supplied extraction function (the third argument) at each step. This is
+-- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
+-- extraction.
+--
+-- @since 0.7.0
+{-# INLINE scanx' #-}
+scanx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx' step begin done m = fromStreamS $ S.scanx' step begin done $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Comparison

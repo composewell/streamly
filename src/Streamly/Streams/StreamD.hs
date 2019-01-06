@@ -6,6 +6,8 @@
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE PatternSynonyms           #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
@@ -81,6 +83,7 @@ module Streamly.Streams.StreamD
     , yieldM
     , fromList
     , fromListM
+    , fromArray
     , fromStreamK
     , fromStreamD
 
@@ -91,8 +94,11 @@ module Streamly.Streams.StreamD
     , foldr1
     , foldl'
     , foldlM'
+    , foldx'
+    , foldxM'
 
     -- ** Specialized Folds
+    , tap
     , runStream
     , null
     , head
@@ -111,8 +117,12 @@ module Streamly.Streams.StreamD
     , findM
     , find
     , (!!)
+
+    -- ** Flattening nested streams
     , concatMapM
     , concatMap
+    , foldGroupsOf
+    , foldGroupsOn
 
     -- ** Substreams
     , isPrefixOf
@@ -125,6 +135,7 @@ module Streamly.Streams.StreamD
     -- ** Conversions
     -- | Transform a stream into another type.
     , toList
+    -- , toArray
     , toStreamK
     , toStreamD
 
@@ -145,6 +156,11 @@ module Streamly.Streams.StreamD
     , postscanlM
     , postscanl'
     , postscanlM'
+
+    , postscanxM'
+    , postscanx'
+    , scanxM'
+    , scanx'
 
     -- * Filtering
     , filter
@@ -191,18 +207,33 @@ module Streamly.Streams.StreamD
     )
 where
 
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Trans (lift)
+import Control.Monad.Trans.State.Lazy (StateT(..), get, put)
 import Data.Maybe (fromJust, isJust)
+import GHC.Magic (lazy)
 import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap, replicate, enumFromTo)
+               (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat)
 
 import Streamly.SVar (MonadAsync, defState, adaptState)
 
 import Streamly.Streams.StreamD.Type
 import qualified Streamly.Streams.StreamK as K
+import Streamly.Foldl.Types (Foldl(..))
+import Streamly.Sink.Types (Sink(..))
+import Streamly.Array.Types (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex)
+import Foreign.ForeignPtr
+       (ForeignPtr, withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import System.IO.Unsafe (unsafePerformIO)
+import Foreign.Storable (Storable(..))
+import Foreign.Ptr (plusPtr, minusPtr)
+import Data.Bits (finiteBitSize, shiftL, (.|.), (.&.))
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -213,6 +244,23 @@ import qualified Streamly.Streams.StreamK as K
 nil :: Monad m => Stream m a
 nil = Stream (\_ _ -> return Stop) ()
 
+{-# INLINE_NORMAL consM #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m (Stream step state) = Stream step1 Nothing
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
+    step1 gst (Just st) = do
+        r <- step gst st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Stop
+
+-- XXX implement in terms of consM?
+-- cons x = consM (return x)
+--
 -- | Can fuse but has O(n^2) complexity.
 {-# INLINE_NORMAL cons #-}
 cons :: Monad m => a -> Stream m a -> Stream m a
@@ -490,6 +538,24 @@ fromList = Stream step
     step _ (x:xs) = return $ Yield x xs
     step _ []     = return Stop
 
+{-# INLINE fromArray #-}
+fromArray :: forall m a. (Monad m, Storable a) => Array a -> Stream m a
+fromArray Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+    in Stream step p
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | p == aEnd = return Stop
+    step _ p = do
+        let !x = unsafeDangerousPerformIO $ do
+                    r <- peek p
+                    -- XXX should we keep aStart in the state?
+                    touchForeignPtr aStart
+                    return r
+        return $ Yield x (p `plusPtr` (sizeOf (undefined :: a)))
+
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
 fromStreamK = Stream step
@@ -508,6 +574,12 @@ toStreamD = fromStreamK . K.toStream
 -- Elimination by Folds
 ------------------------------------------------------------------------------
 
+-- Note that if the underlying monad is strict (e.g. IO), the fold becomes a
+-- strict right fold and does not perform well. For example, "all" can be
+-- implemented as a right fold but if m is IO it just exapands the whole thing
+-- before reducing and therefore performs poorly. Ideally we should implement
+-- such folds using foldr and we should not be using the IO monad as the
+-- underlying monad.
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
 foldrM f z (Stream step state) = go SPEC state
@@ -531,6 +603,27 @@ foldr1 f m = do
          Nothing   -> return Nothing
          Just (h, t) -> fmap Just (foldr f h t)
 
+-- XXX run begin action only if the stream is not empty.
+{-# INLINE_NORMAL foldxM' #-}
+foldxM' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
+foldxM' fstep begin done (Stream step state) =
+    begin >>= \x -> go SPEC x state
+  where
+    go !_ acc st = acc `seq` do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Skip s -> go SPEC acc s
+            Stop   -> done acc
+
+{-# INLINE foldx' #-}
+foldx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
+foldx' fstep begin done m =
+    foldxM' (\b a -> return (fstep b a)) (return begin) (return . done) m
+
+-- XXX implement in terms of foldxM'
 {-# INLINE_NORMAL foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
 foldlM' fstep begin (Stream step state) = go SPEC begin state
@@ -547,6 +640,10 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
+
+{-# INLINE fold #-}
+fold :: Monad m => Foldl m a b -> Stream m a -> m b
+fold (Foldl step begin done) = foldxM' step begin done
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
@@ -621,6 +718,11 @@ elem e (Stream step state) = go state
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
 notElem e s = fmap not (elem e s)
 
+-- |
+-- > all p m = foldr (\x t -> if p x then t else False) True m
+-- Strictness of IO monad does not let the above definition work, but once we
+-- get a rid of the IO monad we should be able to express all the partial folds
+-- like this using foldr.
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
 all p (Stream step state) = go state
@@ -806,6 +908,227 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
 
+{-# INLINE foldGroupsOf #-}
+foldGroupsOf
+    :: Monad m
+    => (forall n. Monad n => Foldl n a b)
+    -> Int
+    -> Stream m a
+    -> Stream m b
+foldGroupsOf f n (Stream step state) =
+    n `seq` Stream stepOuter (Just (state, Right 0))
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter gst (Just (st, Right 0)) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                (r, s') <- runStateT (fold f (Stream stepInner undefined))
+                                     (Just (s, Left x))
+                return $ Yield r s'
+            Skip s    -> return $ Skip $ Just (s, Right 0)
+            Stop      -> return Stop
+
+    stepOuter _ (Just (st, Right i)) | i >= n =
+        return $ Skip (Just (st, Right 0))
+
+    -- XXX folds using Fold do not return early. so we can remove this code.
+    -- drain the stream not used by the previous fold.
+    stepOuter gst (Just (st, Right i)) = do
+        res <- step (adaptState gst) st
+        return $ case res of
+            Yield _ s -> Skip (Just (s, Right $ i + 1))
+            Skip s    -> Skip (Just (s, Right i))
+            Stop      -> Stop
+
+    stepOuter _ Nothing = do
+        return Stop
+
+    stepOuter _ (Just (_, (Left _))) = error "Cannot happen"
+
+    -- XXX pass on gst instead of using defState?
+    {-# INLINE_LATE stepInner #-}
+    stepInner _ _ = do
+        maybSt <- get
+        case maybSt of
+            Just (st, counter) ->
+                case counter of
+                    Left x -> do
+                        let ss = (st, Right 1)
+                        put $ Just ss
+                        return $ Yield x ss
+                    Right i | i < n -> do
+                        -- XXX can we use gst instead of defState?
+                        r <- lift $ step defState st
+                        case r of
+                            Yield x s -> do
+                                let ss = (s, Right $ i + 1)
+                                -- XXX we can remove this as Fold don't return
+                                -- early.
+                                put $ Just ss
+                                return $ Yield x ss
+                            Skip s -> do
+                                let ss = (s, Right i)
+                                put $ Just ss
+                                return $ Skip ss
+                            Stop -> do
+                                put Nothing
+                                return Stop
+                    _ -> do
+                        put $ Just (st, Right 0)
+                        return Stop
+            Nothing -> error "cannot happen"
+
+{-
+breakSubstring :: ByteString -- ^ String to search for
+               -> ByteString -- ^ String to search in
+               -> (ByteString,ByteString) -- ^ Head and tail of string broken at substring
+breakSubstring pat =
+  case lp of
+    0 -> \src -> (empty,src)
+    1 -> breakByte (unsafeHead pat)
+    _ -> if lp * 8 <= finiteBitSize (0 :: Word)
+             then shift
+             else karpRabin
+  where
+    unsafeSplitAt i s = (unsafeTake i s, unsafeDrop i s)
+    lp                = length pat
+    karpRabin :: ByteString -> (ByteString, ByteString)
+    karpRabin src
+        | length src < lp = (src,empty)
+        | otherwise = search (rollingHash $ unsafeTake lp src) lp
+      where
+        k           = 2891336453 :: Word32
+        rollingHash = foldl' (\h b -> h * k + fromIntegral b) 0
+        hp          = rollingHash pat
+        m           = k ^ lp
+        get = fromIntegral . unsafeIndex src
+        search !hs !i
+            | hp == hs && pat == unsafeTake lp b = u
+            | length src <= i                    = (src,empty) -- not found
+            | otherwise                          = search hs' (i + 1)
+          where
+            u@(_, b) = unsafeSplitAt (i - lp) src
+            hs' = hs * k +
+                  get i -
+                  m * get (i - lp)
+    {-# INLINE karpRabin #-}
+
+    shift :: ByteString -> (ByteString, ByteString)
+    shift !src
+        | length src < lp = (src,empty)
+        | otherwise       = search (intoWord $ unsafeTake lp src) lp
+      where
+        intoWord :: ByteString -> Word
+        intoWord = foldl' (\w b -> (w `shiftL` 8) .|. fromIntegral b) 0
+        wp   = intoWord pat
+        mask = (1 `shiftL` (8 * lp)) - 1
+        search !w !i
+            | w == wp         = unsafeSplitAt (i - lp) src
+            | length src <= i = (src, empty)
+            | otherwise       = search w' (i + 1)
+          where
+            b  = fromIntegral (unsafeIndex src i)
+            w' = mask .&. ((w `shiftL` 8) .|. b)
+    {-# INLINE shift #-}
+    -}
+
+data GroupOnState s a =
+      GO_START
+    | GO_PREPARE
+    | GO_SINGLE s a
+    | GO_SHORT_BYTES s
+    | GO_KARP_RABIN s
+    | GO_FINISHING s
+    | GO_DONE
+
+-- XXX specialize for Word8?
+-- XXX once we have all IO routines in streamly itself we should be able to
+-- remove the MonadIO constraint. We should not need the IO monad.
+-- String search algorithms: http://www-igm.univ-mlv.fr/~lecroq/string/index.html
+
+-- | Behavior of this API:
+-- 1) When the pattern is empty - whole stream is fed to the fold as a single
+-- group.
+-- 2) If the stream ends before the pattern is found, the stream is fed to the
+-- fold as if the token had been found at the end. We can have an option to
+-- discard this. The advantage of this option is that we do not have to buffer
+-- the input, we can just stream it to the next fold irrespective of whether
+-- the pattern is found or not.
+-- 3) The pattern is removed from the stream, only the stream without the
+-- pattern is fed to the fold. We can have a control option to say that the
+-- separator is also part of the token being folded.
+-- XXX We can use a control parameter to control this behavior.
+-- XXX since this is a tokenizer we can call it foldTokensOn?
+
+{-# INLINE foldGroupsOn #-}
+foldGroupsOn
+    :: forall m a b. (MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> Array a
+    -> Stream m a
+    -> Stream m b
+foldGroupsOn f v@Array{..} (Stream step state) =
+    Stream stepOuter GO_START
+
+    where
+
+    byteLen =
+        let p = unsafeForeignPtrToPtr aStart
+        in aEnd `minusPtr` p
+
+    stepOuter gst GO_START = return $
+        if byteLen == 0
+        then Skip $ GO_FINISHING state
+        else Skip $ GO_PREPARE
+
+    stepOuter _ GO_PREPARE = return $
+        if byteLen == sizeOf (undefined :: a)
+        then Skip $ GO_SINGLE state (unsafeIndex v 0)
+        -- XXX we can further optimize this with SIMD
+        else if sizeOf (undefined :: a) == 1
+             then if byteLen * 8 <= finiteBitSize (0 :: Word)
+                  then Skip $ GO_SHORT_BYTES state
+                  else Skip $ GO_KARP_RABIN state
+             else Skip $ GO_KARP_RABIN state
+
+    stepOuter gst (GO_SINGLE st a) = do
+        -- Keep the intial state as undefined, if the fold returns prematurely
+        -- we will at least know the problem.
+        (r, s') <- runStateT (fold f (Stream (stepInner a) (Just (st, False))))
+                             undefined
+        return $ case s' of
+            Just s'' -> Yield r (GO_SINGLE s'' a)
+            Nothing  -> Yield r GO_DONE
+
+    stepOuter _ (GO_FINISHING st) = do
+        r <- fold f (Stream step st)
+        return $ Yield r GO_DONE
+
+    stepOuter _ GO_DONE = return Stop
+
+    {-# INLINE_LATE stepInner #-}
+    stepInner a _ (Just (st, False)) = do
+        -- XXX can we use gst instead of defState?
+        r <- lift $ step defState st
+        return $ case r of
+            Yield x s ->
+                if x == a
+                then Skip $ Just (s, True)
+                else Yield x $ Just (s, False)
+            Skip s -> Skip $ Just (s, False)
+            Stop   -> Skip Nothing
+
+    stepInner _ _ (Just (st, True)) = do
+        put (Just st)
+        return Stop
+
+    stepInner _ _ Nothing = do
+        put Nothing
+        return Stop
+
 ------------------------------------------------------------------------------
 -- Substreams
 ------------------------------------------------------------------------------
@@ -892,6 +1215,40 @@ mapM_ m = runStream . mapM m
 toList :: Monad m => Stream m a -> m [a]
 toList = foldr (:) []
 
+{-
+--  XXX use SPEC
+{-# INLINE toArray #-}
+toArray :: forall m a. (Monad m, Storable a)
+    => Int -> Stream m a -> m (Array a)
+toArray limit (Stream step state) = do
+    let size = limit * sizeOf (undefined :: a)
+        !(fp, cur, end) = unsafePerformIO $ do
+            fptr <- mallocPlainForeignPtrBytes size
+            let p = unsafeForeignPtrToPtr fptr
+            return $ (fptr, p, (p `plusPtr` limit))
+    loc <- go state cur end
+    -- XXX resizePtr the buffer
+    return (Array { vPtr = fp
+                    , vLen = limit + (loc `minusPtr` end)
+                    , vSize = size})
+
+    where
+
+    go st1 cur1 end = go1 st1 cur1
+        where
+        go1 st cur = do
+            res <- step defState st
+            case res of
+                Yield _ _ | cur == end -> error "toArray beyond limit"
+                Yield x s ->
+                    let !r = unsafeDangerousPerformIO $ do
+                                poke cur x
+                                -- XXX do we need a touch here?
+                    in r `seq` go1 s (cur `plusPtr` 1)
+                Skip s -> go1 s cur
+                Stop   -> return cur
+                -}
+
 -- Convert a direct stream to and from CPS encoded stream
 {-# INLINE_LATE toStreamK #-}
 toStreamK :: Monad m => Stream m a -> K.Stream m a
@@ -947,6 +1304,32 @@ prescanlM' f mz (Stream step state) = Stream step' (state, mz)
 prescanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 prescanl' f z = prescanlM' (\a b -> return (f a b)) (return z)
 
+{-# INLINE_NORMAL postscanxM' #-}
+postscanxM' :: Monad m
+    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+postscanxM' fstep begin done (Stream step state) = do
+    Stream step' (state, begin)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, acc) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                old <- acc
+                y <- fstep old x
+                v <- done y
+                v `seq` y `seq` return (Yield v (s, return y))
+            Skip s -> return $ Skip (s, acc)
+            Stop   -> return Stop
+
+{-# INLINE_NORMAL postscanx' #-}
+postscanx' :: Monad m
+    => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+postscanx' fstep begin done s =
+    postscanxM' (\b a -> return (fstep b a)) (return begin) (return . done) s
+
+-- XXX implement in terms of postscanxM'
+--
 -- XXX if we make the initial value of the accumulator monadic then should we
 -- execute it even if the stream is empty? In that case we would have generated
 -- the effect but discarded the value, but that is what a fold does when the
@@ -992,6 +1375,18 @@ postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
 {-# INLINE_NORMAL postscanl #-}
 postscanl :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl f = postscanlM (\a b -> return (f a b))
+
+-- XXX do we need consM strict to evaluate the begin value?
+{-# INLINE scanxM' #-}
+scanxM' :: Monad m
+    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+scanxM' fstep begin done s =
+    (begin >>= \x -> x `seq` done x) `consM` postscanxM' fstep begin done s
+
+{-# INLINE scanx' #-}
+scanx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+scanx' fstep begin done s =
+    scanxM' (\b a -> return (fstep b a)) (return begin) (return . done) s
 
 {-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
@@ -1058,6 +1453,21 @@ scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
 {-# INLINE scanl1' #-}
 scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))
+
+{-# INLINE tap #-}
+tap :: Monad m => Sink m a -> Stream m a -> Stream m a
+tap (Sink fstep) (Stream step state) = Stream step' state
+
+    where
+
+    step' gst st = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                fstep x
+                return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> return $ Stop
 
 -------------------------------------------------------------------------------
 -- Filtering

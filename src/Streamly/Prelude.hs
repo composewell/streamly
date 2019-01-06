@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE RankNTypes                       #-}
 {-# LANGUAGE FlexibleContexts          #-}
 
 #if __GLASGOW_HASKELL__ >= 800
@@ -161,8 +162,6 @@ module Streamly.Prelude
     , foldl'
     , foldl1'
     , foldlM'
-    , foldx
-    , foldxM
 
     -- ** Run Effects
     , runStream
@@ -219,22 +218,49 @@ module Streamly.Prelude
     -- * Transformation
 
     -- ** Scanning
-    -- | Scans stream all the intermediate reduction steps of the corresponding
-    -- folds. The following equations hold for lists:
+    -- | A left associative scan, also known as a prefix sum, can be thought of
+    -- as a stream transformation consisting of left folds of all prefixes of a
+    -- stream.  Another way of thinking about it is that it streams all the
+    -- intermediate values of the accumulator while applying a left fold on the
+    -- input stream.  A right associative scan, on the other hand, can be
+    -- thought of as a stream consisting of right folds of all the suffixes of
+    -- a stream.
+    --
+    -- The following equations hold for lists:
     --
     -- > scanl f z xs == map (foldl f z) $ inits xs
     -- > scanr f z xs == map (foldr f z) $ tails
     --
-    -- We do not provide a right associative scan, it can be recovered from a
-    -- 'scanl'' as follows:
+    -- @
+    -- > scanl (+) 0 [1,2,3,4]
+    -- 0
+    -- 0 + 1             = 1
+    -- 0 + 1 + 2         = 3
+    -- 0 + 1 + 2 + 3     = 6
+    -- 0 + 1 + 2 + 3 + 4 = 10
     --
-    -- > scanr f z xs ==  reverse $ scanl' (flip f) z (reverse xs)
+    -- > scanr (+) 0 [1,2,3,4]
+    -- 1 + 2 + 3 + 4 + 0 = 10
+    --     2 + 3 + 4 + 0 = 9
+    --         3 + 4 + 0 = 7
+    --             4 + 0 = 4
+    --                 0 = 0
+    -- @
     --
-    -- Scan is like a stateful map. If we discard the state, we get the map:
+    -- The state maintained by a left scan knows about all the past values of
+    -- the stream at any given point whereas the state maintained by a right
+    -- scan would know about all the future values of a stream at any given
+    -- point.
+    --
+    -- Left and right scans can be recovered from each other:
+    --
+    -- > scanr f z xs ==  reverse $ scanl (flip f) z (reverse xs)
+    -- > scanl f z xs ==  reverse $ scanr (flip f) z (reverse xs)
+    --
+    -- Scan is a stateful map. If we discard the state, we get the map:
     --
     -- > S.drop 1 $ S.scanl' (\_ x -> f x) z xs == map f xs
-
-    -- > S.postscanl' (\_ x -> f x) z xs == map f xs
+    -- > S.postscanl'        (\_ x -> f x) z xs == map f xs
 
     , scanl'
     , scanlM'
@@ -244,7 +270,6 @@ module Streamly.Prelude
     -- , prescanlM'
     , scanl1'
     , scanl1M'
-    , scanx
 
     -- ** Mapping
     -- | Map is a strictly one-to-one transformation of stream elements. It
@@ -299,6 +324,12 @@ module Streamly.Prelude
     -- operation.
     --
     -- @
+    --
+    -- -------Stream m a------|-------Stream m a------|=>----Stream m a---
+    --
+    -- @
+    --
+    -- @
     -- >> S.toList $ S.fromList [1,2] \<> S.fromList [3,4]
     -- [1,2,3,4]
     -- >> S.toList $ fold $ [S.fromList [1,2], S.fromList [3,4]]
@@ -308,6 +339,14 @@ module Streamly.Prelude
     -- ** Merging
     -- | Streams form a commutative semigroup under the merge
     -- operation.
+    --
+    -- @
+    --
+    -- -------Stream m a------|
+    --                        |=>----Stream m a---
+    -- -------Stream m a------|
+    -- @
+    --
 
     -- , merge
     , mergeBy
@@ -316,6 +355,14 @@ module Streamly.Prelude
     , mergeAsyncByM
 
     -- ** Zipping
+    -- |
+    -- @
+    --
+    -- -------Stream m a------|
+    --                        |=>----Stream m c---
+    -- -------Stream m b------|
+    -- @
+    --
     , zipWith
     , zipWithM
     , Z.zipAsyncWith
@@ -325,9 +372,34 @@ module Streamly.Prelude
     , indexed
     , indexedR
 
-    -- ** Flattening
+    -- ** Expanding
+    -- | Potentially expand the stream size by mapping each element to a stream
+    -- and then flattening the results into a single stream.
+    --
+    -- @
+    --
+    -- ----Stream m a----|-Stream m b-|-Stream m b-|-...-|----Stream m b
+    --
+    -- @
+
+    -- , concatMapMBy
     , concatMapM
     , concatMap
+    -- , interposeBy
+    -- , intercalate
+
+    -- ** Collapsing
+    -- | Potentially decrease the stream size by collapsing groups of elements
+    -- to a single value using a fold.
+    --
+    -- @
+    --
+    -- ----stream m a----|-Fold a b-|-Fold a b-|-...-|----Stream m b
+    --
+    -- @
+    --
+    , foldGroupsOf
+    , foldGroupsOn
 
     -- ** Folds
     , eqBy
@@ -339,14 +411,17 @@ module Streamly.Prelude
     -- * Deprecated
     , K.once
     , each
-    , scan
+    , scanx
     , foldl
     , foldlM
+    , foldx
+    , foldxM
     )
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Maybe (isJust, fromJust)
+import Foreign.Storable (Storable(..))
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
@@ -366,10 +441,13 @@ import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 
+import Streamly.Foldl (Foldl)
+import qualified Streamly.Foldl as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Zip as Z
+import Streamly.Array.Types (Array)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -705,6 +783,7 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
+{-# DEPRECATED fromHandle "Please use \"map lines fromHandleChar\" instead." #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -820,6 +899,23 @@ foldr = P.foldr
 foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldr1 f m = S.foldr1 f (toStreamS m)
 
+-- | Like 'foldx'', but with a monadic step function.
+--
+-- @since 0.7.0
+{-# INLINE foldxM' #-}
+foldxM' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
+foldxM' = P.foldxM'
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- @since 0.7.0
+{-# INLINE foldx' #-}
+foldx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
+foldx' = P.foldx'
+
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
 -- argument) to the folded value at the end. This is designed to work with the
@@ -827,14 +923,15 @@ foldr1 f m = S.foldr1 f (toStreamS m)
 --
 -- @since 0.2.0
 {-# INLINE foldx #-}
+{-# DEPRECATED foldx "Please use foldx' instead." #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx = K.foldx
+foldx = foldx'
 
 -- |
 -- @since 0.1.0
-{-# DEPRECATED foldl "Please use foldx instead." #-}
+{-# DEPRECATED foldl "Please use foldx' instead." #-}
 foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldl = foldx
+foldl = foldx'
 
 -- | Strict left associative fold.
 --
@@ -930,15 +1027,16 @@ foldl1' step m = do
 -- | Like 'foldx', but with a monadic step function.
 --
 -- @since 0.2.0
+{-# DEPRECATED foldxM "Please use foldxM' instead." #-}
 {-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM = K.foldxM
+foldxM = foldxM'
 
 -- |
 -- @since 0.1.0
-{-# DEPRECATED foldlM "Please use foldxM instead." #-}
+{-# DEPRECATED foldlM "Please use foldxM' instead." #-}
 foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldlM = foldxM
+foldlM = foldxM'
 
 -- | Like 'foldl'' but with a monadic step function.
 --
@@ -951,7 +1049,11 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- Specialized folds
 ------------------------------------------------------------------------------
 
--- | Run a stream, discarding the results. By default it interprets the stream
+-- XXX rename to drain to keep it consistent with Folds
+-- |
+-- > runStream = mapM_ (\_ -> return ())
+--
+-- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
 -- combinators for example @runStream . 'asyncly'@.
 --
@@ -960,6 +1062,7 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 runStream :: Monad m => SerialT m a -> m ()
 runStream = P.runStream
 
+-- XXX rename to drainN to keep it consistent with Folds
 -- |
 -- > runN n = runStream . take n
 --
@@ -970,6 +1073,7 @@ runStream = P.runStream
 runN :: Monad m => Int -> SerialT m a -> m ()
 runN n = runStream . take n
 
+-- XXX rename to drainWhile to keep it consistent with Folds
 -- |
 -- > runWhile p = runStream . takeWhile p
 --
@@ -1076,6 +1180,9 @@ or = any (==True)
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => SerialT m a -> m a
 sum = foldl' (+) 0
+    -- F.purely foldx' F.sum
+    -- F.purely foldx' ((+) <$> F.sum <*> F.genericLength)
+    -- foldx' (+) 0 id
 
 -- | Determine the product of all elements of a stream of numbers. Returns @1@
 -- when the stream is empty.
@@ -1190,24 +1297,6 @@ elemIndices a = findIndices (==a)
 elemIndex :: (Monad m, Eq a) => a -> SerialT m a -> m (Maybe Int)
 elemIndex a = findIndex (== a)
 
--- | Map each element to a stream and then flatten the results into a single
--- stream.
---
--- > concatMap f = concatMapM (return . f)
---
--- @since 0.6.0
-{-# INLINE concatMap #-}
-concatMap ::(IsStream t, Monad m) => (a -> t m b) -> t m a -> t m b
-concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
-
--- | Map each element to a stream using a monadic function and then flatten the
--- results into a single stream.
---
--- @since 0.6.0
-{-# INLINE concatMapM #-}
-concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
-concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
-
 ------------------------------------------------------------------------------
 -- Substreams
 ------------------------------------------------------------------------------
@@ -1256,7 +1345,10 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 ------------------------------------------------------------------------------
 
 -- XXX this can utilize parallel mapping if we implement it as runStream . mapM
--- | Apply a monadic action to each element of the stream and discard the
+-- |
+-- > mapM_ = runStream . mapM
+--
+-- Apply a monadic action to each element of the stream and discard the
 -- output of the action.
 --
 -- @since 0.1.0
@@ -1307,15 +1399,11 @@ toHandle h m = go m
 -- extraction.
 --
 -- @since 0.2.0
+{-# DEPRECATED scanx "Composable scans are supported by streamly itself" #-}
 {-# INLINE scanx #-}
-scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx = K.scanx
-
--- |
--- @since 0.1.1
-{-# DEPRECATED scan "Please use scanx instead." #-}
-scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scan = scanx
+scanx :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx = P.scanx'
 
 -- XXX this needs to be concurrent
 -- | Like 'scanl'' but with a monadic fold function.
@@ -1755,6 +1843,17 @@ cmpBy = P.cmpBy
 -- Merge
 ------------------------------------------------------------------------------
 
+-- XXX Serial interleaving using binary folding works in an uneven manner,
+-- while parallel interleaving is even, need to make it consistent. We should
+-- perhaps not have a binary interleave and instead just have an even 'mergeN'
+-- operation.
+--
+-- We can also have priorityMerge and weightedMerge operations. merge would
+-- just be a special case of these where priorities are equal or weights are
+-- equal.  priorityMerge would require the "suspend" continuation to indicate
+-- an EWOULDBLOCK condition, in case of RTS threads we may need to set
+-- priorities on threads. Same thing applies to unmerge as well.
+
 -- | Merge two streams using a comparison function. The head elements of both
 -- the streams are compared and the smaller of the two elements is emitted, if
 -- both elements are equal then the element from the first stream is used
@@ -1847,3 +1946,317 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
     ma <- mkAsync' st m1
     mb <- mkAsync' st m2
     K.foldStream st stp sng yld (K.mergeByM f ma mb)
+
+-- N-way merging
+-- XXX For pairwise merging of streams from a foldable, we should have a
+-- standard pairwise tree fold for foldables just like we have a linear
+-- appending fold. We should do N-way merge the same way we do N-way append.
+
+-- mergeN :: Foldable f => f (t m a) -> (t m a -> t m a -> t m a) -> t m a
+-- mergeN xs = foldt (mergeBy compare) nil
+
+------------------------------------------------------------------------------
+-- Nesting
+------------------------------------------------------------------------------
+
+-- There are two types of combining for nested streams. concatMap combines the
+-- two layers by appending (i.e. concat/mconcat) whereas mergeMap combines the
+-- two layers by merging. concatMap uses a linear fold whereas mergeMap uses a
+-- pairwise tree fold.
+
+-- | Map each element of the stream to produce a stream and then flatten the
+-- results into a single stream.
+--
+-- > concatMap f = concatMapM (return . f)
+--
+-- @since 0.6.0
+{-# INLINE concatMap #-}
+concatMap ::(IsStream t, Monad m) => (a -> t m b) -> t m a -> t m b
+concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
+
+-- | Map each element to a stream to produce a stream using a monadic function
+-- and then flatten the results into a single stream.
+--
+-- @since 0.6.0
+{-# INLINE concatMapM #-}
+concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
+concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
+
+{-
+-- A generalized concatMap, use an append function of your choice to combine
+-- the layers. The function combines first element with the next and then
+-- combined result is combined with the next element and so on.
+--
+-- For example we may choose to use an async append or ahead append or even a
+-- mergeBy.  Some example use cases, map the stream to singleton streams and
+-- concat:
+-- (1) concat using "append" - id
+-- (2) concat using "prepend" - reverse
+-- (3) concat using "mergeBy compare" - insertion sort
+--
+-- concatMap = concatMapBy append
+concatMapMBy :: (IsStream t, Monad m)
+    => (forall x. t m x -> t m x -> t m x)
+    -> (a -> m (t m b))
+    -> t m a
+    -> t m b
+-}
+
+{-
+-- | A generalization of insertBy.
+interposeBy :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+
+-- | A generalization of intersperseM
+intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+
+-- | Map each element of the stream to a stream using a monadic function and
+-- then use a merge function pairwise to flatten the resulting streams. Each
+-- pair is flattened into a single result and then all those results are
+-- combined pairwise until the whole stream is flattended. This can be used to
+-- implement bottom up algorithms for example mergesort.
+
+-- Some example use cases, map the stream to singleton streams and concat:
+-- (1) concat using "append" - id
+-- (2) concat using "prepend" - reverse pairwise
+-- (3) concat using "mergeBy compare" - merge sort
+-- (4) concat using "mergeBy randomly" - random shuffle
+--
+-- Performance wise this type of concat will make better sense for vectors as
+-- it ends up buffering the entire stream.
+mergeMapMBy :: (IsStream t, Monad m)
+    => (forall x. t m x -> t m x -> t m x)
+    -> (a -> m (t m b))
+    -> t m a
+    -> t m b
+
+-- mergeMapM = mergeMapBy merge
+-- mergeMap
+-}
+
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
+
+-- All the grouping/splitting combinators take the first argument(s) as the
+-- continuation folds that are to be applied to the grouped output. If we curry
+-- the functions with toList folds we can get the combinators that are
+-- equivalent to the list combinators.
+--
+-- inits = FL.toScan
+-- tails = FR.toScan
+
+-- XXX put time related functions in Streamly.Time?
+--
+-- We can use a parsed structure to represent Delimiters and non-delimiters in
+-- the stream. That way we do not have to have many APIs like "split" package
+-- to process the delimiters in different ways. The consumer can process the
+-- parsed stream in any which way.
+--
+-- However, we cannot represent overlapping parse using this structure. For
+-- overlapping parses we can perhaps use an offset value as well. Just like we
+-- can process overlapping time windows using different folds can we process
+-- overlapping values using different folds? its like different ways pf parsing
+-- the stream and using different folds for different parse choices.
+--
+-- data Delimited a = Delimiter a | Value a
+-- data DelimitedOverlapping a = Delimiter a Int | Value a Int
+
+{-
+-- Element Unaware:
+--
+-- Binary:
+--
+-- splitAt (Index)
+-- splitAtInterval
+--
+-- Multi:
+--
+-- chunksOf' (chunks of sizes provided by a stream/generator func)
+-- chunksOf (foldGroupsOf)
+-- chunksOfInterval
+--
+-- foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
+-- foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
+-- foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
+-- foldGroupsOf n = foldGroupsInRange n n
+-- foldIntervalsOf n = foldIntervalsInRange n n
+--
+-- Element Aware:
+--
+-- Binary:
+--
+-- breakOn
+--
+-- spanByFold
+-- spanByFoldModified
+-- spanByFoldBuffered
+--
+-- | Like 'groupBy' but emits only the first group and the rest of the stream
+-- instead of breaking the whole stream into groups.
+spanBy
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. MonadIO n => Foldl n a c)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m (b, c)
+
+-- | Like 'groupByRolling' but emits only the first group and the rest of the
+-- stream instead of breaking the whole stream into groups.
+spanByRolling
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. MonadIO n => Foldl n a c)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m (b, c)
+-- span p = spanBy (\_ x -> p x)
+-- break p = span (not . p)
+
+-- Multi:
+--
+-- | This is a generalized version of groupBy. It takes a left fold which
+-- determines the split points of a stream by scanning the past inputs.
+-- Whenever the fold return 'True' a new group is started. The last element
+-- that caused the fold to return 'True' is emitted as part of the previous
+-- group.
+--
+-- Note that it can only split the stream but cannot do any transformations
+-- e.g. if it splits based on a pattern, it cannot remove the pattern, it can
+-- only mark where the pattern ends and split the stream at that point.  This
+-- can in fact be expressed in terms of a combination of scanl and groupBy.
+--
+-- For example, one can split the stream using the "sum" fold whenever the
+-- running sum exceeds 100. It can also be used to split on a pattern.
+groupsByFold
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. Foldl n a Bool)
+    -> t m a
+    -> t m b
+
+-- Like groupByFold but the grouping fold returns the stream elements instead
+-- of returning a 'Bool' value. A 'Right' value means the group is not complete
+-- yet, a 'Left' value means this is the final chunk of the group. This allows
+-- the fold to eat, replace or add elements to the input, but still emit the
+-- output as soon as possible without unnecessary bufferng (compare with
+-- groupByFoldBuffered). For example, we can match on a pattern but emit groups
+-- without the pattern.
+groupsByFoldModifying
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. Foldl n a (Either (Array a) (Array a)))
+    -> t m a
+    -> t m b
+
+-- Like groupByFold but buffers the group and emits it only when the whole
+-- group is complete. The grouping 'Fold'l yields a complete group using a
+-- 'Just' value and a 'Nothing' value indicates that the input is buffered.
+groupsByFoldBuffered
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n (Array a) b)
+    -> (forall n. Foldl n a (Maybe (Array a)))
+    -> t m a
+    -> t m b
+
+-- | Apply a predicate to each new element in the input stream and the first
+-- element of the current group. The new element is considered part of the
+-- current group if the predicate succeeds otherwise a new group starts.
+groupsBy
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m b
+
+-- | Apply a predicate to each new element in the input stream and the last
+-- element of the current group. In other words, perform a rolling comparison
+-- between two successive elements in the stream. The new element is considered
+-- part of the current group if the predicate succeeds otherwise a new group
+-- starts.
+groupsByRolling
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m b
+--
+-- groups = groupsBy (==)
+--
+-- Can be implemented using groupByFold
+-- splitOn (foldGroupsOn)
+--
+-}
+------------------------------------------------------------------------------
+-- Grouping without looking at elements
+------------------------------------------------------------------------------
+--
+-- XXX if we implement this as a fold composition, we can then turn than into a
+-- postscan to recover this function. That way we can have both stream and fold
+-- functions with a single impl. Perhaps all stream transformations can be
+-- implemented as folds and recovered using scan. Just need to make sure that
+-- we do not lose performance.
+--
+-- | Group the input stream into groups of @n@ elements each and then fold each
+-- group using the provided fold function.
+--
+-- >> S.toList $ S.foldGroupsOf FL.sum 2 (S.enumerateFromTo 1 10)
+-- > [3,7,11,15,19]
+--
+-- @since 0.7.0
+{-# INLINE foldGroupsOf #-}
+foldGroupsOf
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
+foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
+
+{-
+-- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
+-- maximum of tmax or nmax, whichever is maximum. After the minimum return if
+-- would block, collect up to max if does not block.
+foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
+foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
+foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
+foldGroupsOf n = foldGroupsInRange n n
+foldIntervalsOf n = foldIntervalsInRange n n
+-}
+
+------------------------------------------------------------------------------
+-- Grouping looking at elements
+------------------------------------------------------------------------------
+
+-- | Split the stream into groups using a subsequence. When the subsequence is
+-- found in the stream the stream is split at the end of the subsequence and
+-- each such group is folded using the supplied fold.
+{-# INLINE foldGroupsOn #-}
+foldGroupsOn
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b) -> Array a -> t m a -> t m b
+foldGroupsOn f subseq m =
+    D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
+
+{-
+-- Buffer until the next element in sequence arrives. The function argument
+-- determines the difference in sequence numbers. This could be useful in
+-- implementing sequenced streams, for example, TCP reassembly.
+{-# INLINE foldOrderedBy #-}
+foldOrderedBy
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b)
+    -> (a -> a -> Int)
+    -> t m a
+    -> t m b
+foldOrderedBy = undefined
+-}
+
+------------------------------------------------------------------------------
+-- Grouping looking at timestamps
+------------------------------------------------------------------------------
+
+-- timestamp the elements in the stream. We can then group by timestamp
+-- intervals and fold. This is just a special case of a general groupBy.
+-- This can be useful in folding based on the generation times rather than
+-- arrival times.
+--
+-- foldTSIntervalsOrGroupsInRange tmin tmax nmin nmax =

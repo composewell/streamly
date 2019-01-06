@@ -300,6 +300,7 @@ wSerial m1 m2 = mkStream $ \st yld sng stp -> do
         yieldk a r = yld a (wSerial m2 r)
     foldStream st yieldk single stop m1
 
+
 instance Semigroup (WSerialT m a) where
     (<>) = wSerial
 
