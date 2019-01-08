@@ -53,7 +53,6 @@ module Streamly.SVar
     , captureMonadState
     , RunInIO (..)
 
-    , atomicModifyIORefCAS
     , WorkerInfo (..)
     , YieldRateInfo (..)
     , ThreadAbort (..)
@@ -116,9 +115,9 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, control, StM)
-import Data.Atomics
-       (casIORef, readForCAS, peekTicket, atomicModifyIORefCAS_,
-        writeBarrier, storeLoadBarrier)
+import Streamly.Atomics
+       (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
+        storeLoadBarrier)
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, pushL)
 import Data.Functor (void)
 import Data.Heap (Heap, Entry(..))
@@ -729,25 +728,6 @@ withDiagMVar sv label action =
 -------------------------------------------------------------------------------
 -- CAS
 -------------------------------------------------------------------------------
-
--- Slightly faster version of CAS. Gained some improvement by avoiding the use
--- of "evaluate" because we know we do not have exceptions in fn.
-{-# INLINE atomicModifyIORefCAS #-}
-atomicModifyIORefCAS :: IORef a -> (a -> (a,b)) -> IO b
-atomicModifyIORefCAS ref fn = do
-    tkt <- readForCAS ref
-    loop tkt retries
-
-    where
-
-    retries = 25 :: Int
-    loop _   0     = atomicModifyIORef ref fn
-    loop old tries = do
-        let (new, result) = fn $ peekTicket old
-        (success, tkt) <- casIORef ref old new
-        if success
-        then return result
-        else loop tkt (tries - 1)
 
 {-# INLINE ringDoorBell #-}
 ringDoorBell :: SVar t m a -> IO ()
