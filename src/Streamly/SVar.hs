@@ -100,7 +100,6 @@ module Streamly.SVar
 
     , toStreamVar
     , SVarStats (..)
-    , NanoSecs (..)
     , dumpSVar
     )
 where
@@ -133,26 +132,14 @@ import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
-import System.Clock (TimeSpec, Clock(Monotonic), getTime, toNanoSecs)
+import Streamly.Clock
+       (AbsTime, NanoSecond64(..), MicroSecond64(..), getTime, diffAbsTime64,
+        fromRelTime64, toRelTime64)
 import System.IO (hPutStrLn, stderr)
 import Text.Printf (printf)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
-
--- Always use signed arithmetic to avoid inadvertant overflows of signed values
--- on conversion when comparing unsigned quantities with signed.
-newtype NanoSecs = NanoSecs Int64
-    deriving ( Eq
-             , Read
-             , Show
-             , Enum
-             , Bounded
-             , Num
-             , Real
-             , Integral
-             , Ord
-             )
 
 newtype Count = Count Int64
     deriving ( Eq
@@ -230,7 +217,7 @@ data WorkerInfo = WorkerInfo
     -- total number of yields by the worker till now
     , workerYieldCount    :: IORef Count
     -- yieldCount at start, timestamp
-    , workerLatencyStart  :: IORef (Count, TimeSpec)
+    , workerLatencyStart  :: IORef (Count, AbsTime)
     }
 
 
@@ -262,13 +249,13 @@ data Rate = Rate
     }
 
 data LatencyRange = LatencyRange
-    { minLatency :: NanoSecs
-    , maxLatency :: NanoSecs
+    { minLatency :: NanoSecond64
+    , maxLatency :: NanoSecond64
     } deriving Show
 
 -- Rate control.
 data YieldRateInfo = YieldRateInfo
-    { svarLatencyTarget    :: NanoSecs
+    { svarLatencyTarget    :: NanoSecond64
     , svarLatencyRange     :: LatencyRange
     , svarRateBuffer       :: Int
     , svarGainedLostYields :: IORef Count
@@ -279,11 +266,11 @@ data YieldRateInfo = YieldRateInfo
     -- rate. The idle time of workers is adjusted in this, so that we only
     -- account for the rate when the consumer actually demands data.
     -- XXX interval latency is enough, we can move this under diagnostics build
-    , svarAllTimeLatency :: IORef (Count, TimeSpec)
+    , svarAllTimeLatency :: IORef (Count, AbsTime)
 
     -- XXX Worker latency specified by the user to be used before the first
     -- actual measurement arrives. Not yet implemented
-    , workerBootstrapLatency :: Maybe NanoSecs
+    , workerBootstrapLatency :: Maybe NanoSecond64
 
     -- After how many yields the worker should update the latency information.
     -- If the latency is high, this count is kept lower and vice-versa.  XXX If
@@ -297,7 +284,7 @@ data YieldRateInfo = YieldRateInfo
     -- empty into workerCollectedLatency stats at certain intervals - whenever
     -- we process the stream elements yielded in this period.
     -- (yieldCount, timeTaken)
-    , workerPendingLatency   :: IORef (Count, NanoSecs)
+    , workerPendingLatency   :: IORef (Count, NanoSecond64)
 
     -- This is the second level stat which is an accmulation from
     -- workerPendingLatency stats. We keep accumulating latencies in this
@@ -305,10 +292,10 @@ data YieldRateInfo = YieldRateInfo
     -- to start collecting for the next period and retain the computed average
     -- latency for the last period in workerMeasuredLatency.
     -- (yieldCount, timeTaken)
-    , workerCollectedLatency :: IORef (Count, NanoSecs)
+    , workerCollectedLatency :: IORef (Count, NanoSecond64)
 
     -- Latency as measured by workers, aggregated for the last period.
-    , workerMeasuredLatency :: IORef NanoSecs
+    , workerMeasuredLatency :: IORef NanoSecond64
     }
 
 data SVarStats = SVarStats {
@@ -317,10 +304,10 @@ data SVarStats = SVarStats {
     , maxOutQSize      :: IORef Int
     , maxHeapSize      :: IORef Int
     , maxWorkQSize     :: IORef Int
-    , avgWorkerLatency :: IORef (Count, NanoSecs)
-    , minWorkerLatency :: IORef NanoSecs
-    , maxWorkerLatency :: IORef NanoSecs
-    , svarStopTime     :: IORef (Maybe TimeSpec)
+    , avgWorkerLatency :: IORef (Count, NanoSecond64)
+    , minWorkerLatency :: IORef NanoSecond64
+    , maxWorkerLatency :: IORef NanoSecond64
+    , svarStopTime     :: IORef (Maybe AbsTime)
 }
 
 data Limit = Unlimited | Limited Word deriving Show
@@ -393,7 +380,7 @@ data State t m a = State
     , _threadsHigh    :: Limit
     , _bufferHigh     :: Limit
     -- XXX these two can be collapsed into a single type
-    , _streamLatency  :: Maybe NanoSecs -- bootstrap latency
+    , _streamLatency  :: Maybe NanoSecond64 -- bootstrap latency
     , _maxStreamRate  :: Maybe Rate
     , _inspectMode    :: Bool
     }
@@ -505,7 +492,7 @@ setStreamLatency n st =
             else Just (fromIntegral n)
        }
 
-getStreamLatency :: State t m a -> Maybe NanoSecs
+getStreamLatency :: State t m a -> Maybe NanoSecond64
 getStreamLatency = _streamLatency
 
 setInspectMode :: State t m a -> State t m a
@@ -561,7 +548,7 @@ secs k
                | otherwise = printf "%.3f %s" t u
 
 -- XXX Code duplicated from collectLatency
-drainLatency :: SVar t m a -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+drainLatency :: SVar t m a -> YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
 drainLatency sv yinfo = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
@@ -624,11 +611,11 @@ dumpSVarStats sv ss style = do
                 gl <- readIORef (svarGainedLostYields yinfo)
                 case t of
                     Nothing -> do
-                        now <- getTime Monotonic
-                        let interval = toNanoSecs (now - startTime)
+                        now <- getTime
+                        let interval = diffAbsTime64 now startTime
                         return (cnt, gl, interval `div` fromIntegral cnt)
                     Just stopTime -> do
-                        let interval = toNanoSecs (stopTime - startTime)
+                        let interval = diffAbsTime64 stopTime startTime
                         return (cnt, gl, interval `div` fromIntegral cnt)
             else return (0, 0, 0)
 
@@ -898,7 +885,7 @@ send sv msg = do
             active <- readIORef (workerCount sv)
             return $ len < (fromIntegral lim - active)
 
-workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecs))
+workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecond64))
 workerCollectLatency winfo = do
     (cnt0, t0) <- readIORef (workerLatencyStart winfo)
     cnt1 <- readIORef (workerYieldCount winfo)
@@ -906,8 +893,8 @@ workerCollectLatency winfo = do
 
     if cnt > 0
     then do
-        t1 <- getTime Monotonic
-        let period = fromInteger $ toNanoSecs (t1 - t0)
+        t1 <- getTime
+        let period = fromRelTime64 $ diffAbsTime64 t1 t0
         writeIORef (workerLatencyStart winfo) (cnt1, t1)
         return $ Just (cnt, period)
     else return Nothing
@@ -1305,7 +1292,7 @@ pushWorker yieldMax sv = do
             Nothing -> return Nothing
             Just _ -> liftIO $ do
                 cntRef <- newIORef 0
-                t <- getTime Monotonic
+                t <- getTime
                 lat <- newIORef (0, t)
                 return $ Just WorkerInfo
                     { workerYieldMax = yieldMax
@@ -1348,7 +1335,7 @@ pushWorkerPar sv wloop =
                 Nothing -> return Nothing
                 Just _ -> liftIO $ do
                     cntRef <- newIORef 0
-                    t <- getTime Monotonic
+                    t <- getTime
                     lat <- newIORef (0, t)
                     return $ Just WorkerInfo
                         { workerYieldMax = 0
@@ -1420,24 +1407,21 @@ dispatchWorker yieldCount sv = do
 --    sleep time is accumulated.
 -- 3. Collected latencies are computed and transferred to measured latency
 --    after a minimum of this period.
-minThreadDelay :: NanoSecs
-minThreadDelay = 10^(6 :: Int)
+minThreadDelay :: NanoSecond64
+minThreadDelay = 1000000
 
 -- | Another magic number! When we have to start more workers to cover up a
 -- number of yields that we are lagging by then we cannot start one worker for
 -- each yield because that may be a very big number and if the latency of the
 -- workers is low these number of yields could be very high. We assume that we
 -- run each extra worker for at least this much time.
-rateRecoveryTime :: NanoSecs
+rateRecoveryTime :: NanoSecond64
 rateRecoveryTime = 1000000
-
-nanoToMicroSecs :: NanoSecs -> Int
-nanoToMicroSecs s = fromIntegral s `div` 1000
 
 -- We either block, or send one worker with limited yield count or one or more
 -- workers with unlimited yield count.
 data Work
-    = BlockWait NanoSecs
+    = BlockWait NanoSecond64
     | PartialWorker Count
     | ManyWorkers Int Count
     deriving Show
@@ -1447,9 +1431,9 @@ estimateWorkers
     :: Limit
     -> Count
     -> Count
-    -> NanoSecs
-    -> NanoSecs
-    -> NanoSecs
+    -> NanoSecond64
+    -> NanoSecond64
+    -> NanoSecond64
     -> LatencyRange
     -> Work
 estimateWorkers workerLimit svarYields gainLossYields
@@ -1500,7 +1484,7 @@ estimateWorkers workerLimit svarYields gainLossYields
                             fromIntegral rateRecoveryTime
                     yieldsFreq = 1.0 / fromIntegral targetLat
                     totalYieldsFreq = yieldsFreq + deltaYieldsFreq
-                    requiredLat = NanoSecs $ round $ 1.0 / totalYieldsFreq
+                    requiredLat = NanoSecond64 $ round $ 1.0 / totalYieldsFreq
                     adjustedLat = min (max requiredLat (minLatency range))
                                       (maxLatency range)
                 in  assert (adjustedLat > 0) $
@@ -1527,7 +1511,7 @@ estimateWorkers workerLimit svarYields gainLossYields
 -- | Get the worker latency without resetting workerPendingLatency
 -- Returns (total yield count, base time, measured latency)
 -- CAUTION! keep it in sync with collectLatency
-getWorkerLatency :: YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+getWorkerLatency :: YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
 getWorkerLatency yinfo  = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
@@ -1552,8 +1536,8 @@ getWorkerLatency yinfo  = do
 isBeyondMaxRate :: SVar t m a -> YieldRateInfo -> IO Bool
 isBeyondMaxRate sv yinfo = do
     (count, tstamp, wLatency) <- getWorkerLatency yinfo
-    now <- getTime Monotonic
-    let duration = fromInteger $ toNanoSecs $ now - tstamp
+    now <- getTime
+    let duration = fromRelTime64 $ diffAbsTime64 now tstamp
     let targetLat = svarLatencyTarget yinfo
     gainLoss <- readIORef (svarGainedLostYields yinfo)
     let work = estimateWorkers (maxWorkerLimit sv) count gainLoss duration
@@ -1575,7 +1559,7 @@ isBeyondMaxRate sv yinfo = do
 -- value is updated an existing worker must check it again on the next yield.
 -- Otherwise it is possible that we may keep updating it and because of the mod
 -- worker keeps skipping it.
-updateWorkerPollingInterval :: YieldRateInfo -> NanoSecs -> IO ()
+updateWorkerPollingInterval :: YieldRateInfo -> NanoSecond64 -> IO ()
 updateWorkerPollingInterval yinfo latency = do
     let periodRef = workerPollingInterval yinfo
         cnt = max 1 $ minThreadDelay `div` latency
@@ -1589,7 +1573,7 @@ updateWorkerPollingInterval yinfo latency = do
 -- whereas the average is used for future estimates e.g. how many workers
 -- should be maintained to maintain the rate.
 -- CAUTION! keep it in sync with getWorkerLatency
-collectLatency :: SVar t m a -> YieldRateInfo -> IO (Count, TimeSpec, NanoSecs)
+collectLatency :: SVar t m a -> YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
 collectLatency sv yinfo = do
     let cur      = workerPendingLatency yinfo
         col      = workerCollectedLatency yinfo
@@ -1653,10 +1637,10 @@ dispatchWorkerPaced :: MonadAsync m => SVar t m a -> m Bool
 dispatchWorkerPaced sv = do
     let yinfo = fromJust $ yieldRateInfo sv
     (svarYields, svarElapsed, wLatency) <- do
-        now <- liftIO $ getTime Monotonic
+        now <- liftIO $ getTime
         (yieldCount, baseTime, lat) <-
             liftIO $ collectLatency sv yinfo
-        let elapsed = fromInteger $ toNanoSecs $ now - baseTime
+        let elapsed = fromRelTime64 $ diffAbsTime64 now baseTime
         let latency =
                 if lat == 0
                 then
@@ -1698,7 +1682,8 @@ dispatchWorkerPaced sv = do
                 -- still have a Stop event waiting in the outputQueue.
                 done <- allThreadsDone sv
                 when done $ void $ do
-                    liftIO $ threadDelay $ nanoToMicroSecs s
+                    let us = fromRelTime64 (toRelTime64 s) :: MicroSecond64
+                    liftIO $ threadDelay (fromIntegral us)
                     dispatchWorker 1 sv
                 return False
             PartialWorker yields -> do
@@ -1974,7 +1959,7 @@ getYieldRateInfo st = do
         measured <- newIORef 0
         wcur     <- newIORef (0,0)
         wcol     <- newIORef (0,0)
-        now      <- getTime Monotonic
+        now      <- getTime
         wlong    <- newIORef (0,now)
         period   <- newIORef 1
         gainLoss <- newIORef (Count 0)
@@ -1999,9 +1984,9 @@ newSVarStats = do
     maxOq  <- newIORef 0
     maxHs  <- newIORef 0
     maxWq  <- newIORef 0
-    avgLat <- newIORef (0, NanoSecs 0)
-    maxLat <- newIORef (NanoSecs 0)
-    minLat <- newIORef (NanoSecs 0)
+    avgLat <- newIORef (0, NanoSecond64 0)
+    maxLat <- newIORef (NanoSecond64 0)
+    minLat <- newIORef (NanoSecond64 0)
     stpTime <- newIORef Nothing
 
     return SVarStats

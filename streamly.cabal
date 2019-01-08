@@ -128,6 +128,7 @@ flag examples-sdl
 library
     hs-source-dirs:    src
     other-modules:     Streamly.SVar
+                     , Streamly.Clock
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
@@ -182,11 +183,11 @@ library
                      , deepseq           >= 1.4.3 && < 1.5
                      , containers        >= 0.5   && < 0.7
                      , heaps             >= 0.3   && < 0.4
+                     , time              >= 1.8   && < 1.10
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
-                     , clock             >= 0.7.1 && < 0.8
 
                     -- transfomers
                      , exceptions        >= 0.8   && < 0.11
@@ -524,7 +525,7 @@ benchmark base
       -- concurrency
       , atomic-primops    >= 0.8   && < 0.9
       , lockfree-queue    >= 0.2.3 && < 0.3
-      , clock             >= 0.7.1 && < 0.8
+      , time              >= 1.8   && < 1.10
 
       , exceptions        >= 0.8   && < 0.11
       , monad-control     >= 1.0   && < 2
@@ -542,6 +543,7 @@ executable nano-bench
   hs-source-dirs: benchmark, src
   main-is: NanoBenchmarks.hs
   other-modules:     Streamly.SVar
+                   , Streamly.Clock
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.Streams.StreamD.Type
@@ -562,7 +564,7 @@ executable nano-bench
        -- concurrency
        , atomic-primops    >= 0.8   && < 0.9
        , lockfree-queue    >= 0.2.3 && < 0.3
-       , clock             >= 0.7.1 && < 0.8
+       , time              >= 1.8   && < 1.10
 
        , exceptions        >= 0.8   && < 0.11
        , monad-control     >= 1.0   && < 2
