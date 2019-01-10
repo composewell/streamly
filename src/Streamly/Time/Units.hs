@@ -1,10 +1,10 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-#include "Streams/inline.hs"
+#include "inline.hs"
 
 -- |
--- Module      : Streamly.Clock
+-- Module      : Streamly.Time.Units
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -12,7 +12,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Clock
+module Streamly.Time.Units
     (
     -- * Time Unit Conversions
       TimeUnit()
@@ -26,7 +26,7 @@ module Streamly.Clock
     , MilliSecond64(..)
 
     -- * Absolute times (using TimeSpec)
-    , AbsTime
+    , AbsTime(..)
     , toAbsTime
     , fromAbsTime
 
@@ -43,13 +43,9 @@ module Streamly.Clock
     , fromRelTime64
     , diffAbsTime64
     , addToAbsTime64
-
-    -- * get time from the system clock
-    , getTime
     )
 where
 
-import Data.Time.Clock.System (SystemTime(..), getSystemTime)
 import Data.Int
 
 -------------------------------------------------------------------------------
@@ -399,6 +395,7 @@ fromRelTime (RelTime t) = fromTimeSpec t
 {-# RULES "fromRelTime/toRelTime" forall a. toRelTime (fromRelTime a) = a #-}
 {-# RULES "toRelTime/fromRelTime" forall a. fromRelTime (toRelTime a) = a #-}
 
+-- XXX rename to diffAbsTimes?
 {-# INLINE diffAbsTime #-}
 diffAbsTime :: AbsTime -> AbsTime -> RelTime
 diffAbsTime (AbsTime t1) (AbsTime t2) = RelTime (t1 - t2)
@@ -406,14 +403,3 @@ diffAbsTime (AbsTime t1) (AbsTime t2) = RelTime (t1 - t2)
 {-# INLINE addToAbsTime #-}
 addToAbsTime :: AbsTime -> RelTime -> AbsTime
 addToAbsTime (AbsTime t1) (RelTime t2) = AbsTime $ t1 + t2
-
--------------------------------------------------------------------------------
--- Clock time
--------------------------------------------------------------------------------
-
--- XXX Use our own implementation using clock_gettime and remove the dependency
--- on "time".
-getTime :: IO AbsTime
-getTime = do
-    MkSystemTime s ns <- getSystemTime
-    return $ AbsTime $ TimeSpec s (fromIntegral ns)

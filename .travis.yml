@@ -141,7 +141,8 @@ matrix:
   # --------------------------------------------------------------------------
 
   # GHC 8.6/cabal build using stack!
-  - env: BUILD=cabal-new RESOLVER=lts-13 GHCVER=8.6 GHC_OPTIONS=""
+  # On OSX autoreconf is not installed therefore disable sdist build
+  - env: BUILD=cabal-new RESOLVER=lts-13 GHCVER=8.6 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y
     os: osx
 
   # GHC 8.2.2/stack

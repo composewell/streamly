@@ -24,7 +24,7 @@ import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
 import Data.Semigroup ((<>))
 import System.IO (hPutStrLn, stderr)
-import Streamly.Clock (getTime)
+import Streamly.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import Streamly.SVar
@@ -49,7 +49,7 @@ fromStreamVar sv = mkStream $ \st yld sng stp -> do
 
     allDone stp = do
         when (svarInspectMode sv) $ do
-            t <- liftIO $ getTime
+            t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
             liftIO $ printSVar sv "SVar Done"
         stp

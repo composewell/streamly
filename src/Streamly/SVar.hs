@@ -131,8 +131,9 @@ import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
-import Streamly.Clock
-       (AbsTime, NanoSecond64(..), MicroSecond64(..), getTime, diffAbsTime64,
+import Streamly.Time.Clock (Clock(..), getTime)
+import Streamly.Time.Units
+       (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64)
 import System.IO (hPutStrLn, stderr)
 import Text.Printf (printf)
@@ -610,7 +611,7 @@ dumpSVarStats sv ss style = do
                 gl <- readIORef (svarGainedLostYields yinfo)
                 case t of
                     Nothing -> do
-                        now <- getTime
+                        now <- getTime Monotonic
                         let interval = diffAbsTime64 now startTime
                         return (cnt, gl, interval `div` fromIntegral cnt)
                     Just stopTime -> do
@@ -873,7 +874,7 @@ workerCollectLatency winfo = do
 
     if cnt > 0
     then do
-        t1 <- getTime
+        t1 <- getTime Monotonic
         let period = fromRelTime64 $ diffAbsTime64 t1 t0
         writeIORef (workerLatencyStart winfo) (cnt1, t1)
         return $ Just (cnt, period)
@@ -1272,7 +1273,7 @@ pushWorker yieldMax sv = do
             Nothing -> return Nothing
             Just _ -> liftIO $ do
                 cntRef <- newIORef 0
-                t <- getTime
+                t <- getTime Monotonic
                 lat <- newIORef (0, t)
                 return $ Just WorkerInfo
                     { workerYieldMax = yieldMax
@@ -1315,7 +1316,7 @@ pushWorkerPar sv wloop =
                 Nothing -> return Nothing
                 Just _ -> liftIO $ do
                     cntRef <- newIORef 0
-                    t <- getTime
+                    t <- getTime Monotonic
                     lat <- newIORef (0, t)
                     return $ Just WorkerInfo
                         { workerYieldMax = 0
@@ -1516,7 +1517,7 @@ getWorkerLatency yinfo  = do
 isBeyondMaxRate :: SVar t m a -> YieldRateInfo -> IO Bool
 isBeyondMaxRate sv yinfo = do
     (count, tstamp, wLatency) <- getWorkerLatency yinfo
-    now <- getTime
+    now <- getTime Monotonic
     let duration = fromRelTime64 $ diffAbsTime64 now tstamp
     let targetLat = svarLatencyTarget yinfo
     gainLoss <- readIORef (svarGainedLostYields yinfo)
@@ -1617,7 +1618,7 @@ dispatchWorkerPaced :: MonadAsync m => SVar t m a -> m Bool
 dispatchWorkerPaced sv = do
     let yinfo = fromJust $ yieldRateInfo sv
     (svarYields, svarElapsed, wLatency) <- do
-        now <- liftIO $ getTime
+        now <- liftIO $ getTime Monotonic
         (yieldCount, baseTime, lat) <-
             liftIO $ collectLatency sv yinfo
         let elapsed = fromRelTime64 $ diffAbsTime64 now baseTime
@@ -1939,7 +1940,7 @@ getYieldRateInfo st = do
         measured <- newIORef 0
         wcur     <- newIORef (0,0)
         wcol     <- newIORef (0,0)
-        now      <- getTime
+        now      <- getTime Monotonic
         wlong    <- newIORef (0,now)
         period   <- newIORef 1
         gainLoss <- newIORef (Count 0)

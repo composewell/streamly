@@ -77,7 +77,7 @@ maintainer:          harendra.kumar@gmail.com
 copyright:           2017 Harendra Kumar
 category:            Control, Concurrency, Streaming, Reactivity
 stability:           Experimental
-build-type:          Simple
+build-type:          Configure
 cabal-version:       >= 1.10
 
 extra-source-files:
@@ -91,6 +91,15 @@ extra-source-files:
     stack.yaml
     src/Streamly/Streams/Instances.hs
     src/Streamly/Streams/inline.hs
+    configure.ac
+    configure
+    src/Streamly/Time/config.h.in
+
+extra-tmp-files:
+    config.log
+    config.status
+    autom4te.cache
+    src/Streamly/Time/config.h
 
 source-repository head
     type: git
@@ -126,10 +135,18 @@ flag examples-sdl
 -------------------------------------------------------------------------------
 
 library
+    js-sources: jsbits/clock.js
+    include-dirs:     src/Streamly/Time
+                    , src/Streamly/Streams
+    if os(windows)
+      c-sources:     src/Streamly/Time/Windows.c
+    if os(darwin)
+      c-sources:     src/Streamly/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:     Streamly.Atomics
                      , Streamly.SVar
-                     , Streamly.Clock
+                     , Streamly.Time.Units
+                     , Streamly.Time.Clock
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
@@ -184,7 +201,6 @@ library
                      , deepseq           >= 1.4.3 && < 1.5
                      , containers        >= 0.5   && < 0.7
                      , heaps             >= 0.3   && < 0.4
-                     , time              >= 1.8   && < 1.10
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
@@ -486,9 +502,17 @@ benchmark nested
 
 benchmark base
   type: exitcode-stdio-1.0
+  include-dirs:     src/Streamly/Time
+                  , src/Streamly/Streams
+  if os(windows)
+    c-sources:     src/Streamly/Time/Windows.c
+  if os(darwin)
+    c-sources:     src/Streamly/Time/Darwin.c
   hs-source-dirs: benchmark, src
   main-is: BaseStreams.hs
   other-modules:     Streamly.Atomics
+                   , Streamly.Time.Units
+                   , Streamly.Time.Clock
                    , Streamly.SVar
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
@@ -530,7 +554,6 @@ benchmark base
       -- concurrency
       , atomic-primops    >= 0.8   && < 0.9
       , lockfree-queue    >= 0.2.3 && < 0.3
-      , time              >= 1.8   && < 1.10
 
       , exceptions        >= 0.8   && < 0.11
       , monad-control     >= 1.0   && < 2
@@ -546,10 +569,17 @@ benchmark base
 
 executable nano-bench
   hs-source-dirs: benchmark, src
+  include-dirs:     src/Streamly/Time
+                  , src/Streamly/Streams
+  if os(windows)
+    c-sources:     src/Streamly/Time/Windows.c
+  if os(darwin)
+    c-sources:     src/Streamly/Time/Darwin.c
   main-is: NanoBenchmarks.hs
   other-modules:     Streamly.Atomics
+                   , Streamly.Time.Units
+                   , Streamly.Time.Clock
                    , Streamly.SVar
-                   , Streamly.Clock
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.Streams.StreamD.Type
@@ -570,7 +600,6 @@ executable nano-bench
        -- concurrency
        , atomic-primops    >= 0.8   && < 0.9
        , lockfree-queue    >= 0.2.3 && < 0.3
-       , time              >= 1.8   && < 1.10
 
        , exceptions        >= 0.8   && < 0.11
        , monad-control     >= 1.0   && < 2
