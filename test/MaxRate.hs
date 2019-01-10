@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 import Streamly
@@ -81,37 +82,65 @@ main = hspec $ do
     -- will be effectively shorter. This becomes significant when the rates are
     -- lower (1 or lower). For rate 1 we lose 1 second in the end and for rate
     -- 10 0.1 second.
-    let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
+    let rates = [1, 10, 100, 1000, 10000
+#ifndef __GHCJS__
+                , 100000, 1000000
+#endif
+                ]
      in describe "asyncly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 0 range)
 
     -- XXX try staggering the dispatches to achieve higher rates
-    let rates = [1, 10, 100, 1000, 10000, 25000]
+    let rates = [1, 10, 100, 1000
+#ifndef __GHCJS__
+                , 10000, 25000
+#endif
+                ]
      in describe "asyncly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "asyncly" asyncly r 0 1 range)
 
     -- At lower rates (1/10) this is likely to vary quite a bit depending on
     -- the spread of random producer latencies generated.
-    let rates = [1, 10, 100, 1000, 10000, 25000]
+    let rates = [1, 10, 100, 1000
+#ifndef __GHCJS__
+                , 10000, 25000
+#endif
+                ]
      in describe "asyncly no consumer delay and variable producer delay" $
             forM_ rates $ \r ->
                 measureRate' "asyncly" asyncly r 0 (0.1, 3) range
 
-    let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
+    let rates = [1, 10, 100, 1000, 10000
+#ifndef __GHCJS__
+                , 100000, 1000000
+#endif
+                ]
      in describe "wAsyncly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 0 range)
 
-    let rates = [1, 10, 100, 1000, 10000, 25000]
+    let rates = [1, 10, 100, 1000
+#ifndef __GHCJS__
+                , 10000, 25000
+#endif
+                ]
      in describe "wAsyncly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "wAsyncly" wAsyncly r 0 1 range)
 
-    let rates = [1, 10, 100, 1000, 10000, 100000, 1000000]
+    let rates = [1, 10, 100, 1000, 10000
+#ifndef __GHCJS__
+                , 100000, 1000000
+#endif
+                ]
      in describe "aheadly no consumer delay no producer delay" $
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 0 range)
 
     -- XXX after the change to stop workers when the heap is clearing
     -- thi does not work well at a 25000 ops per second, need to fix.
-    let rates = [1, 10, 100, 1000, 10000, 12500]
+    let rates = [1, 10, 100, 1000
+#ifndef __GHCJS__
+                , 10000, 12500
+#endif
+                ]
      in describe "aheadly no consumer delay and 1 sec producer delay" $
             forM_ rates (\r -> measureRate "aheadly" aheadly r 0 1 range)
 

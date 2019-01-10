@@ -1,3 +1,9 @@
+## Unreleased
+
+### Enhancements
+
+* Add GHCJS support
+
 ## 0.6.0
 
 ### Breaking changes
