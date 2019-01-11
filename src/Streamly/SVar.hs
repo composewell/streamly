@@ -808,27 +808,8 @@ withDiagMVar sv label action =
                          ]
     else action
 
--------------------------------------------------------------------------------
--- CAS
--------------------------------------------------------------------------------
-
-{-# INLINE ringDoorBell #-}
-ringDoorBell :: SVar t m a -> IO ()
-ringDoorBell sv = do
-    storeLoadBarrier
-    w <- readIORef $ needDoorBell sv
-    when w $ do
-        -- Note: the sequence of operations is important for correctness here.
-        -- We need to set the flag to false strictly before sending the
-        -- outputDoorBell, otherwise the outputDoorBell may get processed too early and
-        -- then we may set the flag to False to later making the consumer lose
-        -- the flag, even without receiving a outputDoorBell.
-        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
-        void $ tryPutMVar (outputDoorBell sv) ()
-
-
 ------------------------------------------------------------------------------
--- Spawning threads and collecting result in streamed fashion
+-- Spawning threads
 ------------------------------------------------------------------------------
 
 -- | A monad that can perform concurrent or parallel IO operations. Streams
@@ -872,6 +853,10 @@ doFork action (RunInIO mrun) exHandler =
                 tid <- rawForkIO $ catch (restore $ void $ mrun action)
                                          exHandler
                 run (return tid)
+
+------------------------------------------------------------------------------
+-- Collecting results from child workers in a streamed fashion
+------------------------------------------------------------------------------
 
 -- XXX Can we make access to remainingWork and yieldRateInfo fields in sv
 -- faster, along with the fields in sv required by send?
@@ -1066,6 +1051,24 @@ sendStop sv mwinfo = do
       _ ->
           return ()
     myThreadId >>= \tid -> void $ send sv (ChildStop tid Nothing)
+
+-------------------------------------------------------------------------------
+-- Doorbell
+-------------------------------------------------------------------------------
+
+{-# INLINE ringDoorBell #-}
+ringDoorBell :: SVar t m a -> IO ()
+ringDoorBell sv = do
+    storeLoadBarrier
+    w <- readIORef $ needDoorBell sv
+    when w $ do
+        -- Note: the sequence of operations is important for correctness here.
+        -- We need to set the flag to false strictly before sending the
+        -- outputDoorBell, otherwise the outputDoorBell may get processed too
+        -- early and then we may set the flag to False to later making the
+        -- consumer lose the flag, even without receiving a outputDoorBell.
+        atomicModifyIORefCAS_ (needDoorBell sv) (const False)
+        void $ tryPutMVar (outputDoorBell sv) ()
 
 -------------------------------------------------------------------------------
 -- Async
@@ -1295,6 +1298,10 @@ updateHeapSeq hpVar seqNo =
 -- remaining computation at the back of the queue instead of the heap, and
 -- increment the sequence number.
 
+-------------------------------------------------------------------------------
+-- Dispatching workers and tracking them
+-------------------------------------------------------------------------------
+
 -- Thread tracking is needed for two reasons:
 --
 -- 1) Killing threads on exceptions. Threads may not be left to go away by
@@ -1454,23 +1461,27 @@ dispatchWorker yieldCount sv = do
                             Unlimited -> Limited (fromIntegral n)
                             Limited lim -> Limited $ min lim (fromIntegral n)
 
-            -- XXX for ahead streams shall we take the heap yields into account for
-            -- controlling the dispatch? We should not dispatch if the heap has
-            -- already got the limit covered.
+            -- XXX for ahead streams shall we take the heap yields into account
+            -- for controlling the dispatch? We should not dispatch if the heap
+            -- has already got the limit covered.
             let dispatch = pushWorker yieldCount sv >> return True
              in case limit of
                 Unlimited -> dispatch
                 -- Note that the use of remainingWork and workerCount is not
-                -- atomic and the counts may even have changed between reading and
-                -- using them here, so this is just approximate logic and we cannot
-                -- rely on it for correctness. We may actually dispatch more
-                -- workers than required.
+                -- atomic and the counts may even have changed between reading
+                -- and using them here, so this is just approximate logic and
+                -- we cannot rely on it for correctness. We may actually
+                -- dispatch more workers than required.
                 Limited lim | lim > 0 -> dispatch
                 _ -> return False
         else do
             when (active <= 0) $ pushWorker 0 sv
             return False
     else return False
+
+-------------------------------------------------------------------------------
+-- Dispatch workers with rate control
+-------------------------------------------------------------------------------
 
 -- | This is a magic number and it is overloaded, and used at several places to
 -- achieve batching:
@@ -1711,8 +1722,9 @@ dispatchWorkerPaced sv = do
                         batch = max 1 $ fromIntegral $
                                     minThreadDelay `div` targetLat
                     -- XXX stagger the workers over a period?
-                    -- XXX cannot sleep, as that would mean we cannot process the
-                    -- outputs. need to try a different mechanism to stagger.
+                    -- XXX cannot sleep, as that would mean we cannot process
+                    -- the outputs. need to try a different mechanism to
+                    -- stagger.
                     -- when (total > batch) $
                        -- liftIO $ threadDelay $ nanoToMicroSecs minThreadDelay
                     dispatchN (min total batch)
@@ -1737,6 +1749,10 @@ dispatchWorkerPaced sv = do
             if r
             then dispatchN (n - 1)
             else return False
+
+-------------------------------------------------------------------------------
+-- Worker dispatch and wait loop
+-------------------------------------------------------------------------------
 
 sendWorkerDelayPaced :: SVar t m a -> IO ()
 sendWorkerDelayPaced _ = return ()
@@ -1808,18 +1824,18 @@ sendWorkerWait delay dispatch sv = do
         -- queued items in the heap even though the outputQueue is empty, and
         -- we may have active workers which are deadlocked on those items to be
         -- processed by the consumer. We should either guarantee that any
-        -- worker, before returning, clears the heap or we send a worker to clear
-        -- it. Normally we always send a worker if no output is seen, but if
-        -- the thread limit is reached or we are using pacing then we may not
-        -- send a worker. See the concurrentApplication test in the tests, that
-        -- test case requires at least one yield from the producer to not
+        -- worker, before returning, clears the heap or we send a worker to
+        -- clear it. Normally we always send a worker if no output is seen, but
+        -- if the thread limit is reached or we are using pacing then we may
+        -- not send a worker. See the concurrentApplication test in the tests,
+        -- that test case requires at least one yield from the producer to not
         -- deadlock, if the last workers output is stuck in the heap then this
         -- test fails.  This problem can be extended to n threads when the
         -- consumer may depend on the evaluation of next n items in the
         -- producer stream.
 
-        -- register for the outputDoorBell before we check the queue so that if we
-        -- sleep because the queue was empty we are guaranteed to get a
+        -- register for the outputDoorBell before we check the queue so that if
+        -- we sleep because the queue was empty we are guaranteed to get a
         -- doorbell on the next enqueue.
 
         liftIO $ atomicModifyIORefCAS_ (needDoorBell sv) $ const True
@@ -1840,6 +1856,10 @@ sendWorkerWait delay dispatch sv = do
                              $ takeMVar (outputDoorBell sv)
             (_, len) <- liftIO $ readIORef (outputQueue sv)
             when (len <= 0) $ sendWorkerWait delay dispatch sv
+
+-------------------------------------------------------------------------------
+-- Reading from the workers' output queue/buffer
+-------------------------------------------------------------------------------
 
 {-# INLINE readOutputQRaw #-}
 readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
@@ -1938,6 +1958,10 @@ postProcessPaced sv = do
             when noWorker $ pushWorker 0 sv
         return r
     else return False
+
+-------------------------------------------------------------------------------
+-- Creating an SVar
+-------------------------------------------------------------------------------
 
 getYieldRateInfo :: State t m a -> IO (Maybe YieldRateInfo)
 getYieldRateInfo st = do
@@ -2183,6 +2207,10 @@ newParallelVar :: MonadAsync m => State t m a -> m (SVar t m a)
 newParallelVar st = do
     mrun <- captureMonadState
     liftIO $ getParallelSVar st mrun
+
+-------------------------------------------------------------------------------
+-- Write a stream to an SVar
+-------------------------------------------------------------------------------
 
 -- XXX this errors out for Parallel/Ahead SVars
 -- | Write a stream to an 'SVar' in a non-blocking manner. The stream can then
