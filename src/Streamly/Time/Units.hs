@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 
 #include "inline.hs"
 
@@ -24,6 +25,7 @@ module Streamly.Time.Units
     , NanoSecond64(..)
     , MicroSecond64(..)
     , MilliSecond64(..)
+    , showNanoSecond64
 
     -- * Absolute times (using TimeSpec)
     , AbsTime(..)
@@ -43,10 +45,12 @@ module Streamly.Time.Units
     , fromRelTime64
     , diffAbsTime64
     , addToAbsTime64
+    , showRelTime64
     )
 where
 
 import Data.Int
+import Text.Printf (printf)
 
 -------------------------------------------------------------------------------
 -- Some constants
@@ -68,11 +72,25 @@ tenPower9 = 1000000000
 -- Time Unit Representations
 -------------------------------------------------------------------------------
 
+-- XXX We should be able to use type families to use different represenations
+-- for a unit.
+--
+-- Second Rational
+-- Second Double
+-- Second Int64
+-- Second Integer
+-- NanoSecond Int64
+-- ...
+
 -- Double or Fixed would be a much better representation so that we do not lose
 -- information between conversions. However, for faster arithmetic operations
 -- we use an 'Int64' here. When we need convservation of values we can use a
 -- different system of units with a Fixed precision.
---
+
+-------------------------------------------------------------------------------
+-- Integral Units
+-------------------------------------------------------------------------------
+
 -- | An 'Int64' time representation with a nanosecond resolution. It can
 -- represent time up to ~292 years.
 newtype NanoSecond64 = NanoSecond64 Int64
@@ -114,6 +132,10 @@ newtype MilliSecond64 = MilliSecond64 Int64
              , Integral
              , Ord
              )
+
+-------------------------------------------------------------------------------
+-- Fractional Units
+-------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
 -- TimeSpec representation
@@ -403,3 +425,47 @@ diffAbsTime (AbsTime t1) (AbsTime t2) = RelTime (t1 - t2)
 {-# INLINE addToAbsTime #-}
 addToAbsTime :: AbsTime -> RelTime -> AbsTime
 addToAbsTime (AbsTime t1) (RelTime t2) = AbsTime $ t1 + t2
+
+-------------------------------------------------------------------------------
+-- Formatting and printing
+-------------------------------------------------------------------------------
+
+-- | Convert nanoseconds to a string showing time in an appropriate unit.
+showNanoSecond64 :: NanoSecond64 -> String
+showNanoSecond64 time@(NanoSecond64 ns)
+    | time < 0    = '-' : showNanoSecond64 (-time)
+    | ns < 1000 = fromIntegral ns `with` "ns"
+#ifdef mingw32_HOST_OS
+    | ns < 1000000 = (fromIntegral ns / 1000) `with` "us"
+#else
+    | ns < 1000000 = (fromIntegral ns / 1000) `with` "μs"
+#endif
+    | ns < 1000000000 = (fromIntegral ns / 1000000) `with` "ms"
+    | ns < (60 * 1000000000) = (fromIntegral ns / 1000000000) `with` "s"
+    | ns < (60 * 60 * 1000000000) =
+        (fromIntegral ns / (60 * 1000000000)) `with` "min"
+    | ns < (24 * 60 * 60 * 1000000000) =
+        (fromIntegral ns / (60 * 60 * 1000000000)) `with` "hr"
+    | ns < (365 * 24 * 60 * 60 * 1000000000) =
+        (fromIntegral ns / (24 * 60 * 60 * 1000000000)) `with` "days"
+    | otherwise =
+        (fromIntegral ns / (365 * 24 * 60 * 60 * 1000000000)) `with` "years"
+     where with (t :: Double) (u :: String)
+               | t >= 1e9  = printf "%.4g %s" t u
+               | t >= 1e3  = printf "%.0f %s" t u
+               | t >= 1e2  = printf "%.1f %s" t u
+               | t >= 1e1  = printf "%.2f %s" t u
+               | otherwise = printf "%.3f %s" t u
+
+-- In general we should be able to show the time in a specified unit, if we
+-- omit the unit we can show it in an automatically chosen one.
+{-
+data UnitName =
+      Nano
+    | Micro
+    | Milli
+    | Sec
+-}
+
+showRelTime64 :: RelTime64 -> String
+showRelTime64 = showNanoSecond64 . fromRelTime64

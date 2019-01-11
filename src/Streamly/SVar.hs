@@ -134,9 +134,8 @@ import GHC.IO (IO(..))
 import Streamly.Time.Clock (Clock(..), getTime)
 import Streamly.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
-        fromRelTime64, toRelTime64)
+        fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
 import System.IO (hPutStrLn, stderr)
-import Text.Printf (printf)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
@@ -643,31 +642,6 @@ collectLatency sv yinfo drain = do
 -- Dumping the SVar for debug/diag
 -------------------------------------------------------------------------------
 
--- | Convert a number of seconds to a string.  The string will consist
--- of four decimal places, followed by a short description of the time
--- units.
-secs :: Double -> String
-secs k
-    | k < 0      = '-' : secs (-k)
-    | k >= 1     = k        `with` "s"
-    | k >= 1e-3  = (k*1e3)  `with` "ms"
-#ifdef mingw32_HOST_OS
-    | k >= 1e-6  = (k*1e6)  `with` "us"
-#else
-    | k >= 1e-6  = (k*1e6)  `with` "μs"
-#endif
-    | k >= 1e-9  = (k*1e9)  `with` "ns"
-    | k >= 1e-12 = (k*1e12) `with` "ps"
-    | k >= 1e-15 = (k*1e15) `with` "fs"
-    | k >= 1e-18 = (k*1e18) `with` "as"
-    | otherwise  = printf "%g s" k
-     where with (t :: Double) (u :: String)
-               | t >= 1e9  = printf "%.4g %s" t u
-               | t >= 1e3  = printf "%.0f %s" t u
-               | t >= 1e2  = printf "%.1f %s" t u
-               | t >= 1e1  = printf "%.2f %s" t u
-               | otherwise = printf "%.3f %s" t u
-
 dumpSVarStats :: SVar t m a -> SVarStats -> SVarStyle -> IO String
 dumpSVarStats sv ss style = do
     case yieldRateInfo sv of
@@ -709,21 +683,17 @@ dumpSVarStats sv ss style = do
                then "\nheap max size = " <> show maxHp
                else "")
             <> (if minLat > 0
-               then "\nmin worker latency = "
-                    <> secs (fromIntegral minLat * 1e-9)
+               then "\nmin worker latency = " <> showNanoSecond64 minLat
                else "")
             <> (if maxLat > 0
-               then "\nmax worker latency = "
-                    <> secs (fromIntegral maxLat * 1e-9)
+               then "\nmax worker latency = " <> showNanoSecond64 maxLat
                else "")
             <> (if avgCnt > 0
                 then let lat = avgTime `div` fromIntegral avgCnt
-                     in "\navg worker latency = "
-                        <> secs (fromIntegral lat * 1e-9)
+                     in "\navg worker latency = " <> showNanoSecond64 lat
                 else "")
             <> (if svarLat > 0
-               then "\nSVar latency = "
-                        <> secs (fromIntegral svarLat * 1e-9)
+               then "\nSVar latency = " <> showRelTime64 svarLat
                else "")
             <> (if svarCnt > 0
                then "\nSVar yield count = " <> show svarCnt
