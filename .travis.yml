@@ -55,7 +55,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="f7fa0aaf4066e7862c9c1aca1e313b304253825c"
+  - PACKCHECK_GITHUB_COMMIT="279b98d8243181b0f6ef1dd8b9a472cb6a6b53ec"
 
 notifications:
   email:
@@ -129,6 +129,13 @@ matrix:
   - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6.3 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
+  #- env: BUILD=cabal-new ENABLE_GHCJS=y GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--project-file cabal.project.ghcjs" DISABLE_DOCS=y DISABLE_TEST=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
+  #  addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
+  #  before_install:
+  #  - sudo add-apt-repository ppa:hvr/ghcjs -y
+  #  - sudo apt-get update -q
+  #  - sudo apt-get install ghcjs-8.4 -y
+
   #- env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
@@ -183,6 +190,7 @@ cache:
   directories:
   - $HOME/.cabal
   - $HOME/.ghc
+  - $HOME/.ghcjs
   - $HOME/.local
   - $HOME/.stack
 install: true
