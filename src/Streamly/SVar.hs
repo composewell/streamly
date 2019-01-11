@@ -282,17 +282,20 @@ data YieldRateInfo = YieldRateInfo
 
     -- This is in progress latency stats maintained by the workers which we
     -- empty into workerCollectedLatency stats at certain intervals - whenever
-    -- we process the stream elements yielded in this period.
-    -- (yieldCount, timeTaken)
-    , workerPendingLatency   :: IORef (Count, NanoSecond64)
+    -- we process the stream elements yielded in this period. The first count
+    -- is all yields, the second count is only those yields for which the
+    -- latency was measured to be non-zero (note that if the timer resolution
+    -- is low the measured latency may be zero e.g. on JS platform).
+    -- (allYieldCount, yieldCount, timeTaken)
+    , workerPendingLatency   :: IORef (Count, Count, NanoSecond64)
 
     -- This is the second level stat which is an accmulation from
     -- workerPendingLatency stats. We keep accumulating latencies in this
     -- bucket until we have stats for a sufficient period and then we reset it
     -- to start collecting for the next period and retain the computed average
     -- latency for the last period in workerMeasuredLatency.
-    -- (yieldCount, timeTaken)
-    , workerCollectedLatency :: IORef (Count, NanoSecond64)
+    -- (allYieldCount, yieldCount, timeTaken)
+    , workerCollectedLatency :: IORef (Count, Count, NanoSecond64)
 
     -- Latency as measured by workers, aggregated for the last period.
     , workerMeasuredLatency :: IORef NanoSecond64
@@ -519,6 +522,124 @@ cleanupSVarFromWorker sv = do
           (S.toList workers \\ [self])
 
 -------------------------------------------------------------------------------
+-- Worker latency data collection
+-------------------------------------------------------------------------------
+
+-- Every once in a while workers update the latencies and check the yield rate.
+-- They return if we are above the expected yield rate. If we check too often
+-- it may impact performance, if we check less often we may have a stale
+-- picture. We update every minThreadDelay but we translate that into a yield
+-- count based on latency so that the checking overhead is little.
+--
+-- XXX use a generation count to indicate that the value is updated. If the
+-- value is updated an existing worker must check it again on the next yield.
+-- Otherwise it is possible that we may keep updating it and because of the mod
+-- worker keeps skipping it.
+updateWorkerPollingInterval :: YieldRateInfo -> NanoSecond64 -> IO ()
+updateWorkerPollingInterval yinfo latency = do
+    let periodRef = workerPollingInterval yinfo
+        cnt = max 1 $ minThreadDelay `div` latency
+        period = min cnt (fromIntegral magicMaxBuffer)
+
+    writeIORef periodRef (fromIntegral period)
+
+{-# INLINE recordMinMaxLatency #-}
+recordMinMaxLatency :: SVar t m a -> NanoSecond64 -> IO ()
+recordMinMaxLatency sv new = do
+    let ss = svarStats sv
+    minLat <- readIORef (minWorkerLatency ss)
+    when (new < minLat || minLat == 0) $
+        writeIORef (minWorkerLatency ss) new
+
+    maxLat <- readIORef (maxWorkerLatency ss)
+    when (new > maxLat) $ writeIORef (maxWorkerLatency ss) new
+
+recordAvgLatency :: SVar t m a -> (Count, NanoSecond64) -> IO ()
+recordAvgLatency sv (count, time) = do
+    let ss = svarStats sv
+    modifyIORef (avgWorkerLatency ss) $
+        \(cnt, t) -> (cnt + count, t + time)
+
+-- Pour the pending latency stats into a collection bucket
+{-# INLINE collectWorkerPendingLatency #-}
+collectWorkerPendingLatency
+    :: IORef (Count, Count, NanoSecond64)
+    -> IORef (Count, Count, NanoSecond64)
+    -> IO (Count, Maybe (Count, NanoSecond64))
+collectWorkerPendingLatency cur col = do
+    (fcount, count, time) <- atomicModifyIORefCAS cur $ \v -> ((0,0,0), v)
+
+    (fcnt, cnt, t) <- readIORef col
+    let totalCount = fcnt + fcount
+        latCount   = cnt + count
+        latTime    = t + time
+    writeIORef col (totalCount, latCount, latTime)
+
+    assert (latCount == 0 || latTime /= 0) (return ())
+    let latPair =
+            if latCount > 0 && latTime > 0
+            then Just $ (latCount, latTime)
+            else Nothing
+    return (totalCount, latPair)
+
+{-# INLINE shouldUseCollectedBatch #-}
+shouldUseCollectedBatch
+    :: Count
+    -> NanoSecond64
+    -> NanoSecond64
+    -> NanoSecond64
+    -> Bool
+shouldUseCollectedBatch collectedYields collectedTime newLat prevLat =
+    let r = fromIntegral newLat / fromIntegral prevLat :: Double
+    in     (collectedYields > fromIntegral magicMaxBuffer)
+        || (collectedTime > minThreadDelay)
+        || (prevLat > 0 && (r > 2 || r < 0.5))
+        || (prevLat == 0)
+
+-- Returns a triple, (1) yield count since last collection, (2) the base time
+-- when we started counting, (3) average latency in the last measurement
+-- period. The former two are used for accurate measurement of the going rate
+-- whereas the average is used for future estimates e.g. how many workers
+-- should be maintained to maintain the rate.
+-- CAUTION! keep it in sync with getWorkerLatency
+collectLatency :: SVar t m a
+               -> YieldRateInfo
+               -> Bool
+               -> IO (Count, AbsTime, NanoSecond64)
+collectLatency sv yinfo drain = do
+    let cur      = workerPendingLatency yinfo
+        col      = workerCollectedLatency yinfo
+        longTerm = svarAllTimeLatency yinfo
+        measured = workerMeasuredLatency yinfo
+
+    (newCount, newLatPair) <- collectWorkerPendingLatency cur col
+    (lcount, ltime) <- readIORef longTerm
+    prevLat <- readIORef measured
+
+    let newLcount = lcount + newCount
+        retWith lat = return (newLcount, ltime, lat)
+
+    case newLatPair of
+        Nothing -> retWith prevLat
+        Just (count, time) -> do
+            let newLat = time `div` (fromIntegral count)
+            when (svarInspectMode sv) $ recordMinMaxLatency sv newLat
+            -- When we have collected a significant sized batch we compute the
+            -- new latency using that batch and return the new latency,
+            -- otherwise we return the previous latency derived from the
+            -- previous batch.
+            if shouldUseCollectedBatch newCount time newLat prevLat || drain
+            then do
+                -- XXX make this NOINLINE?
+                updateWorkerPollingInterval yinfo (max newLat prevLat)
+                when (svarInspectMode sv) $ recordAvgLatency sv (count, time)
+                writeIORef col (0, 0, 0)
+                writeIORef measured ((prevLat + newLat) `div` 2)
+                modifyIORef longTerm $ \(_, t) -> (newLcount, t)
+                retWith newLat
+            else retWith prevLat
+
+-------------------------------------------------------------------------------
 -- Dumping the SVar for debug/diag
 -------------------------------------------------------------------------------
 
@@ -547,51 +668,12 @@ secs k
                | t >= 1e1  = printf "%.2f %s" t u
                | otherwise = printf "%.3f %s" t u
 
--- XXX Code duplicated from collectLatency
-drainLatency :: SVar t m a -> YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
-drainLatency sv yinfo = do
-    let cur      = workerPendingLatency yinfo
-        col      = workerCollectedLatency yinfo
-        longTerm = svarAllTimeLatency yinfo
-        measured = workerMeasuredLatency yinfo
-
-    (count, time)       <- atomicModifyIORefCAS cur $ \v -> ((0,0), v)
-    (colCount, colTime) <- readIORef col
-    (lcount, ltime)     <- readIORef longTerm
-    prev                <- readIORef measured
-
-    let pendingCount = colCount + count
-        pendingTime  = colTime + time
-
-        lcount' = lcount + pendingCount
-        notUpdated = (lcount', ltime, prev)
-
-    if (pendingCount > 0)
-    then do
-        let new = pendingTime `div` (fromIntegral pendingCount)
-        when (svarInspectMode sv) $ do
-            let ss = svarStats sv
-            minLat <- readIORef (minWorkerLatency ss)
-            when (new < minLat || minLat == 0) $
-                writeIORef (minWorkerLatency ss) new
-
-            maxLat <- readIORef (maxWorkerLatency ss)
-            when (new > maxLat) $ writeIORef (maxWorkerLatency ss) new
-            modifyIORef (avgWorkerLatency ss) $
-                \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
-        -- To avoid minor fluctuations update in batches
-        writeIORef col (0, 0)
-        writeIORef measured new
-        modifyIORef longTerm $ \(_, t) -> (lcount', t)
-        return (lcount', ltime, new)
-    else return notUpdated
-
 dumpSVarStats :: SVar t m a -> SVarStats -> SVarStyle -> IO String
 dumpSVarStats sv ss style = do
     case yieldRateInfo sv of
         Nothing -> return ()
         Just yinfo -> do
-            _ <- liftIO $ drainLatency sv yinfo
+            _ <- liftIO $ collectLatency sv yinfo True
             return ()
 
     dispatches <- readIORef $ totalDispatches ss
@@ -889,6 +971,8 @@ workerCollectLatency winfo = do
 -- described next.
 -- 3) It is possible that a worker returns without yielding anything because it
 -- never got a chance to pick up work.
+-- 4) If the system timer resolution is lower than the latency, the latency
+-- computation turns out to be zero.
 --
 -- We can fix this if we measure the latencies by counting the work items
 -- picked rather than based on the outputs yielded.
@@ -897,8 +981,16 @@ workerUpdateLatency yinfo winfo = do
     r <- workerCollectLatency winfo
     case r of
         Just (cnt, period) -> do
+        -- NOTE: On JS platform the timer resolution could be pretty low. When
+        -- the timer resolution is low, measurement of latencies could be
+        -- tricky. All the worker latencies will turn out to be zero if they
+        -- are lower than the resolution. We only take into account those
+        -- measurements which are more than the timer resolution.
+
             let ref = workerPendingLatency yinfo
-            atomicModifyIORefCAS_ ref $ \(n, t) -> (n + cnt, t + period)
+                (cnt1, t1) = if period > 0 then (cnt, period) else (0, 0)
+            atomicModifyIORefCAS_ ref $
+                    \(fc, n, t) -> (fc + cnt, n + cnt1, t + t1)
         Nothing -> return ()
 
 updateYieldCount :: WorkerInfo -> IO Count
@@ -1499,20 +1591,21 @@ getWorkerLatency yinfo  = do
         longTerm = svarAllTimeLatency yinfo
         measured = workerMeasuredLatency yinfo
 
-    (count, time)       <- readIORef cur
-    (colCount, colTime) <- readIORef col
+    (curTotalCount, curCount, curTime) <- readIORef cur
+    (colTotalCount, colCount, colTime) <- readIORef col
     (lcount, ltime)     <- readIORef longTerm
-    prev                <- readIORef measured
+    prevLat             <- readIORef measured
 
-    let pendingCount = colCount + count
-        pendingTime  = colTime + time
-        new =
-            if pendingCount > 0
-            then let lat = pendingTime `div` fromIntegral pendingCount
+    let latCount = colCount + curCount
+        latTime  = colTime + curTime
+        totalCount = colTotalCount + curTotalCount
+        newLat =
+            if latCount > 0 && latTime > 0
+            then let lat = latTime `div` fromIntegral latCount
                  -- XXX Give more weight to new?
-                 in (lat + prev) `div` 2
-            else prev
-    return (lcount + pendingCount, ltime, new)
+                 in (lat + prevLat) `div` 2
+            else prevLat
+    return (lcount + totalCount, ltime, newLat)
 
 isBeyondMaxRate :: SVar t m a -> YieldRateInfo -> IO Bool
 isBeyondMaxRate sv yinfo = do
@@ -1530,82 +1623,6 @@ isBeyondMaxRate sv yinfo = do
         ManyWorkers n _ -> cnt > n
         BlockWait _ -> True
 
--- Every once in a while workers update the latencies and check the yield rate.
--- They return if we are above the expected yield rate. If we check too often
--- it may impact performance, if we check less often we may have a stale
--- picture. We update every minThreadDelay but we translate that into a yield
--- count based on latency so that the checking overhead is little.
---
--- XXX use a generation count to indicate that the value is updated. If the
--- value is updated an existing worker must check it again on the next yield.
--- Otherwise it is possible that we may keep updating it and because of the mod
--- worker keeps skipping it.
-updateWorkerPollingInterval :: YieldRateInfo -> NanoSecond64 -> IO ()
-updateWorkerPollingInterval yinfo latency = do
-    let periodRef = workerPollingInterval yinfo
-        cnt = max 1 $ minThreadDelay `div` latency
-        period = min cnt (fromIntegral magicMaxBuffer)
-
-    writeIORef periodRef (fromIntegral period)
-
--- Returns a triple, (1) yield count since last collection, (2) the base time
--- when we started counting, (3) average latency in the last measurement
--- period. The former two are used for accurate measurement of the going rate
--- whereas the average is used for future estimates e.g. how many workers
--- should be maintained to maintain the rate.
--- CAUTION! keep it in sync with getWorkerLatency
-collectLatency :: SVar t m a -> YieldRateInfo -> IO (Count, AbsTime, NanoSecond64)
-collectLatency sv yinfo = do
-    let cur      = workerPendingLatency yinfo
-        col      = workerCollectedLatency yinfo
-        longTerm = svarAllTimeLatency yinfo
-        measured = workerMeasuredLatency yinfo
-
-    (count, time)       <- atomicModifyIORefCAS cur $ \v -> ((0,0), v)
-    (colCount, colTime) <- readIORef col
-    (lcount, ltime)     <- readIORef longTerm
-    prev                <- readIORef measured
-
-    let pendingCount = colCount + count
-        pendingTime  = colTime + time
-
-        lcount' = lcount + pendingCount
-        tripleWith lat = (lcount', ltime, lat)
-
-    if pendingCount > 0
-    then do
-        let new = pendingTime `div` (fromIntegral pendingCount)
-        when (svarInspectMode sv) $ do
-            let ss = svarStats sv
-            minLat <- readIORef (minWorkerLatency ss)
-            when (new < minLat || minLat == 0) $
-                writeIORef (minWorkerLatency ss) new
-
-            maxLat <- readIORef (maxWorkerLatency ss)
-            when (new > maxLat) $ writeIORef (maxWorkerLatency ss) new
-        -- When we have collected a significant sized batch we compute the new
-        -- latency using that batch and return the new latency, otherwise we
-        -- return the previous latency derived from the previous batch.
-        if     (pendingCount > fromIntegral magicMaxBuffer)
-            || (pendingTime > minThreadDelay)
-            || (let r = fromIntegral new / fromIntegral prev :: Double
-                 in prev > 0 && (r > 2 || r < 0.5))
-            || (prev == 0)
-        then do
-            when (svarInspectMode sv) $ do
-                let ss = svarStats sv
-                modifyIORef (avgWorkerLatency ss) $
-                    \(cnt, t) -> (cnt + pendingCount, t + pendingTime)
-            updateWorkerPollingInterval yinfo (max new prev)
-            writeIORef col (0, 0)
-            writeIORef measured ((prev + new) `div` 2)
-            modifyIORef longTerm $ \(_, t) -> (lcount', t)
-            return $ tripleWith new
-        else do
-            writeIORef col (pendingCount, pendingTime)
-            return $ tripleWith prev
-    else return $ tripleWith prev
-
 -- XXX in case of ahead style stream we need to take the heap size into account
 -- because we return the workers on the basis of that which causes a condition
 -- where we keep dispatching and they keep returning. So we must have exactly
@@ -1620,7 +1637,7 @@ dispatchWorkerPaced sv = do
     (svarYields, svarElapsed, wLatency) <- do
         now <- liftIO $ getTime Monotonic
         (yieldCount, baseTime, lat) <-
-            liftIO $ collectLatency sv yinfo
+            liftIO $ collectLatency sv yinfo False
         let elapsed = fromRelTime64 $ diffAbsTime64 now baseTime
         let latency =
                 if lat == 0
@@ -1938,8 +1955,8 @@ getYieldRateInfo st = do
 
     mkYieldRateInfo latency latRange buf = do
         measured <- newIORef 0
-        wcur     <- newIORef (0,0)
-        wcol     <- newIORef (0,0)
+        wcur     <- newIORef (0,0,0)
+        wcol     <- newIORef (0,0,0)
         now      <- getTime Monotonic
         wlong    <- newIORef (0,now)
         period   <- newIORef 1
@@ -2128,7 +2145,7 @@ getParallelSVar st mrun = do
             $ takeMVar (outputDoorBell sv)
         case yieldRateInfo sv of
             Nothing -> return ()
-            Just yinfo -> void $ collectLatency sv yinfo
+            Just yinfo -> void $ collectLatency sv yinfo False
         fst `fmap` readOutputQRaw sv
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
