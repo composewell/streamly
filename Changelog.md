@@ -3,7 +3,7 @@
 ### Enhancements
 
 * Add GHCJS support
-* Remove dependency on "time" package
+* Remove dependency on "clock" package
 
 ## 0.6.0
 
