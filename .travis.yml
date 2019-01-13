@@ -59,7 +59,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="82878e1fdc2a575719cf405c84f283c6368a4b7a"
+  - PACKCHECK_GITHUB_COMMIT="8a9019c1b4b1d9ed9af2bd4108a762b4fa3602ea"
 
 notifications:
   email:
@@ -87,20 +87,14 @@ matrix:
   #- env: BUILD=cabal-new GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6.3 GHC_OPTIONS="" STACK_BUILD_OPTIONS="--flag streamly:streamk"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.6.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.6.3], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6.3 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.6.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.6.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal-new GHCVER=8.6.3
-  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
-
-  - env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4.4
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
-
-  #- env: BUILD=cabal-new GHCVER=8.4.4
-  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHC_OPTIONS="" GHCVER=8.4.4
+    addons: {apt: {packages: [cabal-install-head,ghc-8.4.4], sources: [hvr-ghc]}}
 
   #- env: BUILD=cabal-new GHCVER=8.2.2
   #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
@@ -120,7 +114,10 @@ matrix:
   # --------------------------------------------------------------------------
 
   # Use CABAL_NEWBUILD_OPTIONS to pass any options to cabal e.g. project-file
-  - env: BUILD=cabal-new ENABLE_GHCJS=y CABAL_NEWBUILD_OPTIONS="" DISABLE_DOCS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
+  # DISABLE_SDIST_BUILD is set because of a cabal issue. 'cabal info'
+  # unnecessarily requires "ghc". DISABLE_TEST is set because cabal enables
+  # tests for source-repository-package as well which fails for ghcjs-base.
+  - env: BUILD=cabal-new ENABLE_GHCJS=y CABAL_NEWBUILD_OPTIONS="--project-file cabal.project.ghcjs" DISABLE_DOCS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y DISABLE_TEST=y
     addons:
       apt:
         sources:
@@ -128,7 +125,7 @@ matrix:
         - sourceline: 'ppa:hvr/ghcjs'
         - sourceline: 'deb https://deb.nodesource.com/node_11.x xenial main'
           key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
-        packages: [cabal-install-2.4,ghcjs-8.4]
+        packages: [cabal-install-head,ghcjs-8.4]
 
   # --------------------------------------------------------------------------
   # (Linux) stack builds (BUILD=stack). Some common envvars for stack builds
