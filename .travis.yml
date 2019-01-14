@@ -115,9 +115,8 @@ matrix:
 
   # Use CABAL_NEWBUILD_OPTIONS to pass any options to cabal e.g. project-file
   # DISABLE_SDIST_BUILD is set because of a cabal issue. 'cabal info'
-  # unnecessarily requires "ghc". DISABLE_TEST is set because cabal enables
-  # tests for source-repository-package as well which fails for ghcjs-base.
-  - env: BUILD=cabal-new ENABLE_GHCJS=y CABAL_NEWBUILD_OPTIONS="--project-file cabal.project.ghcjs" DISABLE_DOCS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y DISABLE_TEST=y
+  # unnecessarily requires "ghc".
+  - env: BUILD=cabal-new ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
     addons:
       apt:
         sources:
