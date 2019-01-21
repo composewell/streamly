@@ -40,6 +40,10 @@
 
     * Change the `Unreleased` section at the top of changelog file to the new
       release version number.
+    * Make sure contributors to the release are listed in
+      `credits/CONTRIBUTORS.md`.
+    * Make sure any third party code included in the release has been listed in
+      `credits/COPYRIGHTS.md` and the license is added to the repo.
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.

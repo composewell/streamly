@@ -604,6 +604,17 @@ If you require professional support, consulting, training or timely
 enhancements to the library please contact
 [support@composewell.com](mailto:support@composewell.com).
 
+## Credits
+
+The following authors/libraries have influenced or inspired this library in a
+significant way:
+
+  * Roman Leshchinskiy (vector)
+  * Gabriel Gonzalez (foldl)
+  * Alberto G. Corona (transient)
+
+See the `credits` directory for full list of contributors, credits and licenses.
+
 ## Contributing
 
 The code is available under BSD-3 license
