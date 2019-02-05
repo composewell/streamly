@@ -399,6 +399,7 @@ module Streamly.Prelude
     -- @
     --
     , foldGroupsOf
+    , arrayGroupsOf
     , foldGroupsOn
 
     -- ** Folds
@@ -442,7 +443,6 @@ import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 
 import Streamly.Foldl (Foldl)
-import qualified Streamly.Foldl as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
@@ -2210,6 +2210,12 @@ foldGroupsOf
     :: (IsStream t, Monad m)
     => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
 foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
+
+{-# INLINE arrayGroupsOf #-}
+arrayGroupsOf
+    :: (IsStream t, Monad m, Storable a)
+    => Int -> t m a -> t m (Array a)
+arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
 
 {-
 -- Block wait for minimum of tmin or nmin, whichever is minimum and collect a

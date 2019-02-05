@@ -19,11 +19,13 @@ module Streamly.FileIO
     (
 
     -- * General APIs
-      fromHandle
-    -- , fromHandleWith
+      defaultChunkSize
+    , fromHandle
+    , fromHandleChunksOf
     -- , fromHandleLen
     -- , fromHandleLenWith
     , toHandle
+    , toHandleChunksOf
 
     -- * Seekable Devices
     -- , fromHandlePos
@@ -35,47 +37,17 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-{-
-import GHC.ForeignPtr  (ForeignPtr(ForeignPtr)
-                       ,newForeignPtr_, mallocPlainForeignPtrBytes)
--}
-import Foreign.C.Types (CSize(..))
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (realWorld#)
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import GHC.IO (IO(IO))
-import System.IO (Handle, hGetBufSome, hPutBuf) -- , hSeek, SeekMode(..))
-import System.IO.Unsafe (unsafePerformIO)
+import System.IO (Handle)
 
-import qualified Streamly.Prelude as S
-
-import Streamly.SVar (adaptState)
+import Streamly.Array.Types (Array(..), ByteArray)
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import qualified Streamly.Streams.StreamD.Type as D
+import Streamly.Streams.StreamK.Type (IsStream)
+
 import qualified Streamly.Streams.StreamD as D
-
-import qualified Streamly.Array as V
-import Streamly.Array.Types (Array(..), ByteArray, unsafeDangerousPerformIO)
+import qualified Streamly.Array as A
 import qualified Streamly.Foldl as FL
-
-
--- XXX we should use overWrite/write
-{-# INLINE writeHandle #-}
-writeHandle :: MonadIO m => Handle -> SerialT m ByteArray -> m ()
-writeHandle h m = S.mapM_ (liftIO . V.toHandle h) m
-
-{-# INLINE fromArray #-}
-fromArray :: (IsStream t, Monad m, Storable a) => Array a -> t m a
-fromArray = D.fromStreamD . D.fromArray
-
--- XXX this should perhas go in the Prelude or another module.
--- | Convert a stream of Word8 Arrays into a stream of Word8
-{-# INLINE vConcat #-}
-vConcat :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
-vConcat = S.concatMap fromArray
+import qualified Streamly.Prelude as S
 
 -- Handles perform no buffering of their own, buffering is done explicitly
 -- by the stream.
@@ -90,7 +62,7 @@ allocOverhead = 2 * sizeOf (undefined :: Int)
 -- | Default buffer size in bytes. Account for the GHC memory allocation
 -- overhead so that the actual allocation is rounded to page boundary.
 defaultChunkSize :: Int
-defaultChunkSize = 320 * k - allocOverhead
+defaultChunkSize = 32 * k - allocOverhead
    where k = 1024
 
 -------------------------------------------------------------------------------
@@ -231,7 +203,7 @@ fromHandlePos = fromHandlePosWith defaultChunkSize
 fromHandleLenWith :: (IsStream t, MonadIO m)
     => Int -> Handle -> Int -> t m Word8
 fromHandleLenWith chunkSize h len =
-    S.concatMap toWord8Stream $ V.fromHandle chunkSize h start end
+    S.concatMap toWord8Stream $ A.fromHandle chunkSize h start end
 
 -- | Like fromHandle but we can specify how much data to read. We can achieve
 -- the same effect using "take len . fromHandle", however, in that case
@@ -253,9 +225,16 @@ fromHandleLen = fromHandleLenWith defaultChunkSize
 -- However, it may perform a readahead and buffer some data. Reads are
 -- performed in chunks of up to 'defaultChunkSize' size.
 --
-{-# INLINE fromHandleWith #-}
-fromHandleWith :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-fromHandleWith chunkSize h = vConcat $ V.readHandleWith chunkSize h
+{-# INLINE fromHandleChunksOf #-}
+fromHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+fromHandleChunksOf chunkSize h = A.concatArray $ A.readHandleChunksOf chunkSize h
+
+{-
+-- XXX we need to have the chunk size aligned to 64-bit
+{-# INLINE fromHandleChunksOf64 #-}
+fromHandleChunksOf64 :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word64
+fromHandleChunksOf64 chunkSize h = A.concatArray $ A.readHandleChunksOf chunkSize h
+-}
 
 -- XXX for concurrent streams implement readahead IO. We can send multiple read
 -- requests at the same time. For serial case we can use async IO. We can also
@@ -263,19 +242,23 @@ fromHandleWith chunkSize h = vConcat $ V.readHandleWith chunkSize h
 --
 {-# INLINE fromHandle #-}
 fromHandle :: (IsStream t, MonadIO m) => Handle -> t m Word8
-fromHandle h = fromHandleWith defaultChunkSize h
+fromHandle = fromHandleChunksOf defaultChunkSize
 
 -- | @bufferN n stream@ buffers every N elements of a stream into a Array and
 -- return a stream of 'Array's.
 {-# INLINE bufferN #-}
--- bufferN :: Int -> t m a -> t m (Array a)
-bufferN :: (IsStream t, Monad m) => Int -> t m Word8 -> t m ByteArray
--- bufferN n str = D.fromStreamD $ toArrayStreamD n (D.toStreamD str)
+bufferN :: (IsStream t, Monad m, Storable a) => Int -> t m a -> t m (Array a)
 bufferN n str =
     D.fromStreamD $ D.foldGroupsOf (FL.toArrayN n) n (D.toStreamD str)
+    -- D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD str)
 
+{-# INLINE toHandleChunksOf #-}
+toHandleChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+toHandleChunksOf n h m = A.concatToHandle h $ bufferN n m
+
+{-# INLINE toHandle #-}
 toHandle :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-toHandle h m = writeHandle h $ bufferN defaultChunkSize m
+toHandle = toHandleChunksOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Stateless handle based APIs

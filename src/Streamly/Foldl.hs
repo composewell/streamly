@@ -227,7 +227,6 @@ module Streamly.Foldl
     )
 where
 
-import Control.Monad (when)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
@@ -236,14 +235,12 @@ import Prelude
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Foldl.Types (Foldl(..), Pair(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 import Foreign.Storable (Storable(..))
 
-import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Prelude as P
 
 -- $termination

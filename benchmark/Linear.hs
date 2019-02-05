@@ -179,7 +179,7 @@ main =
       , bgroup "composable-folds"
         [
         -- ** Monoidal Folds
-          benchIOSink "mconcat" Ops.mconcatFold
+          benchIOSink "mconcat" (FL.foldl FL.mconcat . (S.map (Last . Just)))
         -- , benchIOSink "foldMap" (FL.foldl (FL.foldlMap (Last . Just)))
 
         -- ** Run Effects

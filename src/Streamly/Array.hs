@@ -115,45 +115,43 @@ module Streamly.Array
     , nil
     , singleton
     , fromList
-    , readHandleWith
+    , readHandleChunksOf
 
     -- * Elimination/Folds
+    , foldl'
     , null
     , length
+    , last
+
     , toList
     , toHandle
+    , concatArray
+    , concatToHandle
     )
 where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
-import Data.Word (Word8)
-import Foreign.C.String (CString)
-import Foreign.C.Types (CSize(..))
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (plusPtr, minusPtr, castPtr)
+import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, hGetBufSome, hPutBuf)
-import System.IO.Unsafe (unsafePerformIO)
-import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
-                  readListPrecDefault)
-import Prelude hiding (length, null)
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
+import Prelude hiding (length, null, last)
 import qualified Prelude
 
-import GHC.Base (Addr#, nullAddr#, realWorld#)
-import GHC.ForeignPtr
-    (ForeignPtr(..), mallocPlainForeignPtrBytes, newForeignPtr_)
-import GHC.IO (IO(IO), unsafeDupablePerformIO)
+import GHC.Base (nullAddr#)
+import GHC.ForeignPtr (ForeignPtr(..), mallocPlainForeignPtrBytes)
+import GHC.IO (unsafeDupablePerformIO)
 import GHC.Ptr (Ptr(..))
 
-import Streamly.SVar (adaptState, defState)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Array.Types -- (Array(..), ByteArray, dangerousPerformIO)
+import Streamly.Array.Types
 
--- import Streamly.Streams.Serial (SerialT)
--- import qualified Streamly.Prelude as S
+import Streamly.Streams.Serial (SerialT)
+import qualified Streamly.Prelude as S
 import qualified Streamly.Foldl as FL
 -- import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamD as D
@@ -268,7 +266,7 @@ singleton a =
     in (v {aEnd = aEnd v `plusPtr` (sizeOf (undefined :: a))})
 
 {-# INLINABLE fromList #-}
-fromList :: (Show a, Storable a) => [a] -> Array a
+fromList :: Storable a => [a] -> Array a
 fromList xs = runIdentity $
     FL.foldl (FL.toArrayN (Prelude.length xs)) (D.fromStreamD (D.fromList xs))
 
@@ -290,11 +288,11 @@ fromHandleSome size h = do
         -- XXX shrink only if the diff is significant
         shrinkToFit v
 
--- | @readHandleWith size h@ reads a stream of vectors from file handle @h@.
+-- | @readHandleChunksOf size h@ reads a stream of vectors from file handle @h@.
 -- The maximum size of a single vector is limited to @size@.
-{-# INLINE readHandleWith #-}
-readHandleWith :: (IsStream t, MonadIO m) => Int -> Handle -> t m ByteArray
-readHandleWith size h = go
+{-# INLINE readHandleChunksOf #-}
+readHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m ByteArray
+readHandleChunksOf size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld sng _ -> do
@@ -304,8 +302,40 @@ readHandleWith size h = go
         else yld vec go
 
 -------------------------------------------------------------------------------
+-- Cast arrays from one type to another
+-------------------------------------------------------------------------------
+
+-- XXX The first array must be an exact multiple of (sizeOf b).
+-- Can be useful to manipulate larger size elements more efficiently, e.g.
+-- copying Word64 instead of Word8.
+-- castArray :: (Storable a, Storable b) => Array a -> Array b
+-- castArray Array{..} =
+
+-- split an array to remove the unaligned part at the end into a separate
+-- array. Useful to copy the aligned portion more efficiently.
+--
+-- splitUnaligned :: Int -> Array a -> (Array a, Array a)
+
+-- Like concatArray but while concating casts the array from one type to
+-- another. Useful to combine array chunks into arrays that can be manipulated
+-- more efficiently.
+--
+-- concatCastArray
+
+-------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
+
+{-# INLINE foldl' #-}
+foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
+foldl' f z Array{..} =
+    unsafeDangerousPerformIO $ withForeignPtr aStart $ \p -> go z p aEnd
+    where
+      go !acc !p !q
+        | p == q = return acc
+        | otherwise = do
+            x <- peek p
+            go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
 
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
@@ -315,25 +345,36 @@ length Array{..} =
     in assert (aLen >= 0) (aLen `div` sizeOf (undefined :: a))
 
 {-# INLINE null #-}
-null :: Storable a => Array a -> Bool
-null v = length v <= 0
+null :: Array a -> Bool
+null Array{..} =
+    let start = unsafeForeignPtrToPtr aStart
+    in assert (aEnd >= start) $ aEnd <= start
+
+{-# INLINE last #-}
+last :: forall a. Storable a => Array a -> Maybe a
+last arr@Array{..} =
+    if null arr
+    then Nothing
+    else Just $!
+        let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+        in unsafeDangerousPerformIO $ do
+            x <- peek p
+            touchForeignPtr aStart
+            return x
 
 -------------------------------------------------------------------------------
 -- Elimination/folding
 -------------------------------------------------------------------------------
 
 {-# INLINABLE toList #-}
-toList :: (Show a, Storable a) => Array a -> [a]
+toList :: Storable a => Array a -> [a]
 toList = runIdentity . D.toList . D.fromArray
-
--- XXX shall we have a ByteArray module for Word8 routines?
 
 -- | Writing a stream to a file handle
 {-# INLINE toHandle #-}
 toHandle :: Handle -> ByteArray -> IO ()
 toHandle _ v | null v = return ()
 toHandle h v@Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p (length v)
-
 
 -------------------------------------------------------------------------------
 -- Instances - XXX need to be moved along with the type
@@ -395,7 +436,7 @@ toArrayStreamD n (D.Stream step state) =
         res <- step (adaptState gst) st
         return $ case res of
             D.Yield x s ->
-                let !r = dangerousPerformIO $ do
+                let !r = unsafeDangerousPerformIO $ do
                             poke cur x
                             -- XXX do we need a touch here?
                             return $ D.Skip
@@ -412,3 +453,16 @@ toArrayStreamD n (D.Stream step state) =
     step' _ (_, BufStop) = return D.Stop
     -}
 
+-------------------------------------------------------------------------------
+-- Streams of Arrays
+-------------------------------------------------------------------------------
+
+-- | Convert a stream of Arrays into a stream of elements
+{-# INLINE concatArray #-}
+concatArray :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+concatArray m = D.fromStreamD $ D.concatArray (D.toStreamD m)
+
+-- XXX we should use overWrite/write
+{-# INLINE concatToHandle #-}
+concatToHandle :: MonadIO m => Handle -> SerialT m ByteArray -> m ()
+concatToHandle h m = S.mapM_ (liftIO . toHandle h) m

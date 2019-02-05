@@ -121,7 +121,9 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
+    , concatArray
     , foldGroupsOf
+    , arrayGroupsOf
     , foldGroupsOn
 
     -- ** Substreams
@@ -211,7 +213,6 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State.Lazy (StateT(..), get, put)
 import Data.Maybe (fromJust, isJust)
-import GHC.Magic (lazy)
 import GHC.Types ( SPEC(..) )
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
@@ -225,15 +226,14 @@ import Streamly.Streams.StreamD.Type
 import qualified Streamly.Streams.StreamK as K
 import Streamly.Foldl.Types (Foldl(..))
 import Streamly.Sink.Types (Sink(..))
-import Streamly.Array.Types (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex)
-import Foreign.ForeignPtr
-       (ForeignPtr, withForeignPtr, touchForeignPtr)
+import Streamly.Array.Types (Array(..), Array, unsafeDangerousPerformIO,
+    unsafeIndex, unsafeAppend, unsafeNew)
+import System.IO.Unsafe (unsafeDupablePerformIO)
+import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import System.IO.Unsafe (unsafePerformIO)
 import Foreign.Storable (Storable(..))
-import Foreign.Ptr (plusPtr, minusPtr)
-import Data.Bits (finiteBitSize, shiftL, (.|.), (.&.))
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Data.Bits (finiteBitSize)
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -892,11 +892,15 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
-    -- XXX using the pattern synonym Stream causes a major performance issue
-    -- here even if the synonym does not include a adaptState call. Need to
+    -- XXX concatArray is 5x faster than "concatMap fromArray". if somehow we
+    -- can get inner_step to inline and fuse here we can perhaps get the same
+    -- performance using "concatMap fromArray".
+    --
+    -- XXX using the pattern synonym "Stream" causes a major performance issue
+    -- here even if the synonym does not include an adaptState call. Need to
     -- find out why. Is that something to be fixed in GHC?
-    step' _ (Right (UnStream inner_step inner_st, st)) = do
-        r <- inner_step defState inner_st
+    step' gst (Right (UnStream inner_step inner_st, st)) = do
+        r <- inner_step (adaptState gst) inner_st
         case r of
             Yield b inner_s ->
                 return $ Yield b (Right (Stream inner_step inner_s, st))
@@ -904,11 +908,50 @@ concatMapM f (Stream step state) = Stream step' (Left state)
                 return $ Skip (Right (Stream inner_step inner_s, st))
             Stop -> return $ Skip (Left st)
 
+-- XXX concatMap does not seem to have the best possible performance so we have
+-- a custom way to concat arrays.
+data CAState s a = CAParent s | CANested s (ForeignPtr a) (Ptr a) (Ptr a)
+
+{-# INLINE concatArray #-}
+concatArray :: forall m a. (Monad m, Storable a)
+    => Stream m (Array a) -> Stream m a
+concatArray (Stream step state) = Stream step' (CAParent state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (CAParent st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield Array{..} s ->
+                let p = unsafeForeignPtrToPtr aStart
+                in Skip (CANested s aStart p aEnd)
+            Skip s -> Skip (CAParent s)
+            Stop -> Stop
+
+    step' _ (CANested st _ p end) | p == end =
+        return $ Skip $ CAParent st
+
+    step' _ (CANested st startf p end) = do
+        let !x = unsafeDangerousPerformIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ Yield x (CANested st startf
+                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
 
-{-# INLINE foldGroupsOf #-}
+-- XXX we need an INLINE_EARLY on concatMap for this rule to fire. But if we
+-- use INLINE_EARLY on concatMap or fromArray then direct uses of concatMap
+-- fromArray (without the RULE) becomes much slower, this means "concatMap f"
+-- in general would become slower. Need to find a solution to this.
+--
+-- {-# RULES "concatMap fromArray" concatMap fromArray = concatArray #-}
+
+{-# INLINE_NORMAL foldGroupsOf #-}
 foldGroupsOf
     :: Monad m
     => (forall n. Monad n => Foldl n a b)
@@ -925,17 +968,31 @@ foldGroupsOf f n (Stream step state) =
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
-                (r, s') <- runStateT (fold f (Stream stepInner undefined))
-                                     (Just (s, Left x))
+                -- XXX how to make sure that stepInner and f get fused
+                -- This is the same problem as we have in concatMap
+                --
+                -- XXX Need to propagate "gst" to the fold
+                --
+                -- Note that passing the state via the State Monad and
+                -- modifying it via put provides better performance compared to
+                -- maintaining and threading around the state in the child
+                -- stream.
+                let fl = fold f (Stream stepInner undefined)
+                (r, s') <- runStateT fl (Just (s, Left x))
                 return $ Yield r s'
             Skip s    -> return $ Skip $ Just (s, Right 0)
             Stop      -> return Stop
 
+    -- The two cases below cannot happen.  They were originally used when we
+    -- were passing arbitrary fold functions e.g. the "head" fold in
+    -- Streamly.Prelude, those folds can terminate early and we have to drain
+    -- the remaining values here.  Now that we are using only "Foldl" folds
+    -- which do not terminate early, these cases are impossible. However,
+    -- keeping them somehow improves performance, especially the "Skip" case in
+    -- the second case below. I don't understand it, but anyway.
     stepOuter _ (Just (st, Right i)) | i >= n =
         return $ Skip (Just (st, Right 0))
 
-    -- XXX folds using Fold do not return early. so we can remove this code.
-    -- drain the stream not used by the previous fold.
     stepOuter gst (Just (st, Right i)) = do
         res <- step (adaptState gst) st
         return $ case res of
@@ -948,8 +1005,8 @@ foldGroupsOf f n (Stream step state) =
 
     stepOuter _ (Just (_, (Left _))) = error "Cannot happen"
 
-    -- XXX pass on gst instead of using defState?
-    {-# INLINE_LATE stepInner #-}
+    -- XXX pass on (adaptState gst) instead of using defState?
+    {-# INLINE stepInner #-}
     stepInner _ _ = do
         maybSt <- get
         case maybSt of
@@ -965,8 +1022,6 @@ foldGroupsOf f n (Stream step state) =
                         case r of
                             Yield x s -> do
                                 let ss = (s, Right $ i + 1)
-                                -- XXX we can remove this as Fold don't return
-                                -- early.
                                 put $ Just ss
                                 return $ Yield x ss
                             Skip s -> do
@@ -980,6 +1035,50 @@ foldGroupsOf f n (Stream step state) =
                         put $ Just (st, Right 0)
                         return Stop
             Nothing -> error "cannot happen"
+
+data ToArrayState s a =
+      ArrayAlloc s
+    | ArrayWrite s Int (Array a)
+    | ArrayStop
+
+-- XXX Somehow this is 2x slower than using foldGroupsof with the toArray fold.
+-- Need to investigate why. Even foldGroupsOf takes 10 sec to write the file
+-- from a stream, whereas just reading in the file as a stream and folding each
+-- element of the stream using (+) takes just 1 sec, so we are still pretty
+-- slow, there is scope to make it faster.
+{-# INLINE_NORMAL arrayGroupsOf #-}
+arrayGroupsOf
+    :: (Monad m, Storable a)
+    => Int
+    -> Stream m a
+    -> Stream m (Array a)
+arrayGroupsOf n (Stream step state) =
+    n `seq` Stream step' (ArrayAlloc state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (ArrayAlloc st) = do
+        res <- step (adaptState gst) st
+        return $ case res of
+            Yield x s ->
+                let !arr = unsafeDupablePerformIO $ unsafeNew n
+                    !arr1 = unsafeDangerousPerformIO (unsafeAppend arr x)
+                in Skip $ ArrayWrite s 1 arr1
+            Skip s -> Skip $ ArrayAlloc s
+            Stop -> Skip ArrayStop
+
+    step' gst (ArrayWrite st i arr) | i < n = do
+        res <- step (adaptState gst) st
+        return $ case res of
+            Yield x s ->
+                let !arr1 = unsafeDangerousPerformIO (unsafeAppend arr x)
+                in Skip $ ArrayWrite s (i + 1) arr1
+            Skip s -> Skip $ ArrayWrite s i arr
+            Stop -> Yield arr ArrayStop
+
+    step' _ (ArrayWrite st _ arr) = return $ Yield arr (ArrayAlloc st)
+    step' _ ArrayStop = return Stop
 
 {-
 breakSubstring :: ByteString -- ^ String to search for
@@ -1063,7 +1162,7 @@ data GroupOnState s a =
 -- XXX We can use a control parameter to control this behavior.
 -- XXX since this is a tokenizer we can call it foldTokensOn?
 
-{-# INLINE foldGroupsOn #-}
+{-# INLINE_NORMAL foldGroupsOn #-}
 foldGroupsOn
     :: forall m a b. (MonadIO m, Storable a, Eq a)
     => (forall n. MonadIO n => Foldl n a b)
@@ -1079,6 +1178,7 @@ foldGroupsOn f v@Array{..} (Stream step state) =
         let p = unsafeForeignPtrToPtr aStart
         in aEnd `minusPtr` p
 
+    {-# INLINE_LATE stepOuter #-}
     stepOuter gst GO_START = return $
         if byteLen == 0
         then Skip $ GO_FINISHING state
@@ -1109,7 +1209,7 @@ foldGroupsOn f v@Array{..} (Stream step state) =
 
     stepOuter _ GO_DONE = return Stop
 
-    {-# INLINE_LATE stepInner #-}
+    {-# INLINE stepInner #-}
     stepInner a _ (Just (st, False)) = do
         -- XXX can we use gst instead of defState?
         r <- lift $ step defState st

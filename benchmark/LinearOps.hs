@@ -16,7 +16,6 @@ module LinearOps where
 import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
-import Data.Monoid (Last(..))
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
@@ -30,7 +29,6 @@ import GHC.Generics (Generic)
 
 import qualified Streamly          as S
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Foldl    as FL
 
 value, maxValue :: Int
 #ifdef LINEAR_ASYNC
@@ -270,20 +268,6 @@ sum    = S.sum
 product = S.product
 minimumBy = S.minimumBy compare
 maximumBy = S.maximumBy compare
-
--------------------------------------------------------------------------------
--- Composable folds
--------------------------------------------------------------------------------
-
-{-
-{-# INLINE genericFold #-}
-genericFold :: Monad m => FL.Fold a b -> Stream m a -> m b
-genericFold fld src = FL.fold fld src
--}
-
-{-# INLINE mconcatFold #-}
-mconcatFold :: Monad m => Stream m Int -> m (Last Int)
-mconcatFold src = FL.foldl FL.mconcat (S.map (Last . Just) src)
 
 -------------------------------------------------------------------------------
 -- Transformation

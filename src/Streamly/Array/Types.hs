@@ -25,6 +25,7 @@ module Streamly.Array.Types
     , shrinkToFit
 
     , unsafeIndex
+    , fromCStringAddrUnsafe
     )
 where
 
@@ -38,10 +39,9 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import System.IO.Unsafe (unsafePerformIO)
 
-import GHC.Base (Addr#, nullAddr#, realWorld#)
-import GHC.ForeignPtr (ForeignPtr(..), mallocPlainForeignPtrBytes, touchForeignPtr, newForeignPtr_)
+import GHC.Base (Addr#, realWorld#)
+import GHC.ForeignPtr (mallocPlainForeignPtrBytes, newForeignPtr_)
 import GHC.IO (IO(IO))
 import GHC.Ptr (Ptr(..))
 
@@ -136,8 +136,8 @@ withNewArray count f = do
 -- | Allocate memory for an array that can hold 'count' items. Note that this
 -- is internal routine, the reference to this array cannot be given out until
 -- the array has been written to and frozen. However, if we are using the array
--- as a mutable array in IO monad then the reference can be used. However, we
--- should remeber that the array is uninitialized.
+-- as a mutable array in IO monad then the reference can be used. We should
+-- remember that the array is uninitialized.
 {-# INLINE unsafeNew #-}
 unsafeNew :: forall a. Storable a => Int -> IO (Array a)
 unsafeNew count = do
@@ -159,10 +159,10 @@ unsafeAppend :: forall a. Storable a => Array a -> a -> IO (Array a)
 unsafeAppend vec@Array{..} x = do
     when (aEnd == aBound) $ error "unsafeAppend: writing beyond bounds"
     poke aEnd x
-    -- XXX do we need a touch here?
+    touchForeignPtr aStart
     return $ vec {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
 
-shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
+shrinkToFit :: forall a. Array a -> IO (Array a)
 shrinkToFit vec@Array{..} = do
     assert (aEnd <= aBound) (return ())
     if aEnd /= aBound
