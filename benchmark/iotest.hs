@@ -13,7 +13,8 @@ import qualified Data.ByteString.Lazy as BS
 
 main :: IO ()
 main = do
-    handle <- openFile "in.txt" ReadMode
+    -- handle <- openFile "in-1GB.txt" ReadMode
+    handle <- openFile "in-100MB.txt" ReadMode
     {-
     -- This is the equivalent of bytestring's length operation
     -- let s = A.readHandleChunksOf defaultChunkSize handle
@@ -55,17 +56,18 @@ main = do
     -- turning into a stream and then back to chunks and then writing
     -- toHandle out (fromHandle handle)
     -- toHandleChunksOf defaultChunkSize out (fromHandle handle)
-    {-
+    -- x <- S.length $ S.arrayGroupsOf 1000000004 (fromHandle handle)
     x <- S.length $
-         S.foldGroupsOf (FL.toArrayN defaultChunkSize)
-                        defaultChunkSize
+         S.foldGroupsOf (FL.toArrayN 1073741824)
+                        1073741824
                         (fromHandle handle)
-                        -}
-    -- x <- S.length $ S.arrayGroupsOf defaultChunkSize (fromHandle handle)
+    print x
+    {-
     -- XXX need a test where we allocate 10 MB chunk and the stream is much
     -- bigger than that to check touchForeignPtr.
-    x <- FL.foldl (FL.toArrayN 1000000004) (fromHandle handle)
+    x <- FL.foldl (FL.toArrayN 1073741824) (fromHandle handle)
     print (A.length x)
+    -}
 
     {-
     bytes <- BS.readFile "in.txt"

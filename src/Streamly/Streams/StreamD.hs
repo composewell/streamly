@@ -641,10 +641,6 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
-{-# INLINE fold #-}
-fold :: Monad m => Foldl m a b -> Stream m a -> m b
-fold (Foldl step begin done) = foldxM' step begin done
-
 ------------------------------------------------------------------------------
 -- Specialized Folds
 ------------------------------------------------------------------------------
@@ -912,7 +908,7 @@ concatMapM f (Stream step state) = Stream step' (Left state)
 -- a custom way to concat arrays.
 data CAState s a = CAParent s | CANested s (ForeignPtr a) (Ptr a) (Ptr a)
 
-{-# INLINE concatArray #-}
+{-# INLINE_NORMAL concatArray #-}
 concatArray :: forall m a. (Monad m, Storable a)
     => Stream m (Array a) -> Stream m a
 concatArray (Stream step state) = Stream step' (CAParent state)
@@ -959,12 +955,12 @@ foldGroupsOf
     -> Stream m a
     -> Stream m b
 foldGroupsOf f n (Stream step state) =
-    n `seq` Stream stepOuter (Just (state, Right 0))
+    n `seq` Stream stepOuter (Just state)
 
     where
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter gst (Just (st, Right 0)) = do
+    stepOuter gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -972,69 +968,38 @@ foldGroupsOf f n (Stream step state) =
                 -- This is the same problem as we have in concatMap
                 --
                 -- XXX Need to propagate "gst" to the fold
-                --
-                -- Note that passing the state via the State Monad and
-                -- modifying it via put provides better performance compared to
-                -- maintaining and threading around the state in the child
-                -- stream.
-                let fl = fold f (Stream stepInner undefined)
-                (r, s') <- runStateT fl (Just (s, Left x))
+                (r, s') <- runStateT (inner x s) undefined -- (Just (s, Left x))
                 return $ Yield r s'
-            Skip s    -> return $ Skip $ Just (s, Right 0)
+            Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
 
-    -- The two cases below cannot happen.  They were originally used when we
-    -- were passing arbitrary fold functions e.g. the "head" fold in
-    -- Streamly.Prelude, those folds can terminate early and we have to drain
-    -- the remaining values here.  Now that we are using only "Foldl" folds
-    -- which do not terminate early, these cases are impossible. However,
-    -- keeping them somehow improves performance, especially the "Skip" case in
-    -- the second case below. I don't understand it, but anyway.
-    stepOuter _ (Just (st, Right i)) | i >= n =
-        return $ Skip (Just (st, Right 0))
+    stepOuter _ Nothing = return Stop
 
-    stepOuter gst (Just (st, Right i)) = do
-        res <- step (adaptState gst) st
-        return $ case res of
-            Yield _ s -> Skip (Just (s, Right $ i + 1))
-            Skip s    -> Skip (Just (s, Right i))
-            Stop      -> Stop
+    {-# INLINE fold #-}
+    -- fold :: Monad m => Foldl m a b -> Stream m a -> m b
+    fold (Foldl fstep begin done) = foldxM' fstep begin done
 
-    stepOuter _ Nothing = do
-        return Stop
+    -- We need a fold routine that will return a state as well. Then we will
+    -- not need StateT and hopefully it will fuse better.
+    {-# INLINE inner #-}
+    inner x stt = fold f (Stream stepInner (Left (stt,x)))
+        where
 
-    stepOuter _ (Just (_, (Left _))) = error "Cannot happen"
-
-    -- XXX pass on (adaptState gst) instead of using defState?
-    {-# INLINE stepInner #-}
-    stepInner _ _ = do
-        maybSt <- get
-        case maybSt of
-            Just (st, counter) ->
-                case counter of
-                    Left x -> do
-                        let ss = (st, Right 1)
-                        put $ Just ss
-                        return $ Yield x ss
-                    Right i | i < n -> do
-                        -- XXX can we use gst instead of defState?
-                        r <- lift $ step defState st
-                        case r of
-                            Yield x s -> do
-                                let ss = (s, Right $ i + 1)
-                                put $ Just ss
-                                return $ Yield x ss
-                            Skip s -> do
-                                let ss = (s, Right i)
-                                put $ Just ss
-                                return $ Skip ss
-                            Stop -> do
-                                put Nothing
-                                return Stop
-                    _ -> do
-                        put $ Just (st, Right 0)
-                        return Stop
-            Nothing -> error "cannot happen"
+        -- XXX pass on (adaptState gst) instead of using defState?
+        {-# INLINE_LATE stepInner #-}
+        stepInner _ (Left (st,y)) = return $ Yield y (Right (st,1))
+        stepInner _ (Right (st,i)) | i < n = do
+            -- XXX can we use gst instead of defState?
+            r <- lift $ step defState st
+            case r of
+                Yield y s -> return $ Yield y (Right (s, i + 1))
+                Skip s -> return $ Skip (Right (s, i))
+                Stop -> do
+                    put Nothing
+                    return Stop
+        stepInner _ (Right (st,_)) = do
+            put $ Just st
+            return Stop
 
 data ToArrayState s a =
       ArrayAlloc s
@@ -1177,6 +1142,10 @@ foldGroupsOn f v@Array{..} (Stream step state) =
     byteLen =
         let p = unsafeForeignPtrToPtr aStart
         in aEnd `minusPtr` p
+
+    {-# INLINE fold #-}
+    -- fold :: Monad m => Foldl m a b -> Stream m a -> m b
+    fold (Foldl step begin done) = foldxM' step begin done
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter gst GO_START = return $
