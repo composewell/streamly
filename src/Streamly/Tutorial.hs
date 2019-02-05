@@ -1605,7 +1605,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streaming.Prelude as SG
 --
 -- -- | streaming to streamly
--- fromStreaming :: (IsStream t, Monad m) => SG.Stream (SG.Of a) m r -> t m a
+-- fromStreaming :: (IsStream t, MonadAsync m) => SG.Stream (SG.Of a) m r -> t m a
 -- fromStreaming = S.unfoldrM SG.uncons
 --
 -- -- | streamly to streaming
