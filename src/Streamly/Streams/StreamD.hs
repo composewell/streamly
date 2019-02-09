@@ -961,6 +961,9 @@ foldGroupsOf f n (Stream step state) =
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter gst (Just st) = do
+        r <- foldOnce n f (Stream step st)
+        return $ Yield r Nothing
+    {-
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -968,38 +971,45 @@ foldGroupsOf f n (Stream step state) =
                 -- This is the same problem as we have in concatMap
                 --
                 -- XXX Need to propagate "gst" to the fold
-                (r, s') <- runStateT (inner x s) undefined -- (Just (s, Left x))
-                return $ Yield r s'
+                -- (r, s') <- runStateT (inner x s) undefined -- (Just (s, Left x))
+                -- return $ Yield r s'
+                r <- foldOnce n f x (Stream step s)
+                return $ Yield r Nothing
             Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
+            -}
 
     stepOuter _ Nothing = return Stop
+
+-- XXX if the stream is nil we will get a nil array.
+
+-- We need a fold routine that will return a state as well. Then we will
+-- not need StateT and hopefully it will fuse better.
+{-# INLINE_NORMAL foldOnce #-}
+foldOnce :: Monad m => Int -> Foldl m a b -> Stream m a -> m b
+foldOnce n f (Stream step state) = fold f (Stream step' (state,0))
+    where
 
     {-# INLINE fold #-}
     -- fold :: Monad m => Foldl m a b -> Stream m a -> m b
     fold (Foldl fstep begin done) = foldxM' fstep begin done
 
-    -- We need a fold routine that will return a state as well. Then we will
-    -- not need StateT and hopefully it will fuse better.
-    {-# INLINE inner #-}
-    inner x stt = fold f (Stream stepInner (Left (stt,x)))
-        where
-
-        -- XXX pass on (adaptState gst) instead of using defState?
-        {-# INLINE_LATE stepInner #-}
-        stepInner _ (Left (st,y)) = return $ Yield y (Right (st,1))
-        stepInner _ (Right (st,i)) | i < n = do
-            -- XXX can we use gst instead of defState?
-            r <- lift $ step defState st
-            case r of
-                Yield y s -> return $ Yield y (Right (s, i + 1))
-                Skip s -> return $ Skip (Right (s, i))
-                Stop -> do
-                    put Nothing
-                    return Stop
-        stepInner _ (Right (st,_)) = do
-            put $ Just st
-            return Stop
+    -- XXX pass on (adaptState gst) instead of using defState?
+    {-# INLINE_LATE step' #-}
+    -- step' _ (Left (st,y)) = return $ Yield y (Right (st,1))
+    step' _ (st,i) | i < n = do
+        -- XXX can we use gst instead of defState?
+        -- r <- lift $ step defState st
+        r <- step defState st
+        case r of
+            Yield y s -> return $ Yield y (s, i + 1)
+            Skip s -> return $ Skip (s, i)
+            Stop -> do
+                -- put Nothing
+                return Stop
+    step' _ (st,_) = do
+        -- put $ Just st
+        return Stop
 
 data ToArrayState s a =
       ArrayAlloc s
