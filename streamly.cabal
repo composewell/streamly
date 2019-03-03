@@ -646,6 +646,7 @@ executable SearchQuery
   default-language: Haskell2010
   main-is: SearchQuery.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -659,6 +660,7 @@ executable ListDir
   default-language: Haskell2010
   main-is: ListDir.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -675,6 +677,7 @@ executable MergeSort
   default-language: Haskell2010
   main-is: MergeSort.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -688,6 +691,7 @@ executable AcidRain
   default-language: Haskell2010
   main-is: AcidRain.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -705,6 +709,7 @@ executable CirclingSquare
   default-language: Haskell2010
   main-is: CirclingSquare.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -718,6 +723,7 @@ executable ControlFlow
   default-language: Haskell2010
   main-is: ControlFlow.hs
   hs-source-dirs:  examples
+  ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
