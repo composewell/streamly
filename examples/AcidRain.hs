@@ -5,9 +5,9 @@
 
 import Streamly
 import Streamly.Prelude as S
-import Control.Monad (void, when)
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(liftIO))
-import Control.Monad.State (MonadState, get, modify, runStateT, put)
+import Control.Monad.State (MonadState, get, modify, runStateT)
 
 data Event = Quit | Harm Int | Heal Int deriving (Show)
 
