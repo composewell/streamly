@@ -9,10 +9,6 @@
 --
 -- Composable folds.
 
--- Stolen from the foldl library. Thanks Gabriel!
--- foldl has quite a few dependencies and we only need parts of plus we need to
--- adapt to monadic streams.
-
 module Streamly.Fold.Foldable
     (
       Fold (..)

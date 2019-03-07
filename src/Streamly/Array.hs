@@ -229,7 +229,7 @@ compactToReorder :: (a -> a -> Int) -> t m (Array a) -> t m (Array a)
 -- Scatter/Gather IO
 -------------------------------------------------------------------------------
 
--- When each IO opration has a significant system overhead, it may be more
+-- When each IO operation has a significant system overhead, it may be more
 -- efficient to do gather IO. But when the buffers are too small we may want to
 -- copy multiple of them in a single buffer rather than setting up a gather
 -- list. In that case, a gather list may have more overhead compared to just
@@ -392,7 +392,7 @@ instance (Storable a, Read a, Show a) => Read (Array a) where
     readListPrec = readListPrecDefault
 
 -------------------------------------------------------------------------------
--- Buffer streams into vectors
+-- Convert streams into vectors (buffering streams)
 -------------------------------------------------------------------------------
 
 {-

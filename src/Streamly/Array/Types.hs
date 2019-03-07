@@ -49,40 +49,33 @@ import GHC.Ptr (Ptr(..))
 -- Array Data Type
 -------------------------------------------------------------------------------
 
--- We require that a vector stores only Storable. Array is used for buffering
+-- We require that an array stores only Storable. Array is used for buffering
 -- while streams are used for processing. If you want something to be buffered
 -- it better be Storable so that we can store it in non-GC memory.
 --
--- XXX We can perhaps rename a Array of Storable as a "Buffer" instead and use
--- Array for vectors of polymorphic values. So that we explicitly know that it
--- can be buffered. Though Buffer does not indicate the array/vector nature of
--- the data structure. How about SArray? Or we can call it an Array or even
--- List? Array indicates the imperative/storable nature, therefore is perhaps
--- the best term for this.
---
 -- We also need a separate type for arrays of polymorphic values, for example
--- vectors of handler functions, lookup tables.
+-- vectors of handler functions, lookup tables. We can call this "vector". A
+-- dynamic array stored in a tree structure can be called a "store".
 --
 -- Storable a
--- data Array a =
---    VLeaf Int (ForeignPtr a)
---  | VIndirect Int Int (Array (Array a)) -- VIndirect Size TreeLevel Tree
+-- data Store a =
+--    Leaf Int (ForeignPtr a)
+--  | Indirect Int Int (Store (Store a)) -- Indirect Size TreeLevel Tree
 --
--- The VLeaf constructor can be thought of as a stream of single vector.
--- VTree can make the structure hierarchical, we can have vectors inside
--- vectors up to many levels making it a tree. The level of the tree depends on
--- the block size of the vector. We can reduce the level by increasing the
--- block size.
+-- The Leaf constructor can be thought of as a stream of single array Tree can
+-- make the structure hierarchical, we can have arrays inside arrays up to many
+-- levels making it a tree. The level of the tree depends on the block size of
+-- the array We can reduce the level by increasing the block size.
 --
 -- The block size of a chunk can either be constant or variable. Constant block
 -- size would require compacting, whereas variable block size would require
 -- more work when searching/accessing an element. To reduce the access overhead
 -- we can use a B+ tree for variable sized blocks.
 --
--- Use rewrite rules to rewrite vector from and to stream ops to id.
+-- Use rewrite rules to rewrite array from and to stream ops to id.
 
 -- XXX Do we need some alignment for the allocations?
--- XXX add reverse flag to reverse the contents without actually reversing.
+-- XXX add reverse flag to reverse the contents without physically reversing.
 data Array a = Array
     { aStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused address
@@ -91,7 +84,7 @@ data Array a = Array
 
 type ByteArray = Array Word8
 
--- XXX need Storable instance for vector
+-- XXX need Storable instance for array
 -- sizeOf :: Array a -> Int
 -- sizeOf = vSize
 
@@ -162,6 +155,7 @@ unsafeAppend vec@Array{..} x = do
     touchForeignPtr aStart
     return $ vec {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
 
+-- | Remove the free space from an Array.
 shrinkToFit :: forall a. Array a -> IO (Array a)
 shrinkToFit vec@Array{..} = do
     assert (aEnd <= aBound) (return ())
@@ -182,8 +176,8 @@ shrinkToFit vec@Array{..} = do
     else return vec
 
 -- Note that the address must be a read-only address (meant to be used for
--- read-only string literals) because we are sharing it any modification to the
--- original address would change our vector. That's why this function is
+-- read-only string literals) because we are sharing it, any modification to the
+-- original address would change our array. That's why this function is
 -- unsafe.
 {-# INLINE fromCStringAddrUnsafe #-}
 fromCStringAddrUnsafe :: Addr# -> IO ByteArray

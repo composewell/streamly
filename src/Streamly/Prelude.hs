@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP                       #-}
-{-# LANGUAGE RankNTypes                       #-}
+{-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE FlexibleContexts          #-}
 
 #if __GLASGOW_HASKELL__ >= 800
@@ -270,6 +270,7 @@ module Streamly.Prelude
     -- , prescanlM'
     , scanl1'
     , scanl1M'
+    , scanx
 
     -- ** Mapping
     -- | Map is a strictly one-to-one transformation of stream elements. It
@@ -922,8 +923,8 @@ foldx' = P.foldx'
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
 --
 -- @since 0.2.0
+{-# DEPRECATED foldx "Use Streamly.Foldl for composable folds" #-}
 {-# INLINE foldx #-}
-{-# DEPRECATED foldx "Please use foldx' instead." #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
 foldx = foldx'
 
@@ -1027,14 +1028,14 @@ foldl1' step m = do
 -- | Like 'foldx', but with a monadic step function.
 --
 -- @since 0.2.0
-{-# DEPRECATED foldxM "Please use foldxM' instead." #-}
+{-# DEPRECATED foldxM "Use Streamly.Foldl for composable folds" #-}
 {-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldxM = foldxM'
 
 -- |
 -- @since 0.1.0
-{-# DEPRECATED foldlM "Please use foldxM' instead." #-}
+{-# DEPRECATED foldlM "Use Streamly.Foldl for composable folds" #-}
 foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldlM = foldxM'
 
@@ -1180,9 +1181,6 @@ or = any (==True)
 {-# INLINE sum #-}
 sum :: (Monad m, Num a) => SerialT m a -> m a
 sum = foldl' (+) 0
-    -- F.purely foldx' F.sum
-    -- F.purely foldx' ((+) <$> F.sum <*> F.genericLength)
-    -- foldx' (+) 0 id
 
 -- | Determine the product of all elements of a stream of numbers. Returns @1@
 -- when the stream is empty.
@@ -1399,7 +1397,7 @@ toHandle h m = go m
 -- extraction.
 --
 -- @since 0.2.0
-{-# DEPRECATED scanx "Composable scans are supported by streamly itself" #-}
+-- {-# DEPRECATED scanx "Composable scans are supported by streamly itself" #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
@@ -1843,17 +1841,6 @@ cmpBy = P.cmpBy
 -- Merge
 ------------------------------------------------------------------------------
 
--- XXX Serial interleaving using binary folding works in an uneven manner,
--- while parallel interleaving is even, need to make it consistent. We should
--- perhaps not have a binary interleave and instead just have an even 'mergeN'
--- operation.
---
--- We can also have priorityMerge and weightedMerge operations. merge would
--- just be a special case of these where priorities are equal or weights are
--- equal.  priorityMerge would require the "suspend" continuation to indicate
--- an EWOULDBLOCK condition, in case of RTS threads we may need to set
--- priorities on threads. Same thing applies to unmerge as well.
-
 -- | Merge two streams using a comparison function. The head elements of both
 -- the streams are compared and the smaller of the two elements is emitted, if
 -- both elements are equal then the element from the first stream is used
@@ -1947,6 +1934,17 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
     mb <- mkAsync' st m2
     K.foldStream st stp sng yld (K.mergeByM f ma mb)
 
+-- XXX Serial interleaving using binary folding works in an uneven manner,
+-- while parallel interleaving is even, need to make it consistent. We should
+-- perhaps not have a binary interleave and instead just have an even 'mergeN'
+-- operation.
+--
+-- We can also have priorityMerge and weightedMerge operations. merge would
+-- just be a special case of these where priorities are equal or weights are
+-- equal.  priorityMerge would require the "suspend" continuation to indicate
+-- an EWOULDBLOCK condition, in case of RTS threads we may need to set
+-- priorities on threads. Same thing applies to unmerge as well.
+
 -- N-way merging
 -- XXX For pairwise merging of streams from a foldable, we should have a
 -- standard pairwise tree fold for foldables just like we have a linear
@@ -1959,10 +1957,12 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
 -- Nesting
 ------------------------------------------------------------------------------
 
--- There are two types of combining for nested streams. concatMap combines the
--- two layers by appending (i.e. concat/mconcat) whereas mergeMap combines the
--- two layers by merging. concatMap uses a linear fold whereas mergeMap uses a
--- pairwise tree fold.
+-- There are two types of combining for nested structures. One, concatMap
+-- combines the two layers by appending (i.e. concat/mconcat). Two, mergeMap
+-- combines the two layers by merging. concatMap uses a linear fold whereas
+-- mergeMap uses a pairwise tree fold. ConcatMap can work for infinite streams
+-- whereas mergeMap is suitable only for finite streams as it folds the
+-- container in a bottom up tree like fashion.
 
 -- | Map each element of the stream to produce a stream and then flatten the
 -- results into a single stream.
@@ -2010,20 +2010,21 @@ interposeBy :: (IsStream t, Monad m)
 -- | A generalization of intersperseM
 intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 
+-- A mergeMap makes sense for finite streams as it folds the container in a
+-- bottom up tree like fashion.
+--
 -- | Map each element of the stream to a stream using a monadic function and
 -- then use a merge function pairwise to flatten the resulting streams. Each
 -- pair is flattened into a single result and then all those results are
--- combined pairwise until the whole stream is flattended. This can be used to
+-- combined pairwise until the whole stream is flattened. This can be used to
 -- implement bottom up algorithms for example mergesort.
 
 -- Some example use cases, map the stream to singleton streams and concat:
--- (1) concat using "append" - id
--- (2) concat using "prepend" - reverse pairwise
--- (3) concat using "mergeBy compare" - merge sort
--- (4) concat using "mergeBy randomly" - random shuffle
+-- (1) merge using "append" - id
+-- (2) merge using "prepend" - reverse pairwise
+-- (3) merge using "mergeBy compare" - merge sort
+-- (4) merge using "mergeBy randomly" - random shuffle
 --
--- Performance wise this type of concat will make better sense for vectors as
--- it ends up buffering the entire stream.
 mergeMapMBy :: (IsStream t, Monad m)
     => (forall x. t m x -> t m x -> t m x)
     -> (a -> m (t m b))
@@ -2031,17 +2032,16 @@ mergeMapMBy :: (IsStream t, Monad m)
     -> t m b
 
 -- mergeMapM = mergeMapBy merge
--- mergeMap
+-- mergeMap = ...
 -}
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
--- All the grouping/splitting combinators take the first argument(s) as the
--- continuation folds that are to be applied to the grouped output. If we curry
--- the functions with toList folds we can get the combinators that are
--- equivalent to the list combinators.
+-- The first argument of grouping/splitting combinators is a continuation fold
+-- that is applied to the grouped output. If we curry the functions with toList
+-- fold we can get the combinators that are equivalent to the list combinators.
 --
 -- inits = FL.toScan
 -- tails = FR.toScan
@@ -2056,7 +2056,7 @@ mergeMapMBy :: (IsStream t, Monad m)
 -- However, we cannot represent overlapping parse using this structure. For
 -- overlapping parses we can perhaps use an offset value as well. Just like we
 -- can process overlapping time windows using different folds can we process
--- overlapping values using different folds? its like different ways pf parsing
+-- overlapping values using different folds? its like different ways of parsing
 -- the stream and using different folds for different parse choices.
 --
 -- data Delimited a = Delimiter a | Value a
@@ -2188,6 +2188,7 @@ groupsByRolling
 -- splitOn (foldGroupsOn)
 --
 -}
+
 ------------------------------------------------------------------------------
 -- Grouping without looking at elements
 ------------------------------------------------------------------------------

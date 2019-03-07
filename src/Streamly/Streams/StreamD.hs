@@ -212,28 +212,31 @@ where
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (lift)
 import Control.Monad.Trans.State.Lazy (StateT(..), get, put)
+import Data.Bits (finiteBitSize)
 import Data.Maybe (fromJust, isJust)
-import GHC.Types ( SPEC(..) )
+import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.Ptr (Ptr, plusPtr, minusPtr)
+import Foreign.Storable (Storable(..))
+import GHC.Types (SPEC(..))
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat)
+import System.IO.Unsafe (unsafeDupablePerformIO)
 
+import Streamly.Array.Types
+       (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex,
+        unsafeAppend, unsafeNew)
+import Streamly.Foldl.Types (Foldl(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
+import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
 import qualified Streamly.Streams.StreamK as K
-import Streamly.Foldl.Types (Foldl(..))
-import Streamly.Sink.Types (Sink(..))
-import Streamly.Array.Types (Array(..), Array, unsafeDangerousPerformIO,
-    unsafeIndex, unsafeAppend, unsafeNew)
-import System.IO.Unsafe (unsafeDupablePerformIO)
-import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Storable (Storable(..))
-import Foreign.Ptr (Ptr, plusPtr, minusPtr)
-import Data.Bits (finiteBitSize)
+
+
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -575,11 +578,11 @@ toStreamD = fromStreamK . K.toStream
 ------------------------------------------------------------------------------
 
 -- Note that if the underlying monad is strict (e.g. IO), the fold becomes a
--- strict right fold and does not perform well. For example, "all" can be
--- implemented as a right fold but if m is IO it just exapands the whole thing
--- before reducing and therefore performs poorly. Ideally we should implement
--- such folds using foldr and we should not be using the IO monad as the
--- underlying monad.
+-- strict right fold and does not perform well. For example, the fold "all" can
+-- be implemented as a right fold but if m is IO it just exapands the whole
+-- thing before reducing and therefore performs poorly. Ideally we should
+-- implement such folds using foldr and we should not be using the IO monad as
+-- the underlying monad.
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
 foldrM f z (Stream step state) = go SPEC state
@@ -714,11 +717,10 @@ elem e (Stream step state) = go state
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
 notElem e s = fmap not (elem e s)
 
--- |
+-- Early terminating folds like "all" can be expressed using foldr:
 -- > all p m = foldr (\x t -> if p x then t else False) True m
--- Strictness of IO monad does not let the above definition work, but once we
--- get a rid of the IO monad we should be able to express all the partial folds
--- like this using foldr.
+-- However, in strict monads like IO it cannot work lazily and therefore cannot
+-- terminate early.
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
 all p (Stream step state) = go state
@@ -942,7 +944,7 @@ concatMap f = concatMapM (return . f)
 
 -- XXX we need an INLINE_EARLY on concatMap for this rule to fire. But if we
 -- use INLINE_EARLY on concatMap or fromArray then direct uses of concatMap
--- fromArray (without the RULE) becomes much slower, this means "concatMap f"
+-- fromArray (without the RULE) become much slower, this means "concatMap f"
 -- in general would become slower. Need to find a solution to this.
 --
 -- {-# RULES "concatMap fromArray" concatMap fromArray = concatArray #-}
@@ -1020,7 +1022,7 @@ data ToArrayState s a =
 -- Need to investigate why. Even foldGroupsOf takes 10 sec to write the file
 -- from a stream, whereas just reading in the file as a stream and folding each
 -- element of the stream using (+) takes just 1 sec, so we are still pretty
--- slow, there is scope to make it faster.
+-- slow (10x slow), there is scope to make it faster.
 {-# INLINE_NORMAL arrayGroupsOf #-}
 arrayGroupsOf
     :: (Monad m, Storable a)

@@ -7,11 +7,11 @@
 -- Portability : GHC
 --
 --
--- Strictly speaking 'Sink' type is not required, 'Foldl' is a generalization of
--- 'Sink' and we can do with just 'Foldl'. However, in some cases 'Sink' is a
--- simpler type and may provide better performance than 'Foldl' because it does
--- not maintain any state. Foldls can be used for both pure and monadic
--- computations. Sinks are not applicable to pure computations.
+-- The 'Sink' type is a just a special case of 'Foldl' and we can do without
+-- it. However, in some cases 'Sink' is a simpler type and may provide better
+-- performance than 'Foldl' because it does not maintain any state. Foldls can
+-- be used for both pure and monadic computations. Sinks are not applicable to
+-- pure computations.
 
 module Streamly.Sink
     (
@@ -258,14 +258,14 @@ filterM f (Sink step) = Sink (\a -> f a >>= \use -> when use $ step a)
 ------------------------------------------------------------------------------
 
 -- | A sink that drains all its input, running the effects and discarding
--- the pure results.
+-- any pure results.
 drain :: Monad m => Sink m a
 drain = Sink (\_ -> return ())
 
 -- |
 -- > drainM f = mapM f drain
 --
--- A sink that feeds all its input to a monadic function.
+-- Convert a monadic function to a Sink.
 {-# INLINABLE drainM #-}
 drainM ::  Monad m => (a -> m b) -> Sink m a
 drainM f = Sink (void . f)

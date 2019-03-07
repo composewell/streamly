@@ -93,7 +93,7 @@ defaultChunkSize = 32 * k - allocOverhead
 -- OS handle, which is a limited resource.
 --
 -- Handles are stateful and we would like to avoid them, but they are
--- ubiquitous and many cases we are forced to use them. Handles like 'stdin',
+-- ubiquitous and in many cases we are forced to use them. Handles like 'stdin',
 -- 'stdout', 'stderr' are very common. Though we could use @fromFile
 -- /dev/stdin@ or @fromStdin@ etc. the former is not so elegant and the later
 -- would require multiple APIs for each special handle.
@@ -102,11 +102,10 @@ defaultChunkSize = 32 * k - allocOverhead
 --
 -- To represent the range to read we have chosen (start, size) instead of
 -- (start, end). This removes the ambiguity of whether "end" is included in the
--- range or not. Also, for non-seekable devices (e.g. terminals) "end" would
--- not make sense as start does not make sense.
+-- range or not.
 --
--- We could avoid specifying the end of the stream and just use "take size" on
--- the stream, but it could be useful to avoid unnecessary readaheads beyond
+-- We could avoid specifying the range to be read and instead use "take size"
+-- on the stream, but it could be useful to avoid unnecessary readaheads beyond
 -- the end point that the consumer wants. Not reading more than required is
 -- especially important when reading from stdin.
 --
@@ -122,7 +121,7 @@ defaultChunkSize = 32 * k - allocOverhead
 -- last element can be read using forward reading, but you will have to know
 -- the filesize for that, defeating the purpose of negative offset.  To avoid
 -- this problem, we can use an offsetType to denote offset from start or from
--- end. We can even use an Either for that.
+-- end. We can even use an Either type instead.
 --
 -- We could use a negative size to read backwards, this may not be very useful
 -- when reading from files (and may not even apply to terminals) but could be
@@ -196,8 +195,7 @@ fromHandlePos = fromHandlePosWith defaultChunkSize
 {-
 -- For non-seekable or seekable handles. For non-seekable (terminals, pipes,
 -- fifo etc.) handles we cannot use an offset to read which also means that we
--- cannot specify an offset from the end. Therefore the APIs are simpler. But
--- we can still read in chunks.
+-- cannot specify an offset from the end. Therefore the APIs are simpler.
 --
 {-# INLINE fromHandleLenWith #-}
 fromHandleLenWith :: (IsStream t, MonadIO m)
@@ -219,21 +217,23 @@ fromHandleLen = fromHandleLenWith defaultChunkSize
 -- this function ignores the seek position of the Handle, and always starts
 -- reading at offset 0.
 --
--- The stream starts at
--- the current seek position of the 'Handle' and ends when the handle returns
--- an EOF. The stream is lazy and generated on-demand as the consumer reads.
--- However, it may perform a readahead and buffer some data. Reads are
--- performed in chunks of up to 'defaultChunkSize' size.
+-- The stream starts at the current seek position of the 'Handle' and ends when
+-- the handle returns an EOF. The stream is lazy and generated on-demand as the
+-- consumer reads.  However, it may perform a readahead and buffer some data.
+-- Reads are performed in chunks of up to 'defaultChunkSize' size.
 --
 {-# INLINE fromHandleChunksOf #-}
 fromHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-fromHandleChunksOf chunkSize h = A.concatArray $ A.readHandleChunksOf chunkSize h
+fromHandleChunksOf chunkSize h = A.concatArray $
+    A.readHandleChunksOf chunkSize h
 
 {-
 -- XXX we need to have the chunk size aligned to 64-bit
+-- | Like fromHandleChunksOf but reads in chunks of 64-bits.
 {-# INLINE fromHandleChunksOf64 #-}
 fromHandleChunksOf64 :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word64
-fromHandleChunksOf64 chunkSize h = A.concatArray $ A.readHandleChunksOf chunkSize h
+fromHandleChunksOf64 chunkSize h = A.concatArray $
+    A.readHandleChunksOf chunkSize h
 -}
 
 -- XXX for concurrent streams implement readahead IO. We can send multiple read
@@ -244,18 +244,21 @@ fromHandleChunksOf64 chunkSize h = A.concatArray $ A.readHandleChunksOf chunkSiz
 fromHandle :: (IsStream t, MonadIO m) => Handle -> t m Word8
 fromHandle = fromHandleChunksOf defaultChunkSize
 
--- | @bufferN n stream@ buffers every N elements of a stream into a Array and
--- return a stream of 'Array's.
+-- | @bufferN n stream@ buffers every N elements of a stream into an Array and
+-- returns a stream of 'Array's.
 {-# INLINE bufferN #-}
 bufferN :: (IsStream t, Monad m, Storable a) => Int -> t m a -> t m (Array a)
 bufferN n str =
     D.fromStreamD $ D.foldGroupsOf (FL.toArrayN n) n (D.toStreamD str)
     -- D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD str)
 
+-- | Write a stream to a file handle, writing in chunks of specified size.
 {-# INLINE toHandleChunksOf #-}
 toHandleChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
 toHandleChunksOf n h m = A.concatToHandle h $ bufferN n m
 
+-- | Write a stream to a file handle, writing in chunks of specified
+-- 'defaultChunkSize'.
 {-# INLINE toHandle #-}
 toHandle :: MonadIO m => Handle -> SerialT m Word8 -> m ()
 toHandle = toHandleChunksOf defaultChunkSize
@@ -293,7 +296,7 @@ fromHandleWord8At h chunkSize offset =
 -}
 
 -- interact
---  XXX caolesce read requests, multiple reads into the same block can be
+--  XXX coalesce read requests, multiple reads into the same block can be
 --  combined into a single read request followed by a view/projection on the
 --  read block.  similalrly for write requests. requests may be expensive e.g.
 --  when you are requesting from AWS.

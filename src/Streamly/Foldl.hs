@@ -25,9 +25,9 @@
 --
 -- @Stream m a@ is a generator of values of type @a@. @Scan m a b@ is a
 -- composable stream transformer that can generate, transform and merge
--- streams. @Foldl m b a@ is a dual of scan, it is a composable stream fold that
--- can split, transform and fold streams and combine the results. @Sink m a@
--- sits on the opposite side of stream m a, it is a consumer of streams that
+-- streams. @Foldl m b a@ is a dual of scan, it is a composable stream fold
+-- that can split, transform and fold streams and combine the results. @Sink m
+-- a@ sits on the opposite side of stream m a, it is a consumer of streams that
 -- produces nothing.
 
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
@@ -92,9 +92,10 @@ module Streamly.Foldl
 
     -- * Input Transformation
     -- | Transformations can be applied on a fold before folding the input.
-    -- Note that unlike transformations on streams transformations on folds are
-    -- applied on the input side of the fold. In other words these are
-    -- contravariant mappings.
+    -- Note that unlike transformations on streams, transformations on folds
+    -- are applied on the input side of the fold. In other words these are
+    -- contravariant mappings though the names are identical to covariant
+    -- versions to keep them short and consistent with covariant versions.
 
     -- , scanl'
     -- , scanlM'
@@ -165,7 +166,8 @@ module Streamly.Foldl
     -- , drainWhile
 
     -- ** To Elements
-    -- | Foldls that extract selected elements of a stream or properties thereof.
+    -- | Foldls that extract selected elements of a stream or properties
+    -- thereof.
 
     -- , (!!)
     , index
@@ -217,7 +219,7 @@ module Streamly.Foldl
     -- , the
 
     -- ** To Containers
-    -- | Convert or divert a stream into an output structure or container.
+    -- | Convert or serialize a stream into an output structure or container.
 
     -- XXX toList is slower than the custom (Streamly.Prelude.toList)
     -- implementation
@@ -234,12 +236,12 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
-import Streamly.Streams.Serial (SerialT)
-import Streamly.Foldl.Types (Foldl(..), Pair(..))
+import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
+import Streamly.Foldl.Types (Foldl(..), Pair(..))
+import Streamly.Streams.Serial (SerialT)
 import System.IO.Unsafe (unsafeDupablePerformIO)
-import Foreign.Storable (Storable(..))
 
 import qualified Streamly.Streams.Prelude as P
 
@@ -347,11 +349,6 @@ foldl (Foldl step begin done) = P.foldxM' step begin done
 -- Composing folds
 ------------------------------------------------------------------------------
 
--- XXX should we have separate functions to fold to monad or to fold to a
--- singleton stream? And do not expose the fold-to-monad yet, so that we can
--- phase out folding to monad. In fact we do not need to even expose
--- fold-to-monad, for all cases just Foldl types should be enough.
-
 -- XXX have a wye on the production side to merge two streams fairly? wye would
 -- be the interleave or parallel merge operation. A dual of tee in some sense.
 -- XXX What is the production side dual of this? mapM?
@@ -382,8 +379,8 @@ foldNil = Foldl step begin done  where
   step _ _ = return []
   done = return
 
--- XXX we can directly use a Array as the accumulator so that this can scale
--- very well to large number of elements.
+-- XXX we can directly use an Array as the accumulator so that this can scale
+-- very well to a large number of elements.
 {-# INLINE foldCons #-}
 foldCons :: Monad m => Foldl m a b -> Foldl m a [b] -> Foldl m a [b]
 foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
@@ -395,9 +392,8 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
     step (Pair xL xR) a = Pair <$> stepL xL a <*> stepR xR a
     done (Pair xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
 
--- | Distribute copies of the stream to folds and collect the results.
--- Distribute one copy of the stream to each fold and collect the results in a
--- container.
+-- | Distribute one copy of the stream to each fold and collect the results in
+-- a container.
 --
 -- @
 --
@@ -435,7 +431,7 @@ foldCons_ (Foldl stepL beginL _) (Foldl stepR beginR _) =
     done = return
 
 -- XXX folding pairwise hierarcically may be more efficient
--- XXX use vector instead of list for scalability
+-- XXX use array instead of list for scalability
 -- distribute_ :: Monad m => Array (Foldl m a b) -> Foldl m a ()
 
 -- | Distribute a stream to a list of folds.
@@ -449,7 +445,8 @@ distribute_ (x:xs) = foldCons_ x (distribute_ xs)
 -- XXX need to transfer the state from up stream to the down stream fold when
 -- folding.
 
--- |
+-- | Partition the input over two folds using an 'Either' partitioning
+-- predicate.
 --
 -- @
 --
@@ -506,8 +503,8 @@ partitionByM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 
 -- XXX we can use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
---
--- | Same as 'partitionByM' but with a pure unmerge function.
+
+-- | Same as 'partitionByM' but with a pure partition function.
 --
 -- Count even and odd numbers in a stream:
 --
@@ -554,7 +551,8 @@ partitionBy f = partitionByM (return . f)
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
 {-# INLINE unzipM #-}
-unzipM :: Monad m => (a -> m (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
+unzipM :: Monad m
+    => (a -> m (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
 unzipM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
     Foldl step begin done
 
@@ -569,7 +567,8 @@ unzipM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 -- | Same as 'unzipM' but with a pure unzip function.
 --
 {-# INLINE unzip #-}
-unzip :: Monad m => (a -> (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
+unzip :: Monad m
+    => (a -> (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
 unzip f = unzipM (return . f)
 
 -- | When the fold is done, generate another copy of the same fold that starts
@@ -607,7 +606,7 @@ duplicate (Foldl step begin done) =
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
 
--- | @(map f folder)@ returns a new 'Foldl' where f is applied on the input of
+-- | @(map f fold)@ returns a new 'Foldl' where f is applied on the input of
 -- the fold.
 --
 -- > fold (map f folder) list = fold folder (map f list)
@@ -629,7 +628,7 @@ map f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = step x (f a)
 
--- | @(mapM f folder)@ returns a new 'FoldlM' where f is applied to the input
+-- | @(mapM f fold)@ returns a new 'FoldlM' where f is applied to the input
 -- elements of the fold.
 --
 -- > mapM return = id
@@ -1036,8 +1035,11 @@ minimum = _Foldl1 min
 -- To Containers
 ------------------------------------------------------------------------------
 
--- | Foldls the input to a list. This could create performance issues if you are
--- folding large lists. Use toArray instead in that case.
+-- XXX perhaps we should not expose the list APIs as it could be problematic
+-- for large lists. We should use a 'Store' type (growable array) instead.
+--
+-- | Foldls the input to a list. This could create performance issues if you
+-- are folding large lists. Use 'toArray' instead in that case.
 {-# INLINABLE toList #-}
 toList :: Monad m => Foldl m a [a]
 toList = Foldl (\x a -> return $ x . (a:)) (return id) (return . ($ []))
@@ -1051,9 +1053,8 @@ toRevList = Foldl (\x a -> return $ a:x) (return []) return
 
 --  XXX use SPEC
 --  XXX Make it total, by handling the exception
---  | @toArrayN limit@ folds the input to a 'Array' using a single chunk
---  vector of maximum size @limit@. If the input exceeds the limit an error is
---  thrown.
+--  | @toArrayN limit@ folds the input to a single chunk 'Array' of maximum
+--  size @limit@. If the input exceeds the limit an error is thrown.
 {-# INLINE toArrayN #-}
 toArrayN :: forall m a. (Monad m, Storable a) => Int -> Foldl m a (Array a)
 toArrayN limit = Foldl step begin done
