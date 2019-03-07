@@ -577,27 +577,6 @@ toStreamD = fromStreamK . K.toStream
 -- Elimination by Folds
 ------------------------------------------------------------------------------
 
--- Note that if the underlying monad is strict (e.g. IO), the fold becomes a
--- strict right fold and does not perform well. For example, the fold "all" can
--- be implemented as a right fold but if m is IO it just exapands the whole
--- thing before reducing and therefore performs poorly. Ideally we should
--- implement such folds using foldr and we should not be using the IO monad as
--- the underlying monad.
-{-# INLINE_NORMAL foldrM #-}
-foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
-foldrM f z (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-          r <- step defState st
-          case r of
-            Yield x s -> go SPEC s >>= f x
-            Skip s    -> go SPEC s
-            Stop      -> return z
-
-{-# INLINE_NORMAL foldr #-}
-foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr f = foldrM (\a b -> return (f a b))
-
 {-# INLINE_NORMAL foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
 foldr1 f m = do
@@ -1291,10 +1270,6 @@ mapM_ m = runStream . mapM m
 ------------------------------------------------------------------------------
 -- Converting folds
 ------------------------------------------------------------------------------
-
-{-# INLINE toList #-}
-toList :: Monad m => Stream m a -> m [a]
-toList = foldr (:) []
 
 {-
 --  XXX use SPEC

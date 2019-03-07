@@ -1,8 +1,12 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnboxedTuples #-}
+
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Array
@@ -26,11 +30,15 @@ module Streamly.Array.Types
 
     , unsafeIndex
     , fromCStringAddrUnsafe
+
+    , fromList
+    , toList
     )
 where
 
 import Control.Exception (assert)
 import Control.Monad (when)
+import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..))
@@ -42,8 +50,11 @@ import Foreign.Storable (Storable(..))
 
 import GHC.Base (Addr#, realWorld#)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes, newForeignPtr_)
-import GHC.IO (IO(IO))
+import GHC.IO (IO(IO), unsafeDupablePerformIO)
 import GHC.Ptr (Ptr(..))
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
+
+import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -76,7 +87,7 @@ import GHC.Ptr (Ptr(..))
 
 -- XXX Do we need some alignment for the allocations?
 -- XXX add reverse flag to reverse the contents without physically reversing.
-data Array a = Array
+data Array a = Storable a => Array
     { aStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused address
     , aBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
@@ -211,3 +222,51 @@ unsafeIndex Array {..} i =
                 assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd) (return ())
                 peek elemOff
     in r
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+{-# INLINE toStreamD #-}
+toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
+toStreamD Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+    in D.Stream step p
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | p == aEnd = return D.Stop
+    step _ p = do
+        let !x = unsafeDangerousPerformIO $ do
+                    r <- peek p
+                    -- XXX should we keep aStart in the state?
+                    touchForeignPtr aStart
+                    return r
+        return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
+
+{-# INLINABLE toList #-}
+toList :: Storable a => Array a -> [a]
+toList = runIdentity . D.toList . toStreamD
+
+instance (Storable a, Show a) => Show (Array a) where
+    {-# INLINE showsPrec #-}
+    showsPrec _ = shows . toList
+
+{-# INLINABLE fromList #-}
+fromList :: Storable a => [a] -> Array a
+fromList xs = foldl step begin xs
+
+    where
+
+    begin = let !x = unsafeDupablePerformIO $ unsafeNew (Prelude.length xs)
+            in x
+    step arr x = let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
+                 in arr'
+
+instance (Storable a, Read a, Show a) => Read (Array a) where
+    {-# INLINE readPrec #-}
+    readPrec = do
+          xs <- readPrec
+          return (fromList xs)
+    readListPrec = readListPrecDefault

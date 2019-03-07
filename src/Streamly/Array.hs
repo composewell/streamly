@@ -16,25 +16,24 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Arrays are chunks of memory that can hold a /finite/ sequence of values of
--- the same type. Unlike streams, vectors are /finite/ and therefore most of the
--- APIs dealing with vectors specify the size of the vector. The size of a
--- vector is pre-determined unlike streams where we need to compute the length
--- by traversing the entire stream.
+-- Arrays as implemented in this module are chunks of memory that can hold a
+-- sequence of 'Storable' values of the same type. Unlike streams, arrays are
+-- necessarily /finite/.  The size of an array is pre-determined and does not
+-- grow dynamically.
 --
--- Most importantly, vectors as implemented in this module, use memory that is
--- out of the ambit of GC and therefore add no pressure to GC. Moreover, they
--- can be used to communicate with foreign consumers and producers (e.g. file
--- and network IO) with zero copy.
---
--- Arrays help reduce GC pressure when we want to hold large amounts of data
--- in memory. Too many small vectors (e.g. single byte) are only as good as
--- holding data in a Haskell list. However, small vectors can be compacted into
--- large ones to reduce the overhead. To hold 32GB memory in 32k sized buffers
--- we need 1 million vectors if we use a vector for each chunk. This is still
--- significant to add pressure to GC.  However, we can create vectors of
--- vectors (trees) to scale to arbitrarily large amounts of memory but still
--- using small chunks of contiguous memory.
+-- Most importantly, arrays use memory that is out of the ambit of GC and
+-- therefore can hold arbitrary number of elements without adding any pressure
+-- to GC. Moreover, they can be used to communicate with foreign consumers and
+-- producers (e.g. file and network IO) without copying the data.
+
+-- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
+-- single byte) are only as good as holding those elements in a Haskell list.
+-- However, small arrays can be compacted into large ones to reduce the
+-- overhead. To hold 32GB memory in 32k sized buffers we need 1 million arrays
+-- if we use one array for each chunk. This is still significant to add
+-- pressure to GC.  However, we can create arrays of arrays (trees) to scale to
+-- arbitrarily large amounts of memory but still using small chunks of
+-- contiguous memory.
 
 -------------------------------------------------------------------------------
 -- Design Notes
@@ -109,7 +108,7 @@
 
 module Streamly.Array
     (
-      Array (..)
+      Array
 
     -- * Construction/Generation
     , nil
@@ -138,7 +137,6 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, hGetBufSome, hPutBuf)
-import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import Prelude hiding (length, null, last)
 import qualified Prelude
 
@@ -250,8 +248,16 @@ compactToReorder :: (a -> a -> Int) -> t m (Array a) -> t m (Array a)
 nullForeignPtr :: ForeignPtr a
 nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
 
+-- | An empty array.
+--
+-- @
+-- > toList nil
+-- []
+-- @
+--
+-- @since 0.7.0
 {-# INLINE nil #-}
-nil :: Array a
+nil :: Storable a => Array a
 nil = Array
     { aStart = nullForeignPtr
     , aEnd = Ptr nullAddr#
@@ -264,11 +270,6 @@ singleton :: forall a. Storable a => a -> Array a
 singleton a =
     let !v = unsafeDupablePerformIO $ withNewArray 1 $ \p -> poke p a
     in (v {aEnd = aEnd v `plusPtr` (sizeOf (undefined :: a))})
-
-{-# INLINABLE fromList #-}
-fromList :: Storable a => [a] -> Array a
-fromList xs = runIdentity $
-    FL.foldl (FL.toArrayN (Prelude.length xs)) (D.fromStreamD (D.fromList xs))
 
 -- | Read a 'ByteArray' from a file handle. If no data is available on the
 -- handle it blocks until some data becomes available. If data is available
@@ -366,30 +367,11 @@ last arr@Array{..} =
 -- Elimination/folding
 -------------------------------------------------------------------------------
 
-{-# INLINABLE toList #-}
-toList :: Storable a => Array a -> [a]
-toList = runIdentity . D.toList . D.fromArray
-
 -- | Writing a stream to a file handle
 {-# INLINE toHandle #-}
 toHandle :: Handle -> ByteArray -> IO ()
 toHandle _ v | null v = return ()
 toHandle h v@Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p (length v)
-
--------------------------------------------------------------------------------
--- Instances - XXX need to be moved along with the type
--------------------------------------------------------------------------------
-
-instance (Storable a, Show a) => Show (Array a) where
-    {-# INLINE showsPrec #-}
-    showsPrec _ = shows . toList
-
-instance (Storable a, Read a, Show a) => Read (Array a) where
-    {-# INLINE readPrec #-}
-    readPrec = do
-          xs <- readPrec
-          return (fromList xs)
-    readListPrec = readListPrecDefault
 
 -------------------------------------------------------------------------------
 -- Convert streams into vectors (buffering streams)
