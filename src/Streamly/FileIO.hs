@@ -71,14 +71,15 @@ import Data.Word (Word8)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, IOMode) -- IOMode imported for haddock
 
-import Streamly.Array.Types (Array(..), ByteArray)
+import Streamly.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Array as A
 import qualified Streamly.Foldl as FL
-import qualified Streamly.Prelude as S
+
+-- XXX use fdadvise (fd,0,0,FADVISE_SEQUENTIAL) when available.
 
 -- Handles perform no buffering of their own, buffering is done explicitly
 -- by the stream.

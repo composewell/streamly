@@ -5,6 +5,8 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
+{-# LANGUAGE CPP #-}
+
 import qualified Streamly.Prelude as S
 import qualified Streamly.FileIO as IO
 import qualified Streamly.Array as A
@@ -14,6 +16,9 @@ import Control.DeepSeq (NFData)
 import Gauge
 import System.Process.Typed (shell, runProcess_)
 import System.IO (openFile, IOMode(..), Handle, hClose)
+#ifdef DEVBUILD
+import System.IO (hSeek, SeekMode(..))
+#endif
 import Data.IORef
 
 data Handles = Handles Handle Handle
@@ -47,6 +52,12 @@ main = do
     inHandle <- openFile infile ReadMode
     outHandle <- openFile outfile WriteMode
     href <- newIORef $ Handles inHandle outHandle
+
+-- This is a 500MB file for text processing benchmarks.  We cannot have it in
+-- the repo.
+#ifdef DEVBUILD
+    inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
+#endif
 
     defaultMain
         [ bgroup "readArray"
@@ -96,6 +107,18 @@ main = do
                 Handles inh outh <- readIORef href
                 IO.toHandle outh (IO.fromHandle inh)
             ]
+        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as it
+        -- wc uses lseek to just determine the file size rather than reading
+        -- and counting characters.
+#ifdef DEVBUILD
+        , bgroup "wordCount"
+            [ mkBenchText "chunked byte count" inText $ do
+                let s = A.readHandleChunksOf IO.defaultChunkSize inText
+                S.sum (S.map A.length s) >>= print
+            , mkBenchText "streamed byte count" inText $ do
+                S.length $ IO.fromHandle inText
+            ]
+#endif
         ]
 
     where
@@ -111,3 +134,8 @@ main = do
                 writeIORef ref (Handles inHandle outHandle)
             )
             (\_ -> action)
+
+#ifdef DEVBUILD
+    mkBenchText name h action =
+        bench name $ perRunEnv (hSeek h AbsoluteSeek 0) (\_ -> action)
+#endif
