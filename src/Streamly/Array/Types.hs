@@ -57,16 +57,82 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
--- Array Data Type
+-- Design Notes
 -------------------------------------------------------------------------------
 
--- We require that an array stores only Storable. Array is used for buffering
--- while streams are used for processing. If you want something to be buffered
--- it better be Storable so that we can store it in non-GC memory.
+-- There are two goals that we need to fulfill and use arrays to fulfill them.
+-- One, holding large amounts of data in non-GC memory, two, allow random
+-- access to elements based on index. The first one falls in the category of
+-- storage buffers while the second one falls in the category of
+-- maps/multisets/hashmaps.
 --
--- We also need a separate type for arrays of polymorphic values, for example
--- vectors of handler functions, lookup tables. We can call this "vector". A
--- dynamic array stored in a tree structure can be called a "store".
+-- For the first requirement we use an array of Storables. We can have both
+-- immutable and mutable variants of this array using wrappers over the same
+-- underlying type.
+--
+-- For second requirement, we need a separate type for arrays of polymorphic
+-- values, for example vectors of handler functions, lookup tables. We can call
+-- this "vector".  It should not require Storable instance for the type. In
+-- that case we need to use an Array# instead of a ForeignPtr. This type of
+-- array would not reduce the GC overhead as much because each element of the
+-- array still needs to be scanned by the GC.  However, this would allow random
+-- access to the elements.  But in most cases random access means storage, and
+-- it means we need to avoid GC scanning except in cases of trivially small
+-- storage. One way to achieve that would be to put the array in a Compact
+-- region. However, when we mutate this, we will have to use a manual GC
+-- copying out to another CR and freeing the old one.
+
+-------------------------------------------------------------------------------
+-- SIMD Arrays
+-------------------------------------------------------------------------------
+
+-- XXX Try using SIMD operations where possible to combine arrays and to fold
+-- arrays. For example computing checksums of streams, adding streams or
+-- summing streams.
+
+-------------------------------------------------------------------------------
+-- Caching coalescing/batching
+-------------------------------------------------------------------------------
+
+-- XXX we can use address tags in IO buffers to coalesce multiple buffers into
+-- fewer IO requests. Similarly we can split responses to serve them to the
+-- right consumers. This will be comonadic. A common buffer cache can be
+-- maintained which can be shared by many consumers.
+--
+-- XXX we can also have IO error monitors attached to streams. to monitor disk
+-- or network errors or latencies and then take actions for example starting a
+-- disk scrub or switching to a different location on the network.
+
+-------------------------------------------------------------------------------
+-- Representation notes
+-------------------------------------------------------------------------------
+
+-- XXX we can use newtype over stream for buffers. That way we can implement
+-- operations like length as a fold of length of all underlying buffers.
+-- A single buffer could be a singleton stream and more than one buffers would
+-- be a stream of buffers.
+--
+-- Also, if a single buffer size is more than a threshold we can store it as a
+-- linked list in the non-gc memory. This will allow unlimited size buffers to
+-- be stored.
+--
+-- Unified Array + Stream:
+-- We can use a "Array" as the unified stream structure. When we use a pure
+-- cons we can increase the count of buffered elements in the stream, when we
+-- use uncons we decrement the count. If the count goes beyond a threshold we
+-- vectorize the buffered part. So if we are accessing an index at the end of
+-- the stream and still want to hold on to the stream elements then we would be
+-- buffering it by consing the elements and therefore automatically vectorizing
+-- it. By consing we are joining an evaluated part with a potentially
+-- unevaluated tail therefore strictizing the stream. When we uncons we are
+-- actually taking out a vector (i.e. evaluated part, WHNF of course) from the
+-- stream.
+
+-------------------------------------------------------------------------------
+-- Array of Arrays
+-------------------------------------------------------------------------------
+
+-- A dynamic array stored in a tree structure can be called a "store".
 --
 -- Storable a
 -- data Store a =
@@ -85,6 +151,32 @@ import qualified Streamly.Streams.StreamD.Type as D
 --
 -- Use rewrite rules to rewrite array from and to stream ops to id.
 
+-------------------------------------------------------------------------------
+-- Nesting/Layers
+-------------------------------------------------------------------------------
+
+-- A stream of arrays can be grouped to create arrays of arrays i.e. a tree
+-- of arrays. A tree of arrays can be concated to reduce the level of the
+-- tree or turn it into a single array.
+
+--  When converting a whole stream to a single array, we can keep adding new
+--  levels to an array tree, creating arrays of arrays so that we do not have
+--  to keep reallocating and copying the old data to new buffers. We can later
+--  reduce the levels by compacting the tree if we want to. The 'limit'
+--  argument is to raise an exception if the total size exceeds this limit,
+--  this is a safety catch so that we do not vectorize infinite streams and
+--  then run out of memory.
+--
+-- We can keep on group folding a stream until we get a singleton stream.
+
+-------------------------------------------------------------------------------
+-- Array Data Type
+-------------------------------------------------------------------------------
+
+-- We require that an array stores only Storable. Array is used for buffering
+-- while streams are used for processing. If you want something to be buffered
+-- it better be Storable so that we can store it in non-GC memory.
+--
 -- XXX Do we need some alignment for the allocations?
 -- XXX add reverse flag to reverse the contents without physically reversing.
 data Array a = Storable a => Array
@@ -95,7 +187,6 @@ data Array a = Storable a => Array
 
 type ByteArray = Array Word8
 
--- XXX need Storable instance for array
 -- sizeOf :: Array a -> Int
 -- sizeOf = vSize
 

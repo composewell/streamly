@@ -413,7 +413,6 @@ module Streamly.Prelude
     -- * Deprecated
     , K.once
     , each
-    , scanx
     , foldl
     , foldlM
     , foldx
@@ -2193,7 +2192,7 @@ groupsByRolling
 -- Grouping without looking at elements
 ------------------------------------------------------------------------------
 --
--- XXX if we implement this as a fold composition, we can then turn than into a
+-- XXX if we implement this as a fold composition, we can then turn that into a
 -- postscan to recover this function. That way we can have both stream and fold
 -- functions with a single impl. Perhaps all stream transformations can be
 -- implemented as folds and recovered using scan. Just need to make sure that
@@ -2212,6 +2211,7 @@ foldGroupsOf
     => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
 foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
 
+-- XXX this is only for experimentation, performs worse than foldGroupsOf
 {-# INLINE arrayGroupsOf #-}
 arrayGroupsOf
     :: (IsStream t, Monad m, Storable a)

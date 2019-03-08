@@ -211,7 +211,7 @@ where
 
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (lift)
-import Control.Monad.Trans.State.Lazy (StateT(..), get, put)
+import Control.Monad.Trans.State.Lazy (StateT(..), put)
 import Data.Bits (finiteBitSize)
 import Data.Maybe (fromJust, isJust)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
@@ -230,7 +230,7 @@ import Streamly.Array.Types
        (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex,
         unsafeAppend, unsafeNew)
 import Streamly.Foldl.Types (Foldl(..))
-import Streamly.SVar (MonadAsync, defState, adaptState)
+import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
@@ -928,6 +928,44 @@ concatMap f = concatMapM (return . f)
 --
 -- {-# RULES "concatMap fromArray" concatMap fromArray = concatArray #-}
 
+
+{-# INLINE_LATE foldOneGroup #-}
+foldOneGroup
+    :: Monad m
+    => Int
+    -> Foldl m a b
+    -> a
+    -> State K.Stream m a
+    -> (State K.Stream m a -> s -> m (Step s a))
+    -> s
+    -> m (b, Maybe s)
+foldOneGroup n (Foldl fstep begin done) x gst step state = do
+    acc0 <- begin
+    acc <- fstep acc0 x
+    go SPEC state acc 1
+
+    where
+
+    -- XXX is it strict enough?
+    go !_ st !acc i | i < n = do
+        r <- step gst st
+        case r of
+            Yield y s -> do
+                acc1 <- fstep acc y
+                go SPEC s acc1 (i + 1)
+            Skip s -> go SPEC s acc i
+            Stop -> do
+                res <- done acc
+                return (res, Nothing)
+    go !_ st acc _ = do
+        r <- done acc
+        return (r, Just st)
+
+-- foldGroupsOf takes 11 sec to write the file from a stream, whereas just
+-- reading in the same file as a stream and folding each element of the stream
+-- using (+) takes just 1.5 sec, so we are still pretty slow (7x slow), there
+-- is scope to make it faster. There is a possibility of better fusion here.
+--
 {-# INLINE_NORMAL foldGroupsOf #-}
 foldGroupsOf
     :: Monad m
@@ -942,66 +980,30 @@ foldGroupsOf f n (Stream step state) =
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter gst (Just st) = do
-        r <- foldOnce n f (Stream step st)
-        return $ Yield r Nothing
-    {-
+        -- We retrieve the first element of the stream before we start to fold
+        -- a chunk so that we do not return an empty chunk in case the stream
+        -- is empty.
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
                 -- XXX how to make sure that stepInner and f get fused
-                -- This is the same problem as we have in concatMap
-                --
-                -- XXX Need to propagate "gst" to the fold
-                -- (r, s') <- runStateT (inner x s) undefined -- (Just (s, Left x))
-                -- return $ Yield r s'
-                r <- foldOnce n f x (Stream step s)
-                return $ Yield r Nothing
+                -- This problem seems to be similar to the concatMap problem
+                (r, s1) <- foldOneGroup n f x (adaptState gst) step s
+                return $ Yield r s1
             Skip s    -> return $ Skip $ Just s
             Stop      -> return Stop
-            -}
 
     stepOuter _ Nothing = return Stop
-
--- XXX if the stream is nil we will get a nil array.
-
--- We need a fold routine that will return a state as well. Then we will
--- not need StateT and hopefully it will fuse better.
-{-# INLINE_NORMAL foldOnce #-}
-foldOnce :: Monad m => Int -> Foldl m a b -> Stream m a -> m b
-foldOnce n f (Stream step state) = fold f (Stream step' (state,0))
-    where
-
-    {-# INLINE fold #-}
-    -- fold :: Monad m => Foldl m a b -> Stream m a -> m b
-    fold (Foldl fstep begin done) = foldxM' fstep begin done
-
-    -- XXX pass on (adaptState gst) instead of using defState?
-    {-# INLINE_LATE step' #-}
-    -- step' _ (Left (st,y)) = return $ Yield y (Right (st,1))
-    step' _ (st,i) | i < n = do
-        -- XXX can we use gst instead of defState?
-        -- r <- lift $ step defState st
-        r <- step defState st
-        case r of
-            Yield y s -> return $ Yield y (s, i + 1)
-            Skip s -> return $ Skip (s, i)
-            Stop -> do
-                -- put Nothing
-                return Stop
-    step' _ (st,_) = do
-        -- put $ Just st
-        return Stop
 
 data ToArrayState s a =
       ArrayAlloc s
     | ArrayWrite s Int (Array a)
     | ArrayStop
 
--- XXX Somehow this is 2x slower than using foldGroupsof with the toArray fold.
--- Need to investigate why. Even foldGroupsOf takes 10 sec to write the file
--- from a stream, whereas just reading in the file as a stream and folding each
--- element of the stream using (+) takes just 1 sec, so we are still pretty
--- slow (10x slow), there is scope to make it faster.
+-- XXX This is a more monolithic version of foldGroupsOf and therefore is
+-- expected to do better. However, this is 2x slower than using foldGroupsof
+-- with the toArray fold.  Need to investigate why.
+--
 {-# INLINE_NORMAL arrayGroupsOf #-}
 arrayGroupsOf
     :: (Monad m, Storable a)
@@ -1271,6 +1273,7 @@ mapM_ m = runStream . mapM m
 -- Converting folds
 ------------------------------------------------------------------------------
 
+-- We use a fold instead to do this.
 {-
 --  XXX use SPEC
 {-# INLINE toArray #-}
@@ -1304,6 +1307,64 @@ toArray limit (Stream step state) = do
                 Skip s -> go1 s cur
                 Stop   -> return cur
                 -}
+
+{-
+data ToArrayState a =
+      BufAlloc
+    | BufWrite (ForeignPtr a) (Ptr a) (Ptr a)
+    | BufStop
+
+-- XXX we should never have zero sized chunks if we want to use "null" on a
+-- stream of buffers to mean that the stream itself is null.
+--
+-- XXX use the grouped fold to do this. we need to check the performance
+-- though.
+--
+-- | Group a stream into vectors on n elements each.
+{-# INLINE toArrayStreamD #-}
+toArrayStreamD
+    :: forall m a.
+       (Monad m, Storable a)
+    => Int -> D.Stream m a -> D.Stream m (Array a)
+toArrayStreamD n (D.Stream step state) =
+    D.Stream step' (state, BufAlloc)
+
+    where
+
+    size = n * sizeOf (undefined :: a)
+
+    {-# INLINE_LATE step' #-}
+    step' _ (st, BufAlloc) =
+        let !res = unsafePerformIO $ do
+                fptr <- mallocPlainForeignPtrBytes size
+                let p = unsafeForeignPtrToPtr fptr
+                return $ D.Skip $ (st, BufWrite fptr p (p `plusPtr` n))
+        in return res
+
+    step' _ (st, BufWrite fptr cur end) | cur == end =
+        return $ D.Yield (Array {vPtr = fptr, vLen = n, vSize = size})
+                         (st, BufAlloc)
+
+    step' gst (st, BufWrite fptr cur end) = do
+        res <- step (adaptState gst) st
+        return $ case res of
+            D.Yield x s ->
+                let !r = unsafeDangerousPerformIO $ do
+                            poke cur x
+                            -- XXX do we need a touch here?
+                            return $ D.Skip
+                                (s, BufWrite fptr (cur `plusPtr` 1) end)
+                in r
+            D.Skip s -> D.Skip (s, BufWrite fptr cur end)
+            D.Stop ->
+                -- XXX resizePtr the buffer
+                D.Yield (Array { vPtr = fptr
+                                , vLen = n + (cur `minusPtr` end)
+                                , vSize = size})
+                        (st, BufStop)
+
+    step' _ (_, BufStop) = return D.Stop
+    -}
 
 -- Convert a direct stream to and from CPS encoded stream
 {-# INLINE_LATE toStreamK #-}

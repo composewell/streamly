@@ -35,77 +35,6 @@
 -- arbitrarily large amounts of memory but still using small chunks of
 -- contiguous memory.
 
--------------------------------------------------------------------------------
--- Design Notes
--------------------------------------------------------------------------------
-
--- There are two goals that we need to fulfill and use vectors to fulfill them.
--- One, holding large amounts of data in non-GC memory, two, allow random
--- access to elements based on index. The first one falls in the category of
--- storage buffers while the second one falls in the category of
--- maps/multisets/hashmaps.
---
--- For the first requirement we use a vector of Storables. We can have both
--- immutable and mutable variants of this vector using wrappers over the same
--- underlying type.
---
--- For the second requirement we can provide a vector of polymorphic elements
--- that need not be Storable instances. In that case we need to use an Array#
--- instead of a ForeignPtr. This type of vector would not reduce the GC
--- overhead as much because each element of the array still needs to be scanned
--- by the GC.  However, this would allow random access to the elements. But in
--- most cases random access means storage, and it means we need to avoid GC
--- scanning except in cases of trivially small storage. One way to achieve that
--- would be to put the array in a Compact region. However, when we mutate this,
--- we will have to use a manual GC copying out to another CR and freeing the
--- old one.
-
--------------------------------------------------------------------------------
--- SIMD Arrays
--------------------------------------------------------------------------------
-
--- XXX Try using SIMD operations where possible to combine vectors and to fold
--- vectors. For example computing checksums of streams, adding streams or
--- summing streams.
-
--------------------------------------------------------------------------------
--- Caching coalescing/batching
--------------------------------------------------------------------------------
-
--- XXX we can use address tags in IO buffers to coalesce multiple buffers into
--- fewer IO requests. Similarly we can split responses to serve them to the
--- right consumers. This will be comonadic. A common buffer cache can be
--- maintained which can be shared by many consumers.
---
--- XXX we can also have IO error monitors attached to streams. to monitor disk
--- or network errors or latencies and then take actions for example starting a
--- disk scrub or switching to a different location on the network.
-
--------------------------------------------------------------------------------
--- Representation notes
--------------------------------------------------------------------------------
-
--- XXX we can use newtype over stream for buffers. That way we can implement
--- operations like length as a fold of length of all underlying buffers.
--- A single buffer could be a singleton stream and more than one buffers would
--- be a stream of buffers.
---
--- Also, if a single buffer size is more than a threshold we can store it as a
--- linked list in the non-gc memory. This will allow unlimited size buffers to
--- be stored.
---
--- Unified Array + Stream:
--- We can use a "Array" as the unified stream structure. When we use a pure
--- cons we can increase the count of buffered elements in the stream, when we
--- use uncons we decrement the count. If the count goes beyond a threshold we
--- vectorize the buffered part. So if we are accessing an index at the end of
--- the stream and still want to hold on to the stream elements then we would be
--- buffering it by consing the elements and therefore automatically vectorizing
--- it. By consing we are joining an evaluated part with a potentially
--- unevaluated tail therefore strictizing the stream. When we uncons we are
--- actually taking out a vector (i.e. evaluated part, WHNF of course) from the
--- stream.
-
 module Streamly.Array
     (
       Array
@@ -155,25 +84,7 @@ import qualified Streamly.Foldl as FL
 import qualified Streamly.Streams.StreamD as D
 
 -------------------------------------------------------------------------------
--- Nesting/Layers
--------------------------------------------------------------------------------
-
--- A stream of vectors can be grouped to create vectors of vectors i.e. a tree
--- of vectors. A tree of vectors can be concated to reduce the level of the
--- tree or turn it into a single vector.
-
---  When converting a whole stream to a single vector, we can keep adding new
---  levels to a vector tree, creating vectors of vectors so that we do not have
---  to keep reallocating and copying the old data to new buffers. We can later
---  reduce the levels by compacting the tree if we want to. The 'limit'
---  argument is to raise an exception if the total size exceeds this limit,
---  this is a safety catch so that we do not vectorize infinite streams and
---  then run out of memory.
---
--- We can keep group folding a stream until we get a singleton stream.
-
--------------------------------------------------------------------------------
--- Compact vectors
+-- Compacting streams of arrays
 -------------------------------------------------------------------------------
 
 {-
@@ -216,7 +127,7 @@ compactInRangeWithTimeout lo hi time =
 compactToReorder :: (a -> a -> Int) -> t m (Array a) -> t m (Array a)
 
 -------------------------------------------------------------------------------
--- deCompact buffers
+-- deCompact streams of arrays
 -------------------------------------------------------------------------------
 
 -- split buffers into smaller buffers
@@ -289,8 +200,10 @@ fromHandleSome size h = do
         -- XXX shrink only if the diff is significant
         shrinkToFit v
 
--- | @readHandleChunksOf size h@ reads a stream of vectors from file handle @h@.
--- The maximum size of a single vector is limited to @size@.
+-- | @readHandleChunksOf size h@ reads a stream of arrays from file handle @h@.
+-- The maximum size of a single array is limited to @size@.
+-- 'readHandleChunksOf' ignores the prevailing 'TextEncoding' and 'NewlineMode'
+-- on the 'Handle'.
 {-# INLINE readHandleChunksOf #-}
 readHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m ByteArray
 readHandleChunksOf size h = go
@@ -372,68 +285,6 @@ last arr@Array{..} =
 toHandle :: Handle -> ByteArray -> IO ()
 toHandle _ v | null v = return ()
 toHandle h v@Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p (length v)
-
--------------------------------------------------------------------------------
--- Convert streams into vectors (buffering streams)
--------------------------------------------------------------------------------
-
-{-
-data ToArrayState a =
-      BufAlloc
-    | BufWrite (ForeignPtr a) (Ptr a) (Ptr a)
-    | BufStop
-
--- XXX we should never have zero sized chunks if we want to use "null" on a
--- stream of buffers to mean that the stream itself is null.
---
--- XXX use the grouped fold to do this. we need to check the performance
--- though.
---
--- | Group a stream into vectors on n elements each.
-{-# INLINE toArrayStreamD #-}
-toArrayStreamD
-    :: forall m a.
-       (Monad m, Storable a)
-    => Int -> D.Stream m a -> D.Stream m (Array a)
-toArrayStreamD n (D.Stream step state) =
-    D.Stream step' (state, BufAlloc)
-
-    where
-
-    size = n * sizeOf (undefined :: a)
-
-    {-# INLINE_LATE step' #-}
-    step' _ (st, BufAlloc) =
-        let !res = unsafePerformIO $ do
-                fptr <- mallocPlainForeignPtrBytes size
-                let p = unsafeForeignPtrToPtr fptr
-                return $ D.Skip $ (st, BufWrite fptr p (p `plusPtr` n))
-        in return res
-
-    step' _ (st, BufWrite fptr cur end) | cur == end =
-        return $ D.Yield (Array {vPtr = fptr, vLen = n, vSize = size})
-                         (st, BufAlloc)
-
-    step' gst (st, BufWrite fptr cur end) = do
-        res <- step (adaptState gst) st
-        return $ case res of
-            D.Yield x s ->
-                let !r = unsafeDangerousPerformIO $ do
-                            poke cur x
-                            -- XXX do we need a touch here?
-                            return $ D.Skip
-                                (s, BufWrite fptr (cur `plusPtr` 1) end)
-                in r
-            D.Skip s -> D.Skip (s, BufWrite fptr cur end)
-            D.Stop ->
-                -- XXX resizePtr the buffer
-                D.Yield (Array { vPtr = fptr
-                                , vLen = n + (cur `minusPtr` end)
-                                , vSize = size})
-                        (st, BufStop)
-
-    step' _ (_, BufStop) = return D.Stop
-    -}
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays
