@@ -48,10 +48,12 @@ module Streamly.Sink
     , tap
 
     -- * Input Transformation
-    , map
-    , mapM
-    , filter
-    , filterM
+    -- | These are contravariant operations i.e. they apply on the input of the
+    -- 'Sink', for this reason they are prefixed with 'l' for 'left'.
+    , lmap
+    , lmapM
+    , lfilter
+    , lfilterM
 
     -- * Sinks
     , drain
@@ -234,24 +236,24 @@ tap s m = D.fromStreamD $ D.tap s (D.toStreamD m)
 ------------------------------------------------------------------------------
 
 -- | Map a pure function on the input of a 'Sink'.
-{-# INLINABLE map #-}
-map :: (a -> b) -> Sink m b -> Sink m a
-map f (Sink step) = Sink (step . f)
+{-# INLINABLE lmap #-}
+lmap :: (a -> b) -> Sink m b -> Sink m a
+lmap f (Sink step) = Sink (step . f)
 
 -- | Map a monadic function on the input of a 'Sink'.
-{-# INLINABLE mapM #-}
-mapM :: Monad m => (a -> m b) -> Sink m b -> Sink m a
-mapM f (Sink step) = Sink (\x -> f x >>= step)
+{-# INLINABLE lmapM #-}
+lmapM :: Monad m => (a -> m b) -> Sink m b -> Sink m a
+lmapM f (Sink step) = Sink (\x -> f x >>= step)
 
 -- | Filter the input of a 'Sink' using a pure predicate function.
-{-# INLINABLE filter #-}
-filter :: Monad m => (a -> Bool) -> Sink m a -> Sink m a
-filter f (Sink step) = Sink (\a -> when (f a) $ step a)
+{-# INLINABLE lfilter #-}
+lfilter :: Monad m => (a -> Bool) -> Sink m a -> Sink m a
+lfilter f (Sink step) = Sink (\a -> when (f a) $ step a)
 
 -- | Filter the input of a 'Sink' using a monadic predicate function.
-{-# INLINABLE filterM #-}
-filterM :: Monad m => (a -> m Bool) -> Sink m a -> Sink m a
-filterM f (Sink step) = Sink (\a -> f a >>= \use -> when use $ step a)
+{-# INLINABLE lfilterM #-}
+lfilterM :: Monad m => (a -> m Bool) -> Sink m a -> Sink m a
+lfilterM f (Sink step) = Sink (\a -> f a >>= \use -> when use $ step a)
 
 ------------------------------------------------------------------------------
 -- Sinks

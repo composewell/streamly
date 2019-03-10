@@ -163,8 +163,6 @@ library
                      , Streamly.Streams.Ahead
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
-                     , Streamly.List
-                     , Streamly.String
                      , Streamly.Enumeration
                      , Streamly.Foldl.Types
                      , Streamly.Sink.Types
@@ -180,6 +178,8 @@ library
                      , Streamly.Foldl
                      , Streamly.Sink
                      , Streamly.FileIO
+                     , Streamly.List
+                     , Streamly.String
 
                      , Streamly.Tutorial
                      , Streamly.Internal

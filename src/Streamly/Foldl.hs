@@ -97,24 +97,25 @@ module Streamly.Foldl
     -- are applied on the input side of the fold. In other words these are
     -- contravariant mappings though the names are identical to covariant
     -- versions to keep them short and consistent with covariant versions.
+    -- For that reason, these operations are prefixed with 'l' for 'left'.
 
-    -- , scanl'
-    -- , scanlM'
-    -- , postscanl'
-    -- , postscanlM'
-    -- , prescanl'
-    -- , prescanlM'
-    -- , scanl1'
-    -- , scanl1M'
+    -- , lscanl'
+    -- , lscanlM'
+    -- , lpostscanl'
+    -- , lpostscanlM'
+    -- , lprescanl'
+    -- , lprescanlM'
+    -- , lscanl1'
+    -- , lscanl1M'
 
     -- ** Mapping
     -- | Map is a strictly one-to-one transformation of stream elements. It
     -- cannot add or remove elements from the stream, just transforms them.
-    , map
+    , lmap
 
     -- ** Flattening
     --, sequence
-    , mapM
+    , lmapM
 
     -- ** Nesting
     -- , concatMap
@@ -123,36 +124,36 @@ module Streamly.Foldl
     -- ** Filtering
     -- | Filtering may remove some elements from the stream.
 
-    , filter
-    , filterM
+    , lfilter
+    , lfilterM
     {-
-    , take
-    , takeWhile
-    , takeWhileM
-    , drop
-    , dropWhile
-    , dropWhileM
-    , deleteBy
-    , uniq
+    , ltake
+    , ltakeWhile
+    , ltakeWhileM
+    , ldrop
+    , ldropWhile
+    , ldropWhileM
+    , ldeleteBy
+    , luniq
 
     -- ** Insertion
     -- | Insertion adds more elements to the stream.
 
-    , insertBy
-    , intersperseM
+    , linsertBy
+    , lintersperseM
 
     -- ** Reordering
-    , reverse
+    , lreverse
 
     -- * Hybrid Operations
 
     -- ** Map and Filter
-    , mapMaybe
-    , mapMaybeM
+    , lmapMaybe
+    , lmapMaybeM
 
     -- ** Scan and filter
-    , findIndices
-    , elemIndices
+    , lfindIndices
+    , lelemIndices
     -}
 
     -- * Foldls
@@ -607,39 +608,39 @@ duplicate (Foldl step begin done) =
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
 
--- | @(map f fold)@ returns a new 'Foldl' where f is applied on the input of
+-- | @(lmap f fold)@ returns a new 'Foldl' where f is applied on the input of
 -- the fold.
 --
--- > fold (map f folder) list = fold folder (map f list)
+-- > fold (lmap f folder) list = fold folder (map f list)
 --
--- >>> fold (map Sum mconcat) [1..10]
+-- >>> fold (lmap Sum mconcat) [1..10]
 -- Sum {getSum = 55}
 --
 -- >>> fold mconcat (map Sum [1..10])
 -- Sum {getSum = 55}
 --
--- > map id = id
--- > map (f . g) = map g . map f
--- > map k (pure r) = pure r
--- > map k (f <*> x) = map k f <*> map k x
+-- > lmap id = id
+-- > lmap (f . g) = lmap g . lmap f
+-- > lmap k (pure r) = pure r
+-- > lmap k (f <*> x) = lmap k f <*> lmap k x
 --
-{-# INLINABLE map #-}
-map :: (a -> b) -> Foldl m b r -> Foldl m a r
-map f (Foldl step begin done) = Foldl step' begin done
+{-# INLINABLE lmap #-}
+lmap :: (a -> b) -> Foldl m b r -> Foldl m a r
+lmap f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = step x (f a)
 
--- | @(mapM f fold)@ returns a new 'FoldlM' where f is applied to the input
+-- | @(lmapM f fold)@ returns a new 'FoldlM' where f is applied to the input
 -- elements of the fold.
 --
--- > mapM return = id
--- > mapM (f <=< g) = map g . map f
--- > mapM k (pure r) = pure r
--- > mapM k (f <*> x) = mapM k f <*> mapM k x
+-- > lmapM return = id
+-- > lmapM (f <=< g) = lmap g . lmap f
+-- > lmapM k (pure r) = pure r
+-- > lmapM k (f <*> x) = lmapM k f <*> lmapM k x
 --
-{-# INLINABLE mapM #-}
-mapM :: Monad m => (a -> m b) -> Foldl m b r -> Foldl m a r
-mapM f (Foldl step begin done) = Foldl step' begin done
+{-# INLINABLE lmapM #-}
+lmapM :: Monad m => (a -> m b) -> Foldl m b r -> Foldl m a r
+lmapM f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = f a >>= step x
 
@@ -681,19 +682,19 @@ foldGroupsOf n f1 f2 = undefined
 -- Filtering
 -------------
 
--- | @(filter f folder)@ returns a new 'Foldl' where the folder's input is
+-- | @(lfilter f folder)@ returns a new 'Foldl' where the folder's input is
 -- used only when the input satisfies a predicate f
 --
--- > fold (filter p folder) list = fold folder (filter p list)
+-- > fold (lfilter p folder) list = fold folder (filter p list)
 --
--- >>> fold (filter (>5) F.sum) [1..10]
+-- >>> fold (lfilter (>5) F.sum) [1..10]
 -- 40
 --
--- >>> fold F.sum (filter (>5) [1..10])
+-- >>> fold F.sum (lfilter (>5) [1..10])
 -- 40
-{-# INLINABLE filter #-}
-filter :: Monad m => (a -> Bool) -> Foldl m a r -> Foldl m a r
-filter f (Foldl step begin done) = Foldl step' begin done
+{-# INLINABLE lfilter #-}
+lfilter :: Monad m => (a -> Bool) -> Foldl m a r -> Foldl m a r
+lfilter f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = if f a then step x a else return x
 
@@ -701,9 +702,9 @@ filter f (Foldl step begin done) = Foldl step' begin done
 -- used only when the input satisfies a monadic predicate f.
 --
 -- > foldM (filterM p folder) list = foldM folder (filter p list)
-{-# INLINABLE filterM #-}
-filterM :: Monad m => (a -> m Bool) -> Foldl m a r -> Foldl m a r
-filterM f (Foldl step begin done) = Foldl step' begin done
+{-# INLINABLE lfilterM #-}
+lfilterM :: Monad m => (a -> m Bool) -> Foldl m a r -> Foldl m a r
+lfilterM f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = do
       use <- f a
@@ -772,7 +773,7 @@ mconcat = Foldl (\x a -> return $ mappend x a) (return mempty) return
 --
 {-# INLINABLE foldMap #-}
 foldMap :: (Monad m, Monoid b) => (a -> b) -> Foldl m a b
-foldMap f = map f mconcat
+foldMap f = lmap f mconcat
 
 -- |
 -- > foldMapM f = mapM f mconcat
