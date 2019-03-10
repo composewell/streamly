@@ -169,7 +169,6 @@ library
                      , Streamly.Foldl.Types
                      , Streamly.Sink.Types
                      , Streamly.Array.Types
-                     , Streamly.Transform.Types
 
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time
@@ -180,13 +179,10 @@ library
                      , Streamly.Array
                      , Streamly.Foldl
                      , Streamly.Sink
-                     , Streamly.Transform
                      , Streamly.FileIO
 
                      , Streamly.Tutorial
                      , Streamly.Internal
-                     -- , Streamly.Fold.Foldable
-                     -- , Streamly.Transform.Traversable
 
     default-language: Haskell2010
     ghc-options:      -Wall -fspec-constr-recursive=10

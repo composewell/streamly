@@ -34,7 +34,10 @@
 
 module Streamly.Tutorial
     (
-    -- * Streams
+    -- * Streams, Scans and Folds
+    -- $overview
+
+    -- * Stream Types
     -- $streams
 
     -- * Concurrent Streams
@@ -170,15 +173,90 @@ import Control.Monad
 import Control.Monad.IO.Class      (MonadIO(..))
 import Control.Monad.Trans.Class   (MonadTrans (lift))
 
+-- $overview
+-- The way a list represents a sequence of pure values, a stream represents a
+-- sequence of monadic actions. There three basic concepts in Streamly i.e.
+-- streams, scans, folds and their corresponding types that help in composing
+-- an arbitrary network of streams.
+--
+-- The basic stream type in Streamly is 'SerialT' which represents a stream
+-- that composes serially (i.e. not concurrently). Streams are producer of a
+-- sequence of values.  A stream can be transformed in many ways e.g. map,
+-- scan, filter etc.  Scans can perform stateful transformations.  Multiple
+-- transformations can be chained into a pipeline.  Finally, the stream can be
+-- folded into a result or folded to generate effects. See "Streamly.Prelude"
+-- module for more details. A basic stream operations pipeline would look like:
+--
+-- @
+--
+-- ---Stream m a---transforms(map, scan, filter)---Stream m b----Fold m b c
+-- @
+--
+-- Even though a lot of programming tasks can be performed by the above
+-- composition, this is still quite simplistic. Streamly provides combinators
+-- to combine producer streams in many different ways e.g. zipping, merging,
+-- appending, nested looping etc to build a composed stream producer from
+-- several streams. This adds a lot more power to the above simplistic
+-- composition.  See "Streamly.Prelude" module for more details.
+--
+-- @
+--
+-- -------Stream m a---transform---|
+--                                 |
+-- -------Stream m a---transform---|=>---transform---Stream m a--->
+--                                 |
+-- -------Stream m a---transform---|
+-- @
+--
+-- We can now combine producers, transform and fold the resulting stream. But
+-- what if we want to split a producer into multiple streams and process each
+-- resulting stream in a different manner?  How a stream is folded can be
+-- represented by a Fold type.  A Fold represents a stream consumer.  We can
+-- also combine multiple consumers (i.e. folds) into a single consumer. The
+-- input to the combined fold can be distributed over the constituents of the
+-- composed fold in different ways.  For example, the same input can be cloned
+-- and fed to all of them, or we can demultiplex the input to different folds
+-- based on some criterion.  In other words, a stream can be cloned or split
+-- into multiple streams and then transformed and combined into a single
+-- result. Folds can be transformed contravariantly i.e.  we can map or filter
+-- the inputs of individual folds.  See the "Streamly.Foldl" module for more
+-- details.
+--
+-- @
+--
+--                             |---transform----Foldl m a b--------|
+--                             |                                   |
+-- ---stream m a---transform---|---transform----Foldl m a c--------|---f b c ...
+--                             |                                   |
+--                             |---transform----Foldl m a b--------|
+-- @
+--
+-- Sinks are a special case of Folds. They fold streams exactly in the same
+-- way as Folds but they do not produce any outputs.
+--
+-- @
+--
+--                             |---transform----Sink m a
+--                             |
+-- ---stream m a---transform---|---transform----Sink m a
+--                             |
+--                             |---transform----Sink m a
+-- @
+--
+-- Folds can also be applied in a nested manner i.e. to fold a group of
+-- elements in a stream to produce a stream of fold results. For example, we
+-- can turn a stream of characters into a stream of lines and then apply a fold
+-- to each line to turn it into a stream of line lengths. This would work in a
+-- streaming fashion for lines of arbitrary lengths i.e. the lines are not
+-- accumulated in memory.
+
 -- $streams
 --
--- The way a list represents a sequence of pure values, a stream represents a
--- sequence of monadic actions. The monadic stream API offered by Streamly is
--- very close to the Haskell "Prelude" pure lists' API, it can be considered as a
--- natural extension of lists to monadic actions. Streamly streams provide
--- concurrent composition and merging of streams. It can be considered as a
--- concurrent list transformer. In contrast to the "Prelude" lists, merging or
--- appending streams of arbitrary length is scalable and inexpensive.
+-- The monadic stream API offered by Streamly is very close to the Haskell
+-- "Prelude" pure lists' API, it can be considered as a natural extension of
+-- lists to monadic actions. Streamly streams provide concurrent composition
+-- and merging of streams. It can be considered as a concurrent list
+-- transformer.
 --
 -- The basic stream type is 'Serial', it represents a sequence of IO actions,
 -- and is a 'Monad'.  The 'Serial' monad is almost a drop in replacement for

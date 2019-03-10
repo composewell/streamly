@@ -105,9 +105,6 @@ module Streamly.Prelude
     , K.fromFoldable
     , fromFoldableM
 
-    -- ** From External Containers
-    , fromHandle
-
     -- * Elimination
 
     -- ** Primitives
@@ -257,10 +254,17 @@ module Streamly.Prelude
     -- > scanr f z xs ==  reverse $ scanl (flip f) z (reverse xs)
     -- > scanl f z xs ==  reverse $ scanr (flip f) z (reverse xs)
     --
-    -- Scan is a stateful map. If we discard the state, we get the map:
+    -- A scan is a very general operation, it is a combination of map and fold.
+    -- We can call it a stateful map. For example, we can retrieve the map from
+    -- scans like this:
     --
-    -- > S.drop 1 $ S.scanl' (\_ x -> f x) z xs == map f xs
-    -- > S.postscanl'        (\_ x -> f x) z xs == map f xs
+    -- > map f xs =           tail $ scanl (\_ x -> f x) z xs
+    -- > map f xs = reverse $ head $ scanr (\_ x -> f x) z xs
+    --
+    -- We can retrieve folds from scans like this:
+    --
+    -- > foldl f z xs = last $ scanl f z xs
+    -- > foldr f z xs = head $ scanr f z xs
 
     , scanl'
     , scanlM'
@@ -417,6 +421,9 @@ module Streamly.Prelude
     , foldlM
     , foldx
     , foldxM
+    -- ** From External Containers
+    , fromHandle
+
     )
 where
 
@@ -783,7 +790,7 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
-{-# DEPRECATED fromHandle "Please use \"map lines fromHandleChar\" instead." #-}
+{-# DEPRECATED fromHandle "Please use Streamly.FileIO instead." #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -929,7 +936,7 @@ foldx = foldx'
 
 -- |
 -- @since 0.1.0
-{-# DEPRECATED foldl "Please use foldx' instead." #-}
+{-# DEPRECATED foldl "Use Streamly.Foldl for composable folds" #-}
 foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
 foldl = foldx'
 
@@ -2075,12 +2082,16 @@ mergeMapMBy :: (IsStream t, Monad m)
 -- chunksOf (foldGroupsOf)
 -- chunksOfInterval
 --
+-- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
+-- maximum of tmax or nmax, whichever is maximum. After the minimum return if
+-- would block, collect up to max if does not block.
+--
 -- foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
 -- foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
 -- foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
 -- foldGroupsOf n = foldGroupsInRange n n
 -- foldIntervalsOf n = foldIntervalsInRange n n
---
+
 -- Element Aware:
 --
 -- Binary:
@@ -2217,17 +2228,6 @@ arrayGroupsOf
     :: (IsStream t, Monad m, Storable a)
     => Int -> t m a -> t m (Array a)
 arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
-
-{-
--- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
--- maximum of tmax or nmax, whichever is maximum. After the minimum return if
--- would block, collect up to max if does not block.
-foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
-foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
-foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
-foldGroupsOf n = foldGroupsInRange n n
-foldIntervalsOf n = foldIntervalsInRange n n
--}
 
 ------------------------------------------------------------------------------
 -- Grouping looking at elements

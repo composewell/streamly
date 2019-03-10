@@ -13,6 +13,9 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Comonadic left folds i.e. left folds composed to consume a shared input
+-- stream.
+--
 -- > import qualified as FL
 --
 -- To give you an idea about different types involved in stream procesisng,
@@ -48,10 +51,8 @@ module Streamly.Foldl
 
     -- * Running
     , foldl
-
-    -- * Upgrading
-    , toScanl
-    , toPostscanl
+    , scanl
+    , postscanl
 
     -- * Composing Foldls
     -- ** Distribute
@@ -62,9 +63,9 @@ module Streamly.Foldl
     -- @
     --
     --                 |-------Foldl m a b--------|
-    -- ---stream m a---|                         |---m (b,c,...)
+    -- ---stream m a---|                          |---m (b,c,...)
     --                 |-------Foldl m a c--------|
-    --                 |                         |
+    --                 |                          |
     --                            ...
     -- @
     -- @
@@ -322,14 +323,14 @@ import qualified Streamly.Streams.Prelude as P
 ------------------------------------------------------------------------------
 
 -- | Scan a stream using the given monadic fold.
-{-# INLINE toScanl #-}
-toScanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
-toScanl (Foldl step begin done) = P.scanxM' step begin done
+{-# INLINE scanl #-}
+scanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
+scanl (Foldl step begin done) = P.scanxM' step begin done
 
 -- | Postscan a stream using the given monadic fold.
-{-# INLINE toPostscanl #-}
-toPostscanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
-toPostscanl (Foldl step begin done) = P.postscanxM' step begin done
+{-# INLINE postscanl #-}
+postscanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
+postscanl (Foldl step begin done) = P.postscanxM' step begin done
 
 -- XXX toPrescanl
 
@@ -357,7 +358,7 @@ foldl (Foldl step begin done) = P.foldxM' step begin done
 --
 -- @
 --                 |-------Foldl m a b--------|
--- ---stream m a---|                         |---m (b,c)
+-- ---stream m a---|                          |---m (b,c)
 --                 |-------Foldl m a c--------|
 -- @
 -- @
@@ -398,9 +399,9 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 -- @
 --
 --                 |-------Foldl m a b--------|
--- ---stream m a---|                         |---m (Array b)
+-- ---stream m a---|                          |---m (Array b)
 --                 |-------Foldl m a b--------|
---                 |                         |
+--                 |                          |
 --                            ...
 -- @
 --

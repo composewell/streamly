@@ -14,46 +14,6 @@
 -- concurrent composition and merging of streams. It can be considered as a
 -- concurrent list transformer. In contrast to the "Prelude" lists, merging or
 -- appending streams of arbitrary length is scalable and inexpensive.
---
--- The basic stream type is 'Serial', it represents a sequence of IO actions,
--- and is a 'Monad'.  The type 'SerialT' is a monad transformer that can
--- represent a sequence of actions in an arbitrary monad. The type 'Serial' is
--- in fact a synonym for @SerialT IO@.  There are a few more types similar to
--- 'SerialT', all of them represent a stream and differ only in the
--- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Serial'
--- and 'WSerial' types compose serially whereas 'Async' and 'WAsync'
--- types compose concurrently. All these types can be freely inter-converted
--- using type combinators without any cost. You can freely switch to any type
--- of composition at any point in the program.  When no type annotation or
--- explicit stream type combinators are used, the default stream type is
--- inferred as 'Serial'.
---
--- Here is a simple console echo program example:
---
--- @
--- > runStream $ S.repeatM getLine & S.mapM putStrLn
--- @
---
--- For more details please see the "Streamly.Tutorial" module and the examples
--- directory in this package.
---
--- This module exports stream types, instances and some basic operations.
--- Functionality exported by this module include:
---
--- * Semigroup append ('<>') instances as well as explicit  operations for merging streams
--- * Monad and Applicative instances for looping over streams
--- * Zip Applicatives for zipping streams
--- * Stream type combinators to convert between different composition styles
--- * Some basic utilities to run and fold streams
---
--- See the "Streamly.Prelude" module for comprehensive APIs for construction,
--- generation, elimination and transformation of streams.
---
--- This module is designed to be imported unqualified:
---
--- @
--- import Streamly
--- @
 
 {-# LANGUAGE CPP                       #-}
 
@@ -65,6 +25,13 @@
 
 module Streamly
     (
+    -- * Composition Overview
+    -- $overview
+
+    -- * Streams Overview
+    -- $streams
+
+    -- * Type Synonyms
       MonadAsync
 
     -- * Stream transformers
@@ -186,6 +153,101 @@ import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Streams.StreamK as K
+
+-- $streams
+-- The basic stream type is 'Serial', it represents a sequence of IO actions,
+-- and is a 'Monad'.  The type 'SerialT' is a monad transformer that can
+-- represent a sequence of actions in an arbitrary monad. The type 'Serial' is
+-- in fact a synonym for @SerialT IO@.  There are a few more types similar to
+-- 'SerialT', all of them represent a stream and differ only in the
+-- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Serial'
+-- and 'WSerial' types compose serially whereas 'Async' and 'WAsync'
+-- types compose concurrently. All these types can be freely inter-converted
+-- using type combinators without any cost. You can freely switch to any type
+-- of composition at any point in the program.  When no type annotation or
+-- explicit stream type combinators are used, the default stream type is
+-- inferred as 'Serial'.
+--
+-- Here is a simple console echo program example:
+--
+-- @
+-- > runStream $ S.repeatM getLine & S.mapM putStrLn
+-- @
+--
+-- For more details please see the "Streamly.Tutorial" module and the examples
+-- directory in this package.
+--
+-- This module exports stream types, instances and some basic operations.
+-- Functionality exported by this module include:
+--
+-- * Semigroup append ('<>') instances as well as explicit  operations for merging streams
+-- * Monad and Applicative instances for looping over streams
+-- * Zip Applicatives for zipping streams
+-- * Stream type combinators to convert between different composition styles
+-- * Some basic utilities to run and fold streams
+--
+-- See the "Streamly.Prelude" module for comprehensive APIs for construction,
+-- generation, elimination and transformation of streams.
+--
+-- This module is designed to be imported unqualified:
+--
+-- @
+-- import Streamly
+-- @
+
+-- $overview
+-- Let us provide a quick overview of streaming composition using streamly. The
+-- stream types 'SerialT' etc exported from this module are producers of
+-- streams. A stream can be transformed in many ways e.g. map, scan, filter
+-- etc.  Scans can perform stateful transformations.  Multiple transformations
+-- can be chained into a pipeline.  Finally, the stream can be folded into a
+-- result or folded to generate effects. See "Streamly.Prelude" module for
+-- more details.
+--
+-- @
+--
+-- ---Stream m a---transforms(map, scan, filter)---Stream m b----Fold m b c
+-- @
+--
+-- Multiple streams can be composed in many ways e.g. zipping, merging,
+-- appending, monadic nesting etc to build a composed stream producer. See
+-- "Streamly.Prelude" module for more details.
+--
+-- @
+--
+-- -------Stream m a---transform---|
+--                                 |
+-- -------Stream m a---transform---|=>---transform---Stream m a--->
+--                                 |
+-- -------Stream m a---transform---|
+-- @
+--
+-- Like Stream is a producer, a Fold is a consumer of streams. The way multiple
+-- producers can be combined into a single producer, we can also combine
+-- multiple consumers (i.e. folds) into a single consumer. The input to the
+-- combined fold can be distributed over the constituents of the composed fold
+-- in different ways.  For example, the same input can be fed to all of them,
+-- or we can demultiplex the input to different folds based on some criterion.
+-- In other words, a stream can be cloned or split into multiple streams and
+-- then transformed and combined into a single result. Folds can be transformed
+-- contravariantly i.e. we can map or filter the inputs of individual folds.
+-- See the "Streamly.Foldl" module for more details.
+--
+-- @
+--
+--                             |---transform----Foldl m a b--------|
+-- ---stream m a---transform---|                                   |---f b c ...
+--                             |---transform----Foldl m a c--------|
+--                             |                                   |
+--                                        ...
+-- @
+--
+-- Folds and Sinks are consumers of streams. Folds and Sinks can be composed
+-- comonadically such that the same input can be shared across multiple folds
+-- or demultiplexed into different folds and the outputs of the folds can be
+-- combined in a desired manner. Fold inputs can be transformed before it is
+-- fed to the fold:
+--
 
 -- XXX This should perhaps be moved to Prelude.
 
