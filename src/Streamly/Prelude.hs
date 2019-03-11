@@ -107,19 +107,45 @@ module Streamly.Prelude
 
     -- * Elimination
 
-    -- ** Primitives
+    -- ** Deconstruction
     -- | It is easy to express all the folds in terms of the 'uncons' primitive,
     -- however the specific implementations provided later are generally more
-    -- efficient.  Folds are inherently serial as each step needs to use the
-    -- result of the previous step.
+    -- efficient.
+    --
     , uncons
+    , tail
+    , init
 
-    -- ** General Folds
--- | Right and left folds.
--- As a simple rule, always use lazy right fold for construction and strict
--- left fold for reduction. By construction we mean using a constructor as the
--- outermost operation in the fold function, by reduction we mean using a
--- function as the outermost operation in the fold function.
+    -- ** Folding
+-- | Left and right folds:
+--
+-- > foldl f z [] = z
+-- > foldl f z xs = foldl f (foldl f z (init xs)) (last xs)
+-- >
+-- > foldr f z [] = z
+-- > foldr f z xs = foldr f (foldr f z (tail xs)) (head xs)
+--
+-- Left and right folds are duals of each other.
+--
+-- @
+-- foldr f z xs = foldl (flip f) z (reverse xs)
+-- foldl f z xs = foldr (flip f) z (reverse xs)
+-- @
+--
+-- More generally:
+--
+-- @
+-- foldl f z xs = foldr g id xs z where g x k = k . flip f x
+-- foldr f z xs = foldl g id xs z where g k x = k . f x
+-- @
+--
+-- The same task can be achieved with any of the fold, the difference is
+-- operational. For some tasks left fold would perform better while for others
+-- right fold is better suited.  As a simple rule, always use lazy right fold
+-- for construction and strict left fold for reduction. By construction we mean
+-- using a constructor as the outermost operation in the fold function, by
+-- reduction we mean using a function as the outermost operation in the fold
+-- function.
 --
 -- +-----------------------------------+--------------------------------------+
 -- | Right Fold                        | Left Fold                            |
@@ -138,20 +164,9 @@ module Streamly.Prelude
 -- example, a lazy @foldl@ can be replaced by a strict @foldl@ to reverse the
 -- structure followed by a @foldr@.
 --
--- The following equations may help understand the relation between the two
--- folds for lists:
---
--- @
--- foldr f z xs = foldl (flip f) z (reverse xs)
--- foldl f z xs = foldr (flip f) z (reverse xs)
--- @
---
--- More generally:
---
--- @
--- foldl f z xs = foldr g id xs z where g x k = k . flip f x
--- foldr f z xs = foldl g id xs z where g k x = k . f x
--- @
+-- Folds are inherently serial as each step needs to use the result of the
+-- previous step. However, it is possible to fold parts of the stream in
+-- parallel and then combine the results using a monoid.
 
     , foldr
     , foldr1
@@ -175,11 +190,6 @@ module Streamly.Prelude
     , lookup
     , findIndex
     , elemIndex
-
-    -- ** To Parts
-    -- | Folds that extract selected parts of a stream.
-    , tail
-    , init
 
     -- ** To Boolean
     -- | Folds that summarize the stream to a boolean value.
@@ -210,7 +220,6 @@ module Streamly.Prelude
     -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
-    , toHandle
 
     -- * Transformation
 
@@ -226,7 +235,7 @@ module Streamly.Prelude
     -- The following equations hold for lists:
     --
     -- > scanl f z xs == map (foldl f z) $ inits xs
-    -- > scanr f z xs == map (foldr f z) $ tails
+    -- > scanr f z xs == map (foldr f z) $ tails xs
     --
     -- @
     -- > scanl (+) 0 [1,2,3,4]
@@ -244,24 +253,15 @@ module Streamly.Prelude
     --                 0 = 0
     -- @
     --
-    -- The state maintained by a left scan knows about all the past values of
-    -- the stream at any given point whereas the state maintained by a right
-    -- scan would know about all the future values of a stream at any given
-    -- point.
-    --
-    -- Left and right scans can be recovered from each other:
+    -- Left and right scans are duals:
     --
     -- > scanr f z xs ==  reverse $ scanl (flip f) z (reverse xs)
     -- > scanl f z xs ==  reverse $ scanr (flip f) z (reverse xs)
     --
-    -- A scan is a very general operation, it is a combination of map and fold.
-    -- We can call it a stateful map. For example, we can retrieve the map from
-    -- scans like this:
+    -- A scan is a stateful map i.e. a combination of map and fold:
     --
     -- > map f xs =           tail $ scanl (\_ x -> f x) z xs
     -- > map f xs = reverse $ head $ scanr (\_ x -> f x) z xs
-    --
-    -- We can retrieve folds from scans like this:
     --
     -- > foldl f z xs = last $ scanl f z xs
     -- > foldr f z xs = head $ scanr f z xs
@@ -404,7 +404,7 @@ module Streamly.Prelude
     -- @
     --
     , foldGroupsOf
-    , arrayGroupsOf
+    -- , arrayGroupsOf
     , foldGroupsOn
 
     -- ** Folds
@@ -421,9 +421,8 @@ module Streamly.Prelude
     , foldlM
     , foldx
     , foldxM
-    -- ** From External Containers
     , fromHandle
-
+    , toHandle
     )
 where
 
@@ -1384,6 +1383,7 @@ toList = P.toList
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
+{-# DEPRECATED toHandle "Please use Streamly.FileIO instead." #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go m
     where
@@ -2223,11 +2223,11 @@ foldGroupsOf
 foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
 
 -- XXX this is only for experimentation, performs worse than foldGroupsOf
-{-# INLINE arrayGroupsOf #-}
-arrayGroupsOf
+{-# INLINE _arrayGroupsOf #-}
+_arrayGroupsOf
     :: (IsStream t, Monad m, Storable a)
     => Int -> t m a -> t m (Array a)
-arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
+_arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping looking at elements
