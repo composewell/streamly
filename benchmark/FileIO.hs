@@ -87,9 +87,11 @@ main = do
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 S.sum $ IO.fromHandle inh
+            {-
             , mkBench "arrayGroupsOf-single" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ S.arrayGroupsOf fileSize (IO.fromHandle inh)
+            -}
             , mkBench "foldGroupsOf-single" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ S.foldGroupsOf (FL.toArrayN fileSize)

@@ -809,13 +809,13 @@ fromHandle h = go
 -- stream into a list:
 --
 -- @
--- >> S.foldrM (\\x xs -> return (x : xs)) [] $ fromList [1,2,3]
+-- >> S.foldrM (\\x xs -> xs >>= return . (x :)) (return []) $ fromList [1,2,3]
 -- [1,2,3]
 -- @
 --
 -- @since 0.2.0
 {-# INLINE foldrM #-}
-foldrM :: Monad m => (a -> b -> m b) -> b -> SerialT m a -> m b
+foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
 
 -- | Lazy right associative fold.

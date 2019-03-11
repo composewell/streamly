@@ -1,5 +1,9 @@
 ## Unreleased
 
+### Breaking changes
+
+* Change the signature of foldrM to make it lazy
+
 ### Enhancements
 
 * Add GHCJS support

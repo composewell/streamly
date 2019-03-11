@@ -349,13 +349,13 @@ foldr step acc m = go m
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE foldrM #-}
-foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM :: (IsStream t, Monad m) => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = go m
     where
     go m1 =
-        let stop = return acc
+        let stop = acc
             single a = step a acc
-            yieldk a r = go r >>= step a
+            yieldk a r = step a (go r)
         in foldStream defState yieldk single stop m1
 
 {-# INLINE foldr1 #-}

@@ -106,26 +106,32 @@ instance Monad m => Functor (Stream m) where
 -- Note: toList is used in Array.Type, which is used in StreamD module,
 -- therefore these definitions have been pushed here from StreamD.
 
--- Note that if the underlying monad is strict (e.g. IO), the fold becomes a
--- strict right fold and does not perform well. For example, the fold "all" can
--- be implemented as a right fold but if m is IO it just exapands the whole
--- thing before reducing and therefore performs poorly. Ideally we should
--- implement such folds using foldr and we should not be using the IO monad as
--- the underlying monad.
+-- The way we want a left fold to be strict, dually we want the right fold to
+-- be lazy.  The correct signature of the fold function must be (a -> m b -> m
+-- b) instead of (a -> b -> m b). We were using the latter earlier, which is
+-- incorrect. In the latter signature we have to feed the value to the fold
+-- function after evaluating the monadic action, depending on the bind behavior
+-- of the monad, the action may get evaluated introducing unnecessary
+-- strictness to the fold. If the implementation is lazy the following example,
+-- must work:
+--
+-- S.foldrM (\x t -> if x then return t else return False) True
+--  (S.fromList [False,undefined] :: SerialT IO Bool)
+--
 {-# INLINE_NORMAL foldrM #-}
-foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
+foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
 foldrM f z (Stream step state) = go SPEC state
   where
     go !_ st = do
           r <- step defState st
           case r of
-            Yield x s -> go SPEC s >>= f x
+            Yield x s -> f x (go SPEC s)
             Skip s    -> go SPEC s
-            Stop      -> return z
+            Stop      -> z
 
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr f = foldrM (\a b -> return (f a b))
+foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m a -> m [a]

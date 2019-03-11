@@ -119,12 +119,12 @@ toList m = S.toList $ toStreamS m
 ------------------------------------------------------------------------------
 
 {-# INLINE foldrM #-}
-foldrM :: (Monad m, IsStream t) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM :: (Monad m, IsStream t) => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = S.foldrM step acc $ toStreamS m
 
 {-# INLINE foldr #-}
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b
-foldr f = foldrM (\a b -> return (f a b))
+foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
 
 -- | Like 'foldx'', but with a monadic step function.
 --

@@ -243,7 +243,7 @@ toList = S.toList
 foldl'Build = S.foldl' (flip (:)) []
 foldrBuild  = S.foldr (:) []
 foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
-foldrMBuild  = S.foldrM  (\x xs -> return $ x : xs) []
+foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
 
 foldrReduce = S.foldr (+) 0
 foldr1Reduce = S.foldr1 (+)
