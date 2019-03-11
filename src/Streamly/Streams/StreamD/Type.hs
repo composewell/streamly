@@ -40,6 +40,7 @@ module Streamly.Streams.StreamD.Type
     )
 where
 
+import Control.Applicative (liftA2)
 import GHC.Types (SPEC(..))
 import Streamly.SVar (State(..), adaptState, defState)
 import qualified Streamly.Streams.StreamK as K
@@ -115,23 +116,31 @@ instance Monad m => Functor (Stream m) where
 -- strictness to the fold. If the implementation is lazy the following example,
 -- must work:
 --
--- S.foldrM (\x t -> if x then return t else return False) True
+-- S.foldrM (\x t -> if x then return t else return False) (return True)
 --  (S.fromList [False,undefined] :: SerialT IO Bool)
+--
+-- Removed SPEC constructor, it was causing 2x performance degradation in
+-- any/or.
 --
 {-# INLINE_NORMAL foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
-foldrM f z (Stream step state) = go SPEC state
+foldrM f z (Stream step state) = go state
   where
-    go !_ st = do
+    go st = do
           r <- step defState st
           case r of
-            Yield x s -> f x (go SPEC s)
-            Skip s    -> go SPEC s
+            Yield x s -> f x (go s)
+            Skip s    -> go s
             Stop      -> z
 
+-- XXX In many cases foldrM seems to perform much better than foldr. For
+-- example if foldr is used in "any" instead of foldrM, it seems to perform
+-- 1000x poorly. Perhaps does not fuse well?  Is that because of the extra bind
+-- in foldr? Need to investigate.
+--
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
+foldr f z = foldrM (\a b -> liftA2 f (return a) b) (return z)
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m a -> m [a]

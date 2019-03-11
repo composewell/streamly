@@ -696,35 +696,13 @@ elem e (Stream step state) = go state
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
 notElem e s = fmap not (elem e s)
 
--- Early terminating folds like "all" can be expressed using foldr:
--- > all p m = foldr (\x t -> if p x then t else False) True m
--- However, in strict monads like IO it cannot work lazily and therefore cannot
--- terminate early.
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
-all p (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x s
-              | p x       -> go s
-              | otherwise -> return False
-            Skip s -> go s
-            Stop   -> return True
+all p m = foldrM (\x xs -> if p x then xs else return False) (return True) m
 
 {-# INLINE_NORMAL any #-}
 any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
-any p (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x s
-              | p x       -> return True
-              | otherwise -> go s
-            Skip s -> go s
-            Stop   -> return False
+any p m = foldrM (\x xs -> if p x then return True else xs) (return False) m
 
 {-# INLINE_NORMAL maximum #-}
 maximum :: (Monad m, Ord a) => Stream m a -> m (Maybe a)

@@ -336,7 +336,8 @@ concurrentFoldrApplication n =
         -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $
-            sourceUnfoldrM1 n |&. S.foldrM (\x xs -> return (x : xs)) []
+            sourceUnfoldrM1 n |&. S.foldrM (\x xs -> xs >>= return . (x :))
+                                           (return [])
         listEquals (==) stream list
 
 -------------------------------------------------------------------------------
