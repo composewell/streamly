@@ -133,6 +133,11 @@ foldrM f z (Stream step state) = go state
             Skip s    -> go s
             Stop      -> z
 
+-- Note that foldr becomes necessarily strict if the monad m is strict. In that
+-- case it cannot terminate early, it would evaluate all of its input. For this
+-- reason we have stopped exporting it. Though, this should work fine with
+-- lazy monads.
+--
 -- XXX In many cases foldrM seems to perform much better than foldr. For
 -- example if foldr is used in "any" instead of foldrM, it seems to perform
 -- 1000x poorly. Perhaps does not fuse well?  Is that because of the extra bind

@@ -14,7 +14,7 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
-         subtract, undefined, Maybe(..), not, mapM_, (>>=),
+         subtract, undefined, Maybe(..), not, (>>=),
          maxBound, fmap, odd, (==))
 import qualified Prelude as P
 
@@ -77,6 +77,10 @@ source = sourceUnfoldrM
 runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => Stream m a -> m ()
+mapM_ = S.mapM_ (\_ -> return ())
+
 {-# INLINE toNull #-}
 toNull :: Monad m => Stream m Int -> m ()
 toNull = runStream
@@ -96,15 +100,15 @@ uncons s = do
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= mapM_ tail
+tail s = S.tail s >>= P.mapM_ tail
 
 nullTail s = do
     r <- S.null s
-    when (not r) $ S.tail s >>= mapM_ nullTail
+    when (not r) $ S.tail s >>= P.mapM_ nullTail
 
 headTail s = do
     h <- S.head s
-    when (isJust h) $ S.tail s >>= mapM_ headTail
+    when (isJust h) $ S.tail s >>= P.mapM_ headTail
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]

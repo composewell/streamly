@@ -11,7 +11,7 @@
 
 ### Deprecations
 * Remove deprecated operation Streamly.Prelude.scan
-* Deprecate `foldx`, `foldxM`, `scanx`
+* Deprecate `foldx`, `foldxM`, `foldr` and `foldr1`
 
 ## 0.6.0
 

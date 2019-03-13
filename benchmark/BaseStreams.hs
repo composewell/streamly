@@ -52,14 +52,15 @@ main =
         -- , benchIO "fromFoldableM" D.sourceFromFoldableM
         ]
       , bgroup "elimination"
-        [ benchIO "toNull"   D.toNull D.sourceUnfoldrM
-        , benchIO "uncons"   D.uncons D.sourceUnfoldrM
-        , benchFold "tail"   D.tail   D.sourceUnfoldrM
+        [ benchIO "toNull"   D.toNull   D.sourceUnfoldrM
+        , benchIO "mapM_"    D.mapM_    D.sourceUnfoldrM
+        , benchIO "uncons"   D.uncons   D.sourceUnfoldrM
+        , benchFold "tail"   D.tail     D.sourceUnfoldrM
         , benchIO "nullTail" D.nullTail D.sourceUnfoldrM
         , benchIO "headTail" D.headTail D.sourceUnfoldrM
-        , benchFold "toList" K.toList K.sourceUnfoldrM
-        , benchFold "fold"   K.foldl  K.sourceUnfoldrM
-        , benchFold "last"   K.last   K.sourceUnfoldrM
+        , benchFold "toList" D.toList   D.sourceUnfoldrM
+        , benchFold "fold"   D.foldl    D.sourceUnfoldrM
+        , benchFold "last"   D.last     D.sourceUnfoldrM
         ]
       , bgroup "transformation"
         [ benchIO "scan"      (D.scan      1) D.sourceUnfoldrM
@@ -164,16 +165,16 @@ main =
         , benchIO "foldMapWithM" K.toNull K.sourceFoldMapWithM
         ]
       , bgroup "elimination"
-        [ benchIO "toNull" K.toNull K.sourceUnfoldrM
-        , benchIO "mapM_" K.mapM_ K.sourceUnfoldrM
-        , benchIO "uncons" K.uncons K.sourceUnfoldrM
-        , benchFold "init" K.init   K.sourceUnfoldrM
-        , benchFold "tail" K.tail   K.sourceUnfoldrM
+        [ benchIO "toNull"   K.toNull   K.sourceUnfoldrM
+        , benchIO "mapM_"    K.mapM_    K.sourceUnfoldrM
+        , benchIO "uncons"   K.uncons   K.sourceUnfoldrM
+        , benchFold "init"   K.init     K.sourceUnfoldrM
+        , benchFold "tail"   K.tail     K.sourceUnfoldrM
         , benchIO "nullTail" K.nullTail K.sourceUnfoldrM
         , benchIO "headTail" K.headTail K.sourceUnfoldrM
-        , benchFold "toList" K.toList K.sourceUnfoldrM
-        , benchFold "fold"   K.foldl  K.sourceUnfoldrM
-        , benchFold "last"   K.last   K.sourceUnfoldrM
+        , benchFold "toList" K.toList   K.sourceUnfoldrM
+        , benchFold "fold"   K.foldl    K.sourceUnfoldrM
+        , benchFold "last"   K.last     K.sourceUnfoldrM
         ]
       , bgroup "transformation"
         [ benchIO "scan"   (K.scan 1) K.sourceUnfoldrM

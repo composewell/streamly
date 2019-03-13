@@ -26,10 +26,11 @@ data Pair a b = Pair !a !b
 -- Monadic left folds
 ------------------------------------------------------------------------------
 
--- | Represents a left fold from a container of values of type @a@ to a single
--- value of type @b@ in 'Monad' @m@. Each step of the fold can be applied
--- incrementally by explicitly calling the @step@ function and the accumulated
--- value can be extracted at any point by calling the @extract@ function.
+-- | Represents a left fold from an input stream of values of type @a@ to a
+-- single value of type @b@ in 'Monad' @m@. Each step of the fold can be
+-- applied incrementally by explicitly calling the @step@ function and the
+-- accumulated value can be extracted at any point by calling the @extract@
+-- function.
 data Foldl m a b =
   -- | @Foldl @ @ step @ @ initial @ @ extract@
   forall x . Foldl (x -> a -> m x) (m x) (x -> m b)

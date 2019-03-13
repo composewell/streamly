@@ -13,11 +13,21 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Comonadic left folds i.e. left folds composed to consume a shared input
--- stream.
+-- Left folds that can be composed into a single fold. The composed fold
+-- distributes the same input to the indvidual folds and combines there output
+-- in a single output.  Also see the "Streamly.Sink" module that provides
+-- specialized left folds that discard the outputs.
 --
 -- > import qualified as FL
 --
+--
+-- A left fold is represented by the type 'Foldl'. @Foldl m a b@ folds an
+-- input stream consisting of values of type @a@ to a singleton value of type
+-- @b@. The fold can be run using 'foldl'.
+--
+-- >>> FL.foldl FL.sum (S.enumerateFromTo 1 100)
+-- 5050
+
 -- To give you an idea about different types involved in stream procesisng,
 -- here is a diagram showing how a general stream processing pipeline looks
 -- like:
@@ -37,16 +47,17 @@
 
 module Streamly.Foldl
     (
-    -- * Termination
-    -- $termination
-
-    -- * Composing
+    -- * Introduction
+    -- ** Composition
     -- $composable
 
-    -- * Input and output Transformations
+    -- ** Transformation
     -- $inputOutput
 
-    -- * Foldl Types
+    -- ** Full vs Partial Folds
+    -- $termination
+
+    -- * Fold Type
       Foldl (..)
 
     -- * Running
@@ -54,7 +65,7 @@ module Streamly.Foldl
     , scanl
     , postscanl
 
-    -- * Composing Foldls
+    -- * Composing Folds
     -- ** Distribute
     -- |
     -- The 'Applicative' instance of 'Foldl' can be used to distribute one copy
@@ -68,10 +79,10 @@ module Streamly.Foldl
     --                 |                          |
     --                            ...
     -- @
-    -- @
-    -- > F.fold ((,) \<$> F.sum \<*> F.length) (S.enumerateFromTo 1.0 100.0)
+    --
+    -- >>> FL.foldl ((,) <$> FL.sum <*> FL.length) (S.enumerateFromTo 1.0 100.0)
     -- (5050.0,100)
-    -- @
+    --
     , tee
     , distribute
 
@@ -156,25 +167,15 @@ module Streamly.Foldl
     , lelemIndices
     -}
 
-    -- * Foldls
-    -- ** Monoidal Foldls
-    , mconcat
-    , foldMap
-    , foldMapM
-
-    -- ** Run Effects
-    , drain
-    -- , drainN
-    -- , drainWhile
-
+    -- * Partial Folds
     -- ** To Elements
-    -- | Foldls that extract selected elements of a stream or properties
+    -- | Folds that extract selected elements of a stream or properties
     -- thereof.
 
     -- , (!!)
+    -- , genericIndex
     , index
     , head
-    , last
     -- , findM
     , find
     , findIndex
@@ -182,26 +183,37 @@ module Streamly.Foldl
     , lookup
 
     -- -- ** To Parts
-    -- -- | Foldls that extract selected parts of a stream.
+    -- -- | Folds that extract selected parts of a stream.
     -- , tail
     -- , init
 
     -- ** To Boolean
-    -- | Foldls that test absence or presence of elements.
+    -- | Folds that test absence or presence of elements.
     , null
     , elem
     , notElem
 
-    -- XXX these are slower than the custom implementations
+    -- XXX these are slower than right folds even when full input is used
     -- ** To Summary (Boolean)
-    -- | Foldls that summarize the stream to a boolean value.
+    -- | Folds that summarize the stream to a boolean value.
     , all
     , any
     , and
     , or
 
+    -- * Full Folds
+    -- ** Run Effects
+    , drain
+    -- , drainN
+    -- , drainWhile
+
+    -- ** Monoidal Folds
+    , mconcat
+    , foldMap
+    , foldMapM
+
     -- ** To Summary
-    -- | Foldls that summarize the stream to a single value.
+    -- | Folds that summarize the stream to a single value.
     , length
     , sum
     , product
@@ -212,8 +224,9 @@ module Streamly.Foldl
     , stdDev
 
     -- ** To Summary (Maybe)
-    -- | Foldls that summarize a non-empty stream to a 'Just' value and return
+    -- | Folds that summarize a non-empty stream to a 'Just' value and return
     -- 'Nothing' for an empty stream.
+    , last
     , maximumBy
     , maximum
     , minimumBy
@@ -249,75 +262,74 @@ import qualified Streamly.Streams.Prelude as P
 
 -- $termination
 --
--- The left folds in this module are equivalent to those with the same names in
--- "Streamly.Prelude".  However, we should note that a left fold cannot
--- terminate the stream early even if it does not use the entire stream to
--- compute its result, it would always take in the entire stream and then give
--- its answer, discarding the unused stream. So partial folds like 'head' when
--- used as left fold may not be exactly as efficient as the implementation in
--- "Streamly.Prelude", because the latter stops consuming the upstream as soon
--- as the result is available. However, full folds like 'length' would be as
--- efficient even when used as a left fold as it has to consume the entire
--- stream anyway.
+-- We can use the left folds in this module instead of the folds in
+-- "Streamly.Prelude". For example the following two ways of folding are
+-- equivalent in functionality and performance,
 --
--- For example,
+-- >>> FL.foldl FL.sum (S.enumerateFromTo 1 100)
+-- 5050
+-- >>> S.sum (S.enumerateFromTo 1 100)
+-- 5050
 --
--- @
--- >> Streamly.Prelude.head (1 `S.cons` undefined)
+-- However, left folds are push type folds. That means we push the entire input
+-- to a fold before we can get the output.  Therefore, the performance is
+-- equivalent only for full folds like 'sum' and 'length'. For partial folds
+-- like 'head' or 'any' the folds in "Streamly.Prelude" may be much more
+-- efficient because they are implemented as right folds that terminate as soon
+-- as we get the result. Note that when a full fold is composed with a partial
+-- fold in parallel the performance is not impacted as we anyway have to
+-- consume the whole stream due to the full fold.
+--
+-- >>> S.head (1 `S.cons` undefined)
 -- Just 1
---
--- >> fold Streamly.Foldl.head (1 `S.cons` undefined)
+-- >>> FL.foldl FL.head (1 `S.cons` undefined)
 -- *** Exception: Prelude.undefined
--- @
 --
--- However, we can convert a left fold into a scan. The scan streams the
--- results computed by the fold at each step. We can then inspect the output
--- stream and terminate it as soon as we got the result. Terminating the scan
--- would stop the fold, as the fold is evaluated as part of the scan. For
--- example,
+-- However, we can wrap the fold in a scan to convert it into a lazy stream of
+-- fold steps. We can then terminate the stream whenever we want.  For example,
 --
--- @
--- >> S.toList $ S.take 1 $ F.toPostscan F.head (1 `S.cons` undefined)
--- [Just 1]
--- @
+-- >>> S.toList $ S.take 1 $ FL.scanl FL.head (1 `S.cons` undefined)
+-- [Nothing]
 --
--- In general, a fold breaks streaming, but we can wrap it inside a scan
--- to make the whole computation stream again.
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
+--
+-- >>>  S.toList
+-- >>> $ S.map (fromJust . fst)
+-- >>> $ S.takeWhile (\(_,x) -> x <= 10)
+-- >>> $ FL.postscanl ((,) <$> FL.last <*> avg) (S.enumerateFromTo 1.0 100.0)
+--  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 
 -- $composable
+-- Multiple left folds can be composed using 'Applicative' composition giving a
+-- single composed left fold that distributes its input to all the folds in the
+-- composition and combines the outputs using the 'Applicative':
 --
--- 'Foldl's can be composed such that the same input can be distributed to all
--- the folds in a composition. When the input stream yields an element it is
--- fed to each fold one by one. Once the stream is done we extract the results
--- from all the folds.
---
--- @
--- > let avg = ((/) \<$> F.sum \<*> fmap fromIntegral F.length)
--- > F.fold avg (S.enumerateFromTo 1.0 100.0)
+-- >>> let avg = (/) \<$> FL.sum \<*> fmap fromIntegral FL.length
+-- >>> FL.foldl avg (S.enumerateFromTo 1.0 100.0)
 -- 50.5
--- @
 --
--- If we want the composed fold to stream or to terminate early, we can nest it
--- inside a scan.  For example, if we want to extract the input stream up to a
--- point where the running average of elements till now has become 10:
+-- Composing with 'Monoid':
 --
--- @
--- >  S.toList
---  $ S.map (fromJust . fst)
---  $ S.takeWhile (\(_,avg) -> avg <= 10)
---  $ F.toPostscan ((,) \<$> F.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
+-- >>> FL.foldl (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
+-- Just (Sum {getSum = 101.0})
 --
---  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
--- @
 
 -- $inputOutput
 --
--- Unlike streams, folds have an input side as well as an output side. In the
--- type @Foldl m a b@, @a@ is the type of its input and @b@ is the type of its
--- output. Transformations can be applied either on the input side or on the
--- output side. The typeclass instances like 'Functor' and 'Applicative' work
--- on the output side of the fold while the explicit transformation functions
--- work on the input side of the fold.
+-- Unlike stream producers, folds have an input side as well as an output side.
+-- In the type @Foldl m a b@, @a@ is the input and @b@ is the output.
+-- Transformations can be applied either on the input side or on the output
+-- side. The 'Functor' instance of a fold maps on the output of the fold:
+--
+-- >>> FL.foldl (fmap show FL.sum) (S.enumerateFromTo 1 100)
+-- "5050"
+--
+-- Combinators like 'lmap' and 'lfilter' transform the input stream of the
+-- fold. The prefix 'l' stands for the /left/ side.
+--
+-- >>> FL.foldl (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
+-- 338350
 
 ------------------------------------------------------------------------------
 -- Conversion
@@ -336,13 +348,13 @@ postscanl (Foldl step begin done) = P.postscanxM' step begin done
 -- XXX toPrescanl
 
 ------------------------------------------------------------------------------
--- Running a Foldl
+-- Running a Fold
 ------------------------------------------------------------------------------
 
--- | Foldl a stream using the supplied monadic fold.
+-- | Fold a stream using the supplied monadic fold.
 --
--- >> F.fold F.sum (S.enumerateFromTo 1 100)
--- > 5050
+-- >>> FL.foldl FL.sum (S.enumerateFromTo 1 100)
+-- 5050
 {-# INLINE foldl #-}
 foldl :: Monad m => Foldl m a b -> SerialT m a -> m b
 foldl (Foldl step begin done) = P.foldxM' step begin done
@@ -362,10 +374,8 @@ foldl (Foldl step begin done) = P.foldxM' step begin done
 -- ---stream m a---|                          |---m (b,c)
 --                 |-------Foldl m a c--------|
 -- @
--- @
--- > F.fold (F.tee F.sum F.length) (S.enumerateFromTo 1.0 100.0)
+-- >>> FL.foldl (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
--- @
 --
 tee :: Monad m => Foldl m a b -> Foldl m a c -> Foldl m a (b,c)
 tee f1 f2 = (,) <$> f1 <*> f2
@@ -406,7 +416,8 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 --                            ...
 -- @
 --
--- >> F.fold (F.distribute [F.sum, F.length]) (S.enumerateFromTo 1 5)
+-- >>> FL.foldl (FL.distribute [FL.sum, FL.length]) (S.enumerateFromTo 1 5)
+-- [15,5]
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 {-# INLINE distribute #-}
@@ -438,7 +449,7 @@ foldCons_ (Foldl stepL beginL _) (Foldl stepR beginR _) =
 
 -- | Distribute a stream to a list of folds.
 --
--- >> F.fold (F.distribute_ [F.mapM_ print, F.mapM_ (print . (+10))]) (S.enumerateFromTo 1 5)
+-- >> FL.foldl (FL.distribute_ [FL.mapM_ print, FL.mapM_ (print . (+10))]) (S.enumerateFromTo 1 5)
 distribute_ :: Monad m => [Foldl m a ()] -> Foldl m a ()
 distribute_ [] = drain
 distribute_ (x:xs) = foldCons_ x (distribute_ xs)
@@ -459,11 +470,9 @@ distribute_ (x:xs) = foldCons_ x (distribute_ xs)
 --
 -- Send input to either fold randomly:
 --
--- @
--- > randomly a = randomIO >>= \\x -> return $ if x then Left a else Right a
--- > F.fold (F.partitionByM randomly F.length F.length) (S.enumerateFromTo 1 100)
+-- >>> randomly a = randomIO >>= \x -> return $ if x then Left a else Right a
+-- >>> FL.foldl (FL.partitionByM randomly FL.length FL.length) (S.enumerateFromTo 1 100)
 -- (59,41)
--- @
 --
 -- Send input to the two folds in a proportion of 2:1:
 --
@@ -477,7 +486,7 @@ distribute_ (x:xs) = foldCons_ x (distribute_ xs)
 --
 -- main = do
 --  f <- proportionately 2 1
---  r <- F.fold (F.partitionByM f F.length F.length) (S.enumerateFromTo (1 :: Int) 100)
+--  r <- FL.foldl (FL.partitionByM f FL.length FL.length) (S.enumerateFromTo (1 :: Int) 100)
 --  print r
 -- @
 -- @
@@ -511,10 +520,10 @@ partitionByM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 -- Count even and odd numbers in a stream:
 --
 -- @
--- > let f = F.partitionBy (\\n -> if even n then Left n else Right n)
---                       (fmap (("Even " ++) . show) F.length)
---                       (fmap (("Odd "  ++) . show) F.length)
---   in F.fold f (S.enumerateFromTo 1 100)
+-- >>> let f = FL.partitionBy (\\n -> if even n then Left n else Right n)
+--                       (fmap (("Even " ++) . show) FL.length)
+--                       (fmap (("Odd "  ++) . show) FL.length)
+--   in FL.foldl f (S.enumerateFromTo 1 100)
 -- ("Even 50","Odd 50")
 -- @
 --
@@ -578,9 +587,9 @@ unzip f = unzipM (return . f)
 -- use the fold many times incrementally.
 --
 -- >> do
--- >    more <- F.fold (F.duplicate F.sum) (S.enumerateFromTo 1 10)
--- >    evenMore <- F.fold (F.duplicate more) (S.enumerateFromTo 11 20)
--- >    F.fold evenMore (S.enumerateFromTo 21 30)
+-- >    more <- FL.foldl (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
+-- >    evenMore <- FL.foldl (FL.duplicate more) (S.enumerateFromTo 11 20)
+-- >    FL.foldl evenMore (S.enumerateFromTo 21 30)
 -- > 465
 {-# INLINABLE duplicate #-}
 duplicate :: Applicative m => Foldl m a b -> Foldl m a (Foldl m a b)
@@ -608,21 +617,10 @@ duplicate (Foldl step begin done) =
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
 
--- | @(lmap f fold)@ returns a new 'Foldl' where f is applied on the input of
--- the fold.
+-- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --
--- > fold (lmap f folder) list = fold folder (map f list)
---
--- >>> fold (lmap Sum mconcat) [1..10]
+-- >>> FL.foldl (lmap Sum mconcat) [1..10]
 -- Sum {getSum = 55}
---
--- >>> fold mconcat (map Sum [1..10])
--- Sum {getSum = 55}
---
--- > lmap id = id
--- > lmap (f . g) = lmap g . lmap f
--- > lmap k (pure r) = pure r
--- > lmap k (f <*> x) = lmap k f <*> lmap k x
 --
 {-# INLINABLE lmap #-}
 lmap :: (a -> b) -> Foldl m b r -> Foldl m a r
@@ -630,14 +628,7 @@ lmap f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = step x (f a)
 
--- | @(lmapM f fold)@ returns a new 'FoldlM' where f is applied to the input
--- elements of the fold.
---
--- > lmapM return = id
--- > lmapM (f <=< g) = lmap g . lmap f
--- > lmapM k (pure r) = pure r
--- > lmapM k (f <*> x) = lmapM k f <*> lmapM k x
---
+-- | @(lmapM f fold)@ maps the monadic function @f@ on the input of the fold.
 {-# INLINABLE lmapM #-}
 lmapM :: Monad m => (a -> m b) -> Foldl m b r -> Foldl m a r
 lmapM f (Foldl step begin done) = Foldl step' begin done
@@ -656,6 +647,7 @@ concatMap ::(IsStream t, Monad m) => (a -> t m c)
 concatMap s f1 f2 = undefined
 -}
 
+{-
 -- | Group the input elements of a fold by some criterion and fold each group
 -- using a given fold before its fed to the final fold.
 --
@@ -669,7 +661,6 @@ concatMap s f1 f2 = undefined
 -- -----Foldl m a b----|-Foldl n a c-|-Foldl n a c-|-...-|----Foldl m a c
 --
 -- @
-{-
 foldGroupsOf
     :: Int
     -> (forall n. Monad n => Foldl n a c)
@@ -682,26 +673,21 @@ foldGroupsOf n f1 f2 = undefined
 -- Filtering
 -------------
 
--- | @(lfilter f folder)@ returns a new 'Foldl' where the folder's input is
--- used only when the input satisfies a predicate f
+-- | @lfilter p fold@ applies a filter using predicate @p@ to the input of a
+-- fold.
 --
--- > fold (lfilter p folder) list = fold folder (filter p list)
---
--- >>> fold (lfilter (>5) F.sum) [1..10]
+-- >>> FL.foldl (lfilter (> 5) FL.sum) [1..10]
 -- 40
 --
--- >>> fold F.sum (lfilter (>5) [1..10])
--- 40
 {-# INLINABLE lfilter #-}
 lfilter :: Monad m => (a -> Bool) -> Foldl m a r -> Foldl m a r
 lfilter f (Foldl step begin done) = Foldl step' begin done
   where
     step' x a = if f a then step x a else return x
 
--- | @(filterM f folder)@ returns a new 'Foldl' where the folder's input is
--- used only when the input satisfies a monadic predicate f.
+-- | @lfilterM p fold@ applies a filter using a monadic predicate @p@ to the
+-- input of a fold.
 --
--- > foldM (filterM p folder) list = foldM folder (filter p list)
 {-# INLINABLE lfilterM #-}
 lfilterM :: Monad m => (a -> m Bool) -> Foldl m a r -> Foldl m a r
 lfilterM f (Foldl step begin done) = Foldl step' begin done
@@ -748,16 +734,16 @@ _Foldl1 step = Foldl step_ (return Nothing') lazy
             Just' x -> step x a
 
 ------------------------------------------------------------------------------
--- Foldls
+-- Left folds
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
--- Monoidal Foldls
+-- Monoidal left folds
 ------------------------------------------------------------------------------
 
--- | Foldl a monoidal input using 'mappend' and 'mempty'.
+-- | Left fold a monoidal input using 'mappend' and 'mempty'.
 --
--- > F.fold F.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
+-- > FL.foldl FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
 --
 {-# INLINABLE mconcat #-}
 mconcat :: (Monad m, Monoid a) => Foldl m a a
@@ -769,7 +755,7 @@ mconcat = Foldl (\x a -> return $ mappend x a) (return mempty) return
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > F.fold (F.foldMap Sum) $ S.enumerateFromTo 1 10
+-- > FL.foldl (FL.foldMap Sum) $ S.enumerateFromTo 1 10
 --
 {-# INLINABLE foldMap #-}
 foldMap :: (Monad m, Monoid b) => (a -> b) -> Foldl m a b
@@ -781,7 +767,7 @@ foldMap f = lmap f mconcat
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > F.foldM (F.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
+-- > FL.foldM (FL.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
 --
 {-# INLINABLE foldMapM #-}
 foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Foldl m a b

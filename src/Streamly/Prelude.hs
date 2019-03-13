@@ -117,13 +117,29 @@ module Streamly.Prelude
     , init
 
     -- ** Folding
--- | Left and right folds:
+-- | Left and right folds use a fold function @f@ and an identity element @z@
+-- (@zero@) to recursively deconstruct and fold a container. To illustrate for
+-- lists:
+--
+-- > foldr :: (a -> b -> b) -> b -> [a] -> b
+-- > foldr f z [] = z
+-- > foldr f z (x:xs) = x `f` foldr f z xs
+-- >
+-- > foldl :: (b -> a -> b) -> b -> [a] -> b
+-- > foldl f z [] = z
+-- > foldl f z (x:xs) = foldl f (z `f` x) xs
+--
+-- When @f@ is strict in its second argument (@b@), @foldr@ is equivalent to:
+--
+-- > foldr f z [] = z
+-- > foldr f z [x] = f x z
+-- > foldr f z xs = foldr f (foldr f z (tail xs)) [head xs]
+--
+-- When @f@ is strict in its first argument (@b@), @foldl@ is equivalent to:
 --
 -- > foldl f z [] = z
--- > foldl f z xs = foldl f (foldl f z (init xs)) (last xs)
--- >
--- > foldr f z [] = z
--- > foldr f z xs = foldr f (foldr f z (tail xs)) (head xs)
+-- > foldl f z [x] = f z x
+-- > foldl f z xs = foldl f (foldl f z (init xs)) [last xs]
 --
 -- Left and right folds are duals of each other.
 --
@@ -135,41 +151,15 @@ module Streamly.Prelude
 -- More generally:
 --
 -- @
--- foldl f z xs = foldr g id xs z where g x k = k . flip f x
 -- foldr f z xs = foldl g id xs z where g k x = k . f x
+-- foldl f z xs = foldr g id xs z where g x k = k . flip f x
 -- @
 --
--- The same task can be achieved with any of the fold, the difference is
--- operational. For some tasks left fold would perform better while for others
--- right fold is better suited.  As a simple rule, always use lazy right fold
--- for construction and strict left fold for reduction. By construction we mean
--- using a constructor as the outermost operation in the fold function, by
--- reduction we mean using a function as the outermost operation in the fold
--- function.
---
--- +-----------------------------------+--------------------------------------+
--- | Right Fold                        | Left Fold                            |
--- +===================================+======================================+
--- | Construction consumes input       | Construction consumes all input,     |
--- | lazily and streams it in FIFO     | and constructs in reverse (LIFO)     |
--- | order                             | order                                |
--- +-----------------------------------+--------------------------------------+
--- | Reduction ends up buffering all   | Strict reduction works               |
--- | input before it can be reduced    | incrementally, without buffering.    |
--- +-----------------------------------+--------------------------------------+
---
--- Almost always, we need lazy construction and strict reduction, therefore,
--- strict @foldr@ and lazy @foldl@ are rarely useful. If needed, strict @foldr@
--- and lazy @foldl@ can be expressed in terms of the available versions.  For
--- example, a lazy @foldl@ can be replaced by a strict @foldl@ to reverse the
--- structure followed by a @foldr@.
---
--- Folds are inherently serial as each step needs to use the result of the
--- previous step. However, it is possible to fold parts of the stream in
+
+-- NOTE: Folds are inherently serial as each step needs to use the result of
+-- the previous step. However, it is possible to fold parts of the stream in
 -- parallel and then combine the results using a monoid.
 
-    , foldr
-    , foldr1
     , foldrM
     , foldl'
     , foldl1'
@@ -417,6 +407,8 @@ module Streamly.Prelude
     -- * Deprecated
     , K.once
     , each
+    , foldr
+    , foldr1
     , foldl
     , foldlM
     , foldx
@@ -805,92 +797,108 @@ fromHandle h = go
 -- Elimination by Folding
 ------------------------------------------------------------------------------
 
--- | Lazy right fold with a monadic step function. For example, to fold a
--- stream into a list:
+-- | Right associative/pull fold.
+--
+-- Let's take a closer look at the @foldr@ definition for lists, given above:
 --
 -- @
--- >> S.foldrM (\\x xs -> xs >>= return . (x :)) (return []) $ fromList [1,2,3]
--- [1,2,3]
+-- foldr f z (x:xs) = x \`f` foldr f z xs
 -- @
+--
+-- @foldr@ invokes the fold step function @f@ as @f x (foldr f z xs)@. At each
+-- invocation of @f@ @foldr@ gives us the next element in the input container
+-- @x@ and a recursive expression @foldr f z xs@ representing the yet unbuilt
+-- part of the output. Therefore, when @f a b@ is lazy in @b@ is lazy in @b@ we
+-- it can consume the input one element at a time in FIFO order to build a lazy
+-- output expression. For example,
+--
+-- > f x remaining = show x : remaining
+--
+-- @take 2 $ foldr f [] (1:2:undefined)@ would consume the input lazily on
+-- demand, consuming only first two elements and resulting in ["1", "2"]. @f@
+-- can terminate recursion by not evaluating the @remaining@ part:
+--
+-- > f 2 remaining = show 2 : []
+-- > f x remaining = show x : remaining
+--
+-- @f@ would terminate recursion whenever it sees element @2@ in the input.
+-- Therefore, @foldr f [] (1:2:undefined)@ would work as before.  If @f a b@ is
+-- strict in @b@ it would end up consuming the whole input right away and
+-- expanding the recursive expression @b@ (i.e.  @foldr f z xs@) fully before
+-- it yields an output expression, resulting in a fully expanded /right
+-- associated expression/:
+--
+-- @
+-- foldr f z xs == x1 \`f` (x2 \`f` ...(xn \`f` z))
+-- @
+--
+-- For example,
+--
+-- > f x remaining = x + remaining
+--
+-- When invoked as @foldr f 0 (1:2:undefined)@, it would result in an error
+-- because it would consume the whole input right away. When invoked with a
+-- fully defined input as @foldr f 0 [1..1000]@, it would recurse completely
+-- until it reaches the recursion terminating case @... `f` (1000 `f` 0)@, and
+-- then start reducng the whole expression from right to left, therefore,
+-- consuming the input elements in LIFO order. Thus, such an evaluation would
+-- require memory proportional to the size of input. Try out @foldr (+) 0 (map
+-- (\\x -> trace (show x) x) [1..10])@.
+--
+-- Notice, the order of the arguments to the step function @f a b@. It denotes
+-- the right associative recursive expression generated by expanding @a \`f` b@.
+--
+-- A right fold is a pull fold, the step function is the puller, it can pull
+-- more data from the input container by using its second argument in the
+-- output expression or terminate pulling by not using it. As a corollary:
+--
+-- 1. a step function lazy in its second argument (usually functions or
+-- constructors that build a lazy structure e.g. @(:)@) can pull lazily on
+-- demand,
+-- 2. a step function strict in its second argument (usually reducers e.g.
+-- (+)) would end up pulling all of its input and buffer it in memory before
+-- potentially reducing it.
+--
+-- A right fold is suitable for lazy reconstructions e.g.  transformation,
+-- mapping, filtering of an input stream. It is not suitable for reductions
+-- (e.g. summing a stream of numbers). A left fold is a dual of right fold, and
+-- therefore is suitable for reductions while not suitable for reconstructions.
+--
+-- 1. A lazy FIFO style pull allows pulling a potentially /infinite/ input
+-- stream lazily, perform transformations on it, and reconstruct a new
+-- structure without having to buffer the whole structure. In contrast, a left
+-- fold would buffer the entire structure before the reconstructed structure
+-- can be consumed.
+-- 2. Even if buffering the entire input structure is ok, we need to keep in
+-- mind that a right fold reconstructs structures in a FIFO style, whereas a
+-- left fold reconstructs in a LIFO style, thereby reversing the order of
+-- elements..
+-- 3. A right fold has termination control and therefore can terminate early
+-- without going throught the entire input, a left fold cannot terminate
+-- without consuming all of its input.  For example, a right fold
+-- implementation of 'or' can terminate as soon as it finds the first 'True'
+-- element, whereas a left fold would necessarily go through the entire input
+-- irrespective of that.
+-- 4. Reduction (e.g. using (+) on a stream of numbers) using a right fold
+-- occurs in a LIFO style, which means that the entire input gets buffered
+-- before reduction starts. Whereas with a strict left fold reductions occur
+-- incrementally in FIFO style. Therefore, a strict left fold is more suitable
+-- for reductions.
 --
 -- @since 0.2.0
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
 
--- | Lazy right associative fold.
---
--- For lists a @foldr@ looks like:
---
--- @
--- foldr f z []     = z
--- foldr f z (x:xs) = x \`f` foldr f z xs
--- @
---
--- The recursive expression is the second argument of the fold step `f`.
--- Therefore, the evaluation of the recursive call depends on `f`.  It can
--- terminate recursion by not inspecting the second argument based on a
--- condition.  When expanded fully, it results in the following right associated
--- expression:
---
--- @
--- foldr f z xs == x1 \`f` (x2 \`f` ...(xn \`f` z))
--- @
---
--- When `f` is a constructor, we can see that the first deconstruction of this
--- expression would be @x1@ on the left and the recursive expression on the
--- right.  Therefore, we can deconstruct it to access the input elements in the
--- first-in-first-out (FIFO) order and consume the reconstructed structure
--- lazily.  The recursive expression on the right gets evaluated incrementall
--- as demanded by the consumer. For example:
---
--- @
--- > S.foldr (:) [] $ S.fromList [1,2,3,4]
--- [1,2,3,4]
--- @
---
--- When `f` is a function strict in its second argument, the right side of the
--- expression gets evaluated as follows:
---
--- @
--- foldr f z xs == x1 \`f` tail1
--- tail1        == x2 \`f` tail2
--- tail2        == x3 \`f` tail3
--- ...
--- tailn        == xn \`f` z
--- @
---
--- In @foldl'@ we have both the arguments of `f` available at each step,
--- therefore, each step can be reduced immediately. However, in @foldr@ the
--- second argument to `f` is a recursive call, therefore, it ends up building
--- the whole expression in memory before it can be reduced, consuming the whole
--- input.  This makes @foldr@ much less efficient for reduction compared to
--- @foldl'@. For example:
---
--- @
--- > S.foldr (+) 0 $ S.fromList [1,2,3,4]
--- 10
--- @
---
--- When the underlying monad @m@ is strict (e.g. IO), then @foldr@ ends up
--- evaluating all of its input because of strict evaluation of the recursive
--- call:
---
--- >> S.foldr (\_ _ -> []) [] $ S.fromList (1:undefined)
--- >*** Exception: Prelude.undefined
---
--- In a lazy monad, we can consume the input lazily, and terminate the fold
--- by conditionally not inspecting the recursive expression.
---
--- >> runIdentity $ S.foldr (\x rest -> if x == 3 then [] else x : rest) [] $ S.fromList (4:1:3:undefined)
--- >[4,1]
---
--- The arguments to the folding function (@a -> b -> b@) are in the head and
--- tail order of the output, @a@ is the head and @b@ is the tail. Remember, in
--- a right fold the zero is on the right, it is the tail end.
+-- | Note that with this signature we cannot implement a lazy foldr when the
+-- monad @m@ is strict. In that case it would be strict in its accumulator and
+-- therefore necessarily consume all its input.  For this reason we have
+-- deprecated this API. Though this can be useful for lazy monads, but we can
+-- always achieve the same thing using foldrM directly.
 --
 -- @since 0.1.0
 {-# INLINE foldr #-}
+{-# DEPRECATED foldr "This may be strict when the monad is strict.  Use foldrM instead." #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 foldr = P.foldr
 
@@ -902,25 +910,9 @@ foldr = P.foldr
 --
 -- @since 0.5.0
 {-# INLINE foldr1 #-}
+{-# DEPRECATED foldr1 "This does not seem to be practically useful and may be strict when the monad is strict." #-}
 foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldr1 f m = S.foldr1 f (toStreamS m)
-
--- | Like 'foldx'', but with a monadic step function.
---
--- @since 0.7.0
-{-# INLINE foldxM' #-}
-foldxM' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM' = P.foldxM'
-
--- | Strict left fold with an extraction function. Like the standard strict
--- left fold, but applies a user supplied extraction function (the third
--- argument) to the folded value at the end. This is designed to work with the
--- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
---
--- @since 0.7.0
-{-# INLINE foldx' #-}
-foldx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx' = P.foldx'
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third
@@ -931,48 +923,55 @@ foldx' = P.foldx'
 {-# DEPRECATED foldx "Use Streamly.Foldl for composable folds" #-}
 {-# INLINE foldx #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldx = foldx'
+foldx = P.foldx'
 
 -- |
 -- @since 0.1.0
 {-# DEPRECATED foldl "Use Streamly.Foldl for composable folds" #-}
 foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldl = foldx'
+foldl = P.foldx'
 
--- | Strict left associative fold.
+-- | Strict left associative/push fold.
 --
--- For lists a @foldl@ looks like:
+-- Let's take a closer look at the @foldl@ definition for lists given above:
 --
 -- @
--- foldl f z []     = z
 -- foldl f z (x:xs) = foldl f (z \`f` x) xs
 -- @
 --
+-- @foldl@ calls itself recursively, in each call it invokes @f@ as @f z x@
+-- providing it with the result accumulated till now @z@ (the state) and the
+-- next element from the input container. First call to @f@ is supplied with
+-- the initial value of the accumulator @z@ and each subsequent call uses the
+-- output of the previous call to @f z x@.
+--
+-- >> foldl' (+) 0 [1,2,3]
+-- > 6
+--
 -- The recursive call at the head of the output expression is bound to be
--- evaluated until recursion terminates,
--- /deconstructing the whole input container/ and building the following left
--- associated expression:
+-- evaluated until recursion terminates, therefore, a left fold always
+-- /consumes the whole input container/. The following would result in an
+-- error, even though the fold is not using the values at all:
+--
+-- >> foldl' (\_ _ -> 0) 0 (1:undefined)
+-- > *** Exception: Prelude.undefined
+--
+-- As @foldl@ recurses, it builds the left associated expression shown below.
+-- Notice, the order of the arguments to the step function @f b a@. It follows
+-- the left associative recursive expression generated by expanding @b \`f` a@.
 --
 -- @
 -- foldl f z xs == (((z \`f` x1) \`f` x2) ...) \`f` xn
 -- @
 --
--- When `f` is a constructor, we can see that the first deconstruction of this
--- expression would be the recursive expression on the left and `xn` on the
--- right. Therefore, it can access the input elements only in the reverse
--- (LIFO) order.  For example:
---
--- @
--- > S.foldl' (flip (:)) [] $ S.fromList [1,2,3,4]
--- [4,3,2,1]
--- @
 --
 -- The strict left fold @foldl'@ forces the reduction of its argument @z \`f`
 -- x@ before using it, therefore it never builds the whole expression in
 -- memory.  Thus, @z \`f` x1@ would get reduced to @z1@ and then @z1 \`f` x2@
 -- would get reduced to @z2@ and so on, incrementally reducing the expression
--- as it recurses.  However, it evaluates the accumulator only to WHNF, it may
--- further help to use a strict data structure as accumulator. For example:
+-- from left to right as it recurses, consuming the input in FIFO order.  Try
+-- out @foldl' (+) 0 (map (\\x -> trace (show x) x) [1..10])@ to see how it
+-- works. For example:
 --
 -- @
 -- > S.foldl' (+) 0 $ S.fromList [1,2,3,4]
@@ -980,36 +979,45 @@ foldl = foldx'
 -- @
 --
 -- @
--- 0 + 1
--- (0 + 1) + 2
--- ((0 + 1) + 2) + 3
--- (((0 + 1) + 2) + 3) + 4
+-- 0 + 1 = 1
+-- 1 + 2 = 3
+-- 3 + 3 = 6
+-- 6 + 4 = 10
 -- @
 --
--- @foldl@ strictly deconstructs the whole input container irrespective of
--- whether it needs it or not:
+-- However, @foldl'@ evaluates the accumulator only to WHNF. It may further
+-- help if the step function uses a strict data structure as accumulator to
+-- improve performance and to keep the expression fully reduced at all times
+-- during the fold.
 --
--- >> S.foldl' (\acc x -> if x == 3 then acc else x : acc) [] $ S.fromList (4:1:3:undefined)
--- >*** Exception: Prelude.undefined
+-- A left fold can also build a structure instead of reducing one if a
+-- constructor is used as a fold step. However, it may not be very useful
+-- because it will consume the whole input and construct the new structure in
+-- memory before we can consume it. Thus the whole structure gets buffered in
+-- memory. When the list constructor is used it would build a new list in
+-- reverse (LIFO) order:
 --
--- However, evaluation of the items contained in the input container is lazy as
--- demanded by the fold step function:
+-- @
+-- > S.foldl' (flip (:)) [] $ S.fromList [1,2,3,4]
+-- [4,3,2,1]
+-- @
 --
--- >> S.foldl' (\acc x -> if x == 3 then acc else x : acc) [] $ S.fromList [4,1,3,undefined]
--- >[4,1]
+-- A left fold is a push fold. The producer pushes its contents to the step
+-- function of the fold. The step function therefore has no control to stop the
+-- input, it can only discard it if it does not need it. We can also consider a
+-- left fold as a state machine, the accumulator is a state that the fold
+-- maintains, it can change the state based on new inputs that are pushed to
+-- the fold.
 --
--- To perform a left fold without consuming all the input one can use @scanl@
--- to stream the intermediate results of the fold and use them lazily.
+-- In general, a strict left fold is a reducing fold, whereas a right fold is a
+-- constructing fold. A strict left fold reduces in a FIFO order whereas it
+-- constructs in a LIFO order, and vice-versa for the right fold. See the
+-- documentation of 'foldrM' for a discussion on where a left or right fold is
+-- suitable.
 --
--- In stateful or event-driven programming, we can consider @z@ as the initial
--- state and the stream being folded as a stream of events, thus @foldl'@
--- processes all the events in the stream updating the state on each event and
--- then ultimately returning the final state.
---
--- The arguments to the folding function (@b -> a -> b@) are in the head and
--- tail order of the output expression, @b@ is the head and @a@ is the tail.
--- Remember, in a left fold the zero is on the left, at the head of the
--- expression.
+-- To perform a left fold lazily without having to consume all the input one
+-- can use @scanl@ to stream the intermediate results of the fold and consume
+-- the resulting stream lazily.
 --
 -- @since 0.2.0
 {-# INLINE foldl' #-}
@@ -1036,13 +1044,13 @@ foldl1' step m = do
 {-# DEPRECATED foldxM "Use Streamly.Foldl for composable folds" #-}
 {-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldxM = foldxM'
+foldxM = P.foldxM'
 
 -- |
 -- @since 0.1.0
 {-# DEPRECATED foldlM "Use Streamly.Foldl for composable folds" #-}
 foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldlM = foldxM'
+foldlM = P.foldxM'
 
 -- | Like 'foldl'' but with a monadic step function.
 --

@@ -165,6 +165,7 @@ runStream = S.runStream
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
 
+{-# INLINE head #-}
 {-# INLINE last #-}
 {-# INLINE maximum #-}
 {-# INLINE minimum #-}
@@ -173,7 +174,7 @@ toList :: Monad m => Stream m Int -> m [Int]
 {-# INLINE elemIndex #-}
 {-# INLINE foldl1'Reduce #-}
 {-# INLINE foldr1Reduce #-}
-last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce, foldr1Reduce
+head, last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce, foldr1Reduce
     :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE minimumBy #-}
@@ -202,9 +203,10 @@ foldrBuild, foldrMBuild, foldl'Build, foldlM'Build
 {-# INLINE any #-}
 {-# INLINE and #-}
 {-# INLINE or #-}
+{-# INLINE null #-}
 {-# INLINE elem #-}
 {-# INLINE notElem #-}
-elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
+null, elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
 
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
@@ -252,6 +254,8 @@ foldl1'Reduce = S.foldl1' (+)
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 
 last   = S.last
+null   = S.null
+head   = S.head
 elem   = S.elem maxValue
 notElem = S.notElem maxValue
 length = S.length

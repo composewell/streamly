@@ -630,37 +630,16 @@ foldl' fstep = foldlM' (\b a -> return (fstep b a))
 -- | Run a streaming composition, discard the results.
 {-# INLINE_LATE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-        r <- step defState st
-        case r of
-            Yield _ s -> go SPEC s
-            Skip s    -> go SPEC s
-            Stop      -> return ()
+runStream m = foldrM (\x xs -> x `seq` xs) (return ()) m
 
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
-null (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield _ _ -> return False
-            Skip s    -> go s
-            Stop      -> return True
+null m = foldrM (\_ _ -> return False) (return True) m
 
 -- XXX SPEC?
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
-head (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x _ -> return (Just x)
-            Skip  s   -> go s
-            Stop      -> return Nothing
+head m = foldrM (\x _ -> return (Just x)) (return Nothing) m
 
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}
@@ -681,16 +660,7 @@ last = foldl' (\_ y -> Just y) Nothing
 
 {-# INLINE_NORMAL elem #-}
 elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
-elem e (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x s
-              | x == e    -> return True
-              | otherwise -> go s
-            Skip s -> go s
-            Stop   -> return False
+elem e m = foldrM (\x xs -> if x == e then return True else xs) (return False) m
 
 {-# INLINE_NORMAL notElem #-}
 notElem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
@@ -795,27 +765,13 @@ minimumBy cmp (Stream step state) = go Nothing state
 
 {-# INLINE_NORMAL lookup #-}
 lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
-lookup e (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield (a, b) s -> if e == a then return (Just b) else go s
-            Skip s -> go s
-            Stop -> return Nothing
+lookup e m = foldrM (\(a, b) xs -> if e == a then return (Just b) else xs)
+                   (return Nothing) m
 
 {-# INLINE_NORMAL findM #-}
 findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
-findM p (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-      r <- step defState st
-      case r of
-          Yield x s -> do
-              b <- p x
-              if b then return (Just x) else go SPEC s
-          Skip s    -> go SPEC s
-          Stop      -> return Nothing
+findM p m = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
+                   (return Nothing) m
 
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)

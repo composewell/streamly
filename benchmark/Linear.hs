@@ -153,11 +153,14 @@ main =
         , benchIOSink "tail" Ops.tail
         , benchIOSink "nullHeadTail" Ops.nullHeadTail
 
+        , benchIOSink "head" Ops.head
         , benchIOSink "last" Ops.last
+        -- , benchIOSink "lookup" Ops.lookup
         , benchIOSink "find" Ops.find
         , benchIOSink "findIndex" Ops.findIndex
         , benchIOSink "elemIndex" Ops.elemIndex
 
+        , benchIOSink "null" Ops.null
         , benchIOSink "elem" Ops.elem
         , benchIOSink "notElem" Ops.notElem
         , benchIdentitySink "all" Ops.all
