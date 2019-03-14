@@ -91,6 +91,7 @@ module Streamly.Streams.StreamD
     -- ** General Folds
     , foldr
     , foldrM
+    , foldrMx
     , foldr1
     , foldl'
     , foldlM'

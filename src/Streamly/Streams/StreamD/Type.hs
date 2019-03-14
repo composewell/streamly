@@ -35,6 +35,7 @@ module Streamly.Streams.StreamD.Type
     , map
     , mapM
     , foldrM
+    , foldrMx
     , foldr
     , toList
     )
@@ -132,6 +133,18 @@ foldrM f z (Stream step state) = go state
             Yield x s -> f x (go s)
             Skip s    -> go s
             Stop      -> z
+
+{-# INLINE_NORMAL foldrMx #-}
+foldrMx :: Monad m
+    => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
+foldrMx fstep final project (Stream step state) = project $ go state
+  where
+    go st = do
+          r <- step defState st
+          case r of
+            Yield x s -> fstep x (go s)
+            Skip s    -> go s
+            Stop      -> final
 
 -- Note that foldr becomes necessarily strict if the monad m is strict. In that
 -- case it cannot terminate early, it would evaluate all of its input. For this

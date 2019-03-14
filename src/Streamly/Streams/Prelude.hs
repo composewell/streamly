@@ -31,6 +31,7 @@ module Streamly.Streams.Prelude
 
     -- * Fold operations
     , foldrM
+    , foldrMx
     , foldr
     , foldx'
     , foldxM'
@@ -121,6 +122,11 @@ toList m = S.toList $ toStreamS m
 {-# INLINE foldrM #-}
 foldrM :: (Monad m, IsStream t) => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = S.foldrM step acc $ toStreamS m
+
+{-# INLINE foldrMx #-}
+foldrMx :: (Monad m, IsStream t)
+    => (a -> m x -> m x) -> m x -> (m x -> m b) -> t m a -> m b
+foldrMx step final project m = S.foldrMx step final project $ toStreamS m
 
 {-# INLINE foldr #-}
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b

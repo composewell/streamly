@@ -15,6 +15,7 @@ import qualified LinearOps as Ops
 
 import Streamly
 import qualified Streamly.Prelude as S
+import qualified Streamly.Foldr   as FR
 import qualified Streamly.Foldl   as FL
 import qualified Streamly.Sink    as Sink
 import Gauge
@@ -179,7 +180,11 @@ main =
 
         , benchIOSink "toList" Ops.toList
         ]
-      , bgroup "composable-folds"
+      , bgroup "composable-foldr"
+        [
+          benchIOSink "any" (FR.foldr (FR.any (> Ops.maxValue)))
+        ]
+      , bgroup "composable-foldl"
         [
         -- ** Monoidal Folds
           benchIOSink "mconcat" (FL.foldl FL.mconcat . (S.map (Last . Just)))

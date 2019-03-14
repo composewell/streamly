@@ -80,24 +80,46 @@ import Control.Applicative (liftA2)
 -- value of type @b@ in 'Monad' @m@. Each step of the fold can be applied
 -- incrementally by explicitly calling the @step@ function and the accumulated
 -- value can be extracted at any point by calling the @extract@ function.
---
+
+-- Right fold via left fold
+-- One of the models to implement a partial fold is to push values to a left
+-- fold and examine the state after that. We stop pushing if we have got the
+-- result. This essentially means that we force a certain structure to the
+-- accumulator of the left fold. However, this would not be general. To have a
+-- general right fold equivalent we would perhaps have to make the accumulator
+-- a functor.
 data Foldr m a b =
-  -- | @Foldr@ @step@ @final@
-  Foldr (a -> b -> m b) (m b)
+  -- | @Foldr@ @step@ @final@ @project@
+  forall x. Foldr (a -> m x -> m x) (m x) (m x -> m b)
 
 -- In an alternative composition all folds can receive the same type of input
 -- and one of them is chosen.
 
-{-
-instance Functor m => Functor (Foldr m a) where
+instance Monad m => Functor (Foldr m a) where
     {-# INLINE fmap #-}
-    fmap f (Foldr step start done) = Foldr step start done'
-      where
-        done' x = fmap f $! done x
+    fmap f (Foldr step final project) = Foldr step final (fmap f . project)
 
-instance Applicative m => Applicative (Foldr m a) where
+    {-# INLINE (<$) #-}
+    (<$) b = \_ -> pure b
+
+-- Run two right folds in parallel sharing the same input and composing the
+-- output using a function.
+instance Monad m => Applicative (Foldr m a) where
     {-# INLINE pure #-}
-    pure b = Foldr (\() _ -> pure ()) (pure ()) (\() -> pure b)
+    -- XXX run the action instead of ignoring it??
+    pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
+
+    {-# INLINE (<*>) #-}
+    Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
+        let step b xs = do
+                ~(xL, xR) <- xs
+                return $ (stepL b xL, stepR b xR)
+            final = return $ (finalL, finalR)
+            project x = do
+                (xL, xR) <- x
+                projectL xL <*> projectR xR
+        in Foldr step final project
+{-
 
     {-# INLINE (<*>) #-}
     (Foldr stepL beginL doneL) <*> (Foldr stepR beginR doneR) =
@@ -105,7 +127,9 @@ instance Applicative m => Applicative (Foldr m a) where
             begin = Pair <$> beginL <*> beginR
             done (Pair xL xR) = doneL xL <*> doneR xR
         in  Foldr step begin done
+        -}
 
+{-
 instance (Semigroup b, Monad m) => Semigroup (Foldr m a b) where
     {-# INLINE (<>) #-}
     (<>) = liftA2 (<>)

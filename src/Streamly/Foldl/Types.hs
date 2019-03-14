@@ -33,13 +33,16 @@ data Pair a b = Pair !a !b
 -- function.
 data Foldl m a b =
   -- | @Foldl @ @ step @ @ initial @ @ extract@
-  forall x . Foldl (x -> a -> m x) (m x) (x -> m b)
+  forall x. Foldl (x -> a -> m x) (m x) (x -> m b)
 
-instance Functor m => Functor (Foldl m a) where
+instance Applicative m => Functor (Foldl m a) where
     {-# INLINE fmap #-}
     fmap f (Foldl step start done) = Foldl step start done'
-      where
+        where
         done' x = fmap f $! done x
+
+    {-# INLINE (<$) #-}
+    (<$) b = \_ -> pure b
 
 instance Applicative m => Applicative (Foldl m a) where
     {-# INLINE pure #-}
@@ -51,6 +54,12 @@ instance Applicative m => Applicative (Foldl m a) where
             begin = Pair <$> beginL <*> beginR
             done (Pair xL xR) = doneL xL <*> doneR xR
         in  Foldl step begin done
+
+    {-# INLINE (<*) #-}
+    (<*) m = \_ -> m
+
+    {-# INLINE (*>) #-}
+    _ *> m = m
 
 instance (Semigroup b, Monad m) => Semigroup (Foldl m a b) where
     {-# INLINE (<>) #-}
