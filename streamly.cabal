@@ -147,6 +147,7 @@ library
                      , Streamly.SVar
                      , Streamly.Time.Units
                      , Streamly.Time.Clock
+                     , Streamly.Internal.MonadLazy
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type

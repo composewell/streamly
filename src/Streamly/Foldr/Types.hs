@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification          #-}
 
 -- |
@@ -16,6 +15,7 @@ module Streamly.Foldr.Types
 where
 
 import Control.Applicative (liftA2)
+import Streamly.Internal.MonadLazy (MonadLazy(..))
 
 ------------------------------------------------------------------------------
 -- Comonadic right folds
@@ -95,7 +95,7 @@ data Foldr m a b =
 -- In an alternative composition all folds can receive the same type of input
 -- and one of them is chosen.
 
-instance Monad m => Functor (Foldr m a) where
+instance MonadLazy m => Functor (Foldr m a) where
     {-# INLINE fmap #-}
     fmap f (Foldr step final project) = Foldr step final (fmap f . project)
 
@@ -104,7 +104,8 @@ instance Monad m => Functor (Foldr m a) where
 
 -- Run two right folds in parallel sharing the same input and composing the
 -- output using a function.
-instance Monad m => Applicative (Foldr m a) where
+--
+instance MonadLazy m => Applicative (Foldr m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
     pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
@@ -112,36 +113,25 @@ instance Monad m => Applicative (Foldr m a) where
     {-# INLINE (<*>) #-}
     Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
         let step b xs = do
-                ~(xL, xR) <- xs
-                return $ (stepL b xL, stepR b xR)
+                lazyBind xs (\ ~(xL, xR) -> return $ (stepL b xL, stepR b xR))
             final = return $ (finalL, finalR)
             project x = do
                 (xL, xR) <- x
                 projectL xL <*> projectR xR
         in Foldr step final project
-{-
 
-    {-# INLINE (<*>) #-}
-    (Foldr stepL beginL doneL) <*> (Foldr stepR beginR doneR) =
-        let step (Pair xL xR) a = Pair <$> stepL xL a <*> stepR xR a
-            begin = Pair <$> beginL <*> beginR
-            done (Pair xL xR) = doneL xL <*> doneR xR
-        in  Foldr step begin done
-        -}
-
-{-
-instance (Semigroup b, Monad m) => Semigroup (Foldr m a b) where
+instance (Semigroup b, MonadLazy m) => Semigroup (Foldr m a b) where
     {-# INLINE (<>) #-}
     (<>) = liftA2 (<>)
 
-instance (Monoid b, Monad m) => Monoid (Foldr m a b) where
+instance (Monoid b, MonadLazy m) => Monoid (Foldr m a b) where
     {-# INLINE mempty #-}
     mempty = pure mempty
 
     {-# INLINE mappend #-}
     mappend = (<>)
 
-instance (Monad m, Num b) => Num (Foldr m a b) where
+instance (MonadLazy m, Num b) => Num (Foldr m a b) where
     {-# INLINE fromInteger #-}
     fromInteger = pure . fromInteger
 
@@ -163,7 +153,7 @@ instance (Monad m, Num b) => Num (Foldr m a b) where
     {-# INLINE (-) #-}
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional b) => Fractional (Foldr m a b) where
+instance (MonadLazy m, Fractional b) => Fractional (Foldr m a b) where
     {-# INLINE fromRational #-}
     fromRational = pure . fromRational
 
@@ -173,7 +163,7 @@ instance (Monad m, Fractional b) => Fractional (Foldr m a b) where
     {-# INLINE (/) #-}
     (/) = liftA2 (/)
 
-instance (Monad m, Floating b) => Floating (Foldr m a b) where
+instance (MonadLazy m, Floating b) => Floating (Foldr m a b) where
     {-# INLINE pi #-}
     pi = pure pi
 
@@ -227,4 +217,3 @@ instance (Monad m, Floating b) => Floating (Foldr m a b) where
 
     {-# INLINE logBase #-}
     logBase = liftA2 logBase
-    -}
