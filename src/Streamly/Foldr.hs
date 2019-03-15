@@ -199,8 +199,8 @@ module Streamly.Foldr
     -- XXX these are slower than right folds even when full input is used
     -- ** To Summary (Boolean)
     -- | Folds that summarize the stream to a boolean value.
-    , all
     -}
+    , all
     , any
     {-
     , and
@@ -218,10 +218,12 @@ module Streamly.Foldr
     , mconcat
     , foldMap
     , foldMapM
+    -}
 
     -- ** To Summary
     -- | Folds that summarize the stream to a single value.
     , length
+    {-
     , sum
     , product
 
@@ -259,6 +261,7 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
+import Control.Applicative (liftA2)
 {-
 import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
@@ -913,11 +916,11 @@ null = Foldr step end extract
 -- 'False' otherwise
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Foldr m a Bool
-any predicate = Foldr step end extract
+any predicate = Foldr step final project
     where
-    end = return False
+    final = return False
     step x xs = if predicate x then return True else xs
-    extract = id
+    project = id
 
 {-
 -- | @(elem a)@ returns 'True' if the container has an element equal to @a@,
@@ -925,6 +928,7 @@ any predicate = Foldr step end extract
 {-# INLINABLE elem #-}
 elem :: (Eq a, Monad m) => a -> Foldl m a Bool
 elem a = any (a ==)
+-}
 
 -- |
 -- > all p = map p and
@@ -932,9 +936,14 @@ elem a = any (a ==)
 -- @all predicate@ returns 'True' if all elements satisfy the predicate,
 -- 'False' otherwise
 {-# INLINABLE all #-}
-all :: Monad m => (a -> Bool) -> Foldl m a Bool
-all predicate = Foldl (\x a -> return $ x && predicate a) (return True) return
+all :: Monad m => (a -> Bool) -> Foldr m a Bool
+all predicate = Foldr step final project
+    where
+    final = return True
+    step x xs = if predicate x then xs else return False
+    project = id
 
+{-
 -- | @(notElem a)@ returns 'False' if the container has an element equal to
 -- @a@, 'True' otherwise
 {-# INLINABLE notElem #-}
@@ -954,17 +963,23 @@ or = Foldl (\x a -> return $ x || a) (return False) return
 ------------------------------------------------------------------------------
 -- To Summary
 ------------------------------------------------------------------------------
+-}
 
 -- | Like 'length', except with a more general 'Num' return value
 {-# INLINABLE genericLength #-}
-genericLength :: (Monad m, Num b) => Foldl m a b
-genericLength = Foldl (\n _ -> return $ n + 1) (return 0) return
+genericLength :: (Monad m, Num b) => Foldr m a b
+genericLength = Foldr step final project
+    where
+    final = return 0
+    step _ xs = liftA2 (+) (pure 1) xs
+    project = id
 
 -- | Return the length of the container
 {-# INLINABLE length #-}
-length :: Monad m => Foldl m a Int
+length :: Monad m => Foldr m a Int
 length = genericLength
 
+{-
 -- | Computes the sum of all elements
 {-# INLINABLE sum #-}
 sum :: (Monad m, Num a) => Foldl m a a

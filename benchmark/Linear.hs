@@ -182,7 +182,15 @@ main =
         ]
       , bgroup "composable-foldr"
         [
-          benchIOSink "any" (FR.foldr (FR.any (> Ops.maxValue)))
+          benchIOSink "drain" (FR.foldr FR.drain)
+        , benchIOSink "null" (FR.foldr FR.null)
+        , benchIOSink "all" (FR.foldr (FR.all (<= Ops.maxValue)))
+        , benchIOSink "any" (FR.foldr (FR.any (> Ops.maxValue)))
+        , benchIOSink "all,any"    (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchIdentitySink "all,any-identity" (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchIOSink "length" (FR.foldr FR.length)
         ]
       , bgroup "composable-foldl"
         [
@@ -250,6 +258,11 @@ main =
         , benchIOSink "toList" (FL.foldl FL.toList)
         , benchIOSink "toRevList" (FL.foldl FL.toRevList)
         -- , toHandle
+
+        -- Applicative
+        , benchIOSink "sum,length" (FL.foldl ((,) <$> FL.sum <*> FL.length))
+        , benchIOSink "all,any"    (FL.foldl ((,) <$> FL.all (<= Ops.maxValue)
+                                                  <*> FL.any (> Ops.maxValue)))
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)

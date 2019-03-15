@@ -12,7 +12,7 @@
 
 module Streamly.Foldl.Types
     (
-      Pair (..)
+      Pair' (..)
     , Foldl (..)
     )
 where
@@ -20,7 +20,7 @@ where
 import Control.Applicative (liftA2)
 
 -- XXX use UNPACKED?
-data Pair a b = Pair !a !b
+data Pair' a b = Pair' !a !b
 
 ------------------------------------------------------------------------------
 -- Monadic left folds
@@ -50,9 +50,9 @@ instance Applicative m => Applicative (Foldl m a) where
 
     {-# INLINE (<*>) #-}
     (Foldl stepL beginL doneL) <*> (Foldl stepR beginR doneR) =
-        let step (Pair xL xR) a = Pair <$> stepL xL a <*> stepR xR a
-            begin = Pair <$> beginL <*> beginR
-            done (Pair xL xR) = doneL xL <*> doneR xR
+        let step (Pair' xL xR) a = Pair' <$> stepL xL a <*> stepR xR a
+            begin = Pair' <$> beginL <*> beginR
+            done (Pair' xL xR) = doneL xL <*> doneR xR
         in  Foldl step begin done
 
     {-# INLINE (<*) #-}

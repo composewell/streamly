@@ -16,6 +16,7 @@ where
 
 import Control.Applicative (liftA2)
 import Streamly.Internal.MonadLazy (MonadLazy(..))
+import Streamly.Foldl.Types (Pair'(..))
 
 ------------------------------------------------------------------------------
 -- Comonadic right folds
@@ -110,13 +111,18 @@ instance MonadLazy m => Applicative (Foldr m a) where
     -- XXX run the action instead of ignoring it??
     pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
 
+    -- Strict Pair makes a huge difference with Identity monad benchmark but
+    -- makes no difference in IO. Identity is 10x faster than IO. XXX But still
+    -- it is quite slow (100x) compared to fused code.
     {-# INLINE (<*>) #-}
     Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
-        let step b xs = do
-                lazyBind xs (\ ~(xL, xR) -> return $ (stepL b xL, stepR b xR))
-            final = return $ (finalL, finalR)
+        let step a xs = do
+                lazyBind xs (\ ~(Pair' xL xR) -> do
+                    return $ Pair' (stepL a xL) (stepR a xR))
+
+            final = return $ Pair' finalL finalR
             project x = do
-                (xL, xR) <- x
+                Pair' xL xR <- x
                 projectL xL <*> projectR xR
         in Foldr step final project
 

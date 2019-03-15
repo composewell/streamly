@@ -33,10 +33,12 @@ class Monad m => MonadLazy m where
     lazyBind :: m a -> (a -> m b) -> m b
 
 instance MonadLazy IO where
+    {-# INLINE lazyBind #-}
     lazyBind (IO m) k = IO ( \ s ->
             let r = case m s of (# _, res #) -> res
             in unIO (k r) s)
 
 -- For lazy monads bind is lazy bind
 instance MonadLazy Identity where
+    {-# INLINE lazyBind #-}
     lazyBind = (>>=)

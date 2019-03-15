@@ -134,6 +134,28 @@ foldrM f z (Stream step state) = go state
             Skip s    -> go s
             Stop      -> z
 
+-- The final combined value should be a functor of the components.  We have to
+-- build a lazy recursive functor or a single value. When we combine using an
+-- applicative, the final combined value must be lazy construction. We cannot
+-- have different parts of the structrure as lazy thunks, instead the lazy
+-- thunk must build a combined part of the final structure.
+--
+-- So we have a final structure which is a functor.
+-- That structure is built using a Constructor, a value and a lazy thunk.
+-- The composed fold puts the built value and the thunk together using the
+-- Constructor for the composed structure.
+-- Now, we need each constituent fold to build a part of the structure i.e.
+-- parts of the new element to be added. The element could be a monoid that is
+-- constructed by combining the parts built by each fold. it can be constructed
+-- by the applicative.
+--
+-- So a fold must have two logical steps:
+-- * construct element
+-- * combine the element and thunk - this would be a functor of element and
+-- thunk.
+--
+-- => (a -> m (f b) -> m (f b)) -> m (f b) -> (m (f b) -> m b) -> Stream m a -> m b
+
 {-# INLINE_NORMAL foldrMx #-}
 foldrMx :: Monad m
     => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b

@@ -254,7 +254,7 @@ import Prelude
 import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
-import Streamly.Foldl.Types (Foldl(..), Pair(..))
+import Streamly.Foldl.Types (Foldl(..), Pair'(..))
 import Streamly.Streams.Serial (SerialT)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
@@ -400,9 +400,9 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 
     where
 
-    begin = Pair <$> beginL <*> beginR
-    step (Pair xL xR) a = Pair <$> stepL xL a <*> stepR xR a
-    done (Pair xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
+    begin = Pair' <$> beginL <*> beginR
+    step (Pair' xL xR) a = Pair' <$> stepL xL a <*> stepR xR a
+    done (Pair' xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
 
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
@@ -504,13 +504,13 @@ partitionByM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 
     where
 
-    begin = Pair <$> beginL <*> beginR
-    step (Pair xL xR) a = do
+    begin = Pair' <$> beginL <*> beginR
+    step (Pair' xL xR) a = do
         r <- f a
         case r of
-            Left b -> Pair <$> stepL xL b <*> return xR
-            Right c -> Pair <$> return xL <*> stepR xR c
-    done (Pair xL xR) = (,) <$> doneL xL <*> doneR xR
+            Left b -> Pair' <$> stepL xL b <*> return xR
+            Right c -> Pair' <$> return xL <*> stepR xR c
+    done (Pair' xL xR) = (,) <$> doneL xL <*> doneR xR
 
 -- XXX we can use (a -> Bool) instead of (a -> Either b c), but the latter
 -- makes the signature clearer as to which case belongs to which fold.
@@ -569,11 +569,11 @@ unzipM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 
     where
 
-    step (Pair xL xR) a = do
+    step (Pair' xL xR) a = do
         (b,c) <- f a
-        Pair <$> stepL xL b <*> stepR xR c
-    begin = Pair <$> beginL <*> beginR
-    done (Pair xL xR) = (,) <$> doneL xL <*> doneR xR
+        Pair' <$> stepL xL b <*> stepR xR c
+    begin = Pair' <$> beginL <*> beginR
+    done (Pair' xL xR) = (,) <$> doneL xL <*> doneR xR
 
 -- | Same as 'unzipM' but with a pure unzip function.
 --
@@ -700,7 +700,7 @@ lfilterM f (Foldl step begin done) = Foldl step' begin done
 -- Utilities
 ------------------------------------------------------------------------------
 
-data Pair3 a b c = Pair3 !a !b !c
+data Pair3' a b c = Pair3' !a !b !c
 
 -- | A strict 'Maybe'
 data Maybe' a = Just' !a | Nothing'
@@ -959,27 +959,27 @@ product = Foldl (\x a -> return $ x * a) (return 1) return
 mean :: (Monad m, Fractional a) => Foldl m a a
 mean = Foldl step (return begin) (return . done)
   where
-    begin = Pair 0 0
-    step (Pair x n) y = return $
+    begin = Pair' 0 0
+    step (Pair' x n) y = return $
         let n' = n + 1
-        in Pair (x + (y - x) / n') n'
-    done (Pair x _) = x
+        in Pair' (x + (y - x) / n') n'
+    done (Pair' x _) = x
 
 -- | Compute a numerically stable (population) variance over all elements
 {-# INLINABLE variance #-}
 variance :: (Monad m, Fractional a) => Foldl m a a
 variance = Foldl step (return begin) (return . done)
   where
-    begin = Pair3 0 0 0
+    begin = Pair3' 0 0 0
 
-    step (Pair3 n mean_ m2) x = return $ Pair3 n' mean' m2'
+    step (Pair3' n mean_ m2) x = return $ Pair3' n' mean' m2'
       where
         n'     = n + 1
         mean'  = (n * mean_ + x) / (n + 1)
         delta  = x - mean_
         m2'    = m2 + delta * delta * n / (n + 1)
 
-    done (Pair3 n _ m2) = m2 / n
+    done (Pair3' n _ m2) = m2 / n
 
 -- | Compute a numerically stable (population) standard deviation over all
 -- elements
