@@ -5,10 +5,12 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(..), rnf)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 import Data.Monoid (Last(..))
+import Control.Monad.StrictIdentity -- (StrictIdentity)
+import Streamly.Internal.MonadLazy
 
 import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
@@ -19,6 +21,35 @@ import qualified Streamly.Foldr   as FR
 import qualified Streamly.Foldl   as FL
 import qualified Streamly.Sink    as Sink
 import Gauge
+
+-------------------------------------------------------------------------------
+-- MyIO and StrictIdentity are for performance experimentation for Foldr
+-------------------------------------------------------------------------------
+
+instance NFData a => NFData (StrictIdentity a) where
+    {-# INLINE rnf #-}
+    rnf = rnf . runStrictIdentity
+
+instance NFData a => NFData (MyIO a) where
+    {-# INLINE rnf #-}
+    rnf = rnf . runMyIO
+
+{-# INLINE benchMyIOSink #-}
+benchMyIOSink
+    :: (IsStream t, NFData b)
+    => String -> (t MyIO Int -> MyIO b) -> Benchmark
+-- benchMyIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= \x -> myIOtoIO $ f $ Ops.source x
+benchMyIOSink name f = bench name $ nf (f . Ops.source) 1
+
+{-# INLINE benchStrictIdentitySink #-}
+benchStrictIdentitySink
+    :: (IsStream t, NFData b)
+    => String -> (t StrictIdentity Int -> StrictIdentity b) -> Benchmark
+benchStrictIdentitySink name f = bench name $ nf (f . Ops.source) 1
+
+-------------------------------------------------------------------------------
+--
+-------------------------------------------------------------------------------
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -186,11 +217,22 @@ main =
         , benchIOSink "null" (FR.foldr FR.null)
         , benchIOSink "all" (FR.foldr (FR.all (<= Ops.maxValue)))
         , benchIOSink "any" (FR.foldr (FR.any (> Ops.maxValue)))
-        , benchIOSink "all,any"    (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
+        , benchIOSink "length" (FR.foldr FR.length)
+        ]
+      , bgroup "composed-foldr"
+        [
+          benchIOSink "any,any-io" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchIdentitySink "any,any-identity" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchStrictIdentitySink "any,any-strictidentity" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchMyIOSink "any,any-myio" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
+                                                  <*> FR.any (> Ops.maxValue)))
+        , benchIOSink "all,any-io"    (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
         , benchIdentitySink "all,any-identity" (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
-        , benchIOSink "length" (FR.foldr FR.length)
         ]
       , bgroup "composable-foldl"
         [
@@ -258,11 +300,13 @@ main =
         , benchIOSink "toList" (FL.foldl FL.toList)
         , benchIOSink "toRevList" (FL.foldl FL.toRevList)
         -- , toHandle
-
+        ]
         -- Applicative
-        , benchIOSink "sum,length" (FL.foldl ((,) <$> FL.sum <*> FL.length))
-        , benchIOSink "all,any"    (FL.foldl ((,) <$> FL.all (<= Ops.maxValue)
+      , bgroup "composed-foldl"
+        [
+          benchIOSink "all,any"    (FL.foldl ((,) <$> FL.all (<= Ops.maxValue)
                                                   <*> FL.any (> Ops.maxValue)))
+        , benchIOSink "sum,length" (FL.foldl ((,) <$> FL.sum <*> FL.length))
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)

@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification          #-}
+{-# LANGUAGE BangPatterns          #-}
 
 -- |
 -- Module      : Streamly.Foldr.Types
@@ -111,9 +112,19 @@ instance MonadLazy m => Applicative (Foldr m a) where
     -- XXX run the action instead of ignoring it??
     pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
 
-    -- Strict Pair makes a huge difference with Identity monad benchmark but
-    -- makes no difference in IO. Identity is 10x faster than IO. XXX But still
-    -- it is quite slow (100x) compared to fused code.
+    -- Strict Pair makes a big difference with Identity monad benchmark but
+    -- makes no difference in IO.
+    --
+    -- Performance needs to be improved for this. Observations till now:
+    -- IO Monad any/all composed: 9 ms
+    -- Identity monad any/all: 1 ms
+    -- StrictIdentity monad any/all: 1 ms
+    -- MyIO with lazyBind (ignoring the token) everywhere: 9 ms
+    -- MyIO with boxed tuples, ignoring the token : 1 ms
+    -- Identity monad any/any: 94 us
+    --
+    -- We need to strive for the last figure for all cases.
+    --
     {-# INLINE (<*>) #-}
     Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
         let step a xs = do
@@ -121,10 +132,35 @@ instance MonadLazy m => Applicative (Foldr m a) where
                     return $ Pair' (stepL a xL) (stepR a xR))
 
             final = return $ Pair' finalL finalR
+            -- pass a continuation to consume the lazy values
             project x = do
-                Pair' xL xR <- x
+                (Pair' xL xR) <- x
                 projectL xL <*> projectR xR
+                -- x `lazyBind` \ ~(Pair' xL xR) -> projectL xL `lazyBind` \l -> projectR xR `lazyBind` \r -> return (l r)
         in Foldr step final project
+
+{-
+lazyBind (xs) (\ ~(Pair' xL xR) -> do
+    return $ Pair' (if predicate x then return True else xL)
+                   (if predicate x then return True else xR))
+
+    stepL x xs = if predicate x then return True else xs
+    stepR x xs = if predicate x then xs else return False
+
+lazyBind (IO m) k = IO ( \ s ->
+        let r = case m s of (# _, res #) -> res
+        in unIO (k r) s)
+
+((\ ~xs@(Pair' xL xR) -> do
+    return $ Pair' (if predicate x then return True else xL)
+                   (if predicate x then return True else xR)) lazyXS token)
+
+    inside the any/all steps the xL/xR are extractions from Pair' constructor
+    so the evaluation of the Pair' to whnf will lead to the next lazy pair
+    constructor.
+
+    step x xs = if predicate x then xs else return False
+    -}
 
 instance (Semigroup b, MonadLazy m) => Semigroup (Foldr m a b) where
     {-# INLINE (<>) #-}

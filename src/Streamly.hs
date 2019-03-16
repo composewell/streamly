@@ -16,6 +16,7 @@
 -- appending streams of arbitrary length is scalable and inexpensive.
 
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE MultiParamTypeClasses                       #-}
 
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -153,6 +154,18 @@ import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Streams.StreamK as K
+
+import Control.Monad.Trans.Control
+import Control.Monad.Base
+import Data.Functor.Identity
+import Control.Monad.StrictIdentity -- (StrictIdentity)
+import Control.Monad.IO.Class
+import Control.Monad.Catch (MonadThrow)
+
+instance MonadThrow StrictIdentity where
+instance MonadIO StrictIdentity where
+instance MonadBase IO StrictIdentity where
+instance MonadBaseControl IO StrictIdentity where
 
 -- $streams
 -- The basic stream type is 'Serial', it represents a sequence of IO actions,
