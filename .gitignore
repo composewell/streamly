@@ -1,1 +1,4 @@
-.stack-work
+/.gitignore
+/.stack-work/
+/dist/
+/dist-newstyle/
