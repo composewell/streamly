@@ -109,9 +109,9 @@ instance MonadLazy m => Functor (Foldr m a) where
 -- should terminate when both of them terminate. We consume the result only
 -- when both of them are evaluated.
 --
--- However, it should be possible to implement such composition using early
--- terminating/short circuiting left folds, by representing the result of a
--- left fold as a functor with "Done" or "More" constructors. Then we can
+-- However, it should be possible to implement a parallel composition using
+-- early terminating/short circuiting left folds, by representing the result of
+-- a left fold as a functor with "Done" or "More" constructors. Then we can
 -- drive the left folds until both result in a "Done".
 --
 instance MonadLazy m => Applicative (Foldr m a) where
@@ -120,15 +120,20 @@ instance MonadLazy m => Applicative (Foldr m a) where
     pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
 
     -- Performance needs to be improved. Observations for 100,000 elements:
-    --  Identity monad any/any: ~100 us (1x)
-    --  Identity monad any/all: ~1   ms (10x)
-    --  IO Monad any/all      : ~10  ms (1000x)
+    --  Identity monad any/any: ~100 us (1x) rss: 22MB GCCopy: 0
+    --  Identity monad any/all: ~1   ms (10x) rss: 22MB GCCopy: 10K
+    --  IO Monad any/all      : ~10  ms (1000x) rss: 22MB GCCopy: 12MB
     --
-    -- Identity monad can evaluate the folds in parallel without a dependency
-    -- of one fold on the other, that can make it much faster. However, the IO
-    -- monad needs to evaluate in sequence therefore both the folds alternate
-    -- the evaluation and a chain of Pair' may be held until the fold
-    -- completes. Therefore this implementation may not scale for IO.
+    -- One conjecture is that the Identity monad can evaluate the folds in
+    -- parallel because one fold need not depend on another, both can evaluate
+    -- independently, that can make it much faster. However, the IO monad needs
+    -- to evaluate in sequence therefore both the folds alternate the
+    -- evaluation.
+    --
+    -- This implementation does not scale, the memory used is proportional to
+    -- the size of the stream. Because Pair is allocated in each recursive
+    -- step and held until the end. We need to have a truly lazy/streaming
+    -- implementation that uses continuations rather than holding data.
     --
     {-# INLINE (<*>) #-}
     Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
@@ -138,14 +143,6 @@ instance MonadLazy m => Applicative (Foldr m a) where
 
             final = return $ Pair' finalL finalR
             project x = do
-                -- Evaluation is driven from here, we evaluate the lazy value
-                -- representing the fold to get the pair. Then each part of the
-                -- pair is evaluated. Pair' is held until both of them
-                -- complete. Because xL and xR cannot be evaluated
-                -- independently, we have to evaluate them in tandem because of
-                -- sequencing/dependencies in IO. In Identity monad, they can
-                -- be evaluated independently, as separate duplicated actions.
-                --
                 (Pair' xL xR) <- x
                 projectL xL <*> projectR xR
         in Foldr step final project
