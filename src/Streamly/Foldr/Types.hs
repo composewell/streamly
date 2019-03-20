@@ -52,12 +52,15 @@ import Streamly.Foldl.Types (Pair'(..))
 -- Each fold in the composition can either run in parallel or they can run
 -- serially.
 --
+-- These are perhaps just composable scans rather than foldr.
+--
 ------------------------------------------------------------------------------
 -- Alternative reconstructions
 ------------------------------------------------------------------------------
 --
 -- We can apply multiple right folds on an input stream and reconstruct the
--- output choosing one of the results.
+-- output choosing one of the results. We will need the folds to return a
+-- success/failure result.
 
 
 ------------------------------------------------------------------------------

@@ -218,6 +218,7 @@ main =
         , benchIOSink "all" (FR.foldr (FR.all (<= Ops.maxValue)))
         , benchIOSink "any" (FR.foldr (FR.any (> Ops.maxValue)))
         , benchIOSink "length" (FR.foldr FR.length)
+        , benchIOSink "toList" (FR.foldr FR.toList)
         ]
       , bgroup "composed-foldr"
         [
