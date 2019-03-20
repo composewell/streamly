@@ -10,6 +10,63 @@
 -- Stability   : experimental
 -- Portability : GHC
 
+------------------------------------------------------------------------------
+-- Composing left Folds (applicative)
+------------------------------------------------------------------------------
+
+-- When all the folds consume the whole stream (e.g. sum, length) and reduce
+-- it, then it is easy to compose them as left folds and compose the results
+-- applicatively.
+--
+------------------------------------------------------------------------------
+-- Early termination
+------------------------------------------------------------------------------
+--
+-- When the purpose of the fold is to reduce the stream but it can terminate
+-- early without consuming the whole stream, then we can use a left fold with a
+-- wrapping functor to terminate it early. We can compose such short-circuting
+-- left folds in an applicative manner e.g. "any"/"all". Such a composition can
+-- be more efficient compared to full folds as we can stop streaming the input
+-- as soon as all the folds have terminated.
+--
+------------------------------------------------------------------------------
+-- Splitting the stream over multiple folds
+------------------------------------------------------------------------------
+--
+-- We can use an applicative composition to fold portions of stream over
+-- multiple left folds. The left folds will have to be early terminating to
+-- implement this. This is in fact pretty similar to foldGroups and variants,
+-- but applicative. This can build parsers from left folds.
+--
+------------------------------------------------------------------------------
+-- DFS vs BFS
+------------------------------------------------------------------------------
+--
+-- Note that when composing in parallel applicatively we distribute a stream
+-- input to all the folds simultaneously (BFS). If we compose such that we
+-- satisfy one of the folds first (DFS) and then start with the next fold then
+-- in the worst case we will have to buffer the whole stream, to resume
+-- satisfying the next fold after one completes.
+
+------------------------------------------------------------------------------
+-- Composing left Folds (alternative)
+------------------------------------------------------------------------------
+--
+-- The early terminating folds can be composed Alternatively. If we return a
+-- success/failure result, we can compose such that we take the result of first
+-- succeeding fold. If a fold fails we try the next fold using the same input.
+-- We will have to buffer the input this case.
+--
+-- We can also compose Alternatively, such that we take the result of the one
+-- that completes first in time.
+--
+------------------------------------------------------------------------------
+-- Applicative scans?
+------------------------------------------------------------------------------
+--
+-- We can applicatively combine the results at each step and create a scan from
+-- that.
+
 module Streamly.Foldl.Types
     (
       Pair' (..)

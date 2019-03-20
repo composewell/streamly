@@ -15,23 +15,54 @@ module Streamly.Foldr.Types
     )
 where
 
-import Control.Applicative (liftA2)
+import Control.Applicative (liftA2, Alternative(..))
 import Streamly.Internal.MonadLazy (MonadLazy(..))
 import Streamly.Foldl.Types (Pair'(..))
 
 ------------------------------------------------------------------------------
--- Comonadic right folds
+-- Left vs right folds
 ------------------------------------------------------------------------------
 
--- Foldl is a push based fold i.e. the producer calls the step function which in
--- turn calls the step functions of the composed folds and so on. Producer
--- has the control and pushes the whole stream inside the fold. The fold can
--- choose to use it or ignore it.
+-- A strict foldl is a push based fold i.e. the producer calls the step
+-- function which in turn calls the step functions of the composed folds and so
+-- on. Producer has the control and pushes the whole stream inside the fold.
+-- The fold can choose to use it or ignore it.
 --
--- Foldr is a pull based fold i.e. the end consumers call their step functions
--- and demand the next value from the producer. As the end fold demands it in
--- turn will demand the values from the composed folds and so on, finally
--- demanding a value from the origin producer.
+-- A lazy foldr is a pull based fold i.e. the end consumers call their step
+-- functions and demand the next value from the producer. As the consumer fold
+-- gets evaluated, it in turn demands the values from the composed folds and so
+-- on, finally demanding a value from the origin producer.
+--
+-- A foldl pushes the full stream to all folds in a composition. Whereas a
+-- foldr has the control to terminate early. However, we can wrap a left fold in
+-- a functor and check the result after each push to terminate or to continue.
+-- Similarly, we can convert a left fold in a scan which can be evaluated
+-- lazily. Therefore, it is possible to implement the functionality of foldr
+-- using foldl and vice-versa.
+--
+------------------------------------------------------------------------------
+-- Applicative reconstructions
+------------------------------------------------------------------------------
+--
+-- Right folds work well for reconstructing a new structure from an input
+-- structure. We can reconstruct a structure applicatively i.e. applicatively
+-- combine the results of multiple folds on each element and construct a lazy
+-- output structure from the results.
+--
+-- Each fold in the composition can either run in parallel or they can run
+-- serially.
+--
+------------------------------------------------------------------------------
+-- Alternative reconstructions
+------------------------------------------------------------------------------
+--
+-- We can apply multiple right folds on an input stream and reconstruct the
+-- output choosing one of the results.
+
+
+------------------------------------------------------------------------------
+-- Parses are right Folds
+------------------------------------------------------------------------------
 --
 -- With Foldr we can branch out a stream into multiple different branches each
 -- of which can pull lazily and terminate early. For example, we can try
@@ -44,25 +75,31 @@ import Streamly.Foldl.Types (Pair'(..))
 --
 -- All parses are right folds in general. For example even "all/or/and"
 -- combinators are acutally parses. Any early termination is a parse because it
--- can succeed or fail. Left folds always succeed, they do not have a failure.
--- For example the "length" combinator cannot fail.
+-- can succeed or fail. Non short-circuiting left folds always succeed, they do
+-- not have a failure.  For example the "length" combinator cannot fail.
+
+------------------------------------------------------------------------------
+-- Composing right Folds
+------------------------------------------------------------------------------
 
 -- Right folds are lazy puller computations. A composed right fold consumer or
 -- comonadic right fold would pull from a common source and distribute the
--- input to multiple right folds in the composition. In comonadic left folds
--- the source pushes into each fold and therefore each fold recieves full input
--- irrespective of whether it uses it or not. In right folds we have pulling
--- computations and therefore they can terminate early and stop pulling. If all
--- the computations in a composed right fold stop pulling then the whole
--- computation terminates. The source needs to copy and distribute the input,
--- therefore it needs to retain an input until it has been pulled by all the
--- folds in a composition.
+-- input to multiple right folds in the composition.  In right folds we have
+-- lazy pulling computations and therefore they can terminate early and stop
+-- pulling. If all the computations in a composed right fold stop pulling then
+-- the whole computation terminates. The source needs to copy and distribute
+-- the input, therefore it needs to retain an input until it has been pulled by
+-- all the folds in a composition.
 --
--- Now we can compose the consuming folds in different ways. One, all the
--- results are to be used ultimately (applicative). Two, only one of the
--- results is chosen (alternative). In a monoidal composition the outputs of
--- all the folds can be merged into a single lazy stream.
+-- Now we can compose the consuming folds in different ways. One, use the
+-- results of all folds applicatively.  Two, only one of the results is chosen
+-- (alternative). In a monoidal composition the outputs of all the folds can be
+-- merged into a single lazy stream.
 --
+------------------------------------------------------------------------------
+-- Applicative composition
+------------------------------------------------------------------------------
+
 -- To implement composition of right folds we probably need a puller that pulls
 -- and distributes the input to individual folds. there are multiple ways to
 -- have multiple consumers pulling:
@@ -75,7 +112,24 @@ import Streamly.Foldl.Types (Pair'(..))
 -- been consumed by all folds, therefore all folds run at the speed of the
 -- slowest fold. This is in fact a special case of the buffered case, in this
 -- case we have a single element buffer.
-
+--
+--
+-- * We can do one fold and then buffer the entire stream for the next fold.
+--
+-- * If we compose a lazy computation from the results of two folds then how it
+-- works may depend on the evaluation of the composed result. For example, if
+-- it evaluates the first fold result completely first then we will end up
+-- buffering the entire stream for the next fold. In another model the two
+-- pullers can work in tandem such that both of them consume one items at a
+-- time, one of them consumes and then yields for the other one.
+--
+-- * Or we can have an applicative scan and then use a left fold on that.
+--
+-- * In an alternative composition, there are two ways:
+--  * we first try the first fold and buffer the entire stream for the next
+--  fold. This is how backtracking parsers (attoparsec) work.
+--  * Use a commutative style, where we run all the folds fairly and then
+--  take the one that finishes first.
 
 
 -- | Represents a right fold from a container of values of type @a@ to a single
@@ -146,6 +200,19 @@ instance MonadLazy m => Applicative (Foldr m a) where
                 (Pair' xL xR) <- x
                 projectL xL <*> projectR xR
         in Foldr step final project
+
+-- XXX We should perhaps have just "Alt" implementation instead of
+-- "Alternative".  Because we do not have a sensible identity for Alternative.
+--
+-- If the first fold fails we run the second fold.
+instance MonadLazy m => Alternative (Foldr m a) where
+    {-# INLINE empty #-}
+    empty = Foldr (\_ _ -> fail "step empty")
+                  (fail "begin empty")
+                  (\_ -> fail "extract empty")
+
+    {-# INLINE (<|>) #-}
+    Foldr stepL finalL projectL <|> Foldr stepR finalR projectR = undefined
 
 instance (Semigroup b, MonadLazy m) => Semigroup (Foldr m a b) where
     {-# INLINE (<>) #-}
