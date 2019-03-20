@@ -247,7 +247,9 @@ module Streamly.Foldr
 
     -- XXX toList is slower than the custom (Streamly.Prelude.toList)
     -- implementation
+    -}
     , toList
+    {-
     , toRevList
     , toArrayN
     -}
@@ -1063,15 +1065,22 @@ minimum = _Foldl1 min
 -- To Containers
 ------------------------------------------------------------------------------
 
+-}
 -- XXX perhaps we should not expose the list APIs as it could be problematic
 -- for large lists. We should use a 'Store' type (growable array) instead.
 --
--- | Foldls the input to a list. This could create performance issues if you
+-- | Fold the input to a list. This could create performance issues if you
 -- are folding large lists. Use 'toArray' instead in that case.
 {-# INLINABLE toList #-}
-toList :: Monad m => Foldl m a [a]
-toList = Foldl (\x a -> return $ x . (a:)) (return id) (return . ($ []))
+toList :: Monad m => Foldr m a [a]
+toList = Foldr step final project
+    where
+    final = return []
+    step x xs = liftA2 (:) (return x) xs
+    project = id
 
+
+{-
 -- | Foldls the input to a list in the reverse order of the input.  This could
 -- create performance issues if you are folding large lists. Use toRevArray
 -- instead in that case.

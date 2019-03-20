@@ -83,13 +83,6 @@ import Streamly.Foldl.Types (Pair'(..))
 -- incrementally by explicitly calling the @step@ function and the accumulated
 -- value can be extracted at any point by calling the @extract@ function.
 
--- Right fold via left fold
--- One of the models to implement a partial fold is to push values to a left
--- fold and examine the state after that. We stop pushing if we have got the
--- result. This essentially means that we force a certain structure to the
--- accumulator of the left fold. However, this would not be general. To have a
--- general right fold equivalent we would perhaps have to make the accumulator
--- a functor.
 data Foldr m a b =
   -- | @Foldr@ @step@ @final@ @project@
   forall x. Foldr (a -> m x -> m x) (m x) (m x -> m b)
@@ -107,23 +100,35 @@ instance MonadLazy m => Functor (Foldr m a) where
 -- Run two right folds in parallel sharing the same input and composing the
 -- output using a function.
 --
+-- It seems pretty difficult to compose two lazy right folds in IO
+-- efficiently such that the input is given to both the folds because the
+-- two folds have to be evaluated in tandem. If we represent both the folds
+-- as lazy values then evaluating one of them must evaluate the other as
+-- well. This means that we need to evaluate both of them as a combined
+-- value rather than independently evaluatable values. The combined fold
+-- should terminate when both of them terminate. We consume the result only
+-- when both of them are evaluated.
+--
+-- However, it should be possible to implement such composition using early
+-- terminating/short circuiting left folds, by representing the result of a
+-- left fold as a functor with "Done" or "More" constructors. Then we can
+-- drive the left folds until both result in a "Done".
+--
 instance MonadLazy m => Applicative (Foldr m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
     pure b = Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure b)
 
-    -- Strict Pair makes a big difference with Identity monad benchmark but
-    -- makes no difference in IO.
+    -- Performance needs to be improved. Observations for 100,000 elements:
+    --  Identity monad any/any: ~100 us (1x)
+    --  Identity monad any/all: ~1   ms (10x)
+    --  IO Monad any/all      : ~10  ms (1000x)
     --
-    -- Performance needs to be improved for this. Observations till now:
-    -- IO Monad any/all composed: 9 ms
-    -- Identity monad any/all: 1 ms
-    -- StrictIdentity monad any/all: 1 ms
-    -- MyIO with lazyBind (ignoring the token) everywhere: 9 ms
-    -- MyIO with boxed tuples, ignoring the token : 1 ms
-    -- Identity monad any/any: 94 us
-    --
-    -- We need to strive for the last figure for all cases.
+    -- Identity monad can evaluate the folds in parallel without a dependency
+    -- of one fold on the other, that can make it much faster. However, the IO
+    -- monad needs to evaluate in sequence therefore both the folds alternate
+    -- the evaluation and a chain of Pair' may be held until the fold
+    -- completes. Therefore this implementation may not scale for IO.
     --
     {-# INLINE (<*>) #-}
     Foldr stepL finalL projectL <*> Foldr stepR finalR projectR =
@@ -132,35 +137,18 @@ instance MonadLazy m => Applicative (Foldr m a) where
                     return $ Pair' (stepL a xL) (stepR a xR))
 
             final = return $ Pair' finalL finalR
-            -- pass a continuation to consume the lazy values
             project x = do
+                -- Evaluation is driven from here, we evaluate the lazy value
+                -- representing the fold to get the pair. Then each part of the
+                -- pair is evaluated. Pair' is held until both of them
+                -- complete. Because xL and xR cannot be evaluated
+                -- independently, we have to evaluate them in tandem because of
+                -- sequencing/dependencies in IO. In Identity monad, they can
+                -- be evaluated independently, as separate duplicated actions.
+                --
                 (Pair' xL xR) <- x
                 projectL xL <*> projectR xR
-                -- x `lazyBind` \ ~(Pair' xL xR) -> projectL xL `lazyBind` \l -> projectR xR `lazyBind` \r -> return (l r)
         in Foldr step final project
-
-{-
-lazyBind (xs) (\ ~(Pair' xL xR) -> do
-    return $ Pair' (if predicate x then return True else xL)
-                   (if predicate x then return True else xR))
-
-    stepL x xs = if predicate x then return True else xs
-    stepR x xs = if predicate x then xs else return False
-
-lazyBind (IO m) k = IO ( \ s ->
-        let r = case m s of (# _, res #) -> res
-        in unIO (k r) s)
-
-((\ ~xs@(Pair' xL xR) -> do
-    return $ Pair' (if predicate x then return True else xL)
-                   (if predicate x then return True else xR)) lazyXS token)
-
-    inside the any/all steps the xL/xR are extractions from Pair' constructor
-    so the evaluation of the Pair' to whnf will lead to the next lazy pair
-    constructor.
-
-    step x xs = if predicate x then xs else return False
-    -}
 
 instance (Semigroup b, MonadLazy m) => Semigroup (Foldr m a b) where
     {-# INLINE (<>) #-}
