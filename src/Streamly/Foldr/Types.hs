@@ -99,6 +99,9 @@ import Streamly.Foldl.Types (Pair'(..))
 -- (alternative). In a monoidal composition the outputs of all the folds can be
 -- merged into a single lazy stream.
 --
+-- Looks like it is difficult to compose right folds (lazy computations) into a
+-- lazy computation in a scalable manner.
+--
 ------------------------------------------------------------------------------
 -- Applicative composition
 ------------------------------------------------------------------------------
