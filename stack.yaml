@@ -1,16 +1,12 @@
-resolver: lts-12.11
+resolver: lts-13.13
 packages:
 - '.'
 extra-deps:
     - SDL-0.6.6.0
-    - gauge-0.2.4
     - Chart-1.9
     - Chart-diagrams-1.9
     - SVGFonts-1.6.0.3
     - bench-show-0.2.2
-    - statistics-0.15.0.0
-    - dense-linear-algebra-0.1.0.0
-    - math-functions-0.3.0.2
 
 flags: {}
 extra-package-dbs: []
