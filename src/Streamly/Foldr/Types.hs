@@ -99,9 +99,24 @@ import Streamly.Foldl.Types (Pair'(..))
 -- (alternative). In a monoidal composition the outputs of all the folds can be
 -- merged into a single lazy stream.
 --
--- Looks like it is difficult to compose right folds (lazy computations) into a
--- lazy computation in a scalable manner.
+-- Looks like it is difficult to compose right folds (lazy computations)
+-- parallely into a lazy computation in a scalable manner.  However, it should
+-- be possible to compose the right folds serially. For example, composing them
+-- as sequential parsers or alternative parsers with buffering. We should also
+-- be able to convert right folds into right scans.
 --
+------------------------------------------------------------------------------
+-- Type classes
+------------------------------------------------------------------------------
+--
+-- On the production side parallel applicative and alternative are more
+-- common/useful than zipping ones. On the consumer side the parsing
+-- applicative and alternative are more common/useful than the parallel ones.
+--
+-- For left folds and short-circuiting left folds it makes more sense to have
+-- parallel applicatives/alternatives. For right folds, it makes more sense to
+-- have parsing applicatives/alternatives.
+
 ------------------------------------------------------------------------------
 -- Applicative composition
 ------------------------------------------------------------------------------
@@ -184,6 +199,10 @@ instance MonadLazy m => Applicative (Foldr m a) where
     --  Identity monad any/all: ~1   ms (10x) rss: 22MB GCCopy: 10K
     --  IO Monad any/all      : ~10  ms (1000x) rss: 22MB GCCopy: 12MB
     --
+    -- We should be able to bring the IO case to at least 1 ms, considering
+    -- that short-circuiting left folds as well as Identity monad both can
+    -- achieve the same task in 1 ms.
+    --
     -- One conjecture is that the Identity monad can evaluate the folds in
     -- parallel because one fold need not depend on another, both can evaluate
     -- independently, that can make it much faster. However, the IO monad needs
@@ -191,7 +210,7 @@ instance MonadLazy m => Applicative (Foldr m a) where
     -- evaluation.
     --
     -- This implementation does not scale, the memory used is proportional to
-    -- the size of the stream. Because Pair is allocated in each recursive
+    -- the length of the stream. Because Pair is allocated in each recursive
     -- step and held until the end. We need to have a truly lazy/streaming
     -- implementation that uses continuations rather than holding data.
     --
