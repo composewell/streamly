@@ -36,6 +36,7 @@ module Streamly.Streams.Prelude
     , foldx'
     , foldxM'
     , foldl'
+    , parselMx'
 
     , scanx'
     , scanxM'
@@ -55,6 +56,8 @@ where
 
 import Prelude hiding (foldr)
 import qualified Prelude
+
+import Streamly.Parser.Types (Result)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -139,6 +142,11 @@ foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
 foldxM' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
 foldxM' step begin done m = S.foldxM' step begin done $ toStreamS m
+
+{-# INLINE parselMx' #-}
+parselMx' :: (IsStream t, Monad m)
+    => (x -> a -> m (Result x)) -> m (Result x) -> (x -> m b) -> t m a -> m b
+parselMx' step begin done m = S.parselMx' step begin done $ toStreamS m
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third

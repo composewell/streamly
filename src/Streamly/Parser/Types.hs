@@ -13,6 +13,8 @@
 module Streamly.Parser.Types
     (
       Parser (..)
+    , Result (..)
+    , fromResult
     )
 where
 
@@ -21,32 +23,87 @@ import Streamly.Internal.MonadLazy (MonadLazy(..))
 import Streamly.Foldl.Types (Pair'(..))
 import Streamly.Foldr.Types
 
--- Right folds that return a Maybe are parsers.
---
-newtype Parser m a b = Parser (Foldr m a (Maybe b))
-    deriving Functor
-
-instance MonadLazy m => Applicative (Parser m a) where
-    {-# INLINE pure #-}
-    -- XXX run the action instead of ignoring it??
-    pure b = Parser $ Foldr (\_ _ -> pure ()) (pure ()) (\_ -> pure $ Just b)
+data Result a = Done !a | More !a
 
 {-
+instance Functor Result where
+    fmap f (Done a) = Done (f a)
+    fmap f (More a) = More (f a)
+
+instance Applicative Result where
+   pure = More
+   Done f <*> Done a = Done (f a)
+   Done f <*> More a = More (f a)
+   More f <*> Done a = More (f a)
+   More f <*> More a = More (f a)
+   -}
+
+fromResult :: Result a -> a
+fromResult res =
+    case res of
+        Done a -> a
+        More a -> a
+
+-- Folds that return a Maybe are parsers.
+data Parser m a b =
+  -- | @Foldl @ @ step @ @ initial @ @ extract@
+  forall x. Parser (x -> a -> m (Result x)) (m (Result x)) (x -> m b)
+
+instance Monad m => Functor (Parser m a) where
+    {-# INLINE fmap #-}
+    fmap f (Parser step initial done) = Parser step initial done'
+        where
+        done' x = fmap f $! done x
+
+    {-# INLINE (<$) #-}
+    (<$) b = \_ -> pure b
+
+instance Monad m => Applicative (Parser m a) where
+    {-# INLINE pure #-}
+    -- XXX run the action instead of ignoring it??
+    pure b = Parser (\_ _ -> pure $ Done ()) (pure $ Done ()) (\_ -> pure b)
+
     {-# INLINE (<*>) #-}
-    Parser (Foldr stepL finalL projectL) <*>
-        Parser (Foldr stepR finalR projectR) =
-            let step a xL xR = do
-                    f <- stepL a xL
+    Parser stepL initialL doneL <*> Parser stepR initialR doneR =
+        let step x@(Pair' xL xR) a =
+                    -- XXX we can keep xL and xR without the Result wrapper
+                    case xL of
+                        Done _ ->
+                            case xR of
+                                -- XXX should not occur
+                                Done _ -> return (Done x)
+                                More r -> do
+                                    resR <- stepR r a
+                                    return $ case resR of
+                                        Done _ -> Done $ Pair' xL resR
+                                        More _ -> More $ Pair' xL resR
+                        More l ->
+                            case xR of
+                                Done _ -> do
+                                    resL <- stepL l a
+                                    return $ case resL of
+                                        Done _ -> Done $ Pair' resL xR
+                                        More _ -> More $ Pair' resL xR
+                                More r -> do
+                                    resL <- stepL l a
+                                    resR <- stepR r a
+                                    return $ case (resL, resR) of
+                                        (Done _, Done _) -> Done $ Pair' resL resR
+                                        (_, _)           -> More $ Pair' resL resR
 
-                    lazyBind xs (\ ~(Pair' xL xR) -> do
-                        return $ Pair' (stepL a xL) (stepR a xR))
+            initial = do
+                resL <- initialL
+                resR <- initialR
+                return $ case (resL, resR) of
+                    (Done _, Done _) -> Done $ Pair' resL resR
+                    (_, _)           -> More $ Pair' resL resR
 
-                final = return $ Pair' finalL finalR
-                project x = do
-                    (Pair' xL xR) <- x
-                    projectL xL <*> projectR xR
-            in Parser (Foldr step final project)
+            done (Pair' xL xR) =
+                doneL (fromResult xL) <*> doneR (fromResult xR)
 
+        in  Parser step initial done
+
+{-
 -- XXX We should perhaps have just "Alt" implementation instead of
 -- "Alternative".  Because we do not have a sensible identity for Alternative.
 --

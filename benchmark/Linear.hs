@@ -18,6 +18,7 @@ import qualified LinearOps as Ops
 import Streamly
 import qualified Streamly.Prelude as S
 import qualified Streamly.Foldr   as FR
+import qualified Streamly.Parser  as PR
 import qualified Streamly.Foldl   as FL
 import qualified Streamly.Sink    as Sink
 import Gauge
@@ -234,6 +235,14 @@ main =
                                                   <*> FR.any (> Ops.maxValue)))
         , benchIdentitySink "all,any-identity" (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
+        ]
+      , bgroup "parser"
+        [
+          benchIOSink "drain" (PR.parse PR.drain)
+        , benchIOSink "any" (PR.parse (PR.any (> Ops.maxValue)))
+        , benchIOSink "all" (PR.parse (PR.all (<= Ops.maxValue)))
+        , benchIOSink "all,any-io"    (PR.parse ((,) <$> PR.all (<= Ops.maxValue)
+                                                  <*> PR.any (> Ops.maxValue)))
         ]
       , bgroup "composable-foldl"
         [
