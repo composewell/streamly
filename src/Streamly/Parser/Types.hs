@@ -23,6 +23,16 @@ import Streamly.Internal.MonadLazy (MonadLazy(..))
 import Streamly.Foldl.Types (Pair'(..))
 import Streamly.Foldr.Types
 
+{-
+-- Parse result. Failure gives the partial state of the accumulator at failure.
+-- Or should we just use "Failure"? Or should we encode the reason of failure
+-- i.e. a failure string or some other type?
+data Result a =
+      Partial !a
+    | Success !a
+    | Failure !a
+-}
+
 data Result a = Done !a | More !a
 
 {-
