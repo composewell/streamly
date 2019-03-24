@@ -5,17 +5,24 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Parser
+-- Module      : Streamly.Parse
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- A 'Sink' is a 'Fold' is a 'Parse'. A deserializer is a parser. A protocol
+-- deserializer is usually a non-backtracking parser i.e we do not need the
+-- alternative instance, we know definitely how to parse the following
+-- structure. Choice is usually represented by a sum flag in the serialized
+-- structure indicating a choice of parse, based on the flag we can choose a
+-- different parser using the demux primitive.
+--
 
-module Streamly.Parser
+module Streamly.Parse
     (
-      Parser (..)
+      Parse (..)
     , parse
     , drain
     , any
@@ -32,25 +39,25 @@ import Prelude
 
 import Control.Applicative (liftA2)
 import Streamly.Foldr.Types (Foldr(..))
-import Streamly.Parser.Types (Parser(..), Result(..))
+import Streamly.Parse.Types (Parse(..), Result(..))
 import Streamly.Streams.Serial (SerialT)
 import qualified Streamly.Streams.Prelude as P
 
 {-# INLINE parse #-}
-parse :: Monad m => Parser m a b -> SerialT m a -> m b
-parse (Parser step begin done) = P.parselMx' step begin done
+parse :: Monad m => Parse m a b -> SerialT m a -> m b
+parse (Parse step begin done) = P.parselMx' step begin done
 
 {-# INLINABLE drain #-}
-drain :: Monad m => Parser m a ()
-drain = Parser step initial done
+drain :: Monad m => Parse m a ()
+drain = Parse step initial done
     where
     initial = return $ More ()
     step _ _ = return $ More ()
     done = return
 
 {-# INLINABLE any #-}
-any :: Monad m => (a -> Bool) -> Parser m a Bool
-any predicate = Parser step initial done
+any :: Monad m => (a -> Bool) -> Parse m a Bool
+any predicate = Parse step initial done
     where
     initial = return $ More False
     step x a = return $
@@ -63,8 +70,8 @@ any predicate = Parser step initial done
     done = return
 
 {-# INLINABLE all #-}
-all :: Monad m => (a -> Bool) -> Parser m a Bool
-all predicate = Parser step initial done
+all :: Monad m => (a -> Bool) -> Parse m a Bool
+all predicate = Parse step initial done
     where
     initial = return $ More True
     step x a = return $

@@ -66,7 +66,7 @@ module Streamly.Foldl
     , postscanl
 
     -- * Upgrading
-    , toParser
+    , toParse
 
     -- * Composing Folds
     -- ** Distribute
@@ -258,7 +258,7 @@ import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
 import Streamly.Foldl.Types (Foldl(..), Pair'(..))
-import Streamly.Parser.Types (Parser(..), Result(..))
+import Streamly.Parse.Types (Parse(..), Result(..))
 import Streamly.Streams.Serial (SerialT)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
@@ -342,10 +342,10 @@ import qualified Streamly.Streams.Prelude as P
 -- Folds always go through the entire stream, whereas parsers can be partial
 -- folds and return a value without going through the entire stream.
 --
--- | Convert a 'Foldl' to a 'Parser'. When you want to compose folds and
+-- | Convert a 'Foldl' to a 'Parse'. When you want to compose folds and
 -- parsers together, upgrade a fold to a parser before composing.
-toParser :: Monad m => Foldl m a b -> Parser m a b
-toParser (Foldl step initial done) = Parser step' initial' done
+toParse :: Monad m => Foldl m a b -> Parse m a b
+toParse (Foldl step initial done) = Parse step' initial' done
     where
     initial' = fmap More initial
     step' b x = fmap More (step b x)

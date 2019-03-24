@@ -57,7 +57,7 @@ where
 import Prelude hiding (foldr)
 import qualified Prelude
 
-import Streamly.Parser.Types (Result)
+import Streamly.Parse.Types (Result)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S

@@ -236,7 +236,7 @@ import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
-import Streamly.Parser.Types
+import Streamly.Parse.Types (Result(..))
 import qualified Streamly.Streams.StreamK as K
 
 

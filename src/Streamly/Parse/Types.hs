@@ -3,16 +3,16 @@
 {-# LANGUAGE DeriveFunctor          #-}
 
 -- |
--- Module      : Streamly.Parser.Types
+-- Module      : Streamly.Parse.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Parser.Types
+module Streamly.Parse.Types
     (
-      Parser (..)
+      Parse (..)
     , Result (..)
     , fromResult
     )
@@ -55,26 +55,26 @@ fromResult res =
         More a -> a
 
 -- Folds that return a Maybe are parsers.
-data Parser m a b =
+data Parse m a b =
   -- | @Foldl @ @ step @ @ initial @ @ extract@
-  forall x. Parser (x -> a -> m (Result x)) (m (Result x)) (x -> m b)
+  forall x. Parse (x -> a -> m (Result x)) (m (Result x)) (x -> m b)
 
-instance Monad m => Functor (Parser m a) where
+instance Monad m => Functor (Parse m a) where
     {-# INLINE fmap #-}
-    fmap f (Parser step initial done) = Parser step initial done'
+    fmap f (Parse step initial done) = Parse step initial done'
         where
         done' x = fmap f $! done x
 
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
-instance Monad m => Applicative (Parser m a) where
+instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
-    pure b = Parser (\_ _ -> pure $ Done ()) (pure $ Done ()) (\_ -> pure b)
+    pure b = Parse (\_ _ -> pure $ Done ()) (pure $ Done ()) (\_ -> pure b)
 
     {-# INLINE (<*>) #-}
-    Parser stepL initialL doneL <*> Parser stepR initialR doneR =
+    Parse stepL initialL doneL <*> Parse stepR initialR doneR =
         let step x@(Pair' xL xR) a =
                     -- XXX we can keep xL and xR without the Result wrapper
                     case xL of
@@ -111,7 +111,7 @@ instance Monad m => Applicative (Parser m a) where
             done (Pair' xL xR) =
                 doneL (fromResult xL) <*> doneR (fromResult xR)
 
-        in  Parser step initial done
+        in  Parse step initial done
 
 {-
 -- XXX We should perhaps have just "Alt" implementation instead of

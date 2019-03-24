@@ -166,7 +166,7 @@ library
                      , Streamly.Enumeration
                      , Streamly.Foldl.Types
                      , Streamly.Foldr.Types
-                     , Streamly.Parser.Types
+                     , Streamly.Parse.Types
                      , Streamly.Sink.Types
                      , Streamly.Array.Types
 
@@ -179,7 +179,7 @@ library
                      , Streamly.Array
                      , Streamly.Foldl
                      , Streamly.Foldr
-                     , Streamly.Parser
+                     , Streamly.Parse
                      , Streamly.Sink
                      , Streamly.FileIO
                      , Streamly.List
