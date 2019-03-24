@@ -87,7 +87,7 @@ import qualified Streamly.Streams.StreamD as D
 ------------------------------------------------------------------------------
 
 -- | Convert a 'Sink' to a 'Foldl'. When you want to compose sinks and folds
--- toegther, upgrade a sink to a fold before composing.
+-- together, upgrade a sink to a fold before composing.
 toFoldl :: Monad m => Sink m a -> Foldl m a ()
 toFoldl (Sink f) = Foldl step begin done
     where
