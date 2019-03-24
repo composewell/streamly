@@ -35,12 +35,14 @@ module Streamly.Streams.StreamD.Type
     , map
     , mapM
     , foldrM
+    , foldrS
     , foldrMx
     , foldr
     , toList
     )
 where
 
+import Control.Monad.Trans (lift, MonadTrans)
 import Control.Applicative (liftA2)
 import GHC.Types (SPEC(..))
 import Streamly.SVar (State(..), adaptState, defState)
@@ -159,12 +161,30 @@ foldrM f z (Stream step state) = go state
 {-# INLINE_NORMAL foldrMx #-}
 foldrMx :: Monad m
     => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
-foldrMx fstep final project (Stream step state) = project $ go state
+foldrMx fstep final convert (Stream step state) = convert $ go state
   where
     go st = do
           r <- step defState st
           case r of
             Yield x s -> fstep x (go s)
+            Skip s    -> go s
+            Stop      -> final
+
+-- The x in the stream could be a tuple with  the new element and the state.
+-- The convert function can discard the state and just keep the elements.
+--
+-- reconstruct/map a stream using right folds
+-- apply right fold repeatedly
+-- apply short-circuiting left fold repeatedly
+{-# INLINE_NORMAL foldrS #-}
+foldrS :: (Monad m, Monad (t m), MonadTrans t)
+    => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
+foldrS f final (Stream step state) = go state
+  where
+    go st = do
+          r <- lift $ step defState st
+          case r of
+            Yield x s -> f x (go s)
             Skip s    -> go s
             Stop      -> final
 
