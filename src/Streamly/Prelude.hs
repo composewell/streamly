@@ -175,18 +175,38 @@ module Streamly.Prelude
     , runN
     , runWhile
 
-    -- ** To Elements
+    -- ** To Summary (Full Folds)
+    -- | Folds that summarize the stream to a single value.
+    , last
+    , length
+    , sum
+    , product
+
+    -- ** To Summary (Maybe) (Full Folds)
+    -- | Folds that summarize a non-empty stream to a 'Just' value and return
+    -- 'Nothing' for an empty stream.
+    , maximumBy
+    , maximum
+    , minimumBy
+    , minimum
+    , the
+
+    -- ** To Containers (Full Folds)
+    -- | Convert or divert a stream into an output structure, container or
+    -- sink.
+    , toList
+
+    -- ** To Elements (Partial Folds)
     -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
     , head
-    , last
     , findM
     , find
     , lookup
     , findIndex
     , elemIndex
 
-    -- ** To Boolean
+    -- ** To Boolean (Partial Folds)
     -- | Folds that summarize the stream to a boolean value.
     , null
     , elem
@@ -196,36 +216,23 @@ module Streamly.Prelude
     , and
     , or
 
-    -- ** To Summary
-    -- | Folds that summarize the stream to a single value.
-    , length
-    , sum
-    , product
-
-    -- ** To Summary (Maybe)
-    -- | Folds that summarize a non-empty stream to a 'Just' value and return
-    -- 'Nothing' for an empty stream.
-    , maximumBy
-    , maximum
-    , minimumBy
-    , minimum
-    , the
-
-    -- ** To Containers
-    -- | Convert or divert a stream into an output structure, container or
-    -- sink.
-    , toList
-
     -- * Transformation
 
+    -- ** Mapping
+    -- | Map is the most basic and least powerful transformation operation. It
+    -- is a strictly one-to-one transformation of stream elements. It cannot
+    -- add or remove elements from the stream, just transforms them.
+    , Serial.map
+
     -- ** Scanning
-    -- | A left associative scan, also known as a prefix sum, can be thought of
-    -- as a stream transformation consisting of left folds of all prefixes of a
-    -- stream.  Another way of thinking about it is that it streams all the
-    -- intermediate values of the accumulator while applying a left fold on the
-    -- input stream.  A right associative scan, on the other hand, can be
-    -- thought of as a stream consisting of right folds of all the suffixes of
-    -- a stream.
+    --
+    -- | Scans are more powerful than map. A left associative scan, also known
+    -- as a prefix sum, can be thought of as a stream transformation consisting
+    -- of left folds of all prefixes of a stream.  Another way of thinking
+    -- about it is that it streams all the intermediate values of the
+    -- accumulator while applying a left fold on the input stream.  A right
+    -- associative scan, on the other hand, can be thought of as a stream
+    -- consisting of right folds of all the suffixes of a stream.
     --
     -- The following equations hold for lists:
     --
@@ -271,31 +278,53 @@ module Streamly.Prelude
     , scanl1M'
     , scanx
 
-    -- ** Mapping
-    -- | Map is a strictly one-to-one transformation of stream elements. It
-    -- cannot add or remove elements from the stream, just transforms them.
-    , Serial.map
+    -- Special full scans
+    , indexed
+    , indexedR
 
-    -- ** Flattening
-    , sequence
-    , mapM
-
-    -- ** Filtering
-    -- | Filtering may remove some elements from the stream.
-
-    , filter
-    , filterM
+    -- Special partial scans
     , take
     , takeWhile
     , takeWhileM
     , drop
     , dropWhile
     , dropWhileM
+
+    -- ** Nesting
+    , sequence
+    , mapM
+    , mapM_
+
+    -- ** Flattening
+    -- | Mapping each element to a stream and then flatten the results into a
+    -- single stream.
+    --
+    -- @
+    --
+    -- ----Stream m a----|-Stream m b-|-Stream m b-|-...-|----Stream m b
+    --
+    -- @
+
+    -- , concatMapMBy
+    , concatMapM
+    , concatMap
+    -- , interposeBy
+    -- , intercalate
+
+    -- *** Filtering
+    -- | Filtering is a special case of 'concatMap'. Filtering may remove some
+    -- elements from the stream based on a predicate.
+
+    , filter
+    , filterM
     , deleteBy
     , uniq
+    , mapMaybe
+    , mapMaybeM
 
     -- ** Insertion
-    -- | Insertion adds more elements to the stream.
+    -- | Insertion is a special case of 'concatMap'. Insertion adds more
+    -- elements to the stream.
 
     , insertBy
     , intersperseM
@@ -303,13 +332,26 @@ module Streamly.Prelude
     -- ** Reordering
     , reverse
 
-    -- * Hybrid Operations
-    -- ** Map and Fold
-    , mapM_
+-- XXX nested folds, we have to pass the previously folded value to the next
+-- fold. That will continue the fold. For example, when parsing, we may parse a
+-- partial structure, encountering a tag field and then decide the next fold
+-- based on the tag. Now, to continue we have to pass on the current status of
+-- the accumulator to the next fold chosen. This would be generalized
+-- correspondence to a concatMap.
 
-    -- ** Map and Filter
-    , mapMaybe
-    , mapMaybeM
+    -- ** Collapsing
+    -- | Potentially decrease the stream size by collapsing groups of elements
+    -- to a single value using a fold.
+    --
+    -- @
+    --
+    -- ----stream m a----|-Fold a b-|-Fold a b-|-...-|----Stream m b
+    --
+    -- @
+    --
+    , foldGroupsOf
+    -- , arrayGroupsOf
+    , foldGroupsOn
 
     -- ** Scan and filter
     , findIndices
@@ -367,40 +409,6 @@ module Streamly.Prelude
     , zipWithM
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
-
-    -- Special zips
-    , indexed
-    , indexedR
-
-    -- ** Expanding
-    -- | Potentially expand the stream size by mapping each element to a stream
-    -- and then flattening the results into a single stream.
-    --
-    -- @
-    --
-    -- ----Stream m a----|-Stream m b-|-Stream m b-|-...-|----Stream m b
-    --
-    -- @
-
-    -- , concatMapMBy
-    , concatMapM
-    , concatMap
-    -- , interposeBy
-    -- , intercalate
-
-    -- ** Collapsing
-    -- | Potentially decrease the stream size by collapsing groups of elements
-    -- to a single value using a fold.
-    --
-    -- @
-    --
-    -- ----stream m a----|-Fold a b-|-Fold a b-|-...-|----Stream m b
-    --
-    -- @
-    --
-    , foldGroupsOf
-    -- , arrayGroupsOf
-    , foldGroupsOn
 
     -- ** Folds
     , eqBy
@@ -1425,6 +1433,7 @@ toHandle h m = go m
 -- extraction.
 --
 -- @since 0.2.0
+
 -- {-# DEPRECATED scanx "Composable scans are supported by streamly itself" #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m)
@@ -1460,16 +1469,16 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 -- thus modularizing the stream processing. This can be useful in
 -- stateful or event-driven programming.
 --
--- Consider the following example, computing the sum and the product of the
--- elements in a stream in one go using a @foldl'@:
+-- Consider the following monolothic example, computing the sum and the product
+-- of the elements in a stream in one go using a @foldl'@:
 --
 -- @
 -- > S.foldl' (\\(s, p) x -> (s + x, p * x)) (0,1) $ S.fromList \[1,2,3,4]
 -- (10,24)
 -- @
 --
--- Using @scanl'@ we can compute the sum in the first stage and pass it down to
--- the next stage for computing the product:
+-- Using @scanl'@ we can make it modular by computing the sum in the first
+-- stage and passing it down to the next stage for computing the product:
 --
 -- @
 -- >   S.foldl' (\\(_, p) (s, x) -> (s, p * x)) (0,1)
@@ -1795,10 +1804,21 @@ deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 -- Zipping
 ------------------------------------------------------------------------------
 
--- |
--- > indexed = S.zipWith (,) (S.intFrom 0)
+-- XXX It may be useful to have a version of scan where we can keep the
+-- accumulator independent of the value emitted. So that we do not necessarily
+-- have to keep a value in the accumulator which we are not using. We can pass
+-- an extraction function that will take the accumulator and the current value
+-- of the element and emit the next value in the stream. That will also make it
+-- possible to modify the accumulator after using it. In fact, the step function
+-- can return new accumulator and the value to be emitted. The signature would
+-- be more like mapAccumL. Or we can change the signature of scanx to
+-- accomodate this.
 --
--- Pair each element in a stream with its index.
+-- |
+-- > indexed = S.postscanl' (\(i, _) x -> (i + 1, x)) (-1,undefined)
+-- > indexed = S.zipWith (,) (S.enumerateFrom 0)
+--
+-- Pair each element in a stream with its index, starting from index 0.
 --
 -- @
 -- > S.toList $ S.indexed $ S.fromList "hello"
@@ -1811,14 +1831,15 @@ indexed :: (IsStream t, Monad m) => t m a -> t m (Int, a)
 indexed = fromStreamD . D.indexed . toStreamD
 
 -- |
--- > indexedR n = S.zipWith (,) (S.intFromThen n (n - 1))
+-- > indexedR n = S.postscanl' (\(i, _) x -> (i - 1, x)) (n + 1,undefined)
+-- > indexedR n = S.zipWith (,) (S.enumerateFromThen n (n - 1))
 --
 -- Pair each element in a stream with its index, starting from the
 -- given index @n@ and counting down.
 --
 -- @
 -- > S.toList $ S.indexedR 10 $ S.fromList "hello"
--- [(9,'h'),(8,'e'),(7,'l'),(6,'l'),(5,'o')]
+-- [(10,'h'),(9,'e'),(8,'l'),(7,'l'),(6,'o')]
 -- @
 --
 -- @since 0.6.0

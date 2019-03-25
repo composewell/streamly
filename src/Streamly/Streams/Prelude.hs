@@ -57,7 +57,7 @@ where
 import Prelude hiding (foldr)
 import qualified Prelude
 
-import Streamly.Parse.Types (Result)
+import Streamly.Parse.Types (Status)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -145,7 +145,7 @@ foldxM' step begin done m = S.foldxM' step begin done $ toStreamS m
 
 {-# INLINE parselMx' #-}
 parselMx' :: (IsStream t, Monad m)
-    => (x -> a -> m (Result x)) -> m (Result x) -> (x -> m b) -> t m a -> m b
+    => (x -> a -> m (Status x)) -> m (Status x) -> (x -> m b) -> t m a -> m b
 parselMx' step begin done m = S.parselMx' step begin done $ toStreamS m
 
 -- | Strict left fold with an extraction function. Like the standard strict

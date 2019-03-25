@@ -236,7 +236,7 @@ import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
-import Streamly.Parse.Types (Result(..))
+import Streamly.Parse.Types (Status(..))
 import qualified Streamly.Streams.StreamK as K
 
 
@@ -628,14 +628,14 @@ foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
 {-# INLINE_NORMAL parselMx' #-}
-parselMx' :: Monad m => (x -> a -> m (Result x)) -> m (Result x) -> (x -> m b) -> Stream m a -> m b
+parselMx' :: Monad m => (x -> a -> m (Status x)) -> m (Status x) -> (x -> m b) -> Stream m a -> m b
 parselMx' fstep begin done (Stream step state) =
     begin >>= \x ->
         -- XXX can we have begin to always be assumed as "More"
         -- and make it type "m x" instead of "m (Result x)"
         case x of
-            Done a -> done a
-            More a -> go SPEC a state
+            Success a -> done a
+            Partial a -> go SPEC a state
   where
     -- XXX !acc?
     go !_ acc st = do
@@ -649,8 +649,8 @@ parselMx' fstep begin done (Stream step state) =
                 -- done branch in the next iteration of the loop makes the
                 -- difference.
                 case acc' of
-                    More a -> go SPEC a s
-                    Done a -> done a
+                    Partial a -> go SPEC a s
+                    Success a -> done a
             Skip s -> go SPEC acc s
             Stop   -> done acc
 
@@ -1787,8 +1787,7 @@ indexedR m (Stream step state) = Stream step' (state, m)
          r <- step (adaptState gst) st
          case r of
              Yield x s -> let i' = i - 1
-                          in
-                          return $ Yield (i', x) (s, i')
+                          in return $ Yield (i, x) (s, i')
              Skip    s -> return $ Skip (s, i)
              Stop      -> return Stop
 

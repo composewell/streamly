@@ -258,7 +258,7 @@ import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
 import Streamly.Foldl.Types (Foldl(..), Pair'(..))
-import Streamly.Parse.Types (Parse(..), Result(..))
+import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
@@ -347,8 +347,8 @@ import qualified Streamly.Streams.Prelude as P
 toParse :: Monad m => Foldl m a b -> Parse m a b
 toParse (Foldl step initial done) = Parse step' initial' done
     where
-    initial' = fmap More initial
-    step' b x = fmap More (step b x)
+    initial' = fmap Partial initial
+    step' b x = fmap Partial (step b x)
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold

@@ -13,7 +13,7 @@
 module Streamly.Parse.Types
     (
       Parse (..)
-    , Result (..)
+    , Status (..)
     , fromResult
     )
 where
@@ -33,7 +33,7 @@ data Result a =
     | Failure !a
 -}
 
-data Result a = Done !a | More !a
+data Status a = Partial !a | Success !a
 
 {-
 instance Functor Result where
@@ -48,16 +48,16 @@ instance Applicative Result where
    More f <*> More a = More (f a)
    -}
 
-fromResult :: Result a -> a
+fromResult :: Status a -> a
 fromResult res =
     case res of
-        Done a -> a
-        More a -> a
+        Success a -> a
+        Partial a -> a
 
 -- Folds that return a Maybe are parsers.
 data Parse m a b =
   -- | @Foldl @ @ step @ @ initial @ @ extract@
-  forall x. Parse (x -> a -> m (Result x)) (m (Result x)) (x -> m b)
+  forall x. Parse (x -> a -> m (Status x)) (m (Status x)) (x -> m b)
 
 instance Monad m => Functor (Parse m a) where
     {-# INLINE fmap #-}
@@ -71,42 +71,42 @@ instance Monad m => Functor (Parse m a) where
 instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
-    pure b = Parse (\_ _ -> pure $ Done ()) (pure $ Done ()) (\_ -> pure b)
+    pure b = Parse (\_ _ -> pure $ Success ()) (pure $ Success ()) (\_ -> pure b)
 
     {-# INLINE (<*>) #-}
     Parse stepL initialL doneL <*> Parse stepR initialR doneR =
         let step x@(Pair' xL xR) a =
                     -- XXX we can keep xL and xR without the Result wrapper
                     case xL of
-                        Done _ ->
+                        Success _ ->
                             case xR of
                                 -- XXX should not occur
-                                Done _ -> return (Done x)
-                                More r -> do
+                                Success _ -> return (Success x)
+                                Partial r -> do
                                     resR <- stepR r a
                                     return $ case resR of
-                                        Done _ -> Done $ Pair' xL resR
-                                        More _ -> More $ Pair' xL resR
-                        More l ->
+                                        Success _ -> Success $ Pair' xL resR
+                                        Partial _ -> Partial $ Pair' xL resR
+                        Partial l ->
                             case xR of
-                                Done _ -> do
+                                Success _ -> do
                                     resL <- stepL l a
                                     return $ case resL of
-                                        Done _ -> Done $ Pair' resL xR
-                                        More _ -> More $ Pair' resL xR
-                                More r -> do
+                                        Success _ -> Success $ Pair' resL xR
+                                        Partial _ -> Partial $ Pair' resL xR
+                                Partial r -> do
                                     resL <- stepL l a
                                     resR <- stepR r a
                                     return $ case (resL, resR) of
-                                        (Done _, Done _) -> Done $ Pair' resL resR
-                                        (_, _)           -> More $ Pair' resL resR
+                                        (Success _, Success _) -> Success $ Pair' resL resR
+                                        (_, _)           -> Partial $ Pair' resL resR
 
             initial = do
                 resL <- initialL
                 resR <- initialR
                 return $ case (resL, resR) of
-                    (Done _, Done _) -> Done $ Pair' resL resR
-                    (_, _)           -> More $ Pair' resL resR
+                    (Success _, Success _) -> Success $ Pair' resL resR
+                    (_, _)           -> Partial $ Pair' resL resR
 
             done (Pair' xL xR) =
                 doneL (fromResult xL) <*> doneR (fromResult xR)

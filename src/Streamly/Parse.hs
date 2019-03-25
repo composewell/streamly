@@ -39,7 +39,7 @@ import Prelude
 
 import Control.Applicative (liftA2)
 import Streamly.Foldr.Types (Foldr(..))
-import Streamly.Parse.Types (Parse(..), Result(..))
+import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import qualified Streamly.Streams.Prelude as P
 
@@ -51,35 +51,35 @@ parse (Parse step begin done) = P.parselMx' step begin done
 drain :: Monad m => Parse m a ()
 drain = Parse step initial done
     where
-    initial = return $ More ()
-    step _ _ = return $ More ()
+    initial = return $ Partial ()
+    step _ _ = return $ Partial ()
     done = return
 
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Parse m a Bool
 any predicate = Parse step initial done
     where
-    initial = return $ More False
+    initial = return $ Partial False
     step x a = return $
         if x
-        then Done x
+        then Success x
         else
             if predicate a
-            then Done True
-            else More False
+            then Success True
+            else Partial False
     done = return
 
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parse m a Bool
 all predicate = Parse step initial done
     where
-    initial = return $ More True
+    initial = return $ Partial True
     step x a = return $
         if x
         then
             if predicate a
-            then More True
-            else Done False
-        else Done x
+            then Partial True
+            else Success False
+        else Success x
     done = return
 
