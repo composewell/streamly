@@ -117,14 +117,17 @@ module Streamly.Prelude
     , init
 
     -- ** Folding
--- | Left and right folds use a fold function @f@ and an identity element @z@
+-- | In imperative terms a fold can be considered as a loop over the stream
+-- that reduces the stream to a single value.
+-- Left and right folds use a fold function @f@ and an identity element @z@
 -- (@zero@) to recursively deconstruct a structure and then combine and reduce
--- the values or transform and reconstruct a new container.  In general, a
--- right fold is suitable for transforming and recostructing a right associated
--- structure (e.g. cons lists and streamly streams) and a left fold is suitable
--- for reducing a right associated structure.  The behavior of right and left
--- folds are described in detail in the individual fold's documentation.  To
--- illustrate the two folds for cons lists:
+-- the values or transform and reconstruct a new container.
+--
+-- In general, a right fold is suitable for transforming and reconstructing a
+-- right associated structure (e.g. cons lists and streamly streams) and a left
+-- fold is suitable for reducing a right associated structure.  The behavior of
+-- right and left folds are described in detail in the individual fold's
+-- documentation.  To illustrate the two folds for cons lists:
 --
 -- > foldr :: (a -> b -> b) -> b -> [a] -> b
 -- > foldr f z [] = z
@@ -170,20 +173,19 @@ module Streamly.Prelude
     , foldl1'
     , foldlM'
 
-    -- ** Run Effects
-    , runStream
-    , runN
-    , runWhile
+    -- ** Strict Full Folds
+    -- | Folds that are guaranteed to evaluate the whole stream.
 
-    -- ** To Summary (Full Folds)
-    -- | Folds that summarize the stream to a single value.
+    -- -- ** To Summary (Full Folds)
+    -- -- | Folds that summarize the stream to a single value.
+    , runStream
     , last
     , length
     , sum
     , product
 
-    -- ** To Summary (Maybe) (Full Folds)
-    -- | Folds that summarize a non-empty stream to a 'Just' value and return
+    -- -- ** To Summary (Maybe) (Full Folds)
+    -- -- | Folds that summarize a non-empty stream to a 'Just' value and return
     -- 'Nothing' for an empty stream.
     , maximumBy
     , maximum
@@ -191,13 +193,25 @@ module Streamly.Prelude
     , minimum
     , the
 
-    -- ** To Containers (Full Folds)
-    -- | Convert or divert a stream into an output structure, container or
+    -- ** Lazy Folds
+    --
+    -- | Folds that generate a lazy structure. Note that the generated
+    -- structure may not be lazy if the underlying monad is strict.
+
+    -- -- ** To Containers (Full Folds)
+    -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
 
-    -- ** To Elements (Partial Folds)
-    -- | Folds that extract selected elements of a stream or their properties.
+    -- ** Partial Folds
+    -- | Folds that may terminate before evaluating the whole stream. These
+    -- folds strictly evaluate the stream until the result is determined.
+
+    -- -- ** To Elements (Partial Folds)
+    , runN
+    , runWhile
+
+    -- -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
     , head
     , findM
@@ -206,8 +220,8 @@ module Streamly.Prelude
     , findIndex
     , elemIndex
 
-    -- ** To Boolean (Partial Folds)
-    -- | Folds that summarize the stream to a boolean value.
+    -- -- ** To Boolean (Partial Folds)
+    -- -- | Folds that summarize the stream to a boolean value.
     , null
     , elem
     , notElem
@@ -219,20 +233,39 @@ module Streamly.Prelude
     -- * Transformation
 
     -- ** Mapping
-    -- | Map is the most basic and least powerful transformation operation. It
-    -- is a strictly one-to-one transformation of stream elements. It cannot
-    -- add or remove elements from the stream, just transforms them.
+    -- | In imperative terms a map operation can be considered as a loop over
+    -- the stream that transforms the stream into another stream by performing
+    -- an operation on each element of the stream.
+    --
+    -- 'map' is the least powerful transformation operation with strictest
+    -- guarantees.  A map, (1) is a stateless loop which means that no state is
+    -- allowed to be carried from one iteration to another, therefore,
+    -- operations on different elements are guaranteed to not affect each
+    -- other, (2) is a strictly one-to-one transformation of stream elements
+    -- which means it guarantees that no elements can be added or removed from
+    -- the stream, it can merely transform them.
     , Serial.map
+    , sequence
+    , mapM
+    , mapM_
 
     -- ** Scanning
     --
-    -- | Scans are more powerful than map. A left associative scan, also known
-    -- as a prefix sum, can be thought of as a stream transformation consisting
-    -- of left folds of all prefixes of a stream.  Another way of thinking
-    -- about it is that it streams all the intermediate values of the
-    -- accumulator while applying a left fold on the input stream.  A right
-    -- associative scan, on the other hand, can be thought of as a stream
-    -- consisting of right folds of all the suffixes of a stream.
+    -- | A scan is more powerful than map. While a 'map' is a stateless loop, a
+    -- @scan@ is a stateful loop which means that a state can be shared across
+    -- all the loop iterations, therefore, future iterations can be impacted by
+    -- the state changes made by the past iterations. A scan yields the state
+    -- of the loop after each iteration. Like a map, a @postscan@ or @prescan@
+    -- does not add or remove elements in the stream, it just transforms them.
+    -- However, a @scan@ adds one extra element to the stream.
+    --
+    -- A left associative scan, also known as a prefix sum, can be thought of
+    -- as a stream transformation consisting of left folds of all prefixes of a
+    -- stream.  Another way of thinking about it is that it streams all the
+    -- intermediate values of the accumulator while applying a left fold on the
+    -- input stream.  A right associative scan, on the other hand, can be
+    -- thought of as a stream consisting of right folds of all the suffixes of
+    -- a stream.
     --
     -- The following equations hold for lists:
     --
@@ -241,7 +274,7 @@ module Streamly.Prelude
     --
     -- @
     -- > scanl (+) 0 [1,2,3,4]
-    -- 0
+    -- 0                 = 0
     -- 0 + 1             = 1
     -- 0 + 1 + 2         = 3
     -- 0 + 1 + 2 + 3     = 6
@@ -278,32 +311,62 @@ module Streamly.Prelude
     , scanl1M'
     , scanx
 
-    -- Special full scans
     , indexed
     , indexedR
 
-    -- Special partial scans
+    -- ** Filtering
+    -- | Remove some elements from the stream based on a predicate. In
+    -- imperative terms a filter over a stream corresponds to a loop with a
+    -- @continue@ clause for the cases when the predicate fails.
+
+    , filter
+    , filterM
+
+    -- ** Stateful Filters
     , take
     , takeWhile
     , takeWhileM
     , drop
     , dropWhile
     , dropWhileM
+    , deleteBy
+    , uniq
 
-    -- ** Nesting
-    , sequence
-    , mapM
-    , mapM_
+    -- ** Mapping Filters
+    -- | Mapping along with filtering
 
-    -- ** Flattening
-    -- | Mapping each element to a stream and then flatten the results into a
-    -- single stream.
+    , mapMaybe
+    , mapMaybeM
+
+    -- ** Scanning Filters
+    -- | Stateful transformation along with filtering
+
+    , findIndices
+    , elemIndices
+
+    -- ** Nested Generative Loops
+    -- | Map each element to a stream and then flatten the results into a
+    -- single stream. In imperative terms, a 'concatMap' corresponds to nested
+    -- loops. We loop over the outer stream and then for each element of the
+    -- outer stream an inner stream is generated and then we loop over the
+    -- inner stream as well to generate a single output stream.
     --
     -- @
     --
     -- ----Stream m a----|-Stream m b-|-Stream m b-|-...-|----Stream m b
     --
     -- @
+    --
+    -- In general, a concatMap can perform mapping, filtering and nested
+    -- looping. Though it is not inherently stateful, it can be combined with a
+    -- scan to perform stateful operations.
+    --
+    -- >>> S.toList $ S.concatMap (\x -> if odd x then S.yield x else S.nil) $ S.fromList [1..5]
+    -- > [1,3,5]
+    --
+    -- >>> S.toList $ S.concatMap (\x -> S.yield (x + 1)) $ S.fromList [1..5]
+    -- > [2,3,4,5,6]
+    --
 
     -- , concatMapMBy
     , concatMapM
@@ -311,37 +374,12 @@ module Streamly.Prelude
     -- , interposeBy
     -- , intercalate
 
-    -- *** Filtering
-    -- | Filtering is a special case of 'concatMap'. Filtering may remove some
-    -- elements from the stream based on a predicate.
-
-    , filter
-    , filterM
-    , deleteBy
-    , uniq
-    , mapMaybe
-    , mapMaybeM
-
-    -- ** Insertion
-    -- | Insertion is a special case of 'concatMap'. Insertion adds more
-    -- elements to the stream.
-
-    , insertBy
-    , intersperseM
-
-    -- ** Reordering
-    , reverse
-
--- XXX nested folds, we have to pass the previously folded value to the next
--- fold. That will continue the fold. For example, when parsing, we may parse a
--- partial structure, encountering a tag field and then decide the next fold
--- based on the tag. Now, to continue we have to pass on the current status of
--- the accumulator to the next fold chosen. This would be generalized
--- correspondence to a concatMap.
-
-    -- ** Collapsing
-    -- | Potentially decrease the stream size by collapsing groups of elements
-    -- to a single value using a fold.
+    -- ** Nested Folding Loops
+    -- | Group several elements of a stream together and fold them using the
+    -- given fold. In imperative terms this is a nested loop where we loop over
+    -- the outer stream to group elements in a group and then loop over the
+    -- grouped elements to fold them to a single value yielded in the output
+    -- stream.
     --
     -- @
     --
@@ -353,9 +391,15 @@ module Streamly.Prelude
     -- , arrayGroupsOf
     , foldGroupsOn
 
-    -- ** Scan and filter
-    , findIndices
-    , elemIndices
+    -- ** Insertion
+    -- | Insertion adds more elements to the stream.  These insert operations
+    -- can be thought of as a special case of stateful 'concatMap'.
+
+    , insertBy
+    , intersperseM
+
+    -- ** Reordering
+    , reverse
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -410,7 +454,7 @@ module Streamly.Prelude
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
-    -- ** Folds
+    -- ** Zipping Folds
     , eqBy
     , cmpBy
     , isPrefixOf
@@ -1381,8 +1425,9 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 -- |
 -- > mapM_ = runStream . mapM
 --
--- Apply a monadic action to each element of the stream and discard the
--- output of the action.
+-- Apply a monadic action to each element of the stream and discard the output
+-- of the action. This is not really a pure transformation operation but a
+-- transformation followed by fold.
 --
 -- @since 0.1.0
 {-# INLINE mapM_ #-}
@@ -1398,7 +1443,9 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- toList = S.foldr (:) []
 -- @
 --
--- Convert a stream into a list in the underlying monad. Same as:
+-- Convert a stream into a list in the underlying monad. The geenerated list
+-- can be consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad
+-- (e.g. IO) the whole list is generated before it can be consumed.
 --
 -- @since 0.1.0
 {-# INLINE toList #-}
@@ -1448,7 +1495,8 @@ scanx = P.scanx'
 scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
 scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 
--- | Strict left scan.
+-- | Strict left scan. Like 'map', 'scanl'' too is a one to one transformation,
+-- however it adds an extra element.
 --
 -- @
 -- > S.toList $ S.scanl' (+) 0 $ fromList [1,2,3,4]
@@ -2095,6 +2143,18 @@ mergeMapMBy :: (IsStream t, Monad m)
 -- inits = FL.toScan
 -- tails = FR.toScan
 
+-- XXX we could also fold a stream by applying folds partially one at a time.
+--
+-- foldPartial :: Foldl n a b -> t m a -> m (Maybe b, t m a)
+--
+-- splitFold is a dual of concatMap.
+{-
+splitFold
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b) -> t m a -> t m b
+-}
+
+
 -- XXX put time related functions in Streamly.Time?
 --
 -- We can use a parsed structure to represent Delimiters and non-delimiters in
@@ -2122,7 +2182,7 @@ mergeMapMBy :: (IsStream t, Monad m)
 -- Multi:
 --
 -- chunksOf' (chunks of sizes provided by a stream/generator func)
--- chunksOf (foldGroupsOf)
+-- chunksOf (same as foldGroupsOf)
 -- chunksOfInterval
 --
 -- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
@@ -2171,7 +2231,7 @@ spanByRolling
 --
 -- | This is a generalized version of groupBy. It takes a left fold which
 -- determines the split points of a stream by scanning the past inputs.
--- Whenever the fold return 'True' a new group is started. The last element
+-- Whenever the fold returns 'True' a new group is started. The last element
 -- that caused the fold to return 'True' is emitted as part of the previous
 -- group.
 --
