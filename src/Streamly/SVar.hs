@@ -1426,10 +1426,13 @@ dispatchWorker yieldCount sv = do
                 Nothing -> return workerLimit
                 Just ref -> do
                     n <- liftIO $ readIORef ref
-                    return $
-                        case workerLimit of
-                            Unlimited -> Limited (fromIntegral n)
-                            Limited lim -> Limited $ min lim (fromIntegral n)
+                    case yieldRateInfo sv of
+                        Just _ -> return workerLimit
+                        Nothing ->
+                            return $
+                                case workerLimit of
+                                    Unlimited -> Limited (fromIntegral n)
+                                    Limited lim -> Limited $ min lim (fromIntegral n)
 
             -- XXX for ahead streams shall we take the heap yields into account
             -- for controlling the dispatch? We should not dispatch if the heap
@@ -1442,7 +1445,7 @@ dispatchWorker yieldCount sv = do
                 -- and using them here, so this is just approximate logic and
                 -- we cannot rely on it for correctness. We may actually
                 -- dispatch more workers than required.
-                Limited lim | lim > 0 -> dispatch
+                Limited lim | lim > fromIntegral active -> dispatch
                 _ -> return False
         else do
             when (active <= 0) $ pushWorker 0 sv
