@@ -87,11 +87,11 @@ matrix:
   #- env: BUILD=cabal-new GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.6.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
-    addons: {apt: {packages: [cabal-install-head,ghc-8.6.3], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.6.4 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.6.4], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.6.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
-    addons: {apt: {packages: [cabal-install-head,ghc-8.6.3,libsdl1.2-dev], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.6.4 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.6.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-new GHC_OPTIONS="" GHCVER=8.4.4
     addons: {apt: {packages: [cabal-install-head,ghc-8.4.4], sources: [hvr-ghc]}}
