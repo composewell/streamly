@@ -328,7 +328,7 @@ test-suite properties
   build-depends:
       streamly
     , base              >= 4.8   && < 5
-    , QuickCheck        >= 2.10  && < 2.13
+    , QuickCheck        >= 2.10  && < 2.14
     , hspec             >= 2.0   && < 3
   if impl(ghc < 8.0)
     build-depends:
