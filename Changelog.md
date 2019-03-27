@@ -1,5 +1,10 @@
 ## Unreleased
 
+### Bug Fixes
+
+* Fix a bug that caused `maxThreads` directive to be ignored when rate control
+  was not used.
+
 ### Enhancements
 
 * Add GHCJS support

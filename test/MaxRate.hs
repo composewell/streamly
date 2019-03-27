@@ -26,41 +26,66 @@ toMicroSecs x = x * 10^(6 :: Int)
 measureRate' :: IsStream t
     => String
     -> (t IO Int -> SerialT IO Int)
+    -> Int -- buffers
+    -> Int -- threads
+    -> Either Double Int  -- either rate or count of actions
+    -> Int
+    -> (Double, Double)
+    -> (Double, Double)
+    -> Spec
+measureRate' desc t buffers threads rval consumerDelay producerDelay expectedRange = do
+
+    let threadAction =
+            case rval of
+                Left r -> S.take (round $ 10 * r) . S.repeatM
+                Right n -> S.replicateM n
+
+        rateDesc = case rval of
+            Left r ->  " rate: " <> show r
+            Right n -> " count: " <> show n
+
+    it (desc <> rateDesc
+             <> " buffers: " <> show buffers
+             <> " threads: " <> show threads
+             <> ", consumer latency: " <> show consumerDelay
+             <> ", producer latency: " <> show producerDelay)
+        $ durationShouldBe expectedRange $
+            runStream
+                $ (if consumerDelay > 0
+                  then S.mapM $ \x ->
+                            threadDelay (toMicroSecs consumerDelay) >> return x
+                  else id)
+                $ t
+                $ maxBuffer  buffers
+                $ maxThreads threads
+                $ (case rval of {Left r -> avgRate r; Right _ -> rate Nothing})
+                $ threadAction $ do
+                    let (t1, t2) = producerDelay
+                    r <- if t1 == t2
+                         then return $ round $ toMicroSecs t1
+                         else randomRIO ( round $ toMicroSecs t1
+                                        , round $ toMicroSecs t2)
+                    when (r > 0) $ -- do
+                        -- t1 <- getTime Monotonic
+                        threadDelay r
+                        -- t2 <- getTime Monotonic
+                        -- let delta = fromIntegral (toNanoSecs (t2 - t1)) / 1000000000
+                        -- putStrLn $ "delay took: " <> show delta
+                        -- when (delta > 2) $ do
+                        --     putStrLn $ "delay took high: " <> show delta
+                    return 1
+
+measureRateVariable :: IsStream t
+    => String
+    -> (t IO Int -> SerialT IO Int)
     -> Double
     -> Int
     -> (Double, Double)
     -> (Double, Double)
     -> Spec
-measureRate' desc t rval consumerDelay producerDelay dur =
-    it (desc <> " rate: " <> show rval
-             <> ", consumer latency: " <> show consumerDelay
-             <> ", producer latency: " <> show producerDelay)
-    $ durationShouldBe dur $
-        runStream
-            $ (if consumerDelay > 0
-              then S.mapM $ \x ->
-                        threadDelay (toMicroSecs consumerDelay) >> return x
-              else id)
-            $ t
-            $ maxBuffer  (-1)
-            $ maxThreads (-1)
-            $ avgRate rval
-            $ S.take  (round $ rval * 10)
-            $ S.repeatM $ do
-                let (t1, t2) = producerDelay
-                r <- if t1 == t2
-                     then return $ round $ toMicroSecs t1
-                     else randomRIO ( round $ toMicroSecs t1
-                                    , round $ toMicroSecs t2)
-                when (r > 0) $ -- do
-                    -- t1 <- getTime Monotonic
-                    threadDelay r
-                    -- t2 <- getTime Monotonic
-                    -- let delta = fromIntegral (toNanoSecs (t2 - t1)) / 1000000000
-                    -- putStrLn $ "delay took: " <> show delta
-                    -- when (delta > 2) $ do
-                    --     putStrLn $ "delay took high: " <> show delta
-                return 1
+measureRateVariable desc t rval consumerDelay producerDelay dur =
+    measureRate' desc t (-1) (-1) (Left rval)
+                 consumerDelay producerDelay dur
 
 measureRate :: IsStream t
     => String
@@ -72,10 +97,54 @@ measureRate :: IsStream t
     -> Spec
 measureRate desc t rval consumerDelay producerDelay dur =
     let d = fromIntegral producerDelay
-    in measureRate' desc t rval consumerDelay (d, d) dur
+    in measureRateVariable desc t rval consumerDelay (d, d) dur
+
+measureThreads :: IsStream t
+    => String
+    -> (t IO Int -> SerialT IO Int)
+    -> Int -- threads
+    -> Int -- count of actions
+    -> Spec
+measureThreads desc t threads count = do
+    let expectedTime =
+            if threads < 0
+            then 1.0
+            else fromIntegral count / fromIntegral threads
+        duration = (expectedTime * 0.9, expectedTime * 1.1)
+    measureRate' desc t (-1) threads (Right count) 0 (1,1) duration
+
+measureBuffers :: IsStream t
+    => String
+    -> (t IO Int -> SerialT IO Int)
+    -> Int -- buffers
+    -> Int -- count of actions
+    -> Spec
+measureBuffers desc t buffers count = do
+    let expectedTime =
+            if buffers < 0
+            then 1.0
+            else fromIntegral count / fromIntegral buffers
+        duration = (expectedTime * 0.9, expectedTime * 1.1)
+    measureRate' desc t buffers (-1) (Right count) 0 (1,1) duration
 
 main :: IO ()
 main = hspec $ do
+
+    describe "maxBuffers" $ do
+        measureBuffers "asyncly" asyncly (-1) 5
+        -- XXX this test fails due to a known issue
+        -- measureBuffers "maxBuffers" asyncly 1 5
+        measureBuffers "asyncly" asyncly 5 5
+
+    describe "maxThreads" $ do
+        measureThreads "asyncly" asyncly (-1) 5
+        measureThreads "asyncly" asyncly 1 5
+        measureThreads "asyncly" asyncly 5 5
+
+        measureThreads "aheadly" aheadly (-1) 5
+        measureThreads "aheadly" aheadly 1 5
+        measureThreads "aheadly" aheadly 5 5
+
     let range = (8,12)
 
     -- Note that because after the last yield we don't wait, the last period
@@ -108,7 +177,7 @@ main = hspec $ do
                 ]
      in describe "asyncly no consumer delay and variable producer delay" $
             forM_ rates $ \r ->
-                measureRate' "asyncly" asyncly r 0 (0.1, 3) range
+                measureRateVariable "asyncly" asyncly r 0 (0.1, 3) range
 
     let rates = [1, 10, 100, 1000, 10000
 #ifndef __GHCJS__
