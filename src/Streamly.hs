@@ -56,6 +56,7 @@ module Streamly
     , ZipSerialM
     , ZipAsyncM
 
+    -- XXX stop exporting this from this module
     -- * Running Streams
     , P.runStream
     -- * Parallel Function Application
@@ -88,6 +89,7 @@ module Streamly
     , maxRate
     , constRate
 
+    -- XXX stop exporting these from this module
     -- * Folding Containers of Streams
     -- $foldutils
     , foldWith

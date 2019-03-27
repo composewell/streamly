@@ -98,6 +98,7 @@ module Streamly.Streams.StreamD
     , foldx'
     , foldxM'
     , parselMx'
+    , foldrT
 
     -- ** Specialized Folds
     , tap

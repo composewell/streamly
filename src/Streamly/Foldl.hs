@@ -42,6 +42,8 @@
 -- that can split, transform and fold streams and combine the results. @Sink m
 -- a@ sits on the opposite side of stream m a, it is a consumer of streams that
 -- produces nothing.
+--
+-- A 'Fold' can be converted to a stream using 'scanl'.
 
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 

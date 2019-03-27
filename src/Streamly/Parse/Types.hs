@@ -68,6 +68,17 @@ instance Monad m => Functor (Parse m a) where
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
+-- For folds/parses the following types of applicatives are possible:
+--
+-- 1) Parallel applicative feeding the input to all folds (fold type) (Zip)
+-- 2) Serial chained applicative feeding remaining input to the next fold
+-- (parse type) (DFS)
+-- 3) Distribute one input element to each fold in a round-robin fashion (BFS)
+--
+-- Fold
+-- WFold
+-- ZFold
+--
 instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
@@ -113,6 +124,9 @@ instance Monad m => Applicative (Parse m a) where
 
         in  Parse step initial done
 
+-- There are two Alternative instances possible:
+-- 1) Get first succeeding fold
+-- 2) Get all succeeding folds (to get all possible parses)
 {-
 -- XXX We should perhaps have just "Alt" implementation instead of
 -- "Alternative".  Because we do not have a sensible identity for Alternative.

@@ -169,6 +169,7 @@ module Streamly.Prelude
 -- parallel and then combine the results using a monoid.
 
     , foldrM
+    , foldrT
     , foldl'
     , foldl1'
     , foldlM'
@@ -357,15 +358,15 @@ module Streamly.Prelude
     --
     -- @
     --
-    -- In general, a concatMap can perform mapping, filtering and nested
-    -- looping. Though it is not inherently stateful, it can be combined with a
+    -- 'concatMap' can perform filtering by mapping an element to a 'nil'
+    -- stream.  Its a map, therefore it can degenerate to a simple map
+    -- operation as well:
+    --
+    -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
+    -- > map f m = S.concatMap (\x -> S.yield (f x)) m
+    --
+    -- Though 'concatMap' is not inherently stateful, it can be combined with a
     -- scan to perform stateful operations.
-    --
-    -- >>> S.toList $ S.concatMap (\x -> if odd x then S.yield x else S.nil) $ S.fromList [1..5]
-    -- > [1,3,5]
-    --
-    -- >>> S.toList $ S.concatMap (\x -> S.yield (x + 1)) $ S.fromList [1..5]
-    -- > [2,3,4,5,6]
     --
 
     -- , concatMapMBy
@@ -373,6 +374,9 @@ module Streamly.Prelude
     , concatMap
     -- , interposeBy
     -- , intercalate
+    , foldWith
+    , foldMapWith
+    , forEachWith
 
     -- ** Nested Folding Loops
     -- | Group several elements of a stream together and fold them using the
@@ -476,6 +480,7 @@ module Streamly.Prelude
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans (MonadTrans)
 import Data.Maybe (isJust, fromJust)
 import Foreign.Storable (Storable(..))
 import Prelude
@@ -492,7 +497,8 @@ import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
-import Streamly.Streams.Prelude (fromStreamS, toStreamS)
+import Streamly.Streams.Prelude
+       (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
@@ -520,6 +526,12 @@ import qualified Streamly.Streams.Serial as Serial
 -- | Decompose a stream into its head and tail. If the stream is empty, returns
 -- 'Nothing'. If the stream is non-empty, returns @Just (a, ma)@, where @a@ is
 -- the head of the stream and @ma@ its tail.
+--
+-- This is a brute force primitive. Avoid using it as long as possible, use it
+-- when no other combinator can do the job. This can be used to do pretty much
+-- anything in an imperative manner, as it just breaks down the stream into
+-- individual elements and we can loop over them as we deem fit. For example,
+-- this can be used to convert a streamly stream into other stream types.
 --
 -- @since 0.1.0
 {-# INLINE uncons #-}
@@ -856,7 +868,13 @@ fromHandle h = go
 
 -- | Right associative/pull fold.
 --
--- Let's take a closer look at the @foldr@ definition for lists, given above:
+-- Example, determine if any element is 'odd' in a stream:
+--
+-- >>> S.foldrM (\x xs -> if odd x then return True else xs) (return False) $ S.fromList (2:4:5:undefined)
+-- > True
+--
+-- Let's take a closer look at the @foldr@ definition for lists, as given
+-- earlier:
 --
 -- @
 -- foldr f z (x:xs) = x \`f` foldr f z xs
@@ -865,7 +883,7 @@ fromHandle h = go
 -- @foldr@ invokes the fold step function @f@ as @f x (foldr f z xs)@. At each
 -- invocation of @f@ @foldr@ gives us the next element in the input container
 -- @x@ and a recursive expression @foldr f z xs@ representing the yet unbuilt
--- (lazy thunk) part of the output. Therefore, when @f a b@ is lazy in @b@
+-- (lazy thunk) part of the output. Therefore, when @f x xs@ is lazy in @xs@
 -- it can consume the input one element at a time in FIFO order to build a lazy
 -- output expression. For example,
 --
@@ -944,14 +962,23 @@ fromHandle h = go
 -- for reductions.
 --
 -- @since 0.2.0
-
--- 5. A right folds keeps state on the producer side inside a function i.e. in
--- the thunk that is recursively evaluated. In contrast, the left folds keeps a
--- state on the consumer side as data explicitly inside the accumulator.
---
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
+
+-- | Right fold to a transformer monad. `foldrM` is just `foldrT` with
+-- 'IdentityT' as the transformer monad. 'foldrT' can be used to perform stream
+-- to stream transformations:
+--
+-- Example, determine if any element is 'odd' in a stream:
+--
+-- >>> S.toList $ S.foldrT (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
+-- > [True]
+--
+{-# INLINE foldrT #-}
+foldrT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+    => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
+foldrT f z s = D.foldrT f z (toStreamD s)
 
 -- | Note that with this signature we cannot implement a lazy foldr when the
 -- monad @m@ is strict. In that case it would be strict in its accumulator and
@@ -1180,7 +1207,10 @@ null = K.null
 head :: Monad m => SerialT m a -> m (Maybe a)
 head = K.head
 
--- | Extract all but the first element of the stream, if any.
+-- |
+-- > tail = fmap (fmap snd) . uncons
+--
+-- Extract all but the first element of the stream, if any.
 --
 -- @since 0.1.1
 {-# INLINE tail #-}
@@ -1443,7 +1473,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- toList = S.foldr (:) []
 -- @
 --
--- Convert a stream into a list in the underlying monad. The geenerated list
+-- Convert a stream into a list in the underlying monad. The generated list
 -- can be consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad
 -- (e.g. IO) the whole list is generated before it can be consumed.
 --
@@ -2054,12 +2084,51 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
 -- Nesting
 ------------------------------------------------------------------------------
 
+-- concatMap essentially combines a container of streams. In general, the
+-- streams in the container can be combined using append/merge/zip operations.
+-- concatMap combines them using append. In general, we can use a foldr, foldl,
+-- foldt or foldb to fold the container. foldl may be useful to reduce the streams to a
+-- single value (m b), a foldr may be useful to reconstruct a stream (as
+-- concatMap does - t m b), foldt (top down fold) may be useful for quicksort
+-- on arrays (reconstruction) and foldb (bottom up fold) may be useful for
+-- mergesort or for reducing the values to a single summary. foldt can
+-- partition the array pairwise, whereas foldb can fold up pairwise. foldt can
+-- be useful for binary search as well. foldt and foldl can only work on finite
+-- streams/arrays. foldr and foldb can potentially work on infinite streams.
+--
+-- foldt and foldb would get xs an ys instead of (a, xs) in case of foldr and
+-- foldl.
+--
 -- There are two types of combining for nested structures. One, concatMap
 -- combines the two layers by appending (i.e. concat/mconcat). Two, mergeMap
 -- combines the two layers by merging. concatMap uses a linear fold whereas
--- mergeMap uses a pairwise tree fold. ConcatMap can work for infinite streams
--- whereas mergeMap is suitable only for finite streams as it folds the
+-- mergeMap can use a pairwise tree fold. ConcatMap can work for infinite
+-- streams whereas mergeMap is suitable only for finite streams as it folds the
 -- container in a bottom up tree like fashion.
+--
+-- To utilize a flattening strategy for generation we can have concatMapBy.
+-- The strategy may be append, merge or zip. The special combinators would be
+-- called concatMap, mergeMap and zipMap.
+--
+-- A generalized concatMap, use an append function of your choice to combine
+-- the layers. The function combines first element with the next and then
+-- combined result is combined with the next element and so on.
+--
+-- For example we may choose to use an async append or ahead append or even a
+-- mergeBy.  Some example use cases, map the stream to singleton streams and
+-- concat:
+-- (1) concat using "append" - id
+-- (2) concat using "prepend" - reverse
+-- (3) concat using "mergeBy compare" - insertion sort
+--
+-- concatMap = concatMapBy append
+{-
+concatMapMBy :: (IsStream t, Monad m)
+    => (forall x. t m x -> t m x -> t m x)
+    -> (a -> m (t m b))
+    -> t m a
+    -> t m b
+-}
 
 -- | Map each element of the stream to produce a stream and then flatten the
 -- results into a single stream.
@@ -2078,26 +2147,6 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 {-# INLINE concatMapM #-}
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
-
-{-
--- A generalized concatMap, use an append function of your choice to combine
--- the layers. The function combines first element with the next and then
--- combined result is combined with the next element and so on.
---
--- For example we may choose to use an async append or ahead append or even a
--- mergeBy.  Some example use cases, map the stream to singleton streams and
--- concat:
--- (1) concat using "append" - id
--- (2) concat using "prepend" - reverse
--- (3) concat using "mergeBy compare" - insertion sort
---
--- concatMap = concatMapBy append
-concatMapMBy :: (IsStream t, Monad m)
-    => (forall x. t m x -> t m x -> t m x)
-    -> (a -> m (t m b))
-    -> t m a
-    -> t m b
--}
 
 {-
 -- | A generalization of insertBy.
