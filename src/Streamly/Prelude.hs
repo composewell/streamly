@@ -2084,45 +2084,49 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
 -- Nesting
 ------------------------------------------------------------------------------
 
--- concatMap essentially combines a container of streams. In general, the
--- streams in the container can be combined using append/merge/zip operations.
--- concatMap combines them using append. In general, we can use a foldr, foldl,
--- foldt or foldb to fold the container. foldl may be useful to reduce the streams to a
--- single value (m b), a foldr may be useful to reconstruct a stream (as
--- concatMap does - t m b), foldt (top down fold) may be useful for quicksort
--- on arrays (reconstruction) and foldb (bottom up fold) may be useful for
--- mergesort or for reducing the values to a single summary. foldt can
--- partition the array pairwise, whereas foldb can fold up pairwise. foldt can
--- be useful for binary search as well. foldt and foldl can only work on finite
--- streams/arrays. foldr and foldb can potentially work on infinite streams.
+-- Corresponding to the append/merge/zip we can have monoidal type class
+-- operations mappend, mmerge and mzip.  nested append of lists is called
+-- concat.  appending of a list of monoids is mconcat.  We do not have
+-- corresponding terms nested merge and nested zip.
 --
--- foldt and foldb would get xs an ys instead of (a, xs) in case of foldr and
--- foldl.
+-- When we are flattening/concating a stream of streams, there are two
+-- dimensions to consider. First is how to traverse and fold the outer
+-- container picking the pairs to merge together. Second is what merge style to
+-- use to merge the two elements e.g.  append/merge/zip.  For example,
+-- concatMap traverses the container from left to right and merges the streams
+-- using append style.
 --
--- There are two types of combining for nested structures. One, concatMap
--- combines the two layers by appending (i.e. concat/mconcat). Two, mergeMap
--- combines the two layers by merging. concatMap uses a linear fold whereas
--- mergeMap can use a pairwise tree fold. ConcatMap can work for infinite
--- streams whereas mergeMap is suitable only for finite streams as it folds the
--- container in a bottom up tree like fashion.
+-- In general, flattening a stream of streams is just a fold.  The fold
+-- function is of type (t m a -> t m a -> t m a), zero is implicitly the nil
+-- stream. Both the fold function and the zero are implicit in concat. Note
+-- that a left fold variant may not be useful here because we are not reducing
+-- the stream we are just flattening one layer which means we have to do a
+-- stream to stream transformation. However, pairwise tree fold may be useful.
 --
--- To utilize a flattening strategy for generation we can have concatMapBy.
--- The strategy may be append, merge or zip. The special combinators would be
--- called concatMap, mergeMap and zipMap.
+-- Folding a stream of streams would just be 'foldrT f S.nil', 'f' may be any
+-- merge function i.e. append or merge or zip.  Similalrly, for a pairwise tree
+-- fold it would be 'foldtT f S.nil'.
+--
+-- We can generalize concatMap to a general fold for stream of streams so that
+-- we can use any flattening strategy. We can call it concatMapMBy or foldrMapM
+-- or foldrTMapM.  Similalrly, for a tree style fold we can have a foldtMapM or
+-- foldtTMapM.  The strategy may be append, merge or zip. The specialized
+-- combinators could be called concatMap, mergeMap and zipMap.
+--
+-- Note that concatMapMBy or foldrTMapM is just a generalized version of a
+-- foldMap which maps a monoid to a container and then folds it using the
+-- monoid. Here we the monoid we are mapping is a stream.
+
+{-
+-- |
+-- > concatMap = concatMapBy append
+-- > identity = concatMapMBy serial (return . yield)
+-- > insertionSort = concatMapMBy (mergeBy compare) (return . yield)
 --
 -- A generalized concatMap, use an append function of your choice to combine
 -- the layers. The function combines first element with the next and then
 -- combined result is combined with the next element and so on.
 --
--- For example we may choose to use an async append or ahead append or even a
--- mergeBy.  Some example use cases, map the stream to singleton streams and
--- concat:
--- (1) concat using "append" - id
--- (2) concat using "prepend" - reverse
--- (3) concat using "mergeBy compare" - insertion sort
---
--- concatMap = concatMapBy append
-{-
 concatMapMBy :: (IsStream t, Monad m)
     => (forall x. t m x -> t m x -> t m x)
     -> (a -> m (t m b))
@@ -2148,16 +2152,8 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 
-{-
--- | A generalization of insertBy.
-interposeBy :: (IsStream t, Monad m)
-    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-
--- | A generalization of intersperseM
-intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-
--- A mergeMap makes sense for finite streams as it folds the container in a
--- bottom up tree like fashion.
+-- A mergeMap makes sense only for finite streams as it folds the container in
+-- a bottom up tree like fashion.
 --
 -- | Map each element of the stream to a stream using a monadic function and
 -- then use a merge function pairwise to flatten the resulting streams. Each
@@ -2171,6 +2167,7 @@ intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -- (3) merge using "mergeBy compare" - merge sort
 -- (4) merge using "mergeBy randomly" - random shuffle
 --
+{-
 mergeMapMBy :: (IsStream t, Monad m)
     => (forall x. t m x -> t m x -> t m x)
     -> (a -> m (t m b))
@@ -2181,10 +2178,26 @@ mergeMapMBy :: (IsStream t, Monad m)
 -- mergeMap = ...
 -}
 
+{-
+-- | A generalization of insertBy.
+interposeBy :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+
+-- | A generalization of intersperseM
+intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+-}
+
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
+-- In the bottom up case, we first split and then keep merging, the final
+-- solution arrives when we are done merging all of them. In the top down case,
+-- we do the work to split and do the same to the two halves.  Finally, the
+-- solution is complete when we are done splitting to the bottom.  In other
+-- words in one case work is done during the split, in the other case work is
+-- done during the merge.
+--
 -- The first argument of grouping/splitting combinators is a continuation fold
 -- that is applied to the grouped output. If we curry the functions with toList
 -- fold we can get the combinators that are equivalent to the list combinators.
@@ -2196,11 +2209,20 @@ mergeMapMBy :: (IsStream t, Monad m)
 --
 -- foldPartial :: Foldl n a b -> t m a -> m (Maybe b, t m a)
 --
--- splitFold is a dual of concatMap.
+--
+-- This is the most general grouping/splitting function.
+-- splitFoldBy is a dual of concatMapMBy. It takes a grouping fold to group
+-- the elements in to a stream and then we apply the fold to flatten the
+-- stream.
+--
+-- this is the same as groupsByFold below.
 {-
-splitFold
-    :: (IsStream t, Monad m)
-    => (forall n. Monad n => Foldl n a b) -> t m a -> t m b
+splitFoldBy
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. Foldl n a Bool)
+    -> t m a
+    -> t m b
 -}
 
 
