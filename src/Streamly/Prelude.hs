@@ -195,6 +195,7 @@ module Streamly.Prelude
     , minimumBy
     , minimum
     , the
+    , toRevList
 
     -- ** Lazy Folds
     --
@@ -205,7 +206,6 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
-    , toRevList
 
     -- ** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
