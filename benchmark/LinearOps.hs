@@ -20,7 +20,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+        (<*>), flip, seq)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -242,6 +242,10 @@ mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
 
+{-# INLINE toRevList #-}
+toRevList :: Monad m => Stream m Int -> m [Int]
+toRevList = S.toRevList
+
 foldl'Build = S.foldl' (flip (:)) []
 foldrBuild  = S.foldr (:) []
 foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
@@ -327,10 +331,16 @@ composeN' n f =
 {-# INLINE elemIndices #-}
 {-# INLINE insertBy #-}
 {-# INLINE deleteBy #-}
+{-# INLINE reverse #-}
+{-# INLINE foldrS #-}
+{-# INLINE foldrSMap #-}
+{-# INLINE foldrT #-}
+{-# INLINE foldrTMap #-}
 scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy
+    findIndices, elemIndices, insertBy, deleteBy, reverse,
+    foldrS, foldrSMap, foldrT, foldrTMap
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -378,6 +388,11 @@ findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
+reverse        n = composeN n $ S.reverse
+foldrS         n = composeN n $ S.foldrS S.cons S.nil
+foldrSMap      n = composeN n $ S.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
+foldrT         n = composeN n $ S.foldrT S.cons S.nil
+foldrTMap      n = composeN n $ S.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
 
 -------------------------------------------------------------------------------
 -- Iteration

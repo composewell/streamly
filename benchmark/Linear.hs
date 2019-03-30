@@ -5,12 +5,10 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
-import Control.DeepSeq (NFData(..), rnf)
+import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 import Data.Monoid (Last(..))
-import Control.Monad.StrictIdentity -- (StrictIdentity)
-import Streamly.Internal.MonadLazy
 
 import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
@@ -18,35 +16,10 @@ import qualified LinearOps as Ops
 import Streamly
 import qualified Streamly.Prelude as S
 import qualified Streamly.Foldr   as FR
-import qualified Streamly.Parser  as PR
+import qualified Streamly.Parse   as PR
 import qualified Streamly.Foldl   as FL
 import qualified Streamly.Sink    as Sink
 import Gauge
-
--------------------------------------------------------------------------------
--- MyIO and StrictIdentity are for performance experimentation for Foldr
--------------------------------------------------------------------------------
-
-instance NFData a => NFData (StrictIdentity a) where
-    {-# INLINE rnf #-}
-    rnf = rnf . runStrictIdentity
-
-instance NFData a => NFData (MyIO a) where
-    {-# INLINE rnf #-}
-    rnf = rnf . runMyIO
-
-{-# INLINE benchMyIOSink #-}
-benchMyIOSink
-    :: (IsStream t, NFData b)
-    => String -> (t MyIO Int -> MyIO b) -> Benchmark
--- benchMyIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= \x -> myIOtoIO $ f $ Ops.source x
-benchMyIOSink name f = bench name $ nf (f . Ops.source) 1
-
-{-# INLINE benchStrictIdentitySink #-}
-benchStrictIdentitySink
-    :: (IsStream t, NFData b)
-    => String -> (t StrictIdentity Int -> StrictIdentity b) -> Benchmark
-benchStrictIdentitySink name f = bench name $ nf (f . Ops.source) 1
 
 -------------------------------------------------------------------------------
 --
@@ -211,6 +184,7 @@ main =
         , benchIOSink "minimum" Ops.minimum
 
         , benchIOSink "toList" Ops.toList
+        , benchIOSink "toRevList" Ops.toRevList
         ]
       , bgroup "composable-foldr"
         [
@@ -226,10 +200,6 @@ main =
           benchIOSink "any,any-io" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
         , benchIdentitySink "any,any-identity" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
-                                                  <*> FR.any (> Ops.maxValue)))
-        , benchStrictIdentitySink "any,any-strictidentity" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
-                                                  <*> FR.any (> Ops.maxValue)))
-        , benchMyIOSink "any,any-myio" (FR.foldr ((,) <$> FR.any (> Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
         , benchIOSink "all,any-io"    (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
@@ -330,6 +300,11 @@ main =
             Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
+        , benchIOSink "reverse" (Ops.reverse 1)
+        , benchIOSink "foldrS" (Ops.foldrS 1)
+        , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
+        , benchIOSink "foldrT" (Ops.foldrT 1)
+        , benchIOSink "foldrTMap" (Ops.foldrTMap 1)
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)

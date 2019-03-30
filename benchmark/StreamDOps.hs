@@ -15,7 +15,7 @@ import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
          subtract, undefined, Maybe(..), not, (>>=),
-         maxBound, fmap, odd, (==))
+         maxBound, fmap, odd, (==), flip)
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
@@ -160,9 +160,10 @@ composeN n f =
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileMTrue #-}
 {-# INLINE dropWhileFalse #-}
+{-# INLINE foldlS #-}
 scan, map, fmap, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
-    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse, foldlS
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -186,6 +187,7 @@ dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
+foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 
 -------------------------------------------------------------------------------
 -- Iteration

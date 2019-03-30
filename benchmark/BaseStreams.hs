@@ -69,6 +69,7 @@ main =
         , benchIO "mapM"      (D.mapM      1) D.sourceUnfoldrM
         , benchIO "mapMaybe"  (D.mapMaybe  1) D.sourceUnfoldrM
         , benchIO "mapMaybeM" (D.mapMaybeM 1) D.sourceUnfoldrM
+        , benchIO "foldlS"    (D.foldlS    1) D.sourceUnfoldrM
         ]
       , bgroup "transformationX4"
         [ benchIO "scan"      (D.scan      4) D.sourceUnfoldrM
@@ -182,6 +183,7 @@ main =
         , benchIO "fmap"   (K.fmap 1) K.sourceUnfoldrM
         , benchIO "mapM"   (K.mapM 1) K.sourceUnfoldrM
         -- , benchIO "concat" K.concat K.sourceUnfoldrM
+        , benchIO "foldlS" (K.foldlS 1) K.sourceUnfoldrM
         ]
       , bgroup "transformationX4"
         [ benchIO "scan"   (K.scan 4) K.sourceUnfoldrM

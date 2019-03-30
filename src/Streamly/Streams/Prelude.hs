@@ -38,6 +38,10 @@ module Streamly.Streams.Prelude
     , foldl'
     , parselMx'
 
+    -- Lazy left folds are useful only for reversing the stream
+    , foldlS
+    , foldlT
+
     , scanx'
     , scanxM'
     , postscanx'
@@ -54,6 +58,7 @@ module Streamly.Streams.Prelude
     )
 where
 
+import Control.Monad.Trans (MonadTrans(..))
 import Prelude hiding (foldr)
 import qualified Prelude
 
@@ -165,6 +170,21 @@ foldx' step begin done m = S.foldx' step begin done $ toStreamS m
 {-# INLINE foldl' #-}
 foldl' :: (Monad m, IsStream t) => (b -> a -> b) -> b -> t m a -> m b
 foldl' step begin m = S.foldl' step begin $ toStreamS m
+
+{-# INLINE foldlS #-}
+foldlS :: IsStream t => (t m b -> a -> t m b) -> t m b -> t m a -> t m b
+foldlS = K.foldlS
+
+-- | Lazy left fold to a transformer monad.
+--
+-- For example, to reverse a stream:
+--
+-- > S.toList $ S.foldlT (flip S.cons) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
+--
+{-# INLINE foldlT #-}
+foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
+foldlT f z s = S.foldlT f z (toStreamS s)
 
 ------------------------------------------------------------------------------
 -- Scans

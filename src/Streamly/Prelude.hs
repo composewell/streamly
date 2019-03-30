@@ -169,7 +169,9 @@ module Streamly.Prelude
 -- parallel and then combine the results using a monoid.
 
     , foldrM
+    , foldrS
     , foldrT
+
     , foldl'
     , foldl1'
     , foldlM'
@@ -203,6 +205,7 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
+    , toRevList
 
     -- ** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
@@ -480,7 +483,7 @@ module Streamly.Prelude
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans (MonadTrans)
+import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
 import Foreign.Storable (Storable(..))
 import Prelude
@@ -966,23 +969,50 @@ fromHandle h = go
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
 
--- | Right fold to a transformer monad. `foldrM` is just `foldrT` with
--- 'IdentityT' as the transformer monad. 'foldrT' can be used to perform stream
--- to stream transformations:
+-- | Right fold to a streaming monad.
 --
--- Example, determine if any element is 'odd' in a stream:
+-- 'foldrS' can be used to perform stateless stream to stream transformations
+-- like map and filter in general. It can be coupled with a scan to perform
+-- stateful transformations. However, note that the custom map and filter
+-- routines can be much more efficient than this due to better stream fusion.
 --
--- >>> S.toList $ S.foldrT (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
+-- Find if any element in the stream is 'True':
+--
+-- >>> S.toList $ S.foldrS (\x xs -> if odd x then return True else xs) (return False) $ (S.fromList (2:4:5:undefined) :: SerialT IO Int)
 -- > [True]
 --
+-- Map (+2) on odd elements and filter out the even elements:
+--
+-- >>> S.toList $ S.foldrS (\x xs -> if odd x then (x + 2) `S.cons` xs else xs) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
+-- > [3,5,7]
+--
+-- 'foldrM' can also be represented in terms of 'foldrS', however, the former
+-- is much more efficient:
+--
+-- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+--
+{-# INLINE foldrS #-}
+foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrS = K.foldrS
+
+-- | Right fold to a transformer monad.  This is the most general right fold
+-- function. 'foldrS' is a special case of 'foldrT', however 'foldrS'
+-- implementation can be more efficient:
+--
+-- > foldrS = foldrT
+-- > foldrM f z s = runIdentityT $ foldrT (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
+--
+-- 'foldrT' can be used to translate streamly streams to other transformer
+-- monads e.g.  to a different streaming type.
+--
 {-# INLINE foldrT #-}
-foldrT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
-foldrT f z s = D.foldrT f z (toStreamD s)
+foldrT f z s = S.foldrT f z (toStreamS s)
 
 -- | Note that with this signature we cannot implement a lazy foldr when the
 -- monad @m@ is strict. In that case it would be strict in its accumulator and
--- therefore necessarily consume all its input.  For this reason we have
+-- therefore would necessarily consume all its input.  For this reason we have
 -- deprecated this API. Though this can be useful for lazy monads, but we can
 -- always achieve the same thing using foldrM directly.
 --
@@ -1473,14 +1503,26 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- toList = S.foldr (:) []
 -- @
 --
--- Convert a stream into a list in the underlying monad. The generated list
--- can be consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad
--- (e.g. IO) the whole list is generated before it can be consumed.
+-- Convert a stream into a list in the underlying monad. The list can be
+-- consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad (e.g.
+-- IO) the whole list is generated before it can be consumed.
 --
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
 toList = P.toList
+
+-- |
+-- @
+-- toRevList = S.foldl' (flip (:)) []
+-- @
+--
+-- Convert a stream into a list in reverse order in the underlying monad.
+--
+-- @since 0.7.0
+{-# INLINE toRevList #-}
+toRevList :: Monad m => SerialT m a -> m [a]
+toRevList = D.toRevList . toStreamD
 
 -- |
 -- @
@@ -1810,19 +1852,16 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- XXX to scale this we need to use a slab allocated array backed
 -- representation for temporary storage.
 --
--- | Returns the elements of the stream in reverse order.
--- The stream must be finite.
+-- |
+-- > reverse = S.foldlT (flip S.cons) S.nil
+--
+-- Returns the elements of the stream in reverse order.  The stream must be
+-- finite.
 --
 -- @since 0.1.1
-reverse :: (IsStream t) => t m a -> t m a
-reverse m = go K.nil m
-    where
-    go rev rest = K.mkStream $ \st yld sng stp ->
-        let runIt x = K.foldStream st yld sng stp x
-            stop = runIt rev
-            single a = runIt $ a `K.cons` rev
-            yieldk a r = runIt $ go (a `K.cons` rev) r
-         in K.foldStream st yieldk single stop rest
+{-# INLINE reverse #-}
+reverse :: (IsStream t, Monad m) => t m a -> t m a
+reverse s = fromStreamS $ S.reverse $ toStreamS s
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting

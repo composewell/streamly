@@ -401,8 +401,8 @@ map f m = go m
                 yieldk a r = yld (f a) (go r)
             in foldStream (adaptState st) yieldk single stp m1
 
--- in fact use the Stream type everywhere and only use polymorphism in the high
--- level modules/prelude.
+-- XXX in fact use the Stream type everywhere and only use polymorphism in the
+-- high level modules/prelude.
 instance Monad m => Functor (Stream m) where
     fmap = map
 

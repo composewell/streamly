@@ -95,10 +95,13 @@ module Streamly.Streams.StreamD
     , foldr1
     , foldl'
     , foldlM'
+    , foldlS
+    , foldlT
     , foldx'
     , foldxM'
     , parselMx'
     , foldrT
+    , reverse
 
     -- ** Specialized Folds
     , tap
@@ -140,6 +143,7 @@ module Streamly.Streams.StreamD
     -- ** Conversions
     -- | Transform a stream into another type.
     , toList
+    , toRevList
     -- , toArray
     , toStreamK
     , toStreamD
@@ -213,7 +217,7 @@ module Streamly.Streams.StreamD
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Trans (lift)
+import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Trans.State.Lazy (StateT(..), put)
 import Data.Bits (finiteBitSize)
 import Data.Maybe (fromJust, isJust)
@@ -226,7 +230,8 @@ import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat)
+               (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
+               reverse)
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
 import Streamly.Array.Types
@@ -623,6 +628,58 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
                 go SPEC acc' s
             Skip s -> go SPEC acc s
             Stop   -> return acc
+
+-- Note, this is going to have horrible performance, because of the nature of
+-- the stream type. Its only for reference, it is likely be practically
+-- unusable.
+{-# INLINE_NORMAL foldlS #-}
+foldlS :: Monad m
+    => (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
+  where
+    step' gst (Left (st, acc)) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (Left (s, fstep acc x))
+            Skip s -> Skip (Left (s, acc))
+            Stop   -> Skip (Right acc)
+
+    step' gst (Right (Stream stp stt)) = do
+        r <- stp (adaptState gst) stt
+        return $ case r of
+            Yield x s -> Yield x (Right (Stream stp s))
+            Skip s -> Skip (Right (Stream stp s))
+            Stop   -> Stop
+
+{-# INLINE toRevList #-}
+toRevList :: Monad m => Stream m a -> m [a]
+toRevList = foldl' (flip (:)) []
+
+{-# INLINE_NORMAL reverse #-}
+reverse :: Monad m => Stream m a -> Stream m a
+-- The foldl based implementation is unusable because of the horrible
+-- performance of cons. So we just convert it to a list first and then stream
+-- from the list.
+-- reverse = foldlS (flip cons) nil
+reverse m = Stream step Nothing
+    where
+        step _ Nothing = do
+            xs <- toRevList m
+            return $ Skip (Just xs)
+        step _ (Just (x:xs)) = return $ Yield x (Just xs)
+        step _ (Just []) = return Stop
+
+{-# INLINE_NORMAL foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = do
+        r <- lift $ step defState st
+        case r of
+            Yield x s -> go SPEC (fstep acc x) s
+            Skip s -> go SPEC acc s
+            Stop   -> acc
 
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b

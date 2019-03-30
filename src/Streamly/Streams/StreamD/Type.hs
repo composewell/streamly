@@ -107,9 +107,22 @@ instance Monad m => Functor (Stream m) where
     {-# INLINE fmap #-}
     fmap = map
 
--- The x in the stream could be a tuple with  the new element and the state.
--- The convert function can discard the state and just keep the elements.
---
+{-
+- XXX not sure how to implement this correctly
+-- | Right associative fold to a stream.
+{-# INLINE_NORMAL foldrS #-}
+foldrS :: (Monad m, Monad (Stream m)) => (a -> Stream m b -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+foldrS f final (Stream step state) = go state
+  where
+    go st = do
+        -- defState??
+        r <- yieldM $ step defState st
+        case r of
+          Yield x s -> f x (go s)
+          Skip s    -> go s
+          Stop      -> final
+-}
+
 -- This can be used for map, stateless filtering or insertions. It can also be
 -- used to implement takeWhile and dropWhile. stateful filtering like "take"
 -- can be done by pairing it with a scan first.
@@ -129,9 +142,6 @@ foldrT f final (Stream step state) = go state
             Skip s    -> go s
             Stop      -> final
 
--- foldrM is a special case of foldrS when t is IdentityT
--- we can rename foldrS to foldrT, T for transformer.
---
 -- Note: toList is used in Array.Type, which is used in StreamD module,
 -- therefore these definitions have been pushed here from StreamD.
 
