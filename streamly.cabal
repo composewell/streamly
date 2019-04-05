@@ -169,6 +169,8 @@ library
                      , Streamly.Parse.Types
                      , Streamly.Sink.Types
                      , Streamly.Array.Types
+                     , Streamly.Internal.MonadLazy
+                     , Streamly.Foldr
 
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time
@@ -178,7 +180,6 @@ library
                      -- API that uses the Array API.
                      , Streamly.Array
                      , Streamly.Fold
-                     , Streamly.Foldr
                      , Streamly.Parse
                      , Streamly.Sink
                      , Streamly.FileIO
@@ -187,7 +188,6 @@ library
 
                      , Streamly.Tutorial
                      , Streamly.Internal
-                     , Streamly.Internal.MonadLazy
 
     default-language: Haskell2010
     ghc-options:      -Wall -fspec-constr-recursive=10
@@ -228,8 +228,6 @@ library
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
-                     , random
-                     , strict-identity
 
   if impl(ghc < 8.0)
     build-depends:
@@ -428,7 +426,6 @@ benchmark linear
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
-    , strict-identity
 
 benchmark linear-async
   type: exitcode-stdio-1.0

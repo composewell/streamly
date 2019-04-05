@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -15,7 +16,9 @@ import qualified LinearOps as Ops
 
 import Streamly
 import qualified Streamly.Prelude as S
+#ifdef FOLDR
 import qualified Streamly.Foldr   as FR
+#endif
 import qualified Streamly.Parse   as PR
 import qualified Streamly.Fold   as FL
 import qualified Streamly.Sink    as Sink
@@ -186,6 +189,7 @@ main =
         , benchIOSink "toList" Ops.toList
         , benchIOSink "toRevList" Ops.toRevList
         ]
+#ifdef FOLDR
       , bgroup "composable-foldr"
         [
           benchIOSink "drain" (FR.foldr FR.drain)
@@ -206,6 +210,7 @@ main =
         , benchIdentitySink "all,any-identity" (FR.foldr ((,) <$> FR.all (<= Ops.maxValue)
                                                   <*> FR.any (> Ops.maxValue)))
         ]
+#endif
       , bgroup "parser"
         [
           benchIOSink "drain" (PR.parse PR.drain)
