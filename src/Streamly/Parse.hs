@@ -23,10 +23,18 @@
 module Streamly.Parse
     (
       Parse (..)
+
+    -- * Applying Parses
     , parse
+    , parseGroup
+
+    -- * Parses
     , drain
     , any
     , all
+
+    -- * Combinators for Folds
+    , fromFold
     , line
     , take
     )
@@ -44,6 +52,10 @@ import Streamly.Foldr.Types (Foldr(..))
 import Streamly.Foldl.Types (Foldl(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.StreamK (IsStream(..))
+
+import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.Prelude as P
 
 {-# INLINE parse #-}
@@ -85,6 +97,21 @@ all predicate = Parse step initial done
             else Success False
         else Success x
     done = return
+
+------------------------------------------------------------------------------
+-- Upgrade to a parser
+------------------------------------------------------------------------------
+
+-- | Convert a 'Foldl' to a 'Parse'. When you want to compose folds and
+-- parsers together, upgrade a fold to a parser before composing.
+--
+-- Note that a fold would turn into a parse that always remains partial i.e.
+-- never returns success and therefore would end up consuming the whole stream.
+fromFold :: Monad m => Foldl m a b -> Parse m a b
+fromFold (Foldl step initial done) = Parse step' initial' done
+    where
+    initial' = fmap Partial initial
+    step' b x = fmap Partial (step b x)
 
 -- XXX we can use additional state to detect if a parse if being called even
 -- after it returned a Success result. However, we do not do that because of
@@ -150,3 +177,28 @@ finishWith (Parse stepL initialL doneL) (Parse stepR initialR doneR) =
         else Partial False
     done = return
 -}
+
+-- XXX should it be parseGroups instead?
+--
+-- This is the most general grouping/splitting function.
+-- foldGroupWith is a grouping dual of foldMapWith. It takes a Parse as an
+-- argument and applies it repeatedly on the stream.
+--
+-- Note that it can only split the stream but cannot do any transformations
+-- e.g. if it splits based on a pattern, it cannot remove the pattern, it can
+-- only mark where the pattern ends and split the stream at that point.  This
+-- can in fact be expressed in terms of a combination of scanl and groupBy.
+--
+-- |
+-- >>> S.toList $ S.foldGroupWith (PR.count 2 $ FL.sum) $ S.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- >>> S.toList $ S.foldGroupWith (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- > ["hello\n","world"]
+--
+parseGroup
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Parse n a b)
+    -> t m a
+    -> t m b
+parseGroup f m = D.fromStreamD $ D.foldGroup f (D.toStreamD m)

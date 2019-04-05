@@ -62,13 +62,41 @@ module Streamly.Foldl
     -- * Fold Type
       Foldl (..)
 
-    -- * Running
+    -- * Applying Folds
+    -- ** Folding
     , foldl
+
+    -- ** Scanning
     , scanl
     , postscanl
 
-    -- * Upgrading
-    , toParse
+    -- ** Grouping
+    -- | Group several elements of a stream together and fold them using the
+    -- given fold.
+    --
+    -- @
+    --
+    -- ----stream m a----|-Fold a b-|-Fold a b-|-...-|----Stream m b
+    --
+    -- @
+    --
+    -- In imperative terms grouped folding can be considered as a nested loop
+    -- where we loop over the stream to group elements and then loop over
+    -- individual groups to fold them to a single value that is yielded in the
+    -- output stream.
+    --
+    -- Note that these grouping folds are true streaming folds that never
+    -- accumulate the group in memory before folding, i.e. the group elements
+    -- are consumed by the folds as they are yielded by the stream. Therefore,
+    -- the whole computation runs in constant space.
+    -- In contrast, we can simply use a scan on the stream to buffer the whole
+    -- groups in memory and then map a fold on it to fold the groups. This kind
+    -- of grouping and folding would not work well when the group size is big.
+    --
+    , foldGroupWith
+    , foldGroupsOf
+    -- , arrayGroupsOf
+    , foldGroupsOn
 
     -- * Composing Folds
     -- ** Distribute
@@ -102,9 +130,7 @@ module Streamly.Foldl
     , unzipM
     , unzip
 
-    -- -- ** Nest
-
-    -- * Comonad
+    -- ** Resuming
     , duplicate
 
     -- * Input Transformation
@@ -246,9 +272,17 @@ module Streamly.Foldl
     , toList
     , toRevList
     , toArrayN
+
+    -- * Splitter scans
+    -- | Scans that can be used to split and fold a stream using
+    -- 'foldGroupWith'.
+    , newline
     )
 where
 
+import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Storable (Storable(..))
+import System.IO.Unsafe (unsafeDupablePerformIO)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
@@ -256,14 +290,16 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
-import Foreign.Storable (Storable(..))
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
 import Streamly.Foldl.Types (Foldl(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
-import System.IO.Unsafe (unsafeDupablePerformIO)
+import Streamly.Streams.StreamK (IsStream(..))
 
+import Streamly.Prelude (foldrS)
+import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.Prelude as P
 
 -- $termination
@@ -336,21 +372,6 @@ import qualified Streamly.Streams.Prelude as P
 --
 -- >>> FL.foldl (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
 -- 338350
-
-------------------------------------------------------------------------------
--- Upgrade to a parser
-------------------------------------------------------------------------------
-
--- Folds always go through the entire stream, whereas parsers can be partial
--- folds and return a value without going through the entire stream.
---
--- | Convert a 'Foldl' to a 'Parse'. When you want to compose folds and
--- parsers together, upgrade a fold to a parser before composing.
-toParse :: Monad m => Foldl m a b -> Parse m a b
-toParse (Foldl step initial done) = Parse step' initial' done
-    where
-    initial' = fmap Partial initial
-    step' b x = fmap Partial (step b x)
 
 ------------------------------------------------------------------------------
 -- Scanning with a Fold
@@ -606,9 +627,10 @@ unzip :: Monad m
     => (a -> (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
 unzip f = unzipM (return . f)
 
--- | When the fold is done, generate another copy of the same fold that starts
--- with the previous fold's accumulator as the initial value. This way you can
--- use the fold many times incrementally.
+-- | Modify the fold such that when the fold is done, instead of returning the
+-- accumulator, it returns a fold. The returned fold starts from where we left
+-- i.e. it uses the last accumulator value as the initial value of the
+-- accumulator. Thus we can resume the fold later and feed it more input.
 --
 -- >> do
 -- >    more <- FL.foldl (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
@@ -1089,3 +1111,260 @@ toArrayN limit = Foldl step begin done
 -- {-# INLINE toArray #-}
 -- toArray :: forall m a. (Monad m, Storable a) => Foldl m a (Array a)
 -- toArray = Foldl step begin done
+
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
+
+-- In the bottom up case, we first split and then keep merging, the final
+-- solution arrives when we are done merging all of them. In the top down case,
+-- we do the work to split and do the same to the two halves.  Finally, the
+-- solution is complete when we are done splitting to the bottom.  In other
+-- words in one case work is done during the split, in the other case work is
+-- done during the merge.
+--
+-- The first argument of grouping/splitting combinators is a continuation fold
+-- that is applied to the grouped output. If we curry the functions with toList
+-- fold we can get the combinators that are equivalent to the list combinators.
+--
+-- inits = FL.toScan
+-- tails = FR.toScan
+
+-- XXX we could also fold a stream by applying folds partially one at a time.
+--
+-- foldPartial :: Foldl n a b -> t m a -> m (Maybe b, t m a)
+
+
+-- XXX put time related functions in Streamly.Time?
+--
+-- We can use a parsed structure to represent Delimiters and non-delimiters in
+-- the stream. That way we do not have to have many APIs like "split" package
+-- to process the delimiters in different ways. The consumer can process the
+-- parsed stream in any which way.
+--
+-- However, we cannot represent overlapping parse using this structure. For
+-- overlapping parses we can perhaps use an offset value as well. Just like we
+-- can process overlapping time windows using different folds can we process
+-- overlapping values using different folds? its like different ways of parsing
+-- the stream and using different folds for different parse choices.
+--
+-- data Delimited a = Delimiter a | Value a
+-- data DelimitedOverlapping a = Delimiter a Int | Value a Int
+
+------------------------------------------------------------------------------
+-- Grouping without looking at elements
+------------------------------------------------------------------------------
+--
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
+--
+-- splitAt (Index)
+--
+------------------------------------------------------------------------------
+-- N-ary APIs
+------------------------------------------------------------------------------
+--
+-- Most general APIs for time as well as positional dimensions.
+--
+-- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
+-- maximum of tmax or nmax, whichever is maximum. After the minimum return if
+-- would block, collect up to max if does not block.
+--
+-- foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
+-- foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
+--
+-- foldGroupsOf n = foldGroupsInRange n n
+--
+-- foldGroupsOf only applies to Folds and not Parses, for Parses (and even for
+-- folds) we can directly apply foldGroupWith.
+-- XXX implement this using foldGroupWith, and compare performance.
+--
+-- | Group the input stream into groups of @n@ elements each and then fold each
+-- group using the provided fold function. This is equivalent to chunksOf found
+-- in other libraries.
+--
+-- >> S.toList $ S.foldGroupsOf FL.sum 2 (S.enumerateFromTo 1 10)
+-- > [3,7,11,15,19]
+--
+-- @since 0.7.0
+{-# INLINE foldGroupsOf #-}
+foldGroupsOf
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
+foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
+
+-- foldGroupsOf' (fold in chunks of sizes provided by a stream/generator func)
+
+-- XXX this is only for experimentation, performs worse than foldGroupsOf
+{-# INLINE _arrayGroupsOf #-}
+_arrayGroupsOf
+    :: (IsStream t, Monad m, Storable a)
+    => Int -> t m a -> t m (Array a)
+_arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Element Aware APIs
+------------------------------------------------------------------------------
+--
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
+--
+-- breakOn
+--
+-- spanByFold
+-- spanByFoldModified
+-- spanByFoldBuffered
+--
+{-
+-- | Like 'groupBy' but emits only the first group and the rest of the stream
+-- instead of breaking the whole stream into groups.
+spanBy
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. MonadIO n => Foldl n a c)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m (b, c)
+
+-- | Like 'groupByRolling' but emits only the first group and the rest of the
+-- stream instead of breaking the whole stream into groups.
+spanByRolling
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. MonadIO n => Foldl n a c)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m (b, c)
+-- span p = spanBy (\_ x -> p x)
+-- break p = span (not . p)
+-}
+
+------------------------------------------------------------------------------
+-- N-ary APIs
+------------------------------------------------------------------------------
+--
+-- XXX should we use a strict pair?
+-- The splitter returns True if the current element is the last element of the
+-- group, otherwise returns false.
+foldGroupWith
+    :: (IsStream t, Monad m)
+    => (t m a -> t m (a,Bool))
+    -> (forall n. Monad n => Foldl n a b)
+    -> t m a
+    -> t m b
+foldGroupWith splitter f m = D.fromStreamD $ D.foldGroupWith
+    (D.toStreamD . splitter . D.fromStreamD) f (D.toStreamD m)
+
+{-
+-- Like foldGroupWith but the grouping fold returns the stream elements instead
+-- of returning a 'Bool' value. A 'Right' value means the group is not complete
+-- yet, a 'Left' value means this is the final chunk of the group. This allows
+-- the fold to eat, replace or add elements to the input, but still emit the
+-- output as soon as possible without unnecessary bufferng (compare with
+-- groupByFoldBuffered). For example, we can match on a pattern but emit groups
+-- without the pattern.
+groupsByFoldModifying
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (forall n. Foldl n a (Either (Array a) (Array a)))
+    -> t m a
+    -> t m b
+
+-- Like foldGroupWith but buffers the group and emits it only when the whole
+-- group is complete. The grouping 'Fold'l yields a complete group using a
+-- 'Just' value and a 'Nothing' value indicates that the input is buffered.
+groupsByFoldBuffered
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n (Array a) b)
+    -> (forall n. Foldl n a (Maybe (Array a)))
+    -> t m a
+    -> t m b
+
+-- | Apply a predicate to each new element in the input stream and the first
+-- element of the current group. The new element is considered part of the
+-- current group if the predicate succeeds otherwise a new group starts.
+groupsBy
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m b
+
+-- | Apply a predicate to each new element in the input stream and the last
+-- element of the current group. In other words, perform a rolling comparison
+-- between two successive elements in the stream. The new element is considered
+-- part of the current group if the predicate succeeds otherwise a new group
+-- starts.
+groupsByRolling
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b)
+    -> (a -> a -> Bool)
+    -> t m a
+    -> t m b
+--
+-- groups = groupsBy (==)
+--
+-- Can be implemented using foldGroupWith
+-- splitOn (foldGroupsOn)
+--
+-}
+
+-- | Split the stream into groups using a subsequence. When the subsequence is
+-- found in the stream the stream is split at the end of the subsequence and
+-- each such group is folded using the supplied fold.
+{-# INLINE foldGroupsOn #-}
+foldGroupsOn
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Foldl n a b) -> Array a -> t m a -> t m b
+foldGroupsOn f subseq m =
+    D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Grouped by order
+------------------------------------------------------------------------------
+
+{-
+-- Buffer until the next element in sequence arrives. The function argument
+-- determines the difference in sequence numbers. This could be useful in
+-- implementing sequenced streams, for example, TCP reassembly.
+{-# INLINE foldOrderedBy #-}
+foldOrderedBy
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b)
+    -> (a -> a -> Int)
+    -> t m a
+    -> t m b
+foldOrderedBy = undefined
+-}
+
+------------------------------------------------------------------------------
+-- Grouping by time
+------------------------------------------------------------------------------
+--
+-- splitAtInterval
+-- foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
+-- foldIntervalsOf n = foldIntervalsInRange n n
+-- chunksOfInterval
+--
+------------------------------------------------------------------------------
+-- Grouping looking at timestamps
+------------------------------------------------------------------------------
+--
+-- timestamp the elements in the stream. We can then group by timestamp
+-- intervals and fold. This is just a special case of a general groupBy.
+-- This can be useful in folding based on the generation times rather than
+-- arrival times.
+--
+-- foldTSIntervalsOrGroupsInRange tmin tmax nmin nmax =
+
+------------------------------------------------------------------------------
+-- Splitters
+------------------------------------------------------------------------------
+--
+newline :: IsStream t => t m Char -> t m (Char,Bool)
+newline m = foldrS (\x xs ->
+    if x == '\n'
+    then (x,True) `K.cons` xs
+    else (x,False) `K.cons` xs) K.nil m
