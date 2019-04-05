@@ -77,7 +77,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Array as A
-import qualified Streamly.Foldl as FL
+import qualified Streamly.Fold as FL
 
 -- XXX use fdadvise (fd,0,0,FADVISE_SEQUENTIAL) when available.
 

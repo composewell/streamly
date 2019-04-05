@@ -240,7 +240,7 @@ import System.IO.Unsafe (unsafeDupablePerformIO)
 import Streamly.Array.Types
        (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex,
         unsafeAppend, unsafeNew)
-import Streamly.Foldl.Types (Foldl(..))
+import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
 
@@ -959,13 +959,13 @@ concatMap f = concatMapM (return . f)
 foldOneGroup
     :: Monad m
     => Int
-    -> Foldl m a b
+    -> Fold m a b
     -> a
     -> State K.Stream m a
     -> (State K.Stream m a -> s -> m (Step s a))
     -> s
     -> m (b, Maybe s)
-foldOneGroup n (Foldl fstep begin done) x gst step state = do
+foldOneGroup n (Fold fstep begin done) x gst step state = do
     acc0 <- begin
     acc <- fstep acc0 x
     go SPEC state acc 1
@@ -995,7 +995,7 @@ foldOneGroup n (Foldl fstep begin done) x gst step state = do
 {-# INLINE_NORMAL foldGroupsOf #-}
 foldGroupsOf
     :: Monad m
-    => (forall n. Monad n => Foldl n a b)
+    => (forall n. Monad n => Fold n a b)
     -> Int
     -> Stream m a
     -> Stream m b
@@ -1085,7 +1085,7 @@ foldGroup f (Stream step state) = Stream stepOuter (Just state)
 foldGroupWith
     :: Monad m
     => (Stream m a -> Stream m (a,Bool))
-    -> (forall n. Monad n => Foldl n a b)
+    -> (forall n. Monad n => Fold n a b)
     -> Stream m a
     -> Stream m b
 foldGroupWith splitter f m = foldGroupWith' f (splitter m)
@@ -1097,7 +1097,7 @@ foldGroupWith splitter f m = foldGroupWith' f (splitter m)
         where
 
         {-# INLINE_LATE stepOuter #-}
-        stepOuter (Foldl fstep initial done) gst (Just st) = do
+        stepOuter (Fold fstep initial done) gst (Just st) = do
             res <- step (adaptState gst) st
             case res of
                 Yield (x,r) s -> do
@@ -1278,7 +1278,7 @@ data GroupOnState s a =
 {-# INLINE_NORMAL foldGroupsOn #-}
 foldGroupsOn
     :: forall m a b. (MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
+    => (forall n. MonadIO n => Fold n a b)
     -> Array a
     -> Stream m a
     -> Stream m b
@@ -1292,8 +1292,8 @@ foldGroupsOn f v@Array{..} (Stream step state) =
         in aEnd `minusPtr` p
 
     {-# INLINE fold #-}
-    -- fold :: Monad m => Foldl m a b -> Stream m a -> m b
-    fold (Foldl step begin done) = foldxM' step begin done
+    -- fold :: Monad m => Fold m a b -> Stream m a -> m b
+    fold (Fold step begin done) = foldxM' step begin done
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter gst GO_START = return $

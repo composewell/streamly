@@ -5,7 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Foldl
+-- Module      : Streamly.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -21,7 +21,7 @@
 -- > import qualified as FL
 --
 --
--- A left fold is represented by the type 'Foldl'. @Foldl m a b@ folds an
+-- A left fold is represented by the type 'Fold'. @Fold m a b@ folds an
 -- input stream consisting of values of type @a@ to a singleton value of type
 -- @b@. The fold can be run using 'foldl'.
 --
@@ -33,12 +33,12 @@
 -- like:
 --
 -- @
--- Stream m a ---- Scan m a b ----- Foldl m b a --- Sink m b
+-- Stream m a ---- Scan m a b ----- Fold m b a --- Sink m b
 -- @
 --
 -- @Stream m a@ is a generator of values of type @a@. @Scan m a b@ is a
 -- composable stream transformer that can generate, transform and merge
--- streams. @Foldl m b a@ is a dual of scan, it is a composable stream fold
+-- streams. @Fold m b a@ is a dual of scan, it is a composable stream fold
 -- that can split, transform and fold streams and combine the results. @Sink m
 -- a@ sits on the opposite side of stream m a, it is a consumer of streams that
 -- produces nothing.
@@ -47,7 +47,7 @@
 
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 
-module Streamly.Foldl
+module Streamly.Fold
     (
     -- * Introduction
     -- ** Composition
@@ -60,7 +60,7 @@ module Streamly.Foldl
     -- $termination
 
     -- * Fold Type
-      Foldl (..)
+      Fold (..)
 
     -- * Applying Folds
     -- ** Folding
@@ -101,14 +101,14 @@ module Streamly.Foldl
     -- * Composing Folds
     -- ** Distribute
     -- |
-    -- The 'Applicative' instance of 'Foldl' can be used to distribute one copy
+    -- The 'Applicative' instance of 'Fold' can be used to distribute one copy
     -- of the stream to each fold and zip the results using a function.
     --
     -- @
     --
-    --                 |-------Foldl m a b--------|
+    --                 |-------Fold m a b--------|
     -- ---stream m a---|                          |---m (b,c,...)
-    --                 |-------Foldl m a c--------|
+    --                 |-------Fold m a c--------|
     --                 |                          |
     --                            ...
     -- @
@@ -292,7 +292,7 @@ import Prelude
 
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
-import Streamly.Foldl.Types (Foldl(..), Pair'(..))
+import Streamly.Fold.Types (Fold(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream(..))
@@ -360,7 +360,7 @@ import qualified Streamly.Streams.Prelude as P
 -- $inputOutput
 --
 -- Unlike stream producers, folds have an input side as well as an output side.
--- In the type @Foldl m a b@, @a@ is the input and @b@ is the output.
+-- In the type @Fold m a b@, @a@ is the input and @b@ is the output.
 -- Transformations can be applied either on the input side or on the output
 -- side. The 'Functor' instance of a fold maps on the output of the fold:
 --
@@ -379,13 +379,13 @@ import qualified Streamly.Streams.Prelude as P
 
 -- | Scan a stream using the given monadic fold.
 {-# INLINE scanl #-}
-scanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
-scanl (Foldl step begin done) = P.scanxM' step begin done
+scanl :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+scanl (Fold step begin done) = P.scanxM' step begin done
 
 -- | Postscan a stream using the given monadic fold.
 {-# INLINE postscanl #-}
-postscanl :: Monad m => Foldl m a b -> SerialT m a -> SerialT m b
-postscanl (Foldl step begin done) = P.postscanxM' step begin done
+postscanl :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+postscanl (Fold step begin done) = P.postscanxM' step begin done
 
 -- XXX toPrescanl
 
@@ -398,8 +398,8 @@ postscanl (Foldl step begin done) = P.postscanxM' step begin done
 -- >>> FL.foldl FL.sum (S.enumerateFromTo 1 100)
 -- 5050
 {-# INLINE foldl #-}
-foldl :: Monad m => Foldl m a b -> SerialT m a -> m b
-foldl (Foldl step begin done) = P.foldxM' step begin done
+foldl :: Monad m => Fold m a b -> SerialT m a -> m b
+foldl (Fold step begin done) = P.foldxM' step begin done
 
 ------------------------------------------------------------------------------
 -- Composing folds
@@ -412,23 +412,23 @@ foldl (Foldl step begin done) = P.foldxM' step begin done
 -- | Distribute one copy of the stream to each fold and zip the results.
 --
 -- @
---                 |-------Foldl m a b--------|
+--                 |-------Fold m a b--------|
 -- ---stream m a---|                          |---m (b,c)
---                 |-------Foldl m a c--------|
+--                 |-------Fold m a c--------|
 -- @
 -- >>> FL.foldl (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
 --
-tee :: Monad m => Foldl m a b -> Foldl m a c -> Foldl m a (b,c)
+tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
 tee f1 f2 = (,) <$> f1 <*> f2
 
--- XXX we can unify Foldl and Scan types. In fact a fold is a special case of
+-- XXX we can unify Fold and Scan types. In fact a fold is a special case of
 -- scan where we filter out all other elements except the last one. We can
 -- perhaps do an efficient fold with a scan type as well?
 
 {-# INLINE foldNil #-}
-foldNil :: Monad m => Foldl m a [b]
-foldNil = Foldl step begin done  where
+foldNil :: Monad m => Fold m a [b]
+foldNil = Fold step begin done  where
   begin = return []
   step _ _ = return []
   done = return
@@ -436,9 +436,9 @@ foldNil = Foldl step begin done  where
 -- XXX we can directly use an Array as the accumulator so that this can scale
 -- very well to a large number of elements.
 {-# INLINE foldCons #-}
-foldCons :: Monad m => Foldl m a b -> Foldl m a [b] -> Foldl m a [b]
-foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
-    Foldl step begin done
+foldCons :: Monad m => Fold m a b -> Fold m a [b] -> Fold m a [b]
+foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
 
     where
 
@@ -451,9 +451,9 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 --
 -- @
 --
---                 |-------Foldl m a b--------|
+--                 |-------Fold m a b--------|
 -- ---stream m a---|                          |---m (Array b)
---                 |-------Foldl m a b--------|
+--                 |-------Fold m a b--------|
 --                 |                          |
 --                            ...
 -- @
@@ -463,16 +463,16 @@ foldCons (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
 {-# INLINE distribute #-}
-distribute :: Monad m => [Foldl m a b] -> Foldl m a [b]
+distribute :: Monad m => [Fold m a b] -> Fold m a [b]
 distribute [] = foldNil
 distribute (x:xs) = foldCons x (distribute xs)
 
 {-
 {-# INLINE foldCons_ #-}
-foldCons_ :: Monad m => Foldl m a () -> Foldl m a () -> Foldl m a ()
-foldCons_ (Foldl stepL beginL _) (Foldl stepR beginR _) =
+foldCons_ :: Monad m => Fold m a () -> Fold m a () -> Fold m a ()
+foldCons_ (Fold stepL beginL _) (Fold stepR beginR _) =
 
-    Foldl step begin done
+    Fold step begin done
 
     where
 
@@ -487,12 +487,12 @@ foldCons_ (Foldl stepL beginL _) (Foldl stepR beginR _) =
 
 -- XXX folding pairwise hierarcically may be more efficient
 -- XXX use array instead of list for scalability
--- distribute_ :: Monad m => Array (Foldl m a b) -> Foldl m a ()
+-- distribute_ :: Monad m => Array (Fold m a b) -> Fold m a ()
 
 -- | Distribute a stream to a list of folds.
 --
 -- >> FL.foldl (FL.distribute_ [FL.mapM_ print, FL.mapM_ (print . (+10))]) (S.enumerateFromTo 1 5)
-distribute_ :: Monad m => [Foldl m a ()] -> Foldl m a ()
+distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
 distribute_ [] = drain
 distribute_ (x:xs) = foldCons_ x (distribute_ xs)
     -}
@@ -505,9 +505,9 @@ distribute_ (x:xs) = foldCons_ x (distribute_ xs)
 --
 -- @
 --
---                                     |-------Foldl b x--------|
+--                                     |-------Fold b x--------|
 -- -----stream m a --> (Either b c)----|                       |----(x,y)
---                                     |-------Foldl c y--------|
+--                                     |-------Fold c y--------|
 -- @
 --
 -- Send input to either fold randomly:
@@ -539,10 +539,10 @@ distribute_ (x:xs) = foldCons_ x (distribute_ xs)
 --
 {-# INLINE partitionByM #-}
 partitionByM :: Monad m
-    => (a -> m (Either b c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x, y)
-partitionByM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
+    => (a -> m (Either b c)) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
+partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 
-    Foldl step begin done
+    Fold step begin done
 
     where
 
@@ -571,16 +571,16 @@ partitionByM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 --
 {-# INLINE partitionBy #-}
 partitionBy :: Monad m
-    => (a -> Either b c) -> Foldl m b x -> Foldl m c y -> Foldl m a (x, y)
+    => (a -> Either b c) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
 partitionBy f = partitionByM (return . f)
 
 -- Send one item to each fold in a round-robin fashion. This is the consumer
 -- side dual of producer side 'mergeN' operation.
--- partitionN :: Monad m => [Foldl m a b] -> Foldl m a [b]
--- partitionN fs = Foldl step begin done
+-- partitionN :: Monad m => [Fold m a b] -> Fold m a [b]
+-- partitionN fs = Fold step begin done
 
 -- XXX rename this to unzipWithM and make unzipM as
--- unzipM :: Monad m => Foldl m b x -> Foldl m c y -> Foldl m (b,c) (x,y)
+-- unzipM :: Monad m => Fold m b x -> Fold m c y -> Fold m (b,c) (x,y)
 
 -- Demultiplex an input element into a number of typed variants. We want to
 -- statically restrict the target values within a set of predefined types, an
@@ -590,17 +590,17 @@ partitionBy f = partitionByM (return . f)
 --
 -- This is the consumer side dual of the producer side 'mux' operation.
 -- demux :: (Monad m, Ord k)
---     => (a -> k) -> Map k (Foldl m a b) -> Foldl m a (Map k b)
--- demux f kv = Foldl step begin done
+--     => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
+-- demux f kv = Fold step begin done
 
 -- | Split elements in the input stream into multiple parts using a splitter
 -- function, direct each part to a different fold and zip the results.
 --
 -- @
 --
---                           |-------Foldl a x--------|
+--                           |-------Fold a x--------|
 -- -----Stream m x----(a,b)--|                       |----m (x,y)
---                           |-------Foldl b y--------|
+--                           |-------Fold b y--------|
 --
 -- @
 --
@@ -608,9 +608,9 @@ partitionBy f = partitionByM (return . f)
 --
 {-# INLINE unzipM #-}
 unzipM :: Monad m
-    => (a -> m (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
-unzipM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
-    Foldl step begin done
+    => (a -> m (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
+unzipM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
+    Fold step begin done
 
     where
 
@@ -624,7 +624,7 @@ unzipM f (Foldl stepL beginL doneL) (Foldl stepR beginR doneR) =
 --
 {-# INLINE unzip #-}
 unzip :: Monad m
-    => (a -> (b,c)) -> Foldl m b x -> Foldl m c y -> Foldl m a (x,y)
+    => (a -> (b,c)) -> Fold m b x -> Fold m c y -> Fold m a (x,y)
 unzip f = unzipM (return . f)
 
 -- | Modify the fold such that when the fold is done, instead of returning the
@@ -638,9 +638,9 @@ unzip f = unzipM (return . f)
 -- >    FL.foldl evenMore (S.enumerateFromTo 21 30)
 -- > 465
 {-# INLINABLE duplicate #-}
-duplicate :: Applicative m => Foldl m a b -> Foldl m a (Foldl m a b)
-duplicate (Foldl step begin done) =
-    Foldl step begin (\x -> pure (Foldl step (pure x) done))
+duplicate :: Applicative m => Fold m a b -> Fold m a (Fold m a b)
+duplicate (Fold step begin done) =
+    Fold step begin (\x -> pure (Fold step (pure x) done))
 
 ------------------------------------------------------------------------------
 -- Notes on concurrency
@@ -656,7 +656,7 @@ duplicate (Foldl step begin done) =
 --
 -- For non-buffering case we can use multiple SVars and queue the values to
 -- each SVar. Each fold would be pulling the from its own SVar. We can use the
--- foldl's Foldl type with a parally combinator, in that case the fold would
+-- foldl's Fold type with a parally combinator, in that case the fold would
 -- automatically distribute the values via SVar.
 
 ------------------------------------------------------------------------------
@@ -669,15 +669,15 @@ duplicate (Foldl step begin done) =
 -- Sum {getSum = 55}
 --
 {-# INLINABLE lmap #-}
-lmap :: (a -> b) -> Foldl m b r -> Foldl m a r
-lmap f (Foldl step begin done) = Foldl step' begin done
+lmap :: (a -> b) -> Fold m b r -> Fold m a r
+lmap f (Fold step begin done) = Fold step' begin done
   where
     step' x a = step x (f a)
 
 -- | @(lmapM f fold)@ maps the monadic function @f@ on the input of the fold.
 {-# INLINABLE lmapM #-}
-lmapM :: Monad m => (a -> m b) -> Foldl m b r -> Foldl m a r
-lmapM f (Foldl step begin done) = Foldl step' begin done
+lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
+lmapM f (Fold step begin done) = Fold step' begin done
   where
     step' x a = f a >>= step x
 
@@ -688,8 +688,8 @@ lmapM f (Foldl step begin done) = Foldl step' begin done
 {-
 -- | This can be used to apply all the stream generation operations on folds.
 concatMap ::(IsStream t, Monad m) => (a -> t m c)
-    -> Foldl m a b
-    -> Foldl m a c
+    -> Fold m a b
+    -> Fold m a c
 concatMap s f1 f2 = undefined
 -}
 
@@ -704,14 +704,14 @@ concatMap s f1 f2 = undefined
 --
 -- @
 --
--- -----Foldl m a b----|-Foldl n a c-|-Foldl n a c-|-...-|----Foldl m a c
+-- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
 foldGroupsOf
     :: Int
-    -> (forall n. Monad n => Foldl n a c)
-    -> Foldl m a b
-    -> Foldl m a c
+    -> (forall n. Monad n => Fold n a c)
+    -> Fold m a b
+    -> Fold m a c
 foldGroupsOf n f1 f2 = undefined
 -}
 
@@ -726,8 +726,8 @@ foldGroupsOf n f1 f2 = undefined
 -- 40
 --
 {-# INLINABLE lfilter #-}
-lfilter :: Monad m => (a -> Bool) -> Foldl m a r -> Foldl m a r
-lfilter f (Foldl step begin done) = Foldl step' begin done
+lfilter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
+lfilter f (Fold step begin done) = Fold step' begin done
   where
     step' x a = if f a then step x a else return x
 
@@ -735,8 +735,8 @@ lfilter f (Foldl step begin done) = Foldl step' begin done
 -- input of a fold.
 --
 {-# INLINABLE lfilterM #-}
-lfilterM :: Monad m => (a -> m Bool) -> Foldl m a r -> Foldl m a r
-lfilterM f (Foldl step begin done) = Foldl step' begin done
+lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
+lfilterM f (Fold step begin done) = Fold step' begin done
   where
     step' x a = do
       use <- f a
@@ -766,13 +766,13 @@ hush :: Either' a b -> Maybe b
 hush (Left'  _) = Nothing
 hush (Right' b) = Just b
 
--- | @_Foldl1 step@ returns a new 'Foldl' using just a step function that has the
+-- | @_Fold1 step@ returns a new 'Fold' using just a step function that has the
 -- same type for the accumulator and the element. The result type is the
 -- accumulator type wrapped in 'Maybe'. The initial accumulator is retrieved
--- from the 'Foldlable', the result is 'None' for empty containers.
-{-# INLINABLE _Foldl1 #-}
-_Foldl1 :: Monad m => (a -> a -> a) -> Foldl m a (Maybe a)
-_Foldl1 step = Foldl step_ (return Nothing') lazy
+-- from the 'Foldable', the result is 'None' for empty containers.
+{-# INLINABLE _Fold1 #-}
+_Fold1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
+_Fold1 step = Fold step_ (return Nothing') lazy
   where
     step_ mx a = return $ Just' $
         case mx of
@@ -792,8 +792,8 @@ _Foldl1 step = Foldl step_ (return Nothing') lazy
 -- > FL.foldl FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
 --
 {-# INLINABLE mconcat #-}
-mconcat :: (Monad m, Monoid a) => Foldl m a a
-mconcat = Foldl (\x a -> return $ mappend x a) (return mempty) return
+mconcat :: (Monad m, Monoid a) => Fold m a a
+mconcat = Fold (\x a -> return $ mappend x a) (return mempty) return
 
 -- |
 -- > foldMap f = map f mconcat
@@ -804,7 +804,7 @@ mconcat = Foldl (\x a -> return $ mappend x a) (return mempty) return
 -- > FL.foldl (FL.foldMap Sum) $ S.enumerateFromTo 1 10
 --
 {-# INLINABLE foldMap #-}
-foldMap :: (Monad m, Monoid b) => (a -> b) -> Foldl m a b
+foldMap :: (Monad m, Monoid b) => (a -> b) -> Fold m a b
 foldMap f = lmap f mconcat
 
 -- |
@@ -816,8 +816,8 @@ foldMap f = lmap f mconcat
 -- > FL.foldM (FL.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
 --
 {-# INLINABLE foldMapM #-}
-foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Foldl m a b
-foldMapM act = Foldl step begin done
+foldMapM ::  (Monad m, Monoid b) => (a -> m b) -> Fold m a b
+foldMapM act = Fold step begin done
     where
     done = return
     begin = return mempty
@@ -832,8 +832,8 @@ foldMapM act = Foldl step begin done
 -- | A fold that drains all its input, running the effects and discarding the
 -- results.
 {-# INLINABLE drain #-}
-drain :: Monad m => Foldl m a ()
-drain = Foldl step begin done
+drain :: Monad m => Fold m a ()
+drain = Fold step begin done
     where
     begin = return ()
     step _ _ = return ()
@@ -845,8 +845,8 @@ drain = Foldl step begin done
 
 -- | Like 'index', except with a more general 'Integral' argument
 {-# INLINABLE genericIndex #-}
-genericIndex :: (Integral i, Monad m) => i -> Foldl m a (Maybe a)
-genericIndex i = Foldl step (return $ Left' 0) done
+genericIndex :: (Integral i, Monad m) => i -> Fold m a (Maybe a)
+genericIndex i = Fold step (return $ Left' 0) done
   where
     step x a = return $
         case x of
@@ -862,26 +862,26 @@ genericIndex i = Foldl step (return $ Left' 0) done
 -- | @(index n)@ returns the @n@th element of the container, or 'Nothing' if
 -- the container has an insufficient number of elements
 {-# INLINABLE index #-}
-index :: Monad m => Int -> Foldl m a (Maybe a)
+index :: Monad m => Int -> Fold m a (Maybe a)
 index = genericIndex
 
 -- | Get the first element of a container or return 'Nothing' if the container
 -- is empty
 {-# INLINABLE head #-}
-head :: Monad m => Foldl m a (Maybe a)
-head = _Foldl1 const
+head :: Monad m => Fold m a (Maybe a)
+head = _Fold1 const
 
 -- | Get the last element of a container or return 'Nothing' if the container
 -- is empty
 {-# INLINABLE last #-}
-last :: Monad m => Foldl m a (Maybe a)
-last = _Foldl1 (flip const)
+last :: Monad m => Fold m a (Maybe a)
+last = _Fold1 (flip const)
 
 -- | @(find predicate)@ returns the first element that satisfies the predicate
 -- or 'Nothing' if no element satisfies the predicate
 {-# INLINABLE find #-}
-find :: Monad m => (a -> Bool) -> Foldl m a (Maybe a)
-find predicate = Foldl step (return Nothing') lazy
+find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
+find predicate = Fold step (return Nothing') lazy
   where
     step x a = return $
         case x of
@@ -893,8 +893,8 @@ find predicate = Foldl step (return Nothing') lazy
 -- | @(findIndex predicate)@ returns the index of the first element that
 -- satisfies the predicate, or 'Nothing' if no element satisfies the predicate
 {-# INLINABLE findIndex #-}
-findIndex :: Monad m => (a -> Bool) -> Foldl m a (Maybe Int)
-findIndex predicate = Foldl step (return $ Left' 0) (return . hush)
+findIndex :: Monad m => (a -> Bool) -> Fold m a (Maybe Int)
+findIndex predicate = Fold step (return $ Left' 0) (return . hush)
   where
     step x a = return $
         case x of
@@ -907,14 +907,14 @@ findIndex predicate = Foldl step (return $ Left' 0) (return . hush)
 -- | @(elemIndex a)@ returns the index of the first element that equals @a@, or
 -- 'Nothing' if no element matches
 {-# INLINABLE elemIndex #-}
-elemIndex :: (Eq a, Monad m) => a -> Foldl m a (Maybe Int)
+elemIndex :: (Eq a, Monad m) => a -> Fold m a (Maybe Int)
 elemIndex a = findIndex (a ==)
 
 -- | @(lookup a)@ returns the element paired with the first matching item, or
 -- 'Nothing' if none matches
 {-# INLINABLE lookup #-}
-lookup :: (Eq a, Monad m) => a -> Foldl m (a,b) (Maybe b)
-lookup a0 = Foldl step (return Nothing') lazy
+lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
+lookup a0 = Fold step (return Nothing') lazy
   where
     step x (a,b) = return $
         case x of
@@ -929,8 +929,8 @@ lookup a0 = Foldl step (return Nothing') lazy
 
 -- | Returns 'True' if the container is empty, 'False' otherwise
 {-# INLINABLE null #-}
-null :: Monad m => Foldl m a Bool
-null = Foldl (\_ _ -> return False) (return True) return
+null :: Monad m => Fold m a Bool
+null = Fold (\_ _ -> return False) (return True) return
 
 -- |
 -- > any p = map p or
@@ -938,13 +938,13 @@ null = Foldl (\_ _ -> return False) (return True) return
 -- @any predicate@ returns 'True' if any element satisfies the predicate,
 -- 'False' otherwise
 {-# INLINABLE any #-}
-any :: Monad m => (a -> Bool) -> Foldl m a Bool
-any predicate = Foldl (\x a -> return $ x || predicate a) (return False) return
+any :: Monad m => (a -> Bool) -> Fold m a Bool
+any predicate = Fold (\x a -> return $ x || predicate a) (return False) return
 
 -- | @(elem a)@ returns 'True' if the container has an element equal to @a@,
 -- 'False' otherwise
 {-# INLINABLE elem #-}
-elem :: (Eq a, Monad m) => a -> Foldl m a Bool
+elem :: (Eq a, Monad m) => a -> Fold m a Bool
 elem a = any (a ==)
 
 -- |
@@ -953,24 +953,24 @@ elem a = any (a ==)
 -- @all predicate@ returns 'True' if all elements satisfy the predicate,
 -- 'False' otherwise
 {-# INLINABLE all #-}
-all :: Monad m => (a -> Bool) -> Foldl m a Bool
-all predicate = Foldl (\x a -> return $ x && predicate a) (return True) return
+all :: Monad m => (a -> Bool) -> Fold m a Bool
+all predicate = Fold (\x a -> return $ x && predicate a) (return True) return
 
 -- | @(notElem a)@ returns 'False' if the container has an element equal to
 -- @a@, 'True' otherwise
 {-# INLINABLE notElem #-}
-notElem :: (Eq a, Monad m) => a -> Foldl m a Bool
+notElem :: (Eq a, Monad m) => a -> Fold m a Bool
 notElem a = all (a /=)
 
 -- | Returns 'True' if all elements are 'True', 'False' otherwise
 {-# INLINABLE and #-}
-and :: Monad m => Foldl m Bool Bool
-and = Foldl (\x a -> return $ x && a) (return True) return
+and :: Monad m => Fold m Bool Bool
+and = Fold (\x a -> return $ x && a) (return True) return
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
 {-# INLINABLE or #-}
-or :: Monad m => Foldl m Bool Bool
-or = Foldl (\x a -> return $ x || a) (return False) return
+or :: Monad m => Fold m Bool Bool
+or = Fold (\x a -> return $ x || a) (return False) return
 
 ------------------------------------------------------------------------------
 -- To Summary
@@ -978,23 +978,23 @@ or = Foldl (\x a -> return $ x || a) (return False) return
 
 -- | Like 'length', except with a more general 'Num' return value
 {-# INLINABLE genericLength #-}
-genericLength :: (Monad m, Num b) => Foldl m a b
-genericLength = Foldl (\n _ -> return $ n + 1) (return 0) return
+genericLength :: (Monad m, Num b) => Fold m a b
+genericLength = Fold (\n _ -> return $ n + 1) (return 0) return
 
 -- | Return the length of the container
 {-# INLINABLE length #-}
-length :: Monad m => Foldl m a Int
+length :: Monad m => Fold m a Int
 length = genericLength
 
 -- | Computes the sum of all elements
 {-# INLINABLE sum #-}
-sum :: (Monad m, Num a) => Foldl m a a
-sum = Foldl (\x a -> return $ x + a) (return 0) return
+sum :: (Monad m, Num a) => Fold m a a
+sum = Fold (\x a -> return $ x + a) (return 0) return
 
 -- | Computes the product of all elements
 {-# INLINABLE product #-}
-product :: (Monad m, Num a) => Foldl m a a
-product = Foldl (\x a -> return $ x * a) (return 1) return
+product :: (Monad m, Num a) => Fold m a a
+product = Fold (\x a -> return $ x * a) (return 1) return
 
 ------------------------------------------------------------------------------
 -- To Summary (Statistical)
@@ -1002,8 +1002,8 @@ product = Foldl (\x a -> return $ x * a) (return 1) return
 
 -- | Compute a numerically stable arithmetic mean of all elements
 {-# INLINABLE mean #-}
-mean :: (Monad m, Fractional a) => Foldl m a a
-mean = Foldl step (return begin) (return . done)
+mean :: (Monad m, Fractional a) => Fold m a a
+mean = Fold step (return begin) (return . done)
   where
     begin = Pair' 0 0
     step (Pair' x n) y = return $
@@ -1013,8 +1013,8 @@ mean = Foldl step (return begin) (return . done)
 
 -- | Compute a numerically stable (population) variance over all elements
 {-# INLINABLE variance #-}
-variance :: (Monad m, Fractional a) => Foldl m a a
-variance = Foldl step (return begin) (return . done)
+variance :: (Monad m, Fractional a) => Fold m a a
+variance = Fold step (return begin) (return . done)
   where
     begin = Pair3' 0 0 0
 
@@ -1030,7 +1030,7 @@ variance = Foldl step (return begin) (return . done)
 -- | Compute a numerically stable (population) standard deviation over all
 -- elements
 {-# INLINABLE stdDev #-}
-stdDev :: (Monad m, Floating a) => Foldl m a a
+stdDev :: (Monad m, Floating a) => Fold m a a
 stdDev = sqrt variance
 
 ------------------------------------------------------------------------------
@@ -1039,8 +1039,8 @@ stdDev = sqrt variance
 
 -- | Computes the maximum element with respect to the given comparison function
 {-# INLINABLE maximumBy #-}
-maximumBy :: Monad m => (a -> a -> Ordering) -> Foldl m a (Maybe a)
-maximumBy cmp = _Foldl1 max'
+maximumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
+maximumBy cmp = _Fold1 max'
   where
     max' x y = case cmp x y of
         GT -> x
@@ -1048,13 +1048,13 @@ maximumBy cmp = _Foldl1 max'
 
 -- | Computes the maximum element
 {-# INLINABLE maximum #-}
-maximum :: (Monad m, Ord a) => Foldl m a (Maybe a)
-maximum = _Foldl1 max
+maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
+maximum = _Fold1 max
 
 -- | Computes the minimum element with respect to the given comparison function
 {-# INLINABLE minimumBy #-}
-minimumBy :: Monad m => (a -> a -> Ordering) -> Foldl m a (Maybe a)
-minimumBy cmp = _Foldl1 min'
+minimumBy :: Monad m => (a -> a -> Ordering) -> Fold m a (Maybe a)
+minimumBy cmp = _Fold1 min'
   where
     min' x y = case cmp x y of
         GT -> y
@@ -1062,8 +1062,8 @@ minimumBy cmp = _Foldl1 min'
 
 -- | Computes the minimum element
 {-# INLINABLE minimum #-}
-minimum :: (Monad m, Ord a) => Foldl m a (Maybe a)
-minimum = _Foldl1 min
+minimum :: (Monad m, Ord a) => Fold m a (Maybe a)
+minimum = _Fold1 min
 
 ------------------------------------------------------------------------------
 -- To Containers
@@ -1077,8 +1077,8 @@ minimum = _Foldl1 min
 
 -- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
 {-# INLINABLE toList #-}
-toList :: Monad m => Foldl m a [a]
-toList = Foldl (\f x -> return $ f . (x :)) (return id) (return . ($ []))
+toList :: Monad m => Fold m a [a]
+toList = Fold (\f x -> return $ f . (x :)) (return id) (return . ($ []))
 
 -- | Folds the input to a list in the reverse order of the input.  This could
 -- create performance issues if you are folding large lists. Use toRevArray
@@ -1086,16 +1086,16 @@ toList = Foldl (\f x -> return $ f . (x :)) (return id) (return . ($ []))
 
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toRevList #-}
-toRevList :: Monad m => Foldl m a [a]
-toRevList = Foldl (\xs x -> return $ x:xs) (return []) return
+toRevList :: Monad m => Fold m a [a]
+toRevList = Fold (\xs x -> return $ x:xs) (return []) return
 
 --  XXX use SPEC
 --  XXX Make it total, by handling the exception
 --  | @toArrayN limit@ folds the input to a single chunk 'Array' of maximum
 --  size @limit@. If the input exceeds the limit an error is thrown.
 {-# INLINE toArrayN #-}
-toArrayN :: forall m a. (Monad m, Storable a) => Int -> Foldl m a (Array a)
-toArrayN limit = Foldl step begin done
+toArrayN :: forall m a. (Monad m, Storable a) => Int -> Fold m a (Array a)
+toArrayN limit = Fold step begin done
 
     where
 
@@ -1106,11 +1106,11 @@ toArrayN limit = Foldl step begin done
     -- XXX resize the array
     done = return
 
--- Foldl to an unlimited vector size. The vector may be created as a tree of
+-- Fold to an unlimited vector size. The vector may be created as a tree of
 -- vectors. We need to throw an exception if we are getting out of memory.
 -- {-# INLINE toArray #-}
--- toArray :: forall m a. (Monad m, Storable a) => Foldl m a (Array a)
--- toArray = Foldl step begin done
+-- toArray :: forall m a. (Monad m, Storable a) => Fold m a (Array a)
+-- toArray = Fold step begin done
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -1132,7 +1132,7 @@ toArrayN limit = Foldl step begin done
 
 -- XXX we could also fold a stream by applying folds partially one at a time.
 --
--- foldPartial :: Foldl n a b -> t m a -> m (Maybe b, t m a)
+-- foldPartial :: Fold n a b -> t m a -> m (Maybe b, t m a)
 
 
 -- XXX put time related functions in Streamly.Time?
@@ -1191,7 +1191,7 @@ toArrayN limit = Foldl step begin done
 {-# INLINE foldGroupsOf #-}
 foldGroupsOf
     :: (IsStream t, Monad m)
-    => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
+    => (forall n. Monad n => Fold n a b) -> Int -> t m a -> t m b
 foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
 
 -- foldGroupsOf' (fold in chunks of sizes provided by a stream/generator func)
@@ -1222,8 +1222,8 @@ _arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
 -- instead of breaking the whole stream into groups.
 spanBy
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
-    -> (forall n. MonadIO n => Foldl n a c)
+    => (forall n. MonadIO n => Fold n a b)
+    -> (forall n. MonadIO n => Fold n a c)
     -> (a -> a -> Bool)
     -> t m a
     -> t m (b, c)
@@ -1232,8 +1232,8 @@ spanBy
 -- stream instead of breaking the whole stream into groups.
 spanByRolling
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
-    -> (forall n. MonadIO n => Foldl n a c)
+    => (forall n. MonadIO n => Fold n a b)
+    -> (forall n. MonadIO n => Fold n a c)
     -> (a -> a -> Bool)
     -> t m a
     -> t m (b, c)
@@ -1251,7 +1251,7 @@ spanByRolling
 foldGroupWith
     :: (IsStream t, Monad m)
     => (t m a -> t m (a,Bool))
-    -> (forall n. Monad n => Foldl n a b)
+    -> (forall n. Monad n => Fold n a b)
     -> t m a
     -> t m b
 foldGroupWith splitter f m = D.fromStreamD $ D.foldGroupWith
@@ -1267,8 +1267,8 @@ foldGroupWith splitter f m = D.fromStreamD $ D.foldGroupWith
 -- without the pattern.
 groupsByFoldModifying
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
-    -> (forall n. Foldl n a (Either (Array a) (Array a)))
+    => (forall n. MonadIO n => Fold n a b)
+    -> (forall n. Fold n a (Either (Array a) (Array a)))
     -> t m a
     -> t m b
 
@@ -1277,8 +1277,8 @@ groupsByFoldModifying
 -- 'Just' value and a 'Nothing' value indicates that the input is buffered.
 groupsByFoldBuffered
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n (Array a) b)
-    -> (forall n. Foldl n a (Maybe (Array a)))
+    => (forall n. MonadIO n => Fold n (Array a) b)
+    -> (forall n. Fold n a (Maybe (Array a)))
     -> t m a
     -> t m b
 
@@ -1287,7 +1287,7 @@ groupsByFoldBuffered
 -- current group if the predicate succeeds otherwise a new group starts.
 groupsBy
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
+    => (forall n. MonadIO n => Fold n a b)
     -> (a -> a -> Bool)
     -> t m a
     -> t m b
@@ -1299,7 +1299,7 @@ groupsBy
 -- starts.
 groupsByRolling
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
+    => (forall n. MonadIO n => Fold n a b)
     -> (a -> a -> Bool)
     -> t m a
     -> t m b
@@ -1317,7 +1317,7 @@ groupsByRolling
 {-# INLINE foldGroupsOn #-}
 foldGroupsOn
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b) -> Array a -> t m a -> t m b
+    => (forall n. MonadIO n => Fold n a b) -> Array a -> t m a -> t m b
 foldGroupsOn f subseq m =
     D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
 
@@ -1332,7 +1332,7 @@ foldGroupsOn f subseq m =
 {-# INLINE foldOrderedBy #-}
 foldOrderedBy
     :: (IsStream t, Monad m)
-    => (forall n. Monad n => Foldl n a b)
+    => (forall n. Monad n => Fold n a b)
     -> (a -> a -> Int)
     -> t m a
     -> t m b

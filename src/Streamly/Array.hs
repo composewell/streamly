@@ -79,7 +79,7 @@ import Streamly.Array.Types
 
 import Streamly.Streams.Serial (SerialT)
 import qualified Streamly.Prelude as S
-import qualified Streamly.Foldl as FL
+import qualified Streamly.Fold as FL
 -- import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamD as D
 

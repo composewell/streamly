@@ -164,7 +164,7 @@ library
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
                      , Streamly.Enumeration
-                     , Streamly.Foldl.Types
+                     , Streamly.Fold.Types
                      , Streamly.Foldr.Types
                      , Streamly.Parse.Types
                      , Streamly.Sink.Types
@@ -177,7 +177,7 @@ library
                      -- type. But that also means we cannot expose any other
                      -- API that uses the Array API.
                      , Streamly.Array
-                     , Streamly.Foldl
+                     , Streamly.Fold
                      , Streamly.Foldr
                      , Streamly.Parse
                      , Streamly.Sink

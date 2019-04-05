@@ -20,7 +20,7 @@ where
 
 import Control.Applicative (liftA2, Alternative(..))
 import Streamly.Internal.MonadLazy (MonadLazy(..))
-import Streamly.Foldl.Types (Pair'(..))
+import Streamly.Fold.Types (Pair'(..))
 import Streamly.Foldr.Types
 
 {-
@@ -54,9 +54,8 @@ fromResult res =
         Success a -> a
         Partial a -> a
 
--- Folds that return a Maybe are parsers.
 data Parse m a b =
-  -- | @Foldl @ @ step @ @ initial @ @ extract@
+  -- | @Parse @ @ step @ @ initial @ @ extract@
   forall x. Parse (x -> a -> m (Status x)) (m (Status x)) (x -> m b)
 
 instance Monad m => Functor (Parse m a) where

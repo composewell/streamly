@@ -7,9 +7,9 @@
 -- Portability : GHC
 --
 --
--- The 'Sink' type is a just a special case of 'Foldl' and we can do without
+-- The 'Sink' type is a just a special case of 'Fold' and we can do without
 -- it. However, in some cases 'Sink' is a simpler type and may provide better
--- performance than 'Foldl' because it does not maintain any state. Foldls can
+-- performance than 'Fold' because it does not maintain any state. Folds can
 -- be used for both pure and monadic computations. Sinks are not applicable to
 -- pure computations.
 
@@ -21,7 +21,7 @@ module Streamly.Sink
     , sink
 
     -- * Upgrading
-    , toFoldl
+    , toFold
 
     -- * Composing Sinks
     -- ** Distribute
@@ -39,7 +39,7 @@ module Streamly.Sink
     -- , grouped
 
     -- -- ** Nest
-    -- , concatFoldl
+    -- , concatFold
 
     -- -- * Comonad
     -- , duplicate
@@ -75,21 +75,21 @@ import Prelude
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 import qualified Prelude
 
-import Streamly.Foldl.Types (Foldl(..))
+import Streamly.Fold.Types (Fold(..))
 import Streamly.Sink.Types (Sink(..))
 import Streamly.Streams.Serial (SerialT)
 
-import qualified Streamly.Foldl as F
+import qualified Streamly.Fold as F
 import qualified Streamly.Streams.StreamD as D
 
 ------------------------------------------------------------------------------
 -- Conversion
 ------------------------------------------------------------------------------
 
--- | Convert a 'Sink' to a 'Foldl'. When you want to compose sinks and folds
+-- | Convert a 'Sink' to a 'Fold'. When you want to compose sinks and folds
 -- together, upgrade a sink to a fold before composing.
-toFoldl :: Monad m => Sink m a -> Foldl m a ()
-toFoldl (Sink f) = Foldl step begin done
+toFold :: Monad m => Sink m a -> Fold m a ()
+toFold (Sink f) = Fold step begin done
     where
     begin = return ()
     step _ = f
@@ -102,7 +102,7 @@ toFoldl (Sink f) = Foldl step begin done
 -- | Drain a stream to a 'Sink'.
 {-# INLINE sink #-}
 sink :: Monad m => Sink m a -> SerialT m a -> m ()
-sink = F.foldl . toFoldl
+sink = F.foldl . toFold
 
 ------------------------------------------------------------------------------
 -- Composing with sinks

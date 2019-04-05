@@ -17,7 +17,7 @@ import Streamly
 import qualified Streamly.Prelude as S
 import qualified Streamly.Foldr   as FR
 import qualified Streamly.Parse   as PR
-import qualified Streamly.Foldl   as FL
+import qualified Streamly.Fold   as FL
 import qualified Streamly.Sink    as Sink
 import Gauge
 

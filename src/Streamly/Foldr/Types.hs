@@ -17,7 +17,7 @@ where
 
 import Control.Applicative (liftA2, Alternative(..))
 import Streamly.Internal.MonadLazy (MonadLazy(..))
-import Streamly.Foldl.Types (Pair'(..))
+import Streamly.Fold.Types (Pair'(..))
 
 ------------------------------------------------------------------------------
 -- Left vs right folds

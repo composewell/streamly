@@ -10,7 +10,7 @@
 import qualified Streamly.Prelude as S
 import qualified Streamly.FileIO as IO
 import qualified Streamly.Array as A
-import qualified Streamly.Foldl as FL
+import qualified Streamly.Fold as FL
 
 import Control.DeepSeq (NFData)
 import Gauge
@@ -94,7 +94,7 @@ main = do
             -}
             , mkBench "foldGroupsOf-single" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.foldGroupsOf (FL.toArrayN fileSize)
+                S.length $ FL.foldGroupsOf (FL.toArrayN fileSize)
                                 fileSize (IO.fromHandle inh)
             ]
         , bgroup "copyArray"

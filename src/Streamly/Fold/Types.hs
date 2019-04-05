@@ -2,7 +2,7 @@
 {-# LANGUAGE ExistentialQuantification          #-}
 
 -- |
--- Module      : Streamly.Foldl.Types
+-- Module      : Streamly.Fold.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -67,10 +67,10 @@
 -- We can applicatively combine the results at each step and create a scan from
 -- that.
 
-module Streamly.Foldl.Types
+module Streamly.Fold.Types
     (
       Pair' (..)
-    , Foldl (..)
+    , Fold (..)
     )
 where
 
@@ -88,29 +88,29 @@ data Pair' a b = Pair' !a !b
 -- applied incrementally by explicitly calling the @step@ function and the
 -- accumulated value can be extracted at any point by calling the @extract@
 -- function.
-data Foldl m a b =
-  -- | @Foldl @ @ step @ @ initial @ @ extract@
-  forall x. Foldl (x -> a -> m x) (m x) (x -> m b)
+data Fold m a b =
+  -- | @Fold @ @ step @ @ initial @ @ extract@
+  forall x. Fold (x -> a -> m x) (m x) (x -> m b)
 
-instance Applicative m => Functor (Foldl m a) where
+instance Applicative m => Functor (Fold m a) where
     {-# INLINE fmap #-}
-    fmap f (Foldl step start done) = Foldl step start done'
+    fmap f (Fold step start done) = Fold step start done'
         where
         done' x = fmap f $! done x
 
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
-instance Applicative m => Applicative (Foldl m a) where
+instance Applicative m => Applicative (Fold m a) where
     {-# INLINE pure #-}
-    pure b = Foldl (\() _ -> pure ()) (pure ()) (\() -> pure b)
+    pure b = Fold (\() _ -> pure ()) (pure ()) (\() -> pure b)
 
     {-# INLINE (<*>) #-}
-    (Foldl stepL beginL doneL) <*> (Foldl stepR beginR doneR) =
+    (Fold stepL beginL doneL) <*> (Fold stepR beginR doneR) =
         let step (Pair' xL xR) a = Pair' <$> stepL xL a <*> stepR xR a
             begin = Pair' <$> beginL <*> beginR
             done (Pair' xL xR) = doneL xL <*> doneR xR
-        in  Foldl step begin done
+        in  Fold step begin done
 
     {-# INLINE (<*) #-}
     (<*) m = \_ -> m
@@ -118,18 +118,18 @@ instance Applicative m => Applicative (Foldl m a) where
     {-# INLINE (*>) #-}
     _ *> m = m
 
-instance (Semigroup b, Monad m) => Semigroup (Foldl m a b) where
+instance (Semigroup b, Monad m) => Semigroup (Fold m a b) where
     {-# INLINE (<>) #-}
     (<>) = liftA2 (<>)
 
-instance (Monoid b, Monad m) => Monoid (Foldl m a b) where
+instance (Monoid b, Monad m) => Monoid (Fold m a b) where
     {-# INLINE mempty #-}
     mempty = pure mempty
 
     {-# INLINE mappend #-}
     mappend = (<>)
 
-instance (Monad m, Num b) => Num (Foldl m a b) where
+instance (Monad m, Num b) => Num (Fold m a b) where
     {-# INLINE fromInteger #-}
     fromInteger = pure . fromInteger
 
@@ -151,7 +151,7 @@ instance (Monad m, Num b) => Num (Foldl m a b) where
     {-# INLINE (-) #-}
     (-) = liftA2 (-)
 
-instance (Monad m, Fractional b) => Fractional (Foldl m a b) where
+instance (Monad m, Fractional b) => Fractional (Fold m a b) where
     {-# INLINE fromRational #-}
     fromRational = pure . fromRational
 
@@ -161,7 +161,7 @@ instance (Monad m, Fractional b) => Fractional (Foldl m a b) where
     {-# INLINE (/) #-}
     (/) = liftA2 (/)
 
-instance (Monad m, Floating b) => Floating (Foldl m a b) where
+instance (Monad m, Floating b) => Floating (Fold m a b) where
     {-# INLINE pi #-}
     pi = pure pi
 

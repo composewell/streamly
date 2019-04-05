@@ -49,7 +49,7 @@ import Prelude
 
 import Control.Applicative (liftA2)
 import Streamly.Foldr.Types (Foldr(..))
-import Streamly.Foldl.Types (Foldl(..), Pair'(..))
+import Streamly.Fold.Types (Fold(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream(..))
@@ -102,13 +102,13 @@ all predicate = Parse step initial done
 -- Upgrade to a parser
 ------------------------------------------------------------------------------
 
--- | Convert a 'Foldl' to a 'Parse'. When you want to compose folds and
+-- | Convert a 'Fold' to a 'Parse'. When you want to compose folds and
 -- parsers together, upgrade a fold to a parser before composing.
 --
 -- Note that a fold would turn into a parse that always remains partial i.e.
 -- never returns success and therefore would end up consuming the whole stream.
-fromFold :: Monad m => Foldl m a b -> Parse m a b
-fromFold (Foldl step initial done) = Parse step' initial' done
+fromFold :: Monad m => Fold m a b -> Parse m a b
+fromFold (Fold step initial done) = Parse step' initial' done
     where
     initial' = fmap Partial initial
     step' b x = fmap Partial (step b x)
@@ -121,15 +121,15 @@ fromFold (Foldl step initial done) = Parse step' initial' done
 -- XXX we can take a Fold as an argument and turn that into a parse?
 -- This can be an upgrade of a Fold into a parse using a combinator
 {-# INLINABLE line #-}
-line :: Monad m => Foldl m Char a -> Parse m Char a
-line (Foldl step initial done) = Parse step' initial' done
+line :: Monad m => Fold m Char a -> Parse m Char a
+line (Fold step initial done) = Parse step' initial' done
     where
     initial' = fmap Partial initial
     step' acc a = fmap (if a == '\n' then Success else Partial) $ step acc a
 
 {-# INLINABLE take #-}
-take :: Monad m => Int -> Foldl m a b -> Parse m a b
-take n (Foldl step initial done) = Parse step' initial' done'
+take :: Monad m => Int -> Fold m a b -> Parse m a b
+take n (Fold step initial done) = Parse step' initial' done'
     where
     initial' = fmap (Partial . Pair' 0) initial
     done' (Pair' _ r) = done r
