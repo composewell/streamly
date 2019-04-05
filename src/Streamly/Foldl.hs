@@ -558,6 +558,9 @@ partitionBy f = partitionByM (return . f)
 -- partitionN :: Monad m => [Foldl m a b] -> Foldl m a [b]
 -- partitionN fs = Foldl step begin done
 
+-- XXX rename this to unzipWithM and make unzipM as
+-- unzipM :: Monad m => Foldl m b x -> Foldl m c y -> Foldl m (b,c) (x,y)
+
 -- Demultiplex an input element into a number of typed variants. We want to
 -- statically restrict the target values within a set of predefined types, an
 -- enumeration of a GADT. We also want to make sure that the Map contains only
@@ -1047,18 +1050,22 @@ minimum = _Foldl1 min
 -- XXX perhaps we should not expose the list APIs as it could be problematic
 -- for large lists. We should use a 'Store' type (growable array) instead.
 --
--- | Foldls the input to a list. This could create performance issues if you
+-- | Folds the input to a list. This could create performance issues if you
 -- are folding large lists. Use 'toArray' instead in that case.
+
+-- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
 {-# INLINABLE toList #-}
 toList :: Monad m => Foldl m a [a]
-toList = Foldl (\x a -> return $ x . (a:)) (return id) (return . ($ []))
+toList = Foldl (\f x -> return $ f . (x :)) (return id) (return . ($ []))
 
--- | Foldls the input to a list in the reverse order of the input.  This could
+-- | Folds the input to a list in the reverse order of the input.  This could
 -- create performance issues if you are folding large lists. Use toRevArray
 -- instead in that case.
+
+--  xn : ... : x2 : x1 : []
 {-# INLINABLE toRevList #-}
 toRevList :: Monad m => Foldl m a [a]
-toRevList = Foldl (\x a -> return $ a:x) (return []) return
+toRevList = Foldl (\xs x -> return $ x:xs) (return []) return
 
 --  XXX use SPEC
 --  XXX Make it total, by handling the exception

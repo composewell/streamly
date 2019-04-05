@@ -164,6 +164,8 @@ module Streamly.Prelude
 -- @
 --
 
+-- As a general rule, foldr cannot have state and foldl cannot have control.
+
 -- NOTE: Folds are inherently serial as each step needs to use the result of
 -- the previous step. However, it is possible to fold parts of the stream in
 -- parallel and then combine the results using a monoid.
@@ -348,7 +350,16 @@ module Streamly.Prelude
     , findIndices
     , elemIndices
 
-    -- ** Nested Generative Loops
+    -- ** Insertion
+    -- | Insertion adds more elements to the stream.
+
+    , insertBy
+    , intersperseM
+
+    -- ** Reordering
+    , reverse
+
+    -- ** Nested Producer Loops
     -- | Map each element to a stream and then flatten the results into a
     -- single stream. In imperative terms, a 'concatMap' corresponds to nested
     -- loops. We loop over the outer stream and then for each element of the
@@ -381,7 +392,7 @@ module Streamly.Prelude
     , foldMapWith
     , forEachWith
 
-    -- ** Nested Folding Loops
+    -- ** Nested Consumer Loops
     -- | Group several elements of a stream together and fold them using the
     -- given fold. In imperative terms this is a nested loop where we loop over
     -- the outer stream to group elements in a group and then loop over the
@@ -394,19 +405,12 @@ module Streamly.Prelude
     --
     -- @
     --
+    , foldGroupWith
+    , foldGroup
     , foldGroupsOf
     -- , arrayGroupsOf
     , foldGroupsOn
-
-    -- ** Insertion
-    -- | Insertion adds more elements to the stream.  These insert operations
-    -- can be thought of as a special case of stateful 'concatMap'.
-
-    , insertBy
-    , intersperseM
-
-    -- ** Reordering
-    , reverse
+    , newline
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -505,6 +509,7 @@ import Streamly.Streams.Prelude
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Parse.Types (Parse)
 
 import Streamly.Foldl (Foldl)
 import qualified Streamly.Streams.Prelude as P
@@ -2247,22 +2252,6 @@ intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -- XXX we could also fold a stream by applying folds partially one at a time.
 --
 -- foldPartial :: Foldl n a b -> t m a -> m (Maybe b, t m a)
---
---
--- This is the most general grouping/splitting function.
--- splitFoldBy is a dual of concatMapMBy. It takes a grouping fold to group
--- the elements in to a stream and then we apply the fold to flatten the
--- stream.
---
--- this is the same as groupsByFold below.
-{-
-splitFoldBy
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
-    -> (forall n. Foldl n a Bool)
-    -> t m a
-    -> t m b
--}
 
 
 -- XXX put time related functions in Streamly.Time?
@@ -2281,33 +2270,65 @@ splitFoldBy
 -- data Delimited a = Delimiter a | Value a
 -- data DelimitedOverlapping a = Delimiter a Int | Value a Int
 
-{-
--- Element Unaware:
+------------------------------------------------------------------------------
+-- Grouping without looking at elements
+------------------------------------------------------------------------------
 --
--- Binary:
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
 --
 -- splitAt (Index)
--- splitAtInterval
 --
--- Multi:
+------------------------------------------------------------------------------
+-- N-ary APIs
+------------------------------------------------------------------------------
 --
--- chunksOf' (chunks of sizes provided by a stream/generator func)
--- chunksOf (same as foldGroupsOf)
--- chunksOfInterval
+-- Most general APIs for time as well as positional dimensions.
 --
 -- Block wait for minimum of tmin or nmin, whichever is minimum and collect a
 -- maximum of tmax or nmax, whichever is maximum. After the minimum return if
 -- would block, collect up to max if does not block.
 --
 -- foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
--- foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
 -- foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
--- foldGroupsOf n = foldGroupsInRange n n
--- foldIntervalsOf n = foldIntervalsInRange n n
-
--- Element Aware:
 --
--- Binary:
+-- foldGroupsOf n = foldGroupsInRange n n
+--
+-- foldGroupsOf only applies to Folds and not Parses, for Parses (and even for
+-- folds) we can directly apply foldGroupWith.
+-- XXX implement this using foldGroupWith, and compare performance.
+--
+-- | Group the input stream into groups of @n@ elements each and then fold each
+-- group using the provided fold function. This is equivalent to chunksOf found
+-- in other libraries.
+--
+-- >> S.toList $ S.foldGroupsOf FL.sum 2 (S.enumerateFromTo 1 10)
+-- > [3,7,11,15,19]
+--
+-- @since 0.7.0
+{-# INLINE foldGroupsOf #-}
+foldGroupsOf
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
+foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
+
+-- foldGroupsOf' (fold in chunks of sizes provided by a stream/generator func)
+
+-- XXX this is only for experimentation, performs worse than foldGroupsOf
+{-# INLINE _arrayGroupsOf #-}
+_arrayGroupsOf
+    :: (IsStream t, Monad m, Storable a)
+    => Int -> t m a -> t m (Array a)
+_arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Element Aware APIs
+------------------------------------------------------------------------------
+--
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
 --
 -- breakOn
 --
@@ -2315,6 +2336,7 @@ splitFoldBy
 -- spanByFoldModified
 -- spanByFoldBuffered
 --
+{-
 -- | Like 'groupBy' but emits only the first group and the rest of the stream
 -- instead of breaking the whole stream into groups.
 spanBy
@@ -2336,30 +2358,71 @@ spanByRolling
     -> t m (b, c)
 -- span p = spanBy (\_ x -> p x)
 -- break p = span (not . p)
+-}
 
--- Multi:
+------------------------------------------------------------------------------
+-- N-ary APIs
+------------------------------------------------------------------------------
 --
--- | This is a generalized version of groupBy. It takes a left fold which
--- determines the split points of a stream by scanning the past inputs.
--- Whenever the fold returns 'True' a new group is started. The last element
--- that caused the fold to return 'True' is emitted as part of the previous
--- group.
+-- XXX should it be parseGroups instead?
+--
+-- This is the most general grouping/splitting function.
+-- foldGroupWith is a grouping dual of foldMapWith. It takes a Parse as an
+-- argument and applies it repeatedly on the stream.
 --
 -- Note that it can only split the stream but cannot do any transformations
 -- e.g. if it splits based on a pattern, it cannot remove the pattern, it can
 -- only mark where the pattern ends and split the stream at that point.  This
 -- can in fact be expressed in terms of a combination of scanl and groupBy.
 --
--- For example, one can split the stream using the "sum" fold whenever the
--- running sum exceeds 100. It can also be used to split on a pattern.
-groupsByFold
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Foldl n a b)
-    -> (forall n. Foldl n a Bool)
+-- |
+-- >>> S.toList $ S.foldGroupWith (PR.count 2 $ FL.sum) $ S.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- >>> S.toList $ S.foldGroupWith (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- > ["hello\n","world"]
+--
+foldGroup
+    :: (IsStream t, Monad m)
+    => (forall n. Monad n => Parse n a b)
     -> t m a
     -> t m b
+foldGroup f m = D.fromStreamD $ D.foldGroup f (D.toStreamD m)
 
--- Like groupByFold but the grouping fold returns the stream elements instead
+newline :: IsStream t => t m Char -> t m (Char,Bool)
+newline m = foldrS (\x xs ->
+    if x == '\n'
+    then (x,True) `K.cons` xs
+    else (x,False) `K.cons` xs) K.nil m
+
+-- XXX should we use a strict pair?
+-- The splitter returns True if the current element is the last element of the
+-- group, otherwise returns false.
+foldGroupWith
+    :: (IsStream t, Monad m)
+    => (t m a -> t m (a,Bool))
+    -> (forall n. Monad n => Foldl n a b)
+    -> t m a
+    -> t m b
+foldGroupWith splitter f m = D.fromStreamD $ D.foldGroupWith
+    (D.toStreamD . splitter . fromStreamD) f (D.toStreamD m)
+
+-- XXX we can just apply a toArray fold to foldGroupWith to arrive at this API.
+-- XXX use an Array instead of stream for the buffer
+-- XXX the first argument is a buffering scan
+{-# INLINE _foldBufferWith #-}
+_foldBufferWith
+    :: (IsStream t, Monad m)
+    => (t m a -> t m (t m a))
+    -> (t m a -> m b)
+    -> t m a -> t m b
+_foldBufferWith splitter f m = D.fromStreamD $
+    D.foldBufferWith (D.toStreamD . splitter . fromStreamD)
+                    (f . D.fromStreamD)
+                    (D.toStreamD m)
+
+{-
+-- Like foldGroupWith but the grouping fold returns the stream elements instead
 -- of returning a 'Bool' value. A 'Right' value means the group is not complete
 -- yet, a 'Left' value means this is the final chunk of the group. This allows
 -- the fold to eat, replace or add elements to the input, but still emit the
@@ -2373,7 +2436,7 @@ groupsByFoldModifying
     -> t m a
     -> t m b
 
--- Like groupByFold but buffers the group and emits it only when the whole
+-- Like foldGroupWith but buffers the group and emits it only when the whole
 -- group is complete. The grouping 'Fold'l yields a complete group using a
 -- 'Just' value and a 'Nothing' value indicates that the input is buffered.
 groupsByFoldBuffered
@@ -2407,44 +2470,10 @@ groupsByRolling
 --
 -- groups = groupsBy (==)
 --
--- Can be implemented using groupByFold
+-- Can be implemented using foldGroupWith
 -- splitOn (foldGroupsOn)
 --
 -}
-
-------------------------------------------------------------------------------
--- Grouping without looking at elements
-------------------------------------------------------------------------------
---
--- XXX if we implement this as a fold composition, we can then turn that into a
--- postscan to recover this function. That way we can have both stream and fold
--- functions with a single impl. Perhaps all stream transformations can be
--- implemented as folds and recovered using scan. Just need to make sure that
--- we do not lose performance.
---
--- | Group the input stream into groups of @n@ elements each and then fold each
--- group using the provided fold function.
---
--- >> S.toList $ S.foldGroupsOf FL.sum 2 (S.enumerateFromTo 1 10)
--- > [3,7,11,15,19]
---
--- @since 0.7.0
-{-# INLINE foldGroupsOf #-}
-foldGroupsOf
-    :: (IsStream t, Monad m)
-    => (forall n. Monad n => Foldl n a b) -> Int -> t m a -> t m b
-foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
-
--- XXX this is only for experimentation, performs worse than foldGroupsOf
-{-# INLINE _arrayGroupsOf #-}
-_arrayGroupsOf
-    :: (IsStream t, Monad m, Storable a)
-    => Int -> t m a -> t m (Array a)
-_arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
-
-------------------------------------------------------------------------------
--- Grouping looking at elements
-------------------------------------------------------------------------------
 
 -- | Split the stream into groups using a subsequence. When the subsequence is
 -- found in the stream the stream is split at the end of the subsequence and
@@ -2455,6 +2484,10 @@ foldGroupsOn
     => (forall n. MonadIO n => Foldl n a b) -> Array a -> t m a -> t m b
 foldGroupsOn f subseq m =
     D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Grouped by order
+------------------------------------------------------------------------------
 
 {-
 -- Buffer until the next element in sequence arrives. The function argument
@@ -2471,9 +2504,18 @@ foldOrderedBy = undefined
 -}
 
 ------------------------------------------------------------------------------
+-- Grouping by time
+------------------------------------------------------------------------------
+--
+-- splitAtInterval
+-- foldIntervalsInRange tmin tmax = foldIntervalsOrGroupsInRange tmin tmax maxBound 0
+-- foldIntervalsOf n = foldIntervalsInRange n n
+-- chunksOfInterval
+--
+------------------------------------------------------------------------------
 -- Grouping looking at timestamps
 ------------------------------------------------------------------------------
-
+--
 -- timestamp the elements in the stream. We can then group by timestamp
 -- intervals and fold. This is just a special case of a general groupBy.
 -- This can be useful in folding based on the generation times rather than

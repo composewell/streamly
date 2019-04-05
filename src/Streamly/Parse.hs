@@ -27,6 +27,8 @@ module Streamly.Parse
     , drain
     , any
     , all
+    , line
+    , take
     )
 where
 
@@ -39,6 +41,7 @@ import Prelude
 
 import Control.Applicative (liftA2)
 import Streamly.Foldr.Types (Foldr(..))
+import Streamly.Foldl.Types (Foldl(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import qualified Streamly.Streams.Prelude as P
@@ -83,3 +86,67 @@ all predicate = Parse step initial done
         else Success x
     done = return
 
+-- XXX we can use additional state to detect if a parse if being called even
+-- after it returned a Success result. However, we do not do that because of
+-- unnecessary performance overhead. The responsiblity is with the caller to
+-- not call the parse after Success.
+--
+-- XXX we can take a Fold as an argument and turn that into a parse?
+-- This can be an upgrade of a Fold into a parse using a combinator
+{-# INLINABLE line #-}
+line :: Monad m => Foldl m Char a -> Parse m Char a
+line (Foldl step initial done) = Parse step' initial' done
+    where
+    initial' = fmap Partial initial
+    step' acc a = fmap (if a == '\n' then Success else Partial) $ step acc a
+
+{-# INLINABLE take #-}
+take :: Monad m => Int -> Foldl m a b -> Parse m a b
+take n (Foldl step initial done) = Parse step' initial' done'
+    where
+    initial' = fmap (Partial . Pair' 0) initial
+    done' (Pair' _ r) = done r
+    step' (Pair' i r) a = do
+        res <- step r a
+        let i' = i + 1
+            p = Pair' i' res
+        return $
+            if i' < n
+            then Partial p
+            else Success p
+
+{-
+{-# INLINABLE newline #-}
+newline :: Monad m => Parse m Char Bool
+newline = Parse step initial done
+    where
+    initial = return $ Partial False
+    step _ a = return $
+        if a == '\n'
+        then Success True
+        else Partial False
+    done = return
+
+-- Termination combinators can be used to arrive at arbitrarily general parses.
+-- For example, one can split the stream using the "sum" fold whenever the
+-- running sum exceeds 100. It can also be used to split on a pattern.
+
+-- XXX we can use this to implement the above combinators if the performance
+-- looks good.
+finishWith :: Parse m a x -> Parse m a y -> Parse m a y
+finishWith (Parse stepL initialL doneL) (Parse stepR initialR doneR) =
+    Parse step initial done
+    where
+    initial = do
+        resL <- initialL
+        resR <- initialR
+        return $ case (resL, resR) of
+            (Success _, _) -> Success $ Pair' resL resR
+            (_, _)           -> Partial $ Pair' resL resR
+
+    step _ a = return $
+        if a == '\n'
+        then Success True
+        else Partial False
+    done = return
+-}

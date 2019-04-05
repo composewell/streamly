@@ -131,6 +131,9 @@ module Streamly.Streams.StreamD
     , foldGroupsOf
     , arrayGroupsOf
     , foldGroupsOn
+    , foldGroupWith
+    , foldGroup
+    , foldBufferWith
 
     -- ** Substreams
     , isPrefixOf
@@ -242,7 +245,7 @@ import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
-import Streamly.Parse.Types (Status(..))
+import Streamly.Parse.Types (Status(..), Parse(..))
 import qualified Streamly.Streams.StreamK as K
 
 
@@ -1017,6 +1020,135 @@ foldGroupsOf f n (Stream step state) =
             Stop      -> return Stop
 
     stepOuter _ Nothing = return Stop
+
+{-# INLINE_LATE parseOneGroup #-}
+parseOneGroup
+    :: Monad m
+    => Parse m a b
+    -> a
+    -> State K.Stream m a
+    -> (State K.Stream m a -> s -> m (Step s a))
+    -> s
+    -> m (b, Maybe s)
+parseOneGroup (Parse fstep begin done) x gst step state = do
+    acc0 <- begin
+    let acc01 =
+            case acc0 of
+                -- we will have to return x as well if we return here
+                Success a -> error "needs to consume at least one item"
+                Partial a -> a
+    acc <- fstep acc01 x
+    case acc of
+        Partial a -> go SPEC state a
+        Success a -> done a >>= \r -> return (r, Just state)
+
+    where
+
+    -- XXX is it strict enough?
+    go !_ st !acc = do
+        r <- step gst st
+        case r of
+            Yield y s -> do
+                acc' <- fstep acc y
+                case acc' of
+                    Partial a -> go SPEC s a
+                    Success a -> done a >>= \r -> return (r, Just s)
+            Skip s -> go SPEC s acc
+            Stop -> done acc >>= \r -> return (r, Nothing)
+
+foldGroup
+    :: Monad m
+    => (forall n. Monad n => Parse n a b)
+    -> Stream m a
+    -> Stream m b
+foldGroup f (Stream step state) = Stream stepOuter (Just state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter gst (Just st) = do
+        -- We retrieve the first element of the stream before we start to fold
+        -- a chunk so that we do not return an empty chunk in case the stream
+        -- is empty.
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                -- XXX how to make sure that stepInner and f get fused
+                -- This problem seems to be similar to the concatMap problem
+                (r, s1) <- parseOneGroup f x (adaptState gst) step s
+                return $ Yield r s1
+            Skip s    -> return $ Skip $ Just s
+            Stop      -> return Stop
+
+    stepOuter _ Nothing = return Stop
+
+foldGroupWith
+    :: Monad m
+    => (Stream m a -> Stream m (a,Bool))
+    -> (forall n. Monad n => Foldl n a b)
+    -> Stream m a
+    -> Stream m b
+foldGroupWith splitter f m = foldGroupWith' f (splitter m)
+
+    where
+
+    foldGroupWith' fld (Stream step state) = Stream (stepOuter fld) (Just state)
+
+        where
+
+        {-# INLINE_LATE stepOuter #-}
+        stepOuter (Foldl fstep initial done) gst (Just st) = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield (x,r) s -> do
+                    acc <- initial
+                    acc' <- fstep acc x
+                    if r
+                    then done acc' >>= \val -> return $ Yield val (Just s)
+                    else go SPEC s acc'
+
+                Skip s    -> return $ Skip $ Just s
+                Stop      -> return Stop
+
+            where
+
+            -- XXX is it strict enough?
+            go !_ st !acc = do
+                res <- step (adaptState gst) st
+                case res of
+                    Yield (y,r) s -> do
+                        acc' <- fstep acc y
+                        if r
+                        then done acc' >>= \val -> return $ Yield val (Just s)
+                        else go SPEC s acc'
+                    Skip s -> go SPEC s acc
+                    Stop -> done acc >>= \val -> return $ Yield val Nothing
+
+        stepOuter _ _ Nothing = return Stop
+
+
+foldBufferWith
+    :: (K.IsStream t, Monad m)
+    => (Stream m a -> Stream m (t m a))
+    -> (Stream m a -> m b)
+    -> Stream m a -> Stream m b
+foldBufferWith splitter f m = foldBufferWith' f (splitter m)
+
+    where
+
+    foldBufferWith' f (Stream step state) = Stream stepOuter state
+
+        where
+
+        {-# INLINE_LATE stepOuter #-}
+        stepOuter gst st = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    r <- f (toStreamD x)
+                    return $ Yield r s
+                Skip s    -> return $ Skip s
+                Stop      -> return Stop
 
 data ToArrayState s a =
       ArrayAlloc s
