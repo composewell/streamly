@@ -62,7 +62,7 @@ module Streamly.Fold
     -- * Fold Type
       Fold (..)
 
-    -- * Applying Folds
+    -- * Combinators
     -- ** Folding
     , foldl
 
@@ -70,16 +70,30 @@ module Streamly.Fold
     , scanl
     , postscanl
 
+    -- ** Spanning
+    -- | Spanning splits the input into two groups and applies two different
+    -- folds on each group.
+
+    -- Element unaware spanning
+    , splitAt
+
+    -- Element aware spanning
+    , span
+    , break
+    , spanBy
+    , spanRollingBy
+    , spanned
+
     -- ** Grouping
-    -- | Group several elements of a stream together and fold them using the
-    -- given fold.
+    -- | Grouping splits the stream into N groups and applies the same fold on
+    -- each group.
     --
     -- @
     --
     -- ----stream m a----|-Fold a b-|-Fold a b-|-...-|----Stream m b
     --
     -- @
-    --
+
     -- In imperative terms grouped folding can be considered as a nested loop
     -- where we loop over the stream to group elements and then loop over
     -- individual groups to fold them to a single value that is yielded in the
@@ -92,14 +106,19 @@ module Streamly.Fold
     -- In contrast, we can simply use a scan on the stream to buffer the whole
     -- groups in memory and then map a fold on it to fold the groups. This kind
     -- of grouping and folding would not work well when the group size is big.
-    --
-    , foldGroupWith
-    , foldGroupsOf
-    -- , arrayGroupsOf
-    , foldGroupsOn
 
-    -- * Composing Folds
-    -- ** Distribute
+    -- Element unaware grouping
+    , groupsOf
+    -- , arrayGroupsOf
+
+    -- Element aware grouping
+    , groups
+    , groupsOn
+    , groupsBy
+    , groupsRollingBy
+    , grouped
+
+    -- ** Distributing
     -- |
     -- The 'Applicative' instance of 'Fold' can be used to distribute one copy
     -- of the stream to each fold and zip the results using a function.
@@ -119,14 +138,14 @@ module Streamly.Fold
     , tee
     , distribute
 
-    -- ** Demultiplex
+    -- ** Demultiplexing
     -- |
     -- Direct items in the input stream to different folds using a function to
     -- select the fold. This is useful to demultiplex the input stream.
     , partitionByM
     , partitionBy
 
-    -- ** Unzip
+    -- ** Unzipping
     , unzipM
     , unzip
 
@@ -161,16 +180,16 @@ module Streamly.Fold
 
     -- ** Nesting
     -- , concatMap
-    -- , foldGroupsOf
+    -- , groupsOf
 
     -- ** Filtering
     -- | Filtering may remove some elements from the stream.
 
     , lfilter
     , lfilterM
-    {-
     , ltake
     , ltakeWhile
+    {-
     , ltakeWhileM
     , ldrop
     , ldropWhile
@@ -271,6 +290,7 @@ module Streamly.Fold
     -- implementation
     , toList
     , toRevList
+    , toStream
     , toArrayN
 
     -- * Splitter scans
@@ -288,14 +308,15 @@ import Prelude
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
+               scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
+               span, splitAt, break)
 
 import Streamly.Array.Types
        (Array(..), unsafeDangerousPerformIO, unsafeNew, unsafeAppend)
 import Streamly.Fold.Types (Fold(..), Pair'(..))
 import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK (IsStream(..))
+import Streamly.Streams.StreamK (IsStream())
 
 import Streamly.Prelude (foldrS)
 import qualified Streamly.Streams.StreamD as D
@@ -687,10 +708,10 @@ lmapM f (Fold step begin done) = Fold step' begin done
 
 {-
 -- | This can be used to apply all the stream generation operations on folds.
-concatMap ::(IsStream t, Monad m) => (a -> t m c)
-    -> Fold m a b
+lconcatMap ::(IsStream t, Monad m) => (a -> t m b)
+    -> Fold m b c
     -> Fold m a c
-concatMap s f1 f2 = undefined
+lconcatMap s f1 f2 = undefined
 -}
 
 {-
@@ -707,12 +728,8 @@ concatMap s f1 f2 = undefined
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
-foldGroupsOf
-    :: Int
-    -> (forall n. Monad n => Fold n a c)
-    -> Fold m a b
-    -> Fold m a c
-foldGroupsOf n f1 f2 = undefined
+lgroupsOf :: Int -> Fold m a b -> Fold m b c -> Fold m a c
+lgroupsOf n f1 f2 = undefined
 -}
 
 -------------
@@ -741,6 +758,39 @@ lfilterM f (Fold step begin done) = Fold step' begin done
     step' x a = do
       use <- f a
       if use then step x a else return x
+
+{-# INLINABLE ltake #-}
+ltake :: Monad m => Int -> Fold m a b -> Fold m a b
+ltake n (Fold step initial done) = Fold step' initial' done'
+    where
+    initial' = fmap (Pair' 0) initial
+    done' (Pair' _ r) = done r
+    step' (Pair' i r) a = do
+        if i < n
+        then do
+            res <- step r a
+            return $ Pair' (i + 1) res
+        else return $ Pair' i r
+
+-- | take while the predicate remains true. Takes elements from the input as
+-- long as the predicate succeeds. The parse succeeds when the predicate fails.
+-- The parse fails if the nested parse fails. Otherwise the parse remains
+-- partial.
+{-# INLINABLE ltakeWhile #-}
+ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
+ltakeWhile predicate (Fold step initial done) = Fold step' initial done
+    where
+    step' r a = do
+        if predicate a
+        then step r a
+        -- Note, if the "step" had failed earlier we would have returned a
+        -- failure, if the driver ignored the failure and called the parse
+        -- again we return Success here after returning failure earlier. We do
+        -- not remember the state. If we want to do that then we will have to
+        -- use a Constructor around "r".
+        --
+        -- XXX we need to return the unsed value a here.
+        else return r
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -1078,7 +1128,15 @@ minimum = _Fold1 min
 -- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
 {-# INLINABLE toList #-}
 toList :: Monad m => Fold m a [a]
-toList = Fold (\f x -> return $ f . (x :)) (return id) (return . ($ []))
+toList = Fold (\f x -> return $ f . (x :))
+              (return id)
+              (return . ($ []))
+
+{-# INLINABLE toStream #-}
+toStream :: (IsStream t, Monad m) => Fold m a (t m a)
+toStream = Fold (\f x -> return $ f . (x `K.cons`))
+                (return id)
+                (return . ($ K.nil))
 
 -- | Folds the input to a list in the reverse order of the input.  This could
 -- create performance issues if you are folding large lists. Use toRevArray
@@ -1130,13 +1188,8 @@ toArrayN limit = Fold step begin done
 -- inits = FL.toScan
 -- tails = FR.toScan
 
--- XXX we could also fold a stream by applying folds partially one at a time.
---
--- foldPartial :: Fold n a b -> t m a -> m (Maybe b, t m a)
 
-
--- XXX put time related functions in Streamly.Time?
---
+-- Notes on generic splitting:
 -- We can use a parsed structure to represent Delimiters and non-delimiters in
 -- the stream. That way we do not have to have many APIs like "split" package
 -- to process the delimiters in different ways. The consumer can process the
@@ -1150,6 +1203,9 @@ toArrayN limit = Fold step begin done
 --
 -- data Delimited a = Delimiter a | Value a
 -- data DelimitedOverlapping a = Delimiter a Int | Value a Int
+--
+-- We may also need an end-of-delimiter constructor to separate two consecutive
+-- delimiters.
 
 ------------------------------------------------------------------------------
 -- Grouping without looking at elements
@@ -1159,8 +1215,20 @@ toArrayN limit = Fold step begin done
 -- Binary APIs
 ------------------------------------------------------------------------------
 --
--- splitAt (Index)
+
+-- | Split the input stream into two groups at index @n@, the first group
+-- consisting of elements from index @0@ to index @n - 1@ i.e. the stream
+-- prefix of length @n@ and the second group consisting of the rest of the
+-- stream.
 --
+splitAt
+    :: Monad m
+    => Int
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+splitAt n = undefined
+
 ------------------------------------------------------------------------------
 -- N-ary APIs
 ------------------------------------------------------------------------------
@@ -1173,30 +1241,25 @@ toArrayN limit = Fold step begin done
 --
 -- foldIntervalsOrGroupsInRange tmin tmax nmin nmax =
 -- foldGroupsInRange nmin nmax = foldIntervalsOrGroupsInRange maxBound 0 nmin nmax
---
--- foldGroupsOf n = foldGroupsInRange n n
---
--- foldGroupsOf only applies to Folds and not Parses, for Parses (and even for
--- folds) we can directly apply foldGroupWith.
--- XXX implement this using foldGroupWith, and compare performance.
---
+
+-- groupsOf n = foldGroupsInRange n n
+-- XXX implement this using grouped, and compare performance.
+-- groupsOf' (fold in chunks of sizes provided by a stream/generator func)
+
 -- | Group the input stream into groups of @n@ elements each and then fold each
--- group using the provided fold function. This is equivalent to chunksOf found
--- in other libraries.
+-- group using the provided fold function.
 --
--- >> S.toList $ S.foldGroupsOf FL.sum 2 (S.enumerateFromTo 1 10)
+-- >> S.toList $ S.groupsOf FL.sum 2 (S.enumerateFromTo 1 10)
 -- > [3,7,11,15,19]
 --
 -- @since 0.7.0
-{-# INLINE foldGroupsOf #-}
-foldGroupsOf
+{-# INLINE groupsOf #-}
+groupsOf
     :: (IsStream t, Monad m)
-    => (forall n. Monad n => Fold n a b) -> Int -> t m a -> t m b
-foldGroupsOf f n m = D.fromStreamD $ D.foldGroupsOf f n (D.toStreamD m)
+    => Int -> Fold m a b -> t m a -> t m b
+groupsOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
--- foldGroupsOf' (fold in chunks of sizes provided by a stream/generator func)
-
--- XXX this is only for experimentation, performs worse than foldGroupsOf
+-- XXX this is only for experimentation, performs worse than groupsOf
 {-# INLINE _arrayGroupsOf #-}
 _arrayGroupsOf
     :: (IsStream t, Monad m, Storable a)
@@ -1210,115 +1273,129 @@ _arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
 ------------------------------------------------------------------------------
 -- Binary APIs
 ------------------------------------------------------------------------------
---
--- breakOn
---
--- spanByFold
--- spanByFoldModified
--- spanByFoldBuffered
---
-{-
--- | Like 'groupBy' but emits only the first group and the rest of the stream
--- instead of breaking the whole stream into groups.
-spanBy
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> (forall n. MonadIO n => Fold n a c)
-    -> (a -> a -> Bool)
-    -> t m a
-    -> t m (b, c)
 
--- | Like 'groupByRolling' but emits only the first group and the rest of the
--- stream instead of breaking the whole stream into groups.
-spanByRolling
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> (forall n. MonadIO n => Fold n a c)
-    -> (a -> a -> Bool)
-    -> t m a
-    -> t m (b, c)
--- span p = spanBy (\_ x -> p x)
--- break p = span (not . p)
--}
+-- | Break the input stream of type (a,Bool) into two groups, the first group
+-- takes input as long as the boolean is True, the second group takes the rest
+-- of the input.
+--
+-- This is the most general spanning combinator, all others can be implemented
+-- in terms of this.
+--
+spanned
+    :: Monad m
+    => Fold m a b
+    -> Fold m a c
+    -> Fold m (a, Bool) (b, c)
+spanned f m = undefined
+
+-- | Break the input stream into two groups, the first group takes the input as
+-- long as the predicate applied to the first element of the stream and next
+-- input element holds 'True', the second group takes the rest of the input.
+spanBy
+    :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+spanBy cmp f1 f2 = undefined
+
+-- |
+-- > span p = spanBy (\_ x -> p x)
+--
+-- Break the input stream into two groups, the first group takes the input as
+-- long as the predicate is 'True', the second group takes the rest of the
+-- input.
+span
+    :: Monad m
+    => (a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+span p = spanBy (\_ x -> p x)
+
+-- |
+-- > break p = span (not . p)
+--
+-- Break the input stream into two groups, the first group takes the input as
+-- long as the predicate is 'False', the second group takes the rest of the
+-- input.
+break
+    :: Monad m
+    => (a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+break p = span (not . p)
+
+-- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
+-- predicate is applied to the previous and the next input elements.
+spanRollingBy
+    :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+spanRollingBy cmp f1 f2 = undefined
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
 ------------------------------------------------------------------------------
 --
 -- XXX should we use a strict pair?
--- The splitter returns True if the current element is the last element of the
--- group, otherwise returns false.
-foldGroupWith
+-- XXX use Maybe instead.
+--
+-- | The splitter returns True if the current element is the last element of
+-- the group, otherwise returns false.
+grouped
     :: (IsStream t, Monad m)
-    => (t m a -> t m (a,Bool))
-    -> (forall n. Monad n => Fold n a b)
-    -> t m a
+    => Fold m a b
+    -> t m (a, Bool)
     -> t m b
-foldGroupWith splitter f m = D.fromStreamD $ D.foldGroupWith
-    (D.toStreamD . splitter . D.fromStreamD) f (D.toStreamD m)
-
-{-
--- Like foldGroupWith but the grouping fold returns the stream elements instead
--- of returning a 'Bool' value. A 'Right' value means the group is not complete
--- yet, a 'Left' value means this is the final chunk of the group. This allows
--- the fold to eat, replace or add elements to the input, but still emit the
--- output as soon as possible without unnecessary bufferng (compare with
--- groupByFoldBuffered). For example, we can match on a pattern but emit groups
--- without the pattern.
-groupsByFoldModifying
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> (forall n. Fold n a (Either (Array a) (Array a)))
-    -> t m a
-    -> t m b
-
--- Like foldGroupWith but buffers the group and emits it only when the whole
--- group is complete. The grouping 'Fold'l yields a complete group using a
--- 'Just' value and a 'Nothing' value indicates that the input is buffered.
-groupsByFoldBuffered
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n (Array a) b)
-    -> (forall n. Fold n a (Maybe (Array a)))
-    -> t m a
-    -> t m b
+grouped f m = D.fromStreamD $ D.grouped f (D.toStreamD m)
 
 -- | Apply a predicate to each new element in the input stream and the first
 -- element of the current group. The new element is considered part of the
 -- current group if the predicate succeeds otherwise a new group starts.
 groupsBy
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> (a -> a -> Bool)
+    :: (IsStream t, Monad m)
+    => (a -> a -> Bool)
+    -> Fold m a b
     -> t m a
     -> t m b
+groupsBy cmp f m = undefined
 
 -- | Apply a predicate to each new element in the input stream and the last
 -- element of the current group. In other words, perform a rolling comparison
 -- between two successive elements in the stream. The new element is considered
 -- part of the current group if the predicate succeeds otherwise a new group
 -- starts.
-groupsByRolling
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> (a -> a -> Bool)
+groupsRollingBy
+    :: (IsStream t, Monad m)
+    => (a -> a -> Bool)
+    -> Fold m a b
     -> t m a
     -> t m b
+groupsRollingBy cmp f m = undefined
+
+-- |
+-- > groups = groupsBy (==)
 --
--- groups = groupsBy (==)
---
--- Can be implemented using foldGroupWith
--- splitOn (foldGroupsOn)
---
--}
+groups :: (IsStream t, Monad m, Eq a) => Fold m a b -> t m a -> t m b
+groups = groupsBy (==)
+
+-- XXX Can be implemented using 'grouped'
 
 -- | Split the stream into groups using a subsequence. When the subsequence is
 -- found in the stream the stream is split at the end of the subsequence and
 -- each such group is folded using the supplied fold.
-{-# INLINE foldGroupsOn #-}
-foldGroupsOn
+--
+-- Same as 'splitOn' in some other libraries.
+--
+{-# INLINE groupsOn #-}
+groupsOn
     :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b) -> Array a -> t m a -> t m b
-foldGroupsOn f subseq m =
+    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
+groupsOn subseq f m =
     D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
 
 ------------------------------------------------------------------------------
@@ -1339,6 +1416,8 @@ foldOrderedBy
 foldOrderedBy = undefined
 -}
 
+-- XXX put time related functions in Streamly.Time?
+--
 ------------------------------------------------------------------------------
 -- Grouping by time
 ------------------------------------------------------------------------------
@@ -1363,6 +1442,26 @@ foldOrderedBy = undefined
 -- Splitters
 ------------------------------------------------------------------------------
 --
+{-
+-- XXX this is the job of a splitter. The splitter can buffer until the
+-- splitting pattern has matched or we know it won't match and then emit the
+-- stream.
+--
+-- Like grouped but the grouping fold returns the stream elements instead
+-- of returning a 'Bool' value. A 'Right' value means the group is not complete
+-- yet, a 'Left' value means this is the final chunk of the group. This allows
+-- the fold to eat, replace or add elements to the input, but still emit the
+-- output as soon as possible without unnecessary bufferng (compare with
+-- groupByFoldBuffered). For example, we can match on a pattern but emit groups
+-- without the pattern.
+groupsByFoldModifying
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Fold n a b)
+    -> (forall n. Fold n a (Either (Array a) (Array a)))
+    -> t m a
+    -> t m b
+-}
+
 newline :: IsStream t => t m Char -> t m (Char,Bool)
 newline m = foldrS (\x xs ->
     if x == '\n'

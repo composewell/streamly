@@ -33,13 +33,36 @@ data Result a =
     | Failure !a
 -}
 
+-- When the fold is done we return a value with the completion flag (Success).
+-- We can instead return a Partial and return a "Stop" without a value on the
+-- next iteration, however that means the driver would lose one extra value in
+-- driving the fold one more extra time. The driver can always buffer the
+-- previous input so that it does not lose it. That way we can also implement
+-- combinators like "takeWhile" which only decide to Stop after looking at the
+-- next input. However, it may be more efficient for the fold to return the
+-- value instead of the driver storing it, because this is not a common case.
+--
+-- XXX we need to have a contructor for returning an unconsumed value as well.
+-- Otherwise we cannot implement takeWhile correctly. An alternative may be for
+-- the driver to remember the last value and we just return a status whether we
+-- consumed it or not.
+--
+-- takeWhile is actually a special case of backtracking. For example in case of
+-- "string" parser which matches a string we may have to return a lot more
+-- unconsumed input if the matching fails at the end of the string. However,
+-- for failing parsers we can use the Alternative instance to do the
+-- backtracking. For takeWhile case the parser succeeds but it still returns an
+-- unconsumed value.
+--
+-- Return a x
+--
 data Status a = Partial !a | Success !a
 
-{-
-instance Functor Result where
-    fmap f (Done a) = Done (f a)
-    fmap f (More a) = More (f a)
+instance Functor Status where
+    fmap f (Success a) = Success (f a)
+    fmap f (Partial a) = Partial (f a)
 
+{-
 instance Applicative Result where
    pure = More
    Done f <*> Done a = Done (f a)
@@ -48,6 +71,7 @@ instance Applicative Result where
    More f <*> More a = More (f a)
    -}
 
+-- XXX rename to fromStatus
 fromResult :: Status a -> a
 fromResult res =
     case res of
@@ -78,6 +102,7 @@ instance Monad m => Functor (Parse m a) where
 -- WFold
 -- ZFold
 --
+{-
 instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
     -- XXX run the action instead of ignoring it??
@@ -122,6 +147,61 @@ instance Monad m => Applicative (Parse m a) where
                 doneL (fromResult xL) <*> doneR (fromResult xR)
 
         in  Parse step initial done
+        -}
+
+data ChainState x1 f x = ParseL x1 | ParseR f x | ParseDone f x
+
+instance Monad m => Applicative (Parse m a) where
+    {-# INLINE pure #-}
+    -- XXX run the action instead of ignoring it??
+    pure b = Parse (\_ _ -> pure $ Success ()) (pure $ Success ()) (\_ -> pure b)
+
+    {-# INLINE (<*>) #-}
+    (Parse stepL initialL doneL) <*> (Parse stepR initialR doneR) =
+        let step (ParseDone f x) _ = return $ Success (ParseDone f x)
+            step (ParseR f x) a = do
+                resR <- stepR x a
+                case resR of
+                    Success r -> return $ Success $ ParseDone f r
+                    Partial r -> return $ Partial $ ParseR f r
+
+            step b@(ParseL f) a = do
+                    resL <- stepL f a
+                    case resL of
+                        Success x -> do
+                            f <- doneL x
+                            resR <- initialR
+                            case resR of
+                                Success r -> return $ Success $ ParseDone f r
+                                Partial r -> return $ Partial $ ParseR f r
+                        Partial x -> return $ Partial $ ParseL x
+
+            initial = do
+                resL <- initialL
+                case resL of
+                    Success x -> do
+                        f <- doneL x
+                        resR <- initialR
+                        case resR of
+                            Success r -> return $ Success $ ParseDone f r
+                            Partial r -> return $ Partial $ ParseR f r
+                    Partial x -> return $ Partial (ParseL x)
+
+            done (ParseDone f x) = do
+                r <- doneR x
+                return $ f r
+            done _ = error "incomplete or failed parse"
+        in Parse step initial done
+
+{-
+instance Monad m => Monad (Parse m a) where
+    return = pure
+    Parse step initial done >>= f =
+        let step' = undefined
+            initial' = undefined
+            done' = undefined
+        in  Parse step' initial' done'
+        -}
 
 -- There are two Alternative instances possible:
 -- 1) Get first succeeding fold

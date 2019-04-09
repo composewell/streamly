@@ -128,11 +128,11 @@ module Streamly.Streams.StreamD
     , concatMapM
     , concatMap
     , concatArray
-    , foldGroupsOf
+    , groupsOf
     , arrayGroupsOf
     , foldGroupsOn
-    , foldGroupWith
-    , foldGroup
+    , grouped
+    , chained
     , foldBufferWith
 
     -- ** Substreams
@@ -688,12 +688,13 @@ foldlT fstep begin (Stream step state) = go SPEC begin state
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
+-- | A Success result stops the recursion.
 {-# INLINE_NORMAL parselMx' #-}
 parselMx' :: Monad m => (x -> a -> m (Status x)) -> m (Status x) -> (x -> m b) -> Stream m a -> m b
 parselMx' fstep begin done (Stream step state) =
     begin >>= \x ->
-        -- XXX can we have begin to always be assumed as "More"
-        -- and make it type "m x" instead of "m (Result x)"
+        -- XXX can we have begin to always be assumed as "Partial"
+        -- and make it type "m x" instead of "m (Status x)"
         case x of
             Success a -> done a
             Partial a -> go SPEC a state
@@ -987,19 +988,19 @@ foldOneGroup n (Fold fstep begin done) x gst step state = do
         r <- done acc
         return (r, Just st)
 
--- foldGroupsOf takes 11 sec to write the file from a stream, whereas just
+-- groupsOf takes 11 sec to write the file from a stream, whereas just
 -- reading in the same file as a stream and folding each element of the stream
 -- using (+) takes just 1.5 sec, so we are still pretty slow (7x slow), there
 -- is scope to make it faster. There is a possibility of better fusion here.
 --
-{-# INLINE_NORMAL foldGroupsOf #-}
-foldGroupsOf
+{-# INLINE_NORMAL groupsOf #-}
+groupsOf
     :: Monad m
-    => (forall n. Monad n => Fold n a b)
-    -> Int
+    => Int
+    -> Fold m a b
     -> Stream m a
     -> Stream m b
-foldGroupsOf f n (Stream step state) =
+groupsOf n f (Stream step state) =
     n `seq` Stream stepOuter (Just state)
 
     where
@@ -1056,12 +1057,12 @@ parseOneGroup (Parse fstep begin done) x gst step state = do
             Skip s -> go SPEC s acc
             Stop -> done acc >>= \r -> return (r, Nothing)
 
-foldGroup
+chained
     :: Monad m
-    => (forall n. Monad n => Parse n a b)
+    => Parse m a b
     -> Stream m a
     -> Stream m b
-foldGroup f (Stream step state) = Stream stepOuter (Just state)
+chained f (Stream step state) = Stream stepOuter (Just state)
 
     where
 
@@ -1082,50 +1083,40 @@ foldGroup f (Stream step state) = Stream stepOuter (Just state)
 
     stepOuter _ Nothing = return Stop
 
-foldGroupWith
-    :: Monad m
-    => (Stream m a -> Stream m (a,Bool))
-    -> (forall n. Monad n => Fold n a b)
-    -> Stream m a
-    -> Stream m b
-foldGroupWith splitter f m = foldGroupWith' f (splitter m)
+grouped :: Monad m => Fold m a b -> Stream m (a, Bool) -> Stream m b
+grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     where
 
-    foldGroupWith' fld (Stream step state) = Stream (stepOuter fld) (Just state)
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter (Fold fstep initial done) gst (Just st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield (x,r) s -> do
+                acc <- initial
+                acc' <- fstep acc x
+                if r
+                then done acc' >>= \val -> return $ Yield val (Just s)
+                else go SPEC s acc'
+
+            Skip s    -> return $ Skip $ Just s
+            Stop      -> return Stop
 
         where
 
-        {-# INLINE_LATE stepOuter #-}
-        stepOuter (Fold fstep initial done) gst (Just st) = do
+        -- XXX is it strict enough?
+        go !_ st !acc = do
             res <- step (adaptState gst) st
             case res of
-                Yield (x,r) s -> do
-                    acc <- initial
-                    acc' <- fstep acc x
+                Yield (y,r) s -> do
+                    acc' <- fstep acc y
                     if r
                     then done acc' >>= \val -> return $ Yield val (Just s)
                     else go SPEC s acc'
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \val -> return $ Yield val Nothing
 
-                Skip s    -> return $ Skip $ Just s
-                Stop      -> return Stop
-
-            where
-
-            -- XXX is it strict enough?
-            go !_ st !acc = do
-                res <- step (adaptState gst) st
-                case res of
-                    Yield (y,r) s -> do
-                        acc' <- fstep acc y
-                        if r
-                        then done acc' >>= \val -> return $ Yield val (Just s)
-                        else go SPEC s acc'
-                    Skip s -> go SPEC s acc
-                    Stop -> done acc >>= \val -> return $ Yield val Nothing
-
-        stepOuter _ _ Nothing = return Stop
-
+    stepOuter _ _ Nothing = return Stop
 
 foldBufferWith
     :: (K.IsStream t, Monad m)
@@ -1155,7 +1146,7 @@ data ToArrayState s a =
     | ArrayWrite s Int (Array a)
     | ArrayStop
 
--- XXX This is a more monolithic version of foldGroupsOf and therefore is
+-- XXX This is a more monolithic version of groupsOf and therefore is
 -- expected to do better. However, this is 2x slower than using foldGroupsof
 -- with the toArray fold.  Need to investigate why.
 --

@@ -2228,3 +2228,11 @@ _foldBufferWith splitter f m = D.fromStreamD $
                     (f . D.fromStreamD)
                     (D.toStreamD m)
 
+-- TODO
+-- This is equivalent to the "chop" API in the split package.
+--
+-- It takes a splitting fold as input and applies that fold to the stream
+-- repeatedly. It serves the same purpose as the "grouped" API in the Fold
+-- module and the "chained" API in the "Parse" module. An example of the
+-- simplest splitter fold is 'uncons'.
+-- groups :: (t m a -> m (Maybe b, t m a)) -> t m a -> t m b

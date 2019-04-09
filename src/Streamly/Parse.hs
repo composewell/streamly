@@ -18,25 +18,52 @@
 -- structure. Choice is usually represented by a sum flag in the serialized
 -- structure indicating a choice of parse, based on the flag we can choose a
 -- different parser using the demux primitive.
+
+-- Some notes on parsers:
 --
+-- Applicative parsers: The simplest parsers, if the next parse never depends
+-- on a pervious parse then we can use purely applicative form.
+--
+-- Alternative parsers (Backtracking): When a parse fails after consuming some
+-- input, and we need to restart the next parse from the beginning i.e. we need
+-- to give it the same input that the failed parse consumed then we need
+-- backtracking. If we are using the Alternative instance then we are using
+-- backtracking.
+--
+-- Monadic Parsers: If a next parse may depend on the previous parse results
+-- then we need monadic parsing. For example, in a protocol deserialization we
+-- get the length in the header field to parse a field then we need monadic
+-- parser. Monadic parser may need some backtracking even without using the
+-- Alternative instance e.g. consider the "takeWhile" combinator. In an
+-- applicative parser we can use "span" instead and break the input into two
+-- folds independent of each other. However, in a monadic parser we may need to
+-- use the output of the first parse for the next parse, in that case we need
+-- to use "takeWhile" instead of "span". "takeWhile" would not consume the last
+-- element and therefore we will have to return that to the input, to be
+-- consumed by the next parse. This is a limited form of backtracking that is
+-- required even when we have a successful parse. This requires an additional
+-- constructor in the parse result type.
 
 module Streamly.Parse
     (
       Parse (..)
 
-    -- * Applying Parses
+    -- * Combinators
     , parse
-    , parseGroup
+    , groups
+--    , line
 
-    -- * Parses
+    -- * Transformation
+    , ltake
+    , ltakeWhile
+
+    -- * Creating
     , drain
     , any
     , all
 
-    -- * Combinators for Folds
+    -- * Conversion
     , fromFold
-    , line
-    , take
     )
 where
 
@@ -50,25 +77,31 @@ import Prelude
 import Control.Applicative (liftA2)
 import Streamly.Foldr.Types (Foldr(..))
 import Streamly.Fold.Types (Fold(..), Pair'(..))
-import Streamly.Parse.Types (Parse(..), Status(..))
+import Streamly.Parse.Types (Parse(..), Status(..), fromResult)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream(..))
 
+import qualified Streamly.Fold as F
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.Prelude as P
 
+-- | As soon as a parse fails or succeeds, it no longer accepts any more input.
+-- However, as long as a parse remains partial it continues accepting input.
 {-# INLINE parse #-}
 parse :: Monad m => Parse m a b -> SerialT m a -> m b
 parse (Parse step begin done) = P.parselMx' step begin done
 
 {-# INLINABLE drain #-}
 drain :: Monad m => Parse m a ()
+drain = fromFold F.drain
+{-
 drain = Parse step initial done
     where
     initial = return $ Partial ()
     step _ _ = return $ Partial ()
     done = return
+-}
 
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Parse m a Bool
@@ -98,28 +131,64 @@ all predicate = Parse step initial done
         else Success x
     done = return
 
-------------------------------------------------------------------------------
--- Upgrade to a parser
-------------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Transformation
+-------------------------------------------------------------------------------
 
--- | Convert a 'Fold' to a 'Parse'. When you want to compose folds and
--- parsers together, upgrade a fold to a parser before composing.
+-- XXX if the stream ends before the take completes then the driver needs to
+-- interpret the partial result as a failure.
 --
--- Note that a fold would turn into a parse that always remains partial i.e.
--- never returns success and therefore would end up consuming the whole stream.
-fromFold :: Monad m => Fold m a b -> Parse m a b
-fromFold (Fold step initial done) = Parse step' initial' done
+-- | Takes exactly n elements from the input. The parse succeeds when n
+-- elements are consumed. The parse fails if the nested parse fails. Otherwise
+-- the parse remains partial.
+{-# INLINABLE ltake #-}
+ltake :: Monad m => Int -> Parse m a b -> Parse m a b
+ltake n (Parse step initial done) = Parse step' initial' done'
     where
-    initial' = fmap Partial initial
-    step' b x = fmap Partial (step b x)
+    initial' = fmap (fmap $ Pair' 0) initial
+    done' (Pair' _ r) = done r
+    step' (Pair' i r) a = do
+        res <- step r a
+        let i' = i + 1
+            p = Pair' i' (fromResult res)
+        return $
+            if i' < n
+            then Partial p
+            else Success p
 
--- XXX we can use additional state to detect if a parse if being called even
--- after it returned a Success result. However, we do not do that because of
--- unnecessary performance overhead. The responsiblity is with the caller to
--- not call the parse after Success.
+-- XXX consider using (Status x) as the argument to the step function so that
+-- we can remember and make decisions based on the previous Status of the
+-- result. Otherwise remembering that becomes very cumbersome.
 --
+-- The parse step does not remember the state. The responsibility of the driver
+-- is to never call the step again once it succeeds or fails. If the step is
+-- called again the result may be unpredictable. For example, it may succeed
+-- after failing or may return partial after succeeding.
+
+-- | take while the predicate remains true. Takes elements from the input as
+-- long as the predicate succeeds. The parse succeeds when the predicate fails.
+-- The parse fails if the nested parse fails. Otherwise the parse remains
+-- partial.
+{-# INLINABLE ltakeWhile #-}
+ltakeWhile :: Monad m => (a -> Bool) -> Parse m a b -> Parse m a b
+ltakeWhile predicate (Parse step initial done) = Parse step' initial done
+    where
+    step' r a = do
+        if predicate a
+        then step r a
+        -- Note, if the "step" had failed earlier we would have returned a
+        -- failure, if the driver ignored the failure and called the parse
+        -- again we return Success here after returning failure earlier. We do
+        -- not remember the state. If we want to do that then we will have to
+        -- use a Constructor around "r".
+        --
+        -- XXX we need to return the unsed value a here.
+        else return $ Success r
+
 -- XXX we can take a Fold as an argument and turn that into a parse?
 -- This can be an upgrade of a Fold into a parse using a combinator
+
+{-
 {-# INLINABLE line #-}
 line :: Monad m => Fold m Char a -> Parse m Char a
 line (Fold step initial done) = Parse step' initial' done
@@ -141,6 +210,22 @@ take n (Fold step initial done) = Parse step' initial' done'
             if i' < n
             then Partial p
             else Success p
+-}
+
+------------------------------------------------------------------------------
+-- Upgrade to a parser
+------------------------------------------------------------------------------
+
+-- | Convert a 'Fold' to a 'Parse'. When you want to compose folds and
+-- parsers together, upgrade a fold to a parser before composing.
+--
+-- Note that a fold would turn into a parse that always remains partial i.e.
+-- never returns success and therefore would end up consuming the whole stream.
+fromFold :: Monad m => Fold m a b -> Parse m a b
+fromFold (Fold step initial done) = Parse step' initial' done
+    where
+    initial' = fmap Partial initial
+    step' b x = fmap Partial (step b x)
 
 {-
 {-# INLINABLE newline #-}
@@ -178,8 +263,6 @@ finishWith (Parse stepL initialL doneL) (Parse stepR initialR doneR) =
     done = return
 -}
 
--- XXX should it be parseGroups instead?
---
 -- This is the most general grouping/splitting function.
 -- foldGroupWith is a grouping dual of foldMapWith. It takes a Parse as an
 -- argument and applies it repeatedly on the stream.
@@ -190,15 +273,15 @@ finishWith (Parse stepL initialL doneL) (Parse stepR initialR doneR) =
 -- can in fact be expressed in terms of a combination of scanl and groupBy.
 --
 -- |
--- >>> S.toList $ S.foldGroupWith (PR.count 2 $ FL.sum) $ S.fromList [1..10]
+-- >>> S.toList $ PR.groups (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
 -- > [3,7,11,15,19]
 --
--- >>> S.toList $ S.foldGroupWith (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- >>> S.toList $ PR.groups (PR.line FL.toList) $ S.fromList "hello\nworld"
 -- > ["hello\n","world"]
 --
-parseGroup
+groups
     :: (IsStream t, Monad m)
-    => (forall n. Monad n => Parse n a b)
+    => Parse m a b
     -> t m a
     -> t m b
-parseGroup f m = D.fromStreamD $ D.foldGroup f (D.toStreamD m)
+groups f m = D.fromStreamD $ D.chained f (D.toStreamD m)

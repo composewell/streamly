@@ -32,7 +32,7 @@
 -- occur at GHC level as well. Same thing applies to writes as well.
 --
 -- Buffering can also be achieved at any point in a stream by folding (e.g.
--- using foldGroupsOf) the stream into a stream of strict chunks. LineBuffering
+-- using groupsOf) the stream into a stream of strict chunks. LineBuffering
 -- can be achieved by chunking the stream into lines (e.g. using foldGroupsOn).
 --
 -- When writing a stream to a file we can choose a chunk size and the stream
@@ -294,7 +294,7 @@ fromHandle = fromHandleChunksOf defaultChunkSize
 {-# INLINE bufferN #-}
 bufferN :: (IsStream t, Monad m, Storable a) => Int -> t m a -> t m (Array a)
 bufferN n str =
-    D.fromStreamD $ D.foldGroupsOf (FL.toArrayN n) n (D.toStreamD str)
+    D.fromStreamD $ D.groupsOf n (FL.toArrayN n) (D.toStreamD str)
     -- D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD str)
 
 -- | Write a byte stream to a file handle. Combine the bytes in chunks of

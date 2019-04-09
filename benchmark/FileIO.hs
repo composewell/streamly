@@ -92,10 +92,10 @@ main = do
                 Handles inh _ <- readIORef href
                 S.length $ S.arrayGroupsOf fileSize (IO.fromHandle inh)
             -}
-            , mkBench "foldGroupsOf-single" href $ do
+            , mkBench "groupsOf-single" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.foldGroupsOf (FL.toArrayN fileSize)
-                                fileSize (IO.fromHandle inh)
+                S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
+                                (IO.fromHandle inh)
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
