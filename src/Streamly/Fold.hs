@@ -113,10 +113,18 @@ module Streamly.Fold
 
     -- Element aware grouping
     , groups
-    , groupsOn
     , groupsBy
     , groupsRollingBy
     , grouped
+
+    -- ** Splitting
+    , splitOn
+    , linesOn
+    , wordsOn
+
+    , splitWhen
+    , linesWhen
+    , wordsWhen
 
     -- ** Distributing
     -- |
@@ -318,7 +326,7 @@ import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
 
-import Streamly.Prelude (foldrS)
+import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.Prelude as P
@@ -1188,25 +1196,6 @@ toArrayN limit = Fold step begin done
 -- inits = FL.toScan
 -- tails = FR.toScan
 
-
--- Notes on generic splitting:
--- We can use a parsed structure to represent Delimiters and non-delimiters in
--- the stream. That way we do not have to have many APIs like "split" package
--- to process the delimiters in different ways. The consumer can process the
--- parsed stream in any which way.
---
--- However, we cannot represent overlapping parse using this structure. For
--- overlapping parses we can perhaps use an offset value as well. Just like we
--- can process overlapping time windows using different folds can we process
--- overlapping values using different folds? its like different ways of parsing
--- the stream and using different folds for different parse choices.
---
--- data Delimited a = Delimiter a | Value a
--- data DelimitedOverlapping a = Delimiter a Int | Value a Int
---
--- We may also need an end-of-delimiter constructor to separate two consecutive
--- delimiters.
-
 ------------------------------------------------------------------------------
 -- Grouping without looking at elements
 ------------------------------------------------------------------------------
@@ -1341,6 +1330,22 @@ spanRollingBy cmp f1 f2 = undefined
 -- N-ary APIs
 ------------------------------------------------------------------------------
 --
+-- The "grouped" combinator uses a simple Bool value to mark the start of a new
+-- group. This is ok for stream processing where we do not need to know the
+-- delimiter. In a delimited stream the splitter can mark the group elements
+-- with a "Right a" value and the delimiter sequence with a "Left (Array a)".
+-- This will allow for a general processing, where sometimes we may want to
+-- keep the delimiters and sometimes we may want to drop the delimiters. Note
+-- that this design allows for only a finite length delimiter.
+
+-- However, we cannot represent overlapping parse using this structure. For
+-- overlapping parses we can perhaps use an offset value as well. Just like we
+-- can process overlapping time windows using different folds can we process
+-- overlapping values using different folds? its like different ways of parsing
+-- the stream and using different folds for different parse choices.
+--
+-- data DelimitedOverlapping a = Delimiter a Int | Value a Int
+
 -- XXX should we use a strict pair?
 -- XXX use Maybe instead.
 --
@@ -1385,18 +1390,64 @@ groups = groupsBy (==)
 
 -- XXX Can be implemented using 'grouped'
 
+------------------------------------------------------------------------------
+-- Split on a delimiter
+------------------------------------------------------------------------------
+
 -- | Split the stream into groups using a subsequence. When the subsequence is
 -- found in the stream the stream is split at the end of the subsequence and
 -- each such group is folded using the supplied fold.
 --
--- Same as 'splitOn' in some other libraries.
---
-{-# INLINE groupsOn #-}
-groupsOn
+{-# INLINE splitOn #-}
+splitOn
     :: (IsStream t, MonadIO m, Storable a, Eq a)
     => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
-groupsOn subseq f m =
-    D.fromStreamD $ D.foldGroupsOn f subseq (D.toStreamD m)
+splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
+
+-- | Like 'splitOn' but the subsequence is treated like a line ending marker
+-- i.e.  the delimiter is dropped from the split groups.
+--
+{-# INLINE linesOn #-}
+linesOn
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
+linesOn subseq f m = undefined -- D.fromStreamD $ D.linesOn f subseq (D.toStreamD m)
+
+-- | Like 'linesOn' but drops any blank splits (i.e. delimiter only).
+--
+{-# INLINE wordsOn #-}
+wordsOn
+    :: (IsStream t, MonadIO m, Storable a, Eq a)
+    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
+wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
+
+------------------------------------------------------------------------------
+-- Split on a predicate
+------------------------------------------------------------------------------
+
+-- | Split the stream when a predicate becomes true.
+{-# INLINE splitWhen #-}
+splitWhen
+    :: (IsStream t, Monad m)
+    => (a -> Bool) -> Fold m a b -> t m a -> t m b
+splitWhen predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
+
+-- | Like 'splitWhen' but drops the @separator@ i.e. the element on which the
+-- predicate becomes true.
+{-# INLINE linesWhen #-}
+linesWhen
+    :: (IsStream t, Monad m)
+    => (a -> Bool) -> Fold m a b -> t m a -> t m b
+linesWhen predicate f m =
+    D.fromStreamD $ D.linesWhen predicate f (D.toStreamD m)
+
+-- | Like 'linesWhen' but drops any blanks.
+{-# INLINE wordsWhen #-}
+wordsWhen
+    :: (IsStream t, Monad m)
+    => (a -> Bool) -> Fold m a b -> t m a -> t m b
+wordsWhen predicate f m =
+    D.fromStreamD $ D.wordsWhen predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouped by order
@@ -1463,7 +1514,7 @@ groupsByFoldModifying
 -}
 
 newline :: IsStream t => t m Char -> t m (Char,Bool)
-newline m = foldrS (\x xs ->
+newline m = S.foldrS (\x xs ->
     if x == '\n'
     then (x,True) `K.cons` xs
     else (x,False) `K.cons` xs) K.nil m

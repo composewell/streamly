@@ -171,6 +171,7 @@ distribute ss = Sink (\a -> Prelude.mapM_ (\(Sink f) -> f a) ss)
 -- One 1
 -- Two 2
 -- @
+{-
 demux :: (Monad m, Ord k) => (a -> k) -> Map k (Sink m a) -> Sink m a
 demux f kv = Sink step
 
@@ -181,6 +182,20 @@ demux f kv = Sink step
         -- Ideally we should enforce that it is a total map over k so that look
         -- up never fails
         case Map.lookup (f a) kv of
+            Nothing -> return ()
+            Just (Sink g) -> g a
+-}
+
+demux :: (Monad m, Ord k) => Map k (Sink m a) -> Sink m (a, k)
+demux kv = Sink step
+
+    where
+
+    step (a, k) =
+        -- XXX should we raise an exception in Nothing case?
+        -- Ideally we should enforce that it is a total map over k so that look
+        -- up never fails
+        case Map.lookup k kv of
             Nothing -> return ()
             Just (Sink g) -> g a
 

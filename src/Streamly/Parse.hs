@@ -55,7 +55,7 @@ module Streamly.Parse
 
     -- * Transformation
     , ltake
-    , ltakeWhile
+    , ltakeWhileSep
 
     -- * Creating
     , drain
@@ -169,9 +169,9 @@ ltake n (Parse step initial done) = Parse step' initial' done'
 -- long as the predicate succeeds. The parse succeeds when the predicate fails.
 -- The parse fails if the nested parse fails. Otherwise the parse remains
 -- partial.
-{-# INLINABLE ltakeWhile #-}
-ltakeWhile :: Monad m => (a -> Bool) -> Parse m a b -> Parse m a b
-ltakeWhile predicate (Parse step initial done) = Parse step' initial done
+{-# INLINABLE ltakeWhileSep #-}
+ltakeWhileSep :: Monad m => (a -> Bool) -> Parse m a b -> Parse m a b
+ltakeWhileSep predicate (Parse step initial done) = Parse step' initial done
     where
     step' r a = do
         if predicate a

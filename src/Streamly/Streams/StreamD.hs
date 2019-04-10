@@ -130,9 +130,11 @@ module Streamly.Streams.StreamD
     , concatArray
     , groupsOf
     , arrayGroupsOf
-    , foldGroupsOn
+    , splitOn
     , grouped
     , chained
+    , linesWhen
+    , wordsWhen
     , foldBufferWith
 
     -- ** Substreams
@@ -882,6 +884,10 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Skip s -> Skip (s, i+1)
           Stop   -> Stop
 
+------------------------------------------------------------------------------
+-- concatMap
+------------------------------------------------------------------------------
+
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
 concatMapM f (Stream step state) = Stream step' (Left state)
@@ -947,6 +953,10 @@ concatArray (Stream step state) = Stream step' (CAParent state)
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
+
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
 
 -- XXX we need an INLINE_EARLY on concatMap for this rule to fire. But if we
 -- use INLINE_EARLY on concatMap or fromArray then direct uses of concatMap
@@ -1118,6 +1128,80 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
+linesWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+linesWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter (Fold fstep initial done) gst (Just st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                acc <- initial
+                if predicate x
+                then done acc >>= \val -> return $ Yield val (Just s)
+                else do
+                    acc' <- fstep acc x
+                    go SPEC s acc'
+
+            Skip s    -> return $ Skip $ Just s
+            Stop      -> return Stop
+
+        where
+
+        -- XXX is it strict enough?
+        go !_ st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    if predicate x
+                    then done acc >>= \val -> return $ Yield val (Just s)
+                    else do
+                        acc' <- fstep acc x
+                        go SPEC s acc'
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \val -> return $ Yield val Nothing
+
+    stepOuter _ _ Nothing = return Stop
+
+wordsWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+wordsWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter (Fold fstep initial done) gst (Just st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                if predicate x
+                then return $ Skip (Just s)
+                else do
+                    acc <- initial
+                    acc' <- fstep acc x
+                    go SPEC s acc'
+
+            Skip s    -> return $ Skip $ Just s
+            Stop      -> return Stop
+
+        where
+
+        -- XXX is it strict enough?
+        go !_ st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    if predicate x
+                    then done acc >>= \val -> return $ Yield val (Just s)
+                    else do
+                        acc' <- fstep acc x
+                        go SPEC s acc'
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \val -> return $ Yield val Nothing
+
+    stepOuter _ _ Nothing = return Stop
+
 foldBufferWith
     :: (K.IsStream t, Monad m)
     => (Stream m a -> Stream m (t m a))
@@ -1266,14 +1350,14 @@ data GroupOnState s a =
 -- XXX We can use a control parameter to control this behavior.
 -- XXX since this is a tokenizer we can call it foldTokensOn?
 
-{-# INLINE_NORMAL foldGroupsOn #-}
-foldGroupsOn
+{-# INLINE_NORMAL splitOn #-}
+splitOn
     :: forall m a b. (MonadIO m, Storable a, Eq a)
     => (forall n. MonadIO n => Fold n a b)
     -> Array a
     -> Stream m a
     -> Stream m b
-foldGroupsOn f v@Array{..} (Stream step state) =
+splitOn f v@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
