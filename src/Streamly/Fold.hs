@@ -119,11 +119,11 @@ module Streamly.Fold
 
     -- ** Splitting
     , splitOn
-    , linesOn
+    , tokensOn
     , wordsOn
 
     , splitWhen
-    , linesWhen
+    , tokensWhen
     , wordsWhen
 
     -- ** Distributing
@@ -1351,6 +1351,7 @@ spanRollingBy cmp f1 f2 = undefined
 --
 -- | The splitter returns True if the current element is the last element of
 -- the group, otherwise returns false.
+{-# INLINE grouped #-}
 grouped
     :: (IsStream t, Monad m)
     => Fold m a b
@@ -1394,9 +1395,9 @@ groups = groupsBy (==)
 -- Split on a delimiter
 ------------------------------------------------------------------------------
 
--- | Split the stream into groups using a subsequence. When the subsequence is
--- found in the stream the stream is split at the end of the subsequence and
--- each such group is folded using the supplied fold.
+-- | Split the stream into groups using a subsequence as a separator. When the
+-- subsequence is found in the stream, it is split after the subsequence and
+-- the resulting splits are folded using the supplied fold.
 --
 {-# INLINE splitOn #-}
 splitOn
@@ -1404,16 +1405,19 @@ splitOn
     => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
 splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
 
--- | Like 'splitOn' but the subsequence is treated like a line ending marker
--- i.e.  the delimiter is dropped from the split groups.
+-- | Like 'splitOn' but the separator is dropped and only the tokens are kept.
 --
-{-# INLINE linesOn #-}
-linesOn
+-- > lines = tokensOn '\n'
+--
+{-# INLINE tokensOn #-}
+tokensOn
     :: (IsStream t, MonadIO m, Storable a, Eq a)
     => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
-linesOn subseq f m = undefined -- D.fromStreamD $ D.linesOn f subseq (D.toStreamD m)
+tokensOn subseq f m = undefined -- D.fromStreamD $ D.tokensOn f subseq (D.toStreamD m)
 
--- | Like 'linesOn' but drops any blank splits (i.e. delimiter only).
+-- | Like 'tokensOn' but only non-empty tokes are kept.
+--
+-- > words = wordsOn ' '
 --
 {-# INLINE wordsOn #-}
 wordsOn
@@ -1425,7 +1429,8 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- Split on a predicate
 ------------------------------------------------------------------------------
 
--- | Split the stream when a predicate becomes true.
+-- | Split the stream when a predicate becomes true. Each split is folded with
+-- the provided fold.
 {-# INLINE splitWhen #-}
 splitWhen
     :: (IsStream t, Monad m)
@@ -1433,15 +1438,21 @@ splitWhen
 splitWhen predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 
 -- | Like 'splitWhen' but drops the @separator@ i.e. the element on which the
--- predicate becomes true.
-{-# INLINE linesWhen #-}
-linesWhen
+-- predicate becomes true. Each token is folded with the provided fold.
+--
+-- > lines = tokensWhen (== '\n')
+--
+{-# INLINE tokensWhen #-}
+tokensWhen
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-linesWhen predicate f m =
-    D.fromStreamD $ D.linesWhen predicate f (D.toStreamD m)
+tokensWhen predicate f m =
+    D.fromStreamD $ D.tokensWhen predicate f (D.toStreamD m)
 
--- | Like 'linesWhen' but drops any blanks.
+-- | Like 'tokensWhen' but drops any empty tokens.
+--
+-- > words = wordsWhen isSpace
+--
 {-# INLINE wordsWhen #-}
 wordsWhen
     :: (IsStream t, Monad m)

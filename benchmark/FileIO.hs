@@ -7,6 +7,7 @@
 
 {-# LANGUAGE CPP #-}
 
+import Data.Char (ord, chr)
 import qualified Streamly.Prelude as S
 import qualified Streamly.FileIO as IO
 import qualified Streamly.Array as A
@@ -20,6 +21,23 @@ import System.IO (openFile, IOMode(..), Handle, hClose)
 import System.IO (hSeek, SeekMode(..))
 #endif
 import Data.IORef
+
+foreign import ccall unsafe "u_iswspace"
+  iswspace :: Int -> Int
+
+{-# INLINE isSpace #-}
+isSpace                 :: Char -> Bool
+-- isSpace includes non-breaking space
+-- The magic 0x377 isn't really that magical. As of 2014, all the codepoints
+-- at or below 0x377 have been assigned, so we shouldn't have to worry about
+-- any new spaces appearing below there. It would probably be best to
+-- use branchless ||, but currently the eqLit transformation will undo that,
+-- so we'll do it like this until there's a way around that.
+isSpace c
+  | uc <= 0x377 = uc == 32 || uc - 0x9 <= 4 || uc == 0xa0
+  | otherwise = iswspace (ord c) /= 0
+  where
+    uc = fromIntegral (ord c) :: Word
 
 data Handles = Handles Handle Handle
 
@@ -54,7 +72,7 @@ main = do
     href <- newIORef $ Handles inHandle outHandle
 
 -- This is a 500MB file for text processing benchmarks.  We cannot have it in
--- the repo.
+-- the repo, therefore we use it only with DEVBUILD.
 #ifdef DEVBUILD
     inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
 #endif
@@ -92,7 +110,7 @@ main = do
                 Handles inh _ <- readIORef href
                 S.length $ S.arrayGroupsOf fileSize (IO.fromHandle inh)
             -}
-            , mkBench "groupsOf-single" href $ do
+            , mkBench "groupsOf(one-group)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
                                 (IO.fromHandle inh)
@@ -109,7 +127,7 @@ main = do
                 Handles inh outh <- readIORef href
                 IO.toHandle outh (IO.fromHandle inh)
             ]
-        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as it
+        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
         -- wc uses lseek to just determine the file size rather than reading
         -- and counting characters.
 #ifdef DEVBUILD
@@ -119,6 +137,15 @@ main = do
                 S.sum (S.map A.length s) >>= print
             , mkBenchText "streamed byte count" inText $ do
                 S.length $ IO.fromHandle inText
+            , mkBenchText "streamed line count (tokensWhen)" inText $ do
+                (S.length $ FL.tokensWhen (== fromIntegral (ord '\n')) FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "streamed line count (splitOn)" inText $ do
+                (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "streamed word count" inText $ do
+                (S.length $ FL.wordsWhen (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
+                    IO.fromHandle inText) >>= print
             ]
 #endif
         ]

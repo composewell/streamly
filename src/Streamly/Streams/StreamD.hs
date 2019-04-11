@@ -130,10 +130,11 @@ module Streamly.Streams.StreamD
     , concatArray
     , groupsOf
     , arrayGroupsOf
+    , splitWhen
     , splitOn
     , grouped
     , chained
-    , linesWhen
+    , tokensWhen
     , wordsWhen
     , foldBufferWith
 
@@ -221,9 +222,7 @@ module Streamly.Streams.StreamD
     )
 where
 
-import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans (MonadTrans(lift))
-import Control.Monad.Trans.State.Lazy (StateT(..), put)
 import Data.Bits (finiteBitSize)
 import Data.Maybe (fromJust, isJust)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
@@ -954,10 +953,6 @@ concatArray (Stream step state) = Stream step' (CAParent state)
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
 
-------------------------------------------------------------------------------
--- Grouping/Splitting
-------------------------------------------------------------------------------
-
 -- XXX we need an INLINE_EARLY on concatMap for this rule to fire. But if we
 -- use INLINE_EARLY on concatMap or fromArray then direct uses of concatMap
 -- fromArray (without the RULE) become much slower, this means "concatMap f"
@@ -965,6 +960,9 @@ concatMap f = concatMapM (return . f)
 --
 -- {-# RULES "concatMap fromArray" concatMap fromArray = concatArray #-}
 
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
 
 {-# INLINE_LATE foldOneGroup #-}
 foldOneGroup
@@ -1046,7 +1044,7 @@ parseOneGroup (Parse fstep begin done) x gst step state = do
     let acc01 =
             case acc0 of
                 -- we will have to return x as well if we return here
-                Success a -> error "needs to consume at least one item"
+                Success _ -> error "needs to consume at least one item"
                 Partial a -> a
     acc <- fstep acc01 x
     case acc of
@@ -1057,8 +1055,8 @@ parseOneGroup (Parse fstep begin done) x gst step state = do
 
     -- XXX is it strict enough?
     go !_ st !acc = do
-        r <- step gst st
-        case r of
+        res <- step gst st
+        case res of
             Yield y s -> do
                 acc' <- fstep acc y
                 case acc' of
@@ -1067,6 +1065,7 @@ parseOneGroup (Parse fstep begin done) x gst step state = do
             Skip s -> go SPEC s acc
             Stop -> done acc >>= \r -> return (r, Nothing)
 
+{-# INLINE_NORMAL chained #-}
 chained
     :: Monad m
     => Parse m a b
@@ -1093,6 +1092,7 @@ chained f (Stream step state) = Stream stepOuter (Just state)
 
     stepOuter _ Nothing = return Stop
 
+{-# INLINE_NORMAL grouped #-}
 grouped :: Monad m => Fold m a b -> Stream m (a, Bool) -> Stream m b
 grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
@@ -1115,11 +1115,11 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
         where
 
         -- XXX is it strict enough?
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
+        go !_ stt !acc = do
+            res <- step (adaptState gst) stt
             case res of
-                Yield (y,r) s -> do
-                    acc' <- fstep acc y
+                Yield (x,r) s -> do
+                    acc' <- fstep acc x
                     if r
                     then done acc' >>= \val -> return $ Yield val (Just s)
                     else go SPEC s acc'
@@ -1128,8 +1128,9 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
-linesWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-linesWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL tokensWhen #-}
+tokensWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+tokensWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
     where
 
@@ -1151,20 +1152,21 @@ linesWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
         where
 
         -- XXX is it strict enough?
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
+        go !_ stt !acc = do
+            res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \val -> return $ Yield val (Just s)
+                    then done acc >>= \r -> return $ Yield r (Just s)
                     else do
                         acc' <- fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \val -> return $ Yield val Nothing
+                Stop -> done acc >>= \r -> return $ Yield r Nothing
 
     stepOuter _ _ Nothing = return Stop
 
+{-# INLINE_NORMAL wordsWhen #-}
 wordsWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 wordsWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
@@ -1188,26 +1190,27 @@ wordsWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
         where
 
         -- XXX is it strict enough?
-        go !_ st !acc = do
-            res <- step (adaptState gst) st
+        go !_ stt !acc = do
+            res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \val -> return $ Yield val (Just s)
+                    then done acc >>= \r -> return $ Yield r (Just s)
                     else do
                         acc' <- fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \val -> return $ Yield val Nothing
+                Stop -> done acc >>= \r -> return $ Yield r Nothing
 
     stepOuter _ _ Nothing = return Stop
 
+{-# INLINE_NORMAL foldBufferWith #-}
 foldBufferWith
     :: (K.IsStream t, Monad m)
     => (Stream m a -> Stream m (t m a))
     -> (Stream m a -> m b)
     -> Stream m a -> Stream m b
-foldBufferWith splitter f m = foldBufferWith' f (splitter m)
+foldBufferWith splitter fld m = foldBufferWith' fld (splitter m)
 
     where
 
@@ -1347,17 +1350,18 @@ data GroupOnState s a =
 -- 3) The pattern is removed from the stream, only the stream without the
 -- pattern is fed to the fold. We can have a control option to say that the
 -- separator is also part of the token being folded.
+--
 -- XXX We can use a control parameter to control this behavior.
 -- XXX since this is a tokenizer we can call it foldTokensOn?
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
+    :: forall m a b. (Monad m, Storable a, Eq a)
+    => Fold m a b
     -> Array a
     -> Stream m a
     -> Stream m b
-splitOn f v@Array{..} (Stream step state) =
+splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1368,10 +1372,10 @@ splitOn f v@Array{..} (Stream step state) =
 
     {-# INLINE fold #-}
     -- fold :: Monad m => Fold m a b -> Stream m a -> m b
-    fold (Fold step begin done) = foldxM' step begin done
+    fold (Fold s b d) = foldxM' s b d
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter gst GO_START = return $
+    stepOuter _ GO_START = return $
         if byteLen == 0
         then Skip $ GO_FINISHING state
         else Skip $ GO_PREPARE
@@ -1386,14 +1390,20 @@ splitOn f v@Array{..} (Stream step state) =
                   else Skip $ GO_KARP_RABIN state
              else Skip $ GO_KARP_RABIN state
 
-    stepOuter gst (GO_SINGLE st a) = do
-        -- Keep the intial state as undefined, if the fold returns prematurely
-        -- we will at least know the problem.
-        (r, s') <- runStateT (fold f (Stream (stepInner a) (Just (st, False))))
-                             undefined
-        return $ case s' of
-            Just s'' -> Yield r (GO_SINGLE s'' a)
-            Nothing  -> Yield r GO_DONE
+    stepOuter gst (GO_SINGLE stt pat) = initial >>= go SPEC stt
+
+        where
+
+        go !_ st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    if pat == x
+                    then done acc' >>= \val -> return $ Yield val (GO_SINGLE s pat)
+                    else go SPEC s acc'
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \val -> return $ Yield val GO_DONE
 
     stepOuter _ (GO_FINISHING st) = do
         r <- fold f (Stream step st)
@@ -1401,6 +1411,7 @@ splitOn f v@Array{..} (Stream step state) =
 
     stepOuter _ GO_DONE = return Stop
 
+{-
     {-# INLINE stepInner #-}
     stepInner a _ (Just (st, False)) = do
         -- XXX can we use gst instead of defState?
@@ -1420,6 +1431,44 @@ splitOn f v@Array{..} (Stream step state) =
     stepInner _ _ Nothing = do
         put Nothing
         return Stop
+        -}
+
+{-# INLINE_EARLY splitWhen #-}
+splitWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitWhen predicate f m = grouped f (map (\a -> (a, predicate a)) m)
+
+{-
+{-# INLINE_NORMAL splitOn #-}
+splitOn
+    :: forall m a b. (MonadIO m, Storable a, Eq a)
+    => (forall n. MonadIO n => Fold n a b)
+    -> Array a
+    -> Stream m a
+    -> Stream m b
+splitOn f v@Array{..} str@(Stream step state) =
+    if byteLen == 0
+    then yieldM $ fold f str
+    else
+        if byteLen == sizeOf (undefined :: a)
+        then splitWhen (== (unsafeIndex v 0)) f str
+        else undefined
+{-
+        then Skip $ GO_SINGLE state (unsafeIndex v 0)
+        else if sizeOf (undefined :: a) == 1
+             then if byteLen * 8 <= finiteBitSize (0 :: Word)
+                  then Skip $ GO_SHORT_BYTES state
+                  else Skip $ GO_KARP_RABIN state
+                      -}
+
+    where
+
+    {-# INLINE fold #-}
+    fold (Fold step begin done) = foldxM' step begin done
+
+    byteLen =
+        let p = unsafeForeignPtrToPtr aStart
+        in aEnd `minusPtr` p
+        -}
 
 ------------------------------------------------------------------------------
 -- Substreams

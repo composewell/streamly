@@ -516,6 +516,7 @@ benchmark fileio
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   if flag(dev)
+    cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
                     -fno-ignore-asserts

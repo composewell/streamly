@@ -469,7 +469,6 @@ where
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
-import Foreign.Storable (Storable(..))
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
@@ -489,13 +488,11 @@ import Streamly.Streams.Prelude
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Parse.Types (Parse)
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Zip as Z
-import Streamly.Array.Types (Array)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
