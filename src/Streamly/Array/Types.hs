@@ -30,8 +30,11 @@ module Streamly.Array.Types
 
     , unsafeIndex
     , fromCStringAddrUnsafe
+    , length
+    , foldl'
 
     , fromList
+    , fromListN
     , toList
     )
 where
@@ -47,13 +50,15 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
+import Prelude hiding (length)
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes, newForeignPtr_)
 import GHC.IO (IO(IO), unsafeDupablePerformIO)
 import GHC.Ptr (Ptr(..))
-import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
+import qualified Prelude
 import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
@@ -314,6 +319,24 @@ unsafeIndex Array {..} i =
                 peek elemOff
     in r
 
+{-# INLINE length #-}
+length :: forall a. Storable a => Array a -> Int
+length Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+        aLen = aEnd `minusPtr` p
+    in assert (aLen >= 0) (aLen `div` sizeOf (undefined :: a))
+
+{-# INLINE foldl' #-}
+foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
+foldl' f z Array{..} =
+    unsafeDangerousPerformIO $ withForeignPtr aStart $ \p -> go z p aEnd
+    where
+      go !acc !p !q
+        | p == q = return acc
+        | otherwise = do
+            x <- peek p
+            go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
+
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
@@ -344,16 +367,21 @@ instance (Storable a, Show a) => Show (Array a) where
     {-# INLINE showsPrec #-}
     showsPrec _ = shows . toList
 
-{-# INLINABLE fromList #-}
-fromList :: Storable a => [a] -> Array a
-fromList xs = foldl step begin xs
+-- | Create an 'Array' of a given size from a list.
+{-# INLINABLE fromListN #-}
+fromListN :: Storable a => Int -> [a] -> Array a
+fromListN n xs = foldl step begin xs
 
     where
 
-    begin = let !x = unsafeDupablePerformIO $ unsafeNew (Prelude.length xs)
-            in x
+    begin      = let !x = unsafeDupablePerformIO $ unsafeNew n in x
     step arr x = let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
                  in arr'
+
+-- | Create an 'Array' from a list. List must be finite.
+{-# INLINABLE fromList #-}
+fromList :: Storable a => [a] -> Array a
+fromList xs = fromListN (Prelude.length xs) xs
 
 instance (Storable a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}

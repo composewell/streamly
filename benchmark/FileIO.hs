@@ -140,8 +140,11 @@ main = do
             , mkBenchText "streamed line count (tokensWhen)" inText $ do
                 (S.length $ FL.tokensWhen (== fromIntegral (ord '\n')) FL.drain
                     $ IO.fromHandle inText) >>= print
-            , mkBenchText "streamed line count (splitOn)" inText $ do
+            , mkBenchText "streamed line count (splitOn \\n)" inText $ do
                 (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "streamed line count (splitOn \\r\\n)" inText $ do
+                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
                     $ IO.fromHandle inText) >>= print
             , mkBenchText "streamed word count" inText $ do
                 (S.length $ FL.wordsWhen (\x -> isSpace $ chr (fromIntegral x)) FL.drain $

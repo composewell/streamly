@@ -223,7 +223,7 @@ module Streamly.Streams.StreamD
 where
 
 import Control.Monad.Trans (MonadTrans(lift))
-import Data.Bits (finiteBitSize)
+import Data.Bits (shiftL, (.|.), (.&.))
 import Data.Maybe (fromJust, isJust)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -248,8 +248,7 @@ import Streamly.Sink.Types (Sink(..))
 import Streamly.Streams.StreamD.Type
 import Streamly.Parse.Types (Status(..), Parse(..))
 import qualified Streamly.Streams.StreamK as K
-
-
+import qualified Streamly.Array.Types as A
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -1305,33 +1304,15 @@ breakSubstring pat =
                   get i -
                   m * get (i - lp)
     {-# INLINE karpRabin #-}
-
-    shift :: ByteString -> (ByteString, ByteString)
-    shift !src
-        | length src < lp = (src,empty)
-        | otherwise       = search (intoWord $ unsafeTake lp src) lp
-      where
-        intoWord :: ByteString -> Word
-        intoWord = foldl' (\w b -> (w `shiftL` 8) .|. fromIntegral b) 0
-        wp   = intoWord pat
-        mask = (1 `shiftL` (8 * lp)) - 1
-        search !w !i
-            | w == wp         = unsafeSplitAt (i - lp) src
-            | length src <= i = (src, empty)
-            | otherwise       = search w' (i + 1)
-          where
-            b  = fromIntegral (unsafeIndex src i)
-            w' = mask .&. ((w `shiftL` 8) .|. b)
-    {-# INLINE shift #-}
     -}
 
 data GroupOnState s a =
       GO_START
     | GO_PREPARE
-    | GO_SINGLE s a
-    | GO_SHORT_BYTES s
+    | GO_EMPTY_PAT s
+    | GO_SINGLE_PAT s a
+    | GO_SHORT_PAT s
     | GO_KARP_RABIN s
-    | GO_FINISHING s
     | GO_DONE
 
 -- XXX specialize for Word8?
@@ -1356,7 +1337,7 @@ data GroupOnState s a =
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (Monad m, Storable a, Eq a)
+    :: forall m a b. (Monad m, Storable a, Eq a, Integral a)
     => Fold m a b
     -> Array a
     -> Stream m a
@@ -1366,9 +1347,13 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
 
     where
 
-    byteLen =
+    patBytes =
         let p = unsafeForeignPtrToPtr aStart
         in aEnd `minusPtr` p
+
+    patLen = A.length v
+    maxIndex = patLen - 1
+    elemBits = sizeOf (undefined :: a) * 8
 
     {-# INLINE fold #-}
     -- fold :: Monad m => Fold m a b -> Stream m a -> m b
@@ -1376,21 +1361,21 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START = return $
-        if byteLen == 0
-        then Skip $ GO_FINISHING state
+        if patLen == 0
+        then Skip $ GO_EMPTY_PAT state
         else Skip $ GO_PREPARE
 
     stepOuter _ GO_PREPARE = return $
-        if byteLen == sizeOf (undefined :: a)
-        then Skip $ GO_SINGLE state (unsafeIndex v 0)
+        if patLen == 1
+        -- if False
+        then Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
         -- XXX we can further optimize this with SIMD
-        else if sizeOf (undefined :: a) == 1
-             then if byteLen * 8 <= finiteBitSize (0 :: Word)
-                  then Skip $ GO_SHORT_BYTES state
-                  else Skip $ GO_KARP_RABIN state
+        else if patBytes <= sizeOf (undefined :: Word)
+             -- if False
+             then Skip $ GO_SHORT_PAT state
              else Skip $ GO_KARP_RABIN state
 
-    stepOuter gst (GO_SINGLE stt pat) = initial >>= go SPEC stt
+    stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
 
         where
 
@@ -1400,12 +1385,53 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Yield x s -> do
                     acc' <- fstep acc x
                     if pat == x
-                    then done acc' >>= \val -> return $ Yield val (GO_SINGLE s pat)
+                    then done acc' >>= \val -> return $ Yield val (GO_SINGLE_PAT s pat)
                     else go SPEC s acc'
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \val -> return $ Yield val GO_DONE
 
-    stepOuter _ (GO_FINISHING st) = do
+    stepOuter gst (GO_SHORT_PAT stt) = do
+        -- let !arr = unsafeDupablePerformIO $ unsafeNew patLen
+        -- initial >>= go0 SPEC 0 arr stt
+        initial >>= go0 SPEC 0 (0 :: Word) stt
+
+        where
+
+        mask :: Word
+        mask = (1 `shiftL` (8 * patBytes)) - 1
+
+        patWord :: Word
+        patWord = mask .&. (A.foldl' (\w b -> (w `shiftL` elemBits) .|. fromIntegral b) 0 v)
+
+        go0 !_ !idx wrd st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    -- let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
+                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    if idx == maxIndex
+                    then go1 SPEC wrd' s acc'
+                    else go0 SPEC (idx + 1) wrd' s acc'
+                Skip s -> go0 SPEC idx wrd s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+
+        go1 !_ wrd st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    -- let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
+                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    if wrd' .&. mask == patWord
+                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    else go1 SPEC wrd' s acc'
+                Skip s -> go1 SPEC wrd s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+
+    stepOuter _ (GO_KARP_RABIN st) = undefined
+
+    stepOuter _ (GO_EMPTY_PAT st) = do
         r <- fold f (Stream step st)
         return $ Yield r GO_DONE
 

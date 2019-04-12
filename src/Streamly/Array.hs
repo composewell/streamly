@@ -43,6 +43,8 @@ module Streamly.Array
     , nil
     , singleton
     , fromList
+    , fromListN
+    , fromStreamN
     , readHandleChunksOf
 
     -- * Elimination/Folds
@@ -182,6 +184,11 @@ singleton a =
     let !v = unsafeDupablePerformIO $ withNewArray 1 $ \p -> poke p a
     in (v {aEnd = aEnd v `plusPtr` (sizeOf (undefined :: a))})
 
+-- | Create an Array of a given size from a stream.
+{-# INLINE fromStreamN #-}
+fromStreamN :: (Monad m, Storable a) => Int -> SerialT m a -> m (Array a)
+fromStreamN n = FL.foldl (FL.toArrayN n)
+
 -- | Read a 'ByteArray' from a file handle. If no data is available on the
 -- handle it blocks until some data becomes available. If data is available
 -- then it immediately returns that data without blocking. It reads a maximum
@@ -239,24 +246,6 @@ readHandleChunksOf size h = go
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
-
-{-# INLINE foldl' #-}
-foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
-foldl' f z Array{..} =
-    unsafeDangerousPerformIO $ withForeignPtr aStart $ \p -> go z p aEnd
-    where
-      go !acc !p !q
-        | p == q = return acc
-        | otherwise = do
-            x <- peek p
-            go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
-
-{-# INLINE length #-}
-length :: forall a. Storable a => Array a -> Int
-length Array{..} =
-    let p = unsafeForeignPtrToPtr aStart
-        aLen = aEnd `minusPtr` p
-    in assert (aLen >= 0) (aLen `div` sizeOf (undefined :: a))
 
 {-# INLINE null #-}
 null :: Array a -> Bool

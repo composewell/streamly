@@ -1399,10 +1399,18 @@ groups = groupsBy (==)
 -- subsequence is found in the stream, it is split after the subsequence and
 -- the resulting splits are folded using the supplied fold.
 --
+{-
 {-# INLINE splitOn #-}
 splitOn
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
+    :: (IsStream t, Monad m, Storable a, Eq a)
+    => Array a -> Fold m a b -> t m a -> t m b
+splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
+-}
+
+{-# INLINE splitOn #-}
+splitOn
+    :: (IsStream t, Monad m, Storable a, Eq a, Integral a)
+    => Array a -> Fold m a b -> t m a -> t m b
 splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
 
 -- | Like 'splitOn' but the separator is dropped and only the tokens are kept.
