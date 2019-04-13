@@ -1399,17 +1399,15 @@ groups = groupsBy (==)
 -- subsequence is found in the stream, it is split after the subsequence and
 -- the resulting splits are folded using the supplied fold.
 --
-{-
+-- This API requires an 'Integral' constraint for fast searching. You can map a
+-- type to an integral and back to use this. If you need to match on a single
+-- element consider using 'splitWhen' instead. If you need to match on a
+-- non-integral subsequence consider using the 'sepBy' 'Parse' instead, though
+-- remember that the Parse would be considerably slower compared to this.
+--
 {-# INLINE splitOn #-}
 splitOn
-    :: (IsStream t, Monad m, Storable a, Eq a)
-    => Array a -> Fold m a b -> t m a -> t m b
-splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
--}
-
-{-# INLINE splitOn #-}
-splitOn
-    :: (IsStream t, Monad m, Storable a, Eq a, Integral a)
+    :: (IsStream t, Monad m, Storable a, Integral a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
 

@@ -1129,6 +1129,10 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
+{-# INLINE_EARLY splitWhen #-}
+splitWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitWhen predicate f m = grouped f (map (\a -> (a, predicate a)) m)
+
 {-# INLINE_NORMAL tokensWhen #-}
 tokensWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 tokensWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
@@ -1445,10 +1449,6 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         return $ Yield r GO_DONE
 
     stepOuter _ GO_DONE = return Stop
-
-{-# INLINE_EARLY splitWhen #-}
-splitWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitWhen predicate f m = grouped f (map (\a -> (a, predicate a)) m)
 
 ------------------------------------------------------------------------------
 -- Substreams
