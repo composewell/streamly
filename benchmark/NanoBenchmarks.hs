@@ -5,15 +5,23 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
 import Streamly (SerialT)
 import Streamly.SVar (MonadAsync)
+import qualified Streamly.Array as A
+import qualified Streamly.Fold as FL
 import qualified Streamly.Foldr as FR
 -- import qualified Streamly.Streams.StreamK as S
 import qualified Streamly.Prelude as S
+import qualified Streamly.FileIO as IO
+import Streamly.Internal.MonadLazy(MonadLazy)
+
+import Data.Char (ord, chr)
+import Data.Functor.Identity
 import Gauge
 import System.Random
-import Streamly.Internal.MonadLazy(MonadLazy)
-import Data.Functor.Identity
+import System.IO (hSeek, SeekMode(..))
+import System.IO (openFile, IOMode(..), Handle, hClose)
 
 maxValue :: Int
 maxValue = 100000
@@ -114,3 +122,14 @@ main = do
         nfIO $ S.runStream $ iterateSource (S.mapM return) 100000 10]
     defaultMain [bench "all-any" $ nfIO $ allAny sourceUnfoldrM]
     defaultMain [bench "all-any-identity" $ nf (\n -> runIdentity $ allAny (sourceUnfoldr n)) 100000]
+
+    inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
+    defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
+                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
+                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                ]
+    where
+
+    mkBenchText name h action =
+        bench name $ perRunEnv (hSeek h AbsoluteSeek 0) (\_ -> action)

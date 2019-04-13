@@ -223,6 +223,7 @@ module Streamly.Streams.StreamD
 where
 
 import Control.Monad.Trans (MonadTrans(lift))
+import Data.Word (Word32)
 import Data.Bits (shiftL, (.|.), (.&.))
 import Data.Maybe (fromJust, isJust)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
@@ -249,6 +250,7 @@ import Streamly.Streams.StreamD.Type
 import Streamly.Parse.Types (Status(..), Parse(..))
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Array.Types as A
+import qualified Streamly.RingBuffer as RB
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -1365,13 +1367,14 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         then Skip $ GO_EMPTY_PAT state
         else Skip $ GO_PREPARE
 
+    -- XXX this state can be removed?
     stepOuter _ GO_PREPARE = return $
-        if patLen == 1
-        -- if False
+        -- if patLen == 1
+        if False
         then Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
         -- XXX we can further optimize this with SIMD
-        else if patBytes <= sizeOf (undefined :: Word)
-             -- if False
+        else -- if patBytes <= sizeOf (undefined :: Word)
+             if False
              then Skip $ GO_SHORT_PAT state
              else Skip $ GO_KARP_RABIN state
 
@@ -1391,8 +1394,6 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Stop -> done acc >>= \val -> return $ Yield val GO_DONE
 
     stepOuter gst (GO_SHORT_PAT stt) = do
-        -- let !arr = unsafeDupablePerformIO $ unsafeNew patLen
-        -- initial >>= go0 SPEC 0 arr stt
         initial >>= go0 SPEC 0 (0 :: Word) stt
 
         where
@@ -1408,7 +1409,6 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
             case res of
                 Yield x s -> do
                     acc' <- fstep acc x
-                    -- let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
                     let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
                     if idx == maxIndex
                     then go1 SPEC wrd' s acc'
@@ -1416,12 +1416,12 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Skip s -> go0 SPEC idx wrd s acc
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
+        {-# INLINE go1 #-}
         go1 !_ wrd st !acc = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
                     acc' <- fstep acc x
-                    -- let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
                     let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
                     if wrd' .&. mask == patWord
                     then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
@@ -1429,7 +1429,48 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Skip s -> go1 SPEC wrd s acc
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
-    stepOuter _ (GO_KARP_RABIN st) = undefined
+    stepOuter gst (GO_KARP_RABIN stt) = do
+        -- XXX we do not need to allocate this every time here
+        let !rb = unsafeDupablePerformIO $ RB.unsafeNew patLen
+        initial >>= go0 SPEC 0 rb stt
+
+        where
+
+        -- Checksum for Karp Rabin
+        k = 2891336453 :: Word32
+        m = k ^ patLen
+        -- XXX shall we use a random starting hash or 1 instead of 0?
+        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
+
+        -- {-# NOINLINE go0 #-}
+        go0 !_ !idx !rb st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    let !(rb', _) = unsafeDangerousPerformIO (RB.insert rb x)
+                    if idx == maxIndex
+                    then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb'
+                         in go1 SPEC ringHash rb' s acc'
+                    else go0 SPEC (idx + 1) rb' s acc'
+                Skip s -> go0 SPEC idx rb s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+
+        -- INLINE is important here so that go1 is preferred for inlining
+        -- instead of go0. XXX arrayGroupsOf/groupsOf may have similar problem.
+        {-# INLINE go1 #-}
+        go1 !_ !cksum !rb st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    let !(rb', old) = unsafeDangerousPerformIO (RB.insert rb x)
+                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+                    if cksum' == patHash && RB.bufcmp rb v
+                    then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s)
+                    else go1 SPEC cksum' rb' s acc'
+                Skip s -> go1 SPEC cksum rb s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
     stepOuter _ (GO_EMPTY_PAT st) = do
         r <- fold f (Stream step st)

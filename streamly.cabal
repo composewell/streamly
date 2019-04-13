@@ -171,6 +171,7 @@ library
                      , Streamly.Array.Types
                      , Streamly.Internal.MonadLazy
                      , Streamly.Foldr
+                     , Streamly.RingBuffer
 
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time

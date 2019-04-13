@@ -207,7 +207,7 @@ foreign import ccall unsafe "string.h strlen" c_strlen
 
 -- XXX we are converting Int to CSize
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy p q s = c_memcpy p q (fromIntegral s) >> return ()
+memcpy dst src len = c_memcpy dst src (fromIntegral len) >> return ()
 
 {-# INLINE unsafeDangerousPerformIO #-}
 unsafeDangerousPerformIO :: IO a -> a
@@ -329,7 +329,8 @@ length Array{..} =
 {-# INLINE foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
 foldl' f z Array{..} =
-    unsafeDangerousPerformIO $ withForeignPtr aStart $ \p -> go z p aEnd
+    let !res = unsafeDangerousPerformIO $ withForeignPtr aStart $ \p -> go z p aEnd
+    in res
     where
       go !acc !p !q
         | p == q = return acc

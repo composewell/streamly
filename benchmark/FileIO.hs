@@ -146,6 +146,10 @@ main = do
             , mkBenchText "streamed line count (splitOn \\r\\n)" inText $ do
                 (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
                     $ IO.fromHandle inText) >>= print
+            , mkBenchText "splitOn abc...xyz" inText $ do
+                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
+                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+                        $ IO.fromHandle inText) >>= print
             , mkBenchText "streamed word count" inText $ do
                 (S.length $ FL.wordsWhen (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
                     IO.fromHandle inText) >>= print
