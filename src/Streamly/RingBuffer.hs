@@ -72,19 +72,16 @@ advance rb@RingBuffer{..} ringHead =
        else unsafeForeignPtrToPtr ringStart
 
 -- | insert an item at the head of the ring, when the ring is full this
--- replaces the oldest item in the ring with the new item. Returns the old
--- value at that location, note that when the ring is not full the old value is
--- invalid.
+-- replaces the oldest item in the ring with the new item.
 {-# INLINE insert #-}
-insert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a, a)
+insert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a)
 insert rb ringHead newVal = do
-    x <- peek ringHead
     poke ringHead newVal
     -- XXX do we need this?
     -- RingBuffer is still referring to the ptr
     -- touchForeignPtr (ringStart rb)
     let ptr = advance rb ringHead
-    return (ptr, x)
+    return ptr
 
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt

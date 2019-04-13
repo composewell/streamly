@@ -1272,49 +1272,12 @@ arrayGroupsOf n (Stream step state) =
     step' _ (ArrayWrite st _ arr) = return $ Yield arr (ArrayAlloc st)
     step' _ ArrayStop = return Stop
 
-{-
-breakSubstring :: ByteString -- ^ String to search for
-               -> ByteString -- ^ String to search in
-               -> (ByteString,ByteString) -- ^ Head and tail of string broken at substring
-breakSubstring pat =
-  case lp of
-    0 -> \src -> (empty,src)
-    1 -> breakByte (unsafeHead pat)
-    _ -> if lp * 8 <= finiteBitSize (0 :: Word)
-             then shift
-             else karpRabin
-  where
-    unsafeSplitAt i s = (unsafeTake i s, unsafeDrop i s)
-    lp                = length pat
-    karpRabin :: ByteString -> (ByteString, ByteString)
-    karpRabin src
-        | length src < lp = (src,empty)
-        | otherwise = search (rollingHash $ unsafeTake lp src) lp
-      where
-        k           = 2891336453 :: Word32
-        rollingHash = foldl' (\h b -> h * k + fromIntegral b) 0
-        hp          = rollingHash pat
-        m           = k ^ lp
-        get = fromIntegral . unsafeIndex src
-        search !hs !i
-            | hp == hs && pat == unsafeTake lp b = u
-            | length src <= i                    = (src,empty) -- not found
-            | otherwise                          = search hs' (i + 1)
-          where
-            u@(_, b) = unsafeSplitAt (i - lp) src
-            hs' = hs * k +
-                  get i -
-                  m * get (i - lp)
-    {-# INLINE karpRabin #-}
-    -}
-
 data GroupOnState s a =
       GO_START
-    | GO_PREPARE
     | GO_EMPTY_PAT s
     | GO_SINGLE_PAT s a
     | GO_SHORT_PAT s
-    | GO_KARP_RABIN s
+    | GO_KARP_RABIN s !(RB.RingBuffer a) !(Ptr a)
     | GO_DONE
 
 -- XXX specialize for Word8?
@@ -1339,7 +1302,7 @@ data GroupOnState s a =
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (Monad m, Storable a, Eq a, Integral a)
+    :: forall m a b. (Monad m, Storable a, Integral a)
     => Fold m a b
     -> Array a
     -> Stream m a
@@ -1362,21 +1325,17 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
     fold (Fold s b d) = foldxM' s b d
 
     {-# INLINE_LATE stepOuter #-}
-    stepOuter _ GO_START = return $
+    stepOuter _ GO_START =
         if patLen == 0
-        then Skip $ GO_EMPTY_PAT state
-        else Skip $ GO_PREPARE
-
-    -- XXX this state can be removed?
-    stepOuter _ GO_PREPARE = return $
-        -- if patLen == 1
-        if False
-        then Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
-        -- XXX we can further optimize this with SIMD
-        else -- if patBytes <= sizeOf (undefined :: Word)
-             if False
-             then Skip $ GO_SHORT_PAT state
-             else Skip $ GO_KARP_RABIN state
+        then return $ Skip $ GO_EMPTY_PAT state
+        else if patLen == 1
+             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
+            -- XXX we can further optimize this with SIMD
+             else if patBytes <= sizeOf (undefined :: Word)
+                  then return $ Skip $ GO_SHORT_PAT state
+                  else do
+                    let !(rb, rhead) = unsafeDupablePerformIO $ RB.unsafeNew patLen
+                    return $ Skip $ GO_KARP_RABIN state rb rhead
 
     stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
 
@@ -1429,50 +1388,57 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Skip s -> go1 SPEC wrd s acc
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
-    stepOuter gst (GO_KARP_RABIN stt) = do
-        -- XXX we do not need to allocate this every time here
-        let !(rb, rhead) = unsafeDupablePerformIO $ RB.unsafeNew patLen
-        go rb rhead
+    stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
+        initial >>= go0 SPEC 0 rhead stt
 
         where
 
-        -- Checksum for Karp Rabin
         k = 2891336453 :: Word32
         m = k ^ patLen
         -- XXX shall we use a random starting hash or 1 instead of 0?
         patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
 
-        go rb rhead = initial >>= go0 SPEC 0 rhead stt
-            where
-            -- {-# NOINLINE go0 #-}
-            go0 !_ !idx !rh st !acc = do
-                res <- step (adaptState gst) st
-                case res of
-                    Yield x s -> do
-                        acc' <- fstep acc x
-                        let !(rh', _) = unsafeDangerousPerformIO (RB.insert rb rh x)
-                        if idx == maxIndex
-                        then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb
-                             in go1 SPEC ringHash rh' s acc'
-                        else go0 SPEC (idx + 1) rh' s acc'
-                    Skip s -> go0 SPEC idx rh s acc
-                    Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+        go0 !_ !idx !rh st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    let !rh' = unsafeDangerousPerformIO (RB.insert rb rh x)
+                    if idx == maxIndex
+                    then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb
+                         in go1 SPEC ringHash rh' s acc'
+                    else go0 SPEC (idx + 1) rh' s acc'
+                Skip s -> go0 SPEC idx rh s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
-            -- INLINE is important here so that go1 is preferred for inlining
-            -- instead of go0. XXX arrayGroupsOf/groupsOf may have similar problem.
-            {-# INLINE go1 #-}
-            go1 !_ !cksum !rh st !acc = do
-                res <- step (adaptState gst) st
-                case res of
-                    Yield x s -> do
-                        acc' <- fstep acc x
-                        let !(rh', old) = unsafeDangerousPerformIO (RB.insert rb rh x)
-                            cksum' = cksum * k + fromIntegral x - m * fromIntegral old
-                        if cksum' == patHash && RB.bufcmp rb v
-                        then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s)
-                        else go1 SPEC cksum' rh' s acc'
-                    Skip s -> go1 SPEC cksum rh s acc
-                    Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+        -- XXX Theoretically this code can do 4 times faster if GHC generates
+        -- optimal code. If we use just "(cksum' == patHash)" condition it goes
+        -- 4x faster, as soon as we add the "RB.bufcmp rb v" condition the
+        -- generated code changes drastically and become 4x slower. Need to
+        -- investigate what is going on with GHC.
+        {-# INLINE go1 #-}
+        go1 !_ !cksum !rh st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    acc' <- fstep acc x
+                    let !old = unsafeDangerousPerformIO $ peek rh
+                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+
+                    if (cksum' == patHash)
+                    then do
+                        let !rh'= unsafeDangerousPerformIO (RB.insert rb rh x)
+                        go2 SPEC cksum' rh' s acc'
+                    else do
+                        let !rh'= unsafeDangerousPerformIO (RB.insert rb rh x)
+                        go1 SPEC cksum' rh' s acc'
+                Skip s -> go1 SPEC cksum rh s acc
+                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+
+        go2 !_ !cksum' !rh' s !acc' = do
+            if RB.bufcmp rb v
+            then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s rb rhead)
+            else go1 SPEC cksum' rh' s acc'
 
     stepOuter _ (GO_EMPTY_PAT st) = do
         r <- fold f (Stream step st)
@@ -1480,64 +1446,9 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
 
     stepOuter _ GO_DONE = return Stop
 
-{-
-    {-# INLINE stepInner #-}
-    stepInner a _ (Just (st, False)) = do
-        -- XXX can we use gst instead of defState?
-        r <- lift $ step defState st
-        return $ case r of
-            Yield x s ->
-                if x == a
-                then Skip $ Just (s, True)
-                else Yield x $ Just (s, False)
-            Skip s -> Skip $ Just (s, False)
-            Stop   -> Skip Nothing
-
-    stepInner _ _ (Just (st, True)) = do
-        put (Just st)
-        return Stop
-
-    stepInner _ _ Nothing = do
-        put Nothing
-        return Stop
-        -}
-
 {-# INLINE_EARLY splitWhen #-}
 splitWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
 splitWhen predicate f m = grouped f (map (\a -> (a, predicate a)) m)
-
-{-
-{-# INLINE_NORMAL splitOn #-}
-splitOn
-    :: forall m a b. (MonadIO m, Storable a, Eq a)
-    => (forall n. MonadIO n => Fold n a b)
-    -> Array a
-    -> Stream m a
-    -> Stream m b
-splitOn f v@Array{..} str@(Stream step state) =
-    if byteLen == 0
-    then yieldM $ fold f str
-    else
-        if byteLen == sizeOf (undefined :: a)
-        then splitWhen (== (unsafeIndex v 0)) f str
-        else undefined
-{-
-        then Skip $ GO_SINGLE state (unsafeIndex v 0)
-        else if sizeOf (undefined :: a) == 1
-             then if byteLen * 8 <= finiteBitSize (0 :: Word)
-                  then Skip $ GO_SHORT_BYTES state
-                  else Skip $ GO_KARP_RABIN state
-                      -}
-
-    where
-
-    {-# INLINE fold #-}
-    fold (Fold step begin done) = foldxM' step begin done
-
-    byteLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
-        -}
 
 ------------------------------------------------------------------------------
 -- Substreams
