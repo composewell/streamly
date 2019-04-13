@@ -1431,8 +1431,8 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
 
     stepOuter gst (GO_KARP_RABIN stt) = do
         -- XXX we do not need to allocate this every time here
-        let !rb = unsafeDupablePerformIO $ RB.unsafeNew patLen
-        initial >>= go0 SPEC 0 rb stt
+        let !(rb, rhead) = unsafeDupablePerformIO $ RB.unsafeNew patLen
+        go rb rhead
 
         where
 
@@ -1442,35 +1442,37 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         -- XXX shall we use a random starting hash or 1 instead of 0?
         patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
 
-        -- {-# NOINLINE go0 #-}
-        go0 !_ !idx !rb st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    acc' <- fstep acc x
-                    let !(rb', _) = unsafeDangerousPerformIO (RB.insert rb x)
-                    if idx == maxIndex
-                    then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb'
-                         in go1 SPEC ringHash rb' s acc'
-                    else go0 SPEC (idx + 1) rb' s acc'
-                Skip s -> go0 SPEC idx rb s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+        go rb rhead = initial >>= go0 SPEC 0 rhead stt
+            where
+            -- {-# NOINLINE go0 #-}
+            go0 !_ !idx !rh st !acc = do
+                res <- step (adaptState gst) st
+                case res of
+                    Yield x s -> do
+                        acc' <- fstep acc x
+                        let !(rh', _) = unsafeDangerousPerformIO (RB.insert rb rh x)
+                        if idx == maxIndex
+                        then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb
+                             in go1 SPEC ringHash rh' s acc'
+                        else go0 SPEC (idx + 1) rh' s acc'
+                    Skip s -> go0 SPEC idx rh s acc
+                    Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
-        -- INLINE is important here so that go1 is preferred for inlining
-        -- instead of go0. XXX arrayGroupsOf/groupsOf may have similar problem.
-        {-# INLINE go1 #-}
-        go1 !_ !cksum !rb st !acc = do
-            res <- step (adaptState gst) st
-            case res of
-                Yield x s -> do
-                    acc' <- fstep acc x
-                    let !(rb', old) = unsafeDangerousPerformIO (RB.insert rb x)
-                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
-                    if cksum' == patHash && RB.bufcmp rb v
-                    then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s)
-                    else go1 SPEC cksum' rb' s acc'
-                Skip s -> go1 SPEC cksum rb s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+            -- INLINE is important here so that go1 is preferred for inlining
+            -- instead of go0. XXX arrayGroupsOf/groupsOf may have similar problem.
+            {-# INLINE go1 #-}
+            go1 !_ !cksum !rh st !acc = do
+                res <- step (adaptState gst) st
+                case res of
+                    Yield x s -> do
+                        acc' <- fstep acc x
+                        let !(rh', old) = unsafeDangerousPerformIO (RB.insert rb rh x)
+                            cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+                        if cksum' == patHash && RB.bufcmp rb v
+                        then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s)
+                        else go1 SPEC cksum' rh' s acc'
+                    Skip s -> go1 SPEC cksum rh s acc
+                    Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
     stepOuter _ (GO_EMPTY_PAT st) = do
         r <- fold f (Stream step st)

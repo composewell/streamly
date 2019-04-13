@@ -43,49 +43,48 @@ import qualified Streamly.Array.Types as A
 -- ring is full, the user must track that.
 -- XXX we can keep ringBound and ringHead inside the ringStart memory itself
 data RingBuffer a = Storable a => RingBuffer
-    { ringStart :: {-# UNPACK #-} !(ForeignPtr a) -- first address
-    , ringBound :: {-# UNPACK #-} !(Ptr a)        -- first address beyond allocated memory
+    { ringStart :: !(ForeignPtr a) -- first address
+    , ringBound :: !(Ptr a)        -- first address beyond allocated memory
     -- Points to the next empty location in the ring, when the ring is full
     -- this happens to be the oldest item in the ring which will be replaced by
     -- a new insert.
-    , ringHead  :: {-# UNPACK #-} !(Ptr a)
+    -- , ringHead  :: !(Ptr a)
     }
 
 {-# INLINE unsafeNew #-}
-unsafeNew :: forall a. Storable a => Int -> IO (RingBuffer a)
+unsafeNew :: forall a. Storable a => Int -> IO (RingBuffer a, Ptr a)
 unsafeNew count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- mallocPlainForeignPtrBytes size
     let p = unsafeForeignPtrToPtr fptr
-    return $ RingBuffer
+    return $ (RingBuffer
         { ringStart = fptr
         , ringBound = p `plusPtr` size
-        , ringHead  = p
-        }
+        -- , ringHead  = p
+        }, p)
 
 {-# INLINE advance #-}
-advance :: forall a. Storable a => RingBuffer a -> RingBuffer a
-advance rb@RingBuffer{..} =
+advance :: forall a. Storable a => RingBuffer a -> Ptr a -> Ptr a
+advance rb@RingBuffer{..} ringHead =
     let ptr = ringHead `plusPtr` sizeOf (undefined :: a)
-        newHead = if ptr <  ringBound
-                  then ptr
-                  else unsafeForeignPtrToPtr ringStart
-    in rb {ringHead = newHead}
+    in if ptr <  ringBound
+       then ptr
+       else unsafeForeignPtrToPtr ringStart
 
 -- | insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item. Returns the old
 -- value at that location, note that when the ring is not full the old value is
 -- invalid.
 {-# INLINE insert #-}
-insert :: Storable a => RingBuffer a -> a -> IO (RingBuffer a, a)
-insert rb newVal = do
-    x <- peek (ringHead rb)
-    poke (ringHead rb) newVal
+insert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a, a)
+insert rb ringHead newVal = do
+    x <- peek ringHead
+    poke ringHead newVal
     -- XXX do we need this?
     -- RingBuffer is still referring to the ptr
     -- touchForeignPtr (ringStart rb)
-    let rb' = advance rb
-    return (rb', x)
+    let ptr = advance rb ringHead
+    return (ptr, x)
 
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
