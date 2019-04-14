@@ -129,7 +129,6 @@ module Streamly.Streams.StreamD
     , concatMap
     , concatArray
     , groupsOf
-    , arrayGroupsOf
     , splitWhen
     , splitOn
     , grouped
@@ -240,8 +239,7 @@ import Prelude
 import System.IO.Unsafe (unsafeDupablePerformIO)
 
 import Streamly.Array.Types
-       (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex,
-        unsafeAppend, unsafeNew)
+       (Array(..), Array, unsafeDangerousPerformIO, unsafeIndex)
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState, State)
 import Streamly.Sink.Types (Sink(..))
@@ -1232,49 +1230,6 @@ foldBufferWith splitter fld m = foldBufferWith' fld (splitter m)
                     return $ Yield r s
                 Skip s    -> return $ Skip s
                 Stop      -> return Stop
-
-data ToArrayState s a =
-      ArrayAlloc s
-    | ArrayWrite s Int (Array a)
-    | ArrayStop
-
--- XXX This is a more monolithic version of groupsOf and therefore is
--- expected to do better. However, this is 2x slower than using foldGroupsof
--- with the toArray fold.  Need to investigate why.
---
-{-# INLINE_NORMAL arrayGroupsOf #-}
-arrayGroupsOf
-    :: (Monad m, Storable a)
-    => Int
-    -> Stream m a
-    -> Stream m (Array a)
-arrayGroupsOf n (Stream step state) =
-    n `seq` Stream step' (ArrayAlloc state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst (ArrayAlloc st) = do
-        res <- step (adaptState gst) st
-        return $ case res of
-            Yield x s ->
-                let !arr = unsafeDupablePerformIO $ unsafeNew n
-                    !arr1 = unsafeDangerousPerformIO (unsafeAppend arr x)
-                in Skip $ ArrayWrite s 1 arr1
-            Skip s -> Skip $ ArrayAlloc s
-            Stop -> Skip ArrayStop
-
-    step' gst (ArrayWrite st i arr) | i < n = do
-        res <- step (adaptState gst) st
-        return $ case res of
-            Yield x s ->
-                let !arr1 = unsafeDangerousPerformIO (unsafeAppend arr x)
-                in Skip $ ArrayWrite s (i + 1) arr1
-            Skip s -> Skip $ ArrayWrite s i arr
-            Stop -> Yield arr ArrayStop
-
-    step' _ (ArrayWrite st _ arr) = return $ Yield arr (ArrayAlloc st)
-    step' _ ArrayStop = return Stop
 
 data GroupOnState s a =
       GO_START

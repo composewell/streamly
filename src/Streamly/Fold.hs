@@ -1248,13 +1248,6 @@ groupsOf
     => Int -> Fold m a b -> t m a -> t m b
 groupsOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
--- XXX this is only for experimentation, performs worse than groupsOf
-{-# INLINE _arrayGroupsOf #-}
-_arrayGroupsOf
-    :: (IsStream t, Monad m, Storable a)
-    => Int -> t m a -> t m (Array a)
-_arrayGroupsOf n m = D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD m)
-
 ------------------------------------------------------------------------------
 -- Element Aware APIs
 ------------------------------------------------------------------------------

@@ -105,11 +105,6 @@ main = do
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 S.sum $ IO.fromHandle inh
-            {-
-            , mkBench "arrayGroupsOf-single" href $ do
-                Handles inh _ <- readIORef href
-                S.length $ S.arrayGroupsOf fileSize (IO.fromHandle inh)
-            -}
             , mkBench "groupsOf(one-group)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
@@ -122,7 +117,6 @@ main = do
                 A.concatToHandle outh s
             ]
         , bgroup "copyStream"
-            -- XXX copies only 32k
             [ mkBench "fromToHandle" href $ do
                 Handles inh outh <- readIORef href
                 IO.toHandle outh (IO.fromHandle inh)

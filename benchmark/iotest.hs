@@ -3,7 +3,7 @@ import Streamly
 import Streamly.FileIO
 import Data.Word (Word8)
 
-import qualified Streamly.Foldl as FL
+import qualified Streamly.Fold as FL
 import qualified Streamly.Array as A
 import qualified Streamly.Prelude as S
 import System.IO (IOMode(..), openFile)
@@ -37,16 +37,14 @@ main = do
     print x
     -}
 
-    {-
     -- Direct stream operations
-    let s = fromHandle handle
+    -- let s = fromHandle handle
     -- x <- S.head s
     -- x <- S.length s
     -- x <- S.last s
     -- x <- S.foldl' (\_ a -> Just a) Nothing s
-    x <- S.foldl' (+) 0 s
-    print x
-    -}
+    -- x <- S.foldl' (+) 0 s
+    -- print x
 
     -- out <- openFile "out.txt" WriteMode
     -- Writing chunks, equivalent to bytestring
@@ -56,10 +54,8 @@ main = do
     -- turning into a stream and then back to chunks and then writing
     -- toHandle out (fromHandle handle)
     -- toHandleChunksOf defaultChunkSize out (fromHandle handle)
-    -- x <- S.length $ S.arrayGroupsOf 1000000004 (fromHandle handle)
     x <- S.length $
-         S.foldGroupsOf (FL.toArrayN 1073741824)
-                        1073741824
+         FL.groupsOf 104857600 (FL.toArrayN 104857600)
                         (fromHandle handle)
     print x
     {-

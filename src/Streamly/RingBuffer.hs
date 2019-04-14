@@ -24,7 +24,7 @@ module Streamly.RingBuffer
 import Control.Exception (assert)
 import Data.Word (Word8)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr, withForeignPtr)
+import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -65,7 +65,7 @@ unsafeNew count = do
 
 {-# INLINE advance #-}
 advance :: forall a. Storable a => RingBuffer a -> Ptr a -> Ptr a
-advance rb@RingBuffer{..} ringHead =
+advance RingBuffer{..} ringHead =
     let ptr = ringHead `plusPtr` sizeOf (undefined :: a)
     in if ptr <  ringBound
        then ptr
