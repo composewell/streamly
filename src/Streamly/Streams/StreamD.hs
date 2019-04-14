@@ -1231,7 +1231,7 @@ foldBufferWith splitter fld m = foldBufferWith' fld (splitter m)
                 Skip s    -> return $ Skip s
                 Stop      -> return Stop
 
-data GroupOnState s a =
+data SplitOnState s a =
       GO_START
     | GO_EMPTY_PAT s
     | GO_SINGLE_PAT s a
@@ -1486,99 +1486,6 @@ mapM_ m = runStream . mapM m
 ------------------------------------------------------------------------------
 -- Converting folds
 ------------------------------------------------------------------------------
-
--- We use a fold instead to do this.
-{-
---  XXX use SPEC
-{-# INLINE toArray #-}
-toArray :: forall m a. (Monad m, Storable a)
-    => Int -> Stream m a -> m (Array a)
-toArray limit (Stream step state) = do
-    let size = limit * sizeOf (undefined :: a)
-        !(fp, cur, end) = unsafePerformIO $ do
-            fptr <- mallocPlainForeignPtrBytes size
-            let p = unsafeForeignPtrToPtr fptr
-            return $ (fptr, p, (p `plusPtr` limit))
-    loc <- go state cur end
-    -- XXX resizePtr the buffer
-    return (Array { vPtr = fp
-                    , vLen = limit + (loc `minusPtr` end)
-                    , vSize = size})
-
-    where
-
-    go st1 cur1 end = go1 st1 cur1
-        where
-        go1 st cur = do
-            res <- step defState st
-            case res of
-                Yield _ _ | cur == end -> error "toArray beyond limit"
-                Yield x s ->
-                    let !r = unsafeDangerousPerformIO $ do
-                                poke cur x
-                                -- XXX do we need a touch here?
-                    in r `seq` go1 s (cur `plusPtr` 1)
-                Skip s -> go1 s cur
-                Stop   -> return cur
-                -}
-
-{-
-data ToArrayState a =
-      BufAlloc
-    | BufWrite (ForeignPtr a) (Ptr a) (Ptr a)
-    | BufStop
-
--- XXX we should never have zero sized chunks if we want to use "null" on a
--- stream of buffers to mean that the stream itself is null.
---
--- XXX use the grouped fold to do this. we need to check the performance
--- though.
---
--- | Group a stream into vectors on n elements each.
-{-# INLINE toArrayStreamD #-}
-toArrayStreamD
-    :: forall m a.
-       (Monad m, Storable a)
-    => Int -> D.Stream m a -> D.Stream m (Array a)
-toArrayStreamD n (D.Stream step state) =
-    D.Stream step' (state, BufAlloc)
-
-    where
-
-    size = n * sizeOf (undefined :: a)
-
-    {-# INLINE_LATE step' #-}
-    step' _ (st, BufAlloc) =
-        let !res = unsafePerformIO $ do
-                fptr <- mallocPlainForeignPtrBytes size
-                let p = unsafeForeignPtrToPtr fptr
-                return $ D.Skip $ (st, BufWrite fptr p (p `plusPtr` n))
-        in return res
-
-    step' _ (st, BufWrite fptr cur end) | cur == end =
-        return $ D.Yield (Array {vPtr = fptr, vLen = n, vSize = size})
-                         (st, BufAlloc)
-
-    step' gst (st, BufWrite fptr cur end) = do
-        res <- step (adaptState gst) st
-        return $ case res of
-            D.Yield x s ->
-                let !r = unsafeDangerousPerformIO $ do
-                            poke cur x
-                            -- XXX do we need a touch here?
-                            return $ D.Skip
-                                (s, BufWrite fptr (cur `plusPtr` 1) end)
-                in r
-            D.Skip s -> D.Skip (s, BufWrite fptr cur end)
-            D.Stop ->
-                -- XXX resizePtr the buffer
-                D.Yield (Array { vPtr = fptr
-                                , vLen = n + (cur `minusPtr` end)
-                                , vSize = size})
-                        (st, BufStop)
-
-    step' _ (_, BufStop) = return D.Stop
-    -}
 
 -- Convert a direct stream to and from CPS encoded stream
 {-# INLINE_LATE toStreamK #-}
