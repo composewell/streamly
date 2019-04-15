@@ -18,7 +18,9 @@ module Streamly.RingBuffer
     , insert
     , bufcmp
     , advance
-    , foldAll
+    , foldRing
+    , foldRingM
+    , foldRingFullM
     ) where
 
 import Control.Exception (assert)
@@ -98,27 +100,27 @@ memcmp p1 p2 len = do
 -- Array and the ringBuffer have identical contents. The supplied array must be
 -- equal to or bigger than the ringBuffer, bounds are not checked.
 {-# INLINE bufcmp #-}
-bufcmp :: RingBuffer a -> A.Array a -> Bool
-bufcmp RingBuffer{..} A.Array{..} =
+bufcmp :: RingBuffer a -> Ptr a -> A.Array a -> Bool
+bufcmp RingBuffer{..} rh A.Array{..} =
     let !res = A.unsafeDangerousPerformIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
             let as = unsafeForeignPtrToPtr aStart
             assert (aBound `minusPtr` as >= ringBound `minusPtr` rs) (return ())
-            r <- memcmp (castPtr rs) (castPtr as) (ringBound `minusPtr` rs)
+            let len = ringBound `minusPtr` rh
+            r1 <- memcmp (castPtr rh) (castPtr as) len
+            r2 <- memcmp (castPtr rs) (castPtr (as `plusPtr` len)) (rh `minusPtr` rs)
             -- XXX do we need these?
             -- touchForeignPtr ringStart
             -- touchForeignPtr aStart
-            return r
+            return (r1 && r2)
     in res
 
--- Folds the whole ring including unused items if any, in no particular order.
--- XXX we can have another API to fold only the used items from head to tail
--- order.
-{-# INLINE foldAll #-}
-foldAll :: forall a b. Storable a => (b -> a -> b) -> b -> RingBuffer a -> b
-foldAll f z RingBuffer{..} =
+-- fold the buffer starting from ringStart to a given position.
+{-# INLINE foldRing #-}
+foldRing :: forall a b. Storable a => Ptr a -> (b -> a -> b) -> b -> RingBuffer a -> b
+foldRing ptr f z RingBuffer{..} =
     let !res = A.unsafeDangerousPerformIO $ withForeignPtr ringStart $ \p ->
-                    go z p ringBound
+                    go z p ptr
     in res
     where
       go !acc !p !q
@@ -126,3 +128,29 @@ foldAll f z RingBuffer{..} =
         | otherwise = do
             x <- peek p
             go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
+
+-- fold the buffer starting from ringStart to a given position using a monadic
+-- step function.
+{-# INLINE foldRingM #-}
+foldRingM :: forall m a b. (Monad m, Storable a) => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
+foldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
+    where
+      go !acc !start !end
+        | start == end = return acc
+        | otherwise = do
+            let !x = A.unsafeDangerousPerformIO $ peek start
+            acc' <- f acc x
+            go acc' (start `plusPtr` sizeOf (undefined :: a)) end
+
+-- Fold a full ring i.e. from ringHead to ringHead - 1
+{-# INLINE foldRingFullM #-}
+foldRingFullM :: forall m a b. (Monad m, Storable a) => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
+foldRingFullM rh f z rb@RingBuffer{..} = go z rh
+    where
+      go !acc !start = do
+            let !x = A.unsafeDangerousPerformIO $ peek start
+            acc' <- f acc x
+            let ptr = advance rb start
+            if ptr == rh
+            then return acc'
+            else go acc' ptr

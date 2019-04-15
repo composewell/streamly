@@ -86,7 +86,10 @@ main = do
                 return $ case lc of
                     Nothing -> Nothing
                     Just c -> A.last c
-            , mkBench "length" href $ do
+            -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
+            -- wc uses lseek to just determine the file size rather than reading
+            -- and counting characters.
+            , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
                 let s = A.readHandleChunksOf IO.defaultChunkSize inh
                 S.sum (S.map A.length s)
@@ -99,16 +102,12 @@ main = do
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
                 S.last $ IO.fromHandle inh
-            , mkBench "length" href $ do
+            , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ IO.fromHandle inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 S.sum $ IO.fromHandle inh
-            , mkBench "groupsOf(one-group)" href $ do
-                Handles inh _ <- readIORef href
-                S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
-                                (IO.fromHandle inh)
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
@@ -121,32 +120,45 @@ main = do
                 Handles inh outh <- readIORef href
                 IO.toHandle outh (IO.fromHandle inh)
             ]
-        -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
-        -- wc uses lseek to just determine the file size rather than reading
-        -- and counting characters.
 #ifdef DEVBUILD
-        , bgroup "wordCount"
-            [ mkBenchText "chunked byte count" inText $ do
-                let s = A.readHandleChunksOf IO.defaultChunkSize inText
-                S.sum (S.map A.length s) >>= print
-            , mkBenchText "streamed byte count" inText $ do
-                S.length $ IO.fromHandle inText
-            , mkBenchText "streamed line count (tokensWhen)" inText $ do
-                (S.length $ FL.tokensWhen (== fromIntegral (ord '\n')) FL.drain
+
+        , bgroup "Splitting"
+            [ mkBench "Fold stream to a single array using groupsOf" href $ do
+                Handles inh _ <- readIORef href
+                S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
+                                (IO.fromHandle inh)
+
+            , mkBenchText "line count using splitOnBy \\n" inText $ do
+                (S.length $ FL.splitOnBy (== fromIntegral (ord '\n')) FL.drain
                     $ IO.fromHandle inText) >>= print
-            , mkBenchText "streamed line count (splitOn \\n)" inText $ do
+            , mkBenchText "line count using splitPostBy \\n" inText $ do
+                (S.length $ FL.splitPostBy (== fromIntegral (ord '\n')) FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "wordsBy isSpace (word count)" inText $ do
+                (S.length $ FL.wordsBy (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
+                    IO.fromHandle inText) >>= print
+
+            , mkBenchText "splitOn \\n (line count)" inText $ do
                 (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
                     $ IO.fromHandle inText) >>= print
-            , mkBenchText "streamed line count (splitOn \\r\\n)" inText $ do
+            , mkBenchText "splitOn \\r\\n" inText $ do
                 (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
                     $ IO.fromHandle inText) >>= print
             , mkBenchText "splitOn abc...xyz" inText $ do
                 (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
                     "abcdefghijklmnopqrstuvwxyz") FL.drain
                         $ IO.fromHandle inText) >>= print
-            , mkBenchText "streamed word count" inText $ do
-                (S.length $ FL.wordsWhen (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
-                    IO.fromHandle inText) >>= print
+
+            , mkBenchText "splitPost \\n (line count)" inText $ do
+                (S.length $ FL.splitPost (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "splitPost \\r\\n)" inText $ do
+                (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
+                    $ IO.fromHandle inText) >>= print
+            , mkBenchText "splitPost abc...xyz" inText $ do
+                (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord)
+                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+                        $ IO.fromHandle inText) >>= print
             ]
 #endif
         ]

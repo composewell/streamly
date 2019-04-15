@@ -118,13 +118,25 @@ module Streamly.Fold
     , grouped
 
     -- ** Splitting
+    -- | Combinators that split using a pattern (e.g. 'splitOn') require an
+    -- 'Integral' constraint. The constraint is needed for fast substring
+    -- search implementation. To use these combinators on non-integral types
+    -- (e.g.  'Char') the type can be mapped to an integral type and then
+    -- mapped back to the original type after the split.
+
+    -- If you need to match on a non-integral subsequence consider using the
+    -- 'sepBy' from the 'Parse' module instead, though remember that the Parse
+    -- would be considerably slower compared to this.
+    --
     , splitOn
-    , tokensOn
+    , splitOnAny
+    , splitPost
+    , splitPostAny
     , wordsOn
 
-    , splitWhen
-    , tokensWhen
-    , wordsWhen
+    , splitOnBy
+    , splitPostBy
+    , wordsBy
 
     -- ** Distributing
     -- |
@@ -1238,7 +1250,7 @@ splitAt n = undefined
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- >> S.toList $ S.groupsOf FL.sum 2 (S.enumerateFromTo 1 10)
+-- >> S.toList $ FL.groupsOf 2 FL.sum (S.enumerateFromTo 1 10)
 -- > [3,7,11,15,19]
 --
 -- @since 0.7.0
@@ -1392,11 +1404,37 @@ groups = groupsBy (==)
 -- subsequence is found in the stream, it is split after the subsequence and
 -- the resulting splits are folded using the supplied fold.
 --
--- This API requires an 'Integral' constraint for fast searching. You can map a
--- type to an integral and back to use this. If you need to match on a single
--- element consider using 'splitWhen' instead. If you need to match on a
--- non-integral subsequence consider using the 'sepBy' 'Parse' instead, though
--- remember that the Parse would be considerably slower compared to this.
+{-# INLINE splitPost #-}
+splitPost
+    :: (IsStream t, Monad m, Storable a, Integral a)
+    => Array a -> Fold m a b -> t m a -> t m b
+splitPost subseq f m = D.fromStreamD $ D.splitPost f subseq (D.toStreamD m)
+
+-- This can be implemented easily using Rabin Karp
+-- | Split post any one of the given patterns.
+{-# INLINE splitPostAny #-}
+splitPostAny
+    :: (IsStream t, Monad m, Storable a, Integral a)
+    => [Array a] -> Fold m a b -> t m a -> t m b
+splitPostAny subseq f m = undefined -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
+
+-- | Split the stream on a separator sequence. Whenever the separator sequence
+-- is detected, the stream is split into before and after the separator and the
+-- separator is dropped.  'splitOn' is a dual of 'intercalate'.
+--
+-- If the separator is not found, the stream is not split:
+--
+-- >>> S.toList $ FL.splitOn (A.fromList $ [0]) FL.toList $ S.fromList [1,2::Int]
+-- > [[1,2]]
+--
+-- When the separator begins the list, the before part will be an empty stream
+-- and when the separator ends the list, the after part will be an empty
+-- stream:
+--
+-- >>> S.toList $ FL.splitOn (A.fromList $ [0]) FL.toList $ S.fromList [0::Int]
+-- > [[],[]]
+--
+-- > lines = splitOn "\n"
 --
 {-# INLINE splitOn #-}
 splitOn
@@ -1404,24 +1442,22 @@ splitOn
     => Array a -> Fold m a b -> t m a -> t m b
 splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
 
--- | Like 'splitOn' but the separator is dropped and only the tokens are kept.
---
--- > lines = tokensOn '\n'
---
-{-# INLINE tokensOn #-}
-tokensOn
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
-tokensOn subseq f m = undefined -- D.fromStreamD $ D.tokensOn f subseq (D.toStreamD m)
+-- This can be implemented easily using Rabin Karp
+-- | Split on any one of the given patterns.
+{-# INLINE splitOnAny #-}
+splitOnAny
+    :: (IsStream t, Monad m, Storable a, Integral a)
+    => [Array a] -> Fold m a b -> t m a -> t m b
+splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.toStreamD m)
 
--- | Like 'tokensOn' but only non-empty tokes are kept.
+-- | Like 'splitOn' but empty tokens are dropped.
 --
 -- > words = wordsOn ' '
 --
 {-# INLINE wordsOn #-}
 wordsOn
-    :: (IsStream t, MonadIO m, Storable a, Eq a)
-    => Array a -> (forall n. MonadIO n => Fold n a b) -> t m a -> t m b
+    :: (IsStream t, Monad m, Storable a, Eq a)
+    => Array a -> Fold m a b -> t m a -> t m b
 wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
 
 ------------------------------------------------------------------------------
@@ -1430,34 +1466,34 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 
 -- | Split the stream when a predicate becomes true. Each split is folded with
 -- the provided fold.
-{-# INLINE splitWhen #-}
-splitWhen
+{-# INLINE splitPostBy #-}
+splitPostBy
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitWhen predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
+splitPostBy predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 
 -- | Like 'splitWhen' but drops the @separator@ i.e. the element on which the
 -- predicate becomes true. Each token is folded with the provided fold.
 --
 -- > lines = tokensWhen (== '\n')
 --
-{-# INLINE tokensWhen #-}
-tokensWhen
+{-# INLINE splitOnBy #-}
+splitOnBy
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-tokensWhen predicate f m =
-    D.fromStreamD $ D.tokensWhen predicate f (D.toStreamD m)
+splitOnBy predicate f m =
+    D.fromStreamD $ D.splitOnBy predicate f (D.toStreamD m)
 
 -- | Like 'tokensWhen' but drops any empty tokens.
 --
--- > words = wordsWhen isSpace
+-- > words = wordsBy isSpace
 --
-{-# INLINE wordsWhen #-}
-wordsWhen
+{-# INLINE wordsBy #-}
+wordsBy
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-wordsWhen predicate f m =
-    D.fromStreamD $ D.wordsWhen predicate f (D.toStreamD m)
+wordsBy predicate f m =
+    D.fromStreamD $ D.wordsBy predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouped by order

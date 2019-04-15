@@ -128,14 +128,19 @@ module Streamly.Streams.StreamD
     , concatMapM
     , concatMap
     , concatArray
+
+    -- ** Grouping
     , groupsOf
-    , splitWhen
-    , splitOn
     , grouped
     , chained
-    , tokensWhen
-    , wordsWhen
     , foldBufferWith
+
+    -- ** Splitting
+    , splitOn
+    , splitPost
+    , splitOnBy
+    , splitPostBy
+    , wordsBy
 
     -- ** Substreams
     , isPrefixOf
@@ -223,7 +228,7 @@ where
 
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Word (Word32)
-import Data.Bits (shiftL, (.|.), (.&.))
+import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Maybe (fromJust, isJust)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -1127,13 +1132,13 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
-{-# INLINE_EARLY splitWhen #-}
-splitWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitWhen predicate f m = grouped f (map (\a -> (a, predicate a)) m)
+{-# INLINE_EARLY splitPostBy #-}
+splitPostBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitPostBy predicate f m = grouped f (map (\a -> (a, predicate a)) m)
 
-{-# INLINE_NORMAL tokensWhen #-}
-tokensWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-tokensWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL splitOnBy #-}
+splitOnBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitOnBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
     where
 
@@ -1169,9 +1174,9 @@ tokensWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
-{-# INLINE_NORMAL wordsWhen #-}
-wordsWhen :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-wordsWhen predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL wordsBy #-}
+wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
     where
 
@@ -1258,15 +1263,16 @@ data SplitOnState s a =
 --
 -- XXX We can use a control parameter to control this behavior.
 -- XXX since this is a tokenizer we can call it foldTokensOn?
+-- splitPost/splitOn/wordsOn are have almost all code duplicated.
 
-{-# INLINE_NORMAL splitOn #-}
-splitOn
+{-# INLINE_NORMAL splitPost #-}
+splitPost
     :: forall m a b. (Monad m, Storable a, Integral a)
     => Fold m a b
     -> Array a
     -> Stream m a
     -> Stream m b
-splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
+splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1311,8 +1317,7 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \val -> return $ Yield val GO_DONE
 
-    stepOuter gst (GO_SHORT_PAT stt) = do
-        initial >>= go0 SPEC 0 (0 :: Word) stt
+    stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
 
         where
 
@@ -1322,20 +1327,23 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         patWord :: Word
         patWord = mask .&. (A.foldl' (\w b -> (w `shiftL` elemBits) .|. fromIntegral b) 0 v)
 
-        go0 !_ !idx wrd st !acc = do
+        go0 !_ !idx !wrd st !acc = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
                     acc' <- fstep acc x
                     let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
                     if idx == maxIndex
-                    then go1 SPEC wrd' s acc'
+                    then do
+                        if wrd' .&. mask == patWord
+                        then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                        else go1 SPEC wrd' s acc'
                     else go0 SPEC (idx + 1) wrd' s acc'
                 Skip s -> go0 SPEC idx wrd s acc
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
         {-# INLINE go1 #-}
-        go1 !_ wrd st !acc = do
+        go1 !_ !wrd st !acc = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
@@ -1364,8 +1372,12 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                     acc' <- fstep acc x
                     let !rh' = unsafeDangerousPerformIO (RB.insert rb rh x)
                     if idx == maxIndex
-                    then let !ringHash = RB.foldAll (\h b -> h * k + fromIntegral b) 0 rb
-                         in go1 SPEC ringHash rh' s acc'
+                    then do
+                        let !ringHash = RB.foldRing (RB.ringBound rb)
+                                (\h b -> h * k + fromIntegral b) 0 rb
+                        if ringHash == patHash
+                        then go2 SPEC ringHash rh' s acc'
+                        else go1 SPEC ringHash rh' s acc'
                     else go0 SPEC (idx + 1) rh' s acc'
                 Skip s -> go0 SPEC idx rh s acc
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
@@ -1374,7 +1386,9 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
         -- 4x faster, as soon as we add the "RB.bufcmp rb v" condition the
         -- generated code changes drastically and become 4x slower. Need to
-        -- investigate what is going on with GHC.
+        -- investigate what is going on with GHC. In fact the splitOn code
+        -- which is almost the same optimizes better and is 4-5 times faster
+        -- than this.
         {-# INLINE go1 #-}
         go1 !_ !cksum !rh st !acc = do
             res <- step (adaptState gst) st
@@ -1395,10 +1409,177 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
-            if RB.bufcmp rb v
+            if RB.bufcmp rb rh' v
             then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
+    stepOuter _ (GO_EMPTY_PAT st) = do
+        r <- fold f (Stream step st)
+        return $ Yield r GO_DONE
+
+    stepOuter _ GO_DONE = return Stop
+
+{-# INLINE_NORMAL splitOn #-}
+splitOn
+    :: forall m a b. (Monad m, Storable a, Integral a)
+    => Fold m a b
+    -> Array a
+    -> Stream m a
+    -> Stream m b
+splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
+    Stream stepOuter GO_START
+
+    where
+
+    patBytes =
+        let p = unsafeForeignPtrToPtr aStart
+        in aEnd `minusPtr` p
+
+    patLen = A.length v
+    maxIndex = patLen - 1
+    elemBits = sizeOf (undefined :: a) * 8
+
+    {-# INLINE fold #-}
+    fold (Fold s b d) = foldxM' s b d
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter _ GO_START =
+        if patLen == 0
+        then return $ Skip $ GO_EMPTY_PAT state
+        else if patLen == 1
+             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
+             else if patBytes <= sizeOf (undefined :: Word)
+                  then return $ Skip $ GO_SHORT_PAT state
+                  else do
+                    let !(rb, rhead) = unsafeDupablePerformIO $ RB.unsafeNew patLen
+                    return $ Skip $ GO_KARP_RABIN state rb rhead
+
+    stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
+
+        where
+
+        go !_ st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    if pat == x
+                    then done acc >>= \r -> return $ Yield r (GO_SINGLE_PAT s pat)
+                    else fstep acc x >>= go SPEC s
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \val -> return $ Yield val GO_DONE
+
+    stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
+
+        where
+
+        mask :: Word
+        mask = (1 `shiftL` (8 * patBytes)) - 1
+
+        patWord :: Word
+        patWord = mask .&. (A.foldl' (\w b -> (w `shiftL` elemBits) .|. fromIntegral b) 0 v)
+
+        go0 !_ !idx wrd st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    if idx == maxIndex
+                    then do
+                        if wrd' .&. mask == patWord
+                        then done acc >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                        else go1 SPEC wrd' s acc
+                    else go0 SPEC (idx + 1) wrd' s acc
+                Skip s -> go0 SPEC idx wrd s acc
+                Stop -> do
+                    acc' <- if idx /= 0
+                            then go2 wrd idx acc
+                            else return acc
+                    done acc' >>= \r -> return $ Yield r GO_DONE
+
+        {-# INLINE go1 #-}
+        go1 !_ wrd st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                        old = (mask .&. wrd) `shiftR` (8 * (patBytes - 1))
+                    acc' <- fstep acc (fromIntegral old)
+                    if wrd' .&. mask == patWord
+                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    else go1 SPEC wrd' s acc'
+                Skip s -> go1 SPEC wrd s acc
+                Stop -> do
+                    acc' <- go2 wrd patBytes acc
+                    done acc' >>= \r -> return $ Yield r GO_DONE
+
+        go2 !wrd !n !acc | n > 0 = do
+            let old = (mask .&. wrd) `shiftR` (8 * (n - 1))
+            fstep acc (fromIntegral old) >>= go2 wrd (n - 1)
+        go2 _ _ acc = return acc
+
+    stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
+        initial >>= go0 SPEC 0 rhead stt
+
+        where
+
+        k = 2891336453 :: Word32
+        m = k ^ patLen
+        -- XXX shall we use a random starting hash or 1 instead of 0?
+        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
+
+        -- rh == ringHead
+        go0 !_ !idx !rh st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let !rh' = unsafeDangerousPerformIO (RB.insert rb rh x)
+                    if idx == maxIndex
+                    then do
+                        let !ringHash = RB.foldRing (RB.ringBound rb)
+                                            (\h b -> h * k + fromIntegral b) 0 rb
+                        if ringHash == patHash
+                        then go2 SPEC ringHash rh' s acc
+                        else go1 SPEC ringHash rh' s acc
+                    else go0 SPEC (idx + 1) rh' s acc
+                Skip s -> go0 SPEC idx rh s acc
+                Stop -> do
+                    !acc' <- if idx /= 0
+                             then RB.foldRingM rh fstep acc rb
+                             else return acc
+                    done acc' >>= \r -> return $ Yield r GO_DONE
+
+        -- XXX Theoretically this code can do 4 times faster if GHC generates
+        -- optimal code. If we use just "(cksum' == patHash)" condition it goes
+        -- 4x faster, as soon as we add the "RB.bufcmp rb v" condition the
+        -- generated code changes drastically and become 4x slower. Need to
+        -- investigate what is going on with GHC.
+        {-# INLINE go1 #-}
+        go1 !_ !cksum !rh st !acc = do
+            res <- step (adaptState gst) st
+            case res of
+                Yield x s -> do
+                    let !old = unsafeDangerousPerformIO $ peek rh
+                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+                    acc' <- fstep acc old
+
+                    if (cksum' == patHash)
+                    then do
+                        let !rh'= unsafeDangerousPerformIO (RB.insert rb rh x)
+                        go2 SPEC cksum' rh' s acc'
+                    else do
+                        let !rh'= unsafeDangerousPerformIO (RB.insert rb rh x)
+                        go1 SPEC cksum' rh' s acc'
+                Skip s -> go1 SPEC cksum rh s acc
+                Stop -> do
+                    acc' <- RB.foldRingFullM rh fstep acc rb
+                    done acc' >>= \r -> return $ Yield r GO_DONE
+
+        go2 !_ !cksum' !rh' s !acc' = do
+            if RB.bufcmp rb rh' v
+            then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s rb rhead)
+            else go1 SPEC cksum' rh' s acc'
+
+    -- XXX empty pattern should split each element
     stepOuter _ (GO_EMPTY_PAT st) = do
         r <- fold f (Stream step st)
         return $ Yield r GO_DONE
