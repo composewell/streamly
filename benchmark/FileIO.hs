@@ -123,10 +123,20 @@ main = do
 #ifdef DEVBUILD
 
         , bgroup "grouping"
-            [ mkBench "Fold stream to a single array using groupsOf" href $ do
+            [ mkBench "groupsOf 1 (toArray)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
                                 (IO.fromHandle inh)
+
+            , mkBench "groupsOf 1" href $ do
+                Handles inh _ <- readIORef href
+                S.length $ FL.groupsOf 1 FL.drain (IO.fromHandle inh)
+            , mkBench "groupsOf 10" href $ do
+                Handles inh _ <- readIORef href
+                S.length $ FL.groupsOf 10 FL.drain (IO.fromHandle inh)
+            , mkBench "groupsOf 1000" href $ do
+                Handles inh _ <- readIORef href
+                S.length $ FL.groupsOf 1000 FL.drain (IO.fromHandle inh)
             ]
 
         , bgroup "splitting"
