@@ -152,6 +152,14 @@ main = do
                         IO.fromHandle inText) >>= print
                 ]
 
+            , bgroup "empty-pattern"
+                [ mkBenchText "splitOn \"\"" inText $ do
+                    (S.length $ FL.splitOn (A.nil) FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitPost \"\"" inText $ do
+                    (S.length $ FL.splitPost (A.nil) FL.drain
+                        $ IO.fromHandle inText) >>= print
+                ]
             , bgroup "short-pattern"
                 [ mkBenchText "splitOn \\n (line count)" inText $ do
                     (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain

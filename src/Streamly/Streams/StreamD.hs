@@ -1272,7 +1272,7 @@ splitPost
     -> Array a
     -> Stream m a
     -> Stream m b
-splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
+splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1281,21 +1281,16 @@ splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         let p = unsafeForeignPtrToPtr aStart
         in aEnd `minusPtr` p
 
-    patLen = A.length v
+    patLen = A.length patArr
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
-
-    {-# INLINE fold #-}
-    -- fold :: Monad m => Fold m a b -> Stream m a -> m b
-    fold (Fold s b d) = foldxM' s b d
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START =
         if patLen == 0
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
-             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
-            -- XXX we can further optimize this with SIMD
+             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex patArr 0)
              else if patBytes <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT state
                   else do
@@ -1325,7 +1320,8 @@ splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         mask = (1 `shiftL` (8 * patBytes)) - 1
 
         patWord :: Word
-        patWord = mask .&. (A.foldl' (\w b -> (w `shiftL` elemBits) .|. fromIntegral b) 0 v)
+        patWord = let addElem w b = (w `shiftL` elemBits) .|. fromIntegral b
+                  in mask .&. (A.foldl' addElem 0 patArr)
 
         go0 !_ !idx !wrd st !acc = do
             res <- step (adaptState gst) st
@@ -1363,8 +1359,9 @@ splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         k = 2891336453 :: Word32
         m = k ^ patLen
         -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
+        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 patArr
 
+        -- rh == ringHead
         go0 !_ !idx !rh st !acc = do
             res <- step (adaptState gst) st
             case res of
@@ -1386,9 +1383,7 @@ splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
         -- 4x faster, as soon as we add the "RB.bufcmp rb v" condition the
         -- generated code changes drastically and become 4x slower. Need to
-        -- investigate what is going on with GHC. In fact the splitOn code
-        -- which is almost the same optimizes better and is 4-5 times faster
-        -- than this.
+        -- investigate what is going on with GHC.
         {-# INLINE go1 #-}
         go1 !_ !cksum !rh st !acc = do
             res <- step (adaptState gst) st
@@ -1409,13 +1404,19 @@ splitPost f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                 Stop -> done acc >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
-            if RB.bufcmp rb rh' v
+            if RB.bufcmp rb rh' patArr
             then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
-    stepOuter _ (GO_EMPTY_PAT st) = do
-        r <- fold f (Stream step st)
-        return $ Yield r GO_DONE
+    stepOuter gst (GO_EMPTY_PAT st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                acc <- initial
+                acc' <- fstep acc x
+                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
+            Skip s -> return $ Skip (GO_EMPTY_PAT s)
+            Stop -> return Stop
 
     stepOuter _ GO_DONE = return Stop
 
@@ -1426,7 +1427,7 @@ splitOn
     -> Array a
     -> Stream m a
     -> Stream m b
-splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
+splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1435,19 +1436,16 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         let p = unsafeForeignPtrToPtr aStart
         in aEnd `minusPtr` p
 
-    patLen = A.length v
+    patLen = A.length patArr
     maxIndex = patLen - 1
     elemBits = sizeOf (undefined :: a) * 8
-
-    {-# INLINE fold #-}
-    fold (Fold s b d) = foldxM' s b d
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter _ GO_START =
         if patLen == 0
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
-             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex v 0)
+             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex patArr 0)
              else if patBytes <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT state
                   else do
@@ -1476,7 +1474,8 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         mask = (1 `shiftL` (8 * patBytes)) - 1
 
         patWord :: Word
-        patWord = mask .&. (A.foldl' (\w b -> (w `shiftL` elemBits) .|. fromIntegral b) 0 v)
+        patWord = let addElem w b = (w `shiftL` elemBits) .|. fromIntegral b
+                  in mask .&. (A.foldl' addElem 0 patArr)
 
         go0 !_ !idx wrd st !acc = do
             res <- step (adaptState gst) st
@@ -1525,7 +1524,7 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
         k = 2891336453 :: Word32
         m = k ^ patLen
         -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 v
+        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 patArr
 
         -- rh == ringHead
         go0 !_ !idx !rh st !acc = do
@@ -1575,14 +1574,19 @@ splitOn f@(Fold fstep initial done) v@Array{..} (Stream step state) =
                     done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
-            if RB.bufcmp rb rh' v
+            if RB.bufcmp rb rh' patArr
             then done acc' >>= \r -> return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
-    -- XXX empty pattern should split each element
-    stepOuter _ (GO_EMPTY_PAT st) = do
-        r <- fold f (Stream step st)
-        return $ Yield r GO_DONE
+    stepOuter gst (GO_EMPTY_PAT st) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                acc <- initial
+                acc' <- fstep acc x
+                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
+            Skip s -> return $ Skip (GO_EMPTY_PAT s)
+            Stop -> return Stop
 
     stepOuter _ GO_DONE = return Stop
 
