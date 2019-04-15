@@ -1177,6 +1177,7 @@ toArrayN limit = Fold step begin done
 
     where
 
+    -- XXX use unsafePerformIO instead?
     begin = return $! unsafeDupablePerformIO $ unsafeNew limit
     step v x =
         let !v1 = unsafeDangerousPerformIO (unsafeAppend v x)
@@ -1404,6 +1405,8 @@ groups = groupsBy (==)
 -- subsequence is found in the stream, it is split after the subsequence and
 -- the resulting splits are folded using the supplied fold.
 --
+-- > lines = splitOn "\n"
+--
 {-# INLINE splitPost #-}
 splitPost
     :: (IsStream t, Monad m, Storable a, Integral a)
@@ -1418,23 +1421,51 @@ splitPostAny
     => [Array a] -> Fold m a b -> t m a -> t m b
 splitPostAny subseq f m = undefined -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
 
--- | Split the stream on a separator sequence. Whenever the separator sequence
--- is detected, the stream is split into before and after the separator and the
--- separator is dropped.  'splitOn' is a dual of 'intercalate'.
+-- | Split the stream on both sides of a separator sequence, dropping the
+-- separator.
 --
--- If the separator is not found, the stream is not split:
+-- For easier illustration, let's define a function that operates on lists:
 --
--- >>> S.toList $ FL.splitOn (A.fromList $ [0]) FL.toList $ S.fromList [1,2::Int]
--- > [[1,2]]
+-- @
+-- splitList pat xs = S.toList $ FL.splitOn (A.fromList pat) (FL.toList) (S.fromList xs) :: IO [[Int]]
+-- @
 --
--- When the separator begins the list, the before part will be an empty stream
--- and when the separator ends the list, the after part will be an empty
--- stream:
+-- >>> splitList [] [1,2,3,3,4]
+-- > [[1],[2],[3],[3],[4]]
 --
--- >>> S.toList $ FL.splitOn (A.fromList $ [0]) FL.toList $ S.fromList [0::Int]
+-- >>> splitList [5] [1,2,3,3,4]
+-- > [[1,2,3,3,4]]
+--
+-- >>> splitList [1] [1,2,3,3,4]
+-- > [[],[2,3,3,4]]
+--
+-- >>> splitList [4] [1,2,3,3,4]
+-- > [[1,2,3,3],[]]
+--
+-- >>> splitList [2] [1,2,3,3,4]
+-- > [[1],[3,3,4]]
+--
+-- >>> splitList [3] [1,2,3,3,4]
+-- > [[1,2],[],[4]]
+--
+-- >>> splitList [3,3] [1,2,3,3,4]
+-- > [[1,2],[4]]
+--
+-- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
 --
--- > lines = splitOn "\n"
+-- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
+--
+-- > intercalate . splitOn == id
+--
+-- The following law holds when the separator is non-empty and contains none of
+-- the elements present in the input lists:
+--
+-- > splitOn . intercalate == id
+--
+-- The following law always holds:
+--
+-- > concat . splitOn . intercalate == concat
 --
 {-# INLINE splitOn #-}
 splitOn

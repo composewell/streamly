@@ -17,13 +17,20 @@
 --
 --
 module Streamly.String
-    (
-      String
+    ( String
+    , splitOn
     )
 where
 
+import Data.Char (ord, chr)
+import Data.Word (Word32)
+import Streamly (IsStream)
 import Streamly.List (List)
 import Prelude hiding (String)
+
+import qualified Streamly.Prelude as S
+import qualified Streamly.Fold as FL
+import qualified Streamly.Array as A
 
 type String = List Char
 
@@ -50,3 +57,62 @@ decodeUtf8 :: IsStream t => t m Word8 -> t m Char
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
 encodeUtf8 :: IsStream t => t m Char -> t m Word8
 -}
+
+-------------------------------------------------------------------------------
+-- Splitting
+-------------------------------------------------------------------------------
+
+-- | Split a stream of characters on both sides of a separator sequence,
+-- dropping the separator.
+--
+-- For easier illustration, let's define a function that operates on lists:
+--
+-- @
+-- splitList pat str = S.toList $ STR.splitOn (A.fromList pat) (FL.toList) (S.fromList str)
+-- @
+--
+-- >>> splitList "" "hello"
+-- > ["h","e","l","l","o"]
+--
+-- >>> splitList "x" "hello"
+-- > ["hello"]
+--
+-- >>> splitList "h" "hello"
+-- > ["","ello"]
+--
+-- >>> splitList "o" "hello"
+-- > ["hell",""]
+--
+-- >>> splitList "e" "hello"
+-- > ["h","llo"]
+--
+-- >>> splitList "l" "hello"
+-- > ["he","","o"]
+--
+-- >>> splitList "ll" "hello"
+-- > ["he","o"]
+--
+-- >>> splitList "hello" "hello"
+-- > ["",""]
+--
+-- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
+--
+-- > intercalate . splitOn == id
+--
+-- The following law holds when the separator is non-empty and contains none of
+-- the elements present in the input lists:
+--
+-- > splitOn . intercalate == id
+--
+-- The following law always holds:
+--
+-- > concat . splitOn . intercalate == concat
+--
+{-# INLINE splitOn #-}
+splitOn
+    :: (IsStream t, Monad m)
+    => A.Array Char -> FL.Fold m Char b -> t m Char -> t m b
+splitOn pat f str =
+    FL.splitOn (A.map (fromIntegral . ord :: Char -> Word32) pat)
+               (FL.lmap (chr . fromIntegral) f)
+               (S.map (fromIntegral . ord :: Char -> Word32) str)

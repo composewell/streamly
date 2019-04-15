@@ -192,9 +192,6 @@ data Array a = Storable a => Array
 
 type ByteArray = Array Word8
 
--- sizeOf :: Array a -> Int
--- sizeOf = vSize
-
 -------------------------------------------------------------------------------
 -- Utility functions
 -------------------------------------------------------------------------------
@@ -375,6 +372,7 @@ fromListN n xs = foldl step begin xs
 
     where
 
+    -- XXX use unsafePerformIO instead?
     begin      = let !x = unsafeDupablePerformIO $ unsafeNew n in x
     step arr x = let !arr' = unsafeDangerousPerformIO (unsafeAppend arr x)
                  in arr'

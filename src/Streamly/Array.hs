@@ -57,19 +57,20 @@ module Streamly.Array
     , toHandle
     , concatArray
     , concatToHandle
+
+    -- * Transformation
+    , map
     )
 where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity (runIdentity)
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (plusPtr, minusPtr)
+import Foreign.Ptr (plusPtr)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, hGetBufSome, hPutBuf)
-import Prelude hiding (length, null, last)
-import qualified Prelude
+import Prelude hiding (length, null, last, map)
 
 import GHC.Base (nullAddr#)
 import GHC.ForeignPtr (ForeignPtr(..), mallocPlainForeignPtrBytes)
@@ -177,12 +178,12 @@ nil = Array
     , aBound = Ptr nullAddr#
     }
 
--- XXX should we use unsafePerformIO instead?
 {-# INLINE singleton #-}
 singleton :: forall a. Storable a => a -> Array a
 singleton a =
-    let !v = unsafeDupablePerformIO $ withNewArray 1 $ \p -> poke p a
-    in (v {aEnd = aEnd v `plusPtr` (sizeOf (undefined :: a))})
+    -- XXX use unsafePerformIO instead?
+    let !arr = unsafeDupablePerformIO $ withNewArray 1 $ \p -> poke p a
+    in (arr {aEnd = aEnd arr `plusPtr` (sizeOf (undefined :: a))})
 
 -- | Create an Array of a given size from a stream.
 {-# INLINE fromStreamN #-}
@@ -242,6 +243,32 @@ readHandleChunksOf size h = go
 -- more efficiently.
 --
 -- concatCastArray
+
+-------------------------------------------------------------------------------
+-- Transformation
+-------------------------------------------------------------------------------
+
+{-# INLINE map #-}
+map :: forall a b. (Storable a, Storable b) => (a -> b) -> Array a -> Array b
+map f srcArr =
+    -- XXX use unsafePerformIO instead?
+    let !r = unsafeDangerousPerformIO mapIO in r
+
+    where
+
+    mapIO = withForeignPtr (aStart srcArr) $ \srcPtr -> do
+                dstArr <- unsafeNew $ (length srcArr) * sizeOf (undefined :: b)
+                withForeignPtr (aStart dstArr) $ \dstPtr -> do
+                    go srcPtr dstPtr
+                    return dstArr
+
+    go !src !dst
+        | src == (aEnd srcArr) = return ()
+        | otherwise = do
+            x <- peek src
+            poke dst (f x)
+            go (src `plusPtr` sizeOf (undefined :: a))
+               (dst `plusPtr` sizeOf (undefined :: b))
 
 -------------------------------------------------------------------------------
 -- Elimination

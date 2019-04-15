@@ -15,13 +15,14 @@ import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
         maximumBy, minimumBy, deleteBy, isPrefixOf, isSubsequenceOf,
-        stripPrefix)
+        stripPrefix, intercalate)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-       (counterexample, Property, withMaxSuccess, forAll, choose)
+       (counterexample, Property, withMaxSuccess, forAll, choose, Gen,
+       arbitrary, elements, frequency, listOf, listOf1, vectorOf, suchThat)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
 import Test.Hspec as H
@@ -29,6 +30,8 @@ import Test.Hspec as H
 import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Fold as FL
+import qualified Streamly.Array as A
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -462,6 +465,62 @@ transformCombineOpsCommon constr desc eq t = do
         forAll (choose (0, 100)) $ \n ->
             transform (concatMap (const [1..n]))
                 t (S.concatMap (const (S.fromList [1..n])))
+
+groupSplitOps :: String -> Spec
+groupSplitOps desc = do
+    -- splitting
+    -- XXX add tests with multichar separators too
+
+    prop (desc <> " intercalate . splitOn == id (nil separator)") $
+        forAll listWithZeroes $ \xs -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    ys <- S.toList $ FL.splitOn (A.fromList []) FL.toList (S.fromList xs)
+                    listEquals (==) (intercalate [] ys) xs
+
+    prop (desc <> " intercalate . splitOn == id (single element separator)") $
+        forAll listWithZeroes $ \xs -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    ys <- S.toList $ FL.splitOn (A.fromList [0]) FL.toList (S.fromList xs)
+                    listEquals (==) (intercalate [0] ys) xs
+
+    prop (desc <> " concat . splitOn . intercalate == concat (nil separator/possibly empty list)") $
+        forAll listsWithoutZeroes $ \xss -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    let xs = intercalate [] xss
+                    ys <- S.toList $ FL.splitOn (A.fromList []) FL.toList (S.fromList xs)
+                    listEquals (==) (concat ys) (concat xss)
+
+    prop (desc <> " concat . splitOn . intercalate == concat (non-nil separator/possibly empty list)") $
+        forAll listsWithoutZeroes $ \xss -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    let xs = intercalate [0] xss
+                    ys <- S.toList $ FL.splitOn (A.fromList [0]) FL.toList (S.fromList xs)
+                    listEquals (==) (concat ys) (concat xss)
+
+    prop (desc <> " splitOn . intercalate == id (exclusive separator/non-empty list)") $
+        forAll listsWithoutZeroes1 $ \xss -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    let xs = intercalate [0] xss
+                    ys <- S.toList $ FL.splitOn (A.fromList [0]) FL.toList (S.fromList xs)
+                    listEquals (==) ys xss
+
+    where
+
+    listWithZeroes :: Gen [Int]
+    listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
+
+    listWithoutZeroes = vectorOf 4 $ suchThat arbitrary (/= 0)
+
+    listsWithoutZeroes :: Gen [[Int]]
+    listsWithoutZeroes = listOf listWithoutZeroes
+
+    listsWithoutZeroes1 :: Gen [[Int]]
+    listsWithoutZeroes1 = listOf1 listWithoutZeroes
 
 -- transformation tests that can only work reliably for ordered streams i.e.
 -- Serial, Ahead and Zip. For example if we use "take 1" on an async stream, it
@@ -1072,6 +1131,9 @@ main = hspec
         aheadOps     $ transformCombineOpsOrdered folded "aheadly" (==)
         zipSerialOps $ transformCombineOpsOrdered folded "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsOrdered folded "zipAsyncly" (==)
+
+    describe "Stream group and split operations" $ do
+        groupSplitOps "serially"
 
     describe "Stream elimination operations" $ do
         serialOps    $ eliminationOps S.fromFoldable "serially"
