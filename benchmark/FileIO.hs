@@ -122,43 +122,68 @@ main = do
             ]
 #ifdef DEVBUILD
 
-        , bgroup "Splitting"
+        , bgroup "grouping"
             [ mkBench "Fold stream to a single array using groupsOf" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.groupsOf fileSize (FL.toArrayN fileSize)
                                 (IO.fromHandle inh)
+            ]
 
-            , mkBenchText "line count using splitOnBy \\n" inText $ do
-                (S.length $ FL.splitOnBy (== fromIntegral (ord '\n')) FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "line count using splitPostBy \\n" inText $ do
-                (S.length $ FL.splitPostBy (== fromIntegral (ord '\n')) FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "wordsBy isSpace (word count)" inText $ do
-                (S.length $ FL.wordsBy (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
-                    IO.fromHandle inText) >>= print
-
-            , mkBenchText "splitOn \\n (line count)" inText $ do
-                (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "splitOn \\r\\n" inText $ do
-                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "splitOn abc...xyz" inText $ do
-                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
-                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+        , bgroup "splitting"
+            [ bgroup "predicate"
+                [ mkBenchText "splitOnBy \\n (line count)" inText $ do
+                    (S.length $ FL.splitOnBy (== fromIntegral (ord '\n')) FL.drain
                         $ IO.fromHandle inText) >>= print
-
-            , mkBenchText "splitPost \\n (line count)" inText $ do
-                (S.length $ FL.splitPost (A.singleton (fromIntegral (ord '\n'))) FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "splitPost \\r\\n)" inText $ do
-                (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
-                    $ IO.fromHandle inText) >>= print
-            , mkBenchText "splitPost abc...xyz" inText $ do
-                (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord)
-                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+                , mkBenchText "splitPostBy \\n (line count)" inText $ do
+                    (S.length $ FL.splitPostBy (== fromIntegral (ord '\n')) FL.drain
                         $ IO.fromHandle inText) >>= print
+                , mkBenchText "wordsBy isSpace (word count)" inText $ do
+                    (S.length $ FL.wordsBy (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
+                        IO.fromHandle inText) >>= print
+                ]
+
+            , bgroup "short-pattern"
+                [ mkBenchText "splitOn \\n (line count)" inText $ do
+                    (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitPost \\n (line count)" inText $ do
+                    (S.length $ FL.splitPost (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn a" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "a") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn \\r\\n" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitPost \\r\\n)" inText $ do
+                    (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn aa" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "aa") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn aaaa" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "aaaa") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn abcdefgh" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "abcdefgh") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                ]
+            , bgroup "long-pattern"
+                [ mkBenchText "splitOn abcdefghi" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral .  ord) "abcdefghi") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn catcatcatcatcat" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "catcatcatcatcat") FL.drain
+                        $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitOn abc...xyz" inText $ do
+                    (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
+                        "abcdefghijklmnopqrstuvwxyz") FL.drain
+                            $ IO.fromHandle inText) >>= print
+                , mkBenchText "splitPost abc...xyz" inText $ do
+                    (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord)
+                        "abcdefghijklmnopqrstuvwxyz") FL.drain
+                            $ IO.fromHandle inText) >>= print
+                ]
             ]
 #endif
         ]
