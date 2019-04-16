@@ -18,7 +18,6 @@
 --
 module Streamly.String
     ( String
-    , splitOn
     )
 where
 

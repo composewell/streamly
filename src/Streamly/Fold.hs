@@ -118,16 +118,6 @@ module Streamly.Fold
     , grouped
 
     -- ** Splitting
-    -- | Combinators that split using a pattern (e.g. 'splitOn') require an
-    -- 'Integral' constraint. The constraint is needed for fast substring
-    -- search implementation. To use these combinators on non-integral types
-    -- (e.g.  'Char') the type can be mapped to an integral type and then
-    -- mapped back to the original type after the split.
-
-    -- If you need to match on a non-integral subsequence consider using the
-    -- 'sepBy' from the 'Parse' module instead, though remember that the Parse
-    -- would be considerably slower compared to this.
-    --
     , splitOn
     , splitOnAny
     , splitPost
@@ -1421,14 +1411,7 @@ splitPostAny
     => [Array a] -> Fold m a b -> t m a -> t m b
 splitPostAny subseq f m = undefined -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
 
--- | Split the stream on both sides of a separator sequence, dropping the
--- separator.
---
--- For easier illustration, let's define a function that operates on lists:
---
--- @
--- splitList pat xs = S.toList $ FL.splitOn (A.fromList pat) (FL.toList) (S.fromList xs) :: IO [[Int]]
--- @
+-- Int list examples for splitOn:
 --
 -- >>> splitList [] [1,2,3,3,4]
 -- > [[1],[2],[3],[3],[4]]
@@ -1453,6 +1436,39 @@ splitPostAny subseq f m = undefined -- D.fromStreamD $ D.splitPostAny f subseq (
 --
 -- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
+--
+-- | Split the stream on both sides of a separator sequence, dropping the
+-- separator.
+--
+-- For easier illustration, let's define a function that operates on pure lists:
+--
+-- @
+-- splitList pat xs = S.toList $ FL.splitOn (A.fromList pat) (FL.toList) (S.fromList xs)
+-- @
+--
+-- >>> splitList "" "hello"
+-- > ["h","e","l","l","o"]
+--
+-- >>> splitList "x" "hello"
+-- > ["hello"]
+--
+-- >>> splitList "h" "hello"
+-- > ["","ello"]
+--
+-- >>> splitList "o" "hello"
+-- > ["hell",""]
+--
+-- >>> splitList "e" "hello"
+-- > ["h","llo"]
+--
+-- >>> splitList "l" "hello"
+-- > ["he","","o"]
+--
+-- >>> splitList "ll" "hello"
+-- > ["he","o"]
+--
+-- >>> splitList "hello" "hello"
+-- > ["",""]
 --
 -- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
 --
