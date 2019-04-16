@@ -1267,7 +1267,7 @@ data SplitOnState s a =
 
 {-# INLINE_NORMAL splitPost #-}
 splitPost
-    :: forall m a b. (Monad m, Storable a, Integral a)
+    :: forall m a b. (Monad m, Storable a, Enum a, Eq a)
     => Fold m a b
     -> Array a
     -> Stream m a
@@ -1319,16 +1319,17 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
         mask :: Word
         mask = (1 `shiftL` (8 * patBytes)) - 1
 
+        addToWord wrd a = (wrd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
         patWord :: Word
-        patWord = let addElem w b = (w `shiftL` elemBits) .|. fromIntegral b
-                  in mask .&. (A.foldl' addElem 0 patArr)
+        patWord = mask .&. A.foldl' addToWord 0 patArr
 
         go0 !_ !idx !wrd st !acc = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
                     acc' <- fstep acc x
-                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    let wrd' = addToWord wrd x
                     if idx == maxIndex
                     then do
                         if wrd' .&. mask == patWord
@@ -1344,7 +1345,7 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
             case res of
                 Yield x s -> do
                     acc' <- fstep acc x
-                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    let wrd' = addToWord wrd x
                     if wrd' .&. mask == patWord
                     then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                     else go1 SPEC wrd' s acc'
@@ -1357,9 +1358,13 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
         where
 
         k = 2891336453 :: Word32
-        m = k ^ patLen
+        coeff = k ^ patLen
+        addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+        deltaCksum cksum old new =
+            addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
         -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 patArr
+        patHash = A.foldl' addCksum 0 patArr
 
         -- rh == ringHead
         go0 !_ !idx !rh st !acc = do
@@ -1370,8 +1375,8 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
                     let !rh' = unsafeDangerousPerformIO (RB.insert rb rh x)
                     if idx == maxIndex
                     then do
-                        let !ringHash = RB.foldRing (RB.ringBound rb)
-                                (\h b -> h * k + fromIntegral b) 0 rb
+                        let fold = RB.foldRing (RB.ringBound rb)
+                        let !ringHash = fold addCksum 0 rb
                         if ringHash == patHash
                         then go2 SPEC ringHash rh' s acc'
                         else go1 SPEC ringHash rh' s acc'
@@ -1391,7 +1396,7 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
                 Yield x s -> do
                     acc' <- fstep acc x
                     let !old = unsafeDangerousPerformIO $ peek rh
-                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+                        cksum' = deltaCksum cksum x old
 
                     if (cksum' == patHash)
                     then do
@@ -1422,7 +1427,7 @@ splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (Monad m, Storable a, Integral a)
+    :: forall m a b. (Monad m, Storable a, Enum a, Eq a)
     => Fold m a b
     -> Array a
     -> Stream m a
@@ -1473,15 +1478,16 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
         mask :: Word
         mask = (1 `shiftL` (8 * patBytes)) - 1
 
+        addToWord wrd a = (wrd `shiftL` elemBits) .|. fromIntegral (fromEnum a)
+
         patWord :: Word
-        patWord = let addElem w b = (w `shiftL` elemBits) .|. fromIntegral b
-                  in mask .&. (A.foldl' addElem 0 patArr)
+        patWord = mask .&. A.foldl' addToWord 0 patArr
 
         go0 !_ !idx wrd st !acc = do
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    let wrd' = addToWord wrd x
                     if idx == maxIndex
                     then do
                         if wrd' .&. mask == patWord
@@ -1500,9 +1506,9 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let wrd' = (wrd `shiftL` elemBits) .|. fromIntegral x
+                    let wrd' = addToWord wrd x
                         old = (mask .&. wrd) `shiftR` (8 * (patBytes - 1))
-                    acc' <- fstep acc (fromIntegral old)
+                    acc' <- fstep acc (toEnum $ fromIntegral old)
                     if wrd' .&. mask == patWord
                     then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                     else go1 SPEC wrd' s acc'
@@ -1513,7 +1519,7 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
 
         go2 !wrd !n !acc | n > 0 = do
             let old = (mask .&. wrd) `shiftR` (8 * (n - 1))
-            fstep acc (fromIntegral old) >>= go2 wrd (n - 1)
+            fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
         go2 _ _ acc = return acc
 
     stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
@@ -1522,9 +1528,13 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
         where
 
         k = 2891336453 :: Word32
-        m = k ^ patLen
+        coeff = k ^ patLen
+        addCksum cksum a = cksum * k + fromIntegral (fromEnum a)
+        deltaCksum cksum old new =
+            addCksum cksum new - coeff * fromIntegral (fromEnum old)
+
         -- XXX shall we use a random starting hash or 1 instead of 0?
-        patHash = A.foldl' (\h b -> h * k + fromIntegral b) 0 patArr
+        patHash = A.foldl' addCksum 0 patArr
 
         -- rh == ringHead
         go0 !_ !idx !rh st !acc = do
@@ -1534,8 +1544,8 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
                     let !rh' = unsafeDangerousPerformIO (RB.insert rb rh x)
                     if idx == maxIndex
                     then do
-                        let !ringHash = RB.foldRing (RB.ringBound rb)
-                                            (\h b -> h * k + fromIntegral b) 0 rb
+                        let fold = RB.foldRing (RB.ringBound rb)
+                        let !ringHash = fold addCksum 0 rb
                         if ringHash == patHash
                         then go2 SPEC ringHash rh' s acc
                         else go1 SPEC ringHash rh' s acc
@@ -1558,7 +1568,7 @@ splitOn (Fold fstep initial done) patArr@Array{..} (Stream step state) =
             case res of
                 Yield x s -> do
                     let !old = unsafeDangerousPerformIO $ peek rh
-                        cksum' = cksum * k + fromIntegral x - m * fromIntegral old
+                        cksum' = deltaCksum cksum x old
                     acc' <- fstep acc old
 
                     if (cksum' == patHash)

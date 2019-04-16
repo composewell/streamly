@@ -1409,7 +1409,7 @@ groups = groupsBy (==)
 --
 {-# INLINE splitPost #-}
 splitPost
-    :: (IsStream t, Monad m, Storable a, Integral a)
+    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitPost subseq f m = D.fromStreamD $ D.splitPost f subseq (D.toStreamD m)
 
@@ -1469,7 +1469,7 @@ splitPostAny subseq f m = undefined -- D.fromStreamD $ D.splitPostAny f subseq (
 --
 {-# INLINE splitOn #-}
 splitOn
-    :: (IsStream t, Monad m, Storable a, Integral a)
+    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
 
