@@ -178,6 +178,8 @@ nil = Array
     , aBound = Ptr nullAddr#
     }
 
+-- XXX we can make a special case for a singleton array, we can keep the
+-- element in the constructor without allocating memory.
 {-# INLINE singleton #-}
 singleton :: forall a. Storable a => a -> Array a
 singleton a =

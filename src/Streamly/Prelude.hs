@@ -330,13 +330,22 @@ module Streamly.Prelude
 
     -- ** Stateful Filters
     , take
+    -- , takeEnd
     , takeWhile
     , takeWhileM
+    -- , takeWhileEnd
     , drop
+    -- , dropEnd
     , dropWhile
     , dropWhileM
+    -- , dropWhileEnd
+    -- , dropAround
     , deleteBy
     , uniq
+    --  -- Can be implemented by splitting and condensing the duplicates
+    -- , uniqBy -- e.g. to remove duplicate "/" in a path
+    -- , uniqOn -- to remove duplicate sequences
+    -- , prune (dropAround + uniqWhen - like words)
 
     -- ** Mapping Filters
     -- | Mapping along with filtering
@@ -445,12 +454,17 @@ module Streamly.Prelude
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
+    -- XXX deprecate and move these to Streamly.Fold?
     -- ** Zipping Folds
     , eqBy
     , cmpBy
     , isPrefixOf
+    -- , isSuffixOf
+    -- , isInfixOf
     , isSubsequenceOf
     , stripPrefix
+    -- , stripSuffix
+    -- , stripInfix
 
     -- * Deprecated
     , K.once

@@ -136,11 +136,13 @@ module Streamly.Streams.StreamD
     , foldBufferWith
 
     -- ** Splitting
-    , splitOn
-    , splitPost
-    , splitOnBy
-    , splitPostBy
+    , splitBy
+    , splitSuffixBy
     , wordsBy
+    , splitSuffixBy'
+
+    , splitOn
+    , splitOn'
 
     -- ** Substreams
     , isPrefixOf
@@ -1132,18 +1134,44 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
 
     stepOuter _ _ Nothing = return Stop
 
-{-# INLINE_EARLY splitPostBy #-}
-splitPostBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitPostBy predicate f m = grouped f (map (\a -> (a, predicate a)) m)
+{-# INLINE_EARLY splitSuffixBy' #-}
+splitSuffixBy' :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitSuffixBy' predicate f m = grouped f (map (\a -> (a, predicate a)) m)
 
-{-# INLINE_NORMAL splitOnBy #-}
-splitOnBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitOnBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL splitBy #-}
+splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
-    stepOuter (Fold fstep initial done) gst (Just st) = do
+    {-# INLINE_LATE step' #-}
+    step' (Fold fstep initial done) gst (Just st) = initial >>= go SPEC st
+
+        where
+
+        -- XXX is it strict enough?
+        go !_ stt !acc = do
+            res <- step (adaptState gst) stt
+            case res of
+                Yield x s -> do
+                    if predicate x
+                    then done acc >>= \r -> return $ Yield r (Just s)
+                    else do
+                        acc' <- fstep acc x
+                        go SPEC s acc'
+                Skip s -> go SPEC s acc
+                Stop -> done acc >>= \r -> return $ Yield r Nothing
+
+    step' _ _ Nothing = return Stop
+
+{-# INLINE_NORMAL splitSuffixBy #-}
+splitSuffixBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' (Fold fstep initial done) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
             Yield x s -> do
@@ -1172,7 +1200,7 @@ splitOnBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
                 Skip s -> go SPEC s acc
                 Stop -> done acc >>= \r -> return $ Yield r Nothing
 
-    stepOuter _ _ Nothing = return Stop
+    step' _ _ Nothing = return Stop
 
 {-# INLINE_NORMAL wordsBy #-}
 wordsBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -1180,6 +1208,7 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
 
     where
 
+    -- XXX remove this part?
     {-# INLINE_LATE stepOuter #-}
     stepOuter (Fold fstep initial done) gst (Just st) = do
         res <- step (adaptState gst) st
@@ -1263,16 +1292,16 @@ data SplitOnState s a =
 --
 -- XXX We can use a control parameter to control this behavior.
 -- XXX since this is a tokenizer we can call it foldTokensOn?
--- splitPost/splitOn/wordsOn are have almost all code duplicated.
+-- splitPost/splitOn/wordsBy are have almost all code duplicated.
 
-{-# INLINE_NORMAL splitPost #-}
-splitPost
+{-# INLINE_NORMAL splitOn' #-}
+splitOn'
     :: forall m a b. (Monad m, Storable a, Enum a, Eq a)
     => Fold m a b
     -> Array a
     -> Stream m a
     -> Stream m b
-splitPost (Fold fstep initial done) patArr@Array{..} (Stream step state) =
+splitOn' (Fold fstep initial done) patArr@Array{..} (Stream step state) =
     Stream stepOuter GO_START
 
     where
