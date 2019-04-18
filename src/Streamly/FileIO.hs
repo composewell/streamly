@@ -315,6 +315,9 @@ toHandleChunksOf n h m = A.concatToHandle h $ bufferN n m
 toHandle :: MonadIO m => Handle -> SerialT m Word8 -> m ()
 toHandle = toHandleChunksOf defaultChunkSize
 
+-- XXX need a line buffered toHandle routine, as soon as the line is complete
+-- we should output.
+--
 -------------------------------------------------------------------------------
 -- Stateless handle based APIs
 -------------------------------------------------------------------------------
