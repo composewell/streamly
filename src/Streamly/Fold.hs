@@ -787,33 +787,27 @@ ltake :: Monad m => Int -> Fold m a b -> Fold m a b
 ltake n (Fold step initial done) = Fold step' initial' done'
     where
     initial' = fmap (Pair' 0) initial
-    done' (Pair' _ r) = done r
     step' (Pair' i r) a = do
         if i < n
         then do
             res <- step r a
             return $ Pair' (i + 1) res
         else return $ Pair' i r
+    done' (Pair' _ r) = done r
 
--- | take while the predicate remains true. Takes elements from the input as
--- long as the predicate succeeds. The parse succeeds when the predicate fails.
--- The parse fails if the nested parse fails. Otherwise the parse remains
--- partial.
+-- | Takes elements from the input as long as the predicate succeeds.
 {-# INLINABLE ltakeWhile #-}
 ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-ltakeWhile predicate (Fold step initial done) = Fold step' initial done
+ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
     where
-    step' r a = do
+    initial' = fmap Left' initial
+    step' (Left' r) a = do
         if predicate a
-        then step r a
-        -- Note, if the "step" had failed earlier we would have returned a
-        -- failure, if the driver ignored the failure and called the parse
-        -- again we return Success here after returning failure earlier. We do
-        -- not remember the state. If we want to do that then we will have to
-        -- use a Constructor around "r".
-        --
-        -- XXX we need to return the unsed value a here.
-        else return r
+        then fmap Left' $ step r a
+        else return (Right' r)
+    step' r _ = return r
+    done' (Left' r) = done r
+    done' (Right' r) = done r
 
 ------------------------------------------------------------------------------
 -- Utilities
