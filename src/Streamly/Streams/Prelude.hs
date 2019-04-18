@@ -27,6 +27,7 @@ module Streamly.Streams.Prelude
 
     -- * Conversion operations
     , fromList
+    , fromArray
     , toList
 
     -- * Fold operations
@@ -59,6 +60,7 @@ module Streamly.Streams.Prelude
 where
 
 import Control.Monad.Trans (MonadTrans(..))
+import Foreign.Storable (Storable)
 import Prelude hiding (foldr)
 import qualified Prelude
 
@@ -73,6 +75,7 @@ import qualified Streamly.Streams.StreamD as S
 import Streamly.Streams.StreamK (IsStream(..))
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Array.Types as A
 
 ------------------------------------------------------------------------------
 -- Conversion to and from direct style stream
@@ -115,6 +118,16 @@ fromList :: (Monad m, IsStream t) => [a] -> t m a
 fromList = fromStreamS . S.fromList
 {-# RULES "fromList fallback to StreamK" [1]
     forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
+
+-- XXX add fallback to StreamK rule
+--
+-- | Construct a stream from an 'Array'.
+--
+{-# INLINE_EARLY fromArray #-}
+fromArray :: (Monad m, IsStream t, Storable a) => A.Array a -> t m a
+fromArray = D.fromStreamD . D.fromArray
+-- {-# RULES "fromList fallback to StreamK" [1]
+--     forall a. S.toStreamK (S.fromList a) = K.fromFoldable a #-}
 
 -- | Convert a stream into a list in the underlying monad.
 --

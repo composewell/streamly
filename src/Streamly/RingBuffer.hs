@@ -17,6 +17,7 @@ module Streamly.RingBuffer
     , unsafeNew
     , insert
     , bufcmp
+    , bufcmpN
     , advance
     , foldRing
     , foldRingM
@@ -95,6 +96,26 @@ memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
 memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
+
+-- Compare only specified number of elements in the ring buffer.
+{-# INLINE bufcmpN #-}
+bufcmpN :: RingBuffer a -> Ptr a -> A.Array a -> Int -> Bool
+bufcmpN RingBuffer{..} rh A.Array{..} n =
+    let !res = A.unsafeDangerousPerformIO $ do
+            let rs = unsafeForeignPtrToPtr ringStart
+            let as = unsafeForeignPtrToPtr aStart
+            assert (aBound `minusPtr` as >= ringBound `minusPtr` rs) (return ())
+            let len = ringBound `minusPtr` rh
+            r1 <- memcmp (castPtr rh) (castPtr as) (min len n)
+            r2 <- if n > len
+                then memcmp (castPtr rs) (castPtr (as `plusPtr` len))
+                            (min (rh `minusPtr` rs) (n - len))
+                else return True
+            -- XXX do we need these?
+            -- touchForeignPtr ringStart
+            -- touchForeignPtr aStart
+            return (r1 && r2)
+    in res
 
 -- Compare the entire ringBuffer with the given array, returns true if the
 -- Array and the ringBuffer have identical contents. The supplied array must be

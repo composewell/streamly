@@ -141,11 +141,11 @@ main = do
 
         , bgroup "splitting"
             [ bgroup "predicate"
-                [ mkBenchText "splitOnBy \\n (line count)" inText $ do
-                    (S.length $ FL.splitOnBy (== fromIntegral (ord '\n')) FL.drain
+                [ mkBenchText "splitBy \\n (line count)" inText $ do
+                    (S.length $ FL.splitBy (== fromIntegral (ord '\n')) FL.drain
                         $ IO.fromHandle inText) >>= print
-                , mkBenchText "splitPostBy \\n (line count)" inText $ do
-                    (S.length $ FL.splitPostBy (== fromIntegral (ord '\n')) FL.drain
+                , mkBenchText "splitSuffixBy \\n (line count)" inText $ do
+                    (S.length $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.drain
                         $ IO.fromHandle inText) >>= print
                 , mkBenchText "wordsBy isSpace (word count)" inText $ do
                     (S.length $ FL.wordsBy (\x -> isSpace $ chr (fromIntegral x)) FL.drain $
@@ -156,16 +156,16 @@ main = do
                 [ mkBenchText "splitOn \"\"" inText $ do
                     (S.length $ FL.splitOn (A.nil) FL.drain
                         $ IO.fromHandle inText) >>= print
-                , mkBenchText "splitPost \"\"" inText $ do
-                    (S.length $ FL.splitPost (A.nil) FL.drain
+                , mkBenchText "splitSuffixOn \"\"" inText $ do
+                    (S.length $ FL.splitSuffixOn (A.nil) FL.drain
                         $ IO.fromHandle inText) >>= print
                 ]
             , bgroup "short-pattern"
                 [ mkBenchText "splitOn \\n (line count)" inText $ do
                     (S.length $ FL.splitOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
                         $ IO.fromHandle inText) >>= print
-                , mkBenchText "splitPost \\n (line count)" inText $ do
-                    (S.length $ FL.splitPost (A.singleton (fromIntegral (ord '\n'))) FL.drain
+                , mkBenchText "splitSuffixOn \\n (line count)" inText $ do
+                    (S.length $ FL.splitSuffixOn (A.singleton (fromIntegral (ord '\n'))) FL.drain
                         $ IO.fromHandle inText) >>= print
                 , mkBenchText "splitOn a" inText $ do
                     (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "a") FL.drain
@@ -173,8 +173,8 @@ main = do
                 , mkBenchText "splitOn \\r\\n" inText $ do
                     (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
                         $ IO.fromHandle inText) >>= print
-                , mkBenchText "splitPost \\r\\n)" inText $ do
-                    (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
+                , mkBenchText "splitSuffixOn \\r\\n)" inText $ do
+                    (S.length $ FL.splitSuffixOn (A.fromList $ map (fromIntegral . ord) "\r\n") FL.drain
                         $ IO.fromHandle inText) >>= print
                 , mkBenchText "splitOn aa" inText $ do
                     (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord) "aa") FL.drain
@@ -197,8 +197,8 @@ main = do
                     (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
                         "abcdefghijklmnopqrstuvwxyz") FL.drain
                             $ IO.fromHandle inText) >>= print
-                , mkBenchText "splitPost abc...xyz" inText $ do
-                    (S.length $ FL.splitPost (A.fromList $ map (fromIntegral . ord)
+                , mkBenchText "splitSuffixOn abc...xyz" inText $ do
+                    (S.length $ FL.splitSuffixOn (A.fromList $ map (fromIntegral . ord)
                         "abcdefghijklmnopqrstuvwxyz") FL.drain
                             $ IO.fromHandle inText) >>= print
                 ]

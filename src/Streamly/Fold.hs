@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -130,8 +131,8 @@ module Streamly.Fold
     , wordsOn
 
     -- Keeping the delimiters
-    -- , splitOn'
-    -- , splitSuffixOn'
+    , splitOn'
+    , splitSuffixOn'
     -- , splitPrefixOn'
 
     -- Splitting by multiple sequences
@@ -339,6 +340,7 @@ import Streamly.Parse.Types (Parse(..), Status(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
 
+import Streamly (MonadAsync)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K
@@ -1613,6 +1615,12 @@ _splitSuffixBy' predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 -- >>> splitOn_ "" "hello"
 -- > ["h","e","l","l","o"]
 --
+-- >>> splitOn_ "hello" ""
+-- > [""]
+--
+-- >>> splitOn_ "hello" "hello"
+-- > ["",""]
+--
 -- >>> splitOn_ "x" "hello"
 -- > ["hello"]
 --
@@ -1631,9 +1639,6 @@ _splitSuffixBy' predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 -- >>> splitOn_ "ll" "hello"
 -- > ["he","o"]
 --
--- >>> splitOn_ "hello" "hello"
--- > ["",""]
---
 -- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
 --
 -- > intercalate . splitOn == id
@@ -1651,7 +1656,7 @@ _splitSuffixBy' predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 splitOn
     :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOn subseq f m = D.fromStreamD $ D.splitOn f subseq (D.toStreamD m)
+splitOn patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
 
 -- This can be implemented easily using Rabin Karp
 -- | Split on any one of the given patterns.
@@ -1676,7 +1681,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- ["a"]
 --
 -- >>> splitSuffixOn_ "." ".a"
--- > [".","a"]
+-- > ["","a"]
 --
 -- >>> splitSuffixOn_ "." "a."
 -- > ["a"]
@@ -1690,13 +1695,14 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- >>> splitSuffixOn_ "." "a..b.."
 -- > ["a","","b",""]
 --
--- lines = splitSuffixOn "\n"
+-- > lines = splitSuffixOn "\n"
 --
 {-# INLINE splitSuffixOn #-}
 splitSuffixOn
     :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitSuffixOn subseq f m = undefined -- D.fromStreamD $ D.splitSuffixOn' f subseq (D.toStreamD m)
+splitSuffixOn patt f m =
+    D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
 
 -- | Like 'splitOn' but drops any empty splits.
 --
@@ -1706,39 +1712,43 @@ wordsOn
     => Array a -> Fold m a b -> t m a -> t m b
 wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStreamD m)
 
--- | Like 'splitOn' but keeps the suffix intact in the splits.
+-- | Like 'splitOn' but splits the separator as well, as an infix token.
 --
 -- > splitOn'_ pat xs = S.toList $ FL.splitOn' (A.fromList pat) (FL.toList) (S.fromList xs)
 --
--- >>> splitOn'_ "." ""
--- [""]
+-- >>> splitOn'_ "" "hello"
+-- > ["h","","e","","l","","l","","o"]
 --
--- >>> splitOn'_ "." "."
--- ["."]
+-- >>> splitOn'_ "hello" ""
+-- > [""]
 --
--- >>> splitOn'_ "." "a"
--- ["a"]
+-- >>> splitOn'_ "hello" "hello"
+-- > ["","hello",""]
 --
--- >>> splitOn'_ "." ".a"
--- > [".","a"]
+-- >>> splitOn'_ "x" "hello"
+-- > ["hello"]
 --
--- >>> splitOn'_ "." "a."
--- > ["a."]
+-- >>> splitOn'_ "h" "hello"
+-- > ["","h","ello"]
 --
--- >>> splitOn'_ "." "a.b"
--- > ["a.","b"]
+-- >>> splitOn'_ "o" "hello"
+-- > ["hell","o",""]
 --
--- >>> splitOn'_ "." "a.b."
--- > ["a.","b."]
+-- >>> splitOn'_ "e" "hello"
+-- > ["h","e","llo"]
 --
--- >>> splitOn'_ "." "a..b.."
--- > ["a.",".","b.","."]
+-- >>> splitOn'_ "l" "hello"
+-- > ["he","l","","l","o"]
+--
+-- >>> splitOn'_ "ll" "hello"
+-- > ["he","ll","o"]
 --
 {-# INLINE splitOn' #-}
 splitOn'
-    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOn' subseq f m = D.fromStreamD $ D.splitOn' f subseq (D.toStreamD m)
+splitOn' patt f m = S.intersperseM
+    (foldl f (P.fromArray patt)) $ splitOn patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --
@@ -1772,7 +1782,8 @@ splitOn' subseq f m = D.fromStreamD $ D.splitOn' f subseq (D.toStreamD m)
 splitSuffixOn'
     :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitSuffixOn' subseq f m = undefined -- D.fromStreamD $ D.splitSuffixOn' f subseq (D.toStreamD m)
+splitSuffixOn' patt f m =
+    D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
 
 -- This can be implemented easily using Rabin Karp
 -- | Split post any one of the given patterns.
