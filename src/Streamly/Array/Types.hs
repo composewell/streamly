@@ -36,6 +36,8 @@ module Streamly.Array.Types
     , fromList
     , fromListN
     , toList
+
+    , defaultChunkSize
     )
 where
 
@@ -323,6 +325,7 @@ length Array{..} =
         aLen = aEnd `minusPtr` p
     in assert (aLen >= 0) (aLen `div` sizeOf (undefined :: a))
 
+-- XXX implement via streams
 {-# INLINE foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
 foldl' f z Array{..} =
@@ -388,3 +391,18 @@ instance (Storable a, Read a, Show a) => Read (Array a) where
           xs <- readPrec
           return (fromList xs)
     readListPrec = readListPrecDefault
+
+-------------------------------------------------------------------------------
+-- IO
+-------------------------------------------------------------------------------
+
+-- | GHC memory management allocation header overhead
+allocOverhead :: Int
+allocOverhead = 2 * sizeOf (undefined :: Int)
+
+-- | Default maximum buffer size in bytes, for reading from and writing to IO
+-- devices, the value is 32KB minus GHC allocation overhead, which is a few
+-- bytes, so that the actual allocation is 32KB.
+defaultChunkSize :: Int
+defaultChunkSize = 32 * k - allocOverhead
+   where k = 1024

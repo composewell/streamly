@@ -17,14 +17,14 @@
 -- Portability : GHC
 --
 -- Arrays as implemented in this module are chunks of memory that can hold a
--- sequence of 'Storable' values of the same type. Unlike streams, arrays are
--- necessarily /finite/.  The size of an array is pre-determined and does not
--- grow dynamically.
+-- sequence of 'Storable' values of a given type. Unlike streams, arrays are
+-- necessarily /finite/.  The size of an array is fixed at creation and cannot
+-- be changed later.
 --
--- Most importantly, arrays use memory that is out of the ambit of GC and
--- therefore can hold arbitrary number of elements without adding any pressure
--- to GC. Moreover, they can be used to communicate with foreign consumers and
--- producers (e.g. file and network IO) without copying the data.
+-- Importantly, arrays use memory that is out of the ambit of GC and therefore
+-- can hold arbitrary number of elements without adding any pressure to GC.
+-- Moreover, they can be used to communicate with foreign consumers and
+-- producers (e.g. file or network IO) without copying the data.
 
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
 -- single byte) are only as good as holding those elements in a Haskell list.
@@ -45,29 +45,46 @@ module Streamly.Array
     , fromList
     , fromListN
     , fromStreamN
-    , readHandleChunksOf
 
     -- * Elimination/Folds
     , foldl'
-    , null
+    -- , null
     , length
     , last
 
     , toList
-    , toHandle
-    , concatArray
-    , concatToHandle
+    , toStream
 
-    -- * Transformation
-    , map
+    -- -- * IO
+    -- , toHandle
+    -- , fromHandleUptoN
+    -- , fromHandleN
+    --
+    -- , fromHandlePosUptoN
+    -- , fromHandlePosN
+
+    -- -- * Transformation
+    -- , map
+
+    -- * Streams of Arrays
+    -- , defaultChunkSize
+    -- , fromHandleArraysUpto
+    , concatArrays
+    , fromHandleArrays
+    -- Arrays of exactly N elements
+    -- , fromHandleArraysOfN
+    , toHandleArrays
+
     )
 where
 
 import Control.Exception (assert)
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (runIdentity)
+import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (plusPtr)
+import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (length, null, last, map)
@@ -85,6 +102,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 -- import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.Prelude as P
 
 -------------------------------------------------------------------------------
 -- Compacting streams of arrays
@@ -150,6 +168,11 @@ compactToReorder :: (a -> a -> Int) -> t m (Array a) -> t m (Array a)
 --
 -- gatherBuffers :: Int -> t m Buffer -> t m GatherBuffer
 -- gatherBuffers maxLimit bufs =
+--
+-- Fold to IOVec and use writev when we do not know the size of the segment to
+-- be written. For example, if we are buffering by lines and lines may be of
+-- indefinite size.  Or if we are serializing a type that has big size and we
+-- want to allocate memory in smaller chunks.
 -}
 
 -------------------------------------------------------------------------------
@@ -196,9 +219,9 @@ fromStreamN n = FL.foldl (FL.toArrayN n)
 -- handle it blocks until some data becomes available. If data is available
 -- then it immediately returns that data without blocking. It reads a maximum
 -- of up to the size requested.
-{-# INLINE fromHandleSome #-}
-fromHandleSome :: Int -> Handle -> IO ByteArray
-fromHandleSome size h = do
+{-# INLINE fromHandleUpto #-}
+fromHandleUpto :: Int -> Handle -> IO ByteArray
+fromHandleUpto size h = do
     ptr <- mallocPlainForeignPtrBytes size
     withForeignPtr ptr $ \p -> do
         n <- hGetBufSome h p size
@@ -210,20 +233,29 @@ fromHandleSome size h = do
         -- XXX shrink only if the diff is significant
         shrinkToFit v
 
--- | @readHandleChunksOf size h@ reads a stream of arrays from file handle @h@.
+-- | @fromHandleArraysUpto size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is limited to @size@.
--- 'readHandleChunksOf' ignores the prevailing 'TextEncoding' and 'NewlineMode'
+-- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
-{-# INLINE readHandleChunksOf #-}
-readHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m ByteArray
-readHandleChunksOf size h = go
+{-# INLINE fromHandleArraysUpto #-}
+fromHandleArraysUpto :: (IsStream t, MonadIO m)
+    => Int -> Handle -> t m (Array Word8)
+fromHandleArraysUpto size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld sng _ -> do
-        vec <- liftIO $ fromHandleSome size h
+        vec <- liftIO $ fromHandleUpto size h
         if length vec < size
         then sng vec
         else yld vec go
+
+-- | @fromHandleArrays h@ reads a stream of arrays from file handle @h@.
+-- The maximum size of a single array is limited to @defaultChunkSize@.
+-- 'fromHandleArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
+-- on the 'Handle'.
+{-# INLINE fromHandleArrays #-}
+fromHandleArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
+fromHandleArrays = fromHandleArraysUpto defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Cast arrays from one type to another
@@ -250,8 +282,12 @@ readHandleChunksOf size h = go
 -- Transformation
 -------------------------------------------------------------------------------
 
+-- XXX use stream map to implement this.
 {-# INLINE map #-}
 map :: forall a b. (Storable a, Storable b) => (a -> b) -> Array a -> Array b
+map f srcArr = runIdentity $
+    fromStreamN (length srcArr) $ S.map f (toStream srcArr)
+{-
 map f srcArr =
     -- XXX use unsafePerformIO instead?
     let !r = unsafeDangerousPerformIO mapIO in r
@@ -271,11 +307,13 @@ map f srcArr =
             poke dst (f x)
             go (src `plusPtr` sizeOf (undefined :: a))
                (dst `plusPtr` sizeOf (undefined :: b))
+-}
 
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
 
+-- null = (== 0) . length
 {-# INLINE null #-}
 null :: Array a -> Bool
 null Array{..} =
@@ -298,22 +336,31 @@ last arr@Array{..} =
 -- Elimination/folding
 -------------------------------------------------------------------------------
 
--- | Writing a stream to a file handle
+-- | Write a stream to a file handle
 {-# INLINE toHandle #-}
-toHandle :: Handle -> ByteArray -> IO ()
+toHandle :: Storable a => Handle -> Array a -> IO ()
 toHandle _ v | null v = return ()
-toHandle h v@Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p (length v)
+toHandle h v@Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
+    where
+    aLen =
+        let p = unsafeForeignPtrToPtr aStart
+        in aEnd `minusPtr` p
+
+{-# INLINABLE toStream #-}
+toStream :: (Monad m, IsStream t, Storable a) => Array a -> t m a
+toStream = P.fromArray
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays
 -------------------------------------------------------------------------------
 
--- | Convert a stream of Arrays into a stream of elements
-{-# INLINE concatArray #-}
-concatArray :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
-concatArray m = D.fromStreamD $ D.concatArray (D.toStreamD m)
+-- | Convert a stream of Arrays into a stream of elements.
+{-# INLINE concatArrays #-}
+concatArrays :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+concatArrays m = D.fromStreamD $ D.concatArray (D.toStreamD m)
 
 -- XXX we should use overWrite/write
-{-# INLINE concatToHandle #-}
-concatToHandle :: MonadIO m => Handle -> SerialT m ByteArray -> m ()
-concatToHandle h m = S.mapM_ (liftIO . toHandle h) m
+-- | Write a stream of arrays to a handle.
+{-# INLINE toHandleArrays #-}
+toHandleArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
+toHandleArrays h m = S.mapM_ (liftIO . toHandle h) m

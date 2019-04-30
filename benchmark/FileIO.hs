@@ -81,7 +81,7 @@ main = do
         [ bgroup "readArray"
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
-                let s = A.readHandleChunksOf IO.defaultChunkSize inh
+                let s = A.fromHandleArrays inh
                 lc <- S.last s
                 return $ case lc of
                     Nothing -> Nothing
@@ -91,11 +91,11 @@ main = do
             -- and counting characters.
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
-                let s = A.readHandleChunksOf IO.defaultChunkSize inh
+                let s = A.fromHandleArrays inh
                 S.sum (S.map A.length s)
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
-                let s = A.readHandleChunksOf IO.defaultChunkSize inh
+                let s = A.fromHandleArrays inh
                 S.foldl' (\acc arr -> acc + A.foldl' (+) 0 arr) 0 s
             ]
         , bgroup "readStream"
@@ -112,8 +112,8 @@ main = do
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
                 Handles inh outh <- readIORef href
-                let s = A.readHandleChunksOf IO.defaultChunkSize inh
-                A.concatToHandle outh s
+                let s = A.fromHandleArrays inh
+                A.toHandleArrays outh s
             ]
         , bgroup "copyStream"
             [ mkBench "fromToHandle" href $ do

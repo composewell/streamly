@@ -102,6 +102,7 @@ module Streamly.Prelude
     -- these can be expressed in terms of primitives.
     , P.fromList
     , fromListM
+    , P.fromArray
     , K.fromFoldable
     , fromFoldableM
 

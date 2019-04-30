@@ -22,7 +22,7 @@
 -- options of the underlying handle ('TextEncoding', 'NewLineMode',
 -- 'Buffering') are not needed.
 --
--- By default file IO is done using a defaultChunkSize (32K). This means
+-- By default file IO is done using a A.defaultChunkSize (32K). This means
 -- that when reading from a block device, a 32K IO is issued at a time. The
 -- block buffering of the Handle is not required as buffering occurs in the
 -- stream itself based on the chunk size.  In fact, Handle's buffering does not
@@ -38,31 +38,48 @@
 -- When writing a stream to a file we can choose a chunk size and the stream
 -- will be chopped into chunks of up to that size before writing. To achieve
 -- line buffering we can chop the stream into lines before writing.
+--
+-- For IO routines to read unicode strings and line buffered routines, see
+-- "Streamly.String".
+--
+-- IO devices are of two types, (1) seekable devices are more like arrays and
+-- can seek to a given position and read or write at that position, such
+-- devices are storage devices like disks and memory and are of finite size,
+-- (2) non-seekable devices are more like streams and read or write from
+-- beginning to end, examples of such device are terminals, pipes, sockets and
+-- fifos.
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 
 module Streamly.FileIO
     (
 
-    -- * Default Settings
-      defaultChunkSize
+    -- * Position Independent APIs
+    -- | These APIs do not use a position offset and therefore work for both
+    -- non-seekable and seekable devices.  The stream is lazy and generated
+    -- on-demand as the consumer reads.  However, it may read some data in
+    -- advance and buffer it.
 
-    -- -- * General APIs
-    -- * Reading
-    , fromHandle
-    , fromHandleChunksOf
-    -- , fromHandleLen
-    -- , fromHandleLenWith
+    -- Reading
+      fromHandle
+    , fromHandleN
 
-    -- * Writing
+    -- Writing
     , toHandle
-    , toHandleChunksOf
+    , toHandleArraysOf
 
-    -- -- * Seekable Devices
-    -- , fromHandlePos
-    -- , fromHandlePosWith
-    -- , fromHandlePosLen
-    -- , fromHandlePosLenWith
+    -- * Position Based APIs
+    -- | These APIs apply to devices or files which have seek capability.
+    -- Therefore, we can read from a given position.  This type of files
+    -- include disks, files, memory devices and excludes terminals, pipes,
+    -- sockets and fifos.
+    --
+    , fromHandlePos
+    , fromHandlePosN
+
+    -- * Frame buffering
+    , fromHandleFramesOn
+    , toHandleFramesOn
     )
 where
 
@@ -71,15 +88,17 @@ import Data.Word (Word8)
 import Foreign.Storable (Storable(..))
 import System.IO (Handle, IOMode) -- IOMode imported for haddock
 
-import Streamly.Array.Types (Array(..))
+import Streamly.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Fold (Fold)
 
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Array as A
 import qualified Streamly.Fold as FL
 
 -- XXX use fdadvise (fd,0,0,FADVISE_SEQUENTIAL) when available.
+-- XXX use RULES to seek when we drop or when we use last etc.
 
 -- Handles perform no buffering of their own, buffering is done explicitly
 -- by the stream.
@@ -87,16 +106,16 @@ import qualified Streamly.Fold as FL
 -- XXX need to test/design the API for different devices (block devices, char
 -- devices, fifos, sockets).
 
--- | GHC memory management allocation header overhead
-allocOverhead :: Int
-allocOverhead = 2 * sizeOf (undefined :: Int)
-
--- | Default maximum buffer size in bytes, for reading from and writing to IO
--- devices, the value is 32KB minus GHC allocation overhead, which is a few
--- bytes, so that the actual allocation is 32KB.
-defaultChunkSize :: Int
-defaultChunkSize = 32 * k - allocOverhead
-   where k = 1024
+-- TODO:
+-- interact
+--
+--  XXX coalesce read requests, multiple reads into the same block can be
+--  combined into a single read request followed by a view/projection on the
+--  read block.  similalrly for write requests. requests may be expensive e.g.
+--  when you are requesting from AWS.
+--
+--  read requests can also be reordered to batch them like elevator and then
+--  reordered back to serve in the same order as they arrived.
 
 -------------------------------------------------------------------------------
 -- File APIs exposed to users
@@ -111,27 +130,35 @@ defaultChunkSize = 32 * k - allocOverhead
 -- https://docs.oracle.com/javase/tutorial/essential/io/file.html for Java API.
 -- https://www.w3.org/TR/FileAPI/ for http file API.
 --
--- Design Notes:
+-- API Design Notes:
 --
 -- We can have handle based APIs as well as filepath based APIs to read. There
 -- are a few advantages of handle based APIs:
 --
 -- 1) The file may get renamed or removed if not locked. Using a handle we do
 -- not need to lock the namespace, we can create a file and delete it and still
--- keep using the handle.
+-- keep using the handle. Edit: this does not sound like an advantage because
+-- even if we have a fromFile API we will have an OS handle as long as we are
+-- streaming, and we can have an option to delete the file after opening if we
+-- want to.
 --
 -- 2) A pure "fromFile" API would require opening a handle each time the API is
 -- used. If we have to read from the file many times, it requires a path lookup
 -- each time and if the reads are concurrent each read would require a separate
--- OS handle, which is a limited resource.
+-- OS handle, which is a limited resource. Edit: if we are streaming the
+-- underlying handle remains open until we are done. This point is valid only
+-- if we are sharing the handle across multiple bursts of streaming from the
+-- file.
 --
 -- Handles are stateful and we would like to avoid them, but they are
--- ubiquitous and in many cases we are forced to use them. Handles like 'stdin',
--- 'stdout', 'stderr' are very common. Though we could use @fromFile
--- /dev/stdin@ or @fromStdin@ etc. the former is not so elegant and the later
--- would require multiple APIs for each special handle.
+-- ubiquitous and in many cases we are forced to use them. For example, handles
+-- like 'stdin', 'stdout', 'stderr' are very common. Though we could use
+-- @fromFile /dev/stdin@ or @fromStdin@ etc. the former is not so elegant and
+-- the later would require multiple APIs for each special handle. Edit: but we
+-- anyway have a special name for each such special handle so why not have a
+-- special API for each?
 
--- Design Notes:
+-- Ranges:
 --
 -- To represent the range to read we have chosen (start, size) instead of
 -- (start, end). This removes the ambiguity of whether "end" is included in the
@@ -156,207 +183,207 @@ defaultChunkSize = 32 * k - allocOverhead
 --
 -- We could use a negative size to read backwards, this may not be very useful
 -- when reading from files (and may not even apply to terminals) but could be
--- useful when reading slices from arrays, so we can keep the convention for
--- files as well treating them as byte arrays. To keep this option open we
+-- useful when reading slices from arrays, so we can keep the same convention
+-- for files as well treating them as byte arrays. To keep this option open we
 -- currently treat negative size as an error.
+--
+-- Reading in reverse order is also possible, but since that is an uncommon use
+-- case we design the APIs only for the forward reading case. The reverse
+-- reading APIs can be added in a separate module.
+--
+-- When reading in reverse we will have to read a full block and then reverse
+-- it, and then read the next block from reverse and so on.
 
+-- XXX handles could be shared, so we may not want to use the handle state at
+-- all for these APIs. we can use pread and pwrite instead. On windows we will
+-- need to use readFile/writeFile with an offset argument.
 
--- This API applies to devices or files which have the seek capability and
--- are of finite size. Therefore, we can read from a given position or specify
--- the read position from the end of file. This type of handles include disks,
--- files, memory devices and excludes terminals, pipes, sockets and fifos.
+-------------------------------------------------------------------------------
+
+-- | @fromHandlePosNWith chunkSize handle pos len@ reads up to @len@ bytes
+-- from @handle@ starting at the offset @pos@ from the beginning of the file.
 --
--- @fromHandlePosLenWith chunkSize handle pos len@ streams up to len bytes from
--- @handle@. @pos@ with 'Left' constructor specifies an offset from the
--- beginning of the file, with 'Right' constructor it specifies a negative
--- offset from the end of the file i.e. @filesize - pos@ from the beginning.
+-- Reads are performed in chunks of size @chunkSize@.  For block devices, to
+-- avoid reading partial blocks @chunkSize@ must align with the block size of
+-- the underlying device. If the underlying block size is unknown, it is a good
+-- idea to keep it a multiple 4KiB. This API ensures that the start of each
+-- chunk is aligned with @chunkSize@ from second chunk onwards.
 --
--- If @size@ is specified then a total of @size@ bytes are read starting from
--- the start point, unless the file ends before @size@ bytes could be read.
--- When @size@ is not specified it keeps streaming until end of file is
--- reached.
---
--- The slice starts at the offset @start@ from the beginning of file
--- and extends up to but not including @end@. Reads are performed in chunks of
--- size @chunkSzie@.
--- when @end@ is not specified it is assumed to be the end
--- of file. If @start@ (or @end@) is negative then it is calculated as @size +
--- start@ where @size@ is the size of the file. If @end < start@ a @nil@
--- stream is returned. If @start@ or @end@ is more than the size of the file it
--- is truncated to the size of the file.
---
--- For block devices, to avoid reading partial blocks @chunkSize@ must align
--- with the block size of the underlying device. If the underlying block size
--- is unknown, it is a good idea to keep it a multiple 4KiB. This API ensures
--- that the start of each chunk is aligned with @chunkSize@ from second chunk
--- onwards.
---
-{-
-{-# INLINE fromHandlePosLenWith #-}
-fromHandlePosLenWith :: (IsStream t, MonadIO m)
-    => Int -> Handle -> Either Int -> Int -> t m Word8
-fromHandlePosLenWith chunkSize h pos len = undefined
+{-# INLINE fromHandlePosNWith #-}
+fromHandlePosNWith :: (IsStream t, MonadIO m)
+    => Int -> Handle -> Int -> Int -> t m Word8
+fromHandlePosNWith chunkSize h pos len = undefined
 
 -- |
--- > fromHandlePosLen = fromHandlePosLenWith defaultChunkSize
+-- > fromHandlePosN = fromHandlePosNWith A.defaultChunkSize
 --
-{-# INLINE fromHandlePosLen #-}
-fromHandlePosLen :: (IsStream t, MonadIO m)
-    => Handle -> Either Int -> Int -> t m Word8
-fromHandlePosLen = fromHandlePosLenWith defaultChunkSize
+{-# INLINE fromHandlePosN #-}
+fromHandlePosN :: (IsStream t, MonadIO m)
+    => Handle -> Int -> Int -> t m Word8
+fromHandlePosN = undefined -- fromHandlePosNWith A.defaultChunkSize
 
+-- | Read from the given position until end of file.
+--
 {-# INLINE fromHandlePosWith #-}
 fromHandlePosWith :: (IsStream t, MonadIO m)
-    => Int -> Handle -> Either Int -> t m Word8
+    => Int -> Handle -> Int -> t m Word8
 fromHandlePosWith chunkSize h pos = undefined
 
 -- |
--- > fromHandlePos = fromHandlePosWith defaultChunkSize
+-- > fromHandlePos = fromHandlePosWith A.defaultChunkSize
 --
 {-# INLINE fromHandlePos #-}
-fromHandlePos :: (IsStream t, MonadIO m) => Handle -> Either Int -> t m Word8
-fromHandlePos = fromHandlePosWith defaultChunkSize
-
--- XXX use RULES to seek when we drop or when we use last etc.
--- -}
+fromHandlePos :: (IsStream t, MonadIO m) => Handle -> Int -> t m Word8
+fromHandlePos = undefined -- fromHandlePosWith A.defaultChunkSize
 
 -------------------------------------------------------------------------------
--- APIs for all devices
+-- APIs common to seekable and non-seekable devices
 -------------------------------------------------------------------------------
 
--- For both non-seekable and seekable handles. For non-seekable (terminals,
--- pipes, fifo etc.) handles we cannot use an offset to read which also means
--- that we cannot specify an offset from the end. Therefore the APIs are
--- simpler.
+-------------------------------------------------------------------------------
+-- Reading
+-------------------------------------------------------------------------------
 
 -- TODO for concurrent streams implement readahead IO. We can send multiple
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
-{-
-{-# INLINE fromHandleLenWith #-}
-fromHandleLenWith :: (IsStream t, MonadIO m)
+-- | Like "fromHandleN" but we can specify the chunksize as well.
+--
+{-# INLINE fromHandleNWith #-}
+fromHandleNWith :: (IsStream t, MonadIO m)
     => Int -> Handle -> Int -> t m Word8
-fromHandleLenWith chunkSize h len =
-    S.concatMap toWord8Stream $ A.fromHandle chunkSize h start end
+fromHandleNWith chunkSize h len = undefined
+    -- S.concatMap toWord8Stream $ A.fromHandle chunkSize h start end
 
--- | Like fromHandle but we can specify how much data to read. We can achieve
+-- | Like "fromHandle" but we can specify how much data to read. We can achieve
 -- the same effect using "take len . fromHandle", however, in that case
 -- fromHandle is likely to issue readaheads even beyond len because it does not
 -- know where the end is.
 {-# INLINE fromHandleN #-}
-fromHandleLen :: (IsStream t, MonadIO m)
+fromHandleN :: (IsStream t, MonadIO m)
     => Handle -> Int -> t m Word8
-fromHandleLen = fromHandleLenWith defaultChunkSize
--}
+fromHandleN = undefined -- fromHandleNWith A.defaultChunkSize
 
--- The stream is lazy and generated on-demand as the consumer reads.  However,
--- it may perform a readahead and buffer some data.
+{-
+-- XXX we need to have the chunk size aligned to sizeOf a
 --
--- | @fromHandleChunksOf chunkSize handle@ reads a byte stream from a file
+-- | @fromHandleWith chunkSize handle@ reads a byte stream from a file
 -- handle.  The stream ends as soon as EOF is encountered.  It will not block
 -- as long as some data is available on the handle. It uses a buffer of
 -- @chunkSize@ to read data from system. For seekable devices, reading starts
--- at the current seek position of the handle.
+-- at the current seek position of the handle.  This API ignores the prevailing
+-- 'TextEncoding' and 'NewlineMode' on the 'Handle'.
 --
-{-# INLINE fromHandleChunksOf #-}
-fromHandleChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-fromHandleChunksOf chunkSize h = A.concatArray $
-    A.readHandleChunksOf chunkSize h
-
-{-
--- XXX we need to have the chunk size aligned to 64-bit
--- | Like fromHandleChunksOf but generates a stream of 64-bit values.
-{-# INLINE fromHandleChunksOf64 #-}
-fromHandleChunksOf64 :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word64
-fromHandleChunksOf64 chunkSize h = A.concatArray $
-    A.readHandleChunksOf chunkSize h
+{-# INLINE fromHandleWith #-}
+fromHandleWith :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+fromHandleWith chunkSize h = A.concatArrays $
+    A.fromHandleArraysWith chunkSize h
 -}
 
--- @
--- > fromHandle = 'fromHandleChunksOf' defaultChunkSize
--- @
+-- |
+-- > fromHandle = 'fromHandleWith' A.defaultChunkSize
 --
--- | Reads a byte stream from a file handle.  The stream ends as soon as EOF is
--- encountered.  This operation does not block as long as some data is
--- available on the handle. It uses a buffer of 'defaultChunkSize' to read data
--- from system.
---
--- For seekable devices, reading starts at the current seek position of the
--- handle. 'fromHandle' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
+{-
+{-# INLINE fromHandleWord8 #-}
+fromHandleWord8 :: (IsStream t, MonadIO m) => Handle -> t m Word8
+fromHandleWord8 = fromHandleWith A.defaultChunkSize
+-}
 {-# INLINE fromHandle #-}
 fromHandle :: (IsStream t, MonadIO m) => Handle -> t m Word8
-fromHandle = fromHandleChunksOf defaultChunkSize
+fromHandle = A.concatArrays . A.fromHandleArrays
+
+{-
+{-# INLINE fromHandle #-}
+fromHandle :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
+fromHandle = fromHandleWith A.defaultChunkSize
+-}
+
+-------------------------------------------------------------------------------
+-- Writing
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Buffering control
+-------------------------------------------------------------------------------
+
+-- General API to buffer by max time or max size.
+
+-------------------------------------------------------------------------------
+-- Stream element unaware: Size based buffering
+-------------------------------------------------------------------------------
+
+-- No buffering (use chunks of 1)
+-- block buffering (use chunks of n)
 
 -- | @bufferN n stream@ buffers every N elements of a stream into an Array and
 -- returns a stream of 'Array's.
 {-# INLINE bufferN #-}
 bufferN :: (IsStream t, Monad m, Storable a) => Int -> t m a -> t m (Array a)
-bufferN n str =
-    D.fromStreamD $ D.groupsOf n (FL.toArrayN n) (D.toStreamD str)
-    -- D.fromStreamD $ D.arrayGroupsOf n (D.toStreamD str)
+bufferN n str = D.fromStreamD $ D.groupsOf n (FL.toArrayN n) (D.toStreamD str)
 
 -- | Write a byte stream to a file handle. Combine the bytes in chunks of
--- specified size before writing. Note that the write behavior depends on the
--- 'IOMode' and the current seek state of the handle.
-{-# INLINE toHandleChunksOf #-}
-toHandleChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-toHandleChunksOf n h m = A.concatToHandle h $ bufferN n m
-
--- @
--- toHandle = 'toHandleChunksOf' defaultChunkSize
--- @
+-- specified size before writing. Note that the write position and behavior
+-- depends on the 'IOMode' and the current seek position of the handle.
 --
--- | Write a byte stream to a file handle. Combines the bytes in chunks of size
--- up to 'defaultChunkSize' before writing.  Note that the write behavior
--- depends on the 'IOMode' and the current seek state of the handle.
+{-# INLINE toHandleArraysOf #-}
+toHandleArraysOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+toHandleArraysOf n h m = A.toHandleArrays h $ bufferN n m
+
+-- |
+-- > toHandle = 'toHandleWith' A.defaultChunkSize
+--
+-- Write a byte stream to a file handle. Combines the bytes in chunks of size
+-- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
+-- depends on the 'IOMode' and the current seek position of the handle.
 {-# INLINE toHandle #-}
 toHandle :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-toHandle = toHandleChunksOf defaultChunkSize
+toHandle = toHandleArraysOf defaultChunkSize
 
--- XXX need a line buffered toHandle routine, as soon as the line is complete
--- we should output.
---
--------------------------------------------------------------------------------
--- Stateless handle based APIs
--------------------------------------------------------------------------------
---
 {-
--- XXX handles could be shared, so we do not want to use the handle state at
--- all for this API. we should use pread and pwrite instead. On windows we will
--- need to use readFile/writeFile with an offset argument. Note, we can do this
--- only on seekable handles.
---
--- @fromHandleChunksAt handle size at@ generates a stream of 'Chunks' from the
--- file handle @handle@, the maximum size of chunks is @size@ and the stream
--- starts at offset @at@ in the file. The stream ends when the file ends. The
--- resulting chunks may be shorter than the specified size but never more than
--- it.
-fromHandleBuffersAt
-    :: (IsStream t, MonadIO m, MonadIO (t m))
-    => Handle -> Int -> Int -> t m Buffer
-fromHandleBuffersAt handle bufSize at = do
-    liftIO $ hSeek handle AbsoluteSeek (fromIntegral at)
-    fromHandleBuffers handle bufSize
-
--- @fromHandleSizedAt handle granularity at@ generate a stream of 'Word8' from
--- the file handle @handle@, performing IO in chunks of size @granularity@ and
--- starting at the offset @at@. The stream ends when the file ends.
-fromHandleWord8At
-    :: (IsStream t, MonadIO m, MonadIO (t m))
-    => Handle -> Int -> Int -> t m Word8
-fromHandleWord8At h chunkSize offset =
-    S.concatMap toWord8Stream $ fromHandleBuffersAt h chunkSize offset
+{-# INLINE toHandle #-}
+toHandle :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+toHandle = toHandleWith A.defaultChunkSize
 -}
 
--- TODO:
--- interact
+-------------------------------------------------------------------------------
+-- Stream element unaware: Time based buffering
+-------------------------------------------------------------------------------
+
+-- There are two ways in which time based buffering can be implemented.
 --
---  XXX coalesce read requests, multiple reads into the same block can be
---  combined into a single read request followed by a view/projection on the
---  read block.  similalrly for write requests. requests may be expensive e.g.
---  when you are requesting from AWS.
+-- 1) One is to use an API like groupsOf to group elements by time and then
+-- flush when the group is complete. This will require checking time on each
+-- element yield.
 --
---  requests can also be reordered to batch them like elevator and then
---  reordered back on receiving the result.
+-- 2) Use an async thread to write. The producer thread would just queue the
+-- elements to be written on a queue associated with the writer thread. When
+-- the write thread is scheduled elements that have been buffered will be
+-- written based on a buffering policy. This will require the producer to
+-- synchronize on the queue, send a doorbell when the queue has items in it.
+-- The queue can be an array which can be written directly to the IO device.
+--
+-- We can try both and see which one performs better.
+
+-------------------------------------------------------------------------------
+-- Stream element aware buffering control
+-------------------------------------------------------------------------------
+--
+-- Frame buffering
+
+{-# INLINE fromHandleFramesOn #-}
+fromHandleFramesOn :: (IsStream t, MonadIO m, Storable a) => Array a -> Handle -> Fold m a b -> t m b
+fromHandleFramesOn = undefined -- foldFrames . fromHandle
+
+-- | Write to the handle as soon as the specified pattern is encountered
+-- or the specified chunk size has exceeded. This can put a limit on the frame
+-- size.
+--
+-- toHandleFramesMax ::
+
+-- | Write to the handle as soon as the specified pattern is encountered
+-- or the A.defaultChunkSize has exceeded.
+--
+{-# INLINE toHandleFramesOn #-}
+toHandleFramesOn :: (IsStream t, MonadIO m, Storable a) => Array a -> Handle -> t m a -> m ()
+toHandleFramesOn = undefined
