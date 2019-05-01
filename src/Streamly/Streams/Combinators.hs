@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE FlexibleContexts          #-}
 
 #include "inline.hs"
 
@@ -32,6 +33,7 @@ import Data.Int (Int64)
 import Streamly.SVar
 import Streamly.Streams.StreamK
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.Async (toAsync)
 
 -------------------------------------------------------------------------------
 -- Concurrency control
@@ -100,7 +102,7 @@ maxBufferSerial _ = id
 --
 -- @since 0.5.0
 {-# INLINE_NORMAL rate #-}
-rate :: IsStream t => Maybe Rate -> t m a -> t m a
+rate :: (IsStream t, MonadAsync m) => Maybe Rate -> t m a -> t m a
 rate r m = mkStream $ \st stp sng yld ->
     case r of
         Just (Rate low goal _ _) | goal < low ->
@@ -109,7 +111,7 @@ rate r m = mkStream $ \st stp sng yld ->
             error "rate: Target rate cannot be greater than maximum rate."
         Just (Rate low _ high _) | low > high ->
             error "rate: Minimum rate cannot be greater than maximum rate."
-        _ -> foldStreamShared (setStreamRate r st) stp sng yld m
+        _ -> foldStreamShared (setStreamRate r st) stp sng yld (toAsync m)
 
 -- XXX implement for serial streams as well, as a simple delay
 
@@ -128,7 +130,7 @@ yieldRateSerial _ = id
 -- the specified rate on the higher side.
 --
 -- @since 0.5.0
-avgRate :: IsStream t => Double -> t m a -> t m a
+avgRate :: (IsStream t, MonadAsync m) => Double -> t m a -> t m a
 avgRate r = rate (Just $ Rate (r/2) r (2*r) maxBound)
 
 -- | Same as @rate (Just $ Rate r r (2*r) maxBound)@
@@ -139,7 +141,7 @@ avgRate r = rate (Just $ Rate (r/2) r (2*r) maxBound)
 -- upper limit is double of the specified rate.
 --
 -- @since 0.5.0
-minRate :: IsStream t => Double -> t m a -> t m a
+minRate :: (IsStream t, MonadAsync m) => Double -> t m a -> t m a
 minRate r = rate (Just $ Rate r r (2*r) maxBound)
 
 -- | Same as @rate (Just $ Rate (r/2) r r maxBound)@
@@ -152,7 +154,7 @@ minRate r = rate (Just $ Rate r r (2*r) maxBound)
 -- beyond certain limits.
 --
 -- @since 0.5.0
-maxRate :: IsStream t => Double -> t m a -> t m a
+maxRate :: (IsStream t, MonadAsync m) => Double -> t m a -> t m a
 maxRate r = rate (Just $ Rate (r/2) r r maxBound)
 
 -- | Same as @rate (Just $ Rate r r r 0)@
@@ -164,7 +166,7 @@ maxRate r = rate (Just $ Rate (r/2) r r maxBound)
 -- constant refresh rate.
 --
 -- @since 0.5.0
-constRate :: IsStream t => Double -> t m a -> t m a
+constRate :: (IsStream t, MonadAsync m) => Double -> t m a -> t m a
 constRate r = rate (Just $ Rate r r r 0)
 
 -- | Specify the average latency, in nanoseconds, of a single threaded action

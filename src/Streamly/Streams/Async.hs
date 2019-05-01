@@ -28,6 +28,7 @@ module Streamly.Streams.Async
     , (<|)             --deprecated
     , mkAsync
     , mkAsync'
+    , toAsync
 
     , WAsyncT
     , WAsync
@@ -455,6 +456,22 @@ mkAsync m = fmap fromSVar (newAsyncVar defState (toStream m))
 {-# INLINABLE mkAsync' #-}
 mkAsync' :: (IsStream t, MonadAsync m) => State Stream m a -> t m a -> m (t m a)
 mkAsync' st m = fmap fromSVar (newAsyncVar st (toStream m))
+
+{-# INLINABLE toAsync #-}
+toAsync :: (IsStream t, MonadAsync m) => t m a -> t m a
+toAsync m = mkStream $ \st stp sng yld -> do
+    let m1 = case streamVar st of
+            Just _ -> m
+            Nothing -> convertToAsync m
+    foldStreamShared st stp sng yld m1
+
+    where
+
+    convertToAsync str = mkStream $ \st stp sng yld -> do
+        let s = toStream str
+        sv <- newAsyncVar st s
+        liftIO $ enqueue sv s
+        foldStream st stp sng yld $ fromSVar sv
 
 -- | Create a new SVar and enqueue one stream computation on it.
 {-# INLINABLE newWAsyncVar #-}
