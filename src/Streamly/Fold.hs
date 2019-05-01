@@ -1376,13 +1376,17 @@ grouped f m = D.fromStreamD $ D.grouped f (D.toStreamD m)
 -- | Apply a predicate to each new element in the input stream and the first
 -- element of the current group. The new element is considered part of the
 -- current group if the predicate succeeds otherwise a new group starts.
+--
+-- >>> S.toList $ FL.groupsBy (==) FL.toList $ S.fromList [1,1,2,2]
+-- > [[1,1],[2,2]]
+--
 groupsBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
     -> Fold m a b
     -> t m a
     -> t m b
-groupsBy cmp f m = undefined
+groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 
 -- | Apply a predicate to each new element in the input stream and the last
 -- element of the current group. In other words, perform a rolling comparison
@@ -1400,10 +1404,11 @@ groupsRollingBy cmp f m = undefined
 -- |
 -- > groups = groupsBy (==)
 --
+-- >>> S.toList $ FL.groups FL.toList $ S.fromList [1,1,2,2]
+-- > [[1,1],[2,2]]
+--
 groups :: (IsStream t, Monad m, Eq a) => Fold m a b -> t m a -> t m b
 groups = groupsBy (==)
-
--- XXX Can be implemented using 'grouped'
 
 ------------------------------------------------------------------------------
 -- Binary splitting on a separator
@@ -1840,7 +1845,7 @@ foldOrderedBy = undefined
 -- of returning a 'Bool' value. A 'Right' value means the group is not complete
 -- yet, a 'Left' value means this is the final chunk of the group. This allows
 -- the fold to eat, replace or add elements to the input, but still emit the
--- output as soon as possible without unnecessary bufferng (compare with
+-- output as soon as possible without unnecessary buffering (compare with
 -- groupByFoldBuffered). For example, we can match on a pattern but emit groups
 -- without the pattern.
 groupsByFoldModifying
