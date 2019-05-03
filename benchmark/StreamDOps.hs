@@ -14,8 +14,8 @@ import Control.Monad (when)
 import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
-         subtract, undefined, Maybe(..), not, mapM_, (>>=),
-         maxBound, fmap, odd, (==))
+         subtract, undefined, Maybe(..), not, (>>=),
+         maxBound, fmap, odd, (==), flip)
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
@@ -77,6 +77,10 @@ source = sourceUnfoldrM
 runStream :: Monad m => Stream m a -> m ()
 runStream = S.runStream
 
+{-# INLINE mapM_ #-}
+mapM_ :: Monad m => Stream m a -> m ()
+mapM_ = S.mapM_ (\_ -> return ())
+
 {-# INLINE toNull #-}
 toNull :: Monad m => Stream m Int -> m ()
 toNull = runStream
@@ -96,15 +100,15 @@ uncons s = do
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= mapM_ tail
+tail s = S.tail s >>= P.mapM_ tail
 
 nullTail s = do
     r <- S.null s
-    when (not r) $ S.tail s >>= mapM_ nullTail
+    when (not r) $ S.tail s >>= P.mapM_ nullTail
 
 headTail s = do
     h <- S.head s
-    when (isJust h) $ S.tail s >>= mapM_ headTail
+    when (isJust h) $ S.tail s >>= P.mapM_ headTail
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -156,9 +160,10 @@ composeN n f =
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileMTrue #-}
 {-# INLINE dropWhileFalse #-}
+{-# INLINE foldlS #-}
 scan, map, fmap, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
-    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse, foldlS
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -182,6 +187,7 @@ dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
+foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 
 -------------------------------------------------------------------------------
 -- Iteration

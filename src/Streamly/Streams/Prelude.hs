@@ -31,8 +31,16 @@ module Streamly.Streams.Prelude
 
     -- * Fold operations
     , foldrM
+    , foldrMx
     , foldr
+
+    , foldlx'
+    , foldlMx'
     , foldl'
+
+    -- Lazy left folds are useful only for reversing the stream
+    , foldlS
+    , foldlT
 
     -- * Zip style operations
     , eqBy
@@ -45,6 +53,7 @@ module Streamly.Streams.Prelude
     )
 where
 
+import Control.Monad.Trans (MonadTrans(..))
 import Prelude hiding (foldr)
 import qualified Prelude
 
@@ -112,12 +121,36 @@ toList m = S.toList $ toStreamS m
 ------------------------------------------------------------------------------
 
 {-# INLINE foldrM #-}
-foldrM :: (Monad m, IsStream t) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM :: (Monad m, IsStream t) => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = S.foldrM step acc $ toStreamS m
+
+{-# INLINE foldrMx #-}
+foldrMx :: (Monad m, IsStream t)
+    => (a -> m x -> m x) -> m x -> (m x -> m b) -> t m a -> m b
+foldrMx step final project m = S.foldrMx step final project $ toStreamS m
 
 {-# INLINE foldr #-}
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b
-foldr f = foldrM (\a b -> return (f a b))
+foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
+
+-- | Like 'foldlx'', but with a monadic step function.
+--
+-- @since 0.7.0
+{-# INLINE foldlMx' #-}
+foldlMx' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
+foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
+
+-- | Strict left fold with an extraction function. Like the standard strict
+-- left fold, but applies a user supplied extraction function (the third
+-- argument) to the folded value at the end. This is designed to work with the
+-- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
+--
+-- @since 0.7.0
+{-# INLINE foldlx' #-}
+foldlx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
+foldlx' step begin done m = S.foldlx' step begin done $ toStreamS m
 
 -- | Strict left associative fold.
 --
@@ -125,6 +158,21 @@ foldr f = foldrM (\a b -> return (f a b))
 {-# INLINE foldl' #-}
 foldl' :: (Monad m, IsStream t) => (b -> a -> b) -> b -> t m a -> m b
 foldl' step begin m = S.foldl' step begin $ toStreamS m
+
+{-# INLINE foldlS #-}
+foldlS :: IsStream t => (t m b -> a -> t m b) -> t m b -> t m a -> t m b
+foldlS = K.foldlS
+
+-- | Lazy left fold to a transformer monad.
+--
+-- For example, to reverse a stream:
+--
+-- > S.toList $ S.foldlT (flip S.cons) S.nil $ (S.fromList [1..5] :: SerialT IO Int)
+--
+{-# INLINE foldlT #-}
+foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
+foldlT f z s = S.foldlT f z (toStreamS s)
 
 ------------------------------------------------------------------------------
 -- Comparison

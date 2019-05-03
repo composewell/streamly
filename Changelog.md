@@ -1,3 +1,23 @@
+## Unreleased
+
+### Breaking changes
+
+* Change the signature of `foldrM` to ensure that it is lazy
+
+### Enhancements
+
+* Add `foldrS` to fold a stream to a stream
+* Add `foldrT` to fold a stream to an arbitrary transformer monad
+* Add `toRevList` to fold a stream to a reverse list
+
+### Deprecations
+
+* Deprecate `foldr` and `foldr1`. Given the signature of `foldr`, its behavior
+  necessarily depends on the strictness or laziness of the underlying monad.
+  Therefore, it cannot be lazy enough in a strict monad like IO. For that
+  reason we no longer support this version of right fold. Please use `foldrM`
+  instead.
+
 ## 0.6.1
 
 ### Bug Fixes

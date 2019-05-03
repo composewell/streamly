@@ -6,6 +6,8 @@
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE PatternSynonyms           #-}
+{-# LANGUAGE RecordWildCards           #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
@@ -86,11 +88,20 @@ module Streamly.Streams.StreamD
 
     -- * Elimination
     -- ** General Folds
-    , foldr
+    , foldrT
     , foldrM
+    , foldrMx
+    , foldr
     , foldr1
+
     , foldl'
     , foldlM'
+    , foldlS
+    , foldlT
+    , reverse
+
+    , foldlx'
+    , foldlMx'
 
     -- ** Specialized Folds
     , runStream
@@ -111,6 +122,8 @@ module Streamly.Streams.StreamD
     , findM
     , find
     , (!!)
+
+    -- ** Flattening nested streams
     , concatMapM
     , concatMap
 
@@ -125,6 +138,7 @@ module Streamly.Streams.StreamD
     -- ** Conversions
     -- | Transform a stream into another type.
     , toList
+    , toRevList
     , toStreamK
     , toStreamD
 
@@ -191,13 +205,15 @@ module Streamly.Streams.StreamD
     )
 where
 
+import Control.Monad.Trans (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
-import GHC.Types ( SPEC(..) )
+import GHC.Types (SPEC(..))
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
-               (!!), scanl, scanl1, concatMap, replicate, enumFromTo)
+               (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
+               reverse)
 
 import Streamly.SVar (MonadAsync, defState, adaptState)
 
@@ -508,20 +524,9 @@ toStreamD = fromStreamK . K.toStream
 -- Elimination by Folds
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL foldrM #-}
-foldrM :: Monad m => (a -> b -> m b) -> b -> Stream m a -> m b
-foldrM f z (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-          r <- step defState st
-          case r of
-            Yield x s -> go SPEC s >>= f x
-            Skip s    -> go SPEC s
-            Stop      -> return z
-
-{-# INLINE_NORMAL foldr #-}
-foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
-foldr f = foldrM (\a b -> return (f a b))
+------------------------------------------------------------------------------
+-- Right Folds
+------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL foldr1 #-}
 foldr1 :: Monad m => (a -> a -> a) -> Stream m a -> m (Maybe a)
@@ -531,6 +536,32 @@ foldr1 f m = do
          Nothing   -> return Nothing
          Just (h, t) -> fmap Just (foldr f h t)
 
+------------------------------------------------------------------------------
+-- Left Folds
+------------------------------------------------------------------------------
+
+-- XXX run begin action only if the stream is not empty.
+{-# INLINE_NORMAL foldlMx' #-}
+foldlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
+foldlMx' fstep begin done (Stream step state) =
+    begin >>= \x -> go SPEC x state
+  where
+    -- XXX !acc?
+    go !_ acc st = acc `seq` do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Skip s -> go SPEC acc s
+            Stop   -> done acc
+
+{-# INLINE foldlx' #-}
+foldlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
+foldlx' fstep begin done m =
+    foldlMx' (\b a -> return (fstep b a)) (return begin) (return . done) m
+
+-- XXX implement in terms of foldlMx'
 {-# INLINE_NORMAL foldlM' #-}
 foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
 foldlM' fstep begin (Stream step state) = go SPEC begin state
@@ -544,6 +575,40 @@ foldlM' fstep begin (Stream step state) = go SPEC begin state
             Skip s -> go SPEC acc s
             Stop   -> return acc
 
+{-# INLINE_NORMAL foldlT #-}
+foldlT :: (Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
+foldlT fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = do
+        r <- lift $ step defState st
+        case r of
+            Yield x s -> go SPEC (fstep acc x) s
+            Skip s -> go SPEC acc s
+            Stop   -> acc
+
+-- Note, this is going to have horrible performance, because of the nature of
+-- the stream type (i.e. direct stream vs CPS). Its only for reference, it is
+-- likely be practically unusable.
+{-# INLINE_NORMAL foldlS #-}
+foldlS :: Monad m
+    => (Stream m b -> a -> Stream m b) -> Stream m b -> Stream m a -> Stream m b
+foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
+  where
+    step' gst (Left (st, acc)) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (Left (s, fstep acc x))
+            Skip s -> Skip (Left (s, acc))
+            Stop   -> Skip (Right acc)
+
+    step' gst (Right (Stream stp stt)) = do
+        r <- stp (adaptState gst) stt
+        return $ case r of
+            Yield x s -> Yield x (Right (Stream stp s))
+            Skip s -> Skip (Right (Stream stp s))
+            Stop   -> Stop
+
 {-# INLINE foldl' #-}
 foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
 foldl' fstep = foldlM' (\b a -> return (fstep b a))
@@ -555,6 +620,7 @@ foldl' fstep = foldlM' (\b a -> return (fstep b a))
 -- | Run a streaming composition, discard the results.
 {-# INLINE_LATE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
+-- runStream m = foldrM (\x xs -> x `seq` xs) (return ()) m
 runStream (Stream step state) = go SPEC state
   where
     go !_ st = do
@@ -566,26 +632,12 @@ runStream (Stream step state) = go SPEC state
 
 {-# INLINE_NORMAL null #-}
 null :: Monad m => Stream m a -> m Bool
-null (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield _ _ -> return False
-            Skip s    -> go s
-            Stop      -> return True
+null m = foldrM (\_ _ -> return False) (return True) m
 
 -- XXX SPEC?
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
-head (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield x _ -> return (Just x)
-            Skip  s   -> go s
-            Stop      -> return Nothing
+head m = foldrM (\x _ -> return (Just x)) (return Nothing) m
 
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}
@@ -606,6 +658,7 @@ last = foldl' (\_ y -> Just y) Nothing
 
 {-# INLINE_NORMAL elem #-}
 elem :: (Monad m, Eq a) => a -> Stream m a -> m Bool
+-- elem e m = foldrM (\x xs -> if x == e then return True else xs) (return False) m
 elem e (Stream step state) = go state
   where
     go st = do
@@ -623,6 +676,7 @@ notElem e s = fmap not (elem e s)
 
 {-# INLINE_NORMAL all #-}
 all :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+-- all p m = foldrM (\x xs -> if p x then xs else return False) (return True) m
 all p (Stream step state) = go state
   where
     go st = do
@@ -636,6 +690,7 @@ all p (Stream step state) = go state
 
 {-# INLINE_NORMAL any #-}
 any :: Monad m => (a -> Bool) -> Stream m a -> m Bool
+-- any p m = foldrM (\x xs -> if p x then return True else xs) (return False) m
 any p (Stream step state) = go state
   where
     go st = do
@@ -738,27 +793,13 @@ minimumBy cmp (Stream step state) = go Nothing state
 
 {-# INLINE_NORMAL lookup #-}
 lookup :: (Monad m, Eq a) => a -> Stream m (a, b) -> m (Maybe b)
-lookup e (Stream step state) = go state
-  where
-    go st = do
-        r <- step defState st
-        case r of
-            Yield (a, b) s -> if e == a then return (Just b) else go s
-            Skip s -> go s
-            Stop -> return Nothing
+lookup e m = foldrM (\(a, b) xs -> if e == a then return (Just b) else xs)
+                   (return Nothing) m
 
 {-# INLINE_NORMAL findM #-}
 findM :: Monad m => (a -> m Bool) -> Stream m a -> m (Maybe a)
-findM p (Stream step state) = go SPEC state
-  where
-    go !_ st = do
-      r <- step defState st
-      case r of
-          Yield x s -> do
-              b <- p x
-              if b then return (Just x) else go SPEC s
-          Skip s    -> go SPEC s
-          Stop      -> return Nothing
+findM p m = foldrM (\x xs -> p x >>= \r -> if r then return (Just x) else xs)
+                   (return Nothing) m
 
 {-# INLINE find #-}
 find :: Monad m => (a -> Bool) -> Stream m a -> m (Maybe a)
@@ -775,6 +816,33 @@ findIndices p (Stream step state) = Stream step' (state, 0)
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
           Skip s -> Skip (s, i+1)
           Stop   -> Stop
+
+{-# INLINE toRevList #-}
+toRevList :: Monad m => Stream m a -> m [a]
+toRevList = foldl' (flip (:)) []
+
+-- We can implement reverse as:
+--
+-- > reverse = foldlS (flip cons) nil
+--
+-- However, this implementation is unusable because of the horrible performance
+-- of cons. So we just convert it to a list first and then stream from the
+-- list.
+--
+-- XXX Maybe we can use an Array instead of a list here?
+{-# INLINE_NORMAL reverse #-}
+reverse :: Monad m => Stream m a -> Stream m a
+reverse m = Stream step Nothing
+    where
+        step _ Nothing = do
+            xs <- toRevList m
+            return $ Skip (Just xs)
+        step _ (Just (x:xs)) = return $ Yield x (Just xs)
+        step _ (Just []) = return Stop
+
+------------------------------------------------------------------------------
+-- concatMap
+------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
@@ -887,10 +955,6 @@ mapM_ m = runStream . mapM m
 ------------------------------------------------------------------------------
 -- Converting folds
 ------------------------------------------------------------------------------
-
-{-# INLINE toList #-}
-toList :: Monad m => Stream m a -> m [a]
-toList = foldr (:) []
 
 -- Convert a direct stream to and from CPS encoded stream
 {-# INLINE_LATE toStreamK #-}

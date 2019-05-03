@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -5,7 +6,7 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(..))
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
@@ -15,6 +16,10 @@ import qualified LinearOps as Ops
 import Streamly
 import qualified Streamly.Prelude as S
 import Gauge
+
+-------------------------------------------------------------------------------
+--
+-------------------------------------------------------------------------------
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -108,25 +113,15 @@ main =
         , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
         ]
       , bgroup "elimination"
-        [ benchIOSink "toNull" $ Ops.toNull serially
-        , benchIOSink "uncons" Ops.uncons
-        , benchIOSink "init" Ops.init
-        , benchIOSink "tail" Ops.tail
-        , benchIOSink "nullHeadTail" Ops.nullHeadTail
-        , benchIOSink "mapM_" Ops.mapM_
-        , benchIOSink "toList" Ops.toList
-
-        , bgroup "reduce"
+        [ bgroup "reduce"
           [ bgroup "IO"
-            [ benchIOSink "foldr" Ops.foldrReduce
-            , benchIOSink "foldr1" Ops.foldr1Reduce
+            [ benchIOSink "foldrM" Ops.foldrMReduce
             , benchIOSink "foldl'" Ops.foldl'Reduce
             , benchIOSink "foldl1'" Ops.foldl1'Reduce
             , benchIOSink "foldlM'" Ops.foldlM'Reduce
             ]
           , bgroup "Identity"
-            [ benchIdentitySink "foldr" Ops.foldrReduce
-            , benchIdentitySink "foldr1" Ops.foldr1Reduce
+            [ benchIdentitySink "foldrM" Ops.foldrMReduce
             , benchIdentitySink "foldl'" Ops.foldl'Reduce
             , benchIdentitySink "foldl1'" Ops.foldl1'Reduce
             , benchIdentitySink "foldlM'" Ops.foldlM'Reduce
@@ -135,36 +130,52 @@ main =
 
         , bgroup "build"
           [ bgroup "IO"
-            [ benchIOSink "foldr" Ops.foldrBuild
-            , benchIOSink "foldrM" Ops.foldrMBuild
+            [ benchIOSink "foldrM" Ops.foldrMBuild
             , benchIOSink "foldl'" Ops.foldl'Build
             , benchIOSink "foldlM'" Ops.foldlM'Build
             ]
           , bgroup "Identity"
-            [ benchIdentitySink "foldr" Ops.foldrBuild
-            , benchIdentitySink "foldrM" Ops.foldrMBuild
+            [ benchIdentitySink "foldrM" Ops.foldrMBuild
             , benchIdentitySink "foldl'" Ops.foldl'Build
             , benchIdentitySink "foldlM'" Ops.foldlM'Build
             ]
           ]
+        , benchIOSink "uncons" Ops.uncons
+        , benchIOSink "toNull" $ Ops.toNull serially
+        , benchIOSink "mapM_" Ops.mapM_
 
+        , benchIOSink "init" Ops.init
+        , benchIOSink "tail" Ops.tail
+        , benchIOSink "nullHeadTail" Ops.nullHeadTail
+
+        -- this is too low and causes all benchmarks reported in ns
+        -- , benchIOSink "head" Ops.head
         , benchIOSink "last" Ops.last
-        , benchIOSink "length" Ops.length
+        -- , benchIOSink "lookup" Ops.lookup
+        , benchIOSink "find" Ops.find
+        , benchIOSink "findIndex" Ops.findIndex
+        , benchIOSink "elemIndex" Ops.elemIndex
+
+        -- this is too low and causes all benchmarks reported in ns
+        -- , benchIOSink "null" Ops.null
         , benchIOSink "elem" Ops.elem
         , benchIOSink "notElem" Ops.notElem
         , benchIOSink "all" Ops.all
         , benchIOSink "any" Ops.any
         , benchIOSink "and" Ops.and
         , benchIOSink "or" Ops.or
-        , benchIOSink "find" Ops.find
-        , benchIOSink "findIndex" Ops.findIndex
-        , benchIOSink "elemIndex" Ops.elemIndex
-        , benchIOSink "maximum" Ops.maximum
-        , benchIOSink "maximumBy" Ops.maximumBy
-        , benchIOSink "minimum" Ops.minimum
-        , benchIOSink "minimumBy" Ops.minimumBy
+
+        , benchIOSink "length" Ops.length
         , benchIOSink "sum" Ops.sum
         , benchIOSink "product" Ops.product
+
+        , benchIOSink "maximumBy" Ops.maximumBy
+        , benchIOSink "maximum" Ops.maximum
+        , benchIOSink "minimumBy" Ops.minimumBy
+        , benchIOSink "minimum" Ops.minimum
+
+        , benchIOSink "toList" Ops.toList
+        , benchIOSink "toRevList" Ops.toRevList
         ]
       , bgroup "transformation"
         [ benchIOSink "scan" (Ops.scan 1)
@@ -178,6 +189,11 @@ main =
             Ops.sequence serially (Ops.sourceUnfoldrMAction n)
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
+        , benchIOSink "reverse" (Ops.reverse 1)
+        , benchIOSink "foldrS" (Ops.foldrS 1)
+        , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
+        , benchIOSink "foldrT" (Ops.foldrT 1)
+        , benchIOSink "foldrTMap" (Ops.foldrTMap 1)
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)

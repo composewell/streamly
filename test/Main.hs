@@ -487,7 +487,7 @@ parallelTests = H.parallel $ do
     it "takes n from stream of streams" (takeCombined 3 wAsyncly)
 
     ---------------------------------------------------------------------------
-    -- Folds are strict enough
+    -- Left folds are strict enough
     ---------------------------------------------------------------------------
 
     it "foldx is strict enough" checkFoldxStrictness
@@ -497,6 +497,12 @@ parallelTests = H.parallel $ do
     it "foldxM is strict enough" (checkFoldMStrictness foldxMStrictCheck)
     it "foldlM' is strict enough" (checkFoldMStrictness foldlM'StrictCheck)
     it "scanlM' is strict enough" (checkScanlMStrictness scanlM'StrictCheck)
+
+    ---------------------------------------------------------------------------
+    -- Right folds are lazy enough
+    ---------------------------------------------------------------------------
+
+    it "foldrM is lazy enough" checkFoldrLaziness
 
     ---------------------------------------------------------------------------
     -- Monadic state snapshot in concurrent tasks
@@ -622,6 +628,22 @@ takeCombined n t = do
     r <- (S.toList . t) $
             S.take n (constr ([] :: [Int]) <> constr ([] :: [Int]))
     r `shouldBe` []
+
+checkFoldrLaziness :: IO ()
+checkFoldrLaziness = do
+    S.foldrM (\x xs -> if odd x then return True else xs)
+             (return False) (S.fromList (2:4:5:undefined :: [Int]))
+        `shouldReturn` True
+
+    S.toList (S.foldrS (\x xs -> if odd x then return True else xs)
+                        (return False)
+                        $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
+        `shouldReturn` [True]
+
+    S.toList (S.foldrT (\x xs -> if odd x then return True else xs)
+                        (return False)
+                        $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
+        `shouldReturn` [True]
 
 checkFoldxStrictness :: IO ()
 checkFoldxStrictness = do

@@ -3,11 +3,13 @@ packages:
 - '.'
 extra-deps:
     - SDL-0.6.6.0
-    - Chart-1.9
-    - Chart-diagrams-1.9
-    - SVGFonts-1.6.0.3
+    - Chart-1.9.1
+    - Chart-diagrams-1.9.2
     - bench-show-0.2.2
 
+    - diagrams-postscript-1.4.1@sha256:a39c44f8a93929de88e5c363290d5bb8bc93ba15cd36af5c9ca5b620d51cdf68
+
+allow-newer: true
 flags: {}
 extra-package-dbs: []
 rebuild-ghc-options: true

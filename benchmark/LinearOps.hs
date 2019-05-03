@@ -165,6 +165,7 @@ runStream = S.runStream
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
 
+{-# INLINE head #-}
 {-# INLINE last #-}
 {-# INLINE maximum #-}
 {-# INLINE minimum #-}
@@ -172,8 +173,7 @@ toList :: Monad m => Stream m Int -> m [Int]
 {-# INLINE findIndex #-}
 {-# INLINE elemIndex #-}
 {-# INLINE foldl1'Reduce #-}
-{-# INLINE foldr1Reduce #-}
-last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce, foldr1Reduce
+head, last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce
     :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE minimumBy #-}
@@ -182,19 +182,18 @@ minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE foldl'Reduce #-}
 {-# INLINE foldlM'Reduce #-}
-{-# INLINE foldrReduce #-}
+{-# INLINE foldrMReduce #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
 {-# INLINE product #-}
-foldl'Reduce, foldlM'Reduce, foldrReduce, length, sum, product
+foldl'Reduce, foldlM'Reduce, foldrMReduce, length, sum, product
     :: Monad m
     => Stream m Int -> m Int
 
 {-# INLINE foldl'Build #-}
 {-# INLINE foldlM'Build #-}
-{-# INLINE foldrBuild #-}
 {-# INLINE foldrMBuild #-}
-foldrBuild, foldrMBuild, foldl'Build, foldlM'Build
+foldrMBuild, foldl'Build, foldlM'Build
     :: Monad m
     => Stream m Int -> m [Int]
 
@@ -202,9 +201,10 @@ foldrBuild, foldrMBuild, foldl'Build, foldlM'Build
 {-# INLINE any #-}
 {-# INLINE and #-}
 {-# INLINE or #-}
+{-# INLINE null #-}
 {-# INLINE elem #-}
 {-# INLINE notElem #-}
-elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
+null, elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
 
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
@@ -240,18 +240,22 @@ mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
 
-foldl'Build = S.foldl' (flip (:)) []
-foldrBuild  = S.foldr (:) []
-foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
-foldrMBuild  = S.foldrM  (\x xs -> return $ x : xs) []
+{-# INLINE toRevList #-}
+toRevList :: Monad m => Stream m Int -> m [Int]
+toRevList = S.toRevList
 
-foldrReduce = S.foldr (+) 0
-foldr1Reduce = S.foldr1 (+)
+foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
+foldl'Build = S.foldl' (flip (:)) []
+foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
+
+foldrMReduce = S.foldrM (\x xs -> xs >>= return . (x +)) (return 0)
 foldl'Reduce = S.foldl' (+) 0
 foldl1'Reduce = S.foldl1' (+)
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 
 last   = S.last
+null   = S.null
+head   = S.head
 elem   = S.elem maxValue
 notElem = S.notElem maxValue
 length = S.length
@@ -323,10 +327,16 @@ composeN' n f =
 {-# INLINE elemIndices #-}
 {-# INLINE insertBy #-}
 {-# INLINE deleteBy #-}
+{-# INLINE reverse #-}
+{-# INLINE foldrS #-}
+{-# INLINE foldrSMap #-}
+{-# INLINE foldrT #-}
+{-# INLINE foldrTMap #-}
 scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy
+    findIndices, elemIndices, insertBy, deleteBy, reverse,
+    foldrS, foldrSMap, foldrT, foldrTMap
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -374,6 +384,11 @@ findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
+reverse        n = composeN n $ S.reverse
+foldrS         n = composeN n $ S.foldrS S.cons S.nil
+foldrSMap      n = composeN n $ S.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
+foldrT         n = composeN n $ S.foldrT S.cons S.nil
+foldrTMap      n = composeN n $ S.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
 
 -------------------------------------------------------------------------------
 -- Iteration

@@ -75,11 +75,15 @@ module Streamly.Streams.StreamK
     -- ** General Folds
     , foldr
     , foldrM
+    , foldrS
+    , foldrT
     , foldr1
     , foldl'
     , foldlM'
-    , foldx
-    , foldxM
+    , foldlS
+    , foldlT
+    , foldx'
+    , foldxM'
 
     -- ** Specialized Folds
     , runStream
@@ -112,7 +116,7 @@ module Streamly.Streams.StreamK
     -- * Transformation
     -- ** By folding (scans)
     , scanl'
-    , scanx
+    , scanx'
 
     -- ** Filtering
     , filter
@@ -132,6 +136,9 @@ module Streamly.Streams.StreamK
 
     -- ** Deleting
     , deleteBy
+
+    -- ** Reordering
+    , reverse
 
     -- ** Map and Filter
     , mapMaybe
@@ -161,13 +168,14 @@ module Streamly.Streams.StreamK
     )
 where
 
+import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad (void)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1, (!!), replicate)
+               foldr1, (!!), replicate, reverse)
 import qualified Prelude
 
 import Streamly.SVar
@@ -349,14 +357,38 @@ foldr step acc m = go m
 
 -- | Lazy right fold with a monadic step function.
 {-# INLINE foldrM #-}
-foldrM :: (IsStream t, Monad m) => (a -> b -> m b) -> b -> t m a -> m b
+foldrM :: IsStream t => (a -> m b -> m b) -> m b -> t m a -> m b
 foldrM step acc m = go m
     where
     go m1 =
-        let stop = return acc
+        let stop = acc
             single a = step a acc
-            yieldk a r = go r >>= step a
+            yieldk a r = step a (go r)
         in foldStream defState yieldk single stop m1
+
+-- | Lazy right associative fold to a stream.
+{-# INLINE foldrS #-}
+foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
+foldrS step final m = go m
+    where
+    go m1 = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
+            stop = run final
+            single a = run $ step a final
+            yieldk a r = run $ step a (go r)
+         in foldStream (adaptState st) yieldk single stop m1
+
+-- | Right associative fold to an arbitrary transformer monad.
+{-# INLINE foldrT #-}
+foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
+    => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
+foldrT step final m = go m
+  where
+    go m1 = do
+        res <- lift $ uncons m1
+        case res of
+            Just (h, t) -> step h (go t)
+            Nothing -> final
 
 {-# INLINE foldr1 #-}
 foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
@@ -378,10 +410,10 @@ foldr1 step m = do
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
 --
 -- Note that the accumulator is always evaluated including the initial value.
-{-# INLINE foldx #-}
-foldx :: forall t m a b x. (IsStream t, Monad m)
+{-# INLINE foldx' #-}
+foldx' :: forall t m a b x. (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldx step begin done m = get $ go m begin
+foldx' step begin done m = get $ go m begin
     where
     {-# NOINLINE get #-}
     get :: t m x -> m b
@@ -408,14 +440,14 @@ foldx step begin done m = get $ go m begin
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
 foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
-foldl' step begin = foldx step begin id
+foldl' step begin = foldx' step begin id
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
-{-# INLINABLE foldxM #-}
-foldxM :: (IsStream t, Monad m)
+{-# INLINABLE foldxM' #-}
+foldxM' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
-foldxM step begin done m = go begin m
+foldxM' step begin done m = go begin m
     where
     go !acc m1 =
         let stop = acc >>= done
@@ -426,7 +458,31 @@ foldxM step begin done m = go begin m
 -- | Like 'foldl'' but with a monadic step function.
 {-# INLINE foldlM' #-}
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
-foldlM' step begin = foldxM step (return begin) return
+foldlM' step begin = foldxM' step (return begin) return
+
+-- | Lazy left fold to a stream.
+{-# INLINE foldlS #-}
+foldlS :: IsStream t => (t m b -> a -> t m b) -> t m b -> t m a -> t m b
+foldlS step begin m = go begin m
+    where
+    go acc rest = mkStream $ \st yld sng stp ->
+        let run x = foldStream st yld sng stp x
+            stop = run acc
+            single a = run $ step acc a
+            yieldk a r = run $ go (step acc a) r
+         in foldStream (adaptState st) yieldk single stop rest
+
+-- | Lazy left fold to an arbitrary transformer monad.
+{-# INLINE foldlT #-}
+foldlT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
+    => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
+foldlT step begin m = go begin m
+  where
+    go acc m1 = do
+        res <- lift $ uncons m1
+        case res of
+            Just (h, t) -> go (step acc h) t
+            Nothing -> acc
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -528,7 +584,7 @@ any p m = go m
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
 last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
-last = foldx (\_ y -> Just y) Nothing id
+last = foldx' (\_ y -> Just y) Nothing id
 
 {-# INLINE minimum #-}
 minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
@@ -700,9 +756,9 @@ toStreamK = id
 -- Transformation by folding (Scans)
 -------------------------------------------------------------------------------
 
-{-# INLINE scanx #-}
-scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx step begin done m =
+{-# INLINE scanx' #-}
+scanx' :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx' step begin done m =
     cons (done begin) $ go m begin
     where
     go m1 !acc = mkStream $ \st yld sng stp ->
@@ -714,7 +770,7 @@ scanx step begin done m =
 
 {-# INLINE scanl' #-}
 scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
-scanl' step begin = scanx step begin id
+scanl' step begin = scanx' step begin id
 
 -------------------------------------------------------------------------------
 -- Filtering
@@ -845,6 +901,14 @@ deleteBy eq x m = go m
               then foldStream st yld sng stp r
               else yld a (go r)
          in foldStream st yieldk single stp m1
+
+------------------------------------------------------------------------------
+-- Reordering
+------------------------------------------------------------------------------
+
+{-# INLINE reverse #-}
+reverse :: IsStream t => t m a -> t m a
+reverse = foldlS (flip cons) nil
 
 -------------------------------------------------------------------------------
 -- Map and Filter

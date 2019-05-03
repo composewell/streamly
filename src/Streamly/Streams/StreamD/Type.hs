@@ -34,12 +34,21 @@ module Streamly.Streams.StreamD.Type
 #endif
     , map
     , mapM
+    , foldrT
+    , foldrM
+    , foldrMx
+    , foldr
+    , toList
     )
 where
 
-import Streamly.SVar (State(..), adaptState)
+import Control.Applicative (liftA2)
+import Control.Monad.Trans (lift, MonadTrans)
+import GHC.Types (SPEC(..))
+import Prelude hiding (map, mapM, foldr)
+import Streamly.SVar (State(..), adaptState, defState)
+
 import qualified Streamly.Streams.StreamK as K
-import Prelude hiding (map, mapM)
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -98,3 +107,75 @@ map f = mapM (return . f)
 instance Monad m => Functor (Stream m) where
     {-# INLINE fmap #-}
     fmap = map
+
+-- XXX Use of SPEC constructor in folds causes 2x performance degradation in
+-- one shot operations, but helps immensely in operations composed of multiple
+-- combinators or the same combinator many times. There seems to be an
+-- opportunity to optimize here, can we get both, better perf for single ops
+-- as well as composed ops? Without SPEC, all single operation benchmarks
+-- become 2x faster.
+
+-- The way we want a left fold to be strict, dually we want the right fold to
+-- be lazy.  The correct signature of the fold function to keep it lazy must be
+-- (a -> m b -> m b) instead of (a -> b -> m b). We were using the latter
+-- earlier, which is incorrect. In the latter signature we have to feed the
+-- value to the fold function after evaluating the monadic action, depending on
+-- the bind behavior of the monad, the action may get evaluated immediately
+-- introducing unnecessary strictness to the fold. If the implementation is
+-- lazy the following example, must work:
+--
+-- S.foldrM (\x t -> if x then return t else return False) (return True)
+--  (S.fromList [False,undefined] :: SerialT IO Bool)
+--
+{-# INLINE_NORMAL foldrM #-}
+foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
+foldrM f z (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+          r <- step defState st
+          case r of
+            Yield x s -> f x (go SPEC s)
+            Skip s    -> go SPEC s
+            Stop      -> z
+
+{-# INLINE_NORMAL foldrMx #-}
+foldrMx :: Monad m
+    => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
+foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
+  where
+    go !_ st = do
+          r <- step defState st
+          case r of
+            Yield x s -> fstep x (go SPEC s)
+            Skip s    -> go SPEC s
+            Stop      -> final
+
+-- Note that foldr works on pure values, therefore it becomes necessarily
+-- strict when the monad m is strict. In that case it cannot terminate early,
+-- it would evaluate all of its input.  Though, this should work fine with lazy
+-- monads. For example, if "any" is implemented using "foldr" instead of
+-- "foldrM" it performs the same with Identity monad but performs 1000x slower
+-- with IO monad.
+--
+{-# INLINE_NORMAL foldr #-}
+foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
+foldr f z = foldrM (\a b -> liftA2 f (return a) b) (return z)
+
+-- Right fold to some transformer (T) monad.  This can be useful to implement
+-- stateless combinators like map, filtering, insertions, takeWhile, dropWhile.
+--
+{-# INLINE_NORMAL foldrT #-}
+foldrT :: (Monad m, Monad (t m), MonadTrans t)
+    => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
+foldrT f final (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+          r <- lift $ step defState st
+          case r of
+            Yield x s -> f x (go SPEC s)
+            Skip s    -> go SPEC s
+            Stop      -> final
+
+{-# INLINE toList #-}
+toList :: Monad m => Stream m a -> m [a]
+toList = foldr (:) []

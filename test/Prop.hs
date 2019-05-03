@@ -336,7 +336,8 @@ concurrentFoldrApplication n =
         -- XXX we should test empty list case as well
         let list = [0..n]
         stream <- run $
-            sourceUnfoldrM1 n |&. S.foldrM (\x xs -> return (x : xs)) []
+            sourceUnfoldrM1 n |&. S.foldrM (\x xs -> xs >>= return . (x :))
+                                           (return [])
         listEquals (==) stream list
 
 -------------------------------------------------------------------------------
@@ -550,8 +551,10 @@ eliminationOps constr desc t = do
         eliminateOp constr (foldl' (+) 0) $ S.foldl' (+) 0 . t
     prop (desc <> " foldl1'") $
         eliminateOp constr (wrapMaybe $ foldl1' (+)) $ S.foldl1' (+) . t
+#ifdef DEVBUILD
     prop (desc <> " foldr1") $
         eliminateOp constr (wrapMaybe $ foldr1 (+)) $ S.foldr1 (+) . t
+#endif
     prop (desc <> " all") $ eliminateOp constr (all even) $ S.all even . t
     prop (desc <> " any") $ eliminateOp constr (any even) $ S.any even . t
     prop (desc <> " and") $ eliminateOp constr (and . fmap (> 0)) $
