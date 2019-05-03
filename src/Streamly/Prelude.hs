@@ -336,13 +336,21 @@ module Streamly.Prelude
 
     -- ** Stateful Filters
     , take
+    -- , takeEnd
     , takeWhile
     , takeWhileM
+    -- , takeWhileEnd
     , drop
+    -- , dropEnd
     , dropWhile
     , dropWhileM
+    -- , dropWhileEnd
+    -- , dropAround
     , deleteBy
     , uniq
+    -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
+    -- , uniqOn -- to remove duplicate sequences
+    -- , pruneBy -- dropAround + uniqBy - like words
 
     -- ** Mapping Filters
     -- | Mapping along with filtering
@@ -390,6 +398,8 @@ module Streamly.Prelude
 
     , concatMapM
     , concatMap
+    -- , interposeBy
+    -- , intercalate
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -448,8 +458,12 @@ module Streamly.Prelude
     , eqBy
     , cmpBy
     , isPrefixOf
+    -- , isSuffixOf
+    -- , isInfixOf
     , isSubsequenceOf
     , stripPrefix
+    -- , stripSuffix
+    -- , stripInfix
 
     -- * Deprecated
     , K.once
@@ -946,10 +960,15 @@ foldrM = P.foldrM
 
 -- | Right fold to a streaming monad.
 --
+-- > foldrS S.cons S.nil === id
+--
 -- 'foldrS' can be used to perform stateless stream to stream transformations
 -- like map and filter in general. It can be coupled with a scan to perform
 -- stateful transformations. However, note that the custom map and filter
 -- routines can be much more efficient than this due to better stream fusion.
+--
+-- >>> S.toList $ S.foldrS S.cons S.nil $ S.fromList [1..5]
+-- > [1,2,3,4,5]
 --
 -- Find if any element in the stream is 'True':
 --
@@ -2095,3 +2114,12 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 {-# INLINE concatMapM #-}
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
+
+{-
+-- | A generalization of insertBy to inserting sequences.
+interposeBy :: (IsStream t, Monad m)
+    => (a -> a -> Ordering) -> t m a -> t m a -> t m a
+
+-- | A generalization of intersperseM to intersperse sequences.
+intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+-}
