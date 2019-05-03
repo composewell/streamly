@@ -7,7 +7,7 @@ import qualified Streamly.Prelude as S
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    runStream $ do
+    S.runStream $ do
         x <- S.take 10 $ loop "A" `parallel` loop "B"
         S.yieldM $ myThreadId >>= putStr . show
                >> putStr " got "

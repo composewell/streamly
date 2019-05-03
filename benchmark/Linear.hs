@@ -66,7 +66,7 @@ benchPureSinkIO name f =
 
 {-# INLINE benchPureSrc #-}
 benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
-benchPureSrc name src = benchPure name src (runIdentity . runStream)
+benchPureSrc name src = benchPure name src (runIdentity . S.runStream)
 
 main :: IO ()
 main =

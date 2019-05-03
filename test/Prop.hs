@@ -693,8 +693,8 @@ semigroupOps
     -> (t IO Int -> SerialT IO Int)
     -> Spec
 semigroupOps desc eq t = do
-    prop (desc <> " <>") $ foldFromList (foldMapWith (<>) singleton) t eq
-    prop (desc <> " mappend") $ foldFromList (foldMapWith mappend singleton) t eq
+    prop (desc <> " <>") $ foldFromList (S.foldMapWith (<>) singleton) t eq
+    prop (desc <> " mappend") $ foldFromList (S.foldMapWith mappend singleton) t eq
 
 -------------------------------------------------------------------------------
 -- Functor operations
@@ -829,7 +829,7 @@ main = hspec
         folded = serially . (\xs ->
             case xs of
                 [x] -> return x -- singleton stream case
-                _ -> foldMapWith (<>) return xs
+                _ -> S.foldMapWith (<>) return xs
             )
 
     let makeOps t =

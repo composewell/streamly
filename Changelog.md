@@ -18,6 +18,9 @@
   reason we no longer support this version of right fold. Please use `foldrM`
   instead.
 
+* `runStream`, `foldWith`, `foldMapWith`, `forEachWith` have been moved from
+  "Streamly" module to "Streamly.Prelude" module.
+
 ## 0.6.1
 
 ### Bug Fixes

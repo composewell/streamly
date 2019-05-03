@@ -88,8 +88,6 @@ module Streamly
     , ZipSerialM
     , ZipAsyncM
 
-    -- * Running Streams
-    , P.runStream
     -- * Parallel Function Application
     -- $application
     , (|$)
@@ -119,12 +117,6 @@ module Streamly
     , minRate
     , maxRate
     , constRate
-
-    -- * Folding Containers of Streams
-    -- $foldutils
-    , foldWith
-    , foldMapWith
-    , forEachWith
 
     -- * Stream Type Adapters
     -- $adapters
@@ -170,6 +162,13 @@ module Streamly
     , zippingAsync
     , (<=>)
     , (<|)
+
+    -- * Moved
+    -- | These APIs have been moved to other modules
+    , runStream
+    , foldWith
+    , foldMapWith
+    , forEachWith
     )
 where
 
@@ -179,15 +178,12 @@ import Streamly.Streams.Ahead
 import Streamly.Streams.Async
 import Streamly.Streams.Combinators
 import Streamly.Streams.Parallel
-import Streamly.Streams.Prelude
 import Streamly.Streams.Serial
 import Streamly.Streams.StreamK hiding (runStream, serial)
 import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Streams.StreamK as K
-
--- XXX This should perhaps be moved to Prelude.
 
 ------------------------------------------------------------------------------
 -- Eliminating a stream
@@ -206,6 +202,12 @@ runStreaming = P.runStream . K.adapt
 {-# DEPRECATED runStreamT "Please use runStream instead." #-}
 runStreamT :: Monad m => SerialT m a -> m ()
 runStreamT = P.runStream
+
+-- | Same as "Streamly.Prelude.runStream".
+--
+{-# DEPRECATED runStream "Please use Streamly.Prelude.runStream instead." #-}
+runStream :: Monad m => SerialT m a -> m ()
+runStream = P.runStream
 
 -- | Same as @runStream . wSerially@.
 --
@@ -241,6 +243,30 @@ runZipStream = P.runStream . K.adapt
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipAsyncly instead." #-}
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
 runZipAsync = P.runStream . K.adapt
+
+-- | Same as "Streamly.Prelude.foldWith".
+--
+{-# DEPRECATED foldWith "Please use Streamly.Prelude.foldWith instead." #-}
+{-# INLINABLE foldWith #-}
+foldWith :: (IsStream t, Foldable f)
+    => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
+foldWith = P.foldWith
+
+-- | Same as "Streamly.Prelude.foldMapWith".
+--
+{-# DEPRECATED foldMapWith "Please use Streamly.Prelude.foldMapWith instead." #-}
+{-# INLINABLE foldMapWith #-}
+foldMapWith :: (IsStream t, Foldable f)
+    => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
+foldMapWith = P.foldMapWith
+
+-- | Same as "Streamly.Prelude.forEachWith".
+--
+{-# DEPRECATED forEachWith "Please use Streamly.Prelude.forEachWith instead." #-}
+{-# INLINABLE forEachWith #-}
+forEachWith :: (IsStream t, Foldable f)
+    => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
+forEachWith = P.forEachWith
 
 ------------------------------------------------------------------------------
 -- Documentation
@@ -325,10 +351,3 @@ runZipAsync = P.runStream . K.adapt
 -- which specific type you are converting from or to. If you see a an
 -- @ambiguous type variable@ error then most likely you are using 'adapt'
 -- unnecessarily on polymorphic code.
---
-
--- $foldutils
---
--- These are variants of standard 'Foldable' fold functions that use a
--- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
--- container of streams.

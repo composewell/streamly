@@ -13,7 +13,7 @@ module NestedOps where
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)
 
-import qualified Streamly          as S
+import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 
 sumCount :: Int

@@ -373,34 +373,6 @@ module Streamly.Prelude
     -- ** Reordering
     , reverse
 
-    -- ** Nested Producer Loops
-    -- | Map each element to a stream and then flatten the results into a
-    -- single stream. In imperative terms, a 'concatMap' corresponds to nested
-    -- loops. We loop over the outer stream and then for each element of the
-    -- outer stream an inner stream is generated and then we loop over the
-    -- inner stream as well to generate a single output stream.
-    --
-    -- @
-    --
-    -- ----Stream m a----|-Stream m b-|-Stream m b-|-...-|----Stream m b
-    --
-    -- @
-    --
-    -- 'concatMap' can perform filtering by mapping an element to a 'nil'
-    -- stream.  Its a map, therefore it can degenerate to a simple map
-    -- operation as well:
-    --
-    -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
-    -- > map f m = S.concatMap (\x -> S.yield (f x)) m
-    --
-    -- Though 'concatMap' is not inherently stateful, it can be combined with a
-    -- scan to perform stateful operations.
-
-    , concatMapM
-    , concatMap
-    -- , interposeBy
-    -- , intercalate
-
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
     -- existing streams.
@@ -454,7 +426,25 @@ module Streamly.Prelude
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
-    -- ** Stream Level Folds
+    -- ** Nested Streams
+    -- | Stream operations represent loops in imperative programming, streams
+    -- of streams represent nested loops.
+
+    , concatMapM
+    , concatMap
+    -- , interposeBy
+    -- , intercalate
+
+    -- ** Containers of Streams
+    -- | These are variants of standard 'Foldable' fold functions that use a
+    -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
+    -- finite container of streams.
+    --
+    , foldWith
+    , foldMapWith
+    , forEachWith
+
+    -- ** Folding
     , eqBy
     , cmpBy
     , isPrefixOf
@@ -493,7 +483,8 @@ import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
-import Streamly.Streams.Prelude (fromStreamS, toStreamS)
+import Streamly.Streams.Prelude
+       (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
@@ -2101,6 +2092,23 @@ mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
 -- results into a single stream.
 --
 -- > concatMap f = concatMapM (return . f)
+--
+-- In imperative terms, a 'concatMap' corresponds to nested loops. We loop over
+-- the input stream and then for each element of the input stream another
+-- stream is generated and then we loop over that inner stream as well to yield
+-- each element of that stream to generate a single output stream.
+--
+-- 'concatMap' can perform filtering by mapping an element to a 'nil'
+-- stream:
+--
+-- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
+--
+-- Its a map, therefore it can degenerate to a simple map operation as well:
+--
+-- > map f m = S.concatMap (\x -> S.yield (f x)) m
+--
+-- 'concatMap' is not inherently stateful, however, it can be combined with a
+-- scan to perform stateful operations.
 --
 -- @since 0.6.0
 {-# INLINE concatMap #-}

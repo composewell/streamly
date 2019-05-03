@@ -27,7 +27,7 @@ import qualified GHC.Exts as GHC
 import Control.DeepSeq (NFData)
 import GHC.Generics (Generic)
 
-import qualified Streamly          as S
+import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 
 value, maxValue :: Int

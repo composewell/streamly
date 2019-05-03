@@ -1,6 +1,6 @@
-import Streamly
+import Streamly hiding (runStream)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly.Prelude (nil, yieldM)
+import Streamly.Prelude (nil, yieldM, runStream)
 
 main :: IO ()
 main = do
