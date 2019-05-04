@@ -1359,8 +1359,7 @@ indexedR m (Stream step state) = Stream step' (state, m)
          r <- step (adaptState gst) st
          case r of
              Yield x s -> let i' = i - 1
-                          in
-                          return $ Yield (i', x) (s, i')
+                          in return $ Yield (i, x) (s, i')
              Skip    s -> return $ Skip (s, i)
              Stop      -> return Stop
 
