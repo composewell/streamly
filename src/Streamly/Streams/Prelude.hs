@@ -127,7 +127,7 @@ foldrM step acc m = S.foldrM step acc $ toStreamS m
 {-# INLINE foldrMx #-}
 foldrMx :: (Monad m, IsStream t)
     => (a -> m x -> m x) -> m x -> (m x -> m b) -> t m a -> m b
-foldrMx step final project m = S.foldrMx step final project $ toStreamS m
+foldrMx step final project m = D.foldrMx step final project $ D.toStreamD m
 
 {-# INLINE foldr #-}
 foldr :: (Monad m, IsStream t) => (a -> b -> b) -> b -> t m a -> m b

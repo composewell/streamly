@@ -74,16 +74,17 @@ module Streamly.Streams.StreamK
     -- * Elimination
     -- ** General Folds
     , foldr
+    , foldr1
     , foldrM
     , foldrS
     , foldrT
-    , foldr1
+
     , foldl'
     , foldlM'
     , foldlS
     , foldlT
-    , foldx'
-    , foldxM'
+    , foldlx'
+    , foldlMx'
 
     -- ** Specialized Folds
     , runStream
@@ -410,10 +411,10 @@ foldr1 step m = do
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
 --
 -- Note that the accumulator is always evaluated including the initial value.
-{-# INLINE foldx' #-}
-foldx' :: forall t m a b x. (IsStream t, Monad m)
+{-# INLINE foldlx' #-}
+foldlx' :: forall t m a b x. (IsStream t, Monad m)
     => (x -> a -> x) -> x -> (x -> b) -> t m a -> m b
-foldx' step begin done m = get $ go m begin
+foldlx' step begin done m = get $ go m begin
     where
     {-# NOINLINE get #-}
     get :: t m x -> m b
@@ -440,14 +441,14 @@ foldx' step begin done m = get $ go m begin
 -- | Strict left associative fold.
 {-# INLINE foldl' #-}
 foldl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> m b
-foldl' step begin = foldx' step begin id
+foldl' step begin = foldlx' step begin id
 
 -- XXX replace the recursive "go" with explicit continuations.
 -- | Like 'foldx', but with a monadic step function.
-{-# INLINABLE foldxM' #-}
-foldxM' :: (IsStream t, Monad m)
+{-# INLINABLE foldlMx' #-}
+foldlMx' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
-foldxM' step begin done m = go begin m
+foldlMx' step begin done m = go begin m
     where
     go !acc m1 =
         let stop = acc >>= done
@@ -458,7 +459,7 @@ foldxM' step begin done m = go begin m
 -- | Like 'foldl'' but with a monadic step function.
 {-# INLINE foldlM' #-}
 foldlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> m b
-foldlM' step begin = foldxM' step (return begin) return
+foldlM' step begin = foldlMx' step (return begin) return
 
 -- | Lazy left fold to a stream.
 {-# INLINE foldlS #-}
@@ -584,7 +585,7 @@ any p m = go m
 -- | Extract the last element of the stream, if any.
 {-# INLINE last #-}
 last :: (IsStream t, Monad m) => t m a -> m (Maybe a)
-last = foldx' (\_ y -> Just y) Nothing id
+last = foldlx' (\_ y -> Just y) Nothing id
 
 {-# INLINE minimum #-}
 minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
