@@ -178,7 +178,7 @@ main =
         , benchIOSink "toRevList" Ops.toRevList
         ]
       , bgroup "transformation"
-        [ benchIOSink "scan" (Ops.scan 1)
+        [ benchIOSink "scanl" (Ops.scan 1)
         , benchIOSink "scanl1'" (Ops.scanl1' 1)
         , benchIOSink "map" (Ops.map 1)
         , benchIOSink "fmap" (Ops.fmap 1)
@@ -249,8 +249,13 @@ main =
         , benchIOSink "stripPrefix" Ops.stripPrefix
         , benchIOSrc  serially "concatMap" Ops.concatMap
         ]
+    -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
+    -- library. If scan/fold followed by a map is efficient enough we may not
+    -- need monolithic implementations of these.
     , bgroup "mixed"
-      [ benchIOSink "sum-product-fold"  Ops.sumProductFold
+      [ benchIOSink "scanl-map" (Ops.scanMap 1)
+      , benchIOSink "foldl-map" Ops.foldl'ReduceMap
+      , benchIOSink "sum-product-fold"  Ops.sumProductFold
       , benchIOSink "sum-product-scan"  Ops.sumProductScan
       ]
     , bgroup "mixedX4"

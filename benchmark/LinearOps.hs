@@ -181,12 +181,13 @@ head, last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce
 minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 
 {-# INLINE foldl'Reduce #-}
+{-# INLINE foldl'ReduceMap #-}
 {-# INLINE foldlM'Reduce #-}
 {-# INLINE foldrMReduce #-}
 {-# INLINE length #-}
 {-# INLINE sum #-}
 {-# INLINE product #-}
-foldl'Reduce, foldlM'Reduce, foldrMReduce, length, sum, product
+foldl'Reduce, foldl'ReduceMap, foldlM'Reduce, foldrMReduce, length, sum, product
     :: Monad m
     => Stream m Int -> m Int
 
@@ -250,6 +251,7 @@ foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
 
 foldrMReduce = S.foldrM (\x xs -> xs >>= return . (x +)) (return 0)
 foldl'Reduce = S.foldl' (+) 0
+foldl'ReduceMap = P.fmap (+1) . S.foldl' (+) 0
 foldl1'Reduce = S.foldl1' (+)
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 

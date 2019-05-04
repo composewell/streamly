@@ -490,11 +490,13 @@ parallelTests = H.parallel $ do
     -- Left folds are strict enough
     ---------------------------------------------------------------------------
 
+#ifdef DEVBUILD
     it "foldx is strict enough" checkFoldxStrictness
-    it "foldl' is strict enough" checkFoldl'Strictness
     it "scanx is strict enough" checkScanxStrictness
-    it "scanl' is strict enough" checkScanl'Strictness
     it "foldxM is strict enough" (checkFoldMStrictness foldxMStrictCheck)
+#endif
+    it "foldl' is strict enough" checkFoldl'Strictness
+    it "scanl' is strict enough" checkScanl'Strictness
     it "foldlM' is strict enough" (checkFoldMStrictness foldlM'StrictCheck)
     it "scanlM' is strict enough" (checkScanlMStrictness scanlM'StrictCheck)
 
@@ -645,6 +647,7 @@ checkFoldrLaziness = do
                         $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
         `shouldReturn` [True]
 
+#ifdef DEVBUILD
 checkFoldxStrictness :: IO ()
 checkFoldxStrictness = do
   let s = return (1 :: Int) `S.consM` error "failure"
@@ -654,6 +657,7 @@ checkFoldxStrictness = do
             ErrorCall err -> return err
             _ -> throw e)
     `shouldReturn` "success"
+#endif
 
 checkFoldl'Strictness :: IO ()
 checkFoldl'Strictness = do
@@ -665,6 +669,7 @@ checkFoldl'Strictness = do
             _ -> throw e)
     `shouldReturn` "success"
 
+#ifdef DEVBUILD
 checkScanxStrictness :: IO ()
 checkScanxStrictness = do
   let s = return (1 :: Int) `S.consM` error "failure"
@@ -682,6 +687,7 @@ checkScanxStrictness = do
             ErrorCall err -> return err
             _ -> throw e)
     `shouldReturn` "success"
+#endif
 
 checkScanl'Strictness :: IO ()
 checkScanl'Strictness = do
@@ -705,8 +711,10 @@ checkScanl'Strictness = do
 foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
 foldlM'StrictCheck ref = S.foldlM' (\_ _ -> writeIORef ref 1) ()
 
+#ifdef DEVBUILD
 foldxMStrictCheck :: IORef Int -> SerialT IO Int -> IO ()
 foldxMStrictCheck ref = S.foldxM (\_ _ -> writeIORef ref 1) (return ()) return
+#endif
 
 checkFoldMStrictness :: (IORef Int -> SerialT IO Int -> IO ()) -> IO ()
 checkFoldMStrictness f = do

@@ -117,7 +117,7 @@ module Streamly.Streams.StreamK
     -- * Transformation
     -- ** By folding (scans)
     , scanl'
-    , scanx'
+    , scanlx'
 
     -- ** Filtering
     , filter
@@ -757,9 +757,9 @@ toStreamK = id
 -- Transformation by folding (Scans)
 -------------------------------------------------------------------------------
 
-{-# INLINE scanx' #-}
-scanx' :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx' step begin done m =
+{-# INLINE scanlx' #-}
+scanlx' :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanlx' step begin done m =
     cons (done begin) $ go m begin
     where
     go m1 !acc = mkStream $ \st yld sng stp ->
@@ -771,7 +771,7 @@ scanx' step begin done m =
 
 {-# INLINE scanl' #-}
 scanl' :: IsStream t => (b -> a -> b) -> b -> t m a -> t m b
-scanl' step begin = scanx' step begin id
+scanl' step begin = scanlx' step begin id
 
 -------------------------------------------------------------------------------
 -- Filtering

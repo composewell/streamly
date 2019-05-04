@@ -1,8 +1,8 @@
 import Control.Concurrent (myThreadId)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
-import Streamly
-import Streamly.Prelude (nil, yieldM)
+import Streamly hiding (runStream)
+import Streamly.Prelude (runStream, nil, yieldM)
 
 main :: IO ()
 main = runStream $ do

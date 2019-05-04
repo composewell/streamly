@@ -3,6 +3,7 @@
 ### Breaking changes
 
 * Change the signature of `foldrM` to ensure that it is lazy
+* `scanx` would require an additional `Monad m` constraint.
 
 ### Enhancements
 
@@ -20,6 +21,9 @@
 
 * `runStream`, `foldWith`, `foldMapWith`, `forEachWith` have been moved from
   "Streamly" module to "Streamly.Prelude" module.
+
+* Deprecate `scanx`, `foldx`, `foldxM`
+* Remove deprecated APIs `scan`, `foldl`, `foldlM`
 
 ## 0.6.1
 

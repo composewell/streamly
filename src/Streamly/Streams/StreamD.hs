@@ -155,10 +155,16 @@ module Streamly.Streams.StreamD
 
     , prescanl'
     , prescanlM'
+
     , postscanl
     , postscanlM
     , postscanl'
     , postscanlM'
+
+    , postscanlx'
+    , postscanlMx'
+    , scanlMx'
+    , scanlx'
 
     -- * Filtering
     , filter
@@ -229,6 +235,23 @@ import qualified Streamly.Streams.StreamK as K
 nil :: Monad m => Stream m a
 nil = Stream (\_ _ -> return Stop) ()
 
+{-# INLINE_NORMAL consM #-}
+consM :: Monad m => m a -> Stream m a -> Stream m a
+consM m (Stream step state) = Stream step1 Nothing
+    where
+    {-# INLINE_LATE step1 #-}
+    step1 _ Nothing   = m >>= \x -> return $ Yield x (Just state)
+    step1 gst (Just st) = do
+        r <- step gst st
+        return $
+          case r of
+            Yield a s -> Yield a (Just s)
+            Skip  s   -> Skip (Just s)
+            Stop      -> Stop
+
+-- XXX implement in terms of consM?
+-- cons x = consM (return x)
+--
 -- | Can fuse but has O(n^2) complexity.
 {-# INLINE_NORMAL cons #-}
 cons :: Monad m => a -> Stream m a -> Stream m a
@@ -983,6 +1006,10 @@ fromStreamD = K.fromStream . toStreamK
 -- Transformation by Folding (Scans)
 ------------------------------------------------------------------------------
 
+------------------------------------------------------------------------------
+-- Prescans
+------------------------------------------------------------------------------
+
 -- XXX Is a prescan useful, discarding the last step does not sound useful?  I
 -- am not sure about the utility of this function, so this is implemented but
 -- not exposed. We can expose it if someone provides good reasons why this is
@@ -1010,6 +1037,56 @@ prescanlM' f mz (Stream step state) = Stream step' (state, mz)
 {-# INLINE prescanl' #-}
 prescanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
 prescanl' f z = prescanlM' (\a b -> return (f a b)) (return z)
+
+------------------------------------------------------------------------------
+-- Monolithic postscans (postscan followed by a map)
+------------------------------------------------------------------------------
+
+-- The performance of a modular postscan followed by a map seems to be
+-- equivalent to this monolithic scan followed by map therefore we may not need
+-- this implementation. We just have it for performance comparison and in case
+-- modular version does not perform well in some situation.
+--
+{-# INLINE_NORMAL postscanlMx' #-}
+postscanlMx' :: Monad m
+    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+postscanlMx' fstep begin done (Stream step state) = do
+    Stream step' (state, begin)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, acc) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                old <- acc
+                y <- fstep old x
+                v <- done y
+                v `seq` y `seq` return (Yield v (s, return y))
+            Skip s -> return $ Skip (s, acc)
+            Stop   -> return Stop
+
+{-# INLINE_NORMAL postscanlx' #-}
+postscanlx' :: Monad m
+    => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+postscanlx' fstep begin done s =
+    postscanlMx' (\b a -> return (fstep b a)) (return begin) (return . done) s
+
+-- XXX do we need consM strict to evaluate the begin value?
+{-# INLINE scanlMx' #-}
+scanlMx' :: Monad m
+    => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> Stream m b
+scanlMx' fstep begin done s =
+    (begin >>= \x -> x `seq` done x) `consM` postscanlMx' fstep begin done s
+
+{-# INLINE scanlx' #-}
+scanlx' :: Monad m
+    => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
+scanlx' fstep begin done s =
+    scanlMx' (\b a -> return (fstep b a)) (return begin) (return . done) s
+
+------------------------------------------------------------------------------
+-- postscans
+------------------------------------------------------------------------------
 
 -- XXX if we make the initial value of the accumulator monadic then should we
 -- execute it even if the stream is empty? In that case we would have generated

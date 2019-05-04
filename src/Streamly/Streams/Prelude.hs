@@ -42,6 +42,11 @@ module Streamly.Streams.Prelude
     , foldlS
     , foldlT
 
+    , scanlx'
+    , scanlMx'
+    , postscanlx'
+    , postscanlMx'
+
     -- * Zip style operations
     , eqBy
     , cmpBy
@@ -173,6 +178,46 @@ foldlS = K.foldlS
 foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
     => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
 foldlT f z s = S.foldlT f z (toStreamS s)
+
+------------------------------------------------------------------------------
+-- Scans
+------------------------------------------------------------------------------
+
+-- postscanlM' followed by mapM
+{-# INLINE postscanlMx' #-}
+postscanlMx' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
+postscanlMx' step begin done m =
+    D.fromStreamD $ D.postscanlMx' step begin done $ D.toStreamD m
+
+-- postscanl' followed by map
+{-# INLINE postscanlx' #-}
+postscanlx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+postscanlx' step begin done m =
+    D.fromStreamD $ D.postscanlx' step begin done $ D.toStreamD m
+
+-- scanlM' followed by mapM
+--
+{-# INLINE scanlMx' #-}
+scanlMx' :: (IsStream t, Monad m)
+    => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
+scanlMx' step begin done m =
+    D.fromStreamD $ D.scanlMx' step begin done $ D.toStreamD m
+
+-- scanl followed by map
+--
+-- | Strict left scan with an extraction function. Like 'scanl'', but applies a
+-- user supplied extraction function (the third argument) at each step. This is
+-- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
+-- extraction.
+--
+-- @since 0.7.0
+{-# INLINE scanlx' #-}
+scanlx' :: (IsStream t, Monad m)
+    => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanlx' step begin done m =
+    fromStreamS $ S.scanlx' step begin done $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Comparison

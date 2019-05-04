@@ -180,8 +180,6 @@ module Streamly.Prelude
     , foldl'
     , foldl1'
     , foldlM'
-    , foldx
-    , foldxM
 
     -- ** Strict Full Folds
     -- | Folds that are guaranteed to evaluate the whole stream.
@@ -321,7 +319,6 @@ module Streamly.Prelude
     -- , prescanlM'
     , scanl1'
     , scanl1M'
-    , scanx
 
     , indexed
     , indexedR
@@ -458,11 +455,11 @@ module Streamly.Prelude
     -- * Deprecated
     , K.once
     , each
-    , scan
+    , scanx
     , foldr
     , foldr1
-    , foldl
-    , foldlM
+    , foldx
+    , foldxM
     )
 where
 
@@ -1027,15 +1024,10 @@ foldr1 f m = S.foldr1 f (toStreamS m)
 -- @foldl@ library. The suffix @x@ is a mnemonic for extraction.
 --
 -- @since 0.2.0
+{-# DEPRECATED foldx "Please use foldl' followed by fmap instead." #-}
 {-# INLINE foldx #-}
 foldx :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
 foldx = P.foldlx'
-
--- |
--- @since 0.1.0
-{-# DEPRECATED foldl "Please use foldx instead." #-}
-foldl :: Monad m => (x -> a -> x) -> x -> (x -> b) -> SerialT m a -> m b
-foldl = P.foldlx'
 
 -- | Strict left associative/push fold.  Note that the observations below about
 -- the behavior of a left fold assume that we are working on a right associated
@@ -1150,15 +1142,10 @@ foldl1' step m = do
 -- | Like 'foldx', but with a monadic step function.
 --
 -- @since 0.2.0
+{-# DEPRECATED foldxM "Please use foldlM' followed by fmap instead." #-}
 {-# INLINE foldxM #-}
 foldxM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
 foldxM = P.foldlMx'
-
--- |
--- @since 0.1.0
-{-# DEPRECATED foldlM "Please use foldxM instead." #-}
-foldlM :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> SerialT m a -> m b
-foldlM = P.foldlMx'
 
 -- | Like 'foldl'' but with a monadic step function.
 --
@@ -1543,15 +1530,10 @@ toHandle h m = go m
 -- extraction.
 --
 -- @since 0.2.0
+{-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
 {-# INLINE scanx #-}
-scanx :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scanx = K.scanx'
-
--- |
--- @since 0.1.1
-{-# DEPRECATED scan "Please use scanx instead." #-}
-scan :: IsStream t => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
-scan = scanx
+scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
+scanx = P.scanlx'
 
 -- XXX this needs to be concurrent
 -- | Like 'scanl'' but with a monadic fold function.
