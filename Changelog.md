@@ -2,6 +2,11 @@
 
 ### Breaking changes
 
+* Rate combinators now work for serial streams as well. This may affect the
+  behavior of existing programs. Use of a rate combinator on a serial stream
+  would make the part of the stream under the rate combinator asynchronous for
+  rate monitoring. As a result, usage of rate combinators would now require an
+  additional `MonadAsync` constraint.
 * Change the signature of `foldrM` to ensure that it is lazy
 * Change the signature of `iterateM` to ensure that it is lazy.
 * `scanx` would now require an additional `Monad m` constraint.

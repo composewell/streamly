@@ -149,6 +149,16 @@ module Streamly
     , maxBuffer
 
     -- * Rate Limiting
+    -- | A rate combinator specifies the yield rate of the stream enclosed
+    -- under the combinator. The rate applies independently to all concurrency
+    -- points under the scope of the combinator.
+    -- If the stream is serial, the rate combinator itself would act as a
+    -- concurrency point, breaking the stream into two concurrent parts to
+    -- monitor and regulate the rate of the enclosed part. Note that this can
+    -- potentially change the behavior of the program.
+    -- For parallel ('ParallelT') streams, the combinator would act as a noop
+    -- as these streams are inherently unbounded and not rate controlled.
+
     , Rate (..)
     , rate
     , avgRate
