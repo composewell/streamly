@@ -83,6 +83,7 @@ module Streamly.Streams.StreamD
     , yieldM
     , fromList
     , fromListM
+    , fromArray
     , fromStreamK
     , fromStreamD
 
@@ -126,6 +127,7 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
+    , flattenArrays
 
     -- ** Substreams
     , isPrefixOf
@@ -141,6 +143,7 @@ module Streamly.Streams.StreamD
     , toRevList
     , toStreamK
     , toStreamD
+    , toArrayN
 
     -- * Transformation
     -- ** By folding (scans)
@@ -213,6 +216,10 @@ where
 
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Maybe (fromJust, isJust)
+import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.Ptr (Ptr, plusPtr)
+import Foreign.Storable (Storable(..))
 import GHC.Types (SPEC(..))
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
@@ -221,10 +228,13 @@ import Prelude
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
 
+import Streamly.Array.Types
+       (Array(..), Array, unsafeInlineIO)
 import Streamly.SVar (MonadAsync, defState, adaptState)
 
 import Streamly.Streams.StreamD.Type
 import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Array.Types as A
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -520,14 +530,9 @@ fromListM = Stream step
     step _ (m:ms) = m >>= \x -> return $ Yield x ms
     step _ []     = return Stop
 
--- | Convert a list of pure values to a 'Stream'
-{-# INLINE_LATE fromList #-}
-fromList :: Monad m => [a] -> Stream m a
-fromList = Stream step
-  where
-    {-# INLINE_LATE step #-}
-    step _ (x:xs) = return $ Yield x xs
-    step _ []     = return Stop
+{-# INLINE_NORMAL fromArray #-}
+fromArray :: (Monad m, Storable a) => Array a -> Stream m a
+fromArray = A.toStreamD
 
 {-# INLINE_LATE fromStreamK #-}
 fromStreamK :: Monad m => K.Stream m a -> Stream m a
@@ -584,20 +589,6 @@ foldlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
 foldlx' fstep begin done m =
     foldlMx' (\b a -> return (fstep b a)) (return begin) (return . done) m
 
--- XXX implement in terms of foldlMx'
-{-# INLINE_NORMAL foldlM' #-}
-foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
-foldlM' fstep begin (Stream step state) = go SPEC begin state
-  where
-    go !_ acc st = acc `seq` do
-        r <- step defState st
-        case r of
-            Yield x s -> do
-                acc' <- fstep acc x
-                go SPEC acc' s
-            Skip s -> go SPEC acc s
-            Stop   -> return acc
-
 {-# INLINE_NORMAL foldlT #-}
 foldlT :: (Monad m, Monad (s m), MonadTrans s)
     => (s m b -> a -> s m b) -> s m b -> Stream m a -> s m b
@@ -631,10 +622,6 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
             Yield x s -> Yield x (Right (Stream stp s))
             Skip s -> Skip (Right (Stream stp s))
             Stop   -> Stop
-
-{-# INLINE foldl' #-}
-foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
-foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
 ------------------------------------------------------------------------------
 -- Specialized Folds
@@ -863,6 +850,11 @@ reverse m = Stream step Nothing
         step _ (Just (x:xs)) = return $ Yield x (Just xs)
         step _ (Just []) = return Stop
 
+{-# INLINE_NORMAL toArrayN #-}
+toArrayN :: forall m a. (Monad m, Storable a)
+    => Int -> Stream m a -> m (Array a)
+toArrayN = A.fromStreamDN
+
 ------------------------------------------------------------------------------
 -- concatMap
 ------------------------------------------------------------------------------
@@ -881,11 +873,15 @@ concatMapM f (Stream step state) = Stream step' (Left state)
             Skip s -> return $ Skip (Left s)
             Stop -> return Stop
 
+    -- XXX flattenArrays is 5x faster than "concatMap fromArray". if somehow we
+    -- can get inner_step to inline and fuse here we can perhaps get the same
+    -- performance using "concatMap fromArray".
+    --
     -- XXX using the pattern synonym Stream causes a major performance issue
     -- here even if the synonym does not include a adaptState call. Need to
     -- find out why. Is that something to be fixed in GHC?
-    step' _ (Right (UnStream inner_step inner_st, st)) = do
-        r <- inner_step defState inner_st
+    step' gst (Right (UnStream inner_step inner_st, st)) = do
+        r <- inner_step (adaptState gst) inner_st
         case r of
             Yield b inner_s ->
                 return $ Yield b (Right (Stream inner_step inner_s, st))
@@ -893,9 +889,51 @@ concatMapM f (Stream step state) = Stream step' (Left state)
                 return $ Skip (Right (Stream inner_step inner_s, st))
             Stop -> return $ Skip (Left st)
 
+-- XXX concatMap does not seem to have the best possible performance so we have
+-- a custom way to concat arrays.
+data CAState s a = CAParent s | CANested s (ForeignPtr a) (Ptr a) (Ptr a)
+
+{-# INLINE_NORMAL flattenArrays #-}
+flattenArrays :: forall m a. (Monad m, Storable a)
+    => Stream m (Array a) -> Stream m a
+flattenArrays (Stream step state) = Stream step' (CAParent state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (CAParent st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield Array{..} s ->
+                let p = unsafeForeignPtrToPtr aStart
+                in Skip (CANested s aStart p aEnd)
+            Skip s -> Skip (CAParent s)
+            Stop -> Stop
+
+    step' _ (CANested st _ p end) | p == end =
+        return $ Skip $ CAParent st
+
+    step' _ (CANested st startf p end) = do
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ Yield x (CANested st startf
+                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+
 {-# INLINE concatMap #-}
 concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
 concatMap f = concatMapM (return . f)
+
+-- XXX The idea behind this rule is to rewrite any calls to "concatMap
+-- fromArray" automatically to flattenArrays which is much faster.  However, we
+-- need an INLINE_EARLY on concatMap for this rule to fire. But if we use
+-- INLINE_EARLY on concatMap or fromArray then direct uses of
+-- "concatMap fromArray" (without the RULE) become much slower, this means
+-- "concatMap f" in general would become slower. Need to find a solution to
+-- this.
+--
+-- {-# RULES "concatMap fromArray" concatMap fromArray = flattenArrays #-}
 
 ------------------------------------------------------------------------------
 -- Substreams
@@ -1204,19 +1242,6 @@ scanl1' f = scanl1M' (\x y -> return (f x y))
 -- Filtering
 -------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL take #-}
-take :: Monad m => Int -> Stream m a -> Stream m a
-take n (Stream step state) = n `seq` Stream step' (state, 0)
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (st, i) | i < n = do
-        r <- step gst st
-        return $ case r of
-            Yield x s -> Yield x (s, i + 1)
-            Skip s    -> Skip (s, i)
-            Stop      -> Stop
-    step' _ (_, _) = return Stop
-
 {-# INLINE_NORMAL takeWhileM #-}
 takeWhileM :: Monad m => (a -> m Bool) -> Stream m a -> Stream m a
 takeWhileM f (Stream step state) = Stream step' state
@@ -1469,67 +1494,6 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f = zipWithM (\a b -> return (f a b))
-
-------------------------------------------------------------------------------
--- Comparisions
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL eqBy #-}
-eqBy :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
-eqBy eq (Stream step1 t1) (Stream step2 t2) = eq_loop0 SPEC t1 t2
-  where
-    eq_loop0 !_ s1 s2 = do
-      r <- step1 defState s1
-      case r of
-        Yield x s1' -> eq_loop1 SPEC x s1' s2
-        Skip    s1' -> eq_loop0 SPEC   s1' s2
-        Stop        -> eq_null s2
-
-    eq_loop1 !_ x s1 s2 = do
-      r <- step2 defState s2
-      case r of
-        Yield y s2'
-          | eq x y    -> eq_loop0 SPEC   s1 s2'
-          | otherwise -> return False
-        Skip    s2'   -> eq_loop1 SPEC x s1 s2'
-        Stop          -> return False
-
-    eq_null s2 = do
-      r <- step2 defState s2
-      case r of
-        Yield _ _ -> return False
-        Skip s2'  -> eq_null s2'
-        Stop      -> return True
-
--- | Compare two streams lexicographically
-{-# INLINE_NORMAL cmpBy #-}
-cmpBy
-    :: Monad m
-    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
-cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
-  where
-    cmp_loop0 !_ s1 s2 = do
-      r <- step1 defState s1
-      case r of
-        Yield x s1' -> cmp_loop1 SPEC x s1' s2
-        Skip    s1' -> cmp_loop0 SPEC   s1' s2
-        Stop        -> cmp_null s2
-
-    cmp_loop1 !_ x s1 s2 = do
-      r <- step2 defState s2
-      case r of
-        Yield y s2' -> case x `cmp` y of
-                         EQ -> cmp_loop0 SPEC s1 s2'
-                         c  -> return c
-        Skip    s2' -> cmp_loop1 SPEC x s1 s2'
-        Stop        -> return GT
-
-    cmp_null s2 = do
-      r <- step2 defState s2
-      case r of
-        Yield _ _ -> return LT
-        Skip s2'  -> cmp_null s2'
-        Stop      -> return EQ
 
 ------------------------------------------------------------------------------
 -- Merging

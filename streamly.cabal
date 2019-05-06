@@ -171,8 +171,10 @@ library
                      , Streamly.List
                      , Streamly.String
                      , Streamly.Enumeration
+                     , Streamly.Array.Types
 
     exposed-modules:   Streamly.Prelude
+                     , Streamly.Array
                      , Streamly.Time
                      , Streamly
                      , Streamly.Tutorial
@@ -188,6 +190,7 @@ library
       cpp-options:    -DDISABLE_FUSION
 
     if flag(dev)
+      cpp-options:    -DDEVBUILD
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
                       -fno-ignore-asserts
@@ -335,6 +338,35 @@ test-suite properties
         transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
+test-suite arrays
+  type: exitcode-stdio-1.0
+  main-is: Arrays.hs
+  js-sources: jsbits/clock.js
+  hs-source-dirs: test
+  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , QuickCheck        >= 2.10  && < 2.14
+    , hspec             >= 2.0   && < 3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  default-language: Haskell2010
+
 test-suite maxrate
   type: exitcode-stdio-1.0
   default-language: Haskell2010
@@ -395,7 +427,7 @@ benchmark linear
   main-is: Linear.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
+  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -422,7 +454,7 @@ benchmark linear-async
   main-is: LinearAsync.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   cpp-options: -DLINEAR_ASYNC
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
@@ -450,7 +482,7 @@ benchmark linear-rate
   main-is: LinearRate.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -477,8 +509,36 @@ benchmark nested
   main-is: Nested.hs
   other-modules: NestedOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   if flag(dev)
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+                    -fno-ignore-asserts
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.3 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+
+benchmark array
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: Array.hs
+  other-modules: ArrayOps
+  default-language: Haskell2010
+  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
                     -fno-ignore-asserts
@@ -529,7 +589,7 @@ benchmark base
                    , StreamKOps
 
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -590,7 +650,7 @@ executable nano-bench
                    , Streamly.Streams.StreamD.Type
                    , Streamly.Streams.StreamD
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -with-rtsopts "-T"
 
   if flag(dev)
     buildable: True
@@ -599,6 +659,7 @@ executable nano-bench
        , gauge             >= 0.2.4 && < 0.3
        , ghc-prim          >= 0.2   && < 0.6
        , containers        >= 0.5   && < 0.7
+       , deepseq           >= 1.4.3 && < 1.5
        , heaps             >= 0.3   && < 0.4
        , random            >= 1.0   && < 2.0
 
@@ -610,6 +671,7 @@ executable nano-bench
        , monad-control     >= 1.0   && < 2
        , mtl               >= 2.2   && < 3
        , transformers      >= 0.4   && < 0.6
+       , transformers-base >= 0.4   && < 0.5
   else
     buildable: False
 
@@ -617,7 +679,7 @@ executable adaptive
   hs-source-dirs: benchmark
   main-is: Adaptive.hs
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall
+  ghc-options:  -O2 -Wall -with-rtsopts "-T"
 
   if flag(dev)
     buildable: True

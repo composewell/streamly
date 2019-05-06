@@ -34,18 +34,28 @@ module Streamly.Streams.StreamD.Type
 #endif
     , map
     , mapM
+
     , foldrT
     , foldrM
     , foldrMx
     , foldr
+
+    , foldl'
+    , foldlM'
+
     , toList
+    , fromList
+
+    , eqBy
+    , cmpBy
+    , take
     )
 where
 
 import Control.Applicative (liftA2)
 import Control.Monad.Trans (lift, MonadTrans)
 import GHC.Types (SPEC(..))
-import Prelude hiding (map, mapM, foldr)
+import Prelude hiding (map, mapM, foldr, take)
 import Streamly.SVar (State(..), adaptState, defState)
 
 import qualified Streamly.Streams.StreamK as K
@@ -179,3 +189,104 @@ foldrT f final (Stream step state) = go SPEC state
 {-# INLINE toList #-}
 toList :: Monad m => Stream m a -> m [a]
 toList = foldr (:) []
+
+-- XXX implement in terms of foldlMx'?
+{-# INLINE_NORMAL foldlM' #-}
+foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
+foldlM' fstep begin (Stream step state) = go SPEC begin state
+  where
+    go !_ acc st = acc `seq` do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Skip s -> go SPEC acc s
+            Stop   -> return acc
+
+{-# INLINE foldl' #-}
+foldl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> m b
+foldl' fstep = foldlM' (\b a -> return (fstep b a))
+
+-- | Convert a list of pure values to a 'Stream'
+{-# INLINE_LATE fromList #-}
+fromList :: Monad m => [a] -> Stream m a
+fromList = Stream step
+  where
+    {-# INLINE_LATE step #-}
+    step _ (x:xs) = return $ Yield x xs
+    step _ []     = return Stop
+
+------------------------------------------------------------------------------
+-- Comparisons
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL eqBy #-}
+eqBy :: Monad m => (a -> b -> Bool) -> Stream m a -> Stream m b -> m Bool
+eqBy eq (Stream step1 t1) (Stream step2 t2) = eq_loop0 SPEC t1 t2
+  where
+    eq_loop0 !_ s1 s2 = do
+      r <- step1 defState s1
+      case r of
+        Yield x s1' -> eq_loop1 SPEC x s1' s2
+        Skip    s1' -> eq_loop0 SPEC   s1' s2
+        Stop        -> eq_null s2
+
+    eq_loop1 !_ x s1 s2 = do
+      r <- step2 defState s2
+      case r of
+        Yield y s2'
+          | eq x y    -> eq_loop0 SPEC   s1 s2'
+          | otherwise -> return False
+        Skip    s2'   -> eq_loop1 SPEC x s1 s2'
+        Stop          -> return False
+
+    eq_null s2 = do
+      r <- step2 defState s2
+      case r of
+        Yield _ _ -> return False
+        Skip s2'  -> eq_null s2'
+        Stop      -> return True
+
+-- | Compare two streams lexicographically
+{-# INLINE_NORMAL cmpBy #-}
+cmpBy
+    :: Monad m
+    => (a -> b -> Ordering) -> Stream m a -> Stream m b -> m Ordering
+cmpBy cmp (Stream step1 t1) (Stream step2 t2) = cmp_loop0 SPEC t1 t2
+  where
+    cmp_loop0 !_ s1 s2 = do
+      r <- step1 defState s1
+      case r of
+        Yield x s1' -> cmp_loop1 SPEC x s1' s2
+        Skip    s1' -> cmp_loop0 SPEC   s1' s2
+        Stop        -> cmp_null s2
+
+    cmp_loop1 !_ x s1 s2 = do
+      r <- step2 defState s2
+      case r of
+        Yield y s2' -> case x `cmp` y of
+                         EQ -> cmp_loop0 SPEC s1 s2'
+                         c  -> return c
+        Skip    s2' -> cmp_loop1 SPEC x s1 s2'
+        Stop        -> return GT
+
+    cmp_null s2 = do
+      r <- step2 defState s2
+      case r of
+        Yield _ _ -> return LT
+        Skip s2'  -> cmp_null s2'
+        Stop      -> return EQ
+
+{-# INLINE_NORMAL take #-}
+take :: Monad m => Int -> Stream m a -> Stream m a
+take n (Stream step state) = n `seq` Stream step' (state, 0)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, i) | i < n = do
+        r <- step gst st
+        return $ case r of
+            Yield x s -> Yield x (s, i + 1)
+            Skip s    -> Skip (s, i)
+            Stop      -> Stop
+    step' _ (_, _) = return Stop

@@ -3,27 +3,25 @@
 ### Breaking changes
 
 * Change the signature of `foldrM` to ensure that it is lazy
-* `scanx` would require an additional `Monad m` constraint.
+* `scanx` would now require an additional `Monad m` constraint.
 
 ### Enhancements
 
-* Add `foldrS` to fold a stream to a stream
-* Add `foldrT` to fold a stream to an arbitrary transformer monad
-* Add `toRevList` to fold a stream to a reverse list
+* Add Streamly.Array module to support efficient fixed size immutable arrays
+  for buffering and IO.
+* Add the following to "Streamly.Prelude":
+    * `foldrS` to fold a stream to a stream
+    * `foldrT` to fold a stream to an arbitrary transformer monad
+    * `toRevList` to fold a stream to a reverse list
 
 ### Deprecations
-
-* Deprecate `foldr` and `foldr1`. Given the signature of `foldr`, its behavior
-  necessarily depends on the strictness or laziness of the underlying monad.
-  Therefore, it cannot be lazy enough in a strict monad like IO. For that
-  reason we no longer support this version of right fold. Please use `foldrM`
-  instead.
 
 * `runStream`, `foldWith`, `foldMapWith`, `forEachWith` have been moved from
   "Streamly" module to "Streamly.Prelude" module.
 
-* Deprecate `scanx`, `foldx`, `foldxM`
-* Remove deprecated APIs `scan`, `foldl`, `foldlM`
+* "Streamly.Prelude":
+    * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
+    * Remove deprecated APIs `scan`, `foldl`, `foldlM`
 
 ## 0.6.1
 

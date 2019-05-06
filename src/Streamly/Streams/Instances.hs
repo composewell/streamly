@@ -105,6 +105,9 @@ instance NFData1 (STREAM Identity) where {                                    \
 -- Foldable
 -------------------------------------------------------------------------------
 
+-- XXX the foldable instance seems to be quit slow. We can try writing
+-- custom implementations of foldr and foldl'. If nothing works we can also try
+-- writing a Foldable for Identity monad rather than for "Foldable m".
 #define FOLDABLE_INSTANCE(STREAM)                                             \
 instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
   {-# INLINE foldMap #-};                                                     \

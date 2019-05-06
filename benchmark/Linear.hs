@@ -6,7 +6,7 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData(..), deepseq)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
@@ -68,6 +68,15 @@ benchPureSinkIO name f =
 benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
 benchPureSrc name src = benchPure name src (runIdentity . S.runStream)
 
+mkString :: String
+mkString = "fromList [1" ++ concat (replicate Ops.value ",1") ++ "]"
+
+mkListString :: String
+mkListString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
+
+mkList :: [Int]
+mkList = [1..Ops.value]
+
 main :: IO ()
 main =
   defaultMain
@@ -83,11 +92,13 @@ main =
         , benchPureSrc "IsList.fromList" Ops.sourceIsList
         , benchPureSink "IsList.toList" GHC.toList
         , benchPureSrc "IsString.fromString" Ops.sourceIsString
-        , benchPure "readsPrec" (\n -> S.fromList [1..n :: Int])
-                    Ops.readInstance
-        , benchPureSink "showsPrec" Ops.showInstance
-        , benchPure "showsPrecList" (\n -> S.fromList [1..n :: Int])
-                    Ops.showInstanceList
+        , mkString `deepseq` (bench "readsPrec pure streams" $
+                                nf Ops.readInstance mkString)
+        , mkString `deepseq` (bench "readsPrec Haskell lists" $
+                                nf Ops.readInstanceList mkListString)
+        , benchPureSink "showsPrec pure streams" Ops.showInstance
+        , mkList `deepseq` (bench "showPrec Haskell lists" $
+                                nf Ops.showInstanceList mkList)
         , benchPureSink "foldl'" Ops.pureFoldl'
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum

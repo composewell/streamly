@@ -1,5 +1,5 @@
 -- |
--- Module      : BenchmarkOps
+-- Module      : ArrayOps
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : MIT
@@ -11,24 +11,23 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module LinearOps where
+module ArrayOps where
 
-import Control.Monad (when)
+-- import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
-import Data.Maybe (fromJust)
-import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
-        subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
-        maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+-- import Data.Maybe (fromJust)
+import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
 import qualified Prelude as P
+#ifdef DEVBUILD
 import qualified Data.Foldable as F
+#endif
 import qualified GHC.Exts as GHC
-import Control.DeepSeq (NFData)
-import GHC.Generics (Generic)
+-- import Control.DeepSeq (NFData)
+-- import GHC.Generics (Generic)
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Array    as A
 
 value, maxValue :: Int
 #ifdef LINEAR_ASYNC
@@ -46,114 +45,34 @@ maxValue = value + 1
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream m a = S.SerialT m a
-
-{-# INLINE source #-}
-source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-source n = sourceUnfoldrM n
-
-{-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromTo n = S.enumerateFromTo n (n + value)
-
-{-# INLINE sourceIntFromThenTo #-}
-sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromThenTo n = S.enumerateFromThenTo n (n + 1) (n + value)
-
-{-# INLINE sourceFracFromTo #-}
-sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromTo n =
-    S.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
-
-{-# INLINE sourceFracFromThenTo #-}
-sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromThenTo n = S.enumerateFromThenTo (fromIntegral n)
-    (fromIntegral n + 1.0001) (fromIntegral (n + value))
-
-{-# INLINE sourceIntegerFromStep #-}
-sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> t m Integer
-sourceIntegerFromStep n =
-    S.take value $ S.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
-
-{-# INLINE sourceFromList #-}
-sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceFromList n = S.fromList [n..n+value]
-
-{-# INLINE sourceFromListM #-}
-sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
-
-{-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: S.IsStream t => Int -> t m Int
-sourceFromFoldable n = S.fromFoldable [n..n+value]
-
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
-
-{-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
-
-{-# INLINE sourceFoldMapWithM #-}
-sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
-
-{-# INLINE sourceFoldMapM #-}
-sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
-    => Int -> t m Int
-sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
+type Stream = A.Array
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceUnfoldr n = S.unfoldr step n
+sourceUnfoldr :: Int -> Stream Int
+sourceUnfoldr n = runIdentity $ A.fromStreamN value $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
         then Nothing
-        else Just (cnt, cnt + 1)
+        else (Just (cnt, cnt + 1))
 
-{-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceUnfoldrM n = S.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else return (Just (cnt, cnt + 1))
+{-# INLINE sourceIntFromTo #-}
+sourceIntFromTo :: Int -> Stream Int
+sourceIntFromTo n = runIdentity $ A.fromStreamN value $ S.enumerateFromTo n (n + value)
 
-{-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
-sourceUnfoldrMN m n = S.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + m
-        then return Nothing
-        else return (Just (cnt, cnt + 1))
-
-{-# INLINE sourceUnfoldrMAction #-}
-sourceUnfoldrMAction :: (S.IsStream t, S.MonadAsync m) => Int -> t m (m Int)
-sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else return (Just (return cnt, cnt + 1))
-
--------------------------------------------------------------------------------
--- Pure stream generation
--------------------------------------------------------------------------------
+{-# INLINE sourceFromList #-}
+sourceFromList :: Int -> Stream Int
+sourceFromList n = runIdentity $ A.fromStreamN value $ S.fromList [n..n+value]
 
 {-# INLINE sourceIsList #-}
-sourceIsList :: Int -> S.SerialT Identity Int
-sourceIsList n = GHC.fromList [n..n+value]
+sourceIsList :: Int -> Stream Int
+sourceIsList n = runIdentity $ A.fromStreamN value $ GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
-sourceIsString :: Int -> S.SerialT Identity P.Char
-sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
+sourceIsString :: Int -> Stream P.Char
+sourceIsString n = runIdentity $ A.fromStreamN value $ GHC.fromString (P.replicate (n + value) 'a')
 
+{-
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
@@ -274,19 +193,18 @@ sum    = S.sum
 product = S.product
 minimumBy = S.minimumBy compare
 maximumBy = S.maximumBy compare
+-}
 
 -------------------------------------------------------------------------------
 -- Transformation
 -------------------------------------------------------------------------------
 
 {-# INLINE transform #-}
-transform :: Monad m => Stream m a -> m ()
-transform = runStream
+transform :: Stream a -> Stream a
+transform = P.id
 
 {-# INLINE composeN #-}
-composeN
-    :: Monad m
-    => Int -> (Stream m Int -> Stream m Int) -> Stream m Int -> m ()
+composeN :: Int -> (Stream Int -> Stream Int) -> Stream Int -> Stream Int
 composeN n f =
     case n of
         1 -> transform . f
@@ -295,22 +213,10 @@ composeN n f =
         4 -> transform . f . f . f . f
         _ -> undefined
 
--- polymorphic stream version of composeN
-{-# INLINE composeN' #-}
-composeN'
-    :: (S.IsStream t, Monad m)
-    => Int -> (t m Int -> Stream m Int) -> t m Int -> m ()
-composeN' n f =
-    case n of
-        1 -> transform . f
-        2 -> transform . f . S.adapt . f
-        3 -> transform . f . S.adapt . f . S.adapt . f
-        4 -> transform . f . S.adapt . f . S.adapt . f . S.adapt . f
-        _ -> undefined
-
-{-# INLINE scan #-}
+{-# INLINE scanl' #-}
 {-# INLINE scanl1' #-}
 {-# INLINE map #-}
+{-
 {-# INLINE fmap #-}
 {-# INLINE mapMaybe #-}
 {-# INLINE filterEven #-}
@@ -334,14 +240,15 @@ composeN' n f =
 {-# INLINE foldrSMap #-}
 {-# INLINE foldrT #-}
 {-# INLINE foldrTMap #-}
-scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
+    -}
+scanl' , scanl1', map{-, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices, insertBy, deleteBy, reverse,
-    foldrS, foldrSMap, foldrT, foldrTMap
-    :: Monad m
-    => Int -> Stream m Int -> m ()
+    foldrS, foldrSMap, foldrT, foldrTMap -}
+    :: Int -> Stream Int -> Stream Int
 
+{-
 {-# INLINE mapMaybeM #-}
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
@@ -357,12 +264,18 @@ fmap' :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
 {-# INLINE sequence #-}
 sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
+    -}
 
-scan          n = composeN n $ S.scanl' (+) 0
-scanl1'       n = composeN n $ S.scanl1' (+)
+onArray :: (S.SerialT Identity Int -> S.SerialT Identity Int) -> Stream Int -> Stream Int
+onArray f arr = runIdentity $ A.fromStreamN value $ f $ A.toStream arr
+
+scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
+scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
+map           n = composeN n $ onArray $ S.map (+1)
+-- map           n = composeN n $ A.map (+1)
+{-
 fmap          n = composeN n $ Prelude.fmap (+1)
 fmap' t       n = composeN' n $ t . Prelude.fmap (+1)
-map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
 mapMaybe      n = composeN n $ S.mapMaybe
@@ -554,58 +467,51 @@ sumProductScan = S.foldl' (\(Pair _  p) (s0,x) -> Pair s0 (p P.* x)) (Pair 0 1)
 -- Pure stream operations
 -------------------------------------------------------------------------------
 
+-}
 {-# INLINE eqInstance #-}
-eqInstance :: Stream Identity Int -> Bool
+eqInstance :: Stream Int -> Bool
 eqInstance src = src == src
 
 {-# INLINE eqInstanceNotEq #-}
-eqInstanceNotEq :: Stream Identity Int -> Bool
+eqInstanceNotEq :: Stream Int -> Bool
 eqInstanceNotEq src = src P./= src
 
 {-# INLINE ordInstance #-}
-ordInstance :: Stream Identity Int -> Bool
+ordInstance :: Stream Int -> Bool
 ordInstance src = src P.< src
 
 {-# INLINE ordInstanceMin #-}
-ordInstanceMin :: Stream Identity Int -> Stream Identity Int
+ordInstanceMin :: Stream Int -> Stream Int
 ordInstanceMin src = P.min src src
 
 {-# INLINE showInstance #-}
-showInstance :: Stream Identity Int -> P.String
+showInstance :: Stream Int -> P.String
 showInstance src = P.show src
 
-{-# INLINE showInstanceList #-}
-showInstanceList :: [Int] -> P.String
-showInstanceList src = P.show src
-
 {-# INLINE readInstance #-}
-readInstance :: P.String -> Stream Identity Int
+readInstance :: P.String -> Stream Int
 readInstance str =
     let r = P.reads str
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
 
-{-# INLINE readInstanceList #-}
-readInstanceList :: P.String -> [Int]
-readInstanceList str =
-    let r = P.reads str
-    in case r of
-        [(x,"")] -> x
-        _ -> P.error "readInstance: no parse"
-
 {-# INLINE pureFoldl' #-}
-pureFoldl' :: Stream Identity Int -> Int
-pureFoldl' = runIdentity . S.foldl' (+) 0
+pureFoldl' :: Stream Int -> Int
+pureFoldl' = runIdentity . S.foldl' (+) 0 . A.toStream
 
+#ifdef DEVBUILD
 {-# INLINE foldableFoldl' #-}
-foldableFoldl' :: Stream Identity Int -> Int
+foldableFoldl' :: Stream Int -> Int
 foldableFoldl' = F.foldl' (+) 0
 
 {-# INLINE foldableSum #-}
-foldableSum :: Stream Identity Int -> Int
+foldableSum :: Stream Int -> Int
 foldableSum = P.sum
+#endif
 
+{-
 {-# INLINE traversableMapM #-}
 traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
 traversableMapM = P.mapM return
+-}

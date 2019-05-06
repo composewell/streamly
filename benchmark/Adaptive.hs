@@ -9,7 +9,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Gauge
-import Streamly
+import Streamly hiding (runStream)
 import Streamly.Prelude as S
 import System.Random (randomRIO)
 
@@ -32,7 +32,7 @@ source range = S.replicateM value $ do
 
 {-# INLINE run #-}
 run :: IsStream t => (Int, Int) -> (Int, Int) -> (t IO Int -> SerialT IO Int) -> IO ()
-run srange crange t = runStream $ do
+run srange crange t = S.runStream $ do
     n <- t $ source srange
     d <- liftIO (randomRIO crange)
     when (d /= 0) $ liftIO $ threadDelay d

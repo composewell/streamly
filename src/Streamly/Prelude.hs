@@ -102,6 +102,7 @@ module Streamly.Prelude
     -- these can be expressed in terms of primitives.
     , P.fromList
     , fromListM
+    -- , P.fromArray
     , K.fromFoldable
     , fromFoldableM
 
@@ -176,6 +177,7 @@ module Streamly.Prelude
     , foldrM
     , foldrS
     , foldrT
+    , foldr
 
     , foldl'
     , foldl1'
@@ -211,6 +213,7 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
+    -- , toArrayN
     , toHandle
 
     -- ** Partial Folds
@@ -456,16 +459,16 @@ module Streamly.Prelude
     , K.once
     , each
     , scanx
-    , foldr
-    , foldr1
     , foldx
     , foldxM
+    , foldr1
     )
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
+import Foreign.Storable (Storable)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, mapM, mapM_, sequence, all, any, sum, product, elem,
@@ -490,6 +493,7 @@ import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Zip as Z
+import qualified Streamly.Array.Types as A
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -994,15 +998,17 @@ foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
 foldrT f z s = S.foldrT f z (toStreamS s)
 
--- | Note that with this signature we cannot implement a lazy foldr when the
--- monad @m@ is strict. In that case it would be strict in its accumulator and
--- therefore would necessarily consume all its input.  For this reason we have
--- deprecated this API. Though this can be useful for lazy monads, but we can
--- always achieve the same thing using foldrM directly.
+-- | Right fold for lazy monads or pure streams.
+--
+-- Please avoid using this routine in strict monads like IO unless you need a
+-- strict right fold. This is provided only for use in lazy monads (e.g.
+-- Identity) or pure streams. Note that with this signature it is not possible
+-- to implement a lazy foldr when the monad @m@ is strict. In that case it
+-- would be strict in its accumulator and therefore would necessarily consume
+-- all its input.
 --
 -- @since 0.1.0
 {-# INLINE foldr #-}
-{-# DEPRECATED foldr "This is unnecessarily strict for strict monads. Use foldrM instead." #-}
 foldr :: Monad m => (a -> b -> b) -> b -> SerialT m a -> m b
 foldr = P.foldr
 
@@ -1014,7 +1020,7 @@ foldr = P.foldr
 --
 -- @since 0.5.0
 {-# INLINE foldr1 #-}
-{-# DEPRECATED foldr1 "This is unnecessarily strict for strict monads. Use foldrM instead." #-}
+{-# DEPRECATED foldr1 "Use foldrM instead." #-}
 foldr1 :: Monad m => (a -> a -> a) -> SerialT m a -> m (Maybe a)
 foldr1 f m = S.foldr1 f (toStreamS m)
 
@@ -1480,6 +1486,10 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
 toList = P.toList
+
+{-# INLINE _toArrayN #-}
+_toArrayN :: (Monad m, Storable a) => Int -> SerialT m a -> m (A.Array a)
+_toArrayN = P.toArrayN
 
 -- |
 -- @
