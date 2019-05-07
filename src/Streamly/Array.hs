@@ -55,6 +55,17 @@
 -- * provide /O(1)/ access to elements
 -- * store only data and not functions
 -- * provide efficient IO interfacing
+--
+-- 'ByteString' data type from the 'bytestring' package and the 'Text' data
+-- type from the 'text' package are just special cases of arrays.  'ByteString'
+-- is equivalent to @Array Word8@ and 'Text' is equivalent to a @utf16@ encoded
+-- @Array Word8@. All the 'bytestring' and 'text' operations can be performed
+-- on arrays with equivalent or better performance by converting them to and
+-- from streams.
+--
+-- This module is designed to be imported qualified:
+--
+-- > import qualified Streamly.Array as A
 
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
 -- single byte) are only as good as holding those elements in a Haskell list.
@@ -69,25 +80,43 @@ module Streamly.Array
     (
       Array
 
+    -- , defaultChunkSize
+
     -- * Construction
-    -- , fromStream
+    -- | When performance matters, the fastest way to generate an array is
+    -- 'fromStreamN'. For regular use, 'IsList' and 'IsString' instances can be
+    -- used to conveniently construct arrays from literal values.
+    -- 'OverloadedLists' extension or 'fromList' can be used to construct an
+    -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
+    -- 'fromList' can be used to construct an array from a string literal.
+
     , fromStreamN
-    -- , fromList
-    -- , fromListN
+    , fromStream
+    , fromListN
+    , fromList
+
+    -- Folds
+    , toArrayN
+    -- , toArrays
+    -- , toArray
+
+    -- Streams
+    , arraysOf
 
     -- * Elimination
-    -- , toList
+    -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
+    -- list.
+
     , toStream
+    , toStreamRev
+    , toList
+    , flattenArrays
+    -- , flattenArraysRev
+    , spliceArrays
 
     -- * Random Access
     , length
     , (!!)
-
-    -- * Streams of Arrays
-    -- , defaultChunkSize
-    -- , fromStreamArraysOf
-    , flattenArrays
-    , spliceArrays
 
     -- * IO: Single Array
     -- , fromHandleUpto
@@ -117,10 +146,10 @@ import GHC.IO (unsafeDupablePerformIO)
 
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Array.Types
+import Streamly.Array.Types hiding (flattenArrays)
+import qualified Streamly.Array.Types as A
 
 import qualified Streamly.Streams.StreamD as D
-import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -135,7 +164,6 @@ import qualified Streamly.Prelude as S
 {-# INLINE fromStreamN #-}
 fromStreamN :: (Monad m, Storable a) => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = fromStreamDN n $ D.toStreamD m
--- fromStreamN n = FL.foldl (FL.toArrayN n)
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -144,9 +172,22 @@ fromStreamN n m = fromStreamDN n $ D.toStreamD m
 -- | Convert an 'Array' into a stream.
 --
 -- @since 0.7.0
-{-# INLINABLE toStream #-}
+{-# INLINE_EARLY toStream #-}
 toStream :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-toStream = P.fromArray
+toStream = D.fromStreamD . toStreamD
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.toStream fallback to StreamK" [1]
+--     forall a. S.toStreamK (toStream a) = K.fromArray a #-}
+
+-- | Convert an 'Array' into a stream in reverse order.
+--
+-- @since 0.7.0
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
+toStreamRev = D.fromStreamD . toStreamDRev
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.toStreamRev fallback to StreamK" [1]
+--     forall a. S.toStreamK (toStreamRev a) = K.revFromArray a #-}
 
 {-# INLINE null #-}
 null :: Storable a => Array a -> Bool
@@ -174,22 +215,35 @@ arr !! i =
 -- Streams of Arrays
 -------------------------------------------------------------------------------
 
--- | Convert a stream of Arrays into a stream of their elements.
+-- | Convert a stream of arrays into a stream of their elements.
 --
 -- @since 0.7.0
 {-# INLINE flattenArrays #-}
 flattenArrays :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
-flattenArrays m = D.fromStreamD $ D.flattenArrays (D.toStreamD m)
+flattenArrays m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 
-{-
--- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
--- arrays of size n.
-{-# INLINE fromStreamArraysOf #-}
-fromStreamArraysOf :: (IsStream t, Monad m, Storable a)
+-- XXX should we have a reverseArrays API to reverse the stream of arrays
+-- instead?
+--
+-- | Convert a stream of arrays into a stream of their elements reversing the
+-- contents of each array before flattening.
+--
+-- @since 0.7.0
+{-# INLINE _flattenArraysRev #-}
+_flattenArraysRev :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+_flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
+
+-- |
+-- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
+--
+-- Groups the elements in an input stream into arrays of given size.
+--
+-- @since 0.7.0
+{-# INLINE arraysOf #-}
+arraysOf :: (IsStream t, Monad m, Storable a)
     => Int -> t m a -> t m (Array a)
-fromStreamArraysOf n str =
-    D.fromStreamD $ D.groupsOf n (fromStreamN n) (D.toStreamD str)
-    -}
+arraysOf n str =
+    D.fromStreamD $ fromStreamDArraysOf n (D.toStreamD str)
 
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.
@@ -214,23 +268,17 @@ spliceArrays s = do
                         return $ dst `plusPtr` len
          in dst'
 
-{-
--- CAUTION: a very large number (millions) of arrays can degrade performance
--- due to GC overhead because we need to buffer the arrays before we flatten
--- all the arrays.
---
 -- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'fromStreamN' is more efficient
--- when the size is already known.
+-- single array from a stream of unknown size. 'fromStreamN' is at least twice
+-- as efficient when the size is already known.
+--
+-- Note that if the input stream is too large memory allocation for the array
+-- may fail.  When the stream size is not known, `arraysOf` followed by
+-- processing of indvidual arrays in the resulting stream should be preferred.
 --
 {-# INLINE fromStream #-}
 fromStream :: (Monad m, Storable a) => SerialT m a -> m (Array a)
-fromStream m = do
-    let s = fromStreamArraysOf defaultChunkSize $ D.toStreamD m
-        buffered = S.foldr S.cons S.nil s
-        len = S.sum (S.map length buffered)
-    fromStreamN len $ flattenArrays buffered
--}
+fromStream m = A.fromStreamD $ D.toStreamD m
 
 {-
 -- Move this to FileIO
@@ -253,6 +301,7 @@ toHandleArrays h m = S.mapM_ (liftIO . toHandle h) m
 fromHandleUpto :: Int -> Handle -> IO (Array Word8)
 fromHandleUpto size h = do
     ptr <- mallocPlainForeignPtrBytes size
+    -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
         n <- hGetBufSome h p size
         let v = Array

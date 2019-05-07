@@ -58,7 +58,16 @@ sourceUnfoldr n = runIdentity $ A.fromStreamN value $ S.unfoldr step n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: Int -> Stream Int
-sourceIntFromTo n = runIdentity $ A.fromStreamN value $ S.enumerateFromTo n (n + value)
+sourceIntFromTo n = runIdentity $
+    A.fromStreamN value $ S.enumerateFromTo n (n + value)
+
+{-# INLINE sourceIntFromToFromStream #-}
+sourceIntFromToFromStream :: Int -> Stream Int
+sourceIntFromToFromStream n = runIdentity $
+    A.fromStream $ S.enumerateFromTo n (n + value)
+
+sourceIntFromToFromList :: Int -> Stream Int
+sourceIntFromToFromList n = A.fromList $ [n..n + value]
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: Int -> Stream Int
@@ -70,7 +79,8 @@ sourceIsList n = runIdentity $ A.fromStreamN value $ GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Stream P.Char
-sourceIsString n = runIdentity $ A.fromStreamN value $ GHC.fromString (P.replicate (n + value) 'a')
+sourceIsString n = runIdentity $
+    A.fromStreamN value $ GHC.fromString (P.replicate (n + value) 'a')
 
 {-
 -------------------------------------------------------------------------------

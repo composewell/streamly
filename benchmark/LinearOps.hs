@@ -160,7 +160,7 @@ sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+runStream = S.drain
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
@@ -221,7 +221,7 @@ uncons s = do
 
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
-init s = S.init s >>= Prelude.mapM_ S.runStream
+init s = S.init s >>= Prelude.mapM_ S.drain
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
@@ -241,9 +241,11 @@ mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
 
+{-
 {-# INLINE toRevList #-}
 toRevList :: Monad m => Stream m Int -> m [Int]
 toRevList = S.toRevList
+-}
 
 foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
 foldl'Build = S.foldl' (flip (:)) []
@@ -330,6 +332,7 @@ composeN' n f =
 {-# INLINE insertBy #-}
 {-# INLINE deleteBy #-}
 {-# INLINE reverse #-}
+{-# INLINE reverse' #-}
 {-# INLINE foldrS #-}
 {-# INLINE foldrSMap #-}
 {-# INLINE foldrT #-}
@@ -337,7 +340,7 @@ composeN' n f =
 scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy, reverse,
+    findIndices, elemIndices, insertBy, deleteBy, reverse, reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
     :: Monad m
     => Int -> Stream m Int -> m ()
@@ -387,6 +390,7 @@ elemIndices    n = composeN n $ S.elemIndices maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
 reverse        n = composeN n $ S.reverse
+reverse'       n = composeN n $ S.reverse'
 foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldrSMap      n = composeN n $ S.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
 foldrT         n = composeN n $ S.foldrT S.cons S.nil

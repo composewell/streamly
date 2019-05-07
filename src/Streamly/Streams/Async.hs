@@ -618,7 +618,7 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = 'runStream' . 'asyncly' $ do
+-- main = 'drain' . 'asyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)
@@ -754,7 +754,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = 'runStream' . 'wAsyncly' $ do
+-- main = 'drain' . 'wAsyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)

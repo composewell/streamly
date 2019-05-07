@@ -613,7 +613,7 @@ consMAhead m r = fromStream $ K.yieldM m `ahead` (toStream r)
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = 'runStream' . 'aheadly' $ do
+-- main = 'drain' . 'aheadly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)

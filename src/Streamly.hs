@@ -7,55 +7,25 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- The way a list represents a sequence of pure values, a stream represents a
--- sequence of monadic actions. The monadic stream API offered by Streamly is
--- very close to the Haskell "Prelude" pure lists' API, it can be considered as
--- a natural extension of lists to monadic actions. Streamly streams provide
--- concurrent composition and merging of streams. It can be considered as a
--- concurrent list transformer. In contrast to the "Prelude" lists, merging or
--- appending streams of arbitrary length is scalable and inexpensive.
+-- Haskell lists provide a simple and powerful API but they are limited to
+-- holding only pure values. Streamly streams are a logical extension of
+-- Haskell lists to support monadic sequences and powerful declarative
+-- concurrency.  They provide almost the same API as lists (See
+-- "Streamly.Prelude"). In fact, Haskell lists can be expressed as pure
+-- streams, a special case of monadic streams, with similar or better
+-- performance and almost drop-in replacement.
 --
--- The basic stream type is 'Serial', it represents a sequence of IO actions,
--- and is a 'Monad'.  The type 'SerialT' is a monad transformer that can
--- represent a sequence of actions in an arbitrary monad. The type 'Serial' is
--- in fact a synonym for @SerialT IO@.  There are a few more types similar to
--- 'SerialT', all of them represent a stream and differ only in the
--- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Serial'
--- and 'WSerial' types compose serially whereas 'Async' and 'WAsync'
--- types compose concurrently. All these types can be freely inter-converted
--- using type combinators without any cost. You can freely switch to any type
--- of composition at any point in the program.  When no type annotation or
--- explicit stream type combinators are used, the default stream type is
--- inferred as 'Serial'.
---
--- Here is a simple console echo program example:
---
--- @
--- > runStream $ S.repeatM getLine & S.mapM putStrLn
--- @
---
--- For more details please see the "Streamly.Tutorial" module and the examples
--- directory in this package.
---
--- This module exports stream types, instances and some basic operations.
--- Functionality exported by this module include:
---
--- * Semigroup append ('<>') instances as well as explicit  operations for merging streams
--- * Monad and Applicative instances for looping over streams
--- * Zip Applicatives for zipping streams
--- * Stream type combinators to convert between different composition styles
--- * Some basic utilities to run and fold streams
---
--- See the "Streamly.Prelude" module for comprehensive APIs for construction,
--- generation, elimination and transformation of streams.
---
--- This module is designed to be imported unqualified:
---
--- @
--- import Streamly
--- @
+-- Streams are designed for high performance applications and do not exhibit
+-- issues that are usually associated with lists. For example, streams
+-- express strings as streams of 'Char' and bytestrings as streams of 'Word8'
+-- without any issues, obviating the need for special purpose libraries like
+-- bytestring and text, and various lazy and strict falvors of those. Streamly
+-- arrays (See "Streamly.Array") complement streams for storing or buffering
+-- data efficiently and facilitating efficient interfacing of streams with IO
+-- systems.
 
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans #-}
@@ -65,6 +35,13 @@
 
 module Streamly
     (
+    -- * Streams and Folds
+    -- $overview
+
+    -- * Streams Overview
+    -- $streams
+
+    -- * Type Synonyms
       MonadAsync
 
     -- * Stream transformers
@@ -73,11 +50,11 @@ module Streamly
     , SerialT
     , WSerialT
 
-    -- ** Concurrent Lookahead Streams
+    -- ** Speculative Streams
     -- $lookahead
     , AheadT
 
-    -- ** Concurrent Asynchronous Streams
+    -- ** Asynchronous Streams
     -- $async
     , AsyncT
     , WAsyncT
@@ -147,6 +124,7 @@ module Streamly
 
     -- * Deprecated
     , Streaming
+    , runStream
     , runStreaming
     , runStreamT
     , runInterleavedT
@@ -165,7 +143,6 @@ module Streamly
 
     -- * Moved
     -- | These APIs have been moved to other modules
-    , runStream
     , foldWith
     , foldMapWith
     , forEachWith
@@ -179,11 +156,112 @@ import Streamly.Streams.Async
 import Streamly.Streams.Combinators
 import Streamly.Streams.Parallel
 import Streamly.Streams.Serial
-import Streamly.Streams.StreamK hiding (runStream, serial)
+import Streamly.Streams.StreamK hiding (serial)
 import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Streams.StreamK as K
+
+-- XXX provide good succinct examples of pipelining, merging, splitting ect.
+-- below.
+--
+-- $overview
+-- Streamly is a general purpose concurrent data flow programming engine
+-- expressing a program as a network of streams and folds. Stream types (e.g.
+-- 'SerialT') exported from this module represent streams or more specifically
+-- stream producers while the fold type exported from "Streamly.Fold"
+-- represents stream consumers.  Both producers and consumers can be
+-- transformed in many ways e.g.  using map, scan, filter etc.  Transformations
+-- can be chained into a pipeline, multiple streams can be merged together or a
+-- stream can be split into multiple independent data flows. All these
+-- compositions can be combined together to form an arbitrary data flow network
+-- expressing any kind of general purpose computing in a declarative manner.
+--
+-- The simplest way to compose a data processing pipeline is to generate a
+-- stream of data (e.g. from a file or network), chain pipelines of
+-- transformations on the stream and finally pass it to a fold. Folds represent
+-- specific ways to consume a stream (e.g. producing a sum of numbers).
+-- Transformations can also be applied on folds before they are attached with a
+-- stream.
+--
+-- @
+--
+-- ---Stream m a-->stream transforms-->fold transforms-->Fold m a b
+-- @
+--
+-- Stream producers can be appended, merged, zipped or nested to build an
+-- arbitrarily complex composed stream producer. Transformations can be applied
+-- at any point in the composition tree. See "Streamly.Prelude" module for more
+-- details on the combinators.
+--
+-- @
+--
+-- -------Stream m a-->transform-->|
+--                                 |
+-- -------Stream m a-->transform-->|=>---transform-->Stream m a--->
+--                                 |
+-- -------Stream m a-->transform-->|
+-- @
+--
+-- Folds are consumers of streams and can be used to split a stream into
+-- multiple independent flows. Grouping transforms a stream by applying a fold
+-- on segments of a stream, distributing applies multiple folds in parallel on
+-- the same stream and combines them, partitioning sends different elements of
+-- a stream to different folds, unzipping divides the elements of a stream into
+-- parts and sends them through different folds. Parsers are nothing but a
+-- particular type of folds. Transformations can be applied contravariantly on
+-- the input of a fold.
+--
+-- @
+--
+--                             |---transform----Fold m a b--------|
+-- ---stream m a-->transform-->|                                  |---f b c ...
+--                             |---transform----Fold m a c--------|
+--                             |                                  |
+--                                        ...
+-- @
+--
+
+-- $streams
+-- The basic stream type is 'Serial', it represents a sequence of IO actions,
+-- and is a 'Monad'.  The type 'SerialT' is a monad transformer that can
+-- represent a sequence of actions in an arbitrary monad. The type 'Serial' is
+-- in fact a synonym for @SerialT IO@.  There are a few more types similar to
+-- 'SerialT', all of them represent a stream and differ only in the
+-- 'Semigroup', 'Applicative' and 'Monad' compositions of the stream. 'Serial'
+-- and 'WSerial' types compose serially whereas 'Async' and 'WAsync'
+-- types compose concurrently. All these types can be freely inter-converted
+-- using type combinators without any cost. You can freely switch to any type
+-- of composition at any point in the program.  When no type annotation or
+-- explicit stream type combinators are used, the default stream type is
+-- inferred as 'Serial'.
+--
+-- Here is a simple console echo program example:
+--
+-- @
+-- > drain $ S.repeatM getLine & S.mapM putStrLn
+-- @
+--
+-- For more details please see the "Streamly.Tutorial" module and the examples
+-- directory in this package.
+--
+-- This module exports stream types, instances and some basic operations.
+-- Functionality exported by this module include:
+--
+-- * Semigroup append ('<>') instances as well as explicit  operations for merging streams
+-- * Monad and Applicative instances for looping over streams
+-- * Zip Applicatives for zipping streams
+-- * Stream type combinators to convert between different composition styles
+-- * Some basic utilities to run and fold streams
+--
+-- See the "Streamly.Prelude" module for comprehensive APIs for construction,
+-- generation, elimination and transformation of streams.
+--
+-- This module is designed to be imported unqualified:
+--
+-- @
+-- import Streamly
+-- @
 
 ------------------------------------------------------------------------------
 -- Eliminating a stream
@@ -194,55 +272,55 @@ import qualified Streamly.Streams.StreamK as K
 -- @since 0.1.0
 {-# DEPRECATED runStreaming "Please use runStream instead." #-}
 runStreaming :: (Monad m, IsStream t) => t m a -> m ()
-runStreaming = P.runStream . K.adapt
+runStreaming = P.drain . K.adapt
 
 -- | Same as @runStream@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runStreamT "Please use runStream instead." #-}
 runStreamT :: Monad m => SerialT m a -> m ()
-runStreamT = P.runStream
+runStreamT = P.drain
 
 -- | Same as "Streamly.Prelude.runStream".
 --
-{-# DEPRECATED runStream "Please use Streamly.Prelude.runStream instead." #-}
+{-# DEPRECATED runStream "Please use Streamly.Prelude.drain instead." #-}
 runStream :: Monad m => SerialT m a -> m ()
-runStream = P.runStream
+runStream = P.drain
 
 -- | Same as @runStream . wSerially@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runInterleavedT "Please use 'runStream . interleaving' instead." #-}
 runInterleavedT :: Monad m => WSerialT m a -> m ()
-runInterleavedT = P.runStream . K.adapt
+runInterleavedT = P.drain . K.adapt
 
 -- | Same as @runStream . parallely@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runParallelT "Please use 'runStream . parallely' instead." #-}
 runParallelT :: Monad m => ParallelT m a -> m ()
-runParallelT = P.runStream . K.adapt
+runParallelT = P.drain . K.adapt
 
 -- | Same as @runStream . asyncly@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runAsyncT "Please use 'runStream . asyncly' instead." #-}
 runAsyncT :: Monad m => AsyncT m a -> m ()
-runAsyncT = P.runStream . K.adapt
+runAsyncT = P.drain . K.adapt
 
 -- | Same as @runStream . zipping@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runZipStream "Please use 'runStream . zipSerially instead." #-}
 runZipStream :: Monad m => ZipSerialM m a -> m ()
-runZipStream = P.runStream . K.adapt
+runZipStream = P.drain . K.adapt
 
 -- | Same as @runStream . zippingAsync@.
 --
 -- @since 0.1.0
 {-# DEPRECATED runZipAsync "Please use 'runStream . zipAsyncly instead." #-}
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
-runZipAsync = P.runStream . K.adapt
+runZipAsync = P.drain . K.adapt
 
 -- | Same as "Streamly.Prelude.foldWith".
 --

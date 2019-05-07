@@ -54,5 +54,5 @@ main :: IO ()
 main = do
     putStrLn "Your health is deteriorating due to acid rain,\
              \ type \"potion\" or \"quit\""
-    let runGame = S.runWhile (== Alive) $ S.mapM getStatus runEvents
+    let runGame = S.drainWhile (== Alive) $ S.mapM getStatus runEvents
     void $ runStateT runGame 60

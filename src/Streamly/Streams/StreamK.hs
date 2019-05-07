@@ -87,7 +87,7 @@ module Streamly.Streams.StreamK
     , foldlMx'
 
     -- ** Specialized Folds
-    , runStream
+    , drain
     , null
     , head
     , tail
@@ -490,11 +490,11 @@ foldlT step begin m = go begin m
 ------------------------------------------------------------------------------
 
 -- |
--- > runStream = foldl' (\_ _ -> ()) ()
--- > runStream = mapM_ (\_ -> return ())
-{-# INLINE runStream #-}
-runStream :: (Monad m, IsStream t) => t m a -> m ()
-runStream = go
+-- > drain = foldl' (\_ _ -> ()) ()
+-- > drain = mapM_ (\_ -> return ())
+{-# INLINE drain #-}
+drain :: (Monad m, IsStream t) => t m a -> m ()
+drain = go
     where
     go m1 =
         let stop = return ()

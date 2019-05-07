@@ -29,11 +29,15 @@ module Streamly.Array.Types
     , unsafeAppend
     , shrinkToFit
     , memcpy
+    , memcmp
 
-    , fromCStringAddrUnsafe
     , fromList
     , fromListN
     , fromStreamDN
+    , fromStreamD
+    , fromStreamDArraysOf
+    , flattenArrays
+    , flattenArraysRev
 
     -- * Elimination
     , unsafeIndex
@@ -42,10 +46,13 @@ module Streamly.Array.Types
     , foldr
 
     , toStreamD
+    , toStreamDRev
     , toList
+    , toArrayN
 
     -- * Utilities
     , defaultChunkSize
+    , mkChunkSizeKB
     )
 where
 
@@ -70,8 +77,11 @@ import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes, newForeignPtr_)
 import GHC.IO (IO(IO), unsafeDupablePerformIO)
 import GHC.Ptr (Ptr(..))
 
-import qualified Prelude
+import Streamly.Fold.Types (Fold(..))
+import Streamly.SVar (adaptState)
+
 import qualified Streamly.Streams.StreamD.Type as D
+import qualified Streamly.Streams.StreamK as K
 import qualified GHC.Exts as Exts
 
 -------------------------------------------------------------------------------
@@ -118,7 +128,8 @@ import qualified GHC.Exts as Exts
 -- is to store the elemSize in the array at construction and use that instead
 -- of using sizeOf. Need to charaterize perf cost of this.
 --
--- XXX add reverse flag to reverse the contents without physically reversing.
+-- XXX rename the fields to "start, next, end".
+--
 data Array a =
 #ifdef DEVBUILD
     Storable a =>
@@ -222,13 +233,18 @@ shrinkToFit arr@Array{..} = do
                 }
     else return arr
 
+-- XXX when converting an array of Word8 from a literal string we can simply
+-- refer to the literal string. Is it possible to write rules such that
+-- fromList Word8 can be rewritten so that GHC does not first convert the
+-- literal to [Char] and then we convert it back to an Array Word8?
+--
 -- Note that the address must be a read-only address (meant to be used for
 -- read-only string literals) because we are sharing it, any modification to
 -- the original address would change our array. That's why this function is
 -- unsafe.
-{-# INLINE fromCStringAddrUnsafe #-}
-fromCStringAddrUnsafe :: Addr# -> IO (Array Word8)
-fromCStringAddrUnsafe addr# = do
+{-# INLINE _fromCStringAddrUnsafe #-}
+_fromCStringAddrUnsafe :: Addr# -> IO (Array Word8)
+_fromCStringAddrUnsafe addr# = do
     ptr <- newForeignPtr_ (castPtr cstr)
     len <- c_strlen cstr
     let n = fromIntegral len
@@ -287,6 +303,23 @@ toStreamD Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
 
+{-# INLINE_NORMAL toStreamDRev #-}
+toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
+toStreamDRev Array{..} =
+    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    in D.Stream step p
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ p | p < unsafeForeignPtrToPtr aStart = return D.Stop
+    step _ p = do
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
+
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
 foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
@@ -298,6 +331,39 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -------------------------------------------------------------------------------
 -- Instances
 -------------------------------------------------------------------------------
+
+-- | @toArrayN n@ folds a maximum of @n@ elements from the input stream to an
+-- 'Array'.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL toArrayN #-}
+toArrayN :: forall m a. (Monad m, Storable a) => Int -> Fold m a (Array a)
+toArrayN n = Fold step initial extract
+
+    where
+
+    initial =
+        let !arr = unsafeDupablePerformIO $ unsafeNew n
+        in return arr
+    step arr@(Array _ end bound) _ | end == bound = return arr
+    step (Array start end bound) x =
+        let !_ = unsafeInlineIO $ poke end x
+        in return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+    extract = return
+
+{-
+-- | Fold the input to a pure buffered stream (List) of arrays.
+{-# INLINE toArrays #-}
+toArrays :: (Monad m, Storable a) => Int -> Fold m a (List (Array a))
+toArrays n = Fold step initial extract
+
+-- This can be implemented by combining the List of arrays from toArrays into a
+-- single array.
+-- | Fold the whole input to a single array.
+{-# INLINE toArray #-}
+toArray :: forall m a. (Monad m, Storable a) => Fold m a (Array a)
+toArray = Fold step begin done
+-}
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (Monad m, Storable a)
@@ -312,6 +378,86 @@ fromStreamDN limit str = do
     write ptr x =
         let !_ = unsafeInlineIO $ poke ptr x
          in ptr `plusPtr` sizeOf (undefined :: a)
+
+-- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
+{-# INLINE fromStreamDArraysOf #-}
+fromStreamDArraysOf :: (Monad m, Storable a)
+    => Int -> D.Stream m a -> D.Stream m (Array a)
+fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
+
+-- XXX concatMap does not seem to have the best possible performance so we have
+-- a custom way to concat arrays.
+data CAState s a = CAParent s | CANested s (ForeignPtr a) (Ptr a) (Ptr a)
+
+{-# INLINE_NORMAL flattenArrays #-}
+flattenArrays :: forall m a. (Monad m, Storable a)
+    => D.Stream m (Array a) -> D.Stream m a
+flattenArrays (D.Stream step state) = D.Stream step' (CAParent state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (CAParent st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield Array{..} s ->
+                let p = unsafeForeignPtrToPtr aStart
+                in D.Skip (CANested s aStart p aEnd)
+            D.Skip s -> D.Skip (CAParent s)
+            D.Stop -> D.Stop
+
+    step' _ (CANested st _ p end) | p == end =
+        return $ D.Skip $ CAParent st
+
+    step' _ (CANested st startf p end) = do
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ D.Yield x (CANested st startf
+                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+
+{-# INLINE_NORMAL flattenArraysRev #-}
+flattenArraysRev :: forall m a. (Monad m, Storable a)
+    => D.Stream m (Array a) -> D.Stream m a
+flattenArraysRev (D.Stream step state) = D.Stream step' (CAParent state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (CAParent st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield Array{..} s ->
+                let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+                -- XXX we do not need aEnd
+                in D.Skip (CANested s aStart p aEnd)
+            D.Skip s -> D.Skip (CAParent s)
+            D.Stop -> D.Stop
+
+    step' _ (CANested st start p _) | p < unsafeForeignPtrToPtr start =
+        return $ D.Skip $ CAParent st
+
+    step' _ (CANested st startf p end) = do
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ D.Yield x (CANested st startf
+                            (p `plusPtr` negate (sizeOf (undefined :: a))) end)
+
+-- CAUTION: a very large number (millions) of arrays can degrade performance
+-- due to GC overhead because we need to buffer the arrays before we flatten
+-- all the arrays.
+--
+{-# INLINE fromStreamD #-}
+fromStreamD :: (Monad m, Storable a) => D.Stream m a -> m (Array a)
+fromStreamD m = do
+    let s = fromStreamDArraysOf defaultChunkSize m
+    buffered <- D.foldr K.cons K.nil s
+    len <- K.foldl' (+) 0 (K.map length buffered)
+    fromStreamDN len $ flattenArrays $ D.fromStreamK buffered
 
 -- | Convert an 'Array' into a list.
 --
@@ -338,7 +484,7 @@ fromListN n xs = runIdentity $ fromStreamDN n $ D.fromList xs
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
-fromList xs = fromListN (Prelude.length xs) xs
+fromList xs = runIdentity $ fromStreamD $ D.fromList xs
 
 instance (Storable a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
@@ -467,4 +613,8 @@ allocOverhead = 2 * sizeOf (undefined :: Int)
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
 defaultChunkSize = 32 * k - allocOverhead
+   where k = 1024
+
+mkChunkSizeKB :: Int -> Int
+mkChunkSizeKB n = n * k - allocOverhead
    where k = 1024

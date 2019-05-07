@@ -93,10 +93,11 @@ lookahead style concurrency, the only difference is that this time multiple
 directories are read concurrently:
 
 ``` haskell
-import Streamly (runStream, aheadly)
+import Streamly (aheadly)
+import qualified Streamly.Prelude as S
 
 main :: IO ()
-main = runStream $ aheadly $ listDirRecursive
+main = S.drain $ aheadly $ listDirRecursive
 ```
 
 Isn't that magical? What's going on here? Streamly does not introduce any new
@@ -134,7 +135,7 @@ import Streamly
 import qualified Streamly.Prelude as S
 import Data.Function ((&))
 
-main = runStream $
+main = S.drain $
        S.repeatM getLine
      & fmap read
      & S.filter even
@@ -172,7 +173,7 @@ The following code finishes in 3 seconds (6 seconds when serial):
 The following finishes in 10 seconds (100 seconds when serial):
 
 ``` haskell
-runStream $ asyncly $ S.replicateM 10 $ p 10
+S.drain $ asyncly $ S.replicateM 10 $ p 10
 ```
 
 ## Concurrent Streaming Pipelines
@@ -183,7 +184,7 @@ following example prints a "hello" every second; if you use `&` instead of
 application.
 
 ``` haskell
-main = runStream $
+main = S.drain $
       S.repeatM (threadDelay 1000000 >> return "hello")
    |& S.mapM (\x -> threadDelay 1000000 >> putStrLn x)
 ```
@@ -194,7 +195,7 @@ We can use `mapM` or `sequence` functions concurrently on a stream.
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> runStream $ aheadly $ S.mapM (\x -> p 1 >> print x) (serially $ repeatM (p 1))
+> S.drain $ aheadly $ S.mapM (\x -> p 1 >> print x) (serially $ repeatM (p 1))
 ```
 
 ## Serial and Concurrent Merging
@@ -230,7 +231,7 @@ delay n = S.yieldM $ do
 ### Serial
 
 ``` haskell
-main = runStream $ delay 3 <> delay 2 <> delay 1
+main = S.drain $ delay 3 <> delay 2 <> delay 1
 ```
 ```
 ThreadId 36: Delay 3
@@ -241,7 +242,7 @@ ThreadId 36: Delay 1
 ### Parallel
 
 ``` haskell
-main = runStream . parallely $ delay 3 <> delay 2 <> delay 1
+main = S.drain . parallely $ delay 3 <> delay 2 <> delay 1
 ```
 ```
 ThreadId 42: Delay 1
@@ -262,7 +263,7 @@ loops = do
     y <- S.fromFoldable [3,4]
     S.yieldM $ putStrLn $ show (x, y)
 
-main = runStream loops
+main = S.drain loops
 ```
 ```
 (1,3)
@@ -278,21 +279,21 @@ the loop can run run concurrently by but the results are presented in the same
 order as serial execution:
 
 ``` haskell
-main = runStream $ aheadly $ loops
+main = S.drain $ aheadly $ loops
 ```
 
 To run it with depth first concurrency yielding results asynchronously in the
 same order as they become available (deep async composition):
 
 ``` haskell
-main = runStream $ asyncly $ loops
+main = S.drain $ asyncly $ loops
 ```
 
 To run it with breadth first concurrency and yeilding results asynchronously
 (wide async composition):
 
 ``` haskell
-main = runStream $ wAsyncly $ loops
+main = S.drain $ wAsyncly $ loops
 ```
 
 The above streams provide lazy/demand-driven concurrency which is automatically
@@ -301,14 +302,14 @@ infinite streams. The following combinator provides strict, unbounded
 concurrency irrespective of demand:
 
 ``` haskell
-main = runStream $ parallely $ loops
+main = S.drain $ parallely $ loops
 ```
 
 To run it serially but interleaving the outer and inner loop iterations
 (breadth first serial):
 
 ``` haskell
-main = runStream $ wSerially $ loops
+main = S.drain $ wSerially $ loops
 ```
 
 ## Magical Concurrency
@@ -346,7 +347,7 @@ example, to print hello once every second you can simply write this:
 import Streamly
 import Streamly.Prelude as S
 
-main = runStream $ asyncly $ avgRate 1 $ S.repeatM $ putStrLn "hello"
+main = S.drain $ asyncly $ avgRate 1 $ S.repeatM $ putStrLn "hello"
 ```
 
 For some practical uses of rate control, see

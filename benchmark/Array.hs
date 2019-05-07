@@ -7,12 +7,15 @@
 -- Maintainer  : harendra.kumar@gmail.com
 
 import Control.DeepSeq (NFData(..), deepseq)
+import Data.Functor.Identity (Identity)
 import Foreign.Storable (Storable(..))
 import System.Random (randomRIO)
 
+import Streamly
 import qualified GHC.Exts as GHC
 
 import qualified ArrayOps as Ops
+import qualified Streamly.Array as A
 
 import Gauge
 
@@ -42,13 +45,15 @@ main =
   defaultMain
     [ bgroup "array"
      [  bgroup "generation"
-        [ benchPureSrc "intFromTo" Ops.sourceIntFromTo
-        , benchPureSrc "unfoldr" Ops.sourceUnfoldr
-        , benchPureSrc "fromList" Ops.sourceFromList
-        , benchPureSrc "IsList.fromList" Ops.sourceIsList
-        , benchPureSrc "IsString.fromString" Ops.sourceIsString
-        , mkString `deepseq` (bench "readsPrec" $ nf Ops.readInstance mkString)
-        , benchPureSink "showsPrec pure streams" Ops.showInstance
+        [ benchPureSrc "fromStreamN . intFromTo" Ops.sourceIntFromTo
+        , benchPureSrc "fromStream . intFromTo" Ops.sourceIntFromToFromStream
+        , benchPureSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
+        , benchPureSrc "fromStreamN . unfoldr" Ops.sourceUnfoldr
+        , benchPureSrc "fromStreamN . fromList" Ops.sourceFromList
+        , benchPureSrc "fromStreamN . IsList.fromList" Ops.sourceIsList
+        , benchPureSrc "fromStreamN . IsString.fromString" Ops.sourceIsString
+        , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
+        , benchPureSink "show" Ops.showInstance
         ]
       , bgroup "elimination"
         [ benchPureSink "id" id
@@ -62,6 +67,10 @@ main =
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSink "IsList.toList" GHC.toList
         , benchPureSink "foldl'" Ops.pureFoldl'
+        , benchPureSink "toStream"
+                (A.toStream :: A.Array Int -> SerialT Identity Int)
+        , benchPureSink "toStreamRev"
+                (A.toStreamRev :: A.Array Int -> SerialT Identity Int)
 #ifdef DEVBUILD
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum

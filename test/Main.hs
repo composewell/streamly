@@ -153,7 +153,7 @@ checkCleanup :: IsStream t
     -> IO ()
 checkCleanup d t op = do
     r <- newIORef (-1 :: Int)
-    S.runStream . serially $ do
+    S.drain . serially $ do
         _ <- t $ op $ delay r 0 S.|: delay r 1 S.|: delay r 2 S.|: S.nil
         return ()
     performMajorGC
@@ -193,9 +193,9 @@ parallelTests = H.parallel $ do
         -- XXX move these to property tests
         -- XXX use an IORef to store and check the side effects
         it "simple serially" $
-            (S.runStream . serially) (return (0 :: Int)) `shouldReturn` ()
+            (S.drain . serially) (return (0 :: Int)) `shouldReturn` ()
         it "simple serially with IO" $
-            (S.runStream . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
+            (S.drain . serially) (S.yieldM $ putStrLn "hello") `shouldReturn` ()
 
     describe "Empty" $ -- do
         it "Monoid - mempty" $
@@ -543,12 +543,12 @@ parallelTests = H.parallel $ do
     ---------------------------------------------------------------------------
 
     it "asyncly crosses thread limit (2000 threads)" $
-        S.runStream (asyncly $ fold $
+        S.drain (asyncly $ fold $
                    replicate 2000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
     it "aheadly crosses thread limit (4000 threads)" $
-        S.runStream (aheadly $ fold $
+        S.drain (aheadly $ fold $
                    replicate 4000 $ S.yieldM $ threadDelay 1000000)
         `shouldReturn` ()
 
@@ -598,7 +598,7 @@ monadicStateSnapshot
        , MonadState Int (t (StateT Int IO))
        )
     => (t (StateT Int IO) () -> SerialT (StateT Int IO) ()) -> IO ()
-monadicStateSnapshot t = void $ runStateT (S.runStream $ t stateComp) 0
+monadicStateSnapshot t = void $ runStateT (S.drain $ t stateComp) 0
 
 stateCompOp
     :: (   AsyncT (StateT Int IO) ()
@@ -621,7 +621,7 @@ monadicStateSnapshotOp
         -> AsyncT (StateT Int IO) ()
        )
     -> IO ()
-monadicStateSnapshotOp op = void $ runStateT (S.runStream $ stateCompOp op) 0
+monadicStateSnapshotOp op = void $ runStateT (S.drain $ stateCompOp op) 0
 
 takeCombined :: (Monad m, Semigroup (t m Int), Show a, Eq a, IsStream t)
     => Int -> (t m Int -> SerialT IO a) -> IO ()
@@ -674,7 +674,7 @@ checkScanxStrictness :: IO ()
 checkScanxStrictness = do
   let s = return (1 :: Int) `S.consM` error "failure"
   catch
-    (S.runStream (
+    (S.drain (
         S.scanx (\_ a ->
                     if a == 1
                     then error "success"
@@ -693,7 +693,7 @@ checkScanl'Strictness :: IO ()
 checkScanl'Strictness = do
     let s = return (1 :: Int) `S.consM` error "failure"
     catch
-        (S.runStream
+        (S.drain
              (S.scanl'
                   (\_ a ->
                        if a == 1
@@ -730,13 +730,13 @@ checkScanlMStrictness :: (IORef Int -> SerialT IO Int -> SerialT IO ()) -> IO ()
 checkScanlMStrictness f = do
   ref <- newIORef 0
   let s = return 1 `S.consM` error "x"
-  catch (S.runStream $ f ref s) (\(_ :: ErrorCall) -> return ())
+  catch (S.drain $ f ref s) (\(_ :: ErrorCall) -> return ())
   readIORef ref `shouldReturn` 1
 
 takeInfinite :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
 takeInfinite t =
     it "take 1" $
-        S.runStream (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
+        S.drain (t $ S.take 1 $ S.repeatM (print "hello" >> return (1::Int)))
         `shouldReturn` ()
 
 -- XXX need to test that we have promptly cleaned up everything after the error
@@ -751,16 +751,16 @@ simpleMonadError :: Spec
 simpleMonadError = do
 {-
     it "simple runExceptT" $ do
-        (runExceptT $ S.runStream $ return ())
+        (runExceptT $ S.drain $ return ())
         `shouldReturn` (Right () :: Either String ())
     it "simple runExceptT with error" $ do
-        (runExceptT $ S.runStream $ throwError "E") `shouldReturn` Left "E"
+        (runExceptT $ S.drain $ throwError "E") `shouldReturn` Left "E"
         -}
     it "simple try" $
-        try (S.runStream $ return ())
+        try (S.drain $ return ())
         `shouldReturn` (Right () :: Either ExampleException ())
     it "simple try with throw error" $
-        try (S.runStream $ throwM $ ExampleException "E")
+        try (S.drain $ throwM $ ExampleException "E")
         `shouldReturn` (Left (ExampleException "E") :: Either ExampleException ())
 
 composeWithMonadThrow

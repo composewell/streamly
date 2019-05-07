@@ -92,7 +92,7 @@ import qualified Streamly.Streams.StreamD as D
 -- element of the stream, serially.
 --
 -- @
--- main = 'runStream' . 'serially' $ do
+-- main = 'drain' . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     S.yieldM $ print x
 -- @
@@ -104,7 +104,7 @@ import qualified Streamly.Streams.StreamD as D
 -- 'SerialT' nests streams serially in a depth first manner.
 --
 -- @
--- main = 'runStream' . 'serially' $ do
+-- main = 'drain' . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     S.yieldM $ print (x, y)
@@ -223,7 +223,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 --
 --
 -- @
--- main = 'runStream' . 'wSerially' $ do
+-- main = 'drain' . 'wSerially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     S.yieldM $ print (x, y)

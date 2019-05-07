@@ -1,11 +1,11 @@
 import Control.Concurrent (myThreadId)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
 import System.Random (randomIO)
-import Streamly hiding (runStream)
-import Streamly.Prelude (runStream, nil, yieldM)
+import Streamly
+import Streamly.Prelude (drain, nil, yieldM)
 
 main :: IO ()
-main = runStream $ do
+main = drain $ do
     yieldM $ hSetBuffering stdout LineBuffering
     x <- loop "A " 2
     y <- loop "B " 2

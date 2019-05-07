@@ -9,12 +9,16 @@
 import Control.DeepSeq (NFData(..), deepseq)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
+import Data.Monoid (Last(..))
 
 import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
 
 import Streamly
+import qualified Streamly.Array   as A
+import qualified Streamly.Fold    as FL
 import qualified Streamly.Prelude as S
+-- import qualified Streamly.Sink   as Sink
 import Gauge
 
 -------------------------------------------------------------------------------
@@ -66,7 +70,7 @@ benchPureSinkIO name f =
 
 {-# INLINE benchPureSrc #-}
 benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
-benchPureSrc name src = benchPure name src (runIdentity . S.runStream)
+benchPureSrc name src = benchPure name src (runIdentity . S.drain)
 
 mkString :: String
 mkString = "fromList [1" ++ concat (replicate Ops.value ",1") ++ "]"
@@ -186,7 +190,51 @@ main =
         , benchIOSink "minimum" Ops.minimum
 
         , benchIOSink "toList" Ops.toList
-        , benchIOSink "toRevList" Ops.toRevList
+        -- , benchIOSink "toListRev" Ops.toListRev
+        ]
+      , bgroup "folds"
+        [ benchIOSink "drain" (FL.foldl' FL.drain)
+        -- , benchIOSink "sink" (Sink.sink Sink.drain)
+        , benchIOSink "last" (FL.foldl' FL.last)
+        , benchIOSink "length" (FL.foldl' FL.length)
+        , benchIOSink "sum" (FL.foldl' FL.sum)
+        , benchIOSink "product" (FL.foldl' FL.product)
+        , benchIOSink "maximumBy" (FL.foldl' (FL.maximumBy compare))
+        , benchIOSink "maximum" (FL.foldl' FL.maximum)
+        , benchIOSink "minimumBy" (FL.foldl' (FL.minimumBy compare))
+        , benchIOSink "minimum" (FL.foldl' FL.minimum)
+        , benchIOSink "mean" (\s -> FL.foldl' FL.mean (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "variance" (\s -> FL.foldl' FL.variance (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "stdDev" (\s -> FL.foldl' FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
+
+        , benchIOSink "mconcat" (FL.foldl' FL.mconcat . (S.map (Last . Just)))
+        , benchIOSink "foldMap" (FL.foldl' (FL.foldMap (Last . Just)))
+
+        -- , benchIOSink "toList" (FL.foldl' FL.toList)
+        , benchIOSink "toListRev" (FL.foldl' FL.toListRev)
+        -- , benchIOSink "toStream" (FL.foldl' FL.toStream)
+        , benchIOSink "toStreamRev" (FL.foldl' FL.toStreamRev)
+        , benchIOSink "toArrayN" (FL.foldl' (A.toArrayN Ops.value))
+
+        , benchIOSink "index" (FL.foldl' (FL.index Ops.maxValue))
+        , benchIOSink "head" (FL.foldl' FL.head)
+        , benchIOSink "find" (FL.foldl' (FL.find (== Ops.maxValue)))
+        , benchIOSink "findIndex" (FL.foldl' (FL.findIndex (== Ops.maxValue)))
+        , benchIOSink "elemIndex" (FL.foldl' (FL.elemIndex Ops.maxValue))
+
+        , benchIOSink "null" (FL.foldl' FL.null)
+        , benchIOSink "elem" (FL.foldl' (FL.elem Ops.maxValue))
+        , benchIOSink "notElem" (FL.foldl' (FL.notElem Ops.maxValue))
+        , benchIOSink "all" (FL.foldl' (FL.all (<= Ops.maxValue)))
+        , benchIOSink "any" (FL.foldl' (FL.any (> Ops.maxValue)))
+        , benchIOSink "and" (\s -> FL.foldl' FL.and (S.map (<= Ops.maxValue) s))
+        , benchIOSink "or" (\s -> FL.foldl' FL.or (S.map (> Ops.maxValue) s))
+        ]
+      , bgroup "folds-mixed" -- Applicative
+        [
+          benchIOSink "all,any"    (FL.foldl' ((,) <$> FL.all (<= Ops.maxValue)
+                                                  <*> FL.any (> Ops.maxValue)))
+        , benchIOSink "sum,length" (FL.foldl' ((,) <$> FL.sum <*> FL.length))
         ]
       , bgroup "transformation"
         [ benchIOSink "scanl" (Ops.scan 1)
@@ -201,6 +249,7 @@ main =
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
         , benchIOSink "reverse" (Ops.reverse 1)
+        , benchIOSink "reverse'" (Ops.reverse' 1)
         , benchIOSink "foldrS" (Ops.foldrS 1)
         , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
         , benchIOSink "foldrT" (Ops.foldrT 1)

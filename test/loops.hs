@@ -1,38 +1,38 @@
-import Streamly hiding (runStream)
+import Streamly
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly.Prelude (nil, yieldM, runStream)
+import Streamly.Prelude (nil, yieldM, drain)
 
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
 
     putStrLn "\nloopTail:\n"
-    runStream $ do
+    drain $ do
         x <- loopTail 0
         yieldM $ print (x :: Int)
 
     putStrLn "\nloopHead:\n"
-    runStream $ do
+    drain $ do
         x <- loopHead 0
         yieldM $ print (x :: Int)
 
     putStrLn "\nloopTailA:\n"
-    runStream $ do
+    drain $ do
         x <- loopTailA 0
         yieldM $ print (x :: Int)
 
     putStrLn "\nloopHeadA:\n"
-    runStream $ do
+    drain $ do
         x <- loopHeadA 0
         yieldM $ print (x :: Int)
 
     putStrLn "\nwSerial:\n"
-    runStream $ do
+    drain $ do
         x <- (return 0 <> return 1) `wSerial` (return 100 <> return 101)
         yieldM $ print (x :: Int)
 
     putStrLn "\nParallel interleave:\n"
-    runStream $ do
+    drain $ do
         x <- (return 0 <> return 1) `wAsync` (return 100 <> return 101)
         yieldM $ print (x :: Int)
 

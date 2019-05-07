@@ -169,7 +169,7 @@ infixl 1 |&.
 --
 --
 -- @
--- runStream $
+-- drain $
 --    S.mapM (\\x -> threadDelay 1000000 >> print x)
 --      |$ S.repeatM (threadDelay 1000000 >> return 1)
 -- @
@@ -186,7 +186,7 @@ f |$ x = applyWith f x
 -- concurrent.
 --
 -- @
--- runStream $
+-- drain $
 --       S.repeatM (threadDelay 1000000 >> return 1)
 --    |& S.mapM (\\x -> threadDelay 1000000 >> print x)
 -- @
@@ -304,7 +304,7 @@ x |&. f = f |$. x
 -- import qualified "Streamly.Prelude" as S
 -- import Control.Concurrent
 --
--- main = 'runStream' . 'parallely' $ do
+-- main = 'drain' . 'parallely' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
 --          threadDelay (n * 1000000)

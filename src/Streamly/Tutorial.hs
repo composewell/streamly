@@ -6,19 +6,20 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 --
--- Streamly is a general computing framework based on streaming IO. The IO
--- monad and pure lists are a special case of streamly. On one hand, streamly
--- extends the lists of pure values to lists of monadic actions, on the other
--- hand it extends the IO monad with concurrent non-determinism. In simple
--- imperative terms we can say that streamly extends the IO monad with @for@
--- loops and nested @for@ loops with concurrency support. You can understand
--- this analogy better once you can go through this tutorial.
+-- Streamly is a general computing framework based on concurrent data flow
+-- programming. The IO monad and pure lists are a special case of streamly. On
+-- one hand, streamly extends the lists of pure values to lists of monadic
+-- actions, on the other hand it extends the IO monad with concurrent
+-- non-determinism. In simple imperative terms we can say that streamly extends
+-- the IO monad with @for@ loops and nested @for@ loops with concurrency
+-- support. Hopefully, this analogy becomes clearer once you go through this
+-- tutorial.
 --
 -- Streaming in general enables writing modular, composable and scalable
 -- applications with ease, and concurrency allows you to make them scale and
 -- perform well.  Streamly enables writing scalable concurrent applications
 -- without being aware of threads or synchronization. No explicit thread
--- control is needed, where applicable the concurrency rate is automatically
+-- control is needed. Where applicable, concurrency rate is automatically
 -- controlled based on the demand by the consumer. However, combinators can be
 -- used to fine tune the concurrency control.
 --
@@ -29,12 +30,19 @@
 -- programming in an elegant and simple API that is a natural extension of pure
 -- lists to monadic streams.
 --
--- In this tutorial we will go over the basic concepts and how to
--- use the library. See the last section for further reading resources.
+-- In this tutorial we will go over the basic concepts and how to use the
+-- library.  Before you go through this tutorial we recommend that you take a
+-- look at:
+--
+--  * The quick overview in the package <README.md README file>.
+--  * The overview of streams and folds in the "Streamly" module.
+--
+-- Once you finish this tutorial, see the last section for further reading
+-- resources.
 
 module Streamly.Tutorial
     (
-    -- * Streams
+    -- * Stream Types
     -- $streams
 
     -- * Concurrent Streams
@@ -75,7 +83,7 @@ module Streamly.Tutorial
     -- *** Wide Serial Composition ('WSerial')
     -- $interleaved
 
-    -- *** Deep Ahead Composition ('Ahead')
+    -- *** Deep Speculative Composition ('Ahead')
     -- $ahead
 
     -- *** Deep Asynchronous Composition ('Async')
@@ -106,7 +114,7 @@ module Streamly.Tutorial
     -- *** Wide Serial Nesting ('WSerial')
     -- $interleavedNesting
 
-    -- *** Deep Ahead Nesting ('Ahead')
+    -- *** Deep Speculative Nesting ('Ahead')
     -- $aheadNesting
 
     -- *** Deep Asynchronous Nesting ('Async')
@@ -172,22 +180,20 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 
 -- $streams
 --
--- The way a list represents a sequence of pure values, a stream represents a
--- sequence of monadic actions. The monadic stream API offered by Streamly is
--- very close to the Haskell "Prelude" pure lists' API, it can be considered as a
--- natural extension of lists to monadic actions. Streamly streams provide
--- concurrent composition and merging of streams. It can be considered as a
--- concurrent list transformer. In contrast to the "Prelude" lists, merging or
--- appending streams of arbitrary length is scalable and inexpensive.
+-- The monadic stream API offered by Streamly is very close to the Haskell
+-- "Prelude" pure lists' API, it can be considered as a natural extension of
+-- lists to monadic actions. Streamly streams provide concurrent composition
+-- and merging of streams. It can be considered as a concurrent list
+-- transformer.
 --
 -- The basic stream type is 'Serial', it represents a sequence of IO actions,
 -- and is a 'Monad'.  The 'Serial' monad is almost a drop in replacement for
 -- the 'IO' monad, IO monad is a special case of the 'Serial' monad; IO monad
 -- represents a single IO action whereas the 'Serial' monad represents a series
 -- of IO actions.  The only change you need to make to go from 'IO' to 'Serial'
--- is to use 'runStream' to run the monad and to prefix the IO actions with
+-- is to use 'drain' to run the monad and to prefix the IO actions with
 -- either 'yieldM' or 'liftIO'.  If you use liftIO you can switch from 'Serial'
--- to IO monad by simply removing the 'runStream' function; no other changes
+-- to IO monad by simply removing the 'drain' function; no other changes
 -- are needed unless you have used some stream specific composition or
 -- combinators.
 --
@@ -326,9 +332,9 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- singleton stream use 'lift' and to lift from an IO action use 'liftIO'.
 --
 -- @
--- > 'runStream' $ liftIO $ putStrLn "Hello world!"
+-- > 'drain' $ liftIO $ putStrLn "Hello world!"
 -- Hello world!
--- > 'runStream' $ lift $ putStrLn "Hello world!"
+-- > 'drain' $ lift $ putStrLn "Hello world!"
 -- Hello world!
 -- @
 --
@@ -385,7 +391,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- right fold using 'consM' and 'nil':
 --
 -- @
--- > 'runStream' $ 'Prelude.foldr' ('|:') S.'nil' ['putStr' "Hello ", 'putStrLn' "world!"]
+-- > 'drain' $ 'Prelude.foldr' ('|:') S.'nil' ['putStr' "Hello ", 'putStrLn' "world!"]
 -- Hello world!
 -- @
 --
@@ -412,14 +418,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The following finishes in 10 seconds (100 seconds when serial):
 --
 -- @
--- > 'runStream' $ 'asyncly' $ S.'replicateM' 10 $ p 10
+-- > 'drain' $ 'asyncly' $ S.'replicateM' 10 $ p 10
 -- @
 --
 
 -- $eliminating
 --
--- We have already seen 'runStream' and 'toList' to eliminate a stream in the
--- examples above.  'runStream' runs a stream discarding the results i.e. only
+-- We have already seen 'drain' and 'toList' to eliminate a stream in the
+-- examples above.  'drain' runs a stream discarding the results i.e. only
 -- for effects.  'toList' runs the stream and collects the results in a list.
 --
 -- For other ways to eliminate a stream see the @Folding@ section in
@@ -439,7 +445,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- forever:
 --
 -- @
--- > 'runStream' $ S.'repeatM' getLine & S.'mapM' putStrLn
+-- > 'drain' $ S.'repeatM' getLine & S.'mapM' putStrLn
 -- @
 --
 -- The following code snippet reads lines from standard input, filters blank
@@ -452,7 +458,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Data.Char (toUpper)
 -- import Data.Function ((&))
 --
--- main = 'runStream' $
+-- main = 'drain' $
 --        S.'repeatM' getLine
 --      & S.'filter' (not . null)
 --      & S.'drop' 1
@@ -473,7 +479,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
--- > runStream $ aheadly $ S.'mapM' (\\x -> p 1 >> print x) (serially $ repeatM (p 1))
+-- > drain $ aheadly $ S.'mapM' (\\x -> p 1 >> print x) (serially $ repeatM (p 1))
 -- @
 --
 
@@ -488,7 +494,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- > let p n = threadDelay (n * 1000000) >> return n
--- > runStream $ S.'repeatM' (p 1) '|&' S.'mapM' (\\x -> p 1 >> print x)
+-- > drain $ S.'repeatM' (p 1) '|&' S.'mapM' (\\x -> p 1 >> print x)
 -- @
 
 -- $semigroup
@@ -544,7 +550,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 3, 4:
 --
 -- @
--- main = 'runStream' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = 'drain' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -558,7 +564,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- same thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
--- main = 'runStream' $ delay 3 <> delay 2 <> delay 1
+-- main = 'drain' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -571,7 +577,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- irrespective of the type of stream:
 --
 -- @
--- main = 'runStream' $ (print 1 |: print 2 |: nil) \`serial` (print 3 |: print 4 |: nil)
+-- main = 'drain' $ (print 1 |: print 2 |: nil) \`serial` (print 3 |: print 4 |: nil)
 -- @
 
 -- $interleaved
@@ -588,7 +594,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- The following example prints the sequence 1, 3, 2, 4
 --
 -- @
--- main = 'runStream' . 'wSerially' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
+-- main = 'drain' . 'wSerially' $ (print 1 |: print 2 |: nil) <> (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -603,7 +609,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- thread and take a combined total of @3 + 2 + 1 = 6@ seconds:
 --
 -- @
--- main = 'runStream' . 'wSerially' $ delay 3 <> delay 2 <> delay 1
+-- main = 'drain' . 'wSerially' $ delay 3 <> delay 2 <> delay 1
 -- @
 -- @
 -- ThreadId 36: Delay 3
@@ -617,7 +623,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- combinator in the following example:
 --
 -- @
--- main = 'runStream' $ (print 1 |: print 2 |: nil) \`wSerial` (print 3 |: print 4 |: nil)
+-- main = 'drain' $ (print 1 |: print 2 |: nil) \`wSerial` (print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -684,7 +690,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- 'runStream' . 'asyncly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
+--   xs \<- 'drain' . 'asyncly' $ (p 1 |: p 2 |: nil) <> (p 3 |: p 4 |: nil)
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -699,7 +705,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 --
 -- @
 -- main = do
---   xs \<- 'runStream' . 'asyncly' $ (serially $ p 1 |: p 2 |: nil) <> (serially $ p 3 |: p 4 |: nil)
+--   xs \<- 'drain' . 'asyncly' $ (serially $ p 1 |: p 2 |: nil) <> (serially $ p 3 |: p 4 |: nil)
 --   print xs
 --   where p n = threadDelay 1000000 >> return n
 -- @
@@ -713,7 +719,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- (3, 2, 1) = 3@ seconds:
 --
 -- @
--- main = 'runStream' . 'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
+-- main = 'drain' . 'asyncly' $ delay 3 '<>' delay 2 '<>' delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -732,7 +738,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- second as all of the actions are concurrent.
 --
 -- @
--- main = 'runStream' . 'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
+-- main = 'drain' . 'asyncly' $ (delay 1 <> delay 2) <> (delay 3 <> delay 4)
 -- @
 -- @
 -- 1
@@ -749,7 +755,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- even if none of them blocks:
 --
 -- @
--- main = 'runStream' . 'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
+-- main = 'drain' . 'asyncly' $ traced (sqrt 9) '<>' traced (sqrt 16) '<>' traced (sqrt 25)
 --  where traced m = S.'yieldM' (myThreadId >>= print) >> return m
 -- @
 -- @
@@ -767,7 +773,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- not used the 'asyncly' combinator in the following example:
 --
 -- @
--- main = 'runStream' $ delay 3 \`async` delay 2 \`async` delay 1
+-- main = 'drain' $ delay 3 \`async` delay 2 \`async` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -810,7 +816,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- first traversal order but this is not guaranteed.
 --
 -- @
--- main = 'runStream' . 'wAsyncly' $ (serially $ print 1 |: print 2 |: nil) <> (serially $ print 3 |: print 4 |: nil)
+-- main = 'drain' . 'wAsyncly' $ (serially $ print 1 |: print 2 |: nil) <> (serially $ print 3 |: print 4 |: nil)
 -- @
 -- @
 -- 1
@@ -825,7 +831,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- the 'wAsyncly' combinator in the following example:
 --
 -- @
--- main = 'runStream' $ delay 3 \`wAsync` delay 2 \`wAsync` delay 1
+-- main = 'drain' $ delay 3 \`wAsync` delay 2 \`wAsync` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -867,7 +873,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import qualified Streamly.Prelude as S
 -- import Network.HTTP.Simple
 --
--- main = 'runStream' . 'parallely' $ google \<> bing \<> duckduckgo
+-- main = 'drain' . 'parallely' $ google \<> bing \<> duckduckgo
 --     where
 --         google     = get "https://www.google.com/search?q=haskell"
 --         bing       = get "https://www.bing.com/search?q=haskell"
@@ -881,7 +887,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- 'parallely' combinator in the following example:
 --
 -- @
--- main = 'runStream' $ delay 3 \`parallel` delay 2 \`wAsync` delay 1
+-- main = 'drain' $ delay 3 \`parallel` delay 2 \`wAsync` delay 1
 -- @
 -- @
 -- ThreadId 42: Delay 1
@@ -928,10 +934,10 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import Control.Concurrent
 --
 -- main = do
---  'runStream' $ 'asyncly' $ foldMap delay [1..10]
---  'runStream' $ 'foldWith'    'async' (map delay [1..10])
---  'runStream' $ 'foldMapWith' 'async' delay [1..10]
---  'runStream' $ 'forEachWith' 'async' [1..10] delay
+--  'drain' $ 'asyncly' $ foldMap delay [1..10]
+--  'drain' $ 'foldWith'    'async' (map delay [1..10])
+--  'drain' $ 'foldMapWith' 'async' delay [1..10]
+--  'drain' $ 'forEachWith' 'async' [1..10] delay
 --  where delay n = S.'yieldM' $ threadDelay (n * 1000000) >> print n
 -- @
 
@@ -980,7 +986,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' $ do
+-- main = 'drain' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1002,7 +1008,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' $ forever $ S.yieldM getLine >>= S.yieldM . putStrLn
+-- main = 'drain' $ forever $ S.yieldM getLine >>= S.yieldM . putStrLn
 -- @
 --
 -- When multiple streams are composed using this style they nest in a DFS
@@ -1014,7 +1020,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' $ do
+-- main = 'drain' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1084,7 +1090,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import "Streamly.Prelude"
 --
--- main = 'runStream' . 'asyncly' $ do
+-- main = 'drain' . 'asyncly' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1111,7 +1117,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'asyncly' $ do
+-- main = 'drain' . 'asyncly' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1136,7 +1142,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'wSerially' $ do
+-- main = 'drain' . 'wSerially' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.yieldM $ putStrLn $ show (x, y)
@@ -1164,7 +1170,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'wAsyncly' $ do
+-- main = 'drain' . 'wAsyncly' $ do
 --     x <- S.'fromFoldable' [1,2]
 --     y <- S.'fromFoldable' [3,4]
 --     S.'yieldM' $ putStrLn $ show (x, y)
@@ -1190,7 +1196,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- import "Streamly"
 -- import qualified "Streamly.Prelude" as S
 --
--- main = 'runStream' . 'parallely' $ do
+-- main = 'drain' . 'parallely' $ do
 --     x <- S.'fromFoldable' [3,2,1]
 --     delay x
 -- @
@@ -1228,11 +1234,11 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- Now we can interpret this in whatever way we want:
 --
 -- @
--- main = 'runStream' . 'serially'  $ composed
--- main = 'runStream' . 'wSerially' $ composed
--- main = 'runStream' . 'asyncly'   $ composed
--- main = 'runStream' . 'wAsyncly'  $ composed
--- main = 'runStream' . 'parallely' $ composed
+-- main = 'drain' . 'serially'  $ composed
+-- main = 'drain' . 'wSerially' $ composed
+-- main = 'drain' . 'asyncly'   $ composed
+-- main = 'drain' . 'wAsyncly'  $ composed
+-- main = 'drain' . 'parallely' $ composed
 -- @
 --
 --  As an exercise try to figure out the output of this code for each mode of
@@ -1513,7 +1519,7 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- main = do
 --     putStrLn "Your health is deteriorating due to acid rain,\\
 --              \\ type \\"potion\\" or \\"quit\\""
---     let runGame = S.'runWhile' (== Alive) $ S.'mapM' getStatus runEvents
+--     let runGame = S.'drainWhile' (== Alive) $ S.'mapM' getStatus runEvents
 --     void $ runStateT runGame 60
 -- @
 --
@@ -1713,13 +1719,14 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- that and takes a lazy pull approach versus transient's strict push approach.
 --
 -- The non-determinism, concurrency and streaming combination make streamly a
--- strong FRP capable library as well. FRP is fundamentally stream of events
--- that can be processed concurrently. The example in this tutorial as well as
--- the "Streamly.Examples.CirclingSquare" example from Yampa demonstrate the
--- basic FRP capability of streamly. In core concepts streamly is strikingly
--- similar to @dunai@. dunai was designed from a FRP perspective and streamly
--- was originally designed from a concurrency perspective. However, both have
--- similarity at the core.
+-- strong reactive programming library as well. Reactive programming is
+-- fundamentally stream of events that can be processed concurrently. The
+-- example in this tutorial as well as the
+-- <examples/CirclingSquare.hs CirclingSquare> example from Yampa demonstrate
+-- the basic reactive capability of streamly. In core concepts streamly is
+-- strikingly similar to @dunai@.  dunai was designed from a FRP perspective
+-- and streamly was originally designed from a concurrency perspective.
+-- However, both have similarity at the core.
 
 -- $furtherReading
 --

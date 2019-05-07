@@ -32,6 +32,8 @@ module Streamly.Streams.StreamD.Type
     , Stream (UnStream)
     , pattern Stream
 #endif
+    , fromStreamK
+    , toStreamK
     , map
     , mapM
 
@@ -42,6 +44,8 @@ module Streamly.Streams.StreamD.Type
 
     , foldl'
     , foldlM'
+    , foldlx'
+    , foldlMx'
 
     , toList
     , fromList
@@ -49,6 +53,7 @@ module Streamly.Streams.StreamD.Type
     , eqBy
     , cmpBy
     , take
+    , groupsOf
     )
 where
 
@@ -56,7 +61,9 @@ import Control.Applicative (liftA2)
 import Control.Monad.Trans (lift, MonadTrans)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take)
+
 import Streamly.SVar (State(..), adaptState, defState)
+import Streamly.Fold.Types (Fold(..))
 
 import qualified Streamly.Streams.StreamK as K
 
@@ -91,6 +98,35 @@ pattern Stream step state <- (unShare -> UnStream step state)
 
 #if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE Stream #-}
+#endif
+
+{-# INLINE_LATE fromStreamK #-}
+fromStreamK :: Monad m => K.Stream m a -> Stream m a
+fromStreamK = Stream step
+    where
+    step gst m1 =
+        let stop       = return Stop
+            single a   = return $ Yield a K.nil
+            yieldk a r = return $ Yield a r
+         in K.foldStreamShared gst yieldk single stop m1
+
+-- Convert a direct stream to and from CPS encoded stream
+{-# INLINE_LATE toStreamK #-}
+toStreamK :: Monad m => Stream m a -> K.Stream m a
+toStreamK (Stream step state) = go state
+    where
+    go st = K.mkStream $ \gst yld sng stp -> do
+        r <- step gst st
+        case r of
+            Yield x s -> yld x (go s)
+            Skip  s   -> K.foldStreamShared gst yld sng stp $ go s
+            Stop      -> stp
+
+#ifndef DISABLE_FUSION
+{-# RULES "fromStreamK/toStreamK fusion"
+    forall s. toStreamK (fromStreamK s) = s #-}
+{-# RULES "toStreamK/fromStreamK fusion"
+    forall s. fromStreamK (toStreamK s) = s #-}
 #endif
 
 ------------------------------------------------------------------------------
@@ -189,6 +225,27 @@ foldrT f final (Stream step state) = go SPEC state
 {-# INLINE toList #-}
 toList :: Monad m => Stream m a -> m [a]
 toList = foldr (:) []
+
+-- XXX run begin action only if the stream is not empty.
+{-# INLINE_NORMAL foldlMx' #-}
+foldlMx' :: Monad m => (x -> a -> m x) -> m x -> (x -> m b) -> Stream m a -> m b
+foldlMx' fstep begin done (Stream step state) =
+    begin >>= \x -> go SPEC x state
+  where
+    -- XXX !acc?
+    go !_ acc st = acc `seq` do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Skip s -> go SPEC acc s
+            Stop   -> done acc
+
+{-# INLINE foldlx' #-}
+foldlx' :: Monad m => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> m b
+foldlx' fstep begin done m =
+    foldlMx' (\b a -> return (fstep b a)) (return begin) (return . done) m
 
 -- XXX implement in terms of foldlMx'?
 {-# INLINE_NORMAL foldlM' #-}
@@ -290,3 +347,73 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
             Skip s    -> Skip (s, i)
             Stop      -> Stop
     step' _ (_, _) = return Stop
+
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
+
+{-# INLINE_LATE foldOneGroup #-}
+foldOneGroup
+    :: Monad m
+    => Int
+    -> Fold m a b
+    -> a
+    -> State K.Stream m a
+    -> (State K.Stream m a -> s -> m (Step s a))
+    -> s
+    -> m (b, Maybe s)
+foldOneGroup n (Fold fstep begin done) x gst step state = do
+    acc0 <- begin
+    acc <- fstep acc0 x
+    go SPEC state acc 1
+
+    where
+
+    -- XXX is it strict enough?
+    go !_ st !acc i | i < n = do
+        r <- step gst st
+        case r of
+            Yield y s -> do
+                acc1 <- fstep acc y
+                go SPEC s acc1 (i + 1)
+            Skip s -> go SPEC s acc i
+            Stop -> do
+                res <- done acc
+                return (res, Nothing)
+    go !_ st acc _ = do
+        r <- done acc
+        return (r, Just st)
+
+-- groupsOf takes 11 sec to write the file from a stream, whereas just
+-- reading in the same file as a stream and folding each element of the stream
+-- using (+) takes just 1.5 sec, so we are still pretty slow (7x slow), there
+-- is scope to make it faster. There is a possibility of better fusion here.
+--
+{-# INLINE_NORMAL groupsOf #-}
+groupsOf
+    :: Monad m
+    => Int
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+groupsOf n f (Stream step state) =
+    n `seq` Stream stepOuter (Just state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter gst (Just st) = do
+        -- We retrieve the first element of the stream before we start to fold
+        -- a chunk so that we do not return an empty chunk in case the stream
+        -- is empty.
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                -- XXX how to make sure that stepInner and f get fused
+                -- This problem seems to be similar to the concatMap problem
+                (r, s1) <- foldOneGroup n f x (adaptState gst) step s
+                return $ Yield r s1
+            Skip s    -> return $ Skip $ Just s
+            Stop      -> return Stop
+
+    stepOuter _ Nothing = return Stop

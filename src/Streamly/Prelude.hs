@@ -102,7 +102,6 @@ module Streamly.Prelude
     -- these can be expressed in terms of primitives.
     , P.fromList
     , fromListM
-    -- , P.fromArray
     , K.fromFoldable
     , fromFoldableM
 
@@ -183,16 +182,17 @@ module Streamly.Prelude
     , foldl1'
     , foldlM'
 
-    -- ** Strict Full Folds
+    -- ** Full Folds
     -- | Folds that are guaranteed to evaluate the whole stream.
 
     -- -- ** To Summary (Full Folds)
     -- -- | Folds that summarize the stream to a single value.
-    , runStream
+    , drain
     , last
     , length
     , sum
     , product
+    --, mconcat
 
     -- -- ** To Summary (Maybe) (Full Folds)
     -- -- | Folds that summarize a non-empty stream to a 'Just' value and return
@@ -202,7 +202,7 @@ module Streamly.Prelude
     , minimumBy
     , minimum
     , the
-    , toRevList
+    -- , toListRev -- experimental
 
     -- ** Lazy Folds
     --
@@ -213,7 +213,6 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
-    -- , toArrayN
     , toHandle
 
     -- ** Partial Folds
@@ -221,8 +220,8 @@ module Streamly.Prelude
     -- folds strictly evaluate the stream until the result is determined.
 
     -- -- ** To Elements (Partial Folds)
-    , runN
-    , runWhile
+    , drainN
+    , drainWhile
 
     -- -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
@@ -372,6 +371,7 @@ module Streamly.Prelude
 
     -- ** Reordering
     , reverse
+    , reverse'
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -462,6 +462,9 @@ module Streamly.Prelude
     , foldx
     , foldxM
     , foldr1
+    , runStream
+    , runN
+    , runWhile
     )
 where
 
@@ -493,7 +496,6 @@ import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Zip as Z
-import qualified Streamly.Array.Types as A
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -568,7 +570,7 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 --         if b > 3
 --         then return Nothing
 --         else print b >> return (Just (b, b + 1))
--- in runStream $ unfoldrM f 0
+-- in drain $ unfoldrM f 0
 -- @
 -- @
 --  0
@@ -687,8 +689,8 @@ fromIndicesM = fromStreamD . D.fromIndicesM
 -- Generate a stream by performing a monadic action @n@ times. Same as:
 --
 -- @
--- runStream $ serially $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
--- runStream $ asyncly  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- drain $ serially $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
+-- drain $ asyncly  $ S.replicateM 10 $ (threadDelay 1000000 >> print 1)
 -- @
 --
 -- /Concurrent/
@@ -723,8 +725,8 @@ replicate n = fromStreamS . S.replicate n
 -- Generate a stream by repeatedly executing a monadic action forever.
 --
 -- @
--- runStream $ serially $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
--- runStream $ asyncly  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- drain $ serially $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
+-- drain $ asyncly  $ S.take 10 $ S.repeatM $ (threadDelay 1000000 >> print 1)
 -- @
 --
 -- /Concurrent, infinite (do not use with 'parallely')/
@@ -769,10 +771,10 @@ iterate step = fromStream . go
 -- previous iteration.
 --
 -- @
--- runStream $ serially $ S.take 10 $ S.iterateM
+-- drain $ serially $ S.take 10 $ S.iterateM
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
 --
--- runStream $ asyncly  $ S.take 10 $ S.iterateM
+-- drain $ asyncly  $ S.take 10 $ S.iterateM
 --      (\\x -> threadDelay 1000000 >> print x >> return (x + 1)) 0
 -- @
 --
@@ -813,8 +815,8 @@ fromListM = fromStreamD . D.fromListM
 -- Construct a stream from a 'Foldable' containing monadic actions.
 --
 -- @
--- runStream $ serially $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
--- runStream $ asyncly  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
+-- drain $ serially $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
+-- drain $ asyncly  $ S.fromFoldableM $ replicateM 10 (threadDelay 1000000 >> print 1)
 -- @
 --
 -- /Concurrent (do not use with 'parallely' on infinite containers)/
@@ -1165,36 +1167,51 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 ------------------------------------------------------------------------------
 
 -- |
--- > runStream = mapM_ (\_ -> return ())
+-- > drain = mapM_ (\_ -> return ())
 --
 -- Run a stream, discarding the results. By default it interprets the stream
 -- as 'SerialT', to run other types of streams use the type adapting
--- combinators for example @runStream . 'asyncly'@.
+-- combinators for example @drain . 'asyncly'@.
 --
 -- @since 0.2.0
+{-# INLINE drain #-}
+drain :: Monad m => SerialT m a -> m ()
+drain = P.drain
+
+{-# DEPRECATED runStream "Please use \"drain\" instead" #-}
 {-# INLINE runStream #-}
 runStream :: Monad m => SerialT m a -> m ()
-runStream = P.runStream
+runStream = drain
 
 -- |
--- > runN n = runStream . take n
+-- > drainN n = drain . take n
 --
 -- Run maximum up to @n@ iterations of a stream.
 --
--- @since 0.6.0
+-- @since 0.7.0
+{-# INLINE drainN #-}
+drainN :: Monad m => Int -> SerialT m a -> m ()
+drainN n = drain . take n
+
+{-# DEPRECATED runN "Please use \"drainN\" instead" #-}
 {-# INLINE runN #-}
 runN :: Monad m => Int -> SerialT m a -> m ()
-runN n = runStream . take n
+runN = drainN
 
 -- |
--- > runWhile p = runStream . takeWhile p
+-- > drainWhile p = drain . takeWhile p
 --
 -- Run a stream as long as the predicate holds true.
 --
 -- @since 0.6.0
+{-# INLINE drainWhile #-}
+drainWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
+drainWhile p = drain . takeWhile p
+
+{-# DEPRECATED runWhile "Please use \"drainWhile\" instead" #-}
 {-# INLINE runWhile #-}
 runWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
-runWhile p = runStream . takeWhile p
+runWhile = drainWhile
 
 -- | Determine whether the stream is empty.
 --
@@ -1456,9 +1473,9 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 -- Map and Fold
 ------------------------------------------------------------------------------
 
--- XXX this can utilize parallel mapping if we implement it as runStream . mapM
+-- XXX this can utilize parallel mapping if we implement it as drain . mapM
 -- |
--- > mapM_ = runStream . mapM
+-- > mapM_ = drain . mapM
 --
 -- Apply a monadic action to each element of the stream and discard the output
 -- of the action. This is not really a pure transformation operation but a
@@ -1480,28 +1497,30 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 --
 -- Convert a stream into a list in the underlying monad. The list can be
 -- consumed lazily in a lazy monad (e.g. 'Identity'). In a strict monad (e.g.
--- IO) the whole list is generated before it can be consumed.
+-- IO) the whole list is generated and buffered before it can be consumed.
+--
+-- /Warning!/ working on large lists accumulated as buffers in memory could be
+-- very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.1.0
 {-# INLINE toList #-}
 toList :: Monad m => SerialT m a -> m [a]
 toList = P.toList
 
-{-# INLINE _toArrayN #-}
-_toArrayN :: (Monad m, Storable a) => Int -> SerialT m a -> m (A.Array a)
-_toArrayN = P.toArrayN
-
 -- |
 -- @
--- toRevList = S.foldl' (flip (:)) []
+-- toListRev = S.foldl' (flip (:)) []
 -- @
 --
 -- Convert a stream into a list in reverse order in the underlying monad.
 --
+-- /Warning!/ working on large lists accumulated as buffers in memory could be
+-- very inefficient, consider using "Streamly.Array" instead.
+--
 -- @since 0.7.0
-{-# INLINE toRevList #-}
-toRevList :: Monad m => SerialT m a -> m [a]
-toRevList = D.toRevList . toStreamD
+{-# INLINE _toListRev #-}
+_toListRev :: Monad m => SerialT m a -> m [a]
+_toListRev = D.toListRev . toStreamD
 
 -- |
 -- @
@@ -1756,13 +1775,13 @@ dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 -- the output of the resulting action.
 --
 -- @
--- > runStream $ S.mapM putStr $ S.fromList ["a", "b", "c"]
+-- > drain $ S.mapM putStr $ S.fromList ["a", "b", "c"]
 -- abc
 --
--- runStream $ S.replicateM 10 (return 1)
+-- drain $ S.replicateM 10 (return 1)
 --           & (serially . S.mapM (\\x -> threadDelay 1000000 >> print x))
 --
--- runStream $ S.replicateM 10 (return 1)
+-- drain $ S.replicateM 10 (return 1)
 --           & (asyncly . S.mapM (\\x -> threadDelay 1000000 >> print x))
 -- @
 --
@@ -1787,13 +1806,13 @@ mapMSerial = Serial.mapM
 -- those actions.
 --
 -- @
--- > runStream $ S.sequence $ S.fromList [putStr "a", putStr "b", putStrLn "c"]
+-- > drain $ S.sequence $ S.fromList [putStr "a", putStr "b", putStrLn "c"]
 -- abc
 --
--- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+-- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
 --           & (serially . S.sequence)
 --
--- runStream $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
+-- drain $ S.replicateM 10 (return $ threadDelay 1000000 >> print 1)
 --           & (asyncly . S.sequence)
 -- @
 --
@@ -1844,10 +1863,20 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- Returns the elements of the stream in reverse order.  The stream must be
 -- finite.
 --
+-- /Note:/ 'reverse'' is much faster than this, use that when performance
+-- matters.
+--
 -- @since 0.1.1
 {-# INLINE reverse #-}
 reverse :: (IsStream t, Monad m) => t m a -> t m a
 reverse s = fromStreamS $ S.reverse $ toStreamS s
+
+-- | Like 'reverse' but several times faster, requires a 'Storable' instance.
+--
+-- @since 0.7.0
+{-# INLINE reverse' #-}
+reverse' :: (IsStream t, Monad m, Storable a) => t m a -> t m a
+reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting

@@ -52,7 +52,7 @@ sourceUnfoldr start n = S.unfoldr step start
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+runStream = S.drain
 
 {-# INLINE runToList #-}
 runToList :: Monad m => Stream m a -> m [a]

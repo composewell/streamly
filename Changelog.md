@@ -7,8 +7,10 @@
 
 ### Enhancements
 
-* Add Streamly.Array module to support efficient fixed size immutable arrays
-  for buffering and IO.
+* MAJOR: Add Streamly.Array module to support efficient fixed size immutable
+  arrays for buffering and IO. See the haddock docs for the module.
+* MAJOR: Add Streamly.Fold module to support composable folds (stream
+  consumers). See the haddock docs for the module.
 * Add the following to "Streamly.Prelude":
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
@@ -16,10 +18,14 @@
 
 ### Deprecations
 
-* `runStream`, `foldWith`, `foldMapWith`, `forEachWith` have been moved from
+* `runStream` has been replaced by `Streamly.Prelude.drain`
+* `runN` has been replaced by `drainN`
+* `runWhile` has been replaced by `drainWhile`
+
+* `foldWith`, `foldMapWith`, `forEachWith` have been moved from
   "Streamly" module to "Streamly.Prelude" module.
 
-* "Streamly.Prelude":
+* In "Streamly.Prelude":
     * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
     * Remove deprecated APIs `scan`, `foldl`, `foldlM`
 

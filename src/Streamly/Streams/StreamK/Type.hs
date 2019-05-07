@@ -141,8 +141,8 @@ class IsStream t where
     --
     -- @
     -- let delay = threadDelay 1000000 >> print 1
-    -- runStream $ serially  $ delay |: delay |: delay |: nil
-    -- runStream $ parallely $ delay |: delay |: delay |: nil
+    -- drain $ serially  $ delay |: delay |: delay |: nil
+    -- drain $ parallely $ delay |: delay |: delay |: nil
     -- @
     --
     -- /Concurrent (do not use 'parallely' to construct infinite streams)/

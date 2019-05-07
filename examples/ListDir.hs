@@ -1,7 +1,8 @@
 import Control.Monad.IO.Class (liftIO)
 import Path.IO (listDir, getCurrentDir)
 import System.IO (stdout, hSetBuffering, BufferMode(LineBuffering))
-import Streamly (runStream, aheadly, (<>))
+import Streamly (aheadly, (<>))
+import qualified Streamly.Prelude as S
 
 -- | List the current directory recursively using concurrent processing
 --
@@ -11,7 +12,7 @@ import Streamly (runStream, aheadly, (<>))
 main :: IO ()
 main = do
     hSetBuffering stdout LineBuffering
-    runStream . aheadly $ getCurrentDir >>= readdir
+    S.drain . aheadly $ getCurrentDir >>= readdir
     where readdir d = do
             (ds, fs) <- listDir d
             liftIO $ mapM_ putStrLn $ fmap show fs <> fmap show ds

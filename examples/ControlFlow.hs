@@ -26,7 +26,6 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Cont
 import Streamly
-import Streamly.Prelude ((|:))
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -58,7 +57,7 @@ getSequenceMaybeBelow = do
 
 mainMaybeBelow :: IO ()
 mainMaybeBelow = do
-    r <- runMaybeT (runStream getSequenceMaybeBelow)
+    r <- runMaybeT (S.drain getSequenceMaybeBelow)
     case r of
         Just _ -> putStrLn "Bingo"
         Nothing -> putStrLn "Wrong"
@@ -122,7 +121,7 @@ getSequenceEitherBelow = do
 mainEitherBelow :: IO ()
 mainEitherBelow = do
     -- XXX Cannot lift catchE
-    r <- runExceptT (runStream getSequenceEitherBelow)
+    r <- runExceptT (S.drain getSequenceEitherBelow)
     case r of
         Right _ -> liftIO $ putStrLn "Bingo"
         Left s  -> liftIO $ putStrLn s
@@ -155,7 +154,7 @@ getSequenceEitherAsyncBelow = do
 
 mainEitherAsyncBelow :: IO ()
 mainEitherAsyncBelow = do
-    r <- runExceptT (runStream $ asyncly getSequenceEitherAsyncBelow)
+    r <- runExceptT (S.drain $ asyncly getSequenceEitherAsyncBelow)
     case r of
         Right _ -> liftIO $ putStrLn "Bingo"
         Left s  -> liftIO $ putStrLn s
@@ -219,7 +218,7 @@ getSequenceMonadThrow = do
 
 mainMonadThrow :: IO ()
 mainMonadThrow =
-    catch (runStream getSequenceMonadThrow >> liftIO (putStrLn "Bingo"))
+    catch (S.drain getSequenceMonadThrow >> liftIO (putStrLn "Bingo"))
           (\(e :: SomeException) -> liftIO $ print e)
 
 -------------------------------------------------------------------------------
@@ -300,10 +299,10 @@ mainContAbove = do
 main :: IO ()
 main = do
     mainMaybeBelow
-    runStream $ runMaybeT mainMaybeAbove
-    runContT (runStream mainContBelow) return
-    runStream (runContT mainContAbove return)
+    S.drain $ runMaybeT mainMaybeAbove
+    runContT (S.drain mainContBelow) return
+    S.drain (runContT mainContAbove return)
     mainEitherBelow
-    runStream (runExceptT mainEitherAbove)
+    S.drain (runExceptT mainEitherAbove)
     mainMonadThrow
     mainEitherAsyncBelow
