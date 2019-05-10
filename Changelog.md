@@ -14,7 +14,7 @@
 * Add the following to "Streamly.Prelude":
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
-    * `toRevList` to fold a stream to a reverse list
+    * `reverse'` a several times faster reverse using Storable instance
 
 ### Deprecations
 

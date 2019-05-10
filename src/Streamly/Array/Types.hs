@@ -388,63 +388,65 @@ fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
 
 -- XXX concatMap does not seem to have the best possible performance so we have
 -- a custom way to concat arrays.
-data CAState s a = CAParent s | CANested s (ForeignPtr a) (Ptr a) (Ptr a)
+data FlattenState s a =
+      OuterLoop s
+    | InnerLoop s (ForeignPtr a) (Ptr a) (Ptr a)
 
 {-# INLINE_NORMAL flattenArrays #-}
 flattenArrays :: forall m a. (Monad m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArrays (D.Stream step state) = D.Stream step' (CAParent state)
+flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' gst (CAParent st) = do
+    step' gst (OuterLoop st) = do
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
                 let p = unsafeForeignPtrToPtr aStart
-                in D.Skip (CANested s aStart p aEnd)
-            D.Skip s -> D.Skip (CAParent s)
+                in D.Skip (InnerLoop s aStart p aEnd)
+            D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
-    step' _ (CANested st _ p end) | p == end =
-        return $ D.Skip $ CAParent st
+    step' _ (InnerLoop st _ p end) | p == end =
+        return $ D.Skip $ OuterLoop st
 
-    step' _ (CANested st startf p end) = do
+    step' _ (InnerLoop st startf p end) = do
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr startf
                     return r
-        return $ D.Yield x (CANested st startf
+        return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` (sizeOf (undefined :: a))) end)
 
 {-# INLINE_NORMAL flattenArraysRev #-}
 flattenArraysRev :: forall m a. (Monad m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
-flattenArraysRev (D.Stream step state) = D.Stream step' (CAParent state)
+flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' gst (CAParent st) = do
+    step' gst (OuterLoop st) = do
         r <- step (adaptState gst) st
         return $ case r of
             D.Yield Array{..} s ->
                 let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
                 -- XXX we do not need aEnd
-                in D.Skip (CANested s aStart p aEnd)
-            D.Skip s -> D.Skip (CAParent s)
+                in D.Skip (InnerLoop s aStart p aEnd)
+            D.Skip s -> D.Skip (OuterLoop s)
             D.Stop -> D.Stop
 
-    step' _ (CANested st start p _) | p < unsafeForeignPtrToPtr start =
-        return $ D.Skip $ CAParent st
+    step' _ (InnerLoop st start p _) | p < unsafeForeignPtrToPtr start =
+        return $ D.Skip $ OuterLoop st
 
-    step' _ (CANested st startf p end) = do
+    step' _ (InnerLoop st startf p end) = do
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr startf
                     return r
-        return $ D.Yield x (CANested st startf
+        return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` negate (sizeOf (undefined :: a))) end)
 
 -- CAUTION: a very large number (millions) of arrays can degrade performance

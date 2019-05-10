@@ -467,6 +467,9 @@ transformCombineOpsCommon constr desc eq t = do
             transform (concatMap (const [1..n]))
                 t (S.concatMap (const (S.fromList [1..n])))
 
+toListFL :: Monad m => FL.Fold m a [a]
+toListFL = fmap reverse FL.toListRev
+
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
@@ -476,14 +479,14 @@ groupSplitOps desc = do
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOn [] FL.toList (S.fromList xs)
+                    ys <- S.toList $ FL.splitOn [] toListFL (S.fromList xs)
                     listEquals (==) (intercalate [] ys) xs
 
     prop (desc <> " intercalate . splitOn == id (single element separator)") $
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOn [0] FL.toList (S.fromList xs)
+                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
                     listEquals (==) (intercalate [0] ys) xs
 
     prop (desc <> " concat . splitOn . intercalate == concat (nil separator/possibly empty list)") $
@@ -491,7 +494,7 @@ groupSplitOps desc = do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [] xss
-                    ys <- S.toList $ FL.splitOn [0] FL.toList (S.fromList xs)
+                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
                     listEquals (==) (concat ys) (concat xss)
 
     prop (desc <> " concat . splitOn . intercalate == concat (non-nil separator/possibly empty list)") $
@@ -499,7 +502,7 @@ groupSplitOps desc = do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOn [0] FL.toList (S.fromList xs)
+                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
                     listEquals (==) (concat ys) (concat xss)
 
     prop (desc <> " splitOn . intercalate == id (exclusive separator/non-empty list)") $
@@ -507,7 +510,7 @@ groupSplitOps desc = do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOn [0] FL.toList (S.fromList xs)
+                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
                     listEquals (==) ys xss
 
     where

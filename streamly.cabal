@@ -346,7 +346,7 @@ test-suite properties
         transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
-test-suite arrays
+test-suite array-test
   type: exitcode-stdio-1.0
   main-is: Arrays.hs
   js-sources: jsbits/clock.js

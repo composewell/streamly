@@ -4,10 +4,11 @@
 module Main (main) where
 
 import Data.Functor.Identity (runIdentity)
-import GHC.Word (Word8)
+import Foreign.Storable (Storable(..))
 
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, (===))
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, (===),
+                        choose)
 
 import Test.Hspec as H
 
@@ -22,19 +23,70 @@ maxTestCount = 100
 maxTestCount = 10
 #endif
 
-randomLengthArray :: Word8 -> Property
-randomLengthArray len =
-    forAll (vectorOf (fromIntegral len) (arbitrary :: Gen Int)) $ \list ->
-        let arr = runIdentity $ A.fromStreamN (fromIntegral len)
-                              $ S.fromList list
-        in A.length arr === fromIntegral len
+allocOverhead :: Int
+allocOverhead = 2 * sizeOf (undefined :: Int)
 
-randomArrayRoundTrip :: Word8 -> Property
-randomArrayRoundTrip len =
-    forAll (vectorOf (fromIntegral len) (arbitrary :: Gen Int)) $ \list ->
-        let arr = runIdentity $ A.fromStreamN (fromIntegral len)
-                              $ S.fromList list
-        in runIdentity (S.toList (A.toStream arr)) === list
+-- XXX this should be in sync with the defaultChunkSize in Array code, or we
+-- should expose that and use that. For fast testing we could reduce the
+-- defaultChunkSize under CPP conditionals.
+--
+defaultChunkSize :: Int
+defaultChunkSize = 32 * k - allocOverhead
+   where k = 1024
+
+maxArrLen :: Int
+maxArrLen = defaultChunkSize * 8
+
+testLength :: Property
+testLength =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            let arr = runIdentity $ A.fromStreamN len
+                                  $ S.fromList list
+            in A.length arr === len
+
+testFromToStreamN :: Property
+testFromToStreamN =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            let arr = runIdentity $ A.fromStreamN len
+                                  $ S.fromList list
+            in runIdentity (S.toList (A.toStream arr)) === list
+
+testArraysOf :: Property
+testArraysOf =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            let xs = runIdentity
+                    $ S.toList
+                    $ S.concatMap A.toStream
+                    $ A.arraysOf 240
+                    $ S.fromList list
+            in xs === list
+
+testFlattenArrays :: Property
+testFlattenArrays =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            let xs = runIdentity
+                    $ S.toList
+                    $ A.flattenArrays
+                    $ A.arraysOf 240
+                    $ S.fromList list
+            in xs === list
+
+{-
+testFromToStream :: Property
+testFromToStream =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            let xs = runIdentity
+                    $ S.toList
+                    $ A.toStream
+                    $ runIdentity. A.fromStream
+                    $ S.fromList list
+            in xs === list
+-}
 
 main :: IO ()
 main = hspec
@@ -42,5 +94,8 @@ main = hspec
     $ modifyMaxSuccess (const maxTestCount)
     $ do
     describe "Construction" $ do
-        prop "length . fromStreamN n === n" $ randomLengthArray
-        prop "fromStreamN n . toStream === id" $ randomArrayRoundTrip
+        prop "length . fromStreamN n === n" $ testLength
+        prop "toStream . fromStreamN n === id" $ testFromToStreamN
+        prop "arraysOf concats to original" $ testArraysOf
+        prop "flattenArrays concats to original" $ testFlattenArrays
+        -- prop "toStream . fromStream === id" $ testFromToStream
