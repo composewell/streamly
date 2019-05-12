@@ -1875,7 +1875,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 --
 -- @since 0.7.0
 {-# INLINE reverse' #-}
-reverse' :: (IsStream t, Monad m, Storable a) => t m a -> t m a
+reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------

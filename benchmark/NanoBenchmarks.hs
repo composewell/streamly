@@ -52,7 +52,7 @@ takeAllDropOne = S.drop 1 . S.take maxValue
 
 {-# INLINE takeDrop #-}
 takeDrop :: Monad m => S.Stream m Int -> m ()
-takeDrop = S.runStream .
+takeDrop = S.drain .
     takeAllDropOne . takeAllDropOne . takeAllDropOne . takeAllDropOne
 
 -------------------------------------------------------------------------------
@@ -67,7 +67,7 @@ dropWhileFalse = S.dropWhile (> maxValue)
 
 {-# INLINE dropWhileFalseX4 #-}
 dropWhileFalseX4 :: Monad m => S.Stream m Int -> m ()
-dropWhileFalseX4 = S.runStream
+dropWhileFalseX4 = S.drain
     . dropWhileFalse . dropWhileFalse . dropWhileFalse .  dropWhileFalse
 
 -------------------------------------------------------------------------------
@@ -88,9 +88,9 @@ iterateSource g i n = f i (sourceUnfoldrMN n)
 main :: IO ()
 main = do
     defaultMain [bench "unfoldr" $ nfIO $
-        randomRIO (1,1) >>= \n -> S.runStream (sourceUnfoldr n)]
+        randomRIO (1,1) >>= \n -> S.drain (sourceUnfoldr n)]
     defaultMain [bench "take-drop" $ nfIO $ takeDrop sourceUnfoldrM]
     defaultMain [bench "dropWhileFalseX4" $
         nfIO $ dropWhileFalseX4 sourceUnfoldrM]
     defaultMain [bench "iterate-mapM" $
-        nfIO $ S.runStream $ iterateSource (S.mapM return) 100000 10]
+        nfIO $ S.drain $ iterateSource (S.mapM return) 100000 10]

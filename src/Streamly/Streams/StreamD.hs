@@ -228,6 +228,7 @@ module Streamly.Streams.StreamD
     )
 where
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Word (Word32)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
@@ -241,10 +242,8 @@ import Prelude
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
-import System.IO.Unsafe (unsafeDupablePerformIO)
 
-import Streamly.Array.Types
-       (Array(..), unsafeInlineIO, unsafeIndex, flattenArrays)
+import Streamly.Array.Types (Array(..), flattenArrays)
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Sink.Types (Sink(..))
@@ -836,7 +835,7 @@ reverse m = Stream step Nothing
 
 -- Much faster reverse for Storables
 {-# INLINE_NORMAL reverse' #-}
-reverse' :: forall m a. (Monad m, Storable a) => Stream m a -> Stream m a
+reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
 {-
 -- This commented implementation copies the whole stream into one single array
 -- and then streams from that array, this is 3-4x faster than the chunked code
@@ -1148,7 +1147,7 @@ data SplitOnState s a =
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (Monad m, Storable a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -1167,13 +1166,14 @@ splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
         if patLen == 0
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
-            then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex patArr 0)
+            then do
+                r <- liftIO $ (A.unsafeIndexIO patArr 0)
+                return $ Skip $ GO_SINGLE_PAT state r
             else if sizeOf (undefined :: a) * patLen
                     <= sizeOf (undefined :: Word)
                 then return $ Skip $ GO_SHORT_PAT state
                 else do
-                    let !(rb, rhead) = unsafeDupablePerformIO $
-                                            RB.unsafeNew patLen
+                    (rb, rhead) <- liftIO $ RB.new patLen
                     return $ Skip $ GO_KARP_RABIN state rb rhead
 
     stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
@@ -1264,10 +1264,10 @@ splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let !rh' = unsafeInlineIO (RB.insert rb rh x)
+                    rh' <- liftIO $ RB.unsafeInsert rb rh x
                     if idx == maxIndex
                     then do
-                        let fold = RB.foldRing (RB.ringBound rb)
+                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
                         let !ringHash = fold addCksum 0 rb
                         if ringHash == patHash
                         then go2 SPEC ringHash rh' s acc
@@ -1276,7 +1276,7 @@ splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
                 Skip s -> go0 SPEC idx rh s acc
                 Stop -> do
                     !acc' <- if idx /= 0
-                             then RB.foldRingM rh fstep acc rb
+                             then RB.unsafeFoldRingM rh fstep acc rb
                              else return acc
                     done acc' >>= \r -> return $ Yield r GO_DONE
 
@@ -1290,20 +1290,20 @@ splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let !old = unsafeInlineIO $ peek rh
-                        cksum' = deltaCksum cksum old x
+                    old <- liftIO $ peek rh
+                    let cksum' = deltaCksum cksum old x
                     acc' <- fstep acc old
 
                     if (cksum' == patHash)
                     then do
-                        let !rh'= unsafeInlineIO (RB.insert rb rh x)
+                        rh' <- liftIO (RB.unsafeInsert rb rh x)
                         go2 SPEC cksum' rh' s acc'
                     else do
-                        let !rh'= unsafeInlineIO (RB.insert rb rh x)
+                        rh' <- liftIO (RB.unsafeInsert rb rh x)
                         go1 SPEC cksum' rh' s acc'
                 Skip s -> go1 SPEC cksum rh s acc
                 Stop -> do
-                    acc' <- RB.foldRingFullM rh fstep acc rb
+                    acc' <- RB.unsafeFoldRingFullM rh fstep acc rb
                     done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
@@ -1327,7 +1327,7 @@ splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
 
 {-# INLINE_NORMAL splitSuffixOn #-}
 splitSuffixOn
-    :: forall m a b. (Monad m, Storable a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
     => Bool
     -> Array a
     -> Fold m a b
@@ -1348,13 +1348,14 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
         if patLen == 0
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
-             then return $ Skip $ GO_SINGLE_PAT state (unsafeIndex patArr 0)
+             then do
+                r <- liftIO $ (A.unsafeIndexIO patArr 0)
+                return $ Skip $ GO_SINGLE_PAT state r
              else if sizeOf (undefined :: a) * patLen
                     <= sizeOf (undefined :: Word)
                   then return $ Skip $ GO_SHORT_PAT state
                   else do
-                    let !(rb, rhead) = unsafeDupablePerformIO $
-                                            RB.unsafeNew patLen
+                    (rb, rhead) <- liftIO $ RB.new patLen
                     return $ Skip $ GO_KARP_RABIN state rb rhead
 
     stepOuter gst (GO_SINGLE_PAT stt pat) = do
@@ -1484,10 +1485,10 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
             Yield x s -> do
                 acc <- initial
                 acc' <- if withSep then fstep acc x else return acc
-                let !rh' = unsafeInlineIO (RB.insert rb rhead x)
+                rh' <- liftIO (RB.unsafeInsert rb rhead x)
                 if idx == maxIndex
                 then do
-                    let fold = RB.foldRing (RB.ringBound rb)
+                    let fold = RB.unsafeFoldRing (RB.ringBound rb)
                     let !ringHash = fold addCksum 0 rb
                     if ringHash == patHash
                     then go2 SPEC ringHash rh' s acc'
@@ -1513,10 +1514,10 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
             case res of
                 Yield x s -> do
                     acc' <- if withSep then fstep acc x else return acc
-                    let !rh' = unsafeInlineIO (RB.insert rb rh x)
+                    rh' <- liftIO (RB.unsafeInsert rb rh x)
                     if idx == maxIndex
                     then do
-                        let fold = RB.foldRing (RB.ringBound rb)
+                        let fold = RB.unsafeFoldRing (RB.ringBound rb)
                         let !ringHash = fold addCksum 0 rb
                         if ringHash == patHash
                         then go2 SPEC ringHash rh' s acc'
@@ -1529,7 +1530,7 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
                     then return Stop
                     else do
                         !acc' <- if idx /= 0 && not withSep
-                                 then RB.foldRingM rh fstep acc rb
+                                 then RB.unsafeFoldRingM rh fstep acc rb
                                  else return acc
                         done acc' >>= \r -> return $ Yield r GO_DONE
 
@@ -1543,18 +1544,18 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    let !old = unsafeInlineIO $ peek rh
-                        cksum' = deltaCksum cksum old x
+                    old <- liftIO $ peek rh
+                    let cksum' = deltaCksum cksum old x
                     acc' <- if withSep
                             then fstep acc x
                             else fstep acc old
 
                     if (cksum' == patHash)
                     then do
-                        let !rh'= unsafeInlineIO (RB.insert rb rh x)
+                        rh' <- liftIO (RB.unsafeInsert rb rh x)
                         go2 SPEC cksum' rh' s acc'
                     else do
-                        let !rh'= unsafeInlineIO (RB.insert rb rh x)
+                        rh' <- liftIO (RB.unsafeInsert rb rh x)
                         go1 SPEC cksum' rh' s acc'
                 Skip s -> go1 SPEC cksum rh s acc
                 Stop -> do
@@ -1563,7 +1564,7 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
                     else do
                         acc' <- if withSep
                                 then return acc
-                                else RB.foldRingFullM rh fstep acc rb
+                                else RB.unsafeFoldRingFullM rh fstep acc rb
                         done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do

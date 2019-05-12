@@ -452,6 +452,7 @@ transformCombineOpsCommon constr desc eq t = do
 
     -- reordering
     prop (desc <> " reverse") $ transform reverse t S.reverse
+    prop (desc <> " reverse'") $ transform reverse t S.reverse'
 
     -- inserting
     prop (desc <> " intersperseM") $

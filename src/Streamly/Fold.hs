@@ -294,6 +294,7 @@ module Streamly.Fold
     )
 where
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Foreign.Storable (Storable(..))
 import Prelude
@@ -1347,7 +1348,7 @@ _splitSuffixBy' predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
 -- @since 0.7.0
 {-# INLINE splitOn #-}
 splitOn
-    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOn patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
 
@@ -1395,7 +1396,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- @since 0.7.0
 {-# INLINE splitSuffixOn #-}
 splitSuffixOn
-    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitSuffixOn patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
@@ -1482,7 +1483,7 @@ splitOn' patt f m = S.intersperseM
 -- @since 0.7.0
 {-# INLINE splitSuffixOn' #-}
 splitSuffixOn'
-    :: (IsStream t, Monad m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitSuffixOn' patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)

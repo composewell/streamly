@@ -14,6 +14,7 @@
 module LinearOps where
 
 import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
 import Prelude
@@ -287,7 +288,7 @@ transform = runStream
 
 {-# INLINE composeN #-}
 composeN
-    :: Monad m
+    :: MonadIO m
     => Int -> (Stream m Int -> Stream m Int) -> Stream m Int -> m ()
 composeN n f =
     case n of
@@ -342,7 +343,7 @@ scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices, insertBy, deleteBy, reverse, reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
-    :: Monad m
+    :: MonadIO m
     => Int -> Stream m Int -> m ()
 
 {-# INLINE mapMaybeM #-}
@@ -529,7 +530,7 @@ concatMap n = S.concatMap (\_ -> sourceUnfoldrMN maxNested n)
 {-# INLINE filterMap #-}
 scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
     filterTake, filterScan, filterScanl1, filterMap
-    :: Monad m => Int -> Stream m Int -> m ()
+    :: MonadIO m => Int -> Stream m Int -> m ()
 
 scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
 dropMap    n = composeN n $ S.map (subtract 1) . S.drop 1

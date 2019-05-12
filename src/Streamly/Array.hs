@@ -142,7 +142,6 @@ import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (length, null, last, map, (!!))
 
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import GHC.IO (unsafeDupablePerformIO)
 
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
@@ -162,7 +161,7 @@ import qualified Streamly.Prelude as S
 --
 -- @since 0.7.0
 {-# INLINE fromStreamN #-}
-fromStreamN :: (Monad m, Storable a) => Int -> SerialT m a -> m (Array a)
+fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = fromStreamDN n $ D.toStreamD m
 
 -------------------------------------------------------------------------------
@@ -219,7 +218,7 @@ arr !! i =
 --
 -- @since 0.7.0
 {-# INLINE flattenArrays #-}
-flattenArrays :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+flattenArrays :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 flattenArrays m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 
 -- XXX should we have a reverseArrays API to reverse the stream of arrays
@@ -230,7 +229,7 @@ flattenArrays m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 --
 -- @since 0.7.0
 {-# INLINE _flattenArraysRev #-}
-_flattenArraysRev :: (IsStream t, Monad m, Storable a) => t m (Array a) -> t m a
+_flattenArraysRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 _flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 
 -- |
@@ -240,7 +239,7 @@ _flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 --
 -- @since 0.7.0
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, Monad m, Storable a)
+arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
 arraysOf n str =
     D.fromStreamD $ fromStreamDArraysOf n (D.toStreamD str)
@@ -250,23 +249,22 @@ arraysOf n str =
 --
 -- @since 0.7.0
 {-# INLINABLE spliceArrays #-}
-spliceArrays :: (Monad m, Storable a) => SerialT m (Array a) -> m (Array a)
+spliceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
 spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
 
-    let !arr = unsafeDupablePerformIO $ unsafeNew len
-    end <- S.foldl' write (aEnd arr) buffered
+    arr <- liftIO $ newArray len
+    end <- S.foldlM' write (aEnd arr) buffered
     return $ arr {aEnd = end}
 
     where
 
     write dst Array{..} =
-        let !dst' = unsafeInlineIO $ withForeignPtr aStart $ \src -> do
+        liftIO $ withForeignPtr aStart $ \src -> do
                         let len = aEnd `minusPtr` src
                         memcpy (castPtr dst) (castPtr src) len
                         return $ dst `plusPtr` len
-         in dst'
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'fromStreamN' is at least twice
@@ -277,7 +275,7 @@ spliceArrays s = do
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
 {-# INLINE fromStream #-}
-fromStream :: (Monad m, Storable a) => SerialT m a -> m (Array a)
+fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
 fromStream m = A.fromStreamD $ D.toStreamD m
 
 {-

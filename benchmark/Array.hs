@@ -7,15 +7,14 @@
 -- Maintainer  : harendra.kumar@gmail.com
 
 import Control.DeepSeq (NFData(..), deepseq)
-import Data.Functor.Identity (Identity)
 import Foreign.Storable (Storable(..))
 import System.Random (randomRIO)
 
-import Streamly
 import qualified GHC.Exts as GHC
 
 import qualified ArrayOps as Ops
 import qualified Streamly.Array as A
+import qualified Streamly.Prelude as S
 
 import Gauge
 
@@ -28,14 +27,35 @@ benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
 benchPure name src f = bench name $ nfIO $
     randomRIO (1,1) >>= return . f . src
 
-{-# INLINE benchPureSink #-}
-benchPureSink :: NFData b => String -> (Ops.Stream Int -> b) -> Benchmark
-benchPureSink name f = benchPure name Ops.sourceIntFromTo f
-
+-- Drain a source that generates a pure array
 {-# INLINE benchPureSrc #-}
 benchPureSrc :: (NFData a, Storable a)
     => String -> (Int -> Ops.Stream a) -> Benchmark
 benchPureSrc name src = benchPure name src id
+
+{-# INLINE benchIO #-}
+benchIO :: NFData b => String -> (Int -> IO a) -> (a -> b) -> Benchmark
+benchIO name src f = bench name $ nfIO $
+    randomRIO (1,1) >>= src >>= return . f
+
+-- Drain a source that generates an array in the IO monad
+{-# INLINE benchIOSrc #-}
+benchIOSrc :: (NFData a, Storable a)
+    => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
+benchIOSrc name src = benchIO name src id
+
+{-# INLINE benchPureSink #-}
+benchPureSink :: NFData b => String -> (Ops.Stream Int -> b) -> Benchmark
+benchPureSink name f = benchIO name Ops.sourceIntFromTo f
+
+{-# INLINE benchIO' #-}
+benchIO' :: NFData b => String -> (Int -> IO a) -> (a -> IO b) -> Benchmark
+benchIO' name src f = bench name $ nfIO $
+    randomRIO (1,1) >>= src >>= f
+
+{-# INLINE benchIOSink #-}
+benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
+benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
 
 mkString :: String
 mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
@@ -45,11 +65,11 @@ main =
   defaultMain
     [ bgroup "array"
      [  bgroup "generation"
-        [ benchPureSrc "fromStreamN . intFromTo" Ops.sourceIntFromTo
-        , benchPureSrc "fromStream . intFromTo" Ops.sourceIntFromToFromStream
-        , benchPureSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
-        , benchPureSrc "fromStreamN . unfoldr" Ops.sourceUnfoldr
-        , benchPureSrc "fromStreamN . fromList" Ops.sourceFromList
+        [ benchIOSrc "fromStreamN . intFromTo" Ops.sourceIntFromTo
+        , benchIOSrc "fromStream . intFromTo" Ops.sourceIntFromToFromStream
+        , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
+        , benchIOSrc "fromStreamN . unfoldr" Ops.sourceUnfoldr
+        , benchIOSrc "fromStreamN . fromList" Ops.sourceFromList
         , benchPureSrc "fromStreamN . IsList.fromList" Ops.sourceIsList
         , benchPureSrc "fromStreamN . IsString.fromString" Ops.sourceIsString
         , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
@@ -66,11 +86,9 @@ main =
         , benchPureSink "<" Ops.ordInstance
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSink "IsList.toList" GHC.toList
-        , benchPureSink "foldl'" Ops.pureFoldl'
-        , benchPureSink "toStream"
-                (A.toStream :: A.Array Int -> SerialT Identity Int)
-        , benchPureSink "toStreamRev"
-                (A.toStreamRev :: A.Array Int -> SerialT Identity Int)
+        , benchIOSink "foldl'" Ops.pureFoldl'
+        , benchIOSink "toStream" (S.drain . A.toStream)
+        , benchIOSink "toStreamRev" (S.drain . A.toStreamRev)
 #ifdef DEVBUILD
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum
@@ -118,9 +136,9 @@ main =
         ]
         -}
       , bgroup "transformation"
-        [ benchPureSink "scanl'" (Ops.scanl' 1)
-        , benchPureSink "scanl1'" (Ops.scanl1' 1)
-        , benchPureSink "map" (Ops.map 1)
+        [ benchIOSink "scanl'" (Ops.scanl' 1)
+        , benchIOSink "scanl1'" (Ops.scanl1' 1)
+        , benchIOSink "map" (Ops.map 1)
         {-
         , benchPureSink "fmap" (Ops.fmap 1)
         , benchPureSink "mapM" (Ops.mapM serially 1)
@@ -138,9 +156,9 @@ main =
         -}
         ]
       , bgroup "transformationX4"
-        [ benchPureSink "scanl'" (Ops.scanl' 4)
-        , benchPureSink "scanl1'" (Ops.scanl1' 4)
-        , benchPureSink "map" (Ops.map 4)
+        [ benchIOSink "scanl'" (Ops.scanl' 4)
+        , benchIOSink "scanl1'" (Ops.scanl1' 4)
+        , benchIOSink "map" (Ops.map 4)
         {-
         , benchPureSink "fmap" (Ops.fmap 4)
         , benchPureSink "mapM" (Ops.mapM serially 4)

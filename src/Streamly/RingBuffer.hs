@@ -16,15 +16,15 @@ module Streamly.RingBuffer
     ( RingBuffer(..)
 
     -- * Construction
-    , unsafeNew
+    , new
 
     -- * Modification
-    , insert
+    , unsafeInsert
 
     -- * Folds
-    , foldRing
-    , foldRingM
-    , foldRingFullM
+    , unsafeFoldRing
+    , unsafeFoldRingM
+    , unsafeFoldRingFullM
 
     -- * Fast Byte Comparisons
     , unsafeEqArray
@@ -45,10 +45,10 @@ import qualified Streamly.Array.Types as A
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the
 -- next location to be written in the ring as ringHead. Initially ringHead ==
--- ringStart. When the first item is added ringHead points to ringStart +
+-- ringStart. When the first item is added, ringHead points to ringStart +
 -- sizeof item. When the buffer becomes full ringHead would wrap around to
 -- ringStart. When the buffer is full, ringHead always points at the oldest
--- item in the ring and the newest item added will always overwrite the oldest
+-- item in the ring and the newest item added always overwrites the oldest
 -- item.
 --
 -- When using it we should keep in mind that a ringBuffer is a mutable data
@@ -60,9 +60,10 @@ data RingBuffer a = RingBuffer
     }
 
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
-{-# INLINE unsafeNew #-}
-unsafeNew :: forall a. Storable a => Int -> IO (RingBuffer a, Ptr a)
-unsafeNew count = do
+-- Returns the ring and the ringHead, the ringHead is same as ringStart.
+{-# INLINE new #-}
+new :: forall a. Storable a => Int -> IO (RingBuffer a, Ptr a)
+new count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
@@ -82,16 +83,21 @@ advance RingBuffer{..} ringHead =
        else unsafeForeignPtrToPtr ringStart
 
 -- | Insert an item at the head of the ring, when the ring is full this
--- replaces the oldest item in the ring with the new item.
-{-# INLINE insert #-}
-insert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a)
-insert rb ringHead newVal = do
+-- replaces the oldest item in the ring with the new item. This is unsafe
+-- beause ringHead supplied is not verified to be within the RingBuffer. Also,
+-- the ringStart foreignPtr must be guaranteed to be alive by the caller.
+{-# INLINE unsafeInsert #-}
+unsafeInsert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a)
+unsafeInsert rb ringHead newVal = do
     poke ringHead newVal
     -- touchForeignPtr (ringStart rb)
     return $ advance rb ringHead
 
+-- XXX remove all usage of A.unsafeInlineIO
+--
 -- | Like 'unsafeEqArray' but compares only N bytes instead of entire length of
--- the ring buffer.
+-- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
+-- be in range.
 {-# INLINE unsafeEqArrayN #-}
 unsafeEqArrayN :: RingBuffer a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN RingBuffer{..} rh A.Array{..} n =
@@ -105,17 +111,17 @@ unsafeEqArrayN RingBuffer{..} rh A.Array{..} n =
                 then A.memcmp (castPtr rs) (castPtr (as `plusPtr` len))
                               (min (rh `minusPtr` rs) (n - len))
                 else return True
+            -- XXX enable these, check perf impact
             -- touchForeignPtr ringStart
             -- touchForeignPtr aStart
             return (r1 && r2)
     in res
 
 -- | Byte compare the entire length of ringBuffer with the given array,
--- starting at the supplied pointer. The supplied pointer is usually the
--- ringHead, therefore it would compare the ringBuffer starting at the oldest
--- item in the ring up to the newest item in the ring.
+-- starting at the supplied ringHead pointer.  Returns true if the Array and
+-- the ringBuffer have identical contents.
 --
--- Returns true if the Array and the ringBuffer have identical contents. The
+-- This is unsafe because the ringHead Ptr is not checked to be in range. The
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
@@ -130,18 +136,23 @@ unsafeEqArray RingBuffer{..} rh A.Array{..} =
             r1 <- A.memcmp (castPtr rh) (castPtr as) len
             r2 <- A.memcmp (castPtr rs) (castPtr (as `plusPtr` len))
                            (rh `minusPtr` rs)
+            -- XXX enable these, check perf impact
             -- touchForeignPtr ringStart
             -- touchForeignPtr aStart
             return (r1 && r2)
     in res
 
--- | Fold the buffer starting from ringStart to a given position using a pure
+-- XXX use MonadIO
+--
+-- | Fold the buffer starting from ringStart up to the given 'Ptr' using a pure
 -- step function. This is useful to fold the items in the ring when the ring is
 -- not full. The supplied pointer is usually the end of the ring.
-{-# INLINE foldRing #-}
-foldRing :: forall a b. Storable a
+--
+-- Unsafe because the supplied Ptr is not checked to be in range.
+{-# INLINE unsafeFoldRing #-}
+unsafeFoldRing :: forall a b. Storable a
     => Ptr a -> (b -> a -> b) -> b -> RingBuffer a -> b
-foldRing ptr f z RingBuffer{..} =
+unsafeFoldRing ptr f z RingBuffer{..} =
     let !res = A.unsafeInlineIO $ withForeignPtr ringStart $ \p ->
                     go z p ptr
     in res
@@ -152,11 +163,11 @@ foldRing ptr f z RingBuffer{..} =
             x <- peek p
             go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
 
--- | Like foldRing but with a monadic step function.
-{-# INLINE foldRingM #-}
-foldRingM :: forall m a b. (Monad m, Storable a)
+-- | Like unsafeFoldRing but with a monadic step function.
+{-# INLINE unsafeFoldRingM #-}
+unsafeFoldRingM :: forall m a b. (Monad m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
-foldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
+unsafeFoldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
     where
       go !acc !start !end
         | start == end = return acc
@@ -169,10 +180,10 @@ foldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
 -- pointer.  Assuming the supplied ringHead pointer points to the oldest item,
 -- this would fold the ring starting from the oldest item to the newest item in
 -- the ring.
-{-# INLINE foldRingFullM #-}
-foldRingFullM :: forall m a b. (Monad m, Storable a)
+{-# INLINE unsafeFoldRingFullM #-}
+unsafeFoldRingFullM :: forall m a b. (Monad m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
-foldRingFullM rh f z rb@RingBuffer{..} = go z rh
+unsafeFoldRingFullM rh f z rb@RingBuffer{..} = go z rh
     where
       go !acc !start = do
             let !x = A.unsafeInlineIO $ peek start

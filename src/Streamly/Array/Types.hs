@@ -25,7 +25,7 @@ module Streamly.Array.Types
     -- * Construction
     , unsafeInlineIO
     , withNewArray
-    , unsafeNew
+    , newArray
     , unsafeAppend
     , shrinkToFit
     , memcpy
@@ -40,6 +40,7 @@ module Streamly.Array.Types
     , flattenArraysRev
 
     -- * Elimination
+    , unsafeIndexIO
     , unsafeIndex
     , length
     , foldl'
@@ -59,6 +60,7 @@ where
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
@@ -74,7 +76,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 import GHC.Base (Addr#, realWorld#)
 import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes, newForeignPtr_)
-import GHC.IO (IO(IO), unsafeDupablePerformIO)
+import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Fold.Types (Fold(..))
@@ -83,6 +85,10 @@ import Streamly.SVar (adaptState)
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
 import qualified GHC.Exts as Exts
+
+#ifdef DEVBUILD
+import qualified Data.Foldable as F
+#endif
 
 -------------------------------------------------------------------------------
 -- Design Notes
@@ -178,9 +184,9 @@ unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
 --
 -- Note that this is internal routine, the reference to this array cannot be
 -- given out until the array has been written to and frozen.
-{-# INLINE unsafeNew #-}
-unsafeNew :: forall a. Storable a => Int -> IO (Array a)
-unsafeNew count = do
+{-# INLINE newArray #-}
+newArray :: forall a. Storable a => Int -> IO (Array a)
+newArray count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
@@ -195,7 +201,7 @@ unsafeNew count = do
 {-# INLINE withNewArray #-}
 withNewArray :: forall a. Storable a => Int -> (Ptr a -> IO ()) -> IO (Array a)
 withNewArray count f = do
-    arr <- unsafeNew count
+    arr <- newArray count
     withForeignPtr (aStart arr) $ \p -> f p >> return arr
 
 -- XXX grow the array when we are beyond bound.
@@ -264,17 +270,22 @@ _fromCStringAddrUnsafe addr# = do
 -------------------------------------------------------------------------------
 
 -- | Return element at the specified index without checking the bounds.
+--
+-- Unsafe because it does not check the bounds of the array.
+{-# INLINE_NORMAL unsafeIndexIO #-}
+unsafeIndexIO :: forall a. Storable a => Array a -> Int -> IO a
+unsafeIndexIO Array {..} i =
+     withForeignPtr aStart $ \p -> do
+        let elemSize = sizeOf (undefined :: a)
+            elemOff = p `plusPtr` (elemSize * i)
+        assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
+               (return ())
+        peek elemOff
+
+-- | Return element at the specified index without checking the bounds.
 {-# INLINE_NORMAL unsafeIndex #-}
 unsafeIndex :: forall a. Storable a => Array a -> Int -> a
-unsafeIndex Array {..} i =
-    let !r = unsafeInlineIO $
-             withForeignPtr aStart $ \p -> do
-                let elemSize = sizeOf (undefined :: a)
-                    elemOff = p `plusPtr` (elemSize * i)
-                assert (i >= 0 && elemOff `plusPtr` elemSize <= aEnd)
-                       (return ())
-                peek elemOff
-    in r
+unsafeIndex arr i = let !r = unsafeInlineIO $ unsafeIndexIO arr i in r
 
 -- | /O(1)/ Get the length of the array.
 --
@@ -297,6 +308,12 @@ toStreamD Array{..} =
     {-# INLINE_LATE step #-}
     step _ p | p == aEnd = return D.Stop
     step _ p = do
+        -- unsafeInlineIO allows us to run this in Identity monad for pure
+        -- toList/foldr case which makes them much faster due to not
+        -- accumulating the list and fusing better with the pure consumers.
+        --
+        -- This should be safe as the array contents are guaranteed to be
+        -- evaluated/written to before we peek at them.
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -314,6 +331,7 @@ toStreamDRev Array{..} =
     {-# INLINE_LATE step #-}
     step _ p | p < unsafeForeignPtrToPtr aStart = return D.Stop
     step _ p = do
+        -- See comments in toStreamD for why we use unsafeInlineIO
         let !x = unsafeInlineIO $ do
                     r <- peek p
                     touchForeignPtr aStart
@@ -337,18 +355,16 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL toArrayN #-}
-toArrayN :: forall m a. (Monad m, Storable a) => Int -> Fold m a (Array a)
+toArrayN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
 toArrayN n = Fold step initial extract
 
     where
 
-    initial =
-        let !arr = unsafeDupablePerformIO $ unsafeNew n
-        in return arr
+    initial = liftIO $ newArray n
     step arr@(Array _ end bound) _ | end == bound = return arr
-    step (Array start end bound) x =
-        let !_ = unsafeInlineIO $ poke end x
-        in return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+    step (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
     extract = return
 
 {-
@@ -366,23 +382,23 @@ toArray = Fold step begin done
 -}
 
 {-# INLINE_NORMAL fromStreamDN #-}
-fromStreamDN :: forall m a. (Monad m, Storable a)
+fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
-    let !arr = unsafeDupablePerformIO $ unsafeNew limit
-    end <- D.foldl' write (aEnd arr) $ D.take limit str
+    arr <- liftIO $ newArray limit
+    end <- D.foldlM' write (aEnd arr) $ D.take limit str
     return $ arr {aEnd = end}
 
     where
 
-    write ptr x =
-        let !_ = unsafeInlineIO $ poke ptr x
-         in ptr `plusPtr` sizeOf (undefined :: a)
+    write ptr x = do
+        liftIO $ poke ptr x
+        return $ ptr `plusPtr` sizeOf (undefined :: a)
 
 -- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 {-# INLINE fromStreamDArraysOf #-}
-fromStreamDArraysOf :: (Monad m, Storable a)
+fromStreamDArraysOf :: (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
 
@@ -393,7 +409,7 @@ data FlattenState s a =
     | InnerLoop s (ForeignPtr a) (Ptr a) (Ptr a)
 
 {-# INLINE_NORMAL flattenArrays #-}
-flattenArrays :: forall m a. (Monad m, Storable a)
+flattenArrays :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
 
@@ -413,7 +429,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st startf p end) = do
-        let !x = unsafeInlineIO $ do
+        x <- liftIO $ do
                     r <- peek p
                     touchForeignPtr startf
                     return r
@@ -421,7 +437,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
                             (p `plusPtr` (sizeOf (undefined :: a))) end)
 
 {-# INLINE_NORMAL flattenArraysRev #-}
-flattenArraysRev :: forall m a. (Monad m, Storable a)
+flattenArraysRev :: forall m a. (MonadIO m, Storable a)
     => D.Stream m (Array a) -> D.Stream m a
 flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 
@@ -442,7 +458,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Skip $ OuterLoop st
 
     step' _ (InnerLoop st startf p end) = do
-        let !x = unsafeInlineIO $ do
+        x <- liftIO $ do
                     r <- peek p
                     touchForeignPtr startf
                     return r
@@ -454,7 +470,7 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- all the arrays.
 --
 {-# INLINE fromStreamD #-}
-fromStreamD :: (Monad m, Storable a) => D.Stream m a -> m (Array a)
+fromStreamD :: (MonadIO m, Storable a) => D.Stream m a -> m (Array a)
 fromStreamD m = do
     let s = fromStreamDArraysOf defaultChunkSize m
     buffered <- D.foldr K.cons K.nil s
@@ -479,14 +495,14 @@ instance (Show a, Storable a) => Show (Array a) where
 -- @since 0.7.0
 {-# INLINABLE fromListN #-}
 fromListN :: Storable a => Int -> [a] -> Array a
-fromListN n xs = runIdentity $ fromStreamDN n $ D.fromList xs
+fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
-fromList xs = runIdentity $ fromStreamD $ D.fromList xs
+fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 
 instance (Storable a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
@@ -540,7 +556,7 @@ instance (Storable a, NFData a) => NFData (Array a) where
 
 instance (Storable a, Ord a) => Ord (Array a) where
     {-# INLINE compare #-}
-    compare arr1 arr2 = runIdentity $
+    compare arr1 arr2 = unsafePerformIO $
         D.cmpBy compare (toStreamD arr1) (toStreamD arr2)
 
     -- Default definitions defined in base do not have an INLINE on them, so we
@@ -570,7 +586,7 @@ instance (Storable a, Ord a) => Ord (Array a) where
 -- make the Foldable instance possible though it is much slower (7x slower).
 --
 {-# INLINE_NORMAL toStreamD_ #-}
-toStreamD_ :: forall m a. Monad m => Int -> Array a -> D.Stream m a
+toStreamD_ :: forall m a. MonadIO m => Int -> Array a -> D.Stream m a
 toStreamD_ size Array{..} =
     let p = unsafeForeignPtrToPtr aStart
     in D.Stream step p
@@ -580,7 +596,7 @@ toStreamD_ size Array{..} =
     {-# INLINE_LATE step #-}
     step _ p | p == aEnd = return D.Stop
     step _ p = do
-        let !x = unsafeInlineIO $ do
+        x <- liftIO $ do
                     r <- peek p
                     touchForeignPtr aStart
                     return r
@@ -590,7 +606,7 @@ toStreamD_ size Array{..} =
 _foldr :: forall a b. (a -> b -> b) -> b -> Array a -> b
 _foldr f z arr@Array {..} =
     let !n = sizeOf (undefined :: a)
-    in runIdentity $ D.foldr f z $ toStreamD_ n arr
+    in unsafePerformIO $ D.foldr f z $ toStreamD_ n arr
 
 -- | Note that the 'Foldable' instance is 7x slower than the direct
 -- operations.

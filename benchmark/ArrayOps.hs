@@ -14,7 +14,7 @@
 module ArrayOps where
 
 -- import Control.Monad (when)
-import Data.Functor.Identity (Identity, runIdentity)
+import Control.Monad.IO.Class (MonadIO)
 -- import Data.Maybe (fromJust)
 import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
 import qualified Prelude as P
@@ -48,8 +48,8 @@ maxValue = value + 1
 type Stream = A.Array
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> Stream Int
-sourceUnfoldr n = runIdentity $ A.fromStreamN value $ S.unfoldr step n
+sourceUnfoldr :: MonadIO m => Int -> m (Stream Int)
+sourceUnfoldr n = A.fromStreamN value $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -57,30 +57,27 @@ sourceUnfoldr n = runIdentity $ A.fromStreamN value $ S.unfoldr step n
         else (Just (cnt, cnt + 1))
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: Int -> Stream Int
-sourceIntFromTo n = runIdentity $
-    A.fromStreamN value $ S.enumerateFromTo n (n + value)
+sourceIntFromTo :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromTo n = A.fromStreamN value $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromToFromStream #-}
-sourceIntFromToFromStream :: Int -> Stream Int
-sourceIntFromToFromStream n = runIdentity $
-    A.fromStream $ S.enumerateFromTo n (n + value)
+sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromToFromStream n = A.fromStream $ S.enumerateFromTo n (n + value)
 
-sourceIntFromToFromList :: Int -> Stream Int
-sourceIntFromToFromList n = A.fromList $ [n..n + value]
+sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
+sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: Int -> Stream Int
-sourceFromList n = runIdentity $ A.fromStreamN value $ S.fromList [n..n+value]
+sourceFromList :: MonadIO m => Int -> m (Stream Int)
+sourceFromList n = A.fromStreamN value $ S.fromList [n..n+value]
 
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Stream Int
-sourceIsList n = runIdentity $ A.fromStreamN value $ GHC.fromList [n..n+value]
+sourceIsList n = GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> Stream P.Char
-sourceIsString n = runIdentity $
-    A.fromStreamN value $ GHC.fromString (P.replicate (n + value) 'a')
+sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
 
 {-
 -------------------------------------------------------------------------------
@@ -209,18 +206,21 @@ maximumBy = S.maximumBy compare
 -- Transformation
 -------------------------------------------------------------------------------
 
+{-
 {-# INLINE transform #-}
 transform :: Stream a -> Stream a
 transform = P.id
+-}
 
 {-# INLINE composeN #-}
-composeN :: Int -> (Stream Int -> Stream Int) -> Stream Int -> Stream Int
-composeN n f =
+composeN :: P.Monad m
+    => Int -> (Stream Int -> m (Stream Int)) -> Stream Int -> m (Stream Int)
+composeN n f x =
     case n of
-        1 -> transform . f
-        2 -> transform . f . f
-        3 -> transform . f . f . f
-        4 -> transform . f . f . f . f
+        1 -> f x
+        2 -> f x P.>>= f
+        3 -> f x P.>>= f P.>>= f
+        4 -> f x P.>>= f P.>>= f P.>>= f
         _ -> undefined
 
 {-# INLINE scanl' #-}
@@ -256,7 +256,7 @@ scanl' , scanl1', map{-, fmap, mapMaybe, filterEven, filterAllOut,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices, insertBy, deleteBy, reverse,
     foldrS, foldrSMap, foldrT, foldrTMap -}
-    :: Int -> Stream Int -> Stream Int
+    :: MonadIO m => Int -> Stream Int -> m (Stream Int)
 
 {-
 {-# INLINE mapMaybeM #-}
@@ -276,8 +276,11 @@ sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
     -}
 
-onArray :: (S.SerialT Identity Int -> S.SerialT Identity Int) -> Stream Int -> Stream Int
-onArray f arr = runIdentity $ A.fromStreamN value $ f $ A.toStream arr
+onArray
+    :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
+    -> Stream Int
+    -> m (Stream Int)
+onArray f arr = A.fromStreamN value $ f $ A.toStream arr
 
 scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
 scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
@@ -507,8 +510,8 @@ readInstance str =
         _ -> P.error "readInstance: no parse"
 
 {-# INLINE pureFoldl' #-}
-pureFoldl' :: Stream Int -> Int
-pureFoldl' = runIdentity . S.foldl' (+) 0 . A.toStream
+pureFoldl' :: MonadIO m => Stream Int -> m Int
+pureFoldl' = S.foldl' (+) 0 . A.toStream
 
 #ifdef DEVBUILD
 {-# INLINE foldableFoldl' #-}

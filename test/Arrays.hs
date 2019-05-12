@@ -3,12 +3,12 @@
 
 module Main (main) where
 
-import Data.Functor.Identity (runIdentity)
 import Foreign.Storable (Storable(..))
 
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, (===),
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary,
                         choose)
+import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import Test.Hspec as H
 
@@ -41,52 +41,64 @@ testLength :: Property
 testLength =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            let arr = runIdentity $ A.fromStreamN len
-                                  $ S.fromList list
-            in A.length arr === len
+            monadicIO $ do
+                arr <-  A.fromStreamN len
+                      $ S.fromList list
+                assert (A.length arr == len)
 
 testFromToStreamN :: Property
 testFromToStreamN =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            let arr = runIdentity $ A.fromStreamN len
-                                  $ S.fromList list
-            in runIdentity (S.toList (A.toStream arr)) === list
+            monadicIO $ do
+                arr <- A.fromStreamN len
+                     $ S.fromList list
+                xs <- S.toList
+                    $ A.toStream arr
+                assert (xs == list)
+
+testToStreamRev :: Property
+testToStreamRev =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            monadicIO $ do
+                arr <- A.fromStreamN len
+                     $ S.fromList list
+                xs <- S.toList
+                    $ A.toStreamRev arr
+                assert (xs == reverse list)
 
 testArraysOf :: Property
 testArraysOf =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            let xs = runIdentity
-                    $ S.toList
+            monadicIO $ do
+                xs <- S.toList
                     $ S.concatMap A.toStream
                     $ A.arraysOf 240
                     $ S.fromList list
-            in xs === list
+                assert (xs == list)
 
 testFlattenArrays :: Property
 testFlattenArrays =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            let xs = runIdentity
-                    $ S.toList
+            monadicIO $ do
+                xs <- S.toList
                     $ A.flattenArrays
                     $ A.arraysOf 240
                     $ S.fromList list
-            in xs === list
+                assert (xs == list)
 
-{-
 testFromToStream :: Property
 testFromToStream =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            let xs = runIdentity
-                    $ S.toList
-                    $ A.toStream
-                    $ runIdentity. A.fromStream
-                    $ S.fromList list
-            in xs === list
--}
+            monadicIO $ do
+                arr <- A.fromStream $ S.fromList list
+                xs <- S.toList
+                    $ A.toStream arr
+                assert (xs == list)
 
 main :: IO ()
 main = hspec
@@ -96,6 +108,7 @@ main = hspec
     describe "Construction" $ do
         prop "length . fromStreamN n === n" $ testLength
         prop "toStream . fromStreamN n === id" $ testFromToStreamN
+        prop "toStreamRev . fromStream === reverse" $ testToStreamRev
         prop "arraysOf concats to original" $ testArraysOf
         prop "flattenArrays concats to original" $ testFlattenArrays
-        -- prop "toStream . fromStream === id" $ testFromToStream
+        prop "toStream . fromStream === id" $ testFromToStream
