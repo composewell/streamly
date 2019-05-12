@@ -4,33 +4,45 @@ synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly, short for streaming concurrently, provides monadic streams, with a
   simple API, almost identical to standard lists, and an in-built support for
-  concurrency.  By using stream-style combinators on stream composition,
-  streams can be generated, merged, chained, mapped, zipped, and consumed
-  concurrently – providing a generalized high level programming framework
-  unifying streaming and concurrency. Controlled concurrency allows even
-  infinite streams to be evaluated concurrently.  Concurrency is auto scaled
-  based on feedback from the stream consumer.  The programmer does not have to
-  be aware of threads, locking or synchronization to write scalable concurrent
-  programs.
+  concurrency.  Streams can be generated, merged, chained, mapped, zipped, and
+  consumed concurrently – providing a generalized high level programming
+  framework unifying streaming and concurrency. Controlled concurrency allows
+  even infinite streams to be evaluated concurrently.  Concurrency is auto
+  scaled based on feedback from the stream consumer.  Programmer does not
+  have to be aware of threads, locking or synchronization to write scalable
+  concurrent programs.
   .
-  The basic streaming functionality of streamly is equivalent to that provided by
+  In addition to the basic streaming functionality provided by
   streaming libraries like
   <https://hackage.haskell.org/package/streaming streaming>,
   <https://hackage.haskell.org/package/pipes pipes>, and
-  <https://hackage.haskell.org/package/conduit conduit>.
-  In addition to providing streaming functionality, streamly subsumes the
+  <https://hackage.haskell.org/package/conduit conduit> streamly provides
+  advanced stream composition including various ways of appending, merging,
+  zipping, splitting, grouping, distributing, partitioning and unzipping of
+  streams with true streaming and with concurrency. Streamly subsumes the
   functionality of list transformer libraries like @pipes@ or
   <https://hackage.haskell.org/package/list-t list-t> and also the logic
   programming library <https://hackage.haskell.org/package/logict logict>. On
-  the concurrency side, it subsumes the functionality of the
-  <https://hackage.haskell.org/package/async async> package. Because it
-  supports streaming with concurrency we can write FRP applications similar in
-  concept to <https://hackage.haskell.org/package/Yampa Yampa> or
+  the concurrency side, it subsumes the basic concurrency functionality
+  provided by the <https://hackage.haskell.org/package/async async> package and
+  provides much more powerful high level concurrent streaming composition.
+  Because it supports streaming with concurrency we can write FRP applications
+  similar in concept to <https://hackage.haskell.org/package/Yampa Yampa> or
   <https://hackage.haskell.org/package/reflex reflex>.
   .
-  For file IO, currently the library provides only one API to stream the lines
-  in the file as Strings.  Future versions will provide better streaming file
-  IO options.  Streamly interoperates with the popular streaming libraries, see
+  Streamly focuses on practical engineering with high performance. One can
+  expect performance competitive to C from well written streamly programs.
+  High performance streaming eliminates the need for string and text
+  libraries like
+  <https://hackage.haskell.org/package/bytestring bytestring>,
+  <https://hackage.haskell.org/package/text text> and their lazy and strict
+  flavors, and all the confusion arising from those. The only basic types are
+  arrays for storage and streams for processing. Strings and text are simply
+  streams of 'Char' as they should be. Even Haskell lists can be replaced by
+  pure streams. Arrays provided by streamly have performance at par with or
+  better than the vector library.
+  .
+  Streamly interoperates with popular streaming libraries, see
   the interoperation section in "Streamly.Tutorial".
   .
   Why use streamly?
@@ -183,6 +195,7 @@ library
                      , Streamly.Time
                      , Streamly
                      , Streamly.Fold
+                     , Streamly.FileSystem.File
 
                      , Streamly.Tutorial
                      , Streamly.Internal
@@ -528,6 +541,7 @@ benchmark nested
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
   if flag(dev)
+    cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
                     -fno-ignore-asserts
@@ -546,6 +560,9 @@ benchmark nested
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
 
 benchmark array
   type: exitcode-stdio-1.0
@@ -577,6 +594,33 @@ benchmark array
   if impl(ghc < 8.0)
     build-depends:
         transformers  >= 0.4 && < 0.6
+
+benchmark fileio
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: FileIO.hs
+  default-language: Haskell2010
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+                    -fno-ignore-asserts
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , gauge               >= 0.2.4 && < 0.3
+    , typed-process       >= 0.2.3 && < 0.3
+    , deepseq             >= 1.4.3 && < 1.5
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules

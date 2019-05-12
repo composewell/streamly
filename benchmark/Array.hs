@@ -65,13 +65,13 @@ main =
   defaultMain
     [ bgroup "array"
      [  bgroup "generation"
-        [ benchIOSrc "fromStreamN . intFromTo" Ops.sourceIntFromTo
-        , benchIOSrc "fromStream . intFromTo" Ops.sourceIntFromToFromStream
+        [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
+        , benchIOSrc "write . intFromTo" Ops.sourceIntFromToFromStream
         , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
-        , benchIOSrc "fromStreamN . unfoldr" Ops.sourceUnfoldr
-        , benchIOSrc "fromStreamN . fromList" Ops.sourceFromList
-        , benchPureSrc "fromStreamN . IsList.fromList" Ops.sourceIsList
-        , benchPureSrc "fromStreamN . IsString.fromString" Ops.sourceIsString
+        , benchIOSrc "writeN . unfoldr" Ops.sourceUnfoldr
+        , benchIOSrc "writeN . fromList" Ops.sourceFromList
+        , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
+        , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
         , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
         , benchPureSink "show" Ops.showInstance
         ]
@@ -87,8 +87,8 @@ main =
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSink "IsList.toList" GHC.toList
         , benchIOSink "foldl'" Ops.pureFoldl'
-        , benchIOSink "toStream" (S.drain . A.toStream)
-        , benchIOSink "toStreamRev" (S.drain . A.toStreamRev)
+        , benchIOSink "read" (S.drain . A.read)
+        , benchIOSink "readRev" (S.drain . A.readRev)
 #ifdef DEVBUILD
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum

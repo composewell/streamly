@@ -114,7 +114,7 @@ source = sourceUnfoldrM
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+runStream = S.drain
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m a -> m ()
@@ -131,7 +131,7 @@ uncons s = do
 init :: (Monad m, S.IsStream t) => t m a -> m ()
 init s = do
     t <- S.init s
-    P.mapM_ S.runStream t
+    P.mapM_ S.drain t
 
 {-# INLINE tail #-}
 tail :: (Monad m, S.IsStream t) => t m a -> m ()

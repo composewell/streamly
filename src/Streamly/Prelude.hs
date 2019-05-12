@@ -105,9 +105,6 @@ module Streamly.Prelude
     , K.fromFoldable
     , fromFoldableM
 
-    -- ** From External Containers
-    , fromHandle
-
     -- * Elimination
 
     -- ** Deconstruction
@@ -213,7 +210,6 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
-    , toHandle
 
     -- ** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
@@ -465,6 +461,8 @@ module Streamly.Prelude
     , runStream
     , runN
     , runWhile
+    , fromHandle
+    , toHandle
     )
 where
 
@@ -837,6 +835,7 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
+{-# DEPRECATED fromHandle "Please use Streamly.FileIO instead." #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -1530,6 +1529,7 @@ _toListRev = D.toListRev . toStreamD
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
+{-# DEPRECATED toHandle "Please use Streamly.FileIO instead." #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go m
     where

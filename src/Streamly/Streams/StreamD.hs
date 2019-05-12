@@ -128,7 +128,6 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
-    , flattenArrays
 
     -- ** Grouping
     , groupsOf
@@ -243,7 +242,7 @@ import Prelude
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
 
-import Streamly.Array.Types (Array(..), flattenArrays)
+import Streamly.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Sink.Types (Sink(..))

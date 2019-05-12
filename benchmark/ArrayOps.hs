@@ -49,7 +49,7 @@ type Stream = A.Array
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: MonadIO m => Int -> m (Stream Int)
-sourceUnfoldr n = A.fromStreamN value $ S.unfoldr step n
+sourceUnfoldr n = A.writeN value $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -58,18 +58,18 @@ sourceUnfoldr n = A.fromStreamN value $ S.unfoldr step n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromTo n = A.fromStreamN value $ S.enumerateFromTo n (n + value)
+sourceIntFromTo n = A.writeN value $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromStream n = A.fromStream $ S.enumerateFromTo n (n + value)
+sourceIntFromToFromStream n = A.write $ S.enumerateFromTo n (n + value)
 
 sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
 sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: MonadIO m => Int -> m (Stream Int)
-sourceFromList n = A.fromStreamN value $ S.fromList [n..n+value]
+sourceFromList n = A.writeN value $ S.fromList [n..n+value]
 
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Stream Int
@@ -280,7 +280,7 @@ onArray
     :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray f arr = A.fromStreamN value $ f $ A.toStream arr
+onArray f arr = A.writeN value $ f $ A.read arr
 
 scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
 scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
@@ -511,7 +511,7 @@ readInstance str =
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.foldl' (+) 0 . A.toStream
+pureFoldl' = S.foldl' (+) 0 . A.read
 
 #ifdef DEVBUILD
 {-# INLINE foldableFoldl' #-}

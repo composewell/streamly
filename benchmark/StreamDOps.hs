@@ -75,7 +75,7 @@ source = sourceUnfoldrM
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+runStream = S.drain
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m a -> m ()

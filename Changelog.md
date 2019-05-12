@@ -7,13 +7,14 @@
 
 ### Enhancements
 
-* MAJOR: Add Streamly.Array module to support efficient fixed size immutable
+* MAJOR: Add `Streamly.Mem.Array` module to support efficient
   arrays for buffering and IO. See the haddock docs for the module.
-* MAJOR: Add Streamly.Fold module to support composable folds (stream
+* MAJOR: Add `Streamly.Fold` module to support composable folds (stream
   consumers). This brings in stream splitting, grouping, partitioning,
   unzipping and nesting features without breaking streaming. See the haddock
   docs for the module.
-* Add the following to "Streamly.Prelude":
+* MAJOR: Add `Streamly.FileSystem.File` module to support file IO.
+* Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
     * `reverse'` a several times faster reverse using Storable instance

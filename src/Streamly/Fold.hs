@@ -1493,8 +1493,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 splitOn'
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOn' patt f m = S.intersperseM
-    (foldl' f (A.toStream patt)) $ splitOn patt f m
+splitOn' patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOn patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --
