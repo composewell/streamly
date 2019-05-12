@@ -455,6 +455,9 @@ benchmark linear
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
 
 benchmark linear-async
   type: exitcode-stdio-1.0
@@ -483,6 +486,9 @@ benchmark linear-async
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
 
 benchmark linear-rate
   type: exitcode-stdio-1.0
@@ -510,6 +516,9 @@ benchmark linear-rate
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
 
 benchmark nested
   type: exitcode-stdio-1.0
@@ -565,6 +574,9 @@ benchmark array
     , deepseq             >= 1.4.3 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
