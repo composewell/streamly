@@ -10,7 +10,9 @@
 * MAJOR: Add Streamly.Array module to support efficient fixed size immutable
   arrays for buffering and IO. See the haddock docs for the module.
 * MAJOR: Add Streamly.Fold module to support composable folds (stream
-  consumers). See the haddock docs for the module.
+  consumers). This brings in stream splitting, grouping, partitioning,
+  unzipping and nesting features without breaking streaming. See the haddock
+  docs for the module.
 * Add the following to "Streamly.Prelude":
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
