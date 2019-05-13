@@ -56,6 +56,7 @@ module Streamly.Fold
 
     -- ** Full Folds
     , drain
+    , drainBy
     , last
     , length
     , sum
@@ -275,6 +276,7 @@ module Streamly.Fold
     -- select the fold. This is useful to demultiplex the input stream.
     , partitionByM
     , partitionBy
+    , demux_
 
     -- ** Unzipping
     , unzip
@@ -294,8 +296,10 @@ module Streamly.Fold
     )
 where
 
+import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
+import Data.Map.Strict (Map)
 import Foreign.Storable (Storable(..))
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -304,6 +308,8 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break)
+
+import qualified Data.Map.Strict as Map
 
 import Streamly.Array (Array)
 import Streamly.Fold.Types (Fold(..))
@@ -438,6 +444,15 @@ drain = Fold step begin done
     begin = return ()
     step _ _ = return ()
     done = return
+
+-- |
+-- > drainBy f = lmapM f drain
+--
+-- Drain all input after passing it through a monadic function. This is the
+-- dual of mapM_ on stream producers.
+{-# INLINABLE drainBy #-}
+drainBy ::  Monad m => (a -> m b) -> Fold m a ()
+drainBy f = Fold (const (void . f)) (return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --
@@ -1682,6 +1697,44 @@ partitionBy f = partitionByM (return . f)
 --     => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
 -- demux f kv = Fold step begin done
 -}
+
+-- | Demultiplex to multiple consumers without collecting the results. Useful
+-- to run different effectful computations depending on the value of the stream
+-- elements, for example handling network packets of different types using
+-- different handlers.
+--
+-- @
+--
+--                             |-------Fold m a ()
+-- -----stream m a-----Map-----|
+--                             |-------Fold m a ()
+--                             |
+--                                       ...
+-- @
+--
+-- @
+-- > let prn = FL.drainBy print
+-- > let table = Data.Map.fromList [(\"ONE", prn), (\"TWO", prn)]
+--       input = S.fromList [(\"ONE",1),(\"TWO",2)]
+--   in FL.foldl' (FL.demux_ table) input
+-- One 1
+-- Two 2
+-- @
+demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
+demux_ kv = Fold step initial extract
+
+    where
+
+    initial = return ()
+    step () (k, a) =
+        -- XXX should we raise an exception in Nothing case?
+        -- Ideally we should enforce that it is a total map over k so that look
+        -- up never fails
+        case Map.lookup k kv of
+            Nothing -> return ()
+            Just (Fold step' initial' extract') ->
+                initial' >>= \x -> step' x a >>= extract'
+    extract = return
 
 ------------------------------------------------------------------------------
 -- Unzipping
