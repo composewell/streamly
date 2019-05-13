@@ -207,6 +207,7 @@ module Streamly.Fold
 
     -- Element unaware grouping
     , groupsOf
+    , intervalsOf
 
     -- Element aware grouping
     , groups
@@ -296,10 +297,13 @@ module Streamly.Fold
     )
 where
 
+import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Map.Strict (Map)
+import Data.Maybe (fromJust, isJust)
+
 import Foreign.Storable (Storable(..))
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -311,6 +315,7 @@ import Prelude
 
 import qualified Data.Map.Strict as Map
 
+import Streamly (MonadAsync, parallel)
 import Streamly.Array (Array)
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Streams.Serial (SerialT)
@@ -318,7 +323,6 @@ import Streamly.Streams.StreamK (IsStream())
 
 import Streamly.Strict
 
-import Streamly (MonadAsync)
 import qualified Streamly.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
@@ -972,6 +976,30 @@ groupsOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
 groupsOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+
+-- | Transform a fold from a pure input to a 'Maybe' input, consuming only
+-- 'Just' values.
+lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
+lcatMaybes = lfilter isJust . lmap fromJust
+
+-- XXX add this example after fixing the serial stream rate control
+-- >>> S.toList $ S.take 5 $ intervalsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
+-- > [3,7,11,15,19]
+--
+-- | Group the input stream into windows of @n@ second each and then fold each
+-- group using the provided fold function.
+--
+-- @since 0.7.0
+{-# INLINE intervalsOf #-}
+intervalsOf
+    :: (IsStream t, MonadAsync m)
+    => Double -> Fold m a b -> t m a -> t m b
+intervalsOf n f m = grouped (lcatMaybes f) s
+    where
+    s = S.map (\x -> (Just x, False)) m `parallel` S.repeatM timeout
+    timeout = do
+        liftIO $ threadDelay (round $ n * 1000000)
+        return (Nothing, True)
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
