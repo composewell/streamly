@@ -278,6 +278,7 @@ module Streamly.Fold
     , partitionByM
     , partitionBy
     , demux_
+    , classify
 
     -- ** Unzipping
     , unzip
@@ -307,7 +308,7 @@ import Data.Maybe (fromJust, isJust)
 import Foreign.Storable (Storable(..))
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
-               foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
+               foldl, map, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
@@ -1726,10 +1727,9 @@ partitionBy f = partitionByM (return . f)
 -- demux f kv = Fold step begin done
 -}
 
--- | Demultiplex to multiple consumers without collecting the results. Useful
--- to run different effectful computations depending on the value of the stream
--- elements, for example handling network packets of different types using
--- different handlers.
+-- | Split the input stream based on a key field and fold each split using a
+-- specific fold without collecting the results. Useful for cases like protocol
+-- handlers to handle different type of packets.
 --
 -- @
 --
@@ -1748,6 +1748,8 @@ partitionBy f = partitionByM (return . f)
 -- One 1
 -- Two 2
 -- @
+--
+-- @since 0.7.0
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
 demux_ kv = Fold step initial extract
 
@@ -1763,6 +1765,34 @@ demux_ kv = Fold step initial extract
             Just (Fold step' initial' extract') ->
                 initial' >>= \x -> step' x a >>= extract'
     extract = return
+
+-- | Split the input stream based on a key field and fold each split using the
+-- given fold. Useful for map/reduce, bucketizing the input in different bins
+-- or for generating histograms.
+--
+-- @
+-- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
+--   in FL.foldl' (FL.classify FL.toListRev) input
+-- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
+-- @
+--
+-- @since 0.7.0
+classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
+classify (Fold step initial extract) = Fold step' initial' extract'
+
+    where
+
+    initial' = return Map.empty
+    step' kv (k, a) =
+        case Map.lookup k kv of
+            Nothing -> do
+                x <- initial
+                r <- step x a
+                return $ Map.insert k r kv
+            Just x -> do
+                r <- step x a
+                return $ Map.insert k r kv
+    extract' = mapM extract
 
 ------------------------------------------------------------------------------
 -- Unzipping
