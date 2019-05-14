@@ -469,6 +469,11 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- due to GC overhead because we need to buffer the arrays before we flatten
 -- all the arrays.
 --
+-- We could take the approach of doubling the memory allocation on each
+-- overflow. This would result in more or less the same amount of copying as in
+-- the chunking approach. However, if we have to shrink in the end then it may
+-- result in an extra copy of the entire data.
+--
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Storable a) => D.Stream m a -> m (Array a)
 fromStreamD m = do
