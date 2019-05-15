@@ -130,9 +130,12 @@ The following code snippet implements some common Unix command line utilities
 using streamly. To get an idea about IO streaming performance, you can
 benchmark these against the regular unix utilities using the `time` command.
 Make sure to use a big enough input file and compile with `ghc -O2` when
-benchmarking. Note that `grep -c` counts the number of lines where the pattern
-occurs whereas the snippet below counts the total number of occurrences of the
-pattern, therefore, the output may differ.
+benchmarking. Use `+RTS -s` flags on the executable to check the space usage,
+look for `maximum residency` in the output.
+
+Note that `grep -c` counts the number of lines where the pattern occurs whereas
+the snippet below counts the total number of occurrences of the pattern,
+therefore, the output may differ.
 
 ``` haskell
 import qualified Streamly.Prelude as S
@@ -146,22 +149,40 @@ import System.IO (openFile, IOMode(..), stdout)
 
 cat src = File.writeArrays stdout $ File.readArrays src
 cp src dst = File.writeArrays dst $ File.readArrays src
-wcl src = print =<< (S.length
+wcl src = print =<<
+    ( S.length
     $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.drain
     $ File.read src)
-grepc pat src = print . (subtract 1) =<< (S.length
+grepc pat src = print . (subtract 1) =<<
+    ( S.length
     $ FL.splitOn (A.fromList (map (fromIntegral . ord) pat)) FL.drain
     $ File.read src)
+avgll src = print =<<
+    ( FL.foldl' avg
+    $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.length
+    $ File.read src)
+    where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
+          toDouble = fmap (fromIntegral :: Int -> Double)
+llhisto src = print =<< 
+    ( FL.foldl' (FL.classify FL.length)
+    $ S.map bucket
+    $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.length
+    $ File.read src)
+    where
+    bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)
 
 main = do
     name <- fmap head getArgs
     src <- openFile name ReadMode
     -- cat src          -- Unix cat program
     -- wcl src          -- Unix wc -l program
-    grepc "aaaa" src    -- Unix grep -c program
+    -- grepc "aaaa" src -- Unix grep -c program
 
     -- dst <- openFile "dst.txt" WriteMode
     -- cp src dst       -- Unix cp program
+
+    -- avgll src        -- get average line length
+    llhisto src      -- get line length histogram
 ```
 
 ## Streaming Pipelines
