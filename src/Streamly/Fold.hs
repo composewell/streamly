@@ -44,7 +44,7 @@
 module Streamly.Fold
     (
     -- * Fold Type
-      Fold -- (..)
+      Fold(..)
 
     -- * Folding
     -- $termination
