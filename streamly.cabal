@@ -162,8 +162,16 @@ library
     hs-source-dirs:    src
     other-modules:     Streamly.Atomics
                      , Streamly.SVar
+                     , Streamly.Strict
+                     , Streamly.Enumeration
+
+                    -- Time
                      , Streamly.Time.Units
                      , Streamly.Time.Clock
+
+                    -- Memory storage
+                     , Streamly.Mem.Array.Types
+                     , Streamly.Mem.Ring
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
@@ -180,21 +188,22 @@ library
                      , Streamly.Streams.Ahead
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
+
+                    -- Pure streams
                      , Streamly.List
                      , Streamly.String
-                     , Streamly.Enumeration
-                     , Streamly.Array.Types
-                     , Streamly.RingBuffer
-                     , Streamly.Strict
+
+                    -- Folds
                      , Streamly.Fold.Types
                      , Streamly.Sink.Types
                      , Streamly.Sink
 
     exposed-modules:   Streamly.Prelude
-                     , Streamly.Array
                      , Streamly.Time
                      , Streamly
                      , Streamly.Fold
+
+                     , Streamly.Mem.Array
                      , Streamly.FileSystem.File
 
                      , Streamly.Tutorial

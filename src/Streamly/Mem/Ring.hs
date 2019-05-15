@@ -4,7 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 -- |
--- Module      : Streamly.RingBuffer
+-- Module      : Streamly.Mem.Ring
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -12,8 +12,8 @@
 -- Portability : GHC
 --
 
-module Streamly.RingBuffer
-    ( RingBuffer(..)
+module Streamly.Mem.Ring
+    ( Ring(..)
 
     -- * Construction
     , new
@@ -40,7 +40,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, concat)
 
-import qualified Streamly.Array.Types as A
+import qualified Streamly.Mem.Array.Types as A
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the
@@ -54,7 +54,7 @@ import qualified Streamly.Array.Types as A
 -- When using it we should keep in mind that a ringBuffer is a mutable data
 -- structure. We should not leak out references to it for immutable use.
 --
-data RingBuffer a = RingBuffer
+data Ring a = Ring
     { ringStart :: !(ForeignPtr a) -- first address
     , ringBound :: !(Ptr a)        -- first address beyond allocated memory
     }
@@ -62,12 +62,12 @@ data RingBuffer a = RingBuffer
 -- | Create a new ringbuffer and return the ring buffer and the ringHead.
 -- Returns the ring and the ringHead, the ringHead is same as ringStart.
 {-# INLINE new #-}
-new :: forall a. Storable a => Int -> IO (RingBuffer a, Ptr a)
+new :: forall a. Storable a => Int -> IO (Ring a, Ptr a)
 new count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
-    return $ (RingBuffer
+    return $ (Ring
         { ringStart = fptr
         , ringBound = p `plusPtr` size
         }, p)
@@ -75,8 +75,8 @@ new count = do
 -- | Advance the ringHead by 1 item, wrap around if we hit the end of the
 -- array.
 {-# INLINE advance #-}
-advance :: forall a. Storable a => RingBuffer a -> Ptr a -> Ptr a
-advance RingBuffer{..} ringHead =
+advance :: forall a. Storable a => Ring a -> Ptr a -> Ptr a
+advance Ring{..} ringHead =
     let ptr = ringHead `plusPtr` sizeOf (undefined :: a)
     in if ptr <  ringBound
        then ptr
@@ -84,10 +84,10 @@ advance RingBuffer{..} ringHead =
 
 -- | Insert an item at the head of the ring, when the ring is full this
 -- replaces the oldest item in the ring with the new item. This is unsafe
--- beause ringHead supplied is not verified to be within the RingBuffer. Also,
+-- beause ringHead supplied is not verified to be within the Ring. Also,
 -- the ringStart foreignPtr must be guaranteed to be alive by the caller.
 {-# INLINE unsafeInsert #-}
-unsafeInsert :: Storable a => RingBuffer a -> Ptr a -> a -> IO (Ptr a)
+unsafeInsert :: Storable a => Ring a -> Ptr a -> a -> IO (Ptr a)
 unsafeInsert rb ringHead newVal = do
     poke ringHead newVal
     -- touchForeignPtr (ringStart rb)
@@ -99,8 +99,8 @@ unsafeInsert rb ringHead newVal = do
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: RingBuffer a -> Ptr a -> A.Array a -> Int -> Bool
-unsafeEqArrayN RingBuffer{..} rh A.Array{..} n =
+unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN Ring{..} rh A.Array{..} n =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
             let as = unsafeForeignPtrToPtr aStart
@@ -125,8 +125,8 @@ unsafeEqArrayN RingBuffer{..} rh A.Array{..} n =
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
-unsafeEqArray :: RingBuffer a -> Ptr a -> A.Array a -> Bool
-unsafeEqArray RingBuffer{..} rh A.Array{..} =
+unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
+unsafeEqArray Ring{..} rh A.Array{..} =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
             let as = unsafeForeignPtrToPtr aStart
@@ -151,8 +151,8 @@ unsafeEqArray RingBuffer{..} rh A.Array{..} =
 -- Unsafe because the supplied Ptr is not checked to be in range.
 {-# INLINE unsafeFoldRing #-}
 unsafeFoldRing :: forall a b. Storable a
-    => Ptr a -> (b -> a -> b) -> b -> RingBuffer a -> b
-unsafeFoldRing ptr f z RingBuffer{..} =
+    => Ptr a -> (b -> a -> b) -> b -> Ring a -> b
+unsafeFoldRing ptr f z Ring{..} =
     let !res = A.unsafeInlineIO $ withForeignPtr ringStart $ \p ->
                     go z p ptr
     in res
@@ -166,8 +166,8 @@ unsafeFoldRing ptr f z RingBuffer{..} =
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
 unsafeFoldRingM :: forall m a b. (Monad m, Storable a)
-    => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
-unsafeFoldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
+    => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingM ptr f z Ring{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
     where
       go !acc !start !end
         | start == end = return acc
@@ -182,8 +182,8 @@ unsafeFoldRingM ptr f z RingBuffer{..} = go z (unsafeForeignPtrToPtr ringStart) 
 -- the ring.
 {-# INLINE unsafeFoldRingFullM #-}
 unsafeFoldRingFullM :: forall m a b. (Monad m, Storable a)
-    => Ptr a -> (b -> a -> m b) -> b -> RingBuffer a -> m b
-unsafeFoldRingFullM rh f z rb@RingBuffer{..} = go z rh
+    => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
+unsafeFoldRingFullM rh f z rb@Ring{..} = go z rh
     where
       go !acc !start = do
             let !x = A.unsafeInlineIO $ peek start

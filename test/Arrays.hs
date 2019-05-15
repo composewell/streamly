@@ -6,14 +6,13 @@ module Main (main) where
 import Foreign.Storable (Storable(..))
 
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary,
-                        choose)
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import Test.Hspec as H
 
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
-import qualified Streamly.Array as A
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int

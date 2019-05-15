@@ -5,10 +5,10 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-#include "Streams/inline.hs"
+#include "inline.hs"
 
 -- |
--- Module      : Streamly.Array
+-- Module      : Streamly.Mem.Array
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -76,7 +76,7 @@
 -- arbitrarily large amounts of memory but still using small chunks of
 -- contiguous memory.
 
-module Streamly.Array
+module Streamly.Mem.Array
     (
       Array
 
@@ -137,12 +137,11 @@ import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read)
 
-import Streamly.Array.Types hiding (flattenArrays, newArray)
+import Streamly.Mem.Array.Types hiding (flattenArrays, newArray)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
-
-import qualified Streamly.Array.Types as A
+import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 

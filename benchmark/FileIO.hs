@@ -15,8 +15,8 @@ import System.Process.Typed (shell, runProcess_)
 import Data.IORef
 import Gauge
 
-import qualified Streamly.Array as A
 import qualified Streamly.FileSystem.File as File
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
 
 #ifdef DEVBUILD

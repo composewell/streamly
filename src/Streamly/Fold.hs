@@ -317,14 +317,14 @@ import Prelude
 import qualified Data.Map.Strict as Map
 
 import Streamly (MonadAsync, parallel)
-import Streamly.Array (Array)
 import Streamly.Fold.Types (Fold(..))
+import Streamly.Mem.Array (Array)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
 
 import Streamly.Strict
 
-import qualified Streamly.Array as A
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K

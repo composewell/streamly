@@ -4,7 +4,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-#include "../Streams/inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.FileSystem.File
@@ -16,11 +16,11 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from files. File IO APIs are quite
--- similar to "Streamly.Array" read write APIs. In that regard, arrays can be
--- considered as in-memory files or files can be considered as on-disk arrays.
--- IO APIs are divided into two categories, sequential streaming IO APIs and
--- random access IO APIs.  Control over the file reading and writing behavior
--- in terms of buffering, encoding, decoding is in the hands of the
+-- similar to "Streamly.Mem.Array" read write APIs. In that regard, arrays can
+-- be considered as in-memory files or files can be considered as on-disk
+-- arrays.  IO APIs are divided into two categories, sequential streaming IO
+-- APIs and random access IO APIs.  Control over the file reading and writing
+-- behavior in terms of buffering, encoding, decoding is in the hands of the
 -- programmer, the 'TextEncoding', 'NewLineMode', and 'Buffering' options of
 -- the underlying handle provided by GHC are not needed and ignored.
 --
@@ -108,14 +108,14 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
-import Streamly.Array.Types (Array(..))
+import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Array as A
-import qualified Streamly.Array.Types as A hiding (flattenArrays)
+import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------

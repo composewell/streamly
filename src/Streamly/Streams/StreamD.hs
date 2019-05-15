@@ -242,15 +242,16 @@ import Prelude
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
 
-import Streamly.Array.Types (Array(..))
+import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
+
+import qualified Streamly.Mem.Array.Types as A
+import qualified Streamly.Mem.Ring as RB
 import qualified Streamly.Streams.StreamK as K
-import qualified Streamly.Array.Types as A
-import qualified Streamly.RingBuffer as RB
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -1141,7 +1142,7 @@ data SplitOnState s a =
     | GO_EMPTY_PAT s
     | GO_SINGLE_PAT s a
     | GO_SHORT_PAT s
-    | GO_KARP_RABIN s !(RB.RingBuffer a) !(Ptr a)
+    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
     | GO_DONE
 
 {-# INLINE_NORMAL splitOn #-}
