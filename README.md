@@ -124,6 +124,46 @@ benchmarks](https://github.com/composewell/streaming-benchmarks).
 
 ![Streaming Operations at a Glance](charts-0/KeyOperations-time.svg)
 
+## File IO
+
+The following code snippet implements some common Unix command line utilities
+using streamly. To get an idea about IO streaming performance, you can
+benchmark these against the regular unix utilities using the `time` command.
+Make sure to use a big enough input file and compile with `ghc -O2` when
+benchmarking. Note that `grep -c` counts the number of lines where the pattern
+occurs whereas the snippet below counts the total number of occurrences of the
+pattern, therefore, the output may differ.
+
+``` haskell
+import qualified Streamly.Prelude as S
+import qualified Streamly.Fold as FL
+import qualified Streamly.Mem.Array as A
+import qualified Streamly.FileSystem.File as File
+
+import Data.Char (ord)
+import System.Environment (getArgs)
+import System.IO (openFile, IOMode(..), stdout)
+
+cat src = File.writeArrays stdout $ File.readArrays src
+cp src dst = File.writeArrays dst $ File.readArrays src
+wcl src = print =<< (S.length
+    $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.drain
+    $ File.read src)
+grepc pat src = print . (subtract 1) =<< (S.length
+    $ FL.splitOn (A.fromList (map (fromIntegral . ord) pat)) FL.drain
+    $ File.read src)
+
+main = do
+    name <- fmap head getArgs
+    src <- openFile name ReadMode
+    -- cat src          -- Unix cat program
+    -- wcl src          -- Unix wc -l program
+    grepc "aaaa" src    -- Unix grep -c program
+
+    -- dst <- openFile "dst.txt" WriteMode
+    -- cp src dst       -- Unix cp program
+```
+
 ## Streaming Pipelines
 
 The following snippet provides a simple stream composition example that reads
