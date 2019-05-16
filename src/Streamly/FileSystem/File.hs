@@ -62,7 +62,7 @@ module Streamly.FileSystem.File
     -- , readArrayUpto
     -- , readArrayOf
 
-    -- , readArraysUpto
+    , readArraysUpto
     -- , readArraysOf
     , readArrays
 
@@ -175,9 +175,8 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -------------------------------------------------------------------------------
 
 -- | @readArraysUpto size h@ reads a stream of arrays from file handle @h@.
--- The maximum size of a single array is limited to @size@.
--- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
+-- The maximum size of a single array is specified by @size@. The actual size
+-- read may be less than or equal to @size@.
 {-# INLINABLE readArraysUpto #-}
 readArraysUpto :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
@@ -196,6 +195,8 @@ readArraysUpto size h = go
 -- The maximum size of a single array is limited to @defaultChunkSize@.
 -- 'readArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
+--
+-- > readArrays = readArraysUpto defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}

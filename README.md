@@ -147,8 +147,8 @@ import Data.Char (ord)
 import System.Environment (getArgs)
 import System.IO (openFile, IOMode(..), stdout)
 
-cat src = File.writeArrays stdout $ File.readArrays src
-cp src dst = File.writeArrays dst $ File.readArrays src
+cat src = File.writeArrays stdout $ File.readArraysUpto (256*1024) src
+cp src dst = File.writeArrays dst $ File.readArraysUpto (256*1024) src
 wcl src = print =<<
     ( S.length
     $ FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.drain
