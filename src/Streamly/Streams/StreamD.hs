@@ -133,6 +133,7 @@ module Streamly.Streams.StreamD
     , groupsOf
     , grouped
     , groupsBy
+    , groupsRollingBy
     , chained
     , foldBufferWith
 
@@ -1190,6 +1191,65 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                         go SPEC s acc'
                     else done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC s acc
+                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+
+    stepOuter _ _ (Nothing,_) = return Stop
+
+{-# INLINE_NORMAL groupsRollingBy #-}
+groupsRollingBy :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+groupsRollingBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
+        res <- step (adaptState gst) st
+        case res of
+            Yield x s -> do
+                acc <- initial
+                acc' <- fstep acc x
+                go SPEC x s acc'
+
+            Skip s    -> return $ Skip $ (Just s, Nothing)
+            Stop      -> return Stop
+
+        where
+
+        -- XXX is it strict enough?
+        go !_ prev stt !acc = do
+            res <- step (adaptState gst) stt
+            case res of
+                Yield x s -> do
+                    if cmp x prev
+                    then do
+                        acc' <- fstep acc x
+                        go SPEC x s acc'
+                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                Skip s -> go SPEC prev s acc
+                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+
+    stepOuter (Fold fstep initial done) gst (Just st, Just prev) = do
+        acc <- initial
+        acc' <- fstep acc prev
+        go SPEC prev st acc'
+
+        where
+
+        -- XXX code duplicated from the previous equation
+        go !_ prev stt !acc = do
+            res <- step (adaptState gst) stt
+            case res of
+                Yield x s -> do
+                    if cmp x prev
+                    then do
+                        acc' <- fstep acc x
+                        go SPEC x s acc'
+                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                Skip s -> go SPEC prev s acc
                 Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
     stepOuter _ _ (Nothing,_) = return Stop

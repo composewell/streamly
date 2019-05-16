@@ -1220,13 +1220,20 @@ toArrayN limit = Fold step begin done
 -- prefix of length @n@ and the second group consisting of the rest of the
 -- stream.
 --
+{-# INLINE splitAt #-}
 splitAt
     :: Monad m
     => Int
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n = undefined
+splitAt n (Fold stepL initL doneL) (Fold stepR initR doneR) = Fold step init done
+    where
+        step (index,v1,v2) input = do
+            if index > 0 then stepL v1 input >>= (\a -> return (index-1,a,v2))
+                         else stepR v2 input >>= (\b -> return (index-1,v1,b))
+        init  = (,,) <$> return n <*> initL <*> initR
+        done (_,a,b) = (,) <$> doneL a <*> doneR b
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
@@ -1273,23 +1280,46 @@ groupsOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 -- This is the most general spanning combinator, all others can be implemented
 -- in terms of this.
 --
+{-# INLINE spanned #-}
 spanned
     :: Monad m
     => Fold m a b
     -> Fold m a c
     -> Fold m (a, Bool) (b, c)
-spanned f m = undefined
+spanned (Fold stepL initL doneL) (Fold stepR initR doneR) = Fold step init done
+    where
+        step (x1,x2,xbool) (input,ibool) = do
+            if ibool && xbool
+               then stepL x1 input >>= (\a -> return (a,x2,ibool))
+               else stepR x2 input >>= (\b -> return (x1,b,ibool))
+
+        init = (,,) <$> initL <*> initR <*> return True
+
+        done (a,b,_) = (,) <$> doneL a <*> doneR b
 
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
+{-# INLINE spanBy #-}
 spanBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanBy cmp f1 f2 = undefined
+spanBy cmp (Fold stepL initL doneL) (Fold stepR initR doneR) = Fold step init done
+    where
+        step (a,b,(Just frst)) input = do
+            if cmp input frst
+               then stepL a input >>= (\a' -> return (a',b,(Just frst)))
+               else stepR b input >>= (\b' -> return (a,b',(Just frst)))
+        step (a,b,Nothing) input = do
+            stepL a input >>= (\a' -> return (a',b,(Just input)))
+
+        init = (,,) <$> initL <*> initR <*> return Nothing
+
+        done (a,b,_) = (,) <$> doneL a <*> doneR b
+
 
 -- |
 -- > span p = spanBy (\_ x -> p x)
@@ -1297,6 +1327,7 @@ spanBy cmp f1 f2 = undefined
 -- Break the input stream into two groups, the first group takes the input as
 -- long as the predicate is 'True', the second group takes the rest of the
 -- input.
+{-# INLINE span #-}
 span
     :: Monad m
     => (a -> Bool)
@@ -1311,6 +1342,7 @@ span p = spanBy (\_ x -> p x)
 -- Break the input stream into two groups, the first group takes the input as
 -- long as the predicate is 'False', the second group takes the rest of the
 -- input.
+{-# INLINE break #-}
 break
     :: Monad m
     => (a -> Bool)
@@ -1321,14 +1353,26 @@ break p = span (not . p)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
+{-# INLINE spanRollingBy #-}
 spanRollingBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanRollingBy cmp f1 f2 = undefined
+spanRollingBy cmp (Fold stepL initL doneL) (Fold stepR initR doneR) = Fold step init done
+    where
+        {-# INLINE_LATE step #-}
+        step (a,b,(Just frst)) input = do
+            if cmp input frst
+               then stepL a input >>= (\a' -> return (a',b,(Just input)))
+               else stepR b input >>= (\b' -> return (a,b',(Just input)))
+        step (a,b,Nothing) input = do
+            stepL a input >>= (\a' -> return (a',b,(Just input)))
 
+        init = (,,) <$> initL <*> initR <*> return Nothing
+
+        done (a,b,_) = (,) <$> doneL a <*> doneR b
 ------------------------------------------------------------------------------
 -- N-ary APIs
 ------------------------------------------------------------------------------
@@ -1380,6 +1424,7 @@ grouped f m = D.fromStreamD $ D.grouped f (D.toStreamD m)
 -- >>> S.toList $ FL.groupsBy (==) FL.toList $ S.fromList [1,1,2,2]
 -- > [[1,1],[2,2]]
 --
+{-# INLINE groupsBy #-}
 groupsBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
@@ -1393,13 +1438,14 @@ groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 -- between two successive elements in the stream. The new element is considered
 -- part of the current group if the predicate succeeds otherwise a new group
 -- starts.
+{-# INLINE groupsRollingBy #-}
 groupsRollingBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
     -> Fold m a b
     -> t m a
     -> t m b
-groupsRollingBy cmp f m = undefined
+groupsRollingBy cmp f m = D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
 
 -- |
 -- > groups = groupsBy (==)
@@ -1407,6 +1453,7 @@ groupsRollingBy cmp f m = undefined
 -- >>> S.toList $ FL.groups FL.toList $ S.fromList [1,1,2,2]
 -- > [[1,1],[2,2]]
 --
+{-# INLINE groups #-}
 groups :: (IsStream t, Monad m, Eq a) => Fold m a b -> t m a -> t m b
 groups = groupsBy (==)
 
