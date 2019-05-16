@@ -183,10 +183,10 @@ readArraysUpto :: (IsStream t, MonadIO m)
 readArraysUpto size h = go
   where
     -- XXX use cons/nil instead
-    go = mkStream $ \_ yld sng _ -> do
+    go = mkStream $ \_ yld _ stp -> do
         arr <- liftIO $ readArrayUpto size h
-        if A.length arr < size
-        then sng arr
+        if A.length arr == 0
+        then stp
         else yld arr go
 
 -- XXX read 'Array a' instead of Word8
