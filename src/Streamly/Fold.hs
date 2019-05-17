@@ -172,13 +172,12 @@ module Streamly.Fold
     -}
 
     -- * Stream Splitting Operations
-    {-
     -- ** Spanning
     -- | Spanning splits the input into two groups and applies two different
     -- folds on each group.
 
     -- Element unaware spanning
-    -- , splitAt
+    , splitAt
 
     -- Element aware spanning
     , span
@@ -186,7 +185,6 @@ module Streamly.Fold
     , spanBy
     , spanRollingBy
     , spanned
-    -}
 
     -- ** Grouping
     -- | Grouping splits the stream into groups and applies the supplied fold
@@ -212,7 +210,7 @@ module Streamly.Fold
     -- Element aware grouping
     , groups
     , groupsBy
-    -- , groupsRollingBy
+    , groupsRollingBy
     , grouped -- XXX experimental
 
     -- ** Splitting by an Element
@@ -952,14 +950,25 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
 -- prefix of length @n@ and the second group consisting of the rest of the
 -- stream.
 --
+-}
+{-# INLINE splitAt #-}
 splitAt
     :: Monad m
     => Int
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n = undefined
--}
+splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step init extract
+    where
+      init  = Tuple3' <$> return n <*> initialL <*> initialR
+
+      step (Tuple3' i xL xR) input =
+        if i > 0
+        then stepL xL input >>= (\a -> return (Tuple3' (i - 1) a xR))
+        else stepR xR input >>= (\b -> return (Tuple3' i xL b))
+
+      extract (Tuple3' _ a b) = (,) <$> extractL a <*> extractR b
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
@@ -1018,23 +1027,54 @@ intervalsOf n f m = grouped (lcatMaybes f) s
 -- This is the most general spanning combinator, all others can be implemented
 -- in terms of this.
 --
+-}
+{-# INLINE spanned #-}
 spanned
     :: Monad m
     => Fold m a b
     -> Fold m a c
     -> Fold m (a, Bool) (b, c)
-spanned f m = undefined
+spanned (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step init extract
+
+    where
+      init = Tuple3' <$> initialL <*> initialR <*> return True
+
+      step (Tuple3' xL xR xbool) (input, ibool) =
+        if ibool && xbool
+        then stepL xL input >>= (\a -> return (Tuple3' a xR ibool))
+        else stepR xR input >>= (\a -> return (Tuple3' xL a False))
+
+      extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
+--
+{-# INLINE spanBy #-}
 spanBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanBy cmp f1 f2 = undefined
+spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step init extract
+
+    where
+      init = Tuple3' <$> initialL <*> initialR <*> return (Tuple' Nothing True)
+
+      step (Tuple3' a b (Tuple' (Just frst) isFirstG)) input =
+        if cmp frst input && isFirstG
+        then stepL a input >>= (\a' -> return (Tuple3' a' b (Tuple' (Just frst) isFirstG)))
+        else stepR b input >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+
+      step (Tuple3' a b (Tuple' Nothing isFirstG)) input =
+        if isFirstG
+        then stepL a input >>= (\a' -> return (Tuple3' a' b (Tuple' (Just input) isFirstG)))
+        else stepR b input >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+
+      extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 
 -- |
 -- > span p = spanBy (\_ x -> p x)
@@ -1042,6 +1082,7 @@ spanBy cmp f1 f2 = undefined
 -- Break the input stream into two groups, the first group takes the input as
 -- long as the predicate is 'True', the second group takes the rest of the
 -- input.
+{-# INLINE span #-}
 span
     :: Monad m
     => (a -> Bool)
@@ -1056,6 +1097,7 @@ span p = spanBy (\_ x -> p x)
 -- Break the input stream into two groups, the first group takes the input as
 -- long as the predicate is 'False', the second group takes the rest of the
 -- input.
+{-# INLINE break #-}
 break
     :: Monad m
     => (a -> Bool)
@@ -1066,14 +1108,28 @@ break p = span (not . p)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
+{-# INLINE spanRollingBy #-}
 spanRollingBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanRollingBy cmp f1 f2 = undefined
--}
+spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step init extract
+
+  where
+    init = Tuple3' <$> initialL <*> initialR <*> return Nothing
+
+    step (Tuple3' a b (Just frst)) input =
+      if cmp input frst
+      then stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
+      else stepR b input >>= (\b' -> return (Tuple3' a b' (Just input)))
+
+    step (Tuple3' a b Nothing) input =
+      stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
+
+    extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
@@ -1123,14 +1179,14 @@ groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 -- between two successive elements in the stream. The new element is considered
 -- part of the current group if the predicate succeeds otherwise a new group
 -- starts.
+-}
 groupsRollingBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
     -> Fold m a b
     -> t m a
     -> t m b
-groupsRollingBy cmp f m = undefined
--}
+groupsRollingBy cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
 
 -- |
 -- > groups = groupsBy (==)
