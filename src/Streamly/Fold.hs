@@ -182,9 +182,8 @@ module Streamly.Fold
     -- Element aware spanning
     , span
     , break
-    , spanBy
-    , spanRollingBy
-    , spanned
+    -- , spanBy
+    -- , spanRollingBy
 
     -- ** Grouping
     -- | Grouping splits the stream into groups and applies the supplied fold
@@ -1019,39 +1018,11 @@ intervalsOf n f m = grouped (lcatMaybes f) s
 -- Binary APIs
 ------------------------------------------------------------------------------
 
-{-
--- | Break the input stream of type (a,Bool) into two groups, the first group
--- takes input as long as the boolean is True, the second group takes the rest
--- of the input.
---
--- This is the most general spanning combinator, all others can be implemented
--- in terms of this.
---
--}
-{-# INLINE spanned #-}
-spanned
-    :: Monad m
-    => Fold m a b
-    -> Fold m a c
-    -> Fold m (a, Bool) (b, c)
-spanned (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
-    Fold step init extract
-
-    where
-      init = Tuple3' <$> initialL <*> initialR <*> return True
-
-      step (Tuple3' xL xR xbool) (input, ibool) =
-        if ibool && xbool
-        then stepL xL input >>= (\a -> return (Tuple3' a xR ibool))
-        else stepR xR input >>= (\a -> return (Tuple3' xL a False))
-
-      extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
-
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
 --
-{-# INLINE spanBy #-}
+{-
 spanBy
     :: Monad m
     => (a -> a -> Bool)
@@ -1066,18 +1037,22 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 
       step (Tuple3' a b (Tuple' (Just frst) isFirstG)) input =
         if cmp frst input && isFirstG
-        then stepL a input >>= (\a' -> return (Tuple3' a' b (Tuple' (Just frst) isFirstG)))
-        else stepR b input >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+        then stepL a input
+              >>= (\a' -> return (Tuple3' a' b (Tuple' (Just frst) isFirstG)))
+        else stepR b input
+              >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
 
       step (Tuple3' a b (Tuple' Nothing isFirstG)) input =
         if isFirstG
-        then stepL a input >>= (\a' -> return (Tuple3' a' b (Tuple' (Just input) isFirstG)))
-        else stepR b input >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+        then stepL a input
+              >>= (\a' -> return (Tuple3' a' b (Tuple' (Just input) isFirstG)))
+        else stepR b input
+              >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
 
       extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
+-}
 
 -- |
--- > span p = spanBy (\_ x -> p x)
 --
 -- Break the input stream into two groups, the first group takes the input as
 -- long as the predicate is 'True', the second group takes the rest of the
@@ -1089,7 +1064,18 @@ span
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-span p = spanBy (\_ x -> p x)
+span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step init extract
+
+    where
+      init = Tuple3' <$> initialL <*> initialR <*> return True
+
+      step (Tuple3' a b isFirstG) input =
+        if isFirstG && p input
+        then stepL a input >>= (\a' -> return (Tuple3' a' b True))
+        else stepR b input >>= (\a' -> return (Tuple3' a a' False))
+
+      extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 
 -- |
 -- > break p = span (not . p)
@@ -1106,6 +1092,7 @@ break
     -> Fold m a (b, c)
 break p = span (not . p)
 
+{-
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
 {-# INLINE spanRollingBy #-}
@@ -1130,6 +1117,7 @@ spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) 
       stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
 
     extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
+-}
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
