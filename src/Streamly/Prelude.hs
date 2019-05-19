@@ -358,6 +358,7 @@ module Streamly.Prelude
 
     , findIndices
     , elemIndices
+    -- , seqIndices -- search a sequence in the stream
 
     -- ** Insertion
     -- | Insertion adds more elements to the stream.

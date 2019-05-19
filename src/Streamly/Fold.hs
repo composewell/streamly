@@ -146,16 +146,10 @@ module Streamly.Fold
     -- ** Filtering
     , lfilter
     , lfilterM
-    , ltake
-    , ltakeWhile
-    {-
-    , ltakeWhileM
-    , ldrop
-    , ldropWhile
-    , ldropWhileM
-    , ldeleteBy
-    , luniq
+    -- , ldeleteBy
+    -- , luniq
 
+    {-
     -- ** Mapping Filters
     , lmapMaybe
     , lmapMaybeM
@@ -174,23 +168,36 @@ module Streamly.Fold
     , lreverse
     -}
 
-    -- * Stream Splitting Operations
-    -- ** Spanning
-    -- | Spanning splits the input into two groups and applies two different
-    -- folds on each group.
+    -- * Parsing
+    -- ** Trimming
+    , ltake
+    -- , lrunFor -- time
+    , ltakeWhile
+    {-
+    , ltakeWhileM
+    , ldrop
+    , ldropWhile
+    , ldropWhileM
+    -}
 
-    -- Element unaware spanning
+    -- ** Breaking
+
+    -- By chunks
     , splitAt
+    -- , splitIn -- time
 
-    -- Element aware spanning
+    -- By elements
     , span
-    , break
+    , break -- breakPre
+    -- , breakPost
+    -- , breakOn
     -- , spanBy
     -- , spanRollingBy
 
-    -- ** Grouping
-    -- | Grouping splits the stream into groups and applies the supplied fold
-    -- on each group.
+    -- By sequences
+    -- breakOnSeq
+
+    -- ** Splitting
 
     -- In imperative terms grouped folding can be considered as a nested loop
     -- where we loop over the stream to group elements and then loop over
@@ -205,23 +212,17 @@ module Streamly.Fold
     -- groups in memory and then map a fold on it to fold the groups. This kind
     -- of grouping and folding would not work well when the group size is big.
 
-    -- Element unaware grouping
-    , groupsOf
-    , intervalsOf
+    -- *** By Chunks
+    , chunksOf
+    , spellsOf
 
-    -- Element aware grouping
-    , groups
-    , groupsBy
-    , groupsRollingBy
-    , grouped -- XXX experimental
-
-    -- ** Splitting by an Element
+    -- *** By Elements
     , splitBy
     , splitSuffixBy
     -- , splitPrefixBy
     , wordsBy
 
-    -- ** Splitting on a Sequence
+    -- *** By Sequences
     , splitOn
     , splitSuffixOn
     -- , splitPrefixOn
@@ -237,7 +238,12 @@ module Streamly.Fold
     -- , splitSuffixOnAny
     -- , splitPrefixOnAny
 
-    -- ** Distributing
+    -- ** Grouping
+    , groups
+    , groupsBy
+    , groupsRollingBy
+
+    -- * Distributing
     -- |
     -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
     -- of the stream to each fold and combines the results using a function.
@@ -271,7 +277,7 @@ module Streamly.Fold
     , tee
     , distribute
 
-    -- ** Partitioning
+    -- * Partitioning
     -- |
     -- Direct items in the input stream to different folds using a function to
     -- select the fold. This is useful to demultiplex the input stream.
@@ -280,21 +286,15 @@ module Streamly.Fold
     , demux_
     , classify
 
-    -- ** Unzipping
+    -- * Unzipping
     , unzip
     , unzipWith
     , unzipWithM
 
-    -- ** Nested Folds
+    -- * Nested Folds
     -- , concatMap
-    -- , groupsOf
+    -- , chunksOf
     , duplicate  -- experimental
-
-    {-
-    -- * Splitter scans
-    -- | Scans that can be used to split and fold a stream using 'grouped'.
-    , _newline
-    -}
     )
 where
 
@@ -303,7 +303,7 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Data.Map.Strict (Map)
-import Data.Maybe (fromJust, isJust)
+import Data.Maybe (fromJust, isJust, isNothing)
 
 import Foreign.Storable (Storable(..))
 import Prelude
@@ -970,6 +970,9 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
 -- >>> splitAt_ 4 [1,2,3]
 -- > ([1,2,3],[])
 --
+-- This can be considered as a two-fold version of 'ltake' where we take both
+-- the segments instead of discarding the leftover.
+--
 -- @since 0.7.0
 {-# INLINE splitAt #-}
 splitAt
@@ -997,39 +1000,43 @@ splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- >> S.toList $ FL.groupsOf 2 FL.sum (S.enumerateFromTo 1 10)
+-- >> S.toList $ FL.chunksOf 2 FL.sum (S.enumerateFromTo 1 10)
 -- > [3,7,11,15,19]
 --
+-- This can be considered as an n-fold version of 'ltake' where we apply
+-- 'ltake' repeatedly on the leftover stream until the stream exhausts.
+--
 -- @since 0.7.0
-{-# INLINE groupsOf #-}
-groupsOf
+{-# INLINE chunksOf #-}
+chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
-groupsOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
 -- | Transform a fold from a pure input to a 'Maybe' input, consuming only
 -- 'Just' values.
 lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 lcatMaybes = lfilter isJust . lmap fromJust
 
+-- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
--- >>> S.toList $ S.take 5 $ intervalsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
+-- >>> S.toList $ S.take 5 $ spellsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
 -- > [3,7,11,15,19]
 --
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
 --
 -- @since 0.7.0
-{-# INLINE intervalsOf #-}
-intervalsOf
+{-# INLINE spellsOf #-}
+spellsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
-intervalsOf n f m = grouped (lcatMaybes f) s
+spellsOf n f m = splitSuffixBy' isNothing (lcatMaybes f) s
     where
-    s = S.map (\x -> (Just x, False)) m `parallel` S.repeatM timeout
+    s = S.map Just m `parallel` S.repeatM timeout
     timeout = do
         liftIO $ threadDelay (round $ n * 1000000)
-        return (Nothing, True)
+        return Nothing
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1039,18 +1046,17 @@ intervalsOf n f m = grouped (lcatMaybes f) s
 -- Binary APIs
 ------------------------------------------------------------------------------
 
-{-
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
 --
-spanBy
+_spanBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+_spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step init extract
 
     where
@@ -1071,7 +1077,6 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
               >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
 
       extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
--}
 
 -- | Span as long as the predicate is 'True'. @span p f1 f2@ composes folds
 -- @f1@ and @f2@ such that the composed fold continues sending the input to
@@ -1088,6 +1093,9 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 -- >>> span_ (< 4) [1,2,3]
 -- > ([1,2,3],[])
+--
+-- This can be considered as a two-fold version of 'ltakeWhile' where we take
+-- both the segments instead of discarding the leftover.
 --
 -- @since 0.7.0
 {-# INLINE span #-}
@@ -1117,6 +1125,8 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- folds @f1@ and @f2@ such that @f1@ stops receiving input as soon as the
 -- predicate @p@ becomes 'True'. The rest of the input is sent to @f2@.
 --
+-- This is the binary version of 'splitBy'.
+--
 -- > let break_ p xs = FL.foldl' (FL.break p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> break_ (< 1) [3,2,1]
@@ -1138,17 +1148,16 @@ break
     -> Fold m a (b, c)
 break p = span (not . p)
 
-{-
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
-{-# INLINE spanRollingBy #-}
-spanRollingBy
+{-# INLINE _spanRollingBy #-}
+_spanRollingBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+_spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step init extract
 
   where
@@ -1163,33 +1172,11 @@ spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) 
       stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
 
     extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
--}
 
 ------------------------------------------------------------------------------
 -- N-ary APIs
 ------------------------------------------------------------------------------
 --
--- XXX should we use a strict pair?
---
--- | The splitter returns True if the current element is the last element of
--- the group, otherwise returns false.
---
--- @since 0.7.0
-{-# INLINE grouped #-}
-grouped
-    :: (IsStream t, Monad m)
-    => Fold m a b
-    -> t m (a, Bool)
-    -> t m b
-grouped f m = D.fromStreamD $ D.grouped f (D.toStreamD m)
-
--- An example of a splitter to be used with grouped.
-_newline :: IsStream t => t m Char -> t m (Char,Bool)
-_newline m = S.foldrS (\x xs ->
-    if x == '\n'
-    then (x,True) `K.cons` xs
-    else (x,False) `K.cons` xs) K.nil m
-
 -- | @groupsBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
 -- first group, if @a \`cmp` b@ is 'True' then @b@ is also assigned to the same
 -- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
@@ -1292,6 +1279,10 @@ breakOn pat f m = undefined
 -- >>> splitBy_ (== '.') "a..b"
 -- > ["a","","b"]
 --
+-- This can be considered as an n-fold version of 'break' where we apply
+-- 'break' successively on the input stream, dropping the first element
+-- of the second segment after each break.
+--
 -- @since 0.7.0
 {-# INLINE splitBy #-}
 splitBy
@@ -1333,6 +1324,10 @@ splitBy predicate f m =
 -- > ["a","","b",""]
 --
 -- > lines = splitSuffixBy (== '\n')
+--
+-- This can be considered as an n-fold version of 'breakPost' where we apply
+-- 'breakPost' successively on the input stream, dropping the first element
+-- of the second segment after each break.
 --
 -- @since 0.7.0
 {-# INLINE splitSuffixBy #-}
@@ -1402,15 +1397,19 @@ wordsBy predicate f m =
 -- >>> splitSuffixBy'_ (== '.') "a..b.."
 -- > ["a.",".","b.","."]
 --
+-- This can be considered as an n-fold version of 'breakPost' where we apply
+-- 'breakPost' successively on the input stream.
+--
 -- @since 0.7.0
-{-# INLINE _splitSuffixBy' #-}
-_splitSuffixBy'
+{-# INLINE splitSuffixBy' #-}
+splitSuffixBy'
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-_splitSuffixBy' predicate f m = grouped f (S.map (\a -> (a, predicate a)) m)
+splitSuffixBy' predicate f m =
+    D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
--- Split on a delimiter
+-- Split on a delimiter sequence
 ------------------------------------------------------------------------------
 
 -- Int list examples for splitOn:
@@ -1986,6 +1985,6 @@ lconcatMap s f1 f2 = undefined
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
-lgroupsOf :: Int -> Fold m a b -> Fold m b c -> Fold m a c
-lgroupsOf n f1 f2 = undefined
+lchunksOf :: Int -> Fold m a b -> Fold m b c -> Fold m a c
+lchunksOf n f1 f2 = undefined
 -}

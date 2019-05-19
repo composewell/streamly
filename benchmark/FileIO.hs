@@ -134,20 +134,20 @@ main = do
                 File.write outh (File.read inh)
             ]
         , bgroup "grouping"
-            [ mkBench "groupsOf 1 (toArray)" href $ do
+            [ mkBench "chunksOf 1 (toArray)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.groupsOf fileSize (A.toArrayN fileSize)
+                S.length $ FL.chunksOf fileSize (A.toArrayN fileSize)
                                 (File.read inh)
 
-            , mkBench "groupsOf 1" href $ do
+            , mkBench "chunksOf 1" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.groupsOf 1 FL.drain (File.read inh)
-            , mkBench "groupsOf 10" href $ do
+                S.length $ FL.chunksOf 1 FL.drain (File.read inh)
+            , mkBench "chunksOf 10" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.groupsOf 10 FL.drain (File.read inh)
-            , mkBench "groupsOf 1000" href $ do
+                S.length $ FL.chunksOf 10 FL.drain (File.read inh)
+            , mkBench "chunksOf 1000" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.groupsOf 1000 FL.drain (File.read inh)
+                S.length $ FL.chunksOf 1000 FL.drain (File.read inh)
             ]
 
         , let lf = fromIntegral (ord '\n')

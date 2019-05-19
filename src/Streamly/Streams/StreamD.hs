@@ -131,7 +131,6 @@ module Streamly.Streams.StreamD
 
     -- ** Grouping
     , groupsOf
-    , grouped
     , groupsBy
     , groupsRollingBy
 
@@ -922,9 +921,11 @@ concatMap f = concatMapM (return . f)
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL grouped #-}
-grouped :: Monad m => Fold m a b -> Stream m (a, Bool) -> Stream m b
-grouped f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL splitSuffixBy' #-}
+splitSuffixBy' :: Monad m
+    => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitSuffixBy' predicate f (Stream step state) =
+    Stream (stepOuter f) (Just state)
 
     where
 
@@ -932,10 +933,10 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
     stepOuter (Fold fstep initial done) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
-            Yield (x,r) s -> do
+            Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                if r
+                if (predicate x)
                 then done acc' >>= \val -> return $ Yield val (Just s)
                 else go SPEC s acc'
 
@@ -947,9 +948,9 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
         go !_ stt !acc = do
             res <- step (adaptState gst) stt
             case res of
-                Yield (x,r) s -> do
+                Yield x s -> do
                     acc' <- fstep acc x
-                    if r
+                    if (predicate x)
                     then done acc' >>= \val -> return $ Yield val (Just s)
                     else go SPEC s acc'
                 Skip s -> go SPEC s acc
@@ -1070,11 +1071,6 @@ groupsRollingBy cmp f (Stream step state) =
                   Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
       stepOuter _ _ (Nothing, _) = return Stop
-
-{-# INLINE_EARLY splitSuffixBy' #-}
-splitSuffixBy' :: Monad m
-    => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixBy' predicate f m = grouped f (map (\a -> (a, predicate a)) m)
 
 {-# INLINE_NORMAL splitBy #-}
 splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
