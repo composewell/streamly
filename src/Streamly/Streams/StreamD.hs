@@ -1042,7 +1042,7 @@ groupsRollingBy cmp f (Stream step state) =
               res <- step (adaptState gst) stt
               case res of
                   Yield x s -> do
-                      if cmp x prev
+                      if cmp prev x
                         then do
                           acc' <- fstep acc x
                           go SPEC x s acc'
@@ -1061,7 +1061,7 @@ groupsRollingBy cmp f (Stream step state) =
               res <- step (adaptState gst) stt
               case res of
                   Yield x s -> do
-                      if cmp x prevv
+                      if cmp prevv x
                       then do
                           acc' <- fstep acc x
                           go SPEC x s acc'
