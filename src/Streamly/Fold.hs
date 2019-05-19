@@ -76,10 +76,13 @@ module Streamly.Fold
     , foldMapM
 
     -- ** Full Folds (To Containers)
-    -- , toStream  -- experimental
+    -- | Avoid using these folds in scalable or performance critical
+    -- applications, they buffer all the input in memory.
+
+    , toStream  -- experimental
     , toStreamRev  -- experimental
 
-    -- , toList
+    , toList
     , toListRev  -- experimental
 
     -- ** Partial Folds
@@ -646,9 +649,9 @@ foldMapM act = Fold step begin done
 -- @since 0.7.0
 
 -- id . (x1 :) . (x2 :) . (x3 :) . ... . (xn :) $ []
-{-# INLINABLE _toList #-}
-_toList :: Monad m => Fold m a [a]
-_toList = Fold (\f x -> return $ f . (x :))
+{-# INLINABLE toList #-}
+toList :: Monad m => Fold m a [a]
+toList = Fold (\f x -> return $ f . (x :))
               (return id)
               (return . ($ []))
 
@@ -673,9 +676,9 @@ toListRev = Fold (\xs x -> return $ x:xs) (return []) return
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.7.0
-{-# INLINABLE _toStream #-}
-_toStream :: Monad m => Fold m a (SerialT Identity a)
-_toStream = Fold (\f x -> return $ f . (x `K.cons`))
+{-# INLINABLE toStream #-}
+toStream :: Monad m => Fold m a (SerialT Identity a)
+toStream = Fold (\f x -> return $ f . (x `K.cons`))
                 (return id)
                 (return . ($ K.nil))
 
@@ -943,13 +946,31 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
 ------------------------------------------------------------------------------
 --
 
-{-
--- | Split the input stream into two groups at index @n@, the first group
--- consisting of elements from index @0@ to index @n - 1@ i.e. the stream
--- prefix of length @n@ and the second group consisting of the rest of the
--- stream.
+-- | @splitAt n f1 f2@ composes folds @f1@ and @f2@ such that first @n@
+-- elements of its input are sent to fold @f1@ and the rest of the stream is
+-- sent to fold @f2@.
 --
--}
+-- > let splitAt_ n xs = FL.foldl' (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> splitAt_ 6 "Hello World!"
+-- > ("Hello ","World!")
+--
+-- >>> splitAt_ (-1) [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> splitAt_ 0 [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> splitAt_ 1 [1,2,3]
+-- > ([1],[2,3])
+--
+-- >>> splitAt_ 3 [1,2,3]
+-- > ([1,2,3],[])
+--
+-- >>> splitAt_ 4 [1,2,3]
+-- > ([1,2,3],[])
+--
+-- @since 0.7.0
 {-# INLINE splitAt #-}
 splitAt
     :: Monad m
@@ -1018,11 +1039,11 @@ intervalsOf n f m = grouped (lcatMaybes f) s
 -- Binary APIs
 ------------------------------------------------------------------------------
 
+{-
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
 --
-{-
 spanBy
     :: Monad m
     => (a -> a -> Bool)
@@ -1052,11 +1073,23 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
       extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
 -}
 
--- |
+-- | Span as long as the predicate is 'True'. @span p f1 f2@ composes folds
+-- @f1@ and @f2@ such that the composed fold continues sending the input to
+-- @f1@ as long as the predicate @p@ is 'True'.  The rest of the input is sent
+-- to @f2@.
 --
--- Break the input stream into two groups, the first group takes the input as
--- long as the predicate is 'True', the second group takes the rest of the
--- input.
+-- > let span_ p xs = FL.foldl' (FL.span p FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> span_ (< 1) [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> span_ (< 2) [1,2,3]
+-- > ([1],[2,3])
+--
+-- >>> span_ (< 4) [1,2,3]
+-- > ([1,2,3],[])
+--
+-- @since 0.7.0
 {-# INLINE span #-}
 span
     :: Monad m
@@ -1080,9 +1113,22 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- |
 -- > break p = span (not . p)
 --
--- Break the input stream into two groups, the first group takes the input as
--- long as the predicate is 'False', the second group takes the rest of the
--- input.
+-- Break as soon as the predicate becomes 'True'. @break p f1 f2@ composes
+-- folds @f1@ and @f2@ such that @f1@ stops receiving input as soon as the
+-- predicate @p@ becomes 'True'. The rest of the input is sent to @f2@.
+--
+-- > let break_ p xs = FL.foldl' (FL.break p FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> break_ (< 1) [3,2,1]
+-- > ([3,2,1],[])
+--
+-- >>> break_ (< 2) [3,2,1]
+-- > ([3,2],[1])
+--
+-- >>> break_ (< 4) [3,2,1]
+-- > ([],[3,2,1])
+--
+-- @since 0.7.0
 {-# INLINE break #-}
 break
     :: Monad m
@@ -1144,13 +1190,14 @@ _newline m = S.foldrS (\x xs ->
     then (x,True) `K.cons` xs
     else (x,False) `K.cons` xs) K.nil m
 
--- | Group by applying a predicate to the first element of the current group
--- and the next element in the input stream. The next element is considered
--- part of the current group if the predicate succeeds otherwise a new group
--- starts.
+-- | @groupsBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
+-- first group, if @a \`cmp` b@ is 'True' then @b@ is also assigned to the same
+-- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
+-- group and so on. When the comparison fails a new group is started. Each
+-- group is folded using the fold @f@.
 --
--- >>> S.toList $ FL.groupsBy (==) FL.toList $ S.fromList [1,1,2,2]
--- > [[1,1],[2,2]]
+-- >>> S.toList $ FL.groupsBy (>) FL.toList $ S.fromList [1,3,7,0,2,5]
+-- > [[1,3,7],[0,2,5]]
 --
 -- @since 0.7.0
 groupsBy
@@ -1161,13 +1208,18 @@ groupsBy
     -> t m b
 groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 
-{-
--- | Apply a predicate to each new element in the input stream and the last
--- element of the current group. In other words, perform a rolling comparison
--- between two successive elements in the stream. The new element is considered
--- part of the current group if the predicate succeeds otherwise a new group
--- starts.
--}
+-- | Unlike @groupsBy@ this function performs a rolling comparison of two
+-- successive elements in the input stream. @groupsRollingBy cmp f $ S.fromList
+-- [a,b,c,...]@ assigns the element @a@ to the first group, if @a \`cmp` b@ is
+-- 'True' then @b@ is also assigned to the same group.  If @b \`cmp` c@ is
+-- 'True' then @c@ is also assigned to the same group and so on. When the
+-- comparison fails a new group is started. Each group is folded using the fold
+-- @f@.
+--
+-- >>> S.toList $ FL.groupsRollingBy (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
+-- > [[1,2,3],[7,8,9]]
+--
+-- @since 0.7.0
 groupsRollingBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
@@ -1178,6 +1230,9 @@ groupsRollingBy cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD 
 
 -- |
 -- > groups = groupsBy (==)
+-- > groups = groupsRollingBy (==)
+--
+-- Groups a contiguous span of equal elements together in one group.
 --
 -- >>> S.toList $ FL.groups FL.toList $ S.fromList [1,1,2,2]
 -- > [[1,1],[2,2]]
