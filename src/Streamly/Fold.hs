@@ -336,9 +336,10 @@ import Streamly.Fold.Types (Fold(..))
 import Streamly.Mem.Array (Array)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
-import Streamly.Time.Clock (Clock(..), getTime)
+-- import Streamly.Time.Clock (Clock(..), getTime)
 import Streamly.Time.Units
-       (AbsTime, MilliSecond64(..), diffAbsTime, fromRelTime)
+       (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
+       toAbsTime)
 
 import Streamly.Strict
 
@@ -2113,24 +2114,22 @@ lchunksOf n f1 f2 = undefined
 -- | @sessionsByLifeTime lifetime tick k f stream@ groups together all input
 -- stream elements that belong to the same session. @lifetime@ is the maximum
 -- lifetime of a session in seconds. All elements belonging to a session are
--- purged after this duration.  The session duration is measured using the
--- timestamp of the first message seen for that session. The timestamp is
--- compared with the current system time, we assume that the system time is in
--- sync with the timestamps in the input stream. @tick@ is the timer
--- granularity specified in seconds to check and purge the sessions that have
--- timed out.
+-- purged after this duration.  Session duration is measured using the
+-- timestamp of the first element seen for that session. To detect session
+-- timeouts, a monotonic event time clock is maintained using the timestamps
+-- seen in the inputs and a timer with a tick duration specified by @tick@.
 --
 -- The function @k@ returns a 3-tuple @(session key, timestamp, session close)@
 -- from an input element in the stream.  @session key@ is a key that uniquely
 -- identifies the session for the given element, @timestamp@ characterizes the
--- time when the input element was generated, this must be a time measured from
--- the Unix @Epoch@. @session close@ is a boolean indicating whether this
--- element marks the closing of the session. When a message with
+-- time when the input element was generated, this is an absolute time measured
+-- from some @Epoch@. @session close@ is a boolean indicating whether this
+-- element marks the closing of the session. When an input element with
 -- @session close@ set to @True@ is seen the session is purged immediately.
 --
--- All the messages belonging to a session are collected using the fold @f@.
--- The fold result is emitted when the session is purged either via the session
--- close event or via the session liftime timeout.
+-- All the input elements belonging to a session are collected using the fold
+-- @f@.  The fold result is emitted when the session is purged either via the
+-- session close event or via the session liftime timeout.
 --
 -- @since 0.7.0
 {-# INLINABLE sessionsByLifeTime #-}
@@ -2143,19 +2142,27 @@ sessionsByLifeTime
     -> t m a
     -> t m b
 sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
-    S.concatMap (\(Tuple3' _ _ s) -> s) $ S.scanlM' sstep szero stream
+    S.concatMap (\(Tuple4' _ _ _ s) -> s) $ S.scanlM' sstep szero stream
 
     where
 
     -- XXX what if the timestamps and the system time are too far off, we may
     -- accumulate too many entries, have a protection in that case? If the
     -- incoming logs seem too new or too old than the current system time then
-    -- send an alert.
+    -- send an alert. This should be detected earlier in the processing
+    -- pipeline, this function should not worry about it.
+    --
+    -- XXX what if the timestamps are delayed, we would expire the sessions
+    -- without waiting for all the messages. We should wait at least from the
+    -- first timestamp + lifetime.
+    --
     -- XXX we have to use a heap in pinned memory to scale it to a large size
-    szero = Tuple3' H.empty Map.empty S.nil
+    lifetimeMs = toRelTime (round (lifetime * 1000) :: MilliSecond64)
+    tickMs = toRelTime (round (tick * 1000) :: MilliSecond64)
+    szero = Tuple4' (toAbsTime (0 :: MilliSecond64)) H.empty Map.empty S.nil
 
-    -- Got a new input element
-    sstep (Tuple3' hp mp _) (Right a) =
+    -- Got a new stream input element
+    sstep (Tuple4' evTime hp mp _) (Just a) =
         -- deleting a key from the heap is expensive, so we never delete a
         -- key, we just purge it from the Map and it gets purged from the
         -- heap on timeout. We just need an extra lookup in the Map when
@@ -2163,48 +2170,54 @@ sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
         let (key, ts, closed) = getKey a
             accumulate v = maybe initial return v >>= \r -> step r a
         in if closed
-            then do
-                let (v, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) key mp
-                r <- accumulate v
-                res <- extract r
-                return $ Tuple3' hp mp' (S.yield res)
-            else do
-                    let v = Map.lookup key mp
-                    acc <- accumulate v
+           then do
+                let (r, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) key mp
+                acc <- accumulate r
+                res <- extract acc
+                return $ Tuple4' evTime hp mp' (S.yield res)
+           else do
+                    let r = Map.lookup key mp
+                    acc <- accumulate r
                     let mp' = Map.insert key acc mp
-                    let hp' = case v of
-                            Nothing -> H.insert (Entry ts key) hp
-                            Just _ -> hp
-                    return $ Tuple3' hp' mp' S.nil
+                    let expiry = addToAbsTime ts lifetimeMs
+                    let hp' =
+                            case r of
+                                Nothing -> H.insert (Entry expiry key) hp
+                                Just _ -> hp
+                    -- Event time is maintained as monotonically increasing
+                    -- time. If we have lagged behind any of the timestamps
+                    -- seen then we increase it to match the latest time seen
+                    -- in the timestamps. We also increase it on timer ticks.
+                    return $ Tuple4' (max evTime ts) hp' mp' S.nil
 
-    -- Got timer tick event
+    -- Got a timer tick event
     -- XXX can we yield the entries without accumulating them?
-    sstep (Tuple3' heap mmp _) (Left t) = do
-        (hp', mp', out) <- go heap mmp S.nil
-        return $ Tuple3' hp' mp' out
+    sstep (Tuple4' evTime heap sessions _) Nothing = do
+        (hp', mp', out) <- go heap sessions S.nil
+        return $ Tuple4' curTime hp' mp' out
 
         where
 
+        curTime = addToAbsTime evTime tickMs
         go hp mp out = do
-            let r = H.uncons hp
-            case r of
-                Just (Entry ts k, hp') -> do
-                    let duration = diffAbsTime ts t
-                        lt = round (lifetime * 1000) :: MilliSecond64
-                    if fromRelTime duration >= lt
+            let hres = H.uncons hp
+            case hres of
+                Just (Entry ts key, hp') -> do
+                    let duration = diffAbsTime curTime ts
+                    if duration >= lifetimeMs
                     then do
-                        let (v, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) k mp
-                        case v of
+                        let (r, mp') = Map.updateLookupWithKey
+                                            (\_ _ -> Nothing) key mp
+                        case r of
                             Nothing -> go hp' mp out
                             Just x -> do
-                                res <- extract x
-                                go hp' mp' (res `S.cons` out)
+                                sess <- extract x
+                                go hp' mp' (sess `S.cons` out)
                     else return (hp, mp, out)
                 Nothing -> return (hp, mp, out)
 
     -- merge timer events in the stream
-    stream = S.map (\x -> Right x) str `parallel` S.repeatM timer
+    stream = S.map Just str `parallel` S.repeatM timer
     timer = do
         liftIO $ threadDelay (round $ tick * 1000000)
-        now <- liftIO $ getTime Realtime
-        return $ Left now
+        return Nothing

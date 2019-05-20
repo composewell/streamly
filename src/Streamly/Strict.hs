@@ -21,6 +21,7 @@ module Streamly.Strict
     (
       Tuple' (..)
     , Tuple3' (..)
+    , Tuple4' (..)
     , Maybe' (..)
     , fromStrictMaybe
     , Either' (..)
@@ -33,6 +34,7 @@ where
 --
 data Tuple' a b = Tuple' !a !b
 data Tuple3' a b c = Tuple3' !a !b !c
+data Tuple4' a b c d = Tuple4' !a !b !c !d
 
 -------------------------------------------------------------------------------
 -- Maybe
