@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -284,8 +285,14 @@ module Streamly.Fold
     , partitionByM
     , partitionBy
     , partition
+
+    -- * Demultiplexing
+    , demux
+    , demuxWith
     , demux_
     , demuxWith_
+
+    -- * Classifying
     , classify
     , classifyWith
 
@@ -1825,19 +1832,69 @@ partition = partitionBy id
 --
 -- partitionN :: Monad m => [Fold m a b] -> Fold m a [b]
 -- partitionN fs = Fold step begin done
+-}
 
--- | Demultiplex an input element into a number of typed variants. We want to
+-- Demultiplex an input element into a number of typed variants. We want to
 -- statically restrict the target values within a set of predefined types, an
 -- enumeration of a GADT. We also want to make sure that the Map contains only
 -- those types and the full set of those types.  Instead of Map it should
 -- probably be a lookup-table using an array and not in GC memory.
 --
--- This is the consumer side dual of the producer side 'mux' operation.
+-- This is the consumer side dual of the producer side 'mux' operation (XXX to
+-- be implemented).
+
+-- | Split the input stream based on a key field and fold each split using a
+-- specific fold collecting the results in a map from the keys to the results.
+-- Useful for cases like protocol handlers to handle different type of packets
+-- using different handlers.
 --
--- demux :: (Monad m, Ord k)
---     => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
--- demux f kv = Fold step begin done
--}
+-- @
+--
+--                             |-------Fold m a b
+-- -----stream m a-----Map-----|
+--                             |-------Fold m a b
+--                             |
+--                                       ...
+-- @
+--
+-- @since 0.7.0
+demuxWith :: (Monad m, Ord k)
+    => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
+demuxWith f kv = Fold step initial extract
+
+    where
+
+    initial = return kv
+    step mp a =
+        -- XXX should we raise an exception in Nothing case?
+        -- Ideally we should enforce that it is a total map over k so that look
+        -- up never fails
+        -- XXX we could use a monadic update function for a single lookup and
+        -- update in the map.
+        let k = f a
+        in case Map.lookup k mp of
+            Nothing -> return mp
+            Just (Fold step' acc extract') -> do
+                !r <- acc >>= \x -> step' x a
+                return $ Map.insert k (Fold step' (return r) extract') mp
+    extract = mapM (\(Fold s acc e) -> acc >>= e)
+
+-- | Fold a stream of key value pairs using a map of specific folds for each
+-- key into a map from keys to the results of fold outputs of the corresponding
+-- values.
+--
+-- @
+-- > let table = Data.Map.fromList [(\"SUM", FL.sum), (\"PRODUCT", FL.product)]
+--       input = S.fromList [(\"SUM",1),(\"PRODUCT",2),(\"SUM",3),(\"PRODUCT",4)]
+--   in FL.foldl' (FL.demux table) input
+-- One 1
+-- Two 2
+-- @
+--
+-- @since 0.7.0
+demux :: (Monad m, Ord k)
+    => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
+demux fs = demuxWith fst (Map.map (lmap snd) fs)
 
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold without collecting the results. Useful for cases like protocol
@@ -1852,6 +1909,33 @@ partition = partitionBy id
 --                                       ...
 -- @
 --
+--
+-- @since 0.7.0
+
+-- demuxWith_ can be slightly faster than demuxWith because we do not need to
+-- update the Map in this case. This may be significant only if the map is
+-- large.
+demuxWith_ :: (Monad m, Ord k)
+    => (a -> k) -> Map k (Fold m a b) -> Fold m a ()
+demuxWith_ f kv = Fold step initial extract
+
+    where
+
+    initial = mapM (\(Fold s i e) -> i >>= \r -> return (Fold s (return r) e)) kv
+    step mp a =
+        -- XXX should we raise an exception in Nothing case?
+        -- Ideally we should enforce that it is a total map over k so that look
+        -- up never fails
+        case Map.lookup (f a) mp of
+            Nothing -> return mp
+            Just (Fold step' acc extract') -> do
+                acc >>= \x -> step' x a
+                return mp
+    extract mp = mapM (\(Fold s acc e) -> acc >>= e) mp >> return ()
+
+-- | Given a stream of key value pairs and a map from keys to folds, fold the
+-- values for each key using the corresponding folds, discarding the outputs.
+--
 -- @
 -- > let prn = FL.drainBy print
 -- > let table = Data.Map.fromList [(\"ONE", prn), (\"TWO", prn)]
@@ -1860,28 +1944,6 @@ partition = partitionBy id
 -- One 1
 -- Two 2
 -- @
---
--- @since 0.7.0
-demuxWith_ :: (Monad m, Ord k) => (a -> k) -> Map k (Fold m a ()) -> Fold m a ()
-demuxWith_ f kv = Fold step initial extract
-
-    where
-
-    initial = return ()
-    step () a =
-        -- XXX should we raise an exception in Nothing case?
-        -- Ideally we should enforce that it is a total map over k so that look
-        -- up never fails
-        case Map.lookup (f a) kv of
-            Nothing -> return ()
-            Just (Fold step' initial' extract') ->
-                initial' >>= \x -> step' x a >>= extract'
-    extract = return
-
--- | Given a stream of key value pairs and a map from keys to folds, fold the
--- values for each key using the corresponding folds.
---
--- See 'demuxWith_' for details.
 --
 -- @since 0.7.0
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
