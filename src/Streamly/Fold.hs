@@ -283,8 +283,11 @@ module Streamly.Fold
     -- select the fold. This is useful to demultiplex the input stream.
     , partitionByM
     , partitionBy
+    , partition
     , demux_
+    , demuxWith_
     , classify
+    , classifyWith
 
     -- * Unzipping
     , unzip
@@ -1804,6 +1807,18 @@ partitionBy :: Monad m
     => (a -> Either b c) -> Fold m b x -> Fold m c y -> Fold m a (x, y)
 partitionBy f = partitionByM (return . f)
 
+-- | Compose two folds such that the combined fold accepts a stream of 'Either'
+-- and routes the 'Left' values to the first fold and 'Right' values to the
+-- second fold.
+--
+-- > partition = partitionBy id
+--
+-- @since 0.7.0
+{-# INLINE partition #-}
+partition :: Monad m
+    => Fold m b x -> Fold m c y -> Fold m (Either b c) (x, y)
+partition = partitionBy id
+
 {-
 -- | Send one item to each fold in a round-robin fashion. This is the consumer
 -- side dual of producer side 'mergeN' operation.
@@ -1847,8 +1862,8 @@ partitionBy f = partitionByM (return . f)
 -- @
 --
 -- @since 0.7.0
-demux_ :: (Monad m, Ord k) => (a -> k) -> Map k (Fold m a ()) -> Fold m a ()
-demux_ f kv = Fold step initial extract
+demuxWith_ :: (Monad m, Ord k) => (a -> k) -> Map k (Fold m a ()) -> Fold m a ()
+demuxWith_ f kv = Fold step initial extract
 
     where
 
@@ -1862,6 +1877,15 @@ demux_ f kv = Fold step initial extract
             Just (Fold step' initial' extract') ->
                 initial' >>= \x -> step' x a >>= extract'
     extract = return
+
+-- | Given a stream of key value pairs and a map from keys to folds, fold the
+-- values for each key using the corresponding folds.
+--
+-- See 'demuxWith_' for details.
+--
+-- @since 0.7.0
+demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
+demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
 
 -- XXX instead of a Map we could yield the results as a pure stream as they
 -- complete. We could then concatMap the fold results to implement the
@@ -1878,8 +1902,8 @@ demux_ f kv = Fold step initial extract
 -- @
 --
 -- @since 0.7.0
-classify :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
-classify f (Fold step initial extract) = Fold step' initial' extract'
+classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
+classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 
     where
 
@@ -1895,6 +1919,24 @@ classify f (Fold step initial extract) = Fold step' initial' extract'
                 r <- step x a
                 return $ Map.insert k r kv
     extract' = mapM extract
+
+-- | Given an input stream of key value pairs and a fold for values, fold all
+-- the values belonging to each key.  Useful for map/reduce, bucketizing the
+-- input in different bins or for generating histograms.
+--
+-- @
+-- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
+--   in FL.foldl' (FL.classify FL.toListRev) input
+-- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
+-- @
+--
+-- Same as:
+--
+-- > classify fld = classifyWith fst (lmap snd fld)
+--
+-- @since 0.7.0
+classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
+classify fld = classifyWith fst (lmap snd fld)
 
 ------------------------------------------------------------------------------
 -- Unzipping
