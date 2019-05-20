@@ -1847,22 +1847,26 @@ partitionBy f = partitionByM (return . f)
 -- @
 --
 -- @since 0.7.0
-demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
-demux_ kv = Fold step initial extract
+demux_ :: (Monad m, Ord k) => (a -> k) -> Map k (Fold m a ()) -> Fold m a ()
+demux_ f kv = Fold step initial extract
 
     where
 
     initial = return ()
-    step () (k, a) =
+    step () a =
         -- XXX should we raise an exception in Nothing case?
         -- Ideally we should enforce that it is a total map over k so that look
         -- up never fails
-        case Map.lookup k kv of
+        case Map.lookup (f a) kv of
             Nothing -> return ()
             Just (Fold step' initial' extract') ->
                 initial' >>= \x -> step' x a >>= extract'
     extract = return
 
+-- XXX instead of a Map we could yield the results as a pure stream as they
+-- complete. We could then concatMap the fold results to implement the
+-- windowing combinators.
+--
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
 -- or for generating histograms.
@@ -1874,14 +1878,15 @@ demux_ kv = Fold step initial extract
 -- @
 --
 -- @since 0.7.0
-classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
-classify (Fold step initial extract) = Fold step' initial' extract'
+classify :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
+classify f (Fold step initial extract) = Fold step' initial' extract'
 
     where
 
     initial' = return Map.empty
-    step' kv (k, a) =
-        case Map.lookup k kv of
+    step' kv a =
+        let k = f a
+        in case Map.lookup k kv of
             Nothing -> do
                 x <- initial
                 r <- step x a
