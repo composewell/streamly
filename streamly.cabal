@@ -170,10 +170,6 @@ library
                      , Streamly.Strict
                      , Streamly.Enumeration
 
-                    -- Time
-                     , Streamly.Time.Units
-                     , Streamly.Time.Clock
-
                     -- Memory storage
                      , Streamly.Mem.Array.Types
                      , Streamly.Mem.Ring
@@ -210,6 +206,10 @@ library
 
                      , Streamly.Mem.Array
                      , Streamly.FileSystem.File
+
+                    -- Time
+                     , Streamly.Time.Units
+                     , Streamly.Time.Clock
 
                      , Streamly.Tutorial
                      , Streamly.Internal

@@ -244,6 +244,9 @@ module Streamly.Fold
     , groupsBy
     , groupsRollingBy
 
+    -- ** Sessions
+    , sessionsByLifeTime
+
     -- * Distributing
     -- |
     -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
@@ -312,6 +315,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
+import Data.Heap (Entry(..))
 import Data.Map.Strict (Map)
 import Data.Maybe (fromJust, isJust, isNothing)
 
@@ -324,6 +328,7 @@ import Prelude
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break)
 
+import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
 
 import Streamly (MonadAsync, parallel)
@@ -331,6 +336,9 @@ import Streamly.Fold.Types (Fold(..))
 import Streamly.Mem.Array (Array)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
+import Streamly.Time.Clock (Clock(..), getTime)
+import Streamly.Time.Units
+       (AbsTime, MilliSecond64(..), diffAbsTime, fromRelTime)
 
 import Streamly.Strict
 
@@ -2097,3 +2105,106 @@ lconcatMap s f1 f2 = undefined
 lchunksOf :: Int -> Fold m a b -> Fold m b c -> Fold m a c
 lchunksOf n f1 f2 = undefined
 -}
+
+------------------------------------------------------------------------------
+-- Session Windows
+------------------------------------------------------------------------------
+
+-- | @sessionsByLifeTime lifetime tick k f stream@ groups together all input
+-- stream elements that belong to the same session. @lifetime@ is the maximum
+-- lifetime of a session in seconds. All elements belonging to a session are
+-- purged after this duration.  The session duration is measured using the
+-- timestamp of the first message seen for that session. The timestamp is
+-- compared with the current system time, we assume that the system time is in
+-- sync with the timestamps in the input stream. @tick@ is the timer
+-- granularity specified in seconds to check and purge the sessions that have
+-- timed out.
+--
+-- The function @k@ returns a 3-tuple @(session key, timestamp, session close)@
+-- from an input element in the stream.  @session key@ is a key that uniquely
+-- identifies the session for the given element, @timestamp@ characterizes the
+-- time when the input element was generated, this must be a time measured from
+-- the Unix @Epoch@. @session close@ is a boolean indicating whether this
+-- element marks the closing of the session. When a message with
+-- @session close@ set to @True@ is seen the session is purged immediately.
+--
+-- All the messages belonging to a session are collected using the fold @f@.
+-- The fold result is emitted when the session is purged either via the session
+-- close event or via the session liftime timeout.
+--
+-- @since 0.7.0
+{-# INLINABLE sessionsByLifeTime #-}
+sessionsByLifeTime
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Double  -- lifetime of a session
+    -> Double  -- timer tick in secoonds
+    -> (a -> (k, AbsTime, Bool)) -- (key, timestamp, session close)
+    -> Fold m a b
+    -> t m a
+    -> t m b
+sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
+    S.concatMap (\(Tuple3' _ _ s) -> s) $ S.scanlM' sstep szero stream
+
+    where
+
+    -- XXX what if the timestamps and the system time are too far off, we may
+    -- accumulate too many entries, have a protection in that case? If the
+    -- incoming logs seem too new or too old than the current system time then
+    -- send an alert.
+    -- XXX we have to use a heap in pinned memory to scale it to a large size
+    szero = Tuple3' H.empty Map.empty S.nil
+
+    -- Got a new input element
+    sstep (Tuple3' hp mp _) (Right a) =
+        -- deleting a key from the heap is expensive, so we never delete a
+        -- key, we just purge it from the Map and it gets purged from the
+        -- heap on timeout. We just need an extra lookup in the Map when
+        -- the key is purged from the heap, that should not be expensive.
+        let (key, ts, closed) = getKey a
+            accumulate v = maybe initial return v >>= \r -> step r a
+        in if closed
+            then do
+                let (v, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) key mp
+                r <- accumulate v
+                res <- extract r
+                return $ Tuple3' hp mp' (S.yield res)
+            else do
+                    let v = Map.lookup key mp
+                    acc <- accumulate v
+                    let mp' = Map.insert key acc mp
+                    let hp' = case v of
+                            Nothing -> H.insert (Entry ts key) hp
+                            Just _ -> hp
+                    return $ Tuple3' hp' mp' S.nil
+
+    -- Got timer tick event
+    -- XXX can we yield the entries without accumulating them?
+    sstep (Tuple3' heap mmp _) (Left t) = do
+        (hp', mp', out) <- go heap mmp S.nil
+        return $ Tuple3' hp' mp' out
+
+        where
+
+        go hp mp out = do
+            let r = H.uncons hp
+            case r of
+                Just (Entry ts k, hp') -> do
+                    let duration = diffAbsTime ts t
+                        lt = round (lifetime * 1000) :: MilliSecond64
+                    if fromRelTime duration >= lt
+                    then do
+                        let (v, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) k mp
+                        case v of
+                            Nothing -> go hp' mp out
+                            Just x -> do
+                                res <- extract x
+                                go hp' mp' (res `S.cons` out)
+                    else return (hp, mp, out)
+                Nothing -> return (hp, mp, out)
+
+    -- merge timer events in the stream
+    stream = S.map (\x -> Right x) str `parallel` S.repeatM timer
+    timer = do
+        liftIO $ threadDelay (round $ tick * 1000000)
+        now <- liftIO $ getTime Realtime
+        return $ Left now
