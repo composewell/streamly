@@ -215,7 +215,7 @@ module Streamly.Fold
 
     -- *** By Chunks
     , chunksOf
-    , spellsOf
+    , sessionsOf
 
     -- *** By Elements
     , splitBy
@@ -243,9 +243,6 @@ module Streamly.Fold
     , groups
     , groupsBy
     , groupsRollingBy
-
-    -- ** Sessions
-    , sessionsByLifeTime
 
     -- * Distributing
     -- |
@@ -285,29 +282,60 @@ module Streamly.Fold
     -- |
     -- Direct items in the input stream to different folds using a function to
     -- select the fold. This is useful to demultiplex the input stream.
-    , partitionByM
-    , partitionBy
+    -- , partitionByM
+    -- , partitionBy
     , partition
 
     -- * Demultiplexing
     , demux
-    , demuxWith
+    -- , demuxWith
     , demux_
-    , demuxWith_
+    -- , demuxWith_
 
     -- * Classifying
     , classify
-    , classifyWith
+    -- , classifyWith
 
     -- * Unzipping
     , unzip
-    , unzipWith
-    , unzipWithM
+    -- These can be expressed using lmap/lmapM and unzip
+    -- , unzipWith
+    -- , unzipWithM
 
     -- * Nested Folds
     -- , concatMap
     -- , chunksOf
     , duplicate  -- experimental
+
+    -- * Windowed Classification
+    -- | Split the stream into windows or chunks in space or time. Each window
+    -- can be associated with a key, all events associated with a particular
+    -- key in the window can be folded to a single result. The stream is split
+    -- into windows of specified size, the window can be terminated early if
+    -- the closing flag is specified in the input stream.
+    --
+    -- The term "chunk" is used for a space window and the term "session" is
+    -- used for a time window.
+
+    -- ** Tumbling Windows
+    -- | A new window starts after the previous window is finished.
+    -- , classifyChunksOf
+    , classifySessionsOf
+
+    -- ** Keep Alive Windows
+    -- | The window size is extended if an event arrives within the specified
+    -- window size. This can represent sessions with idle or inactive timeout.
+    -- , classifyKeepAliveChunks
+    , classifyKeepAliveSessions
+
+    {-
+    -- ** Sliding Windows
+    -- | A new window starts after the specified slide from the previous
+    -- window. Therefore windows can overlap.
+    , classifySlidingChunks
+    , classifySlidingSessions
+    -}
+
     )
 where
 
@@ -1039,18 +1067,18 @@ lcatMaybes = lfilter isJust . lmap fromJust
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
--- >>> S.toList $ S.take 5 $ spellsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
+-- >>> S.toList $ S.take 5 $ sessionsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
 -- > [3,7,11,15,19]
 --
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
 --
 -- @since 0.7.0
-{-# INLINE spellsOf #-}
-spellsOf
+{-# INLINE sessionsOf #-}
+sessionsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
-spellsOf n f m = splitSuffixBy' isNothing (lcatMaybes f) s
+sessionsOf n f m = splitSuffixBy' isNothing (lcatMaybes f) s
     where
     s = S.map Just m `parallel` S.repeatM timeout
     timeout = do
@@ -1886,7 +1914,7 @@ demuxWith f kv = Fold step initial extract
             Just (Fold step' acc extract') -> do
                 !r <- acc >>= \x -> step' x a
                 return $ Map.insert k (Fold step' (return r) extract') mp
-    extract = mapM (\(Fold s acc e) -> acc >>= e)
+    extract = mapM (\(Fold _ acc e) -> acc >>= e)
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1937,10 +1965,10 @@ demuxWith_ f kv = Fold step initial extract
         -- up never fails
         case Map.lookup (f a) mp of
             Nothing -> return mp
-            Just (Fold step' acc extract') -> do
-                acc >>= \x -> step' x a
+            Just (Fold step' acc _) -> do
+                _ <- acc >>= \x -> step' x a
                 return mp
-    extract mp = mapM (\(Fold s acc e) -> acc >>= e) mp >> return ()
+    extract mp = mapM (\(Fold _ acc e) -> acc >>= e) mp >> return ()
 
 -- | Given a stream of key value pairs and a map from keys to folds, fold the
 -- values for each key using the corresponding folds, discarding the outputs.
@@ -2108,81 +2136,167 @@ lchunksOf n f1 f2 = undefined
 -}
 
 ------------------------------------------------------------------------------
--- Session Windows
+-- Windowed classification
 ------------------------------------------------------------------------------
 
--- | @sessionsByLifeTime lifetime tick k f stream@ groups together all input
--- stream elements that belong to the same session. @lifetime@ is the maximum
--- lifetime of a session in seconds. All elements belonging to a session are
--- purged after this duration.  Session duration is measured using the
--- timestamp of the first element seen for that session. To detect session
--- timeouts, a monotonic event time clock is maintained using the timestamps
--- seen in the inputs and a timer with a tick duration specified by @tick@.
+-- We divide the stream into windows or chunks in space or time and each window
+-- can be associated with a key, all events associated with a particular key in
+-- the window can be folded to a single result. The stream can be split into
+-- windows by size or by using a split predicate on the elements in the stream.
+-- For example, when we receive a closing flag, we can close the window.
 --
--- The function @k@ returns a 3-tuple @(session key, timestamp, session close)@
--- from an input element in the stream.  @session key@ is a key that uniquely
--- identifies the session for the given element, @timestamp@ characterizes the
--- time when the input element was generated, this is an absolute time measured
--- from some @Epoch@. @session close@ is a boolean indicating whether this
--- element marks the closing of the session. When an input element with
--- @session close@ set to @True@ is seen the session is purged immediately.
+-- A "chunk" is a space window and a "session" is a time window. Are there any
+-- other better short words to describe them. An alternative is to use
+-- "swindow" and "twindow". Another word for "session" could be "spell".
+--
+-- TODO: To mark the position in space or time we can have Indexed or
+-- TimeStamped types. That can make it easy to deal with the position indices
+-- or timestamps.
+
+------------------------------------------------------------------------------
+-- Keyed Sliding Windows
+------------------------------------------------------------------------------
+
+{-
+{-# INLINABLE classifySlidingChunks #-}
+classifySlidingChunks
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Int              -- ^ window size
+    -> Int              -- ^ window slide
+    -> Fold m a b       -- ^ Fold to be applied to window events
+    -> t m (k, a, Bool) -- ^ window key, data, close event
+    -> t m (k, b)
+classifySlidingChunks wsize wslide (Fold step initial extract) str
+    = undefined
+
+-- XXX Another variant could be to slide the window on an event, e.g. in TCP we
+-- slide the send window when an ack is received and we slide the receive
+-- window when a sequence is complete. Sliding is stateful in case of TCP,
+-- sliding releases the send buffer or makes data available to the user from
+-- the receive buffer.
+{-# INLINABLE classifySlidingSessions #-}
+classifySlidingSessions
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Double         -- ^ timer tick in seconds
+    -> Double         -- ^ time window size
+    -> Double         -- ^ window slide
+    -> Fold m a b     -- ^ Fold to be applied to window events
+    -> t m (k, a, Bool, AbsTime) -- ^ window key, data, close flag, timestamp
+    -> t m (k, b)
+classifySlidingSessions tick interval slide (Fold step initial extract) str
+    = undefined
+-}
+
+------------------------------------------------------------------------------
+-- Keyed Session Windows
+------------------------------------------------------------------------------
+
+{-
+-- | Keyed variable size space windows. Close the window if we do not receive a
+-- window event in the next "spaceout" elements.
+{-# INLINABLE classifyChunksBy #-}
+classifyChunksBy
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Int   -- ^ window spaceout (spread)
+    -> Bool  -- ^ reset the spaceout when a chunk window element is received
+    -> Fold m a b       -- ^ Fold to be applied to chunk window elements
+    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, b)
+classifyChunksBy spanout reset (Fold step initial extract) str = undefined
+
+-- | Like 'classifyChunksOf' but the chunk size is reset if an element is
+-- received within the chunk size window. The chunk gets closed only if no
+-- element is received within the chunk window.
+--
+{-# INLINABLE classifyKeepAliveChunks #-}
+classifyKeepAliveChunks
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Int   -- ^ window spaceout (spread)
+    -> Fold m a b       -- ^ Fold to be applied to chunk window elements
+    -> t m (k, a, Bool) -- ^ chunk key, data, last element
+    -> t m (k, b)
+classifyKeepAliveChunks spanout = classifyChunksBy spanout True
+-}
+
+-- | @classifySessionsBy tick timeout reset f stream@ groups together all input
+-- stream elements that belong to the same session. @timeout@ is the maximum
+-- lifetime of a session in seconds. All elements belonging to a session are
+-- purged after this duration.  If "reset" is 'Ture' then the timeout is reset
+-- after every event received in the session. Session duration is measured
+-- using the timestamp of the first element seen for that session.  To detect
+-- session timeouts, a monotonic event time clock is maintained using the
+-- timestamps seen in the inputs and a timer with a tick duration specified by
+-- @tick@.
+--
+-- @session key@ is a key that uniquely identifies the session for the given
+-- element, @timestamp@ characterizes the time when the input element was
+-- generated, this is an absolute time measured from some @Epoch@. @session
+-- close@ is a boolean indicating whether this element marks the closing of the
+-- session. When an input element with @session close@ set to @True@ is seen
+-- the session is purged immediately.
 --
 -- All the input elements belonging to a session are collected using the fold
--- @f@.  The fold result is emitted when the session is purged either via the
--- session close event or via the session liftime timeout.
+-- @f@.  The session key and the fold result are emitted in the output stream
+-- when the session is purged either via the session close event or via the
+-- session liftime timeout.
 --
 -- @since 0.7.0
-{-# INLINABLE sessionsByLifeTime #-}
-sessionsByLifeTime
+{-# INLINABLE classifySessionsBy #-}
+classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
-    => Double  -- lifetime of a session
-    -> Double  -- timer tick in secoonds
-    -> (a -> (k, AbsTime, Bool)) -- (key, timestamp, session close)
-    -> Fold m a b
-    -> t m a
-    -> t m b
-sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
+    => Double         -- ^ timer tick in seconds
+    -> Double         -- ^ session timeout
+    -> Bool           -- ^ reset the timeout when an event is received
+    -> Fold m a b     -- ^ Fold to be applied to session events
+    -> t m (k, a, Bool, AbsTime) -- ^ session key, timestamp, close event, data
+    -> t m (k, b)
+classifySessionsBy tick timeout reset (Fold step initial extract) str =
     S.concatMap (\(Tuple4' _ _ _ s) -> s) $ S.scanlM' sstep szero stream
 
     where
 
-    -- XXX what if the timestamps and the system time are too far off, we may
-    -- accumulate too many entries, have a protection in that case? If the
-    -- incoming logs seem too new or too old than the current system time then
-    -- send an alert. This should be detected earlier in the processing
-    -- pipeline, this function should not worry about it.
-    --
-    -- XXX what if the timestamps are delayed, we would expire the sessions
-    -- without waiting for all the messages. We should wait at least from the
-    -- first timestamp + lifetime.
-    --
-    -- XXX we have to use a heap in pinned memory to scale it to a large size
-    lifetimeMs = toRelTime (round (lifetime * 1000) :: MilliSecond64)
+    timeoutMs = toRelTime (round (timeout * 1000) :: MilliSecond64)
     tickMs = toRelTime (round (tick * 1000) :: MilliSecond64)
     szero = Tuple4' (toAbsTime (0 :: MilliSecond64)) H.empty Map.empty S.nil
 
     -- Got a new stream input element
-    sstep (Tuple4' evTime hp mp _) (Just a) =
+    sstep (Tuple4' evTime hp mp _) (Just (key, a, closing, ts)) =
+        -- XXX we should use a heap in pinned memory to scale it to a large
+        -- size
+        --
         -- deleting a key from the heap is expensive, so we never delete a
         -- key, we just purge it from the Map and it gets purged from the
         -- heap on timeout. We just need an extra lookup in the Map when
         -- the key is purged from the heap, that should not be expensive.
-        let (key, ts, closed) = getKey a
-            accumulate v = maybe initial return v >>= \r -> step r a
-        in if closed
+        --
+        -- To detect session inactivity we keep a timestamp of the latest event
+        -- in the Map along with the fold result.  When we purge the session
+        -- from the heap we match the timestamp in the heap with the timestamp
+        -- in the Map, if the latest timestamp is newer and has not expired we
+        -- reinsert the key in the heap.
+        --
+        -- XXX if the key is an Int, we can also use an IntMap for slightly
+        -- better performance.
+        --
+        let accumulate v = do
+                Tuple' _ old <- maybe (initial >>= return . Tuple' ts) return v
+                new <- step old a
+                return $ Tuple' ts new
+        in if closing
            then do
                 let (r, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) key mp
-                acc <- accumulate r
+                Tuple' _ acc <- accumulate r
                 res <- extract acc
-                return $ Tuple4' evTime hp mp' (S.yield res)
+                return $ Tuple4' evTime hp mp' (S.yield (key, res))
            else do
                     let r = Map.lookup key mp
                     acc <- accumulate r
                     let mp' = Map.insert key acc mp
-                    let expiry = addToAbsTime ts lifetimeMs
                     let hp' =
                             case r of
-                                Nothing -> H.insert (Entry expiry key) hp
+                                Nothing ->
+                                    let expiry = addToAbsTime ts timeoutMs
+                                    in H.insert (Entry expiry key) hp
                                 Just _ -> hp
                     -- Event time is maintained as monotonically increasing
                     -- time. If we have lagged behind any of the timestamps
@@ -2204,15 +2318,24 @@ sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
             case hres of
                 Just (Entry ts key, hp') -> do
                     let duration = diffAbsTime curTime ts
-                    if duration >= lifetimeMs
+                    if duration >= timeoutMs
                     then do
                         let (r, mp') = Map.updateLookupWithKey
                                             (\_ _ -> Nothing) key mp
                         case r of
-                            Nothing -> go hp' mp out
-                            Just x -> do
-                                sess <- extract x
-                                go hp' mp' (sess `S.cons` out)
+                            Nothing -> go hp' mp' out
+                            Just (Tuple' latestTS acc) -> do
+                                let dur = diffAbsTime curTime latestTS
+                                if dur >= timeoutMs || not reset
+                                then do
+                                    sess <- extract acc
+                                    go hp' mp' ((key, sess) `S.cons` out)
+                                else
+                                    -- reset the session timeout
+                                    let expiry = addToAbsTime latestTS timeoutMs
+                                        hp'' = H.insert (Entry expiry key) hp'
+                                        mp'' = Map.insert key (Tuple' latestTS acc) mp'
+                                    in go hp'' mp'' out
                     else return (hp, mp, out)
                 Nothing -> return (hp, mp, out)
 
@@ -2221,3 +2344,66 @@ sessionsByLifeTime lifetime tick getKey (Fold step initial extract) str =
     timer = do
         liftIO $ threadDelay (round $ tick * 1000000)
         return Nothing
+
+-- | Like 'classifySessionsOf' but the session is kept alive if an event is
+-- received within the session window. The session times out and gets closed
+-- only if no event is received within the specified session window size.
+--
+-- @since 0.7.0
+{-# INLINABLE classifyKeepAliveSessions #-}
+classifyKeepAliveSessions
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Double         -- ^ session inactive timeout
+    -> Fold m a b     -- ^ Fold to be applied to session payload data
+    -> t m (k, a, Bool, AbsTime) -- ^ session key, data, close flag, timestamp
+    -> t m (k, b)
+classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
+
+------------------------------------------------------------------------------
+-- Keyed tumbling windows
+------------------------------------------------------------------------------
+
+-- Tumbling windows is a special case of sliding windows where the window slide
+-- is the same as the window size. Or it can be a special case of session
+-- windows where the reset flag is set to False.
+
+-- XXX instead of using the early termination flag in the stream, we can use an
+-- early terminating fold instead.
+
+{-
+-- | Split the stream into fixed size chunks of specified size. Within each
+-- such chunk fold the elements in buckets identified by the keys. A particular
+-- bucket fold can be terminated early if a closing flag is encountered in an
+-- element for that key.
+--
+-- @since 0.7.0
+{-# INLINABLE classifyChunksOf #-}
+classifyChunksOf
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Int              -- ^ window size
+    -> Fold m a b       -- ^ Fold to be applied to window events
+    -> t m (k, a, Bool) -- ^ window key, data, close event
+    -> t m (k, b)
+classifyChunksOf wsize = classifyChunksBy wsize False
+-}
+
+-- | Split the stream into fixed size time windows of specified interval in
+-- seconds. Within each such window, fold the elements in buckets identified by
+-- the keys. A particular bucket fold can be terminated early if a closing flag
+-- is encountered in an element for that key. Once a fold is terminated the key
+-- and value for that bucket are emitted in the output stream.
+--
+-- Session @timestamp@ in the input stream is an absolute time from some epoch,
+-- characterizing the time when the input element was generated.  To detect
+-- session window end, a monotonic event time clock is maintained synced with
+-- the timestamps with a clock resolution of 1 second.
+--
+-- @since 0.7.0
+{-# INLINABLE classifySessionsOf #-}
+classifySessionsOf
+    :: (IsStream t, MonadAsync m, Ord k)
+    => Double         -- ^ time window size
+    -> Fold m a b     -- ^ Fold to be applied to window events
+    -> t m (k, a, Bool, AbsTime) -- ^ window key, data, close flag, timestamp
+    -> t m (k, b)
+classifySessionsOf interval = classifySessionsBy 1 interval False

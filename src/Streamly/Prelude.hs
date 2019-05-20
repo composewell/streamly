@@ -320,6 +320,8 @@ module Streamly.Prelude
 
     , indexed
     , indexedR
+    -- , timestamped
+    -- , timestampedR -- timer
 
     -- ** Filtering
     -- | Remove some elements from the stream based on a predicate. In
