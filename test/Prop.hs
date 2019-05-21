@@ -173,6 +173,29 @@ constructWithIterateM op len =
         streamEffect <- run $ readIORef mvl
         listEquals (==) streamEffect list
 
+constructWithFromIndices ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithFromIndices op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <-
+            run $ (S.toList . op . S.take (fromIntegral len)) (S.fromIndices id)
+        let list = take (fromIntegral len) (iterate (+ 1) 0)
+        listEquals (==) stream list
+
+constructWithFromIndicesM ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithFromIndicesM op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        mvl <- run (newIORef [] :: IO (IORef [Int]))
+        let addIndex mv i = modifyIORef' mv (++ [i]) >> return i
+            list = take (fromIntegral len) (iterate (+ 1) 0)
+        run $
+            S.drain . op $
+            S.take (fromIntegral len) $ S.fromIndicesM (addIndex mvl)
+        streamEffect <- run $ readIORef mvl
+        listEquals (==) streamEffect list
 
 -------------------------------------------------------------------------------
 -- Concurrent generation
@@ -1016,6 +1039,10 @@ main = hspec
         -- wAsyncOps $ prop "wAsyncly iterateM" wAsyncly . onstructWithIterate
         -- parallelOps $ prop "parallely iterateM" parallely . onstructWithIterate
         -- XXX add tests for fromIndices
+
+        serialOps $ prop "serially fromIndices" . constructWithFromIndices
+
+        serialOps $ prop "serially fromIndicesM" . constructWithFromIndicesM
 
     describe "Functor operations" $ do
         serialOps    $ functorOps S.fromFoldable "serially" (==)

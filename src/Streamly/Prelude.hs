@@ -682,7 +682,6 @@ yieldM = K.yieldM
 fromIndices :: (IsStream t, Monad m) => (Int -> a) -> t m a
 fromIndices = fromStreamD . D.fromIndices
 
--- XXX this needs to be concurrent
 --
 -- |
 -- @
@@ -694,8 +693,11 @@ fromIndices = fromStreamD . D.fromIndices
 --
 -- @since 0.6.0
 {-# INLINE fromIndicesM #-}
-fromIndicesM :: (IsStream t, Monad m) => (Int -> m a) -> t m a
-fromIndicesM = fromStreamD . D.fromIndicesM
+fromIndicesM :: (IsStream t, MonadAsync m) => (Int -> m a) -> t m a
+fromIndicesM gen = go 0
+  where
+  go i = K.mkStream $ \st stp sng yld -> do
+      K.foldStreamShared st stp sng yld (gen i |: go (i + 1))
 
 -- |
 -- @
