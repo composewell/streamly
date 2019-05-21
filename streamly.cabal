@@ -214,6 +214,7 @@ library
 
                      , Streamly.Mem.Array
                      , Streamly.FileSystem.File
+                     , Streamly.Network.Socket
 
                     -- Time
                      , Streamly.Time.Units
@@ -265,7 +266,7 @@ library
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
-                     , random
+                     , network           >= 3.0   && < 4
 
   if impl(ghc < 8.0)
     build-depends:
