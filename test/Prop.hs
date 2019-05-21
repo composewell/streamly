@@ -578,7 +578,8 @@ transformCombineOpsOrdered constr desc eq t = do
         transform (dropWhile (> 0)) t (S.dropWhile (> 0))
     prop (desc <> " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
 
-    -- XXX add uniq
+    prop (desc <> " uniq") $ transform referenceUniq t S.uniq
+
     prop (desc <> " deleteBy (<=) 0") $
         transform (deleteBy (<=) 0) t (S.deleteBy (<=) 0)
 
@@ -617,9 +618,22 @@ wrapOutOfBounds f i x | null x = Nothing
                       | otherwise = Just (f x i)
 
 wrapThe :: Eq a => [a] -> Maybe a
-wrapThe (x:xs) | all (x ==) xs = Just x
-                 | otherwise = Nothing
+wrapThe (x:xs)
+    | all (x ==) xs = Just x
+    | otherwise = Nothing
 wrapThe [] = Nothing
+
+-- This is the reference uniq implementation to compare uniq against,
+-- we can use uniq from vector package, but for now this should
+-- suffice.
+referenceUniq :: Eq a => [a] -> [a]
+referenceUniq = go
+  where
+    go [] = []
+    go (x:[]) = [x]
+    go (x:y:xs)
+        | x == y = go (x : xs)
+        | otherwise = x : go (y : xs)
 
 eliminationOps
     :: ([Int] -> t IO Int)

@@ -2117,7 +2117,7 @@ uniq (Stream step state) = Stream step' (Nothing, state)
          r <- step gst st
          case r of
              Yield y s | x == y   -> return $ Skip (Just x, s)
-                       | otherwise -> return $ Yield x (Just y, s)
+                       | otherwise -> return $ Yield y (Just y, s)
              Skip  s   -> return $ Skip (Just x, s)
              Stop      -> return Stop
 
