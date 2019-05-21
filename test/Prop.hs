@@ -12,7 +12,7 @@ import Control.Exception
 import Control.Monad (when, forM_, replicateM, replicateM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
-import Data.IORef (readIORef, modifyIORef, newIORef)
+import Data.IORef (readIORef, modifyIORef, newIORef, modifyIORef', IORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
@@ -146,15 +146,33 @@ constructWithDoubleFromThenTo op l =
         in constructWithLen stream list op l
 #endif
 
-constructWithIterate :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
-constructWithIterate t = do
-    it "iterate" $
-        (S.toList . t . S.take 100) (S.iterate (+ 1) (0 :: Int))
-        `shouldReturn` take 100 (iterate (+ 1) 0)
-    it "iterateM" $ do
-        let addM y = return (y + 1)
-        S.toList . t . S.take 100 $ S.iterateM addM (0 :: Int)
-        `shouldReturn` take 100 (iterate (+ 1) 0)
+constructWithIterate ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithIterate op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <-
+            run $
+            (S.toList . op . S.take (fromIntegral len))
+                (S.iterate (+ 1) (0 :: Int))
+        let list = take (fromIntegral len) (iterate (+ 1) 0)
+        listEquals (==) stream list
+
+constructWithIterateM ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithIterateM op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        mvl <- run (newIORef [] :: IO (IORef [Int]))
+        let addM mv x y = modifyIORef' mv (++ [y + x]) >> return (y + x)
+            list = take (fromIntegral len) (iterate (+ 1) 0)
+        run $
+            S.drain . op $
+            S.take (fromIntegral len) $
+            S.iterateM (addM mvl 1) (addM mvl 0 0 :: IO Int)
+        streamEffect <- run $ readIORef mvl
+        listEquals (==) streamEffect list
+
 
 -------------------------------------------------------------------------------
 -- Concurrent generation
@@ -971,8 +989,18 @@ main = hspec
         serialOps   $ prop "serially DoubleFromThenTo" .
                             constructWithDoubleFromThenTo
 #endif
+
+        serialOps   $ prop "serially iterate" . constructWithIterate
+
         -- XXX test for all types of streams
-        constructWithIterate serially
+        serialOps   $ prop "serially iterateM" . constructWithIterateM
+        -- take doesn't work well on concurrent streams. Even though it
+        -- seems like take only has a problem when used with parallely.
+        -- wSerialOps $ prop "wSerially iterateM" wSerially . constructWithIterate
+        -- aheadOps $ prop "aheadly iterateM" aheadly . onstructWithIterate
+        -- asyncOps $ prop "asyncly iterateM" asyncly . constructWithIterate
+        -- wAsyncOps $ prop "wAsyncly iterateM" wAsyncly . onstructWithIterate
+        -- parallelOps $ prop "parallely iterateM" parallely . onstructWithIterate
         -- XXX add tests for fromIndices
 
     describe "Functor operations" $ do
