@@ -30,19 +30,27 @@ description:
   similar in concept to <https://hackage.haskell.org/package/Yampa Yampa> or
   <https://hackage.haskell.org/package/reflex reflex>.
   .
-  Streamly focuses on practical engineering with high performance. One can
-  expect performance competitive to C from well written streamly programs.
-  High performance streaming eliminates the need for string and text
-  libraries like
+  The grouping, splitting and windowing combinators in streamly can substitute
+  the window operators in <https://flink.apache.org/ Apache Flink>.  However,
+  compared to Flink streamly has a pure functional, succinct and expressive API
+  that is applicable to full spectrum of applications, from a "hello world"
+  application to large scale concurrent applications, with equal efficiency.
+  For those familiar with <http://reactivex.io/ Reactive Extensions>, streamly
+  has similarities with the RxJs API. For most RxJs combinators you
+  can find corresponding combinators in streamly.
+  .
+  Streamly focuses on practical engineering with high performance. From well
+  written streamly programs one can expect performance competitive to C.  High
+  performance streaming eliminates the need for string and text libraries like
   <https://hackage.haskell.org/package/bytestring bytestring>,
   <https://hackage.haskell.org/package/text text> and their lazy and strict
-  flavors, and all the confusion arising from those. The only basic types are
-  arrays for storage and streams for processing. Strings and text are simply
-  streams of 'Char' as they should be. Even Haskell lists can be replaced by
-  pure streams. Arrays provided by streamly have performance at par with or
-  better than the vector library.
+  flavors. All the confusion and cognitive overhead arising from different
+  string types is eliminated. The only basic types are arrays for storage and
+  streams for processing. Strings and text are simply streams of 'Char' as they
+  should be. Even Haskell lists can be replaced by pure streams. Arrays
+  provided by streamly have performance at par with the vector library.
   .
-  Streamly interoperates with popular streaming libraries, see
+  Streamly interoperates with popular Haskell streaming libraries, see
   the interoperation section in "Streamly.Tutorial".
   .
   Why use streamly?

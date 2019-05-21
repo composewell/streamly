@@ -1864,7 +1864,7 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- > reverse = S.foldlT (flip S.cons) S.nil
 --
 -- Returns the elements of the stream in reverse order.  The stream must be
--- finite.
+-- finite. Note that this necessarily buffers the entire stream in memory.
 --
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
