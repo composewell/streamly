@@ -927,3 +927,16 @@ executable ControlFlow
           semigroups    >= 0.18   && < 0.19
   else
     buildable: False
+
+executable FileIO
+  default-language: Haskell2010
+  main-is: FileIO.hs
+  hs-source-dirs:  examples
+  ghc-options: -Wall
+  if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base              >= 4.8   && < 5
+  else
+    buildable: False
