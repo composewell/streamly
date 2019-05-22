@@ -680,7 +680,7 @@ yieldM = K.yieldM
 -- @since 0.6.0
 {-# INLINE fromIndices #-}
 fromIndices :: (IsStream t, Monad m) => (Int -> a) -> t m a
-fromIndices = fromStreamD . D.fromIndices
+fromIndices = fromStreamS . S.fromIndices
 
 --
 -- |
@@ -691,13 +691,17 @@ fromIndices = fromStreamD . D.fromIndices
 -- Generate an infinite stream, whose values are the output of a monadic
 -- function @f@ applied on the corresponding index. Index starts at 0.
 --
+-- /Concurrent/
+--
 -- @since 0.6.0
-{-# INLINE fromIndicesM #-}
+{-# INLINE_EARLY fromIndicesM #-}
 fromIndicesM :: (IsStream t, MonadAsync m) => (Int -> m a) -> t m a
-fromIndicesM gen = go 0
-  where
-  go i = K.mkStream $ \st stp sng yld -> do
-      K.foldStreamShared st stp sng yld (gen i |: go (i + 1))
+fromIndicesM = K.fromIndicesM
+
+{-# RULES "fromIndicesM serial" fromIndicesM = fromIndicesMSerial #-}
+{-# INLINE fromIndicesMSerial #-}
+fromIndicesMSerial :: MonadAsync m => (Int -> m a) -> SerialT m a
+fromIndicesMSerial = fromStreamS . S.fromIndicesM
 
 -- |
 -- @

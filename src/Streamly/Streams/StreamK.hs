@@ -63,6 +63,8 @@ module Streamly.Streams.StreamK
     , repeat
     , replicate
     , replicateM
+    , fromIndices
+    , fromIndicesM
 
     -- ** Conversions
     , yield
@@ -282,6 +284,19 @@ replicate :: IsStream t => Int -> a -> t m a
 replicate n a = go n
     where
     go cnt = if cnt <= 0 then nil else a `cons` go (cnt - 1)
+
+{-# INLINE fromIndicesM #-}
+fromIndicesM :: (IsStream t, MonadAsync m) => (Int -> m a) -> t m a
+fromIndicesM gen = go 0
+  where
+    go i = mkStream $ \st stp sng yld -> do
+        foldStreamShared st stp sng yld (gen i |: go (i + 1))
+
+{-# INLINE fromIndices #-}
+fromIndices :: IsStream t => (Int -> a) -> t m a
+fromIndices gen = go 0
+  where
+    go n = (gen n) `cons` go (n + 1)
 
 -------------------------------------------------------------------------------
 -- Conversions
