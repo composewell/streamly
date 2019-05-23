@@ -1325,6 +1325,16 @@ groups = groupsBy (==)
 ------------------------------------------------------------------------------
 
 {-
+-- | Find the first occurrence of the specified sequence in the input stream
+-- and break the input stream into two parts, the first part consisting of the
+-- stream before the sequence and the second part consisting of the sequence
+-- and the rest of the stream.
+--
+-- > let breakOn_ pat xs = FL.foldl' (FL.breakOn pat FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> breakOn_ "dear" "Hello dear world!"
+-- > ("Hello ","dear world!")
+--
 {-# INLINE breakOn #-}
 breakOn :: Monad m => Array a -> Fold m a b -> Fold m a c -> Fold m a (b,c)
 breakOn pat f m = undefined
