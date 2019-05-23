@@ -278,6 +278,10 @@ write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
+-- XXX mmap a file into an array. This could be useful for in-place operations
+-- on a file. For example, we can quicksort the contents of a file by mmapping
+-- it.
+
 -------------------------------------------------------------------------------
 -- IO with encoding/decoding Unicode characters
 -------------------------------------------------------------------------------

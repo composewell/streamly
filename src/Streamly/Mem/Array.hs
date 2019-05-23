@@ -202,6 +202,94 @@ _last arr = readIndex arr (length arr - 1)
 -- Random Access
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-- Searching
+-------------------------------------------------------------------------------
+
+-- | Perform a binary search in the array to find an element.
+elem :: a -> Array a -> Maybe Bool
+
+-- | Perform a binary search in the array to find an element index.
+{-# INLINE elemIndex #-}
+elemIndex :: a -> Array a -> Maybe Int
+elemIndex elem arr = undefined
+
+-- find/findIndex etc can potentially be implemented more efficiently on arrays
+-- compared to streams by using SIMD instructions.
+
+find :: (a -> Bool) -> Array a -> Bool
+findIndex :: (a -> Bool) -> Array a -> Maybe Int
+findIndices :: (a -> Bool) -> Array a -> Array Int
+
+-------------------------------------------------------------------------------
+-- Folds
+-------------------------------------------------------------------------------
+
+-- XXX We can potentially use SIMD instructions on arrays to fold faster.
+
+-------------------------------------------------------------------------------
+-- Slice and splice
+-------------------------------------------------------------------------------
+
+{-
+slice :: Int -> Int -> Array a
+slice begin end arr = undefined
+
+splitAt :: Int -> Array a -> (Array a, Array a)
+splitAt i arr = undefined
+
+-- XXX This operation can be performed efficiently via streams.
+-- | Append two arrays together to create a single array.
+splice :: Array a -> Array a -> Array a
+splice arr1 arr2 = undefined
+
+-------------------------------------------------------------------------------
+-- In-place mutation APIs
+-------------------------------------------------------------------------------
+
+-- | Partition an array into two halves using a partitioning predicate. The
+-- first half retains values where the predicate is 'False' and the second half
+-- retains values where the predicate is 'True'.
+{-# INLINE partitionBy #-}
+partitionBy :: (a -> Bool) -> Array a -> (Array a, Array a)
+partitionBy f arr = undefined
+
+-- | Shuffle corresponding elements from two arrays using a shuffle function.
+-- If the shuffle function returns 'False' then do nothing otherwise swap the
+-- elements. This can be used in a bottom up fold to shuffle or reorder the
+-- elements.
+shuffleBy :: (a -> a -> m Bool) -> Array a -> Array a -> m (Array a)
+shuffleBy f arr1 arr2 = undefined
+
+-- XXX we can also make the folds partial by stopping at a certain level.
+--
+-- | Perform a top down hierarchical recursive partitioning fold of items in
+-- the container using the given function as the partition function.
+--
+-- This will perform a quick sort if the partition function is
+-- 'partitionBy (< pivot)'.
+--
+-- @since 0.7.0
+{-# INLINABLE foldtWith #-}
+foldtWith :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+foldtWith level f = undefined
+
+-- | Perform a pairwise bottom up fold recursively merging the pairs. Level
+-- indicates the level in the tree where the fold would stop.
+--
+-- This will perform a random shuffle if the shuffle function is random.
+-- If we stop at level 0 and repeatedly apply the function then we can do a
+-- bubble sort.
+foldbWith :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+foldbWith level f = undefined
+-}
+
+-- XXX consider the bulk update/accumulation/permutation APIs from vector.
+
+-------------------------------------------------------------------------------
+-- Random reads and writes
+-------------------------------------------------------------------------------
+
 -- | /O(1)/ Lookup the element at the given index.
 --
 -- @since 0.7.0
@@ -328,3 +416,7 @@ spliceArrays s = do
 {-# INLINE write #-}
 write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
 write m = A.fromStreamD $ D.toStreamD m
+
+-- XXX efficiently compare two streams of arrays. Two streams can have chunks
+-- of different sizes, we can handle that in the stream comparison abstraction.
+-- This could be useful e.g. to fast compare whether two files differ.
