@@ -624,20 +624,20 @@ augmentS :: IsStream t
 augmentS g xs = g cons xs
 
 {-# RULES "augmentS/nil"
-      forall (g :: (a -> t m a -> t m a) -> t m a -> t m a)
-    . augmentS g nil = buildS g
-#-}
+    forall (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+    augmentS g nil = buildS g
+    #-}
 
 {-# RULES "foldrS/augmentS"
-      forall k z xs (g :: (a -> t m a -> t m a) -> t m a -> t m a)
-    . foldrS k z (augmentS g xs) = g k (foldrS k z xs)
-#-}
+    forall k z xs (g :: (a -> t m a -> t m a) -> t m a -> t m a).
+    foldrS k z (augmentS g xs) = g k (foldrS k z xs)
+    #-}
 
 {-# RULES "augmentS/buildS"
-      forall (g :: (a -> t m a -> t m a) -> t m a -> t m a)
-             (h :: (a -> t m a -> t m a) -> t m a -> t m a)
-    . augmentS g (buildS h) = buildS (\c n -> g c (h c n))
-#-}
+    forall (g :: (a -> t m a -> t m a) -> t m a -> t m a)
+           (h :: (a -> t m a -> t m a) -> t m a -> t m a).
+    augmentS g (buildS h) = buildS (\c n -> g c (h c n))
+    #-}
 
 {-# INLINE_NORMAL augmentSM #-}
 augmentSM :: (IsStream t, MonadAsync m)
@@ -645,20 +645,20 @@ augmentSM :: (IsStream t, MonadAsync m)
 augmentSM g xs = g consM xs
 
 {-# RULES "augmentSM/nil"
-      forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a)
-    . augmentSM g nil = buildSM g
-#-}
+    forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    augmentSM g nil = buildSM g
+    #-}
 
 {-# RULES "foldrSM/augmentSM"
-      forall k z xs (g :: (m a -> t m a -> t m a) -> t m a -> t m a)
-    . foldrSM k z (augmentSM g xs) = g k (foldrSM k z xs)
-#-}
+    forall k z xs (g :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    foldrSM k z (augmentSM g xs) = g k (foldrSM k z xs)
+    #-}
 
 {-# RULES "augmentSM/buildSM"
-      forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a)
-             (h :: (m a -> t m a -> t m a) -> t m a -> t m a)
-    . augmentSM g (buildSM h) = buildSM (\c n -> g c (h c n))
-#-}
+    forall (g :: (m a -> t m a -> t m a) -> t m a -> t m a)
+           (h :: (m a -> t m a -> t m a) -> t m a -> t m a).
+    augmentSM g (buildSM h) = buildSM (\c n -> g c (h c n))
+    #-}
 
 -------------------------------------------------------------------------------
 -- Experimental foldrM/buildM
@@ -711,7 +711,7 @@ foldrMKWith f step acc g = go g
         -> m r
        )).
     foldrM step acc (buildM g) = foldrMKWith foldStream step acc g
-#-}
+    #-}
 
 {-# RULES "foldrM/sharedM"
     forall step acc (g :: (forall r.
@@ -721,7 +721,7 @@ foldrMKWith f step acc g = go g
         -> m r
        )).
     foldrM step acc (sharedM g) = foldrMKWith foldStreamShared step acc g
-#-}
+    #-}
 
 ------------------------------------------------------------------------------
 -- Semigroup
@@ -774,7 +774,7 @@ mapFB c f = \x ys -> c (f x) ys
 {-# RULES
 "mapFB/mapFB" forall c f g. mapFB (mapFB c f) g = mapFB c (f . g)
 "mapFB/id"    forall c.     mapFB c (\x -> x)   = c
-#-}
+    #-}
 
 {-# INLINE map #-}
 map :: IsStream t => (a -> b) -> t m a -> t m b
@@ -799,8 +799,8 @@ mapMFB :: Monad m => (m b -> t m b -> t m b) -> (a -> m b) -> m a -> t m b -> t 
 mapMFB c f = \x ys -> c (x >>= f) ys
 
 {-# RULES
-"mapMFB/mapMFB"  forall c f g. mapMFB (mapMFB c f) g     = mapMFB c (f >=> g)
-#-}
+    "mapMFB/mapMFB" forall c f g. mapMFB (mapMFB c f) g = mapMFB c (f >=> g)
+    #-}
 -- XXX These rules may never fire because pure/return type class rules will
 -- fire first.
 {-

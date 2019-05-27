@@ -12,6 +12,8 @@ extra-deps:
     - basement-0.0.7
     - deepseq-1.4.4.0
     - typed-process-0.2.4.0@sha256:fb1574481a394bec4f49016fc42f2404cea4acf5b129329459dae5e416da560e
+    - network-3.1.0.0@sha256:85b36fea1dfe92af91b38224d6ea84eb0b17c03d9aed0260413be226722b0cd2
+
 flags: {}
 extra-package-dbs: []
 # For mac ports installed SDL library on Mac OS X
