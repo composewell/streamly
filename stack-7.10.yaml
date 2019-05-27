@@ -12,7 +12,7 @@ extra-deps:
     - basement-0.0.7
     - deepseq-1.4.4.0
     - typed-process-0.2.4.0@sha256:fb1574481a394bec4f49016fc42f2404cea4acf5b129329459dae5e416da560e
-    - network-3.1.0.0@sha256:85b36fea1dfe92af91b38224d6ea84eb0b17c03d9aed0260413be226722b0cd2
+    - network-2.6.3.6@sha256:1ca79d81af02d7acd6032d5e6c9bde4618a8fdcfbe19bd42b49d420183975df0
 
 flags: {}
 extra-package-dbs: []

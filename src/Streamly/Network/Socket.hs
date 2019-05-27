@@ -75,9 +75,14 @@ import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.Socket
-       (withFdSocket, Socket, PortNumber, SocketOption(..), Family(..),
+       (Socket, PortNumber, SocketOption(..), Family(..),
         SockAddr(..), withSocketsDo, SocketType(..), socket, accept, bind,
         defaultProtocol, setSocketOption, maxListenQueue, sendBuf, recvBuf)
+#if MIN_VERSION_network(3,1,0)
+import Network.Socket (withFdSocket)
+#else
+import Network.Socket (fdSocket)
+#endif
 import Prelude hiding (read)
 
 import qualified Network.Socket as Net
@@ -181,7 +186,11 @@ readArrayUpto = readArrayUptoWith recvBuf
 
 waitWhen0 :: Int -> Socket -> IO ()
 waitWhen0 0 s = when rtsSupportsBoundThreads $
+#if MIN_VERSION_network(3,1,0)
     withFdSocket s $ \fd -> threadWaitWrite $ fromIntegral fd
+#else
+    let fd = fdSocket s in threadWaitWrite $ fromIntegral fd
+#endif
 waitWhen0 _ _ = return ()
 
 sendAll :: Socket -> Ptr Word8 -> Int -> IO ()
