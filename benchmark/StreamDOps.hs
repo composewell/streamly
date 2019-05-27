@@ -15,14 +15,19 @@ import Data.Maybe (isJust)
 import Prelude
         (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
          subtract, undefined, Maybe(..), not, (>>=),
-         maxBound, fmap, odd, (==), flip)
+         maxBound, fmap, odd, (==), flip, (<$>), (<*>), round, (/), (**), (<))
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
 
-value, maxValue :: Int
+-- We try to keep the total number of iterations same irrespective of nesting
+-- of the loops so that the overhead is easy to compare.
+value, value2, value3, value16, maxValue :: Int
 value = 100000
-maxValue = value + 1000
+value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+value16 = round (P.fromIntegral value**(1/16::P.Double)) -- triple nested loop
+maxValue = value
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -36,6 +41,15 @@ sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
+        then Nothing
+        else Just (cnt, cnt + 1)
+
+{-# INLINE sourceUnfoldrN #-}
+sourceUnfoldrN :: Monad m => Int -> Int -> Stream m Int
+sourceUnfoldrN m n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + m
         then Nothing
         else Just (cnt, cnt + 1)
 
@@ -160,10 +174,13 @@ composeN n f =
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileMTrue #-}
 {-# INLINE dropWhileFalse #-}
+{-# INLINE foldrS #-}
 {-# INLINE foldlS #-}
+{-# INLINE concatMap #-}
 scan, map, fmap, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
-    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse, foldlS
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse, foldrS, foldlS,
+    concatMap
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -187,7 +204,9 @@ dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
+foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
+concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -245,11 +264,6 @@ cmpBy src = S.cmpBy P.compare src src
 zip :: Monad m => Stream m Int -> m ()
 zip src = transform $ S.zipWith (,) src src
 
-{-
-{-# INLINE concat #-}
-concat _n     = return ()
--}
-
 -------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------
@@ -278,3 +292,51 @@ filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+-------------------------------------------------------------------------------
+-- Nested Composition
+-------------------------------------------------------------------------------
+
+{-# INLINE toNullApNested #-}
+toNullApNested :: Monad m => Stream m Int -> m ()
+toNullApNested s = runStream $ do
+    (+) <$> s <*> s
+
+{-# INLINE toNullNested #-}
+toNullNested :: Monad m => Stream m Int -> m ()
+toNullNested s = runStream $ do
+    x <- s
+    y <- s
+    return $ x + y
+
+{-# INLINE toNullNested3 #-}
+toNullNested3 :: Monad m => Stream m Int -> m ()
+toNullNested3 s = runStream $ do
+    x <- s
+    y <- s
+    z <- s
+    return $ x + y + z
+
+{-# INLINE filterAllOutNested #-}
+filterAllOutNested
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllOutNested str = runStream $ do
+    x <- str
+    y <- str
+    let s = x + y
+    if s < 0
+    then return s
+    else S.nil
+
+{-# INLINE filterAllInNested #-}
+filterAllInNested
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllInNested str = runStream $ do
+    x <- str
+    y <- str
+    let s = x + y
+    if s > 0
+    then return s
+    else S.nil

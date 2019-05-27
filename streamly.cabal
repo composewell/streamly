@@ -536,40 +536,40 @@ benchmark linear-async
   if impl(ghc < 8.0)
     build-depends:
         transformers  >= 0.4 && < 0.6
-
-benchmark linear-rate
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearRate.hs
-  other-modules: LinearOps
-  default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
+-- 
+-- benchmark linear-rate
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: LinearRate.hs
+--   other-modules: LinearOps
+--   default-language: Haskell2010
+--   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+-- 
+--   if flag(has-llvm)
+--     ghc-options: -fllvm
+-- 
+--   if flag(dev)
+--     ghc-options:    -Wmissed-specialisations
+--                     -Wall-missed-specialisations
+--                     -fno-ignore-asserts
+--   if impl(ghc >= 8.0)
+--     ghc-options:    -Wcompat
+--                     -Wunrecognised-warning-flags
+--                     -Widentities
+--                     -Wincomplete-record-updates
+--                     -Wincomplete-uni-patterns
+--                     -Wredundant-constraints
+--                     -Wnoncanonical-monad-instances
+--                     -Wnoncanonical-monadfail-instances
+--   build-depends:
+--       streamly
+--     , base                >= 4.8   && < 5
+--     , deepseq             >= 1.4.3 && < 1.5
+--     , random              >= 1.0   && < 2.0
+--     , gauge               >= 0.2.4 && < 0.3
+--   if impl(ghc < 8.0)
+--     build-depends:
+--         transformers  >= 0.4 && < 0.6
 
 benchmark nested
   type: exitcode-stdio-1.0
@@ -606,72 +606,72 @@ benchmark nested
     build-depends:
         transformers  >= 0.4 && < 0.6
 
-benchmark array
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Array.hs
-  other-modules: ArrayOps
-  default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-
-benchmark fileio
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: FileIO.hs
-  default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , gauge               >= 0.2.4 && < 0.3
-    , typed-process       >= 0.2.3 && < 0.3
-    , deepseq             >= 1.4.3 && < 1.5
-
+-- benchmark array
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: Array.hs
+--   other-modules: ArrayOps
+--   default-language: Haskell2010
+--   ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+-- 
+--   if flag(has-llvm)
+--     ghc-options: -fllvm
+-- 
+--   if flag(dev)
+--     cpp-options:    -DDEVBUILD
+--     ghc-options:    -Wmissed-specialisations
+--                     -Wall-missed-specialisations
+--                     -fno-ignore-asserts
+--   if impl(ghc >= 8.0)
+--     ghc-options:    -Wcompat
+--                     -Wunrecognised-warning-flags
+--                     -Widentities
+--                     -Wincomplete-record-updates
+--                     -Wincomplete-uni-patterns
+--                     -Wredundant-constraints
+--                     -Wnoncanonical-monad-instances
+--                     -Wnoncanonical-monadfail-instances
+--   build-depends:
+--       streamly
+--     , base                >= 4.8   && < 5
+--     , deepseq             >= 1.4.3 && < 1.5
+--     , random              >= 1.0   && < 2.0
+--     , gauge               >= 0.2.4 && < 0.3
+--   if impl(ghc < 8.0)
+--     build-depends:
+--         transformers  >= 0.4 && < 0.6
+-- 
+-- benchmark fileio
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: FileIO.hs
+--   default-language: Haskell2010
+--   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+-- 
+--   if flag(has-llvm)
+--     ghc-options: -fllvm
+-- 
+--   if flag(dev)
+--     cpp-options:    -DDEVBUILD
+--     ghc-options:    -Wmissed-specialisations
+--                     -Wall-missed-specialisations
+--                     -fno-ignore-asserts
+--   if impl(ghc >= 8.0)
+--     ghc-options:    -Wcompat
+--                     -Wunrecognised-warning-flags
+--                     -Widentities
+--                     -Wincomplete-record-updates
+--                     -Wincomplete-uni-patterns
+--                     -Wredundant-constraints
+--                     -Wnoncanonical-monad-instances
+--                     -Wnoncanonical-monadfail-instances
+--   build-depends:
+--       streamly
+--     , base                >= 4.8   && < 5
+--     , gauge               >= 0.2.4 && < 0.3
+--     , typed-process       >= 0.2.3 && < 0.3
+--     , deepseq             >= 1.4.3 && < 1.5
+-- 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
 -------------------------------------------------------------------------------

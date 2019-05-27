@@ -134,9 +134,9 @@ mkParallel m = do
 -- Stream to stream concurrent function application
 ------------------------------------------------------------------------------
 
-{-# INLINE applyWith #-}
-applyWith :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-applyWith f m = mkStream $ \st yld sng stp -> do
+{-# INLINE applyParallel #-}
+applyParallel :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
+applyParallel f m = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
     foldStream st yld sng stp $ f $ fromSVar sv
@@ -145,9 +145,9 @@ applyWith f m = mkStream $ \st yld sng stp -> do
 -- Stream runner concurrent function application
 ------------------------------------------------------------------------------
 
-{-# INLINE runWith #-}
-runWith :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-runWith f m = do
+{-# INLINE foldParallel #-}
+foldParallel :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+foldParallel f m = do
     sv <- newParallelVar defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
@@ -179,7 +179,7 @@ infixl 1 |&.
 -- @since 0.3.0
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-f |$ x = applyWith f x
+f |$ x = applyParallel f x
 
 -- | Parallel reverse function application operator for streams; just like the
 -- regular reverse function application operator '&' except that it is
@@ -214,7 +214,7 @@ x |& f = f |$ x
 -- @since 0.3.0
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-f |$. x = runWith f x
+f |$. x = foldParallel f x
 
 -- | Parallel reverse function application operator for applying a run or fold
 -- functions to a stream. Just like '|$.' except that the operands are reversed.
@@ -379,8 +379,6 @@ bindParallel m f = fromStream $ K.bindWith parallel (K.adapt m) (\a -> K.adapt $
 instance MonadAsync m => Monad (ParallelT m) where
     return = pure
     (>>=) = bindParallel
-
--- XXX Specialize the applicative instance
 
 ------------------------------------------------------------------------------
 -- Other instances

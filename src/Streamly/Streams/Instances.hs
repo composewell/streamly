@@ -9,7 +9,9 @@
 
 #define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
 instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
+    {-# INLINE pure #-}; \
     pure = STREAM . K.yield;                     \
+    {-# INLINE (<*>) #-}; \
     (<*>) = ap }
 
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \

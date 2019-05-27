@@ -88,6 +88,7 @@ module Streamly.Streams.StreamD
 
     -- * Elimination
     -- ** General Folds
+    , foldrS
     , foldrT
     , foldrM
     , foldrMx
@@ -492,24 +493,6 @@ enumerateFromThenToFractional from next to =
 -- Generation by Conversion
 -------------------------------------------------------------------------------
 
--- | Create a singleton 'Stream' from a pure value.
-{-# INLINE_NORMAL yield #-}
-yield :: Monad m => a -> Stream m a
-yield x = Stream (\_ s -> return $ step undefined s) True
-  where
-    {-# INLINE_LATE step #-}
-    step _ True  = Yield x False
-    step _ False = Stop
-
--- | Create a singleton 'Stream' from a monadic action.
-{-# INLINE_NORMAL yieldM #-}
-yieldM :: Monad m => m a -> Stream m a
-yieldM m = Stream step True
-  where
-    {-# INLINE_LATE step #-}
-    step _ True  = m >>= \x -> return $ Yield x False
-    step _ False = return Stop
-
 {-# INLINE_NORMAL fromIndicesM #-}
 fromIndicesM :: Monad m => (Int -> m a) -> Stream m a
 fromIndicesM gen = Stream step 0
@@ -871,51 +854,6 @@ reverse' m =
         $ toStreamK
         $ A.fromStreamDArraysOf A.defaultChunkSize m
 
-------------------------------------------------------------------------------
--- concatMap
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL concatMapM #-}
-concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
-concatMapM f (Stream step state) = Stream step' (Left state)
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (Left st) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield a s -> do
-                b_stream <- f a
-                return $ Skip (Right (b_stream, s))
-            Skip s -> return $ Skip (Left s)
-            Stop -> return Stop
-
-    -- XXX flattenArrays is 5x faster than "concatMap fromArray". if somehow we
-    -- can get inner_step to inline and fuse here we can perhaps get the same
-    -- performance using "concatMap fromArray".
-    --
-    -- XXX using the pattern synonym "Stream" causes a major performance issue
-    -- here even if the synonym does not include an adaptState call. Need to
-    -- find out why. Is that something to be fixed in GHC?
-    step' gst (Right (UnStream inner_step inner_st, st)) = do
-        r <- inner_step (adaptState gst) inner_st
-        case r of
-            Yield b inner_s ->
-                return $ Yield b (Right (Stream inner_step inner_s, st))
-            Skip inner_s ->
-                return $ Skip (Right (Stream inner_step inner_s, st))
-            Stop -> return $ Skip (Left st)
-
-{-# INLINE concatMap #-}
-concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap f = concatMapM (return . f)
-
--- XXX The idea behind this rule is to rewrite any calls to "concatMap
--- fromArray" automatically to flattenArrays which is much faster.  However, we
--- need an INLINE_EARLY on concatMap for this rule to fire. But if we use
--- INLINE_EARLY on concatMap or fromArray then direct uses of
--- "concatMap fromArray" (without the RULE) become much slower, this means
--- "concatMap f" in general would become slower. Need to find a solution to
--- this.
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

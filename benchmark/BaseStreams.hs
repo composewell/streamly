@@ -21,6 +21,20 @@ import qualified StreamKOps as K
 benchIO :: String -> (a IO Int -> IO ()) -> (Int -> a IO Int) -> Benchmark
 benchIO name run f = bench name $ nfIO $ randomRIO (1,1) >>= run . f
 
+{-# INLINE _benchIOSrcK #-}
+_benchIOSrcK
+    :: String
+    -> (Int -> K.Stream IO Int)
+    -> Benchmark
+_benchIOSrcK name f = bench name $ nfIO $ randomRIO (1,1) >>= K.toNull . f
+
+{-# INLINE _benchIOSrcD #-}
+_benchIOSrcD
+    :: String
+    -> (Int -> D.Stream IO Int)
+    -> Benchmark
+_benchIOSrcD name f = bench name $ nfIO $ randomRIO (1,1) >>= D.toNull . f
+
 benchFold :: NFData b
     => String -> (t IO Int -> IO b) -> (Int -> t IO Int) -> Benchmark
 benchFold name f src = bench name $ nfIO $ randomRIO (1,1) >>= f . src
@@ -38,6 +52,10 @@ benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= K.toNull . f
 _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
+
+{-# INLINE benchPure #-}
+benchPure :: String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
+benchPure name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
 
 main :: IO ()
 main =
@@ -62,6 +80,18 @@ main =
         , benchFold "foldl'" D.foldl    D.sourceUnfoldrM
         , benchFold "last"   D.last     D.sourceUnfoldrM
         ]
+      , bgroup "nested"
+        [ benchIO "toNullAp" D.toNullApNested (D.sourceUnfoldrMN D.value2)
+        , benchIO "toNull"   D.toNullNested   (D.sourceUnfoldrMN D.value2)
+        , benchIO "toNull3"  D.toNullNested3  (D.sourceUnfoldrMN D.value3)
+        , benchIO "filterAllIn"  D.filterAllInNested  (D.sourceUnfoldrMN K.value2)
+        , benchIO "filterAllOut"  D.filterAllOutNested  (D.sourceUnfoldrMN K.value2)
+        , benchIO "toNullApPure" D.toNullApNested (D.sourceUnfoldrN K.value2)
+        , benchIO "toNullPure"   D.toNullNested   (D.sourceUnfoldrN K.value2)
+        , benchIO "toNull3Pure"  D.toNullNested3  (D.sourceUnfoldrN K.value3)
+        , benchIO "filterAllInPure"  D.filterAllInNested  (D.sourceUnfoldrN K.value2)
+        , benchIO "filterAllOutPure"  D.filterAllOutNested  (D.sourceUnfoldrN K.value2)
+        ]
       , bgroup "transformation"
         [ benchIO "scan"      (D.scan      1) D.sourceUnfoldrM
         , benchIO "map"       (D.map       1) D.sourceUnfoldrM
@@ -69,6 +99,9 @@ main =
         , benchIO "mapM"      (D.mapM      1) D.sourceUnfoldrM
         , benchIO "mapMaybe"  (D.mapMaybe  1) D.sourceUnfoldrM
         , benchIO "mapMaybeM" (D.mapMaybeM 1) D.sourceUnfoldrM
+        , benchIO "concatMap" (D.concatMap 1) (D.sourceUnfoldrMN D.value2)
+        , benchIO "concatMapPure" (D.concatMap 1) (D.sourceUnfoldrN D.value2)
+        -- , benchIO "foldrS"    (D.foldrS    1) D.sourceUnfoldrM
         -- This has horrible performance, never finishes
         -- , benchIO "foldlS"    (D.foldlS    1) D.sourceUnfoldrM
         ]
@@ -79,6 +112,7 @@ main =
         , benchIO "mapM"      (D.mapM      4) D.sourceUnfoldrM
         , benchIO "mapMaybe"  (D.mapMaybe  4) D.sourceUnfoldrM
         , benchIO "mapMaybeM" (D.mapMaybeM 4) D.sourceUnfoldrM
+        -- , benchIO "concatMap" (D.concatMap 4) (D.sourceUnfoldrMN D.value16)
         ]
       , bgroup "filtering"
         [ benchIO "filter-even"     (D.filterEven     1) D.sourceUnfoldrM
@@ -153,6 +187,15 @@ main =
         , benchD "dropWhileTrue"        D.iterateDropWhileTrue
         ]
       ]
+    , bgroup "list"
+      [ bgroup "nested"
+        [ benchPure "toNullAp" K.toNullApNestedList (K.sourceUnfoldrList K.value2)
+        , benchPure "toNull"   K.toNullNestedList (K.sourceUnfoldrList K.value2)
+        , benchPure "toNull3"  K.toNullNestedList3 (K.sourceUnfoldrList K.value3)
+        , benchPure "filterAllIn"  K.filterAllInNestedList (K.sourceUnfoldrList K.value2)
+        , benchPure "filterAllOut"  K.filterAllOutNestedList (K.sourceUnfoldrList K.value2)
+        ]
+      ]
     , bgroup "streamK"
       [ bgroup "generation"
         [ benchIO "unfoldr"       K.toNull K.sourceUnfoldr
@@ -178,12 +221,27 @@ main =
         , benchFold "foldl'" K.foldl    K.sourceUnfoldrM
         , benchFold "last"   K.last     K.sourceUnfoldrM
         ]
+      , bgroup "nested"
+        [ benchIO "toNullAp" K.toNullApNested (K.sourceUnfoldrMN K.value2)
+        , benchIO "toNull"   K.toNullNested   (K.sourceUnfoldrMN K.value2)
+        , benchIO "toNull3"  K.toNullNested3  (K.sourceUnfoldrMN K.value3)
+        , benchIO "filterAllIn"  K.filterAllInNested  (K.sourceUnfoldrMN K.value2)
+        , benchIO "filterAllOut" K.filterAllOutNested (K.sourceUnfoldrMN K.value2)
+        , benchIO "toNullApPure" K.toNullApNested (K.sourceUnfoldrN K.value2)
+        , benchIO "toNullPure"   K.toNullNested   (K.sourceUnfoldrN K.value2)
+        , benchIO "toNull3Pure"  K.toNullNested3  (K.sourceUnfoldrN K.value3)
+        , benchIO "filterAllInPure"  K.filterAllInNested  (K.sourceUnfoldrN K.value2)
+        , benchIO "filterAllOutPure" K.filterAllOutNested (K.sourceUnfoldrN K.value2)
+        ]
       , bgroup "transformation"
         [ benchIO "scan"   (K.scan 1) K.sourceUnfoldrM
         , benchIO "map"    (K.map  1) K.sourceUnfoldrM
         , benchIO "fmap"   (K.fmap 1) K.sourceUnfoldrM
         , benchIO "mapM"   (K.mapM 1) K.sourceUnfoldrM
-        -- , benchIO "concat" K.concat K.sourceUnfoldrM
+        , benchIO "mapMSerial"  (K.mapMSerial 1) K.sourceUnfoldrM
+        -- , benchIOSrcK "concatMap" K.concatMap
+        , benchIO "concatMap" (K.concatMap 1) (K.sourceUnfoldrMN K.value2)
+        , benchIO "concatMapPure" (K.concatMap 1) (K.sourceUnfoldrN K.value2)
         , benchIO "foldlS" (K.foldlS 1) K.sourceUnfoldrM
         ]
       , bgroup "transformationX4"
@@ -191,7 +249,8 @@ main =
         , benchIO "map"    (K.map  4) K.sourceUnfoldrM
         , benchIO "fmap"   (K.fmap 4) K.sourceUnfoldrM
         , benchIO "mapM"   (K.mapM 4) K.sourceUnfoldrM
-        -- , benchIO "concat" K.concat K.sourceUnfoldrM
+        , benchIO "mapMSerial" (K.mapMSerial 4) K.sourceUnfoldrM
+        -- , benchIO "concatMap" (K.concatMap 4) (K.sourceUnfoldrMN K.value16)
         ]
       , bgroup "filtering"
         [ benchIO "filter-even"     (K.filterEven     1) K.sourceUnfoldrM

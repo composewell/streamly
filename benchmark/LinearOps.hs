@@ -21,7 +21,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+        (<*>), flip, (**), (/))
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -31,13 +31,14 @@ import GHC.Generics (Generic)
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 
-value, maxValue :: Int
+value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC
 value = 10000
 #else
 value = 100000
 #endif
 maxValue = value + 1
+value2 = P.round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -505,6 +506,8 @@ cmpBy :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
 cmpBy src = S.cmpBy P.compare src src
 
 concatStreamLen, maxNested :: Int
+-- concatStreamLen = value2
+-- maxNested = value2
 concatStreamLen = 1
 maxNested = 100000
 

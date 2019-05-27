@@ -16,11 +16,17 @@ import GHC.Exception (ErrorCall)
 import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 
-sumCount :: Int
-sumCount = 1000000
+linearCount :: Int
+linearCount = 100000
 
-prodCount :: Int
-prodCount = 100
+-- double nested loop
+nestedCount2 :: Int
+-- nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+nestedCount2 = 100
+
+-- triple nested loop
+nestedCount3 :: Int
+nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -67,24 +73,34 @@ toNullAp
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNullAp t start = runStream . t $
-    (+) <$> source start prodCount <*> source start prodCount
+    (+) <$> source start nestedCount2 <*> source start nestedCount2
 
 {-# INLINE toNull #-}
 toNull
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNull t start = runStream . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
+    x <- source start nestedCount2
+    y <- source start nestedCount2
     return $ x + y
+
+{-# INLINE toNull3 #-}
+toNull3
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => (t m Int -> S.SerialT m Int) -> Int -> m ()
+toNull3 t start = runStream . t $ do
+    x <- source start nestedCount3
+    y <- source start nestedCount3
+    z <- source start nestedCount3
+    return $ x + y + z
 
 {-# INLINE toList #-}
 toList
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toList t start = runToList . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
+    x <- source start nestedCount2
+    y <- source start nestedCount2
     return $ x + y
 
 {-# INLINE toListSome #-}
@@ -93,8 +109,8 @@ toListSome
     => (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toListSome t start =
     runToList . t $ S.take 1000 $ do
-        x <- source start prodCount
-        y <- source start prodCount
+        x <- source start nestedCount2
+        y <- source start nestedCount2
         return $ x + y
 
 {-# INLINE filterAllOut #-}
@@ -102,8 +118,8 @@ filterAllOut
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllOut t start = runStream . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
+    x <- source start nestedCount2
+    y <- source start nestedCount2
     let s = x + y
     if s < 0
     then return s
@@ -114,8 +130,8 @@ filterAllIn
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllIn t start = runStream . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
+    x <- source start nestedCount2
+    y <- source start nestedCount2
     let s = x + y
     if s > 0
     then return s
@@ -126,8 +142,8 @@ filterSome
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterSome t start = runStream . t $ do
-    x <- source start prodCount
-    y <- source start prodCount
+    x <- source start nestedCount2
+    y <- source start nestedCount2
     let s = x + y
     if s > 1100000
     then return s
@@ -139,8 +155,8 @@ breakAfterSome
     => (t IO Int -> S.SerialT IO Int) -> Int -> IO ()
 breakAfterSome t start = do
     (_ :: Either ErrorCall ()) <- try $ runStream . t $ do
-        x <- source start prodCount
-        y <- source start prodCount
+        x <- source start nestedCount2
+        y <- source start nestedCount2
         let s = x + y
         if s > 1100000
         then error "break"

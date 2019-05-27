@@ -51,6 +51,10 @@ module Streamly.Streams.Prelude
     , eqBy
     , cmpBy
 
+    -- * Nesting
+    , K.concatMapBy
+    , K.concatMap
+
     -- * Fold Utilities
     , foldWith
     , foldMapWith
@@ -242,6 +246,22 @@ cmpBy f m1 m2 = D.cmpBy f (D.toStreamD m1) (D.toStreamD m2)
 ------------------------------------------------------------------------------
 -- Fold Utilities
 ------------------------------------------------------------------------------
+
+{-
+-- XXX do we have facilities in Foldable to fold any Foldable in this manner?
+--
+-- | Perform a pair wise bottom up hierarchical fold of elements in the
+-- container using the given function as the merge function.
+--
+-- This will perform a balanced merge sort if the merge function is
+-- 'mergeBy compare'.
+--
+-- @since 0.7.0
+{-# INLINABLE foldbWith #-}
+foldbWith :: IsStream t
+    => (t m a -> t m a -> t m a) -> SerialT Identity (t m a) -> t m a
+foldbWith f = K.foldb f K.nil
+-}
 
 -- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
 -- container of streams using the specified stream sum operation.

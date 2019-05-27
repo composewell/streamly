@@ -166,7 +166,12 @@ instance IsStream SerialT where
 
 instance Monad m => Monad (SerialT m) where
     return = pure
+    {-# INLINE (>>=) #-}
     (>>=) = K.bindWith K.serial
+
+    -- StreamD based implementation
+    -- return = SerialT . D.fromStreamD . D.yield
+    -- m >>= f = D.fromStreamD $ D.concatMap (\a -> D.toStreamD (f a)) (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -327,6 +332,7 @@ instance Monoid (WSerialT m a) where
 
 instance Monad m => Monad (WSerialT m) where
     return = pure
+    {-# INLINE (>>=) #-}
     (>>=) = K.bindWith wSerial
 
 ------------------------------------------------------------------------------

@@ -677,23 +677,21 @@ instance MonadAsync m => Monoid (AheadT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
-{-# INLINE bindAhead #-}
-{-# SPECIALIZE bindAhead :: AheadT IO a -> (a -> AheadT IO b) -> AheadT IO b #-}
-bindAhead :: MonadAsync m => AheadT m a -> (a -> AheadT m b) -> AheadT m b
-bindAhead m f = fromStream $ K.bindWith ahead (K.adapt m) (\a -> K.adapt $ f a)
+{-# INLINE concatMapAhead #-}
+{-# SPECIALIZE concatMapAhead :: (a -> AheadT IO b) -> AheadT IO a -> AheadT IO b #-}
+concatMapAhead :: MonadAsync m => (a -> AheadT m b) -> AheadT m a -> AheadT m b
+concatMapAhead f m = fromStream $
+    K.concatMapBy ahead (\a -> K.adapt $ f a) (K.adapt m)
 
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
-    (>>=) = bindAhead
-
-{-# INLINE apAhead #-}
-{-# SPECIALIZE apAhead :: AheadT IO (a -> b) -> AheadT IO a -> AheadT IO b #-}
-apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
-apAhead mf m = ap (K.adapt mf) (K.adapt m)
+    {-# INLINE (>>=) #-}
+    (>>=) = flip concatMapAhead
 
 instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
     pure = AheadT . K.yield
-    (<*>) = apAhead
+    {-# INLINE (<*>) #-}
+    (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Other instances
