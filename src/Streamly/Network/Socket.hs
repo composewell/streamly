@@ -74,8 +74,15 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import Network.Socket
+       (withFdSocket, Socket, PortNumber, SocketOption(..), Family(..),
+        SockAddr(..), withSocketsDo, SocketType(..), socket, accept, bind,
+        defaultProtocol, setSocketOption, maxListenQueue, sendBuf, recvBuf)
 import Prelude hiding (read)
 
+import qualified Network.Socket as Net
+
+import Streamly (MonadAsync)
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
@@ -85,10 +92,6 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
-
-import Network.Socket hiding (listen)
-import qualified Network.Socket as Net
-import           Streamly (MonadAsync)
 
 -------------------------------------------------------------------------------
 -- Listen

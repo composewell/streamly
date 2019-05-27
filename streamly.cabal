@@ -266,7 +266,7 @@ library
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
-                     , network           >= 3.0   && < 4
+                     , network           >= 3.1   && < 4
 
   if impl(ghc < 8.0)
     build-depends:
