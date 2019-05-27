@@ -206,20 +206,28 @@ _last arr = readIndex arr (length arr - 1)
 -- Searching
 -------------------------------------------------------------------------------
 
+{-
 -- | Perform a binary search in the array to find an element.
-elem :: a -> Array a -> Maybe Bool
+bsearch :: a -> Array a -> Maybe Bool
+bsearch = undefined
 
 -- | Perform a binary search in the array to find an element index.
 {-# INLINE elemIndex #-}
-elemIndex :: a -> Array a -> Maybe Int
-elemIndex elem arr = undefined
+bsearchIndex :: a -> Array a -> Maybe Int
+bsearchIndex elem arr = undefined
 
 -- find/findIndex etc can potentially be implemented more efficiently on arrays
 -- compared to streams by using SIMD instructions.
 
 find :: (a -> Bool) -> Array a -> Bool
+find = undefined
+
 findIndex :: (a -> Bool) -> Array a -> Maybe Int
+findIndex = undefined
+
 findIndices :: (a -> Bool) -> Array a -> Array Int
+findIndices = undefined
+-}
 
 -------------------------------------------------------------------------------
 -- Folds
