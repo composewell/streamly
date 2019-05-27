@@ -431,6 +431,7 @@ module Streamly.Prelude
 
     , concatMapM
     , concatMap
+    , K.concatMapBy
     -- , interposeBy
     -- , intercalate
 
