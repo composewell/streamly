@@ -32,6 +32,8 @@ module Streamly.Streams.Serial
     , InterleavedT      -- deprecated
     , WSerial
     , wSerial
+    , wSerialEndByFirst
+    , wSerialEndByAny
     , (<=>)            -- deprecated
     , wSerially
     , interleaving     -- deprecated
@@ -295,6 +297,8 @@ instance IsStream WSerialT where
 
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
+-- When one stream stops the rest of the other stream is used in the output
+-- stream.
 --
 -- @since 0.2.0
 {-# INLINE wSerial #-}
@@ -302,6 +306,35 @@ wSerial :: IsStream t => t m a -> t m a -> t m a
 wSerial m1 m2 = mkStream $ \st yld sng stp -> do
     let stop       = foldStream st yld sng stp m2
         single a   = yld a m2
+        yieldk a r = yld a (wSerial m2 r)
+    foldStream st yieldk single stop m1
+
+-- | Like `wSerial` but stops interleaving as soon as the first stream stops.
+--
+-- @since 0.7.0
+{-# INLINE wSerialEndByFirst #-}
+wSerialEndByFirst :: IsStream t => t m a -> t m a -> t m a
+wSerialEndByFirst m1 m2 = mkStream $ \st yld sng stp -> do
+    let yieldFirst a r = yld a (yieldSecond r m2)
+     in foldStream st yieldFirst sng stp m1
+
+    where
+
+    yieldSecond s1 s2 = mkStream $ \st yld sng stp -> do
+            let stop       = foldStream st yld sng stp s1
+                single a   = yld a s1
+                yieldk a r = yld a (wSerial s1 r)
+             in foldStream st yieldk single stop s2
+
+-- | Like `wSerial` but stops interleaving as soon as any of the two streams
+-- stops.
+--
+-- @since 0.7.0
+{-# INLINE wSerialEndByAny #-}
+wSerialEndByAny :: IsStream t => t m a -> t m a -> t m a
+wSerialEndByAny m1 m2 = mkStream $ \st yld sng stp -> do
+    let stop       = stp
+        single a   = sng a
         yieldk a r = yld a (wSerial m2 r)
     foldStream st yieldk single stop m1
 
