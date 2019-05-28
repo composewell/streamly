@@ -367,6 +367,8 @@ module Streamly.Prelude
 
     , insertBy
     , intersperseM
+    -- , intersperseBySpan
+    , intersperseByTime
 
     -- ** Reordering
     , reverse
@@ -470,6 +472,7 @@ module Streamly.Prelude
     )
 where
 
+import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
@@ -507,6 +510,7 @@ import qualified Streamly.Streams.StreamD as S
 #endif
 
 import qualified Streamly.Streams.Serial as Serial
+import qualified Streamly.Streams.Parallel as Par
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -1858,8 +1862,8 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- Transformation by Reordering
 ------------------------------------------------------------------------------
 
--- XXX to scale this we need to use a slab allocated array backed
--- representation for temporary storage.
+-- XXX Use a compact region list to temporarily store the list, in both reverse
+-- as well as in reverse'.
 --
 -- |
 -- > reverse = S.foldlT (flip S.cons) S.nil
@@ -1886,20 +1890,53 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 -- Transformation by Inserting
 ------------------------------------------------------------------------------
 
+-- intersperseM = intersperseBySpan 1
+
 -- | Generate a stream by performing a monadic action between consecutive
 -- elements of the given stream.
 --
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @
--- > S.toList $ S.intersperseM (putChar \'a' >> return ',') $ S.fromList "hello"
--- aaaa"h,e,l,l,o"
+-- > S.toList $ S.intersperseM (return ',') $ S.fromList "hello"
+-- "h,e,l,l,o"
 -- @
 --
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM = K.intersperseM
+
+{-
+-- | Intersperse a monadic action into the input stream after every @n@
+-- elements.
+--
+-- @
+-- > S.toList $ S.intersperseBySpan 2 (return ',') $ S.fromList "hello"
+-- "he,ll,o"
+-- @
+--
+-- @since 0.7.0
+{-# INLINE intersperseBySpan #-}
+intersperseBySpan :: IsStream t => Int -> m a -> t m a -> t m a
+intersperseBySpan _n _f _xs = undefined
+-}
+
+-- | Intersperse a monadic action into the input stream after every @n@
+-- seconds.
+--
+-- @
+-- > S.drain $ S.intersperseByTime 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
+-- "h,e,l,l,o"
+-- @
+--
+-- @since 0.7.0
+{-# INLINE intersperseByTime #-}
+intersperseByTime
+    :: (IsStream t, MonadAsync m)
+    => Double -> m a -> t m a -> t m a
+intersperseByTime n f xs = xs `Par.parallelEndByFirst` repeatM timed
+    where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
 -- @stream@ that is less than @elem@ when compared using @cmp@.
@@ -2070,6 +2107,24 @@ mergeByM
     :: (IsStream t, Monad m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
 mergeByM f m1 m2 = fromStreamS $ S.mergeByM f (toStreamS m1) (toStreamS m2)
+
+{-
+-- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
+{-# INLINABLE mergeUptoShortest #-}
+mergeEndByAny
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeEndByAny f m1 m2 = fromStreamD $
+    D.mergeEndByAny f (toStreamD m1) (toStreamD m2)
+
+-- Like 'mergeByM' but stops merging as soon as the first stream stops.
+{-# INLINABLE mergeEndByFirst #-}
+mergeEndByFirst
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeEndByFirst f m1 m2 = fromStreamS $
+    D.mergeEndByFirst f (toStreamD m1) (toStreamD m2)
+-}
 
 -- Holding this back for now, we may want to use the name "merge" differently
 {-

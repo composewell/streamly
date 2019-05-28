@@ -1123,12 +1123,9 @@ lcatMaybes = lfilter isJust . lmap fromJust
 sessionsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
-sessionsOf n f m = splitSuffixBy' isNothing (lcatMaybes f) s
-    where
-    s = S.map Just m `parallel` S.repeatM timeout
-    timeout = do
-        liftIO $ threadDelay (round $ n * 1000000)
-        return Nothing
+sessionsOf n f xs =
+    splitSuffixBy' isNothing (lcatMaybes f)
+        (S.intersperseByTime n (return Nothing) (S.map Just xs))
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs

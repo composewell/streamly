@@ -23,6 +23,8 @@ module Streamly.Streams.Parallel
     , Parallel
     , parallely
     , parallel
+    , parallelEndByFirst
+    , parallelEndByAny
 
     -- * Function application
     , mkParallel
@@ -42,9 +44,12 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
+import Data.IORef (readIORef, writeIORef)
 import Data.Maybe (fromJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
+
+import qualified Data.Set as Set
 
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
@@ -88,22 +93,28 @@ runOne st m winfo = foldStreamShared st yieldk single stop m
         >> withLimitCheck (void $ liftIO $ mrun $ runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}
-forkSVarPar :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-forkSVarPar m r = mkStream $ \st yld sng stp -> do
-    sv <- newParallelVar st
+forkSVarPar :: (IsStream t, MonadAsync m)
+    => SVarStopStyle -> t m a -> t m a -> t m a
+forkSVarPar ss m r = mkStream $ \st yld sng stp -> do
+    sv <- newParallelVar ss st
     pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
+    case ss of
+        StopBy -> liftIO $ do
+            set <- readIORef (workerThreads sv)
+            writeIORef (svarStopBy sv) $ Set.elemAt 0 set
+        _ -> return ()
     pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream r)
     foldStream st yld sng stp (fromSVar sv)
 
 {-# INLINE joinStreamVarPar #-}
 joinStreamVarPar :: (IsStream t, MonadAsync m)
-    => SVarStyle -> t m a -> t m a -> t m a
-joinStreamVarPar style m1 m2 = mkStream $ \st yld sng stp ->
+    => SVarStyle -> SVarStopStyle -> t m a -> t m a -> t m a
+joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
-        Just sv | svarStyle sv == style -> do
+        Just sv | svarStyle sv == style && svarStopStyle sv == ss -> do
             pushWorkerPar sv (runOne st $ toStream m1)
             foldStreamShared st yld sng stp m2
-        _ -> foldStreamShared st yld sng stp (forkSVarPar m1 m2)
+        _ -> foldStreamShared st yld sng stp (forkSVarPar ss m1 m2)
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using parallel.
@@ -118,7 +129,28 @@ consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 -- @since 0.2.0
 {-# INLINE parallel #-}
 parallel :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallel = joinStreamVarPar ParallelVar
+parallel = joinStreamVarPar ParallelVar StopNone
+
+-- This is a co-parallel like combinator for streams, where first stream is the
+-- main stream and the rest are just supporting it, when the first ends
+-- everything ends.
+--
+-- | Like `parallel` but stops the output as soon as the first stream stops.
+--
+-- @since 0.7.0
+{-# INLINE parallelEndByFirst #-}
+parallelEndByFirst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelEndByFirst = joinStreamVarPar ParallelVar StopBy
+
+-- This is a race like combinator for streams.
+--
+-- | Like `parallel` but stops the output as soon as any of the two streams
+-- stops.
+--
+-- @since 0.7.0
+{-# INLINE parallelEndByAny #-}
+parallelEndByAny :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelEndByAny = joinStreamVarPar ParallelVar StopAny
 
 ------------------------------------------------------------------------------
 -- Convert a stream to parallel
@@ -126,7 +158,7 @@ parallel = joinStreamVarPar ParallelVar
 
 mkParallel :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkParallel m = do
-    sv <- newParallelVar defState
+    sv <- newParallelVar StopNone defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     return $ fromSVar sv
 
@@ -137,7 +169,7 @@ mkParallel m = do
 {-# INLINE applyParallel #-}
 applyParallel :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
 applyParallel f m = mkStream $ \st yld sng stp -> do
-    sv <- newParallelVar (adaptState st)
+    sv <- newParallelVar StopNone (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
     foldStream st yld sng stp $ f $ fromSVar sv
 
@@ -148,7 +180,7 @@ applyParallel f m = mkStream $ \st yld sng stp -> do
 {-# INLINE foldParallel #-}
 foldParallel :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
 foldParallel f m = do
-    sv <- newParallelVar defState
+    sv <- newParallelVar StopNone defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
 

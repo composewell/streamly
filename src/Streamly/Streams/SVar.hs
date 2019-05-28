@@ -68,12 +68,23 @@ fromStreamVar sv = mkStream $ \st yld sng stp -> do
             ChildStop tid e -> do
                 accountThread sv tid
                 case e of
-                    Nothing -> foldStream st yld sng stp rest
+                    Nothing -> do
+                        stop <- shouldStop tid
+                        if stop
+                        then liftIO (cleanupSVar sv) >> allDone stp
+                        else foldStream st yld sng stp rest
                     Just ex ->
                         case fromException ex of
                             Just ThreadAbort ->
                                 foldStream st yld sng stp rest
                             Nothing -> liftIO (cleanupSVar sv) >> throwM ex
+    shouldStop tid =
+        case svarStopStyle sv of
+            StopNone -> return False
+            StopAny -> return True
+            StopBy -> do
+                sid <- liftIO $ readIORef (svarStopBy sv)
+                return $ if tid == sid then True else False
 
 {-# INLINE fromSVar #-}
 fromSVar :: (MonadAsync m, IsStream t) => SVar Stream m a -> t m a
