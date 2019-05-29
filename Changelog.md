@@ -5,21 +5,34 @@
 * Change the signature of `foldrM` to ensure that it is lazy
 * `scanx` would now require an additional `Monad m` constraint.
 
+### Major Enhancements
+
+Following new modules have been added:
+
+* `Streamly.Mem.Array`
+* `Streamly.Fold`
+* `Streamly.FileSystem.File`
+* `Streamly.String`
+
+The functionality in these modules is described below. For details see the
+haddock docs of the modules:
+
+* `Streamly.Mem.Array` module provides efficient arrays for buffering and IO.
+* `Streamly.Fold` module provides composable folds (stream consumers). This
+  brings in stream splitting, grouping, partitioning, unzipping and nesting
+  features without breaking the stream.
+* `Streamly.FileSystem.File` provides file IO operations.
+* `Streamly.String` module provides encoding/decoding of character streams and
+  other character stream operations.
+
 ### Enhancements
 
-* MAJOR: Add `Streamly.Mem.Array` module to support efficient
-  arrays for buffering and IO. See the haddock docs for the module.
-* MAJOR: Add `Streamly.Fold` module to support composable folds (stream
-  consumers). This brings in stream splitting, grouping, partitioning,
-  unzipping and nesting features without breaking streaming. See the haddock
-  docs for the module.
-* MAJOR: Add `Streamly.FileSystem.File` module to support file IO.
-* Add `Streamly.String` module for encoding/decoding character streams and
-  other character stream operations.
 * Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
     * `reverse'` a several times faster reverse using Storable instance
+    * `intersperseByTime` intersperse a mondadic action in a stream
+      periodically
 
 ### Deprecations
 
