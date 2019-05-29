@@ -7,13 +7,15 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Strings are simply character streams. Stream of 'Char' are the equivalent of
--- Haskell Strings but without any performance issues that are usually
--- associated with the 'String' type. We can use the usual stream processing
--- routines in these 'Char' streams. The processing of streams is very
--- efficient in terms of CPU and space usage. Streamly employs stream fusion
--- which makes all the stream operations extremely fast.
---
+-- Stream of 'Char' are the equivalent of Haskell Strings but without any
+-- performance issues that are usually associated with the 'String' type.
+-- Haskell lists are not suitable for storage in GC memory. We use streams for
+-- processing and arrays for storing. We can use the usual stream processing
+-- routines on these 'Char' streams. Stream processing is very efficient due to
+-- stream fusion. If strings are to be stored or buffered in memory, they can
+-- be encoded to 'Word8' arrays using the encoding routines provided in the
+-- module. Therefore, a separate type for text representation is not required.
+
 -- The 'String' type in this module is just a synonym for the type @List Char@.
 -- It provides better performance compared to the standard Haskell @String@
 -- type and can be used almost as a drop-in replacement, especially when used
@@ -26,13 +28,13 @@
 -- vector.
 --
 module Streamly.String
-    ( String
-    -- * Encoding and Decoding
-    -- | Streams of 'Word8' read from a file handle can be decoded into a
-    -- stream of unicode characters, similalrly before we write unicode text to
-    -- a file we can use an encoding routine to convert it to a stream of bytes
-    -- before writing.
+    (
+    -- String
 
+    -- * Encoding and Decoding
+      encodeChar8
+    , encodeChar8Unchecked
+    , decodeChar8
 {-
     , encodeUtf8
     , decodeUtf8
@@ -57,14 +59,18 @@ module Streamly.String
     )
 where
 
--- import Data.Word (Word8)
--- import Streamly (IsStream)
-import Streamly.List (List)
+import Data.Char (ord)
+import Data.Word (Word8)
+import GHC.Base (unsafeChr)
+import Streamly (IsStream)
+-- import Streamly.List (List)
 import Prelude hiding (String, lines, words, unlines, unwords)
 -- import Streamly.Fold (Fold)
 -- import Streamly.Array (Array)
 
-type String = List Char
+import qualified Streamly.Prelude as S
+
+-- type String = List Char
 
 -------------------------------------------------------------------------------
 -- Encoding/Decoding Characters
@@ -76,6 +82,30 @@ type String = List Char
 -------------------------------------------------------------------------------
 -- Encoding/Decoding Unicode Characters
 -------------------------------------------------------------------------------
+
+-- | Decode a stream of bytes to Unicode characters by mapping each byte to a
+-- corresponding Unicode 'Char' in 0-255 range.
+decodeChar8 :: (IsStream t, Monad m) => t m Word8 -> t m Char
+decodeChar8 = S.map (unsafeChr . fromIntegral)
+
+-- | Encode a stream of Unicode characters to bytes by mapping each character
+-- to a byte in 0-255 range. Throws an error if the input stream contains
+-- characters beyond 255.
+encodeChar8 :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeChar8 = S.map convert
+    where
+    convert c =
+        let codepoint = ord c
+        in if codepoint > 255
+           then error $ "Streamly.String.encodeChar8 invalid \
+                    \input char codepoint " ++ show codepoint
+           else fromIntegral codepoint
+
+-- | Like 'encodeChar8' but silently truncates and maps input characters beyond
+-- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
+-- when such truncation occurs.
+encodeChar8Unchecked :: (IsStream t, Monad m) => t m Char -> t m Word8
+encodeChar8Unchecked = S.map (fromIntegral . ord)
 
 {-
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.

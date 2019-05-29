@@ -200,7 +200,6 @@ library
 
                     -- Pure streams
                      , Streamly.List
-                     , Streamly.String
 
                     -- Folds
                      , Streamly.Fold.Types
@@ -212,6 +211,9 @@ library
                      , Streamly
                      , Streamly.Fold
 
+                     , Streamly.String
+
+                    -- IO devices
                      , Streamly.Mem.Array
                      , Streamly.FileSystem.File
                      , Streamly.Network.Socket

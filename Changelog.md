@@ -14,6 +14,8 @@
   unzipping and nesting features without breaking streaming. See the haddock
   docs for the module.
 * MAJOR: Add `Streamly.FileSystem.File` module to support file IO.
+* Add `Streamly.String` module for encoding/decoding character streams and
+  other character stream operations.
 * Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
