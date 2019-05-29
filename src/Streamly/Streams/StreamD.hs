@@ -215,7 +215,7 @@ module Streamly.Streams.StreamD
     , zipWith
     , zipWithM
 
-    -- * Comparisions
+    -- * Comparisons
     , eqBy
     , cmpBy
 
@@ -225,9 +225,19 @@ module Streamly.Streams.StreamD
 
     -- * Transformation comprehensions
     , the
+
+    -- * Exceptions
+    , before
+    , after
+    , bracket
+    , onException
+    , finally
+    , handle
     )
 where
 
+import Control.Exception (Exception)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Word (Word32)
@@ -242,6 +252,8 @@ import Prelude
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
+
+import qualified Control.Monad.Catch as MC
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
@@ -1662,6 +1674,100 @@ mapM_ m = drain . mapM m
 {-# INLINE fromStreamD #-}
 fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
 fromStreamD = K.fromStream . toStreamK
+
+------------------------------------------------------------------------------
+-- Exceptions
+------------------------------------------------------------------------------
+
+-- | Run a side effect before the stream yields its first element.
+before :: Monad m => m b -> Stream m a -> Stream m a
+before action (Stream step state) = Stream step' Nothing
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = action >> return (Skip (Just state))
+
+    step' gst (Just st) = do
+        res <- step gst st
+        case res of
+            Yield x s -> return $ Yield x (Just s)
+            Skip s    -> return $ Skip (Just s)
+            Stop      -> return Stop
+
+-- | Run a side effect whenever the stream stops normally.
+after :: Monad m => m b -> Stream m a -> Stream m a
+after action (Stream step state) = Stream step' state
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        res <- step gst st
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- | Run a side effect whenever the stream aborts due to an exception. The
+-- exception is not caught simply rethrown.
+onException :: MonadCatch m => m b -> Stream m a -> Stream m a
+onException action (Stream step state) = Stream step' state
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        res <- step gst st `MC.onException` action
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- XXX check if a monolithic implementation would be more performant.
+--
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception.
+finally :: MonadCatch m => m b -> Stream m a -> Stream m a
+finally action xs = after action $ onException action xs
+
+-- | Run the first action before the stream starts and remember its output,
+-- generate a stream using the output, run the second action using the
+-- remembered value as an argument whenever the stream ends normally or due to
+-- an exception.
+bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+bracket bef aft bet = Stream step' Nothing
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = bef >>= \x -> return (Skip (Just (bet x, x)))
+
+    step' gst (Just (Stream step state, v)) = do
+        res <- step gst state `MC.onException` aft v
+        case res of
+            Yield x s -> return $ Yield x (Just (Stream step s, v))
+            Skip s    -> return $ Skip (Just (Stream step s, v))
+            Stop      -> aft v >> return Stop
+
+-- | When evaluating a stream if an exception occurs, stream evaluation aborts
+-- and the specified exception handler is run with the exception as argument.
+handle :: (MonadCatch m, Exception e) => (e -> m a) -> Stream m a -> Stream m a
+handle f (Stream step state) = Stream step' (Just state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (Just st) = do
+        res <- MC.try $ step gst st
+        case res of
+            Left e -> f e >>= \x -> return (Yield x Nothing)
+            Right r -> case r of
+                Yield x s -> return $ Yield x (Just s)
+                Skip s    -> return $ Skip (Just s)
+                Stop      -> return Stop
+
+    step' _ Nothing = return Stop
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

@@ -457,6 +457,14 @@ module Streamly.Prelude
     -- , stripSuffix
     -- , stripInfix
 
+    -- * Exceptions
+    , before
+    , after
+    , bracket
+    , onException
+    , finally
+    , handle
+
     -- * Deprecated
     , K.once
     , each
@@ -473,6 +481,8 @@ module Streamly.Prelude
 where
 
 import Control.Concurrent (threadDelay)
+import Control.Exception (Exception)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
@@ -2211,3 +2221,39 @@ interposeBy :: (IsStream t, Monad m)
 -- | A generalization of intersperseM to intersperse sequences.
 intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -}
+
+------------------------------------------------------------------------------
+-- Exceptions
+------------------------------------------------------------------------------
+
+-- | Run a side effect before the stream yields its first element.
+before :: (IsStream t, Monad m) => m b -> t m a -> t m a
+before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream stops normally.
+after :: (IsStream t, Monad m) => m b -> t m a -> t m a
+after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream aborts due to an exception.
+onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
+onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception.
+finally :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
+finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
+
+-- | Run the first action before the stream starts and remember its output,
+-- generate a stream using the output, run the second action using the
+-- remembered value as an argument whenever the stream ends normally or due to
+-- an exception.
+bracket :: (IsStream t, MonadCatch m)
+    => m b -> (b -> m c) -> (b -> t m a) -> t m a
+bracket bef aft bet = D.fromStreamD $
+    D.bracket bef aft (\x -> toStreamD $ bet x)
+
+-- | When evaluating a stream if an exception occurs, stream evaluation aborts
+-- and the specified exception handler is run with the exception as argument.
+handle :: (IsStream t, MonadCatch m, Exception e)
+    => (e -> m a) -> t m a -> t m a
+handle handler xs = D.fromStreamD $ D.handle handler $ D.toStreamD xs
