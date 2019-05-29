@@ -1,4 +1,14 @@
--- A concurrent TCP server that prints everything it receives to stdout.
+-- A concurrent TCP server that:
+--
+-- * receives connections from clients
+-- * splits the incoming data into lines
+-- * lines from concurrent connections are merged into a single srteam
+-- * writes the line stream to an output file
+
+import Control.Monad.IO.Class (liftIO)
+import Data.Char (ord, chr)
+import System.IO (openFile, IOMode(..), hClose, hPutStrLn)
+import System.Environment (getArgs)
 
 import Streamly
 import qualified Streamly.Fold as FL
@@ -8,15 +18,20 @@ import qualified Network.Socket as NS
 import qualified Streamly.Prelude as S
 
 main :: IO ()
-main = S.drain
-    $ parallely $ S.mapM (withSocket recv)
-    $ serially  $ fmap fst (NS.recvConnectionsOn 8090)
+main = do
+    h <- openOutput
+    S.mapM_ (hPutLines h)
+        $ S.concatMapBy parallel (withSocket recv)
+        $ fmap fst (NS.recvConnectionsOn 8090)
+    hClose h
 
     where
 
-    withSocket f sk = f sk >> NS.close sk
+    openOutput = fmap head getArgs >>= \file -> openFile file AppendMode
+
+    withSocket f sk = S.finally (liftIO (NS.close sk)) (f sk)
+    hPutLines h = hPutStrLn h . map (chr . fromIntegral) . A.toList
+    ord' = (fromIntegral . ord)
     recv =
-          S.mapM_ print
-        . FL.sessionsOf 3 FL.sum
-        . S.map A.length
-        . NS.readArrays
+          FL.splitSuffixBy (== ord' '\n') (A.toArrayN 1024)
+        . NS.read
