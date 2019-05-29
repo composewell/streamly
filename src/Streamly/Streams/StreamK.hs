@@ -229,6 +229,23 @@ unfoldrM step = go
                     Just (a, b) -> yld a (go b)
                     Nothing -> stp
 
+{-
+-- Generalization of concurrent streams/SVar via unfoldr.
+--
+-- Unfold a value into monadic actions and then run the resulting monadic
+-- actions to generate a stream. Since the step of generating the monadic
+-- action and running them are decoupled we can run the monadic actions
+-- cooncurrently. For example, the seed could be a list of monadic actions or a
+-- pure stream of monadic actions.
+--
+-- We can have different flavors of this depending on the stream type t. The
+-- concurrent version could be async or ahead etc. Depending on how we queue
+-- back the feedback portion b, it could be DFS or BFS style.
+--
+unfoldrA :: (IsStream t, MonadAsync m) => (b -> Maybe (m a, b)) -> b -> t m a
+unfoldrA = undefined
+-}
+
 -------------------------------------------------------------------------------
 -- Special generation
 -------------------------------------------------------------------------------
