@@ -7,25 +7,46 @@
 
 ### Major Enhancements
 
-Following new modules have been added:
+This release contains a lot of new features and major enhancements.  For more
+details on the new features described below please see the haddock docs of the
+modules on hackage.
 
-* `Streamly.Mem.Array`
-* `Streamly.Fold`
-* `Streamly.FileSystem.File`
-* `Streamly.String`
+#### Exception Handling
 
-The functionality in these modules is described below. For details see the
-haddock docs of the modules:
+See `Streamly.Prelude` for new exception handling combinators like `before`,
+`after`, `bracket`, `onException`, `finally`, `handle` etc.
 
-* `Streamly.Mem.Array` module provides efficient arrays for buffering and IO.
-* `Streamly.Fold` module provides composable folds (stream consumers). This
-  brings in stream splitting, grouping, partitioning, unzipping and nesting
-  features without breaking the stream.
-* `Streamly.FileSystem.File` provides file IO operations.
-* `Streamly.String` module provides encoding/decoding of character streams and
-  other character stream operations.
+#### Composable Folds
 
-### Enhancements
+`Streamly.Fold` module provides composable folds (stream consumers). This
+brings in stream splitting, grouping, partitioning, unzipping and nesting
+feature without breaking the stream. Combinators are provided for temporal and
+spatial window based fold operations, for example, to support folding and
+aggregating data for timeout or inactivity based sessions.
+
+#### Streaming File IO
+
+`Streamly.FileSystem.File` provides handle based streaming file IO
+operations.
+
+#### Streaming Network IO
+
+`Streamly.Network.Socket` provides socket based streaming network IO
+operations.
+
+#### Concurrent concatMap
+
+The new `concatMapBy` combinator performs a `concatMap` using a supplied
+merge/concat strategy. This is a very powerful combinator as you can, for
+example, concat streams concurrently using this.
+
+### Other Enhancements
+
+* Add the following new features/modules:
+  * _Unicode Strings_: `Streamly.String` module provides encoding/decoding of
+    character streams and other character stream operations.
+  * _Arrays_: `Streamly.Mem.Array` module provides arrays for efficient
+    in-memory buffering and efficient interfacing with IO.
 
 * Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream
