@@ -224,6 +224,7 @@ module Streamly.Fold
     -- *** By Elements
     , splitBy
     , splitSuffixBy
+    , splitSuffixBy'
     -- , splitPrefixBy
     , wordsBy
 
