@@ -15,7 +15,7 @@ import System.Process.Typed (shell, runProcess_)
 import Data.IORef
 import Gauge
 
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
 
@@ -91,7 +91,7 @@ main = do
         [ bgroup "readArray"
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
-                let s = File.readArrays inh
+                let s = FH.readArrays inh
                 larr <- S.last s
                 return $ case larr of
                     Nothing -> Nothing
@@ -101,53 +101,53 @@ main = do
             -- and counting characters.
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
-                let s = File.readArrays inh
+                let s = FH.readArrays inh
                 S.sum (S.map A.length s)
             , mkBench "sum" href $ do
                 let foldlArr' f z = runIdentity . S.foldl' f z . A.read
                 Handles inh _ <- readIORef href
-                let s = File.readArrays inh
+                let s = FH.readArrays inh
                 S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
-                S.last $ File.read inh
+                S.last $ FH.read inh
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ File.read inh
+                S.length $ FH.read inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
-                S.sum $ File.read inh
+                S.sum $ FH.read inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
                 Handles inh outh <- readIORef href
-                let s = File.readArrays inh
-                File.writeArrays outh s
+                let s = FH.readArrays inh
+                FH.writeArrays outh s
             ]
 #ifdef DEVBUILD
         -- This takes a little longer therefore put under the dev conditional
         , bgroup "copyStream"
             [ mkBench "fromToHandle" href $ do
                 Handles inh outh <- readIORef href
-                File.write outh (File.read inh)
+                FH.write outh (FH.read inh)
             ]
         , bgroup "grouping"
             [ mkBench "chunksOf 1 (toArray)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.chunksOf fileSize (A.toArrayN fileSize)
-                                (File.read inh)
+                                (FH.read inh)
 
             , mkBench "chunksOf 1" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 1 FL.drain (File.read inh)
+                S.length $ FL.chunksOf 1 FL.drain (FH.read inh)
             , mkBench "chunksOf 10" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 10 FL.drain (File.read inh)
+                S.length $ FL.chunksOf 10 FL.drain (FH.read inh)
             , mkBench "chunksOf 1000" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 1000 FL.drain (File.read inh)
+                S.length $ FL.chunksOf 1000 FL.drain (FH.read inh)
             ]
 
         , let lf = fromIntegral (ord '\n')
@@ -158,66 +158,66 @@ main = do
             [ bgroup "predicate"
                 [ mkBenchText "splitBy \\n (line count)" inText $ do
                     (S.length $ FL.splitBy (== lf) FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitSuffixBy \\n (line count)" inText $ do
                     (S.length $ FL.splitSuffixBy (== lf) FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "wordsBy isSpace (word count)" inText $ do
                     (S.length $ FL.wordsBy isSp FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 ]
 
             , bgroup "empty-pattern"
                 [ mkBenchText "splitOn \"\"" inText $ do
                     (S.length $ FL.splitOn (A.fromList []) FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitSuffixOn \"\"" inText $ do
                     (S.length $ FL.splitSuffixOn (A.fromList []) FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 ]
             , bgroup "short-pattern"
                 [ mkBenchText "splitOn \\n (line count)" inText $ do
                     (S.length $ FL.splitOn lfarr FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitSuffixOn \\n (line count)" inText $ do
                     (S.length $ FL.splitSuffixOn lfarr FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn a" inText $ do
                     (S.length $ FL.splitOn (toarr "a") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn \\r\\n" inText $ do
                     (S.length $ FL.splitOn (toarr "\r\n") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitSuffixOn \\r\\n)" inText $ do
                     (S.length $ FL.splitSuffixOn (toarr "\r\n") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn aa" inText $ do
                     (S.length $ FL.splitOn (toarr "aa") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn aaaa" inText $ do
                     (S.length $ FL.splitOn (toarr "aaaa") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn abcdefgh" inText $ do
                     (S.length $ FL.splitOn (toarr "abcdefgh") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 ]
             , bgroup "long-pattern"
                 [ mkBenchText "splitOn abcdefghi" inText $ do
                     (S.length $ FL.splitOn (toarr "abcdefghi") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn catcatcatcatcat" inText $ do
                     (S.length $ FL.splitOn (toarr "catcatcatcatcat") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 , mkBenchText "splitOn abc...xyz" inText $ do
                     (S.length $ FL.splitOn
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
-                            $ File.read inText) >>= print
+                            $ FH.read inText) >>= print
                 , mkBenchText "splitSuffixOn abc...xyz" inText $ do
                     (S.length $ FL.splitSuffixOn
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
-                            $ File.read inText) >>= print
+                            $ FH.read inText) >>= print
                 ]
             ]
 #endif

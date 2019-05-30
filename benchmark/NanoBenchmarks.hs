@@ -10,7 +10,7 @@ import Streamly (SerialT)
 import Streamly.SVar (MonadAsync)
 
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Fold as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamK as K
@@ -112,7 +112,7 @@ main = do
     defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
                 (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
                     "abcdefghijklmnopqrstuvwxyz") FL.drain
-                        $ File.read inText) >>= print
+                        $ FH.read inText) >>= print
                 ]
     where
 

@@ -7,7 +7,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.FileSystem.File
+-- Module      : Streamly.FileSystem.Handle
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3
@@ -15,19 +15,20 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Read and write streams and arrays to and from files. File IO APIs are quite
--- similar to "Streamly.Mem.Array" read write APIs. In that regard, arrays can
--- be considered as in-memory files or files can be considered as on-disk
--- arrays.  IO APIs are divided into two categories, sequential streaming IO
--- APIs and random access IO APIs.  Control over the file reading and writing
--- behavior in terms of buffering, encoding, decoding is in the hands of the
--- programmer, the 'TextEncoding', 'NewLineMode', and 'Buffering' options of
--- the underlying handle provided by GHC are not needed and ignored.
+-- Read and write streams and arrays to and from file handles. File handle IO
+-- APIs are quite similar to "Streamly.Mem.Array" read write APIs. In that
+-- regard, arrays can be considered as in-memory files or files can be
+-- considered as on-disk arrays.  IO APIs are divided into two categories,
+-- sequential streaming IO APIs and random access IO APIs.  Control over the
+-- file reading and writing behavior in terms of buffering, encoding, decoding
+-- is in the hands of the programmer, the 'TextEncoding', 'NewLineMode', and
+-- 'Buffering' options of the underlying handle provided by GHC are not needed
+-- and ignored.
 --
--- > import qualified Streamly.FileSystem.File as File
+-- > import qualified Streamly.FileSystem.Handle as FH
 --
 
-module Streamly.FileSystem.File
+module Streamly.FileSystem.Handle
     (
     -- * Streaming IO
     -- | Stream data to or from a file or device sequentially.  When reading,
@@ -47,11 +48,7 @@ module Streamly.FileSystem.File
     -- Devices like terminals, pipes, sockets and fifos do not have random
     -- access capability.
 
-    -- TODO file path based APIs
-    -- , readFile
-    -- , writeFile
-
-    -- ** Read File to Stream
+    -- ** Read Handle to Stream
       read
     -- , readUtf8
     -- , readLines
