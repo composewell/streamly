@@ -34,11 +34,12 @@ module Streamly.Network.Socket
     (
     -- ** Listen for Connections
        ServerSpec(..)
-     , recvConnectionsWith
-     , recvConnectionsOn
+    , recvConnectionsWith
+    , recvConnectionsOn
 
     -- ** Read a stream from a connection
-      , read
+    , fromSocket
+    , read
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -66,6 +67,7 @@ module Streamly.Network.Socket
 where
 
 import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.Word (Word8)
@@ -124,9 +126,10 @@ initListener tcpListenQ ServerSpec{..} =
 -- generates a stream of connected sockets and the endpoint they are connected
 -- to. The first argument is the maximum number of pending connections in the
 -- backlog.
-{-# INLINE recvConnectionsWith #-}
-recvConnectionsWith :: MonadAsync m => Int -> ServerSpec -> SerialT m (Socket, SockAddr)
-recvConnectionsWith tcpListenQ opts = S.unfoldrM step Nothing
+{-# INLINE recvConnectionTuplesWith #-}
+recvConnectionTuplesWith :: MonadAsync m
+    => Int -> ServerSpec -> SerialT m (Socket, SockAddr)
+recvConnectionTuplesWith tcpListenQ opts = S.unfoldrM step Nothing
     where
     step Nothing = do
         listener <- liftIO $ initListener tcpListenQ opts
@@ -139,14 +142,28 @@ recvConnectionsWith tcpListenQ opts = S.unfoldrM step Nothing
         -- XXX error handling
         return $ Just (r, Just listener)
 
-{-# INLINE recvConnectionsOn #-}
-recvConnectionsOn :: MonadAsync m => PortNumber -> SerialT m (Socket, SockAddr)
-recvConnectionsOn port =
-    recvConnectionsWith maxListenQueue ServerSpec
+{-# INLINE recvConnectionsWith #-}
+recvConnectionsWith :: MonadAsync m => Int -> ServerSpec -> SerialT m Socket
+recvConnectionsWith tcpListenQ opts = fmap fst $
+    recvConnectionTuplesWith tcpListenQ opts
+
+{-# INLINE recvConnectionTuplesOn #-}
+recvConnectionTuplesOn :: MonadAsync m
+    => PortNumber -> SerialT m (Socket, SockAddr)
+recvConnectionTuplesOn port =
+    recvConnectionTuplesWith maxListenQueue ServerSpec
         { serverAddressFamily = AF_INET
         , serverAddress = SockAddrInet port 0
         , serverSockOpts = [(NoDelay,1), (ReuseAddr,1)]
         }
+
+{-# INLINE recvConnectionsOn #-}
+recvConnectionsOn :: MonadAsync m => PortNumber -> SerialT m Socket
+recvConnectionsOn = fmap fst . recvConnectionTuplesOn
+
+-- | Read a stream of Word8 from a socket, closing the socket when done.
+fromSocket :: (MonadCatch m, MonadIO m) => Socket -> SerialT m Word8
+fromSocket sk = S.finally (liftIO (Net.close sk)) (read sk)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
