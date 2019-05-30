@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Array
+-- Module      : Streamly.Mem.Array.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Array.Types
+module Streamly.Mem.Array.Types
     (
       Array (..)
 
@@ -129,6 +129,7 @@ import qualified Data.Foldable as F
 -- We can use a "Storable" constraint in the Array type and the Constraint can
 -- be automatically provided to a function that pattern matches on the Array
 -- type. However, it has huge performance cost, so we do not use it.
+-- XXX Can this cost be alleviated in GHC-8.10 specialization fix?
 --
 -- XXX Another way to not require the Storable constraint in array operations
 -- is to store the elemSize in the array at construction and use that instead

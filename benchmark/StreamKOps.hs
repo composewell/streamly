@@ -15,16 +15,20 @@ import Data.Maybe (isJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, even, (>), (<=), div,
         subtract, undefined, Maybe(..), not, (>>=),
-        maxBound, flip)
+        maxBound, flip, (<$>), (<*>), round, (/), (**), (<))
 import qualified Prelude as P
+import qualified Data.List as List
 
 import qualified Streamly.Streams.StreamK as S
 import qualified Streamly.Streams.Prelude as SP
 import qualified Streamly.SVar as S
 
-value, maxValue :: Int
+value, value2, value3, value16, maxValue :: Int
 value = 100000
-maxValue = value + 1000
+value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
+value16 = round (P.fromIntegral value**(1/16::P.Double)) -- triple nested loop
+maxValue = value
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -35,8 +39,7 @@ maxValue = value + 1000
 {-# INLINE nullTail #-}
 {-# INLINE headTail #-}
 {-# INLINE zip #-}
-{-# INLINE concat #-}
-toNull, uncons, nullTail, headTail, zip, concat
+toNull, uncons, nullTail, headTail, zip
     :: Monad m
     => Stream m Int -> m ()
 
@@ -59,6 +62,15 @@ sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
+        then Nothing
+        else Just (cnt, cnt + 1)
+
+{-# INLINE sourceUnfoldrN #-}
+sourceUnfoldrN :: Int -> Int -> Stream m Int
+sourceUnfoldrN m n = S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + m
         then Nothing
         else Just (cnt, cnt + 1)
 
@@ -114,7 +126,8 @@ source = sourceUnfoldrM
 
 {-# INLINE runStream #-}
 runStream :: Monad m => Stream m a -> m ()
-runStream = S.runStream
+runStream = S.drain
+-- runStream = S.mapM_ (\_ -> return ())
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m a -> m ()
@@ -131,7 +144,7 @@ uncons s = do
 init :: (Monad m, S.IsStream t) => t m a -> m ()
 init s = do
     t <- S.init s
-    P.mapM_ S.runStream t
+    P.mapM_ S.drain t
 
 {-# INLINE tail #-}
 tail :: (Monad m, S.IsStream t) => t m a -> m ()
@@ -183,19 +196,22 @@ composeN n f =
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileFalse #-}
 {-# INLINE foldlS #-}
+{-# INLINE concatMap #-}
 scan, map, fmap, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
-    dropWhileTrue, dropWhileFalse, foldlS
+    dropWhileTrue, dropWhileFalse, foldlS, concatMap
     :: Monad m
     => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
-mapM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+{-# INLINE mapMSerial #-}
+mapM, mapMSerial :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 scan           n = composeN n $ S.scanl' (+) 0
 map            n = composeN n $ P.fmap (+1)
 fmap           n = composeN n $ P.fmap (+1)
 mapM           n = composeN n $ S.mapM return
+mapMSerial     n = composeN n $ S.mapMSerial return
 filterEven     n = composeN n $ S.filter even
 filterAllOut   n = composeN n $ S.filter (> maxValue)
 filterAllIn    n = composeN n $ S.filter (<= maxValue)
@@ -207,6 +223,7 @@ dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
+concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -253,7 +270,6 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 -------------------------------------------------------------------------------
 
 zip src       = transform $ S.zipWith (,) src src
-concat _n     = return ()
 
 -------------------------------------------------------------------------------
 -- Mixed Composition
@@ -283,3 +299,103 @@ filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+-------------------------------------------------------------------------------
+-- Nested Composition
+-------------------------------------------------------------------------------
+
+{-# INLINE toNullApNested #-}
+toNullApNested :: Monad m => Stream m Int -> m ()
+toNullApNested s = runStream $ do
+    (+) <$> s <*> s
+
+{-# INLINE toNullNested #-}
+toNullNested :: Monad m => Stream m Int -> m ()
+toNullNested s = runStream $ do
+    x <- s
+    y <- s
+    return $ x + y
+
+{-# INLINE toNullNested3 #-}
+toNullNested3 :: Monad m => Stream m Int -> m ()
+toNullNested3 s = runStream $ do
+    x <- s
+    y <- s
+    z <- s
+    return $ x + y + z
+
+{-# INLINE filterAllOutNested #-}
+filterAllOutNested
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllOutNested str = runStream $ do
+    x <- str
+    y <- str
+    let s = x + y
+    if s < 0
+    then return s
+    else S.nil
+
+{-# INLINE filterAllInNested #-}
+filterAllInNested
+    :: Monad m
+    => Stream m Int -> m ()
+filterAllInNested str = runStream $ do
+    x <- str
+    y <- str
+    let s = x + y
+    if s > 0
+    then return s
+    else S.nil
+
+-------------------------------------------------------------------------------
+-- Nested Composition Pure lists
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceUnfoldrList #-}
+sourceUnfoldrList :: Int -> Int -> [Int]
+sourceUnfoldrList maxval n = List.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + maxval
+        then Nothing
+        else Just (cnt, cnt + 1)
+
+{-# INLINE toNullApNestedList #-}
+toNullApNestedList :: [Int] -> [Int]
+toNullApNestedList s = (+) <$> s <*> s
+
+{-# INLINE toNullNestedList #-}
+toNullNestedList :: [Int] -> [Int]
+toNullNestedList s = do
+    x <- s
+    y <- s
+    return $ x + y
+
+{-# INLINE toNullNestedList3 #-}
+toNullNestedList3 :: [Int] -> [Int]
+toNullNestedList3 s = do
+    x <- s
+    y <- s
+    z <- s
+    return $ x + y + z
+
+{-# INLINE filterAllOutNestedList #-}
+filterAllOutNestedList :: [Int] -> [Int]
+filterAllOutNestedList str = do
+    x <- str
+    y <- str
+    let s = x + y
+    if s < 0
+    then return s
+    else []
+
+{-# INLINE filterAllInNestedList #-}
+filterAllInNestedList :: [Int] -> [Int]
+filterAllInNestedList str = do
+    x <- str
+    y <- str
+    let s = x + y
+    if s > 0
+    then return s
+    else []

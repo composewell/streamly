@@ -25,6 +25,7 @@ module Streamly.SVar
     (
       MonadAsync
     , SVarStyle (..)
+    , SVarStopStyle (..)
     , SVar (..)
 
     -- State threaded around the stream
@@ -314,11 +315,25 @@ data SVarStats = SVarStats {
 
 data Limit = Unlimited | Limited Word deriving Show
 
+-- When to stop the composed stream.
+data SVarStopStyle =
+      StopNone -- stops only when all streams are finished
+    | StopAny  -- stop when any stream finishes
+    | StopBy   -- stop when a specific stream finishes
+    deriving (Eq, Show)
+
+-- IMPORTANT NOTE: we cannot update the SVar after generating it as we have
+-- references to the original SVar stored in several functions which will keep
+-- pointing to the original data and the new updates won't reflect there.
+-- Any updateable parts must be kept in mutable references (IORef).
+--
 data SVar t m a = SVar
     {
     -- Read only state
       svarStyle       :: SVarStyle
     , svarMrun        :: RunInIO m
+    , svarStopStyle   :: SVarStopStyle
+    , svarStopBy      :: IORef ThreadId
 
     -- Shared output queue (events, length)
     -- XXX For better efficiency we can try a preallocated array type (perhaps
@@ -2045,6 +2060,8 @@ getAheadSVar st f mrun = do
             , isQueueDone      = isQueueDoneAhead sv q
             , needDoorBell     = wfw
             , svarStyle        = AheadVar
+            , svarStopStyle    = StopNone
+            , svarStopBy       = undefined
             , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
@@ -2091,8 +2108,9 @@ getAheadSVar st f mrun = do
         (xs, _) <- readIORef q
         return $ null xs
 
-getParallelSVar :: MonadIO m => State t m a -> RunInIO m -> IO (SVar t m a)
-getParallelSVar st mrun = do
+getParallelSVar :: MonadIO m
+    => SVarStopStyle -> State t m a -> RunInIO m -> IO (SVar t m a)
+getParallelSVar ss st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
     active  <- newIORef 0
@@ -2104,6 +2122,11 @@ getParallelSVar st mrun = do
 
     stats <- newSVarStats
     tid <- myThreadId
+
+    stopBy <-
+        case ss of
+            StopBy -> liftIO $ newIORef undefined
+            _ -> return undefined
 
     let sv =
             SVar { outputQueue      = outQ
@@ -2122,6 +2145,8 @@ getParallelSVar st mrun = do
                  , isQueueDone      = undefined
                  , needDoorBell     = undefined
                  , svarStyle        = ParallelVar
+                 , svarStopStyle    = ss
+                 , svarStopBy       = stopBy
                  , svarMrun         = mrun
                  , workerCount      = active
                  , accountThread    = modifyThread sv
@@ -2176,10 +2201,11 @@ newAheadVar st m wloop = do
     sendFirstWorker sv m
 
 {-# INLINABLE newParallelVar #-}
-newParallelVar :: MonadAsync m => State t m a -> m (SVar t m a)
-newParallelVar st = do
+newParallelVar :: MonadAsync m
+    => SVarStopStyle -> State t m a -> m (SVar t m a)
+newParallelVar ss st = do
     mrun <- captureMonadState
-    liftIO $ getParallelSVar st mrun
+    liftIO $ getParallelSVar ss st mrun
 
 -------------------------------------------------------------------------------
 -- Write a stream to an SVar

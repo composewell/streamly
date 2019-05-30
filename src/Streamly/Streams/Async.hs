@@ -306,6 +306,8 @@ getLifoSVar st mrun = do
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = AsyncVar
+            , svarStopStyle    = StopNone
+            , svarStopBy       = undefined
             , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
@@ -396,6 +398,8 @@ getFifoSVar st mrun = do
             , isQueueDone      = workDone sv
             , needDoorBell     = wfw
             , svarStyle        = WAsyncVar
+            , svarStopStyle    = StopNone
+            , svarStopBy       = undefined
             , svarMrun         = mrun
             , workerCount      = active
             , accountThread    = delThread sv
@@ -684,11 +688,15 @@ instance MonadAsync m => Monoid (AsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+-- GHC: if we change the implementation of bindWith with arguments in a
+-- different order we see a significant performance degradation (~2x).
 {-# INLINE bindAsync #-}
 {-# SPECIALIZE bindAsync :: AsyncT IO a -> (a -> AsyncT IO b) -> AsyncT IO b #-}
 bindAsync :: MonadAsync m => AsyncT m a -> (a -> AsyncT m b) -> AsyncT m b
 bindAsync m f = fromStream $ K.bindWith async (adapt m) (\a -> adapt $ f a)
 
+-- GHC: if we specify arguments in the definition of (>>=) we see a significant
+-- performance degradation (~2x).
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (>>=) = bindAsync
@@ -819,11 +827,15 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
 -- Monad
 ------------------------------------------------------------------------------
 
+-- GHC: if we change the implementation of bindWith with arguments in a
+-- different order we see a significant performance degradation (~2x).
 {-# INLINE bindWAsync #-}
 {-# SPECIALIZE bindWAsync :: WAsyncT IO a -> (a -> WAsyncT IO b) -> WAsyncT IO b #-}
 bindWAsync :: MonadAsync m => WAsyncT m a -> (a -> WAsyncT m b) -> WAsyncT m b
 bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (\a -> adapt $ f a)
 
+-- GHC: if we specify arguments in the definition of (>>=) we see a significant
+-- performance degradation (~2x).
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
     (>>=) = bindWAsync

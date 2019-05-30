@@ -5,10 +5,10 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-#include "Streams/inline.hs"
+#include "inline.hs"
 
 -- |
--- Module      : Streamly.Array
+-- Module      : Streamly.Mem.Array
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -76,7 +76,7 @@
 -- arbitrarily large amounts of memory but still using small chunks of
 -- contiguous memory.
 
-module Streamly.Array
+module Streamly.Mem.Array
     (
       Array
 
@@ -84,14 +84,15 @@ module Streamly.Array
 
     -- * Construction
     -- | When performance matters, the fastest way to generate an array is
-    -- 'fromStreamN'. For regular use, 'IsList' and 'IsString' instances can be
+    -- 'writeN'. For regular use, 'IsList' and 'IsString' instances can be
     -- used to conveniently construct arrays from literal values.
     -- 'OverloadedLists' extension or 'fromList' can be used to construct an
     -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
     -- 'fromList' can be used to construct an array from a string literal.
 
-    , fromStreamN
-    , fromStream
+    -- , newArray
+    , writeN
+    , write
     , fromListN
     , fromList
 
@@ -107,8 +108,8 @@ module Streamly.Array
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
-    , toStream
-    , toStreamRev
+    , read
+    , readRev
     , toList
     , flattenArrays
     -- , flattenArraysRev
@@ -116,53 +117,54 @@ module Streamly.Array
 
     -- * Random Access
     , length
-    , (!!)
+    -- , (!!)
 
-    -- * IO: Single Array
-    -- , fromHandleUpto
-    -- , fromHandleN
-    -- , fromHandlePosUpto
-    -- , fromHandlePosN
-    , toHandle
+    , readIndex
+    {-
+    , readSlice
+    , readSliceRev
 
-    -- * IO: Stream of Arrays
-    -- , fromHandleArraysUpto
-    -- , fromHandleArraysOf
-    , fromHandleArrays
+    , writeIndex
+    , writeSlice
+    , writeSliceRev
+    -}
     )
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import System.IO (Handle, hGetBufSome, hPutBuf)
-import Prelude hiding (length, null, last, map, (!!))
+import Prelude hiding (length, null, last, map, (!!), read)
 
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-
+import Streamly.Mem.Array.Types hiding (flattenArrays, newArray)
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Array.Types hiding (flattenArrays)
-import qualified Streamly.Array.Types as A
+import Streamly.Streams.StreamK.Type (IsStream)
 
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.Streams.StreamD as D
 
 -------------------------------------------------------------------------------
 -- Construction
 -------------------------------------------------------------------------------
+
+{-
+-- | Create a new uninitialized array of given length.
+--
+-- @since 0.7.0
+newArray :: (MonadIO m, Storable a) => Int -> m (Array a)
+newArray len = undefined
+-}
 
 -- | Create an 'Array' from the first N elements of a stream. The array is
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
 --
 -- @since 0.7.0
-{-# INLINE fromStreamN #-}
-fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-fromStreamN n m = fromStreamDN n $ D.toStreamD m
+{-# INLINE writeN #-}
+writeN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
+writeN n m = fromStreamDN n $ D.toStreamD m
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -171,44 +173,189 @@ fromStreamN n m = fromStreamDN n $ D.toStreamD m
 -- | Convert an 'Array' into a stream.
 --
 -- @since 0.7.0
-{-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-toStream = D.fromStreamD . toStreamD
+{-# INLINE_EARLY read #-}
+read :: (Monad m, IsStream t, Storable a) => Array a -> t m a
+read = D.fromStreamD . toStreamD
 -- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.toStream fallback to StreamK" [1]
---     forall a. S.toStreamK (toStream a) = K.fromArray a #-}
+-- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
+--     forall a. S.readK (read a) = K.fromArray a #-}
 
 -- | Convert an 'Array' into a stream in reverse order.
 --
 -- @since 0.7.0
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-toStreamRev = D.fromStreamD . toStreamDRev
+{-# INLINE_EARLY readRev #-}
+readRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
+readRev = D.fromStreamD . toStreamDRev
 -- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.toStreamRev fallback to StreamK" [1]
---     forall a. S.toStreamK (toStreamRev a) = K.revFromArray a #-}
+-- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
+--     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
-{-# INLINE null #-}
-null :: Storable a => Array a -> Bool
-null arr = length arr == 0
+{-# INLINE _null #-}
+_null :: Storable a => Array a -> Bool
+_null arr = length arr == 0
 
 {-# INLINE _last #-}
 _last :: forall a. Storable a => Array a -> Maybe a
-_last arr = arr !! (length arr - 1)
+_last arr = readIndex arr (length arr - 1)
 
 -------------------------------------------------------------------------------
 -- Random Access
 -------------------------------------------------------------------------------
 
+-------------------------------------------------------------------------------
+-- Searching
+-------------------------------------------------------------------------------
+
+{-
+-- | Perform a binary search in the array to find an element.
+bsearch :: a -> Array a -> Maybe Bool
+bsearch = undefined
+
+-- | Perform a binary search in the array to find an element index.
+{-# INLINE elemIndex #-}
+bsearchIndex :: a -> Array a -> Maybe Int
+bsearchIndex elem arr = undefined
+
+-- find/findIndex etc can potentially be implemented more efficiently on arrays
+-- compared to streams by using SIMD instructions.
+
+find :: (a -> Bool) -> Array a -> Bool
+find = undefined
+
+findIndex :: (a -> Bool) -> Array a -> Maybe Int
+findIndex = undefined
+
+findIndices :: (a -> Bool) -> Array a -> Array Int
+findIndices = undefined
+-}
+
+-------------------------------------------------------------------------------
+-- Folds
+-------------------------------------------------------------------------------
+
+-- XXX We can potentially use SIMD instructions on arrays to fold faster.
+
+-------------------------------------------------------------------------------
+-- Slice and splice
+-------------------------------------------------------------------------------
+
+{-
+slice :: Int -> Int -> Array a
+slice begin end arr = undefined
+
+splitAt :: Int -> Array a -> (Array a, Array a)
+splitAt i arr = undefined
+
+-- XXX This operation can be performed efficiently via streams.
+-- | Append two arrays together to create a single array.
+splice :: Array a -> Array a -> Array a
+splice arr1 arr2 = undefined
+
+-------------------------------------------------------------------------------
+-- In-place mutation APIs
+-------------------------------------------------------------------------------
+
+-- | Partition an array into two halves using a partitioning predicate. The
+-- first half retains values where the predicate is 'False' and the second half
+-- retains values where the predicate is 'True'.
+{-# INLINE partitionBy #-}
+partitionBy :: (a -> Bool) -> Array a -> (Array a, Array a)
+partitionBy f arr = undefined
+
+-- | Shuffle corresponding elements from two arrays using a shuffle function.
+-- If the shuffle function returns 'False' then do nothing otherwise swap the
+-- elements. This can be used in a bottom up fold to shuffle or reorder the
+-- elements.
+shuffleBy :: (a -> a -> m Bool) -> Array a -> Array a -> m (Array a)
+shuffleBy f arr1 arr2 = undefined
+
+-- XXX we can also make the folds partial by stopping at a certain level.
+--
+-- | Perform a top down hierarchical recursive partitioning fold of items in
+-- the container using the given function as the partition function.
+--
+-- This will perform a quick sort if the partition function is
+-- 'partitionBy (< pivot)'.
+--
+-- @since 0.7.0
+{-# INLINABLE foldtWith #-}
+foldtWith :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+foldtWith level f = undefined
+
+-- | Perform a pairwise bottom up fold recursively merging the pairs. Level
+-- indicates the level in the tree where the fold would stop.
+--
+-- This will perform a random shuffle if the shuffle function is random.
+-- If we stop at level 0 and repeatedly apply the function then we can do a
+-- bubble sort.
+foldbWith :: Int -> (Array a -> Array a -> m (Array a)) -> Array a -> m (Array a)
+foldbWith level f = undefined
+-}
+
+-- XXX consider the bulk update/accumulation/permutation APIs from vector.
+
+-------------------------------------------------------------------------------
+-- Random reads and writes
+-------------------------------------------------------------------------------
+
 -- | /O(1)/ Lookup the element at the given index.
 --
 -- @since 0.7.0
-{-# INLINE (!!) #-}
-(!!) :: Storable a => Array a -> Int -> Maybe a
-arr !! i =
+{-# INLINE readIndex #-}
+readIndex :: Storable a => Array a -> Int -> Maybe a
+readIndex arr i =
     if i < 0 || i > length arr - 1
     then Nothing
     else Just $ unsafeIndex arr i
+
+{-
+-- | @readSlice arr i count@ streams a slice of the array @arr@ starting
+-- at index @i@ and reading up to @count@ elements in the forward direction
+-- ending at the index @i + count - 1@.
+--
+-- @since 0.7.0
+{-# INLINE readSlice #-}
+readSlice :: (IsStream t, Monad m, Storable a)
+    => Array a -> Int -> Int -> t m a
+readSlice arr i len = undefined
+
+-- | @readSliceRev arr i count@ streams a slice of the array @arr@ starting at
+-- index @i@ and reading up to @count@ elements in the reverse direction ending
+-- at the index @i - count + 1@.
+--
+-- @since 0.7.0
+{-# INLINE readSliceRev #-}
+readSliceRev :: (IsStream t, Monad m, Storable a)
+    => Array a -> Int -> Int -> t m a
+readSliceRev arr i len = undefined
+
+-- | /O(1)/ Write the given element at the given index in the array.
+--
+-- @since 0.7.0
+{-# INLINE writeIndex #-}
+writeIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
+writeIndex arr i a = undefined
+
+-- | @writeSlice arr i count stream@ writes a stream to the array @arr@
+-- starting at index @i@ and writing up to @count@ elements in the forward
+-- direction ending at the index @i + count - 1@.
+--
+-- @since 0.7.0
+{-# INLINE writeSlice #-}
+writeSlice :: (IsStream t, Monad m, Storable a)
+    => Array a -> Int -> Int -> t m a -> m ()
+writeSlice arr i len s = undefined
+
+-- | @writeSliceRev arr i count stream@ writes a stream to the array @arr@
+-- starting at index @i@ and writing up to @count@ elements in the reverse
+-- direction ending at the index @i - count + 1@.
+--
+-- @since 0.7.0
+{-# INLINE writeSliceRev #-}
+writeSliceRev :: (IsStream t, Monad m, Storable a)
+    => Array a -> Int -> Int -> t m a -> m ()
+writeSliceRev arr i len s = undefined
+-}
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays
@@ -254,106 +401,30 @@ spliceArrays s = do
     buffered <- S.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
 
-    arr <- liftIO $ newArray len
-    end <- S.foldlM' write (aEnd arr) buffered
+    arr <- liftIO $ A.newArray len
+    end <- S.foldlM' writeArr (aEnd arr) buffered
     return $ arr {aEnd = end}
 
     where
 
-    write dst Array{..} =
+    writeArr dst Array{..} =
         liftIO $ withForeignPtr aStart $ \src -> do
                         let len = aEnd `minusPtr` src
                         memcpy (castPtr dst) (castPtr src) len
                         return $ dst `plusPtr` len
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'fromStreamN' is at least twice
+-- single array from a stream of unknown size. 'writeN' is at least twice
 -- as efficient when the size is already known.
 --
 -- Note that if the input stream is too large memory allocation for the array
 -- may fail.  When the stream size is not known, `arraysOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
-{-# INLINE fromStream #-}
-fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-fromStream m = A.fromStreamD $ D.toStreamD m
+{-# INLINE write #-}
+write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+write m = A.fromStreamD $ D.toStreamD m
 
-{-
--- Move this to FileIO
--- XXX we should use overWrite/write
--- | Write a stream of arrays to a handle.
-{-# INLINE toHandleArrays #-}
-toHandleArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
-toHandleArrays h m = S.mapM_ (liftIO . toHandle h) m
--}
-
--------------------------------------------------------------------------------
--- IO (Input)
--------------------------------------------------------------------------------
-
--- | Read a 'ByteArray' from a file handle. If no data is available on the
--- handle it blocks until some data becomes available. If data is available
--- then it immediately returns that data without blocking. It reads a maximum
--- of up to the size requested.
-{-# INLINABLE fromHandleUpto #-}
-fromHandleUpto :: Int -> Handle -> IO (Array Word8)
-fromHandleUpto size h = do
-    ptr <- mallocPlainForeignPtrBytes size
-    -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
-        n <- hGetBufSome h p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
-        -- XXX shrink only if the diff is significant
-        shrinkToFit v
-
--------------------------------------------------------------------------------
--- IO (output)
--------------------------------------------------------------------------------
-
--- | Write an Array to a file handle.
---
--- @since 0.7.0
-{-# INLINABLE toHandle #-}
-toHandle :: Storable a => Handle -> Array a -> IO ()
-toHandle _ arr | null arr = return ()
-toHandle h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
-    where
-    aLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
-
--------------------------------------------------------------------------------
--- Stream of Arrays IO
--------------------------------------------------------------------------------
-
--- | @fromHandleArraysUpto size h@ reads a stream of arrays from file handle @h@.
--- The maximum size of a single array is limited to @size@.
--- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
-{-# INLINABLE fromHandleArraysUpto #-}
-fromHandleArraysUpto :: (IsStream t, MonadIO m)
-    => Int -> Handle -> t m (Array Word8)
-fromHandleArraysUpto size h = go
-  where
-    -- XXX use cons/nil instead
-    go = mkStream $ \_ yld sng _ -> do
-        vec <- liftIO $ fromHandleUpto size h
-        if length vec < size
-        then sng vec
-        else yld vec go
-
--- XXX read 'Array a' instead of Word8
---
--- | @fromHandleArrays h@ reads a stream of arrays from file handle @h@.
--- The maximum size of a single array is limited to @defaultChunkSize@.
--- 'fromHandleArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
---
--- @since 0.7.0
-{-# INLINE fromHandleArrays #-}
-fromHandleArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
-fromHandleArrays = fromHandleArraysUpto defaultChunkSize
+-- XXX efficiently compare two streams of arrays. Two streams can have chunks
+-- of different sizes, we can handle that in the stream comparison abstraction.
+-- This could be useful e.g. to fast compare whether two files differ.

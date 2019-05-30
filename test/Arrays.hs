@@ -6,14 +6,13 @@ module Main (main) where
 import Foreign.Storable (Storable(..))
 
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary,
-                        choose)
+import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
 import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import Test.Hspec as H
 
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
-import qualified Streamly.Array as A
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -42,7 +41,7 @@ testLength =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <-  A.fromStreamN len
+                arr <-  A.writeN len
                       $ S.fromList list
                 assert (A.length arr == len)
 
@@ -51,10 +50,10 @@ testFromToStreamN =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- A.fromStreamN len
+                arr <- A.writeN len
                      $ S.fromList list
                 xs <- S.toList
-                    $ A.toStream arr
+                    $ A.read arr
                 assert (xs == list)
 
 testToStreamRev :: Property
@@ -62,10 +61,10 @@ testToStreamRev =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- A.fromStreamN len
+                arr <- A.writeN len
                      $ S.fromList list
                 xs <- S.toList
-                    $ A.toStreamRev arr
+                    $ A.readRev arr
                 assert (xs == reverse list)
 
 testArraysOf :: Property
@@ -74,7 +73,7 @@ testArraysOf =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ S.concatMap A.toStream
+                    $ S.concatMap A.read
                     $ A.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
@@ -95,9 +94,9 @@ testFromToStream =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- A.fromStream $ S.fromList list
+                arr <- A.write $ S.fromList list
                 xs <- S.toList
-                    $ A.toStream arr
+                    $ A.read arr
                 assert (xs == list)
 
 main :: IO ()
@@ -106,9 +105,9 @@ main = hspec
     $ modifyMaxSuccess (const maxTestCount)
     $ do
     describe "Construction" $ do
-        prop "length . fromStreamN n === n" $ testLength
-        prop "toStream . fromStreamN n === id" $ testFromToStreamN
-        prop "toStreamRev . fromStream === reverse" $ testToStreamRev
+        prop "length . writeN n === n" $ testLength
+        prop "read . writeN n === id" $ testFromToStreamN
+        prop "readRev . write === reverse" $ testToStreamRev
         prop "arraysOf concats to original" $ testArraysOf
         prop "flattenArrays concats to original" $ testFlattenArrays
-        prop "toStream . fromStream === id" $ testFromToStream
+        prop "read . write === id" $ testFromToStream

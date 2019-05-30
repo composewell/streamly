@@ -37,11 +37,16 @@ module Streamly.Streams.StreamD.Type
     , toStreamK
     , map
     , mapM
+    , yield
+    , yieldM
+    , concatMap
+    , concatMapM
 
     , foldrT
     , foldrM
     , foldrMx
     , foldr
+    , foldrS
 
     , foldl'
     , foldlM'
@@ -59,9 +64,10 @@ module Streamly.Streams.StreamD.Type
 where
 
 import Control.Applicative (liftA2)
+import Control.Monad (ap)
 import Control.Monad.Trans (lift, MonadTrans)
 import GHC.Types (SPEC(..))
-import Prelude hiding (map, mapM, foldr, take)
+import Prelude hiding (map, mapM, foldr, take, concatMap)
 
 import Streamly.SVar (State(..), adaptState, defState)
 import Streamly.Fold.Types (Fold(..))
@@ -155,6 +161,78 @@ instance Monad m => Functor (Stream m) where
     {-# INLINE fmap #-}
     fmap = map
 
+------------------------------------------------------------------------------
+-- concatMap
+------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL concatMapM #-}
+concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
+concatMapM f (Stream step state) = Stream step' (Left state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (Left st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield a s -> do
+                b_stream <- f a
+                return $ Skip (Right (b_stream, s))
+            Skip s -> return $ Skip (Left s)
+            Stop -> return Stop
+
+    -- XXX flattenArrays is 5x faster than "concatMap fromArray". if somehow we
+    -- can get inner_step to inline and fuse here we can perhaps get the same
+    -- performance using "concatMap fromArray".
+    --
+    -- XXX using the pattern synonym "Stream" causes a major performance issue
+    -- here even if the synonym does not include an adaptState call. Need to
+    -- find out why. Is that something to be fixed in GHC?
+    step' gst (Right (UnStream inner_step inner_st, st)) = do
+        r <- inner_step (adaptState gst) inner_st
+        case r of
+            Yield b inner_s ->
+                return $ Yield b (Right (Stream inner_step inner_s, st))
+            Skip inner_s ->
+                return $ Skip (Right (Stream inner_step inner_s, st))
+            Stop -> return $ Skip (Left st)
+
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
+concatMap f = concatMapM (return . f)
+
+-- XXX The idea behind this rule is to rewrite any calls to "concatMap
+-- fromArray" automatically to flattenArrays which is much faster.  However, we
+-- need an INLINE_EARLY on concatMap for this rule to fire. But if we use
+-- INLINE_EARLY on concatMap or fromArray then direct uses of
+-- "concatMap fromArray" (without the RULE) become much slower, this means
+-- "concatMap f" in general would become slower. Need to find a solution to
+-- this.
+--
+-- {-# RULES "concatMap Array.toStreamD"
+--      concatMap Array.toStreamD = Array.flattenArray #-}
+
+-- | Create a singleton 'Stream' from a pure value.
+{-# INLINE_NORMAL yield #-}
+yield :: Monad m => a -> Stream m a
+yield x = Stream (\_ s -> return $ step undefined s) True
+  where
+    {-# INLINE_LATE step #-}
+    step _ True  = Yield x False
+    step _ False = Stop
+
+instance Monad m => Applicative (Stream m) where
+    {-# INLINE pure #-}
+    pure = yield
+    {-# INLINE (<*>) #-}
+    (<*>) = ap
+
+-- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
+-- the monad instance does not seem to be significantly faster.
+instance Monad m => Monad (Stream m) where
+    {-# INLINE return #-}
+    return = pure
+    {-# INLINE (>>=) #-}
+    (>>=) = flip concatMap
+
 -- XXX Use of SPEC constructor in folds causes 2x performance degradation in
 -- one shot operations, but helps immensely in operations composed of multiple
 -- combinators or the same combinator many times. There seems to be an
@@ -207,6 +285,33 @@ foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
 {-# INLINE_NORMAL foldr #-}
 foldr :: Monad m => (a -> b -> b) -> b -> Stream m a -> m b
 foldr f z = foldrM (\a b -> liftA2 f (return a) b) (return z)
+
+-- | Create a singleton 'Stream' from a monadic action.
+{-# INLINE_NORMAL yieldM #-}
+yieldM :: Monad m => m a -> Stream m a
+yieldM m = Stream step True
+  where
+    {-# INLINE_LATE step #-}
+    step _ True  = m >>= \x -> return $ Yield x False
+    step _ False = return Stop
+
+-- this performs horribly, should not be used
+{-# INLINE_NORMAL foldrS #-}
+foldrS
+    :: Monad m
+    => (a -> Stream m b -> Stream m b)
+    -> Stream m b
+    -> Stream m a
+    -> Stream m b
+foldrS f final (Stream step state) = go SPEC state
+  where
+    go !_ st = do
+        -- defState??
+        r <- yieldM $ step defState st
+        case r of
+          Yield x s -> f x (go SPEC s)
+          Skip s    -> go SPEC s
+          Stop      -> final
 
 -- Right fold to some transformer (T) monad.  This can be useful to implement
 -- stateless combinators like map, filtering, insertions, takeWhile, dropWhile.

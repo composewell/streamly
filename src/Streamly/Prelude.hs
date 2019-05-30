@@ -105,9 +105,6 @@ module Streamly.Prelude
     , K.fromFoldable
     , fromFoldableM
 
-    -- ** From External Containers
-    , fromHandle
-
     -- * Elimination
 
     -- ** Deconstruction
@@ -213,7 +210,6 @@ module Streamly.Prelude
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
     , toList
-    , toHandle
 
     -- ** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
@@ -324,6 +320,8 @@ module Streamly.Prelude
 
     , indexed
     , indexedR
+    -- , timestamped
+    -- , timestampedR -- timer
 
     -- ** Filtering
     -- | Remove some elements from the stream based on a predicate. In
@@ -362,12 +360,15 @@ module Streamly.Prelude
 
     , findIndices
     , elemIndices
+    -- , seqIndices -- search a sequence in the stream
 
     -- ** Insertion
     -- | Insertion adds more elements to the stream.
 
     , insertBy
     , intersperseM
+    -- , intersperseBySpan
+    , intersperseByTime
 
     -- ** Reordering
     , reverse
@@ -432,6 +433,7 @@ module Streamly.Prelude
 
     , concatMapM
     , concatMap
+    , K.concatMapBy
     -- , interposeBy
     -- , intercalate
 
@@ -455,6 +457,14 @@ module Streamly.Prelude
     -- , stripSuffix
     -- , stripInfix
 
+    -- * Exceptions
+    , before
+    , after
+    , bracket
+    , onException
+    , finally
+    , handle
+
     -- * Deprecated
     , K.once
     , each
@@ -465,9 +475,14 @@ module Streamly.Prelude
     , runStream
     , runN
     , runWhile
+    , fromHandle
+    , toHandle
     )
 where
 
+import Control.Concurrent (threadDelay)
+import Control.Exception (Exception)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Maybe (isJust, fromJust)
@@ -505,6 +520,7 @@ import qualified Streamly.Streams.StreamD as S
 #endif
 
 import qualified Streamly.Streams.Serial as Serial
+import qualified Streamly.Streams.Parallel as Par
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -837,6 +853,7 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
+{-# DEPRECATED fromHandle "Please use Streamly.FileIO instead." #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -1530,6 +1547,7 @@ _toListRev = D.toListRev . toStreamD
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
+{-# DEPRECATED toHandle "Please use Streamly.FileIO instead." #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go m
     where
@@ -1854,14 +1872,14 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- Transformation by Reordering
 ------------------------------------------------------------------------------
 
--- XXX to scale this we need to use a slab allocated array backed
--- representation for temporary storage.
+-- XXX Use a compact region list to temporarily store the list, in both reverse
+-- as well as in reverse'.
 --
 -- |
 -- > reverse = S.foldlT (flip S.cons) S.nil
 --
 -- Returns the elements of the stream in reverse order.  The stream must be
--- finite.
+-- finite. Note that this necessarily buffers the entire stream in memory.
 --
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
@@ -1882,20 +1900,53 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 -- Transformation by Inserting
 ------------------------------------------------------------------------------
 
+-- intersperseM = intersperseBySpan 1
+
 -- | Generate a stream by performing a monadic action between consecutive
 -- elements of the given stream.
 --
 -- /Concurrent (do not use with 'parallely' on infinite streams)/
 --
 -- @
--- > S.toList $ S.intersperseM (putChar \'a' >> return ',') $ S.fromList "hello"
--- aaaa"h,e,l,l,o"
+-- > S.toList $ S.intersperseM (return ',') $ S.fromList "hello"
+-- "h,e,l,l,o"
 -- @
 --
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM = K.intersperseM
+
+{-
+-- | Intersperse a monadic action into the input stream after every @n@
+-- elements.
+--
+-- @
+-- > S.toList $ S.intersperseBySpan 2 (return ',') $ S.fromList "hello"
+-- "he,ll,o"
+-- @
+--
+-- @since 0.7.0
+{-# INLINE intersperseBySpan #-}
+intersperseBySpan :: IsStream t => Int -> m a -> t m a -> t m a
+intersperseBySpan _n _f _xs = undefined
+-}
+
+-- | Intersperse a monadic action into the input stream after every @n@
+-- seconds.
+--
+-- @
+-- > S.drain $ S.intersperseByTime 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
+-- "h,e,l,l,o"
+-- @
+--
+-- @since 0.7.0
+{-# INLINE intersperseByTime #-}
+intersperseByTime
+    :: (IsStream t, MonadAsync m)
+    => Double -> m a -> t m a -> t m a
+intersperseByTime n f xs = xs `Par.parallelEndByFirst` repeatM timed
+    where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
 -- @stream@ that is less than @elem@ when compared using @cmp@.
@@ -2067,6 +2118,24 @@ mergeByM
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
 mergeByM f m1 m2 = fromStreamS $ S.mergeByM f (toStreamS m1) (toStreamS m2)
 
+{-
+-- | Like 'mergeByM' but stops merging as soon as any of the two streams stops.
+{-# INLINABLE mergeUptoShortest #-}
+mergeEndByAny
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeEndByAny f m1 m2 = fromStreamD $
+    D.mergeEndByAny f (toStreamD m1) (toStreamD m2)
+
+-- Like 'mergeByM' but stops merging as soon as the first stream stops.
+{-# INLINABLE mergeEndByFirst #-}
+mergeEndByFirst
+    :: (IsStream t, Monad m)
+    => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
+mergeEndByFirst f m1 m2 = fromStreamS $
+    D.mergeEndByFirst f (toStreamD m1) (toStreamD m2)
+-}
+
 -- Holding this back for now, we may want to use the name "merge" differently
 {-
 -- | Same as @'mergeBy' 'compare'@.
@@ -2152,3 +2221,39 @@ interposeBy :: (IsStream t, Monad m)
 -- | A generalization of intersperseM to intersperse sequences.
 intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -}
+
+------------------------------------------------------------------------------
+-- Exceptions
+------------------------------------------------------------------------------
+
+-- | Run a side effect before the stream yields its first element.
+before :: (IsStream t, Monad m) => m b -> t m a -> t m a
+before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream stops normally.
+after :: (IsStream t, Monad m) => m b -> t m a -> t m a
+after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream aborts due to an exception.
+onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
+onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
+
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception.
+finally :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
+finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
+
+-- | Run the first action before the stream starts and remember its output,
+-- generate a stream using the output, run the second action using the
+-- remembered value as an argument whenever the stream ends normally or due to
+-- an exception.
+bracket :: (IsStream t, MonadCatch m)
+    => m b -> (b -> m c) -> (b -> t m a) -> t m a
+bracket bef aft bet = D.fromStreamD $
+    D.bracket bef aft (\x -> toStreamD $ bet x)
+
+-- | When evaluating a stream if an exception occurs, stream evaluation aborts
+-- and the specified exception handler is run with the exception as argument.
+handle :: (IsStream t, MonadCatch m, Exception e)
+    => (e -> m a) -> t m a -> t m a
+handle handler xs = D.fromStreamD $ D.handle handler $ D.toStreamD xs

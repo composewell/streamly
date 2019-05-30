@@ -4,33 +4,53 @@ synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly, short for streaming concurrently, provides monadic streams, with a
   simple API, almost identical to standard lists, and an in-built support for
-  concurrency.  By using stream-style combinators on stream composition,
-  streams can be generated, merged, chained, mapped, zipped, and consumed
-  concurrently – providing a generalized high level programming framework
-  unifying streaming and concurrency. Controlled concurrency allows even
-  infinite streams to be evaluated concurrently.  Concurrency is auto scaled
-  based on feedback from the stream consumer.  The programmer does not have to
-  be aware of threads, locking or synchronization to write scalable concurrent
-  programs.
+  concurrency.  Streams can be generated, merged, chained, mapped, zipped, and
+  consumed concurrently – providing a generalized high level programming
+  framework unifying streaming and concurrency. Controlled concurrency allows
+  even infinite streams to be evaluated concurrently.  Concurrency is auto
+  scaled based on feedback from the stream consumer.  Programmer does not
+  have to be aware of threads, locking or synchronization to write scalable
+  concurrent programs.
   .
-  The basic streaming functionality of streamly is equivalent to that provided by
+  In addition to the basic streaming functionality provided by
   streaming libraries like
   <https://hackage.haskell.org/package/streaming streaming>,
   <https://hackage.haskell.org/package/pipes pipes>, and
-  <https://hackage.haskell.org/package/conduit conduit>.
-  In addition to providing streaming functionality, streamly subsumes the
+  <https://hackage.haskell.org/package/conduit conduit> streamly provides
+  advanced stream composition including various ways of appending, merging,
+  zipping, splitting, grouping, distributing, partitioning and unzipping of
+  streams with true streaming and with concurrency. Streamly subsumes the
   functionality of list transformer libraries like @pipes@ or
   <https://hackage.haskell.org/package/list-t list-t> and also the logic
   programming library <https://hackage.haskell.org/package/logict logict>. On
-  the concurrency side, it subsumes the functionality of the
-  <https://hackage.haskell.org/package/async async> package. Because it
-  supports streaming with concurrency we can write FRP applications similar in
-  concept to <https://hackage.haskell.org/package/Yampa Yampa> or
+  the concurrency side, it subsumes the basic concurrency functionality
+  provided by the <https://hackage.haskell.org/package/async async> package and
+  provides much more powerful high level concurrent streaming composition.
+  Because it supports streaming with concurrency we can write FRP applications
+  similar in concept to <https://hackage.haskell.org/package/Yampa Yampa> or
   <https://hackage.haskell.org/package/reflex reflex>.
   .
-  For file IO, currently the library provides only one API to stream the lines
-  in the file as Strings.  Future versions will provide better streaming file
-  IO options.  Streamly interoperates with the popular streaming libraries, see
+  The grouping, splitting and windowing combinators in streamly can substitute
+  the window operators in <https://flink.apache.org/ Apache Flink>.  However,
+  compared to Flink streamly has a pure functional, succinct and expressive API
+  that is applicable to full spectrum of applications, from a "hello world"
+  application to large scale concurrent applications, with equal efficiency.
+  For those familiar with <http://reactivex.io/ Reactive Extensions>, streamly
+  has similarities with the RxJs API. For most RxJs combinators you
+  can find corresponding combinators in streamly.
+  .
+  Streamly focuses on practical engineering with high performance. From well
+  written streamly programs one can expect performance competitive to C.  High
+  performance streaming eliminates the need for string and text libraries like
+  <https://hackage.haskell.org/package/bytestring bytestring>,
+  <https://hackage.haskell.org/package/text text> and their lazy and strict
+  flavors. All the confusion and cognitive overhead arising from different
+  string types is eliminated. The only basic types are arrays for storage and
+  streams for processing. Strings and text are simply streams of 'Char' as they
+  should be. Even Haskell lists can be replaced by pure streams. Arrays
+  provided by streamly have performance at par with the vector library.
+  .
+  Streamly interoperates with popular Haskell streaming libraries, see
   the interoperation section in "Streamly.Tutorial".
   .
   Why use streamly?
@@ -110,6 +130,11 @@ flag dev
   manual: True
   default: False
 
+flag has-llvm
+  description: Use llvm backend for better performance
+  manual: True
+  default: False
+
 flag no-charts
   description: Disable chart generation
   manual: True
@@ -150,8 +175,12 @@ library
     hs-source-dirs:    src
     other-modules:     Streamly.Atomics
                      , Streamly.SVar
-                     , Streamly.Time.Units
-                     , Streamly.Time.Clock
+                     , Streamly.Strict
+                     , Streamly.Enumeration
+
+                    -- Memory storage
+                     , Streamly.Mem.Array.Types
+                     , Streamly.Mem.Ring
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
@@ -168,27 +197,40 @@ library
                      , Streamly.Streams.Ahead
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
+
+                    -- Pure streams
                      , Streamly.List
-                     , Streamly.String
-                     , Streamly.Enumeration
-                     , Streamly.Array.Types
-                     , Streamly.RingBuffer
-                     , Streamly.Strict
+
+                    -- Folds
                      , Streamly.Fold.Types
                      , Streamly.Sink.Types
                      , Streamly.Sink
 
     exposed-modules:   Streamly.Prelude
-                     , Streamly.Array
                      , Streamly.Time
                      , Streamly
                      , Streamly.Fold
+
+                     , Streamly.String
+
+                    -- IO devices
+                     , Streamly.Mem.Array
+                     , Streamly.FileSystem.File
+                     , Streamly.FileSystem.Handle
+                     , Streamly.Network.Socket
+
+                    -- Time
+                     , Streamly.Time.Units
+                     , Streamly.Time.Clock
 
                      , Streamly.Tutorial
                      , Streamly.Internal
 
     default-language: Haskell2010
     ghc-options:      -Wall -fspec-constr-recursive=10
+
+    if flag(has-llvm)
+      ghc-options: -fllvm
 
     if flag(streamk)
       cpp-options:    -DUSE_STREAMK_ONLY
@@ -227,7 +269,7 @@ library
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
-                     , random
+                     , network           >= 2.6   && < 4
 
   if impl(ghc < 8.0)
     build-depends:
@@ -436,6 +478,10 @@ benchmark linear
   other-modules: LinearOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -466,6 +512,10 @@ benchmark linear-async
   other-modules: LinearOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   cpp-options: -DLINEAR_ASYNC
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
@@ -497,6 +547,10 @@ benchmark linear-rate
   other-modules: LinearOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -527,33 +581,10 @@ benchmark nested
   other-modules: NestedOps
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
 
-benchmark array
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Array.hs
-  other-modules: ArrayOps
-  default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   if flag(dev)
     cpp-options:    -DDEVBUILD
     ghc-options:    -Wmissed-specialisations
@@ -577,6 +608,72 @@ benchmark array
   if impl(ghc < 8.0)
     build-depends:
         transformers  >= 0.4 && < 0.6
+
+benchmark array
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: Array.hs
+  other-modules: ArrayOps
+  default-language: Haskell2010
+  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+                    -fno-ignore-asserts
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.3 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+
+benchmark fileio
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: FileIO.hs
+  default-language: Haskell2010
+  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+                    -fno-ignore-asserts
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , gauge               >= 0.2.4 && < 0.3
+    , typed-process       >= 0.2.3 && < 0.3
+    , deepseq             >= 1.4.3 && < 1.5
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
@@ -610,6 +707,10 @@ benchmark base
 
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   if flag(dev)
     ghc-options:    -Wmissed-specialisations
                     -Wall-missed-specialisations
@@ -672,6 +773,9 @@ executable nano-bench
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -with-rtsopts "-T"
 
+  if flag(has-llvm)
+    ghc-options: -fllvm
+
   if flag(dev)
     buildable: True
     build-depends:
@@ -700,6 +804,9 @@ executable adaptive
   main-is: Adaptive.hs
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -with-rtsopts "-T"
+
+  if flag(has-llvm)
+    ghc-options: -fllvm
 
   if flag(dev)
     buildable: True
@@ -822,5 +929,18 @@ executable ControlFlow
     if impl(ghc < 8.0)
       build-depends:
           semigroups    >= 0.18   && < 0.19
+  else
+    buildable: False
+
+executable FileIO
+  default-language: Haskell2010
+  main-is: FileIO.hs
+  hs-source-dirs:  examples
+  ghc-options: -Wall
+  if flag(examples) || flag(examples-sdl)
+    buildable: True
+    build-Depends:
+        streamly
+      , base              >= 4.8   && < 5
   else
     buildable: False

@@ -88,6 +88,7 @@ module Streamly.Streams.StreamD
 
     -- * Elimination
     -- ** General Folds
+    , foldrS
     , foldrT
     , foldrM
     , foldrMx
@@ -128,12 +129,11 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
-    , flattenArrays
 
     -- ** Grouping
     , groupsOf
-    , grouped
     , groupsBy
+    , groupsRollingBy
 
     -- ** Splitting
     , splitBy
@@ -215,7 +215,7 @@ module Streamly.Streams.StreamD
     , zipWith
     , zipWithM
 
-    -- * Comparisions
+    -- * Comparisons
     , eqBy
     , cmpBy
 
@@ -225,9 +225,19 @@ module Streamly.Streams.StreamD
 
     -- * Transformation comprehensions
     , the
+
+    -- * Exceptions
+    , before
+    , after
+    , bracket
+    , onException
+    , finally
+    , handle
     )
 where
 
+import Control.Exception (Exception)
+import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Word (Word32)
@@ -243,15 +253,18 @@ import Prelude
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
                reverse)
 
-import Streamly.Array.Types (Array(..), flattenArrays)
+import qualified Control.Monad.Catch as MC
+
+import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
+
+import qualified Streamly.Mem.Array.Types as A
+import qualified Streamly.Mem.Ring as RB
 import qualified Streamly.Streams.StreamK as K
-import qualified Streamly.Array.Types as A
-import qualified Streamly.RingBuffer as RB
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -491,24 +504,6 @@ enumerateFromThenToFractional from next to =
 -------------------------------------------------------------------------------
 -- Generation by Conversion
 -------------------------------------------------------------------------------
-
--- | Create a singleton 'Stream' from a pure value.
-{-# INLINE_NORMAL yield #-}
-yield :: Monad m => a -> Stream m a
-yield x = Stream (\_ s -> return $ step undefined s) True
-  where
-    {-# INLINE_LATE step #-}
-    step _ True  = Yield x False
-    step _ False = Stop
-
--- | Create a singleton 'Stream' from a monadic action.
-{-# INLINE_NORMAL yieldM #-}
-yieldM :: Monad m => m a -> Stream m a
-yieldM m = Stream step True
-  where
-    {-# INLINE_LATE step #-}
-    step _ True  = m >>= \x -> return $ Yield x False
-    step _ False = return Stop
 
 {-# INLINE_NORMAL fromIndicesM #-}
 fromIndicesM :: Monad m => (Int -> m a) -> Stream m a
@@ -871,59 +866,16 @@ reverse' m =
         $ toStreamK
         $ A.fromStreamDArraysOf A.defaultChunkSize m
 
-------------------------------------------------------------------------------
--- concatMap
-------------------------------------------------------------------------------
-
-{-# INLINE_NORMAL concatMapM #-}
-concatMapM :: Monad m => (a -> m (Stream m b)) -> Stream m a -> Stream m b
-concatMapM f (Stream step state) = Stream step' (Left state)
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (Left st) = do
-        r <- step (adaptState gst) st
-        case r of
-            Yield a s -> do
-                b_stream <- f a
-                return $ Skip (Right (b_stream, s))
-            Skip s -> return $ Skip (Left s)
-            Stop -> return Stop
-
-    -- XXX flattenArrays is 5x faster than "concatMap fromArray". if somehow we
-    -- can get inner_step to inline and fuse here we can perhaps get the same
-    -- performance using "concatMap fromArray".
-    --
-    -- XXX using the pattern synonym "Stream" causes a major performance issue
-    -- here even if the synonym does not include an adaptState call. Need to
-    -- find out why. Is that something to be fixed in GHC?
-    step' gst (Right (UnStream inner_step inner_st, st)) = do
-        r <- inner_step (adaptState gst) inner_st
-        case r of
-            Yield b inner_s ->
-                return $ Yield b (Right (Stream inner_step inner_s, st))
-            Skip inner_s ->
-                return $ Skip (Right (Stream inner_step inner_s, st))
-            Stop -> return $ Skip (Left st)
-
-{-# INLINE concatMap #-}
-concatMap :: Monad m => (a -> Stream m b) -> Stream m a -> Stream m b
-concatMap f = concatMapM (return . f)
-
--- XXX The idea behind this rule is to rewrite any calls to "concatMap
--- fromArray" automatically to flattenArrays which is much faster.  However, we
--- need an INLINE_EARLY on concatMap for this rule to fire. But if we use
--- INLINE_EARLY on concatMap or fromArray then direct uses of
--- "concatMap fromArray" (without the RULE) become much slower, this means
--- "concatMap f" in general would become slower. Need to find a solution to
--- this.
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
-{-# INLINE_NORMAL grouped #-}
-grouped :: Monad m => Fold m a b -> Stream m (a, Bool) -> Stream m b
-grouped f (Stream step state) = Stream (stepOuter f) (Just state)
+{-# INLINE_NORMAL splitSuffixBy' #-}
+splitSuffixBy' :: Monad m
+    => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
+splitSuffixBy' predicate f (Stream step state) =
+    Stream (stepOuter f) (Just state)
 
     where
 
@@ -931,10 +883,10 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
     stepOuter (Fold fstep initial done) gst (Just st) = do
         res <- step (adaptState gst) st
         case res of
-            Yield (x,r) s -> do
+            Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                if r
+                if (predicate x)
                 then done acc' >>= \val -> return $ Yield val (Just s)
                 else go SPEC s acc'
 
@@ -946,9 +898,9 @@ grouped f (Stream step state) = Stream (stepOuter f) (Just state)
         go !_ stt !acc = do
             res <- step (adaptState gst) stt
             case res of
-                Yield (x,r) s -> do
+                Yield x s -> do
                     acc' <- fstep acc x
-                    if r
+                    if (predicate x)
                     then done acc' >>= \val -> return $ Yield val (Just s)
                     else go SPEC s acc'
                 Skip s -> go SPEC s acc
@@ -1014,10 +966,61 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
 
     stepOuter _ _ (Nothing,_) = return Stop
 
-{-# INLINE_EARLY splitSuffixBy' #-}
-splitSuffixBy' :: Monad m
-    => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
-splitSuffixBy' predicate f m = grouped f (map (\a -> (a, predicate a)) m)
+{-# INLINE_NORMAL groupsRollingBy #-}
+groupsRollingBy :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Stream m a
+    -> Stream m b
+groupsRollingBy cmp f (Stream step state) =
+    Stream (stepOuter f) (Just state, Nothing)
+    where
+
+      {-# INLINE_LATE stepOuter #-}
+      stepOuter (Fold fstep initial done) gst (Just st, Nothing) = do
+          res <- step (adaptState gst) st
+          case res of
+              Yield x s -> do
+                  acc <- initial
+                  acc' <- fstep acc x
+                  go SPEC x s acc'
+
+              Skip s    -> return $ Skip $ (Just s, Nothing)
+              Stop      -> return Stop
+
+        where
+          go !_ prev stt !acc = do
+              res <- step (adaptState gst) stt
+              case res of
+                  Yield x s -> do
+                      if cmp prev x
+                        then do
+                          acc' <- fstep acc x
+                          go SPEC x s acc'
+                        else
+                          done acc >>= \r -> return $ Yield r (Just s, Just x)
+                  Skip s -> go SPEC prev s acc
+                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+
+      stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
+          acc <- initial
+          acc' <- fstep acc prev'
+          go SPEC prev' st acc'
+
+        where
+          go !_ prevv stt !acc = do
+              res <- step (adaptState gst) stt
+              case res of
+                  Yield x s -> do
+                      if cmp prevv x
+                      then do
+                          acc' <- fstep acc x
+                          go SPEC x s acc'
+                      else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                  Skip s -> go SPEC prevv s acc
+                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+
+      stepOuter _ _ (Nothing, _) = return Stop
 
 {-# INLINE_NORMAL splitBy #-}
 splitBy :: Monad m => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b
@@ -1142,7 +1145,7 @@ data SplitOnState s a =
     | GO_EMPTY_PAT s
     | GO_SINGLE_PAT s a
     | GO_SHORT_PAT s
-    | GO_KARP_RABIN s !(RB.RingBuffer a) !(Ptr a)
+    | GO_KARP_RABIN s !(RB.Ring a) !(Ptr a)
     | GO_DONE
 
 {-# INLINE_NORMAL splitOn #-}
@@ -1671,6 +1674,100 @@ mapM_ m = drain . mapM m
 {-# INLINE fromStreamD #-}
 fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
 fromStreamD = K.fromStream . toStreamK
+
+------------------------------------------------------------------------------
+-- Exceptions
+------------------------------------------------------------------------------
+
+-- | Run a side effect before the stream yields its first element.
+before :: Monad m => m b -> Stream m a -> Stream m a
+before action (Stream step state) = Stream step' Nothing
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = action >> return (Skip (Just state))
+
+    step' gst (Just st) = do
+        res <- step gst st
+        case res of
+            Yield x s -> return $ Yield x (Just s)
+            Skip s    -> return $ Skip (Just s)
+            Stop      -> return Stop
+
+-- | Run a side effect whenever the stream stops normally.
+after :: Monad m => m b -> Stream m a -> Stream m a
+after action (Stream step state) = Stream step' state
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        res <- step gst st
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- | Run a side effect whenever the stream aborts due to an exception. The
+-- exception is not caught simply rethrown.
+onException :: MonadCatch m => m b -> Stream m a -> Stream m a
+onException action (Stream step state) = Stream step' state
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst st = do
+        res <- step gst st `MC.onException` action
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- XXX check if a monolithic implementation would be more performant.
+--
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception.
+finally :: MonadCatch m => m b -> Stream m a -> Stream m a
+finally action xs = after action $ onException action xs
+
+-- | Run the first action before the stream starts and remember its output,
+-- generate a stream using the output, run the second action using the
+-- remembered value as an argument whenever the stream ends normally or due to
+-- an exception.
+bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+bracket bef aft bet = Stream step' Nothing
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = bef >>= \x -> return (Skip (Just (bet x, x)))
+
+    step' gst (Just (Stream step state, v)) = do
+        res <- step gst state `MC.onException` aft v
+        case res of
+            Yield x s -> return $ Yield x (Just (Stream step s, v))
+            Skip s    -> return $ Skip (Just (Stream step s, v))
+            Stop      -> aft v >> return Stop
+
+-- | When evaluating a stream if an exception occurs, stream evaluation aborts
+-- and the specified exception handler is run with the exception as argument.
+handle :: (MonadCatch m, Exception e) => (e -> m a) -> Stream m a -> Stream m a
+handle f (Stream step state) = Stream step' (Just state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (Just st) = do
+        res <- MC.try $ step gst st
+        case res of
+            Left e -> f e >>= \x -> return (Yield x Nothing)
+            Right r -> case r of
+                Yield x s -> return $ Yield x (Just s)
+                Skip s    -> return $ Skip (Just s)
+                Stop      -> return Stop
+
+    step' _ Nothing = return Stop
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

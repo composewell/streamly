@@ -15,8 +15,8 @@ import qualified GHC.Exts as GHC
 import qualified LinearOps as Ops
 
 import Streamly
-import qualified Streamly.Array   as A
-import qualified Streamly.Fold    as FL
+import qualified Streamly.Fold as FL
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.Sink   as Sink
 import Gauge

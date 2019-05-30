@@ -5,16 +5,29 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
+import Streamly (SerialT)
 import Streamly.SVar (MonadAsync)
-import qualified Streamly.Streams.StreamK as S
+
+import qualified Streamly.Mem.Array as A
+import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Fold as FL
+import qualified Streamly.Prelude as S
+import qualified Streamly.Streams.StreamK as K
+
+import Data.Char (ord)
 import Gauge
+import System.IO (hSeek, SeekMode(..), openFile, IOMode(..))
 import System.Random
 
 maxValue :: Int
 maxValue = 100000
 
+-- type Stream = K.Stream
+type Stream = SerialT
+
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: MonadAsync m => S.Stream m Int
+sourceUnfoldrM :: MonadAsync m => Stream m Int
 sourceUnfoldrM = S.unfoldrM step 0
     where
     step cnt =
@@ -23,7 +36,7 @@ sourceUnfoldrM = S.unfoldrM step 0
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: MonadAsync m => Int -> S.Stream m Int
+sourceUnfoldrMN :: MonadAsync m => Int -> Stream m Int
 sourceUnfoldrMN n = S.unfoldrM step n
     where
     step cnt =
@@ -32,7 +45,7 @@ sourceUnfoldrMN n = S.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Monad m => Int -> S.Stream m Int
+sourceUnfoldr :: Monad m => Int -> Stream m Int
 sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =
@@ -44,14 +57,14 @@ sourceUnfoldr n = S.unfoldr step n
 -- take-drop composition
 -------------------------------------------------------------------------------
 
-takeAllDropOne :: Monad m => S.Stream m Int -> S.Stream m Int
+takeAllDropOne :: Monad m => Stream m Int -> Stream m Int
 takeAllDropOne = S.drop 1 . S.take maxValue
 
 -- Requires -fspec-constr-recursive=5 for better fused code
 -- The number depends on how many times we compose it
 
 {-# INLINE takeDrop #-}
-takeDrop :: Monad m => S.Stream m Int -> m ()
+takeDrop :: Monad m => Stream m Int -> m ()
 takeDrop = S.drain .
     takeAllDropOne . takeAllDropOne . takeAllDropOne . takeAllDropOne
 
@@ -59,14 +72,14 @@ takeDrop = S.drain .
 -- dropWhileFalse composition
 -------------------------------------------------------------------------------
 
-dropWhileFalse :: Monad m => S.Stream m Int -> S.Stream m Int
+dropWhileFalse :: Monad m => Stream m Int -> Stream m Int
 dropWhileFalse = S.dropWhile (> maxValue)
 
 -- Requires -fspec-constr-recursive=5 for better fused code
 -- The number depends on how many times we compose it
 
 {-# INLINE dropWhileFalseX4 #-}
-dropWhileFalseX4 :: Monad m => S.Stream m Int -> m ()
+dropWhileFalseX4 :: Monad m => Stream m Int -> m ()
 dropWhileFalseX4 = S.drain
     . dropWhileFalse . dropWhileFalse . dropWhileFalse .  dropWhileFalse
 
@@ -77,7 +90,7 @@ dropWhileFalseX4 = S.drain
 {-# INLINE iterateSource #-}
 iterateSource
     :: MonadAsync m
-    => (S.Stream m Int -> S.Stream m Int) -> Int -> Int -> S.Stream m Int
+    => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
 iterateSource g i n = f i (sourceUnfoldrMN n)
     where
         f (0 :: Int) m = g m
@@ -94,3 +107,14 @@ main = do
         nfIO $ dropWhileFalseX4 sourceUnfoldrM]
     defaultMain [bench "iterate-mapM" $
         nfIO $ S.drain $ iterateSource (S.mapM return) 100000 10]
+
+    inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
+    defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
+                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
+                    "abcdefghijklmnopqrstuvwxyz") FL.drain
+                        $ FH.read inText) >>= print
+                ]
+    where
+
+    mkBenchText name h action =
+        bench name $ perRunEnv (hSeek h AbsoluteSeek 0) (\_ -> action)
