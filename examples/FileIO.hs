@@ -12,6 +12,9 @@ cat src = File.writeArrays "/dev/stdout" $ File.readArraysUpto (256*1024) src
 cp :: FilePath -> FilePath -> IO ()
 cp src dst = File.writeArrays dst $ File.readArraysUpto (256*1024) src
 
+append :: FilePath -> FilePath -> IO ()
+append src dst = File.appendArrays dst $ File.readArraysUpto (256*1024) src
+
 ord' :: Num a => Char -> a
 ord' = (fromIntegral . ord)
 
@@ -50,3 +53,4 @@ main = do
     putStr "avgll "   >> avgll src            -- get average line length
     putStr "llhisto " >> llhisto src          -- get line length histogram
     putStr "cp "      >> cp src "dst-xyz.txt" -- Unix cp program
+    putStr "append "  >> append src "dst-xyz.txt" -- Appending to file
