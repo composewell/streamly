@@ -932,9 +932,9 @@ executable ControlFlow
   else
     buildable: False
 
-executable FileIO
+executable HandleIO
   default-language: Haskell2010
-  main-is: FileIO.hs
+  main-is: HandleIO.hs
   hs-source-dirs:  examples
   ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
