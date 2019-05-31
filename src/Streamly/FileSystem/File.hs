@@ -150,6 +150,7 @@ import qualified Streamly.Prelude as S
 -- raising an exception.  If closing the handle raises an exception, then
 -- this exception will be raised by 'withFile' rather than any exception
 -- raised by 'act'.
+{-# INLINE withFile #-}
 withFile :: (IsStream t, MonadCatch m, MonadIO m)
     => FilePath -> IOMode -> (Handle -> t m a) -> t m a
 withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
@@ -232,7 +233,7 @@ readByChunksUpto chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = withFile file ReadMode FH.read
+read file = A.flattenArrays $ withFile file ReadMode FH.readArrays
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
