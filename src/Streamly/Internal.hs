@@ -8,12 +8,15 @@
 -- Portability : GHC
 --
 -- This module is only for internal use. There is no warranty for the routines
--- in this module to work correctly, please use at your own risk. These
--- routines are subject to change or be removed without notice.
+-- in this module to work correctly, please use at your own risk.  The
+-- constructors and routines exposed through this module are likely to change
+-- or to be removed in future without notice.
 --
 module Streamly.Internal
-    ( inspectMode
+    ( Fold (..)
+    , inspectMode
     )
 where
 
+import Streamly.Fold.Types (Fold(..))
 import Streamly.Streams.Combinators (inspectMode)
