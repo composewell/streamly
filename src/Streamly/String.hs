@@ -85,12 +85,14 @@ import qualified Streamly.Prelude as S
 
 -- | Decode a stream of bytes to Unicode characters by mapping each byte to a
 -- corresponding Unicode 'Char' in 0-255 range.
+{-# INLINE decodeChar8 #-}
 decodeChar8 :: (IsStream t, Monad m) => t m Word8 -> t m Char
 decodeChar8 = S.map (unsafeChr . fromIntegral)
 
 -- | Encode a stream of Unicode characters to bytes by mapping each character
 -- to a byte in 0-255 range. Throws an error if the input stream contains
 -- characters beyond 255.
+{-# INLINE encodeChar8 #-}
 encodeChar8 :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8 = S.map convert
     where
@@ -104,6 +106,7 @@ encodeChar8 = S.map convert
 -- | Like 'encodeChar8' but silently truncates and maps input characters beyond
 -- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
 -- when such truncation occurs.
+{-# INLINE encodeChar8Unchecked #-}
 encodeChar8Unchecked :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8Unchecked = S.map (fromIntegral . ord)
 
