@@ -218,6 +218,7 @@ library
                      , Streamly.FileSystem.File
                      , Streamly.FileSystem.Handle
                      , Streamly.Network.Socket
+                     , Streamly.Network.Server
 
                     -- Time
                      , Streamly.Time.Units

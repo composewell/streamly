@@ -13,6 +13,7 @@ import qualified Streamly.FileSystem.File as File
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Network.Socket as NS
+import qualified Streamly.Network.Server as NS
 import qualified Streamly.Prelude as S
 
 main :: IO ()
@@ -22,7 +23,7 @@ main = do
         $ encodeChar8Unchecked
         $ S.concatMap A.read
         $ S.concatMapBy parallel recv
-        $ NS.recvConnectionsOn 8090
+        $ NS.connectionsOnAllAddrs 8090
 
     where
 
