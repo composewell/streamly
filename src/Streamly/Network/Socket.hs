@@ -247,8 +247,10 @@ read :: (IsStream t, MonadIO m) => Socket -> t m Word8
 read = A.flattenArrays . readArrays
 
 -- | Read a stream of Word8 from a socket, closing the socket when done.
+{-# INLINE fromSocket #-}
 fromSocket :: (MonadCatch m, MonadIO m) => Socket -> SerialT m Word8
-fromSocket sk = S.finally (liftIO (Net.close sk)) (read sk)
+fromSocket sk = A.flattenArrays $
+    S.finally (liftIO (Net.close sk)) (readArrays sk)
 
 -------------------------------------------------------------------------------
 -- Writing
