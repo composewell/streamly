@@ -1680,6 +1680,7 @@ fromStreamD = K.fromStream . toStreamK
 ------------------------------------------------------------------------------
 
 -- | Run a side effect before the stream yields its first element.
+{-# INLINE_NORMAL before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a
 before action (Stream step state) = Stream step' Nothing
 
@@ -1696,6 +1697,7 @@ before action (Stream step state) = Stream step' Nothing
             Stop      -> return Stop
 
 -- | Run a side effect whenever the stream stops normally.
+{-# INLINE_NORMAL after #-}
 after :: Monad m => m b -> Stream m a -> Stream m a
 after action (Stream step state) = Stream step' state
 
@@ -1709,8 +1711,18 @@ after action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> action >> return Stop
 
+-- XXX These combinators are expensive due to the call to
+-- onException/handle/try on each step. Therefore, they should called in an
+-- outer loop where we perform less iterations. For example, we cannot call
+-- them on each iteration in a char stream, instead we can call them when doing
+-- an IO on an array.
+--
+-- XXX For high performance error checks in busy streams we may need another
+-- Error constructor in step.
+--
 -- | Run a side effect whenever the stream aborts due to an exception. The
 -- exception is not caught simply rethrown.
+{-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action (Stream step state) = Stream step' state
 
@@ -1728,13 +1740,19 @@ onException action (Stream step state) = Stream step' state
 --
 -- | Run a side effect whenever the stream stops normally or aborts due to an
 -- exception.
+{-# INLINE finally #-}
 finally :: MonadCatch m => m b -> Stream m a -> Stream m a
 finally action xs = after action $ onException action xs
 
+-- XXX bracket is like concatMap, it generates a stream and then flattens it.
+-- Like concatMap it has 10x worse performance compared to linear fused
+-- compositions.
+--
 -- | Run the first action before the stream starts and remember its output,
 -- generate a stream using the output, run the second action using the
 -- remembered value as an argument whenever the stream ends normally or due to
 -- an exception.
+{-# INLINE_NORMAL bracket #-}
 bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft bet = Stream step' Nothing
 
@@ -1743,7 +1761,9 @@ bracket bef aft bet = Stream step' Nothing
     {-# INLINE_LATE step' #-}
     step' _ Nothing = bef >>= \x -> return (Skip (Just (bet x, x)))
 
-    step' gst (Just (Stream step state, v)) = do
+    -- NOTE: It is important to use UnStream instead of the Stream pattern
+    -- here, otherwise we get huge perf degradation, see note in concatMap.
+    step' gst (Just (UnStream step state, v)) = do
         res <- step gst state `MC.onException` aft v
         case res of
             Yield x s -> return $ Yield x (Just (Stream step s, v))
@@ -1752,6 +1772,7 @@ bracket bef aft bet = Stream step' Nothing
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
+{-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e) => (e -> m a) -> Stream m a -> Stream m a
 handle f (Stream step state) = Stream step' (Just state)
 

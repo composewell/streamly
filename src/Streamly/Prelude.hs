@@ -2227,19 +2227,31 @@ intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 ------------------------------------------------------------------------------
 
 -- | Run a side effect before the stream yields its first element.
+--
+-- @since 0.7.0
+{-# INLINE before #-}
 before :: (IsStream t, Monad m) => m b -> t m a -> t m a
 before action xs = D.fromStreamD $ D.before action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream stops normally.
+--
+-- @since 0.7.0
+{-# INLINE after #-}
 after :: (IsStream t, Monad m) => m b -> t m a -> t m a
 after action xs = D.fromStreamD $ D.after action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream aborts due to an exception.
+--
+-- @since 0.7.0
+{-# INLINE onException #-}
 onException :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 onException action xs = D.fromStreamD $ D.onException action $ D.toStreamD xs
 
 -- | Run a side effect whenever the stream stops normally or aborts due to an
 -- exception.
+--
+-- @since 0.7.0
+{-# INLINE finally #-}
 finally :: (IsStream t, MonadCatch m) => m b -> t m a -> t m a
 finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 
@@ -2247,6 +2259,9 @@ finally action xs = D.fromStreamD $ D.finally action $ D.toStreamD xs
 -- generate a stream using the output, run the second action using the
 -- remembered value as an argument whenever the stream ends normally or due to
 -- an exception.
+--
+-- @since 0.7.0
+{-# INLINE bracket #-}
 bracket :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
 bracket bef aft bet = D.fromStreamD $
@@ -2254,6 +2269,9 @@ bracket bef aft bet = D.fromStreamD $
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
+--
+-- @since 0.7.0
+{-# INLINE handle #-}
 handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> m a) -> t m a -> t m a
 handle handler xs = D.fromStreamD $ D.handle handler $ D.toStreamD xs
