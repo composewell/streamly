@@ -32,8 +32,9 @@
 
 module Streamly.Network.Socket
     (
+      withSocket
     -- * Read from connection
-      fromSocket
+    , fromSocket
     , read
     -- , readUtf8
     -- , readLines
@@ -64,7 +65,7 @@ module Streamly.Network.Socket
 where
 
 import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, onException)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.Word (Word8)
@@ -92,6 +93,16 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
+
+-- | @'withSocket' socket act@ runs the computation @act@ passing the socket
+-- handle to it.  The handle will be closed on exit from 'withSocket', whether
+-- by normal termination or by raising an exception.  If closing the handle
+-- raises an exception, then this exception will be raised by 'withSocket'
+-- rather than any exception raised by 'act'.
+withSocket :: (MonadCatch m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
+withSocket sk f = do
+    f sk `onException` liftIO (Net.close sk)
+    liftIO (Net.close sk)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
