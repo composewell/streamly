@@ -85,6 +85,14 @@ sourceFromList n = S.fromList [n..n+value]
 sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
 sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
 
+{-# INLINE sourceFromIndices #-}
+sourceFromIndices :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceFromIndices n = S.take value $ S.fromIndices (+ n)
+
+{-# INLINE sourceFromIndicesM #-}
+sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+sourceFromIndicesM n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
+
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: S.IsStream t => Int -> t m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
