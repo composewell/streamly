@@ -32,9 +32,11 @@
 
 module Streamly.Network.Socket
     (
+    -- * Use a socket
       withSocket
+    , withSocketS
+
     -- * Read from connection
-    , fromSocket
     , read
     -- , readUtf8
     -- , readLines
@@ -94,15 +96,34 @@ import qualified Streamly.Mem.Array as A
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
--- | @'withSocket' socket act@ runs the computation @act@ passing the socket
--- handle to it.  The handle will be closed on exit from 'withSocket', whether
--- by normal termination or by raising an exception.  If closing the handle
--- raises an exception, then this exception will be raised by 'withSocket'
--- rather than any exception raised by 'act'.
+-- | @'withSocket' socket act@ runs the monadic computation @act@ passing the
+-- socket handle to it.  The handle will be closed on exit from 'withSocket',
+-- whether by normal termination or by raising an exception.  If closing the
+-- handle raises an exception, then this exception will be raised by
+-- 'withSocket' rather than any exception raised by 'act'.
+--
+-- @since 0.7.0
+{-# INLINE withSocket #-}
 withSocket :: (MonadCatch m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
 withSocket sk f = do
     f sk `onException` liftIO (Net.close sk)
     liftIO (Net.close sk)
+
+-- XXX bracket performs 2x better than 'finally'.  That's perhaps because of
+-- better fusion of "A.flattenArrays .  readArrays"?
+--
+-- withSocketS :: (IsStream t, MonadCatch m, MonadIO m) => Socket -> t m Word8
+-- withSocketS sk = A.flattenArrays $
+--     S.finally (liftIO (Net.close sk)) (readArrays sk)
+
+-- | Like 'withSocket' but runs a streaming computation instead of a monadic
+-- computation.
+--
+-- @since 0.7.0
+{-# INLINE withSocketS #-}
+withSocketS :: (IsStream t, MonadCatch m, MonadIO m)
+    => Socket -> (Socket -> t m a) -> t m a
+withSocketS sk = S.bracket (return sk) (liftIO . Net.close)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
@@ -245,12 +266,6 @@ readByChunksUpto chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Socket -> t m Word8
 read = A.flattenArrays . readArrays
-
--- | Read a stream of Word8 from a socket, closing the socket when done.
-{-# INLINE fromSocket #-}
-fromSocket :: (MonadCatch m, MonadIO m) => Socket -> SerialT m Word8
-fromSocket sk = A.flattenArrays $
-    S.finally (liftIO (Net.close sk)) (readArrays sk)
 
 -------------------------------------------------------------------------------
 -- Writing
