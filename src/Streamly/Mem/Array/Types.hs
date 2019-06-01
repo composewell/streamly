@@ -50,6 +50,7 @@ module Streamly.Mem.Array.Types
     , toStreamDRev
     , toList
     , toArrayN
+    , read
 
     -- * Utilities
     , defaultChunkSize
@@ -70,7 +71,7 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, foldr)
+import Prelude hiding (length, foldr, read)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
@@ -369,11 +370,6 @@ toArrayN n = Fold step initial extract
     extract = return
 
 {-
--- | Fold the input to a pure buffered stream (List) of arrays.
-{-# INLINE toArrays #-}
-toArrays :: (Monad m, Storable a) => Int -> Fold m a (List (Array a))
-toArrays n = Fold step initial extract
-
 -- This can be implemented by combining the List of arrays from toArrays into a
 -- single array.
 -- | Fold the whole input to a single array.
@@ -619,6 +615,16 @@ _foldr f z arr@Array {..} =
 instance Foldable Array where
   foldr = _foldr
 #endif
+
+-- | Convert an 'Array' into a stream.
+--
+-- @since 0.7.0
+{-# INLINE_EARLY read #-}
+read :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
+read = D.fromStreamD . toStreamD
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
+--     forall a. S.readK (read a) = K.fromArray a #-}
 
 -------------------------------------------------------------------------------
 -- Semigroup and Monoid

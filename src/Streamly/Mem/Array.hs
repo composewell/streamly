@@ -132,6 +132,7 @@ module Streamly.Mem.Array
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -140,6 +141,7 @@ import Prelude hiding (length, null, last, map, (!!), read)
 import Streamly.Mem.Array.Types hiding (flattenArrays, newArray)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Fold (Fold, lchunksOf, toStream)
 
 import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Prelude as S
@@ -169,16 +171,6 @@ writeN n m = fromStreamDN n $ D.toStreamD m
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
-
--- | Convert an 'Array' into a stream.
---
--- @since 0.7.0
-{-# INLINE_EARLY read #-}
-read :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-read = D.fromStreamD . toStreamD
--- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
---     forall a. S.readK (read a) = K.fromArray a #-}
 
 -- | Convert an 'Array' into a stream in reverse order.
 --
@@ -360,6 +352,12 @@ writeSliceRev arr i len s = undefined
 -------------------------------------------------------------------------------
 -- Streams of Arrays
 -------------------------------------------------------------------------------
+
+-- | Fold the input to a pure buffered stream (List) of arrays.
+{-# INLINE _toArrays #-}
+_toArrays :: (MonadIO m, Storable a)
+    => Int -> Fold m a (SerialT Identity (Array a))
+_toArrays n = lchunksOf n (toArrayN n) toStream
 
 -- | Convert a stream of arrays into a stream of their elements.
 --

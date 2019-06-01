@@ -375,7 +375,7 @@ import qualified Data.Map.Strict as Map
 
 import Streamly (MonadAsync, parallel)
 import Streamly.Fold.Types (Fold(..))
-import Streamly.Mem.Array (Array)
+import Streamly.Mem.Array.Types (Array)
 -- import Streamly.Mem.Ring (Ring)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK (IsStream())
@@ -385,7 +385,7 @@ import Streamly.Time.Units
 
 import Streamly.Strict
 
-import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K

@@ -35,6 +35,7 @@ module Streamly.Streams.StreamD.Type
 #endif
     , fromStreamK
     , toStreamK
+    , fromStreamD
     , map
     , mapM
     , yield
@@ -135,6 +136,14 @@ toStreamK (Stream step state) = go state
 {-# RULES "toStreamK/fromStreamK fusion"
     forall s. fromStreamK (toStreamK s) = s #-}
 #endif
+
+------------------------------------------------------------------------------
+-- Converting folds
+------------------------------------------------------------------------------
+
+{-# INLINE fromStreamD #-}
+fromStreamD :: (K.IsStream t, Monad m) => Stream m a -> t m a
+fromStreamD = K.fromStream . toStreamK
 
 ------------------------------------------------------------------------------
 -- Instances
