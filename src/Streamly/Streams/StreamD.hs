@@ -1704,10 +1704,10 @@ after action (Stream step state) = Stream step' state
             Stop      -> action >> return Stop
 
 -- XXX These combinators are expensive due to the call to
--- onException/handle/try on each step. Therefore, they should called in an
--- outer loop where we perform less iterations. For example, we cannot call
--- them on each iteration in a char stream, instead we can call them when doing
--- an IO on an array.
+-- onException/handle/try on each step. Therefore, when possible, they should
+-- be called in an outer loop where we perform less iterations. For example, we
+-- cannot call them on each iteration in a char stream, instead we can call
+-- them when doing an IO on an array.
 --
 -- XXX For high performance error checks in busy streams we may need another
 -- Error constructor in step.
@@ -1726,10 +1726,8 @@ onException action (Stream step state) = Stream step' state
         case res of
             Yield x s -> return $ Yield x s
             Skip s    -> return $ Skip s
-            Stop      -> action >> return Stop
+            Stop      -> return Stop
 
--- XXX check if a monolithic implementation would be more performant.
---
 -- | Run a side effect whenever the stream stops normally or aborts due to an
 -- exception.
 {-# INLINE finally #-}
