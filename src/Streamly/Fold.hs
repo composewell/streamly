@@ -131,9 +131,13 @@ module Streamly.Fold
     -- 'left' assuming left side is the input side, notice that in @Fold m a b@
     -- the type variable @a@ is on the left side.
 
+    -- ** Covariant Operations
+    , sequence
+    , mapM
+
     -- ** Mapping
     , lmap
-    --, sequence
+    --, lsequence
     , lmapM
 
     -- ** Scanning
@@ -368,10 +372,11 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
-               span, splitAt, break)
+               span, splitAt, break, mapM)
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
+import qualified Prelude
 
 import Streamly (MonadAsync, parallel)
 import Streamly.Fold.Types (Fold(..))
@@ -448,6 +453,30 @@ import qualified Streamly.Streams.Prelude as P
 {-# INLINE foldl' #-}
 foldl' :: Monad m => Fold m a b -> SerialT m a -> m b
 foldl' (Fold step begin done) = P.foldlMx' step begin done
+
+------------------------------------------------------------------------------
+-- Transformations on fold inputs
+------------------------------------------------------------------------------
+
+-- | Convert a fold that generates a monadic action to a fold that generates
+-- the output of that monadic action.
+--
+-- @since 0.7.0
+{-# INLINE sequence #-}
+sequence :: Monad m => Fold m a (m b) -> Fold m a b
+sequence (Fold step initial extract) = Fold step initial extract'
+  where
+    extract' x = do
+        act <- extract x
+        act >>= return
+
+-- | Convert a fold that generates a monadic action to a fold that generates
+-- the output of that monadic action.
+--
+-- @since 0.7.0
+{-# INLINE mapM #-}
+mapM :: Monad m => (b -> m c) -> Fold m a b -> Fold m a c
+mapM f = sequence . fmap f
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
@@ -737,7 +766,7 @@ toListRev = Fold (\xs x -> return $ x:xs) (return []) return
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.7.0
-{-# INLINABLE toStream #-}
+{-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
 toStream = Fold (\f x -> return $ f . (x `K.cons`))
                 (return id)
@@ -1115,6 +1144,7 @@ chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
 -- | Transform a fold from a pure input to a 'Maybe' input, consuming only
 -- 'Just' values.
+{-# INLINE lcatMaybes #-}
 lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 lcatMaybes = lfilter isJust . lmap fromJust
 
@@ -1284,6 +1314,7 @@ _spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR)
 -- > [[1,3,7],[0,2,5]]
 --
 -- @since 0.7.0
+{-# INLINE groupsBy #-}
 groupsBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
@@ -1304,6 +1335,7 @@ groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 -- > [[1,2,3],[7,8,9]]
 --
 -- @since 0.7.0
+{-# INLINE groupsRollingBy #-}
 groupsRollingBy
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
@@ -1955,6 +1987,7 @@ partition = partitionBy id
 -- @
 --
 -- @since 0.7.0
+{-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
     => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
 demuxWith f kv = Fold step initial extract
@@ -1974,7 +2007,7 @@ demuxWith f kv = Fold step initial extract
             Just (Fold step' acc extract') -> do
                 !r <- acc >>= \x -> step' x a
                 return $ Map.insert k (Fold step' (return r) extract') mp
-    extract = mapM (\(Fold _ acc e) -> acc >>= e)
+    extract = Prelude.mapM (\(Fold _ acc e) -> acc >>= e)
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
 -- key into a map from keys to the results of fold outputs of the corresponding
@@ -1989,6 +2022,7 @@ demuxWith f kv = Fold step initial extract
 -- @
 --
 -- @since 0.7.0
+{-# INLINE demux #-}
 demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
 demux fs = demuxWith fst (Map.map (lmap snd) fs)
@@ -2012,13 +2046,16 @@ demux fs = demuxWith fst (Map.map (lmap snd) fs)
 -- demuxWith_ can be slightly faster than demuxWith because we do not need to
 -- update the Map in this case. This may be significant only if the map is
 -- large.
+{-# INLINE demuxWith_ #-}
 demuxWith_ :: (Monad m, Ord k)
     => (a -> k) -> Map k (Fold m a b) -> Fold m a ()
 demuxWith_ f kv = Fold step initial extract
 
     where
 
-    initial = mapM (\(Fold s i e) -> i >>= \r -> return (Fold s (return r) e)) kv
+    initial = do
+        Prelude.mapM (\(Fold s i e) ->
+            i >>= \r -> return (Fold s (return r) e)) kv
     step mp a =
         -- XXX should we raise an exception in Nothing case?
         -- Ideally we should enforce that it is a total map over k so that look
@@ -2028,7 +2065,7 @@ demuxWith_ f kv = Fold step initial extract
             Just (Fold step' acc _) -> do
                 _ <- acc >>= \x -> step' x a
                 return mp
-    extract mp = mapM (\(Fold _ acc e) -> acc >>= e) mp >> return ()
+    extract mp = Prelude.mapM (\(Fold _ acc e) -> acc >>= e) mp >> return ()
 
 -- | Given a stream of key value pairs and a map from keys to folds, fold the
 -- values for each key using the corresponding folds, discarding the outputs.
@@ -2043,6 +2080,7 @@ demuxWith_ f kv = Fold step initial extract
 -- @
 --
 -- @since 0.7.0
+{-# INLINE demux_ #-}
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
 demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
 
@@ -2061,6 +2099,7 @@ demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
 -- @
 --
 -- @since 0.7.0
+{-# INLINE classifyWith #-}
 classifyWith :: (Monad m, Ord k) => (a -> k) -> Fold m a b -> Fold m a (Map k b)
 classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 
@@ -2077,7 +2116,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
             Just x -> do
                 r <- step x a
                 return $ Map.insert k r kv
-    extract' = mapM extract
+    extract' = Prelude.mapM extract
 
 -- | Given an input stream of key value pairs and a fold for values, fold all
 -- the values belonging to each key.  Useful for map/reduce, bucketizing the
@@ -2094,6 +2133,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 -- > classify fld = classifyWith fst (lmap snd fld)
 --
 -- @since 0.7.0
+{-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
 classify fld = classifyWith fst (lmap snd fld)
 
@@ -2141,6 +2181,7 @@ unzipWith f = unzipWithM (return . f)
 -- This is the consumer side dual of the producer side 'zip' operation.
 --
 -- @since 0.7.0
+{-# INLINE unzip #-}
 unzip :: Monad m => Fold m a x -> Fold m b y -> Fold m (a,b) (x,y)
 unzip = unzipWith id
 
@@ -2179,6 +2220,26 @@ lconcatMap s f1 f2 = undefined
 -- All the grouping transformation that we apply to a stream can also be
 -- applied to a fold input stream.
 
+{-
+-- | Group the input stream into groups of elements between @low@ and @high@.
+-- Collection starts in chunks of @low@ and then keeps doubling until we reach
+-- @high@. Each chunk is folded using the provided fold function.
+--
+-- This could be useful, for example, when we are folding a stream of unknown
+-- size to a stream of arrays and we want to minimize the number of
+-- allocations.
+--
+-- @
+--
+-- XXX we should be able to implement it with parsers/terminating folds.
+--
+{-# INLINE lchunksInRange #-}
+lchunksInRange :: Monad m
+    => Int -> Int -> Fold m a b -> Fold m b c -> Fold m a c
+lchunksInRange low high (Fold step1 initial1 extract1)
+                        (Fold step2 initial2 extract2) = undefined
+-}
+
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
@@ -2188,6 +2249,7 @@ lconcatMap s f1 f2 = undefined
 --
 -- @
 --
+{-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
 lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
     Fold step' initial' extract'
@@ -2219,6 +2281,7 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
+{-# INLINE lsessionsOf #-}
 lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
 lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
     Fold step' initial' extract'
