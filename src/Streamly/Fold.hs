@@ -221,6 +221,9 @@ module Streamly.Fold
     , chunksOf
     , sessionsOf
 
+    , lchunksOf
+    , lsessionsOf
+
     -- *** By Elements
     , splitBy
     , splitSuffixBy
@@ -346,9 +349,13 @@ module Streamly.Fold
     )
 where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay, forkIO, killThread)
+import Control.Concurrent.MVar (MVar, newMVar, takeMVar, putMVar)
+import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
+import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Control (control)
 import Data.Functor.Identity (Identity)
 import Data.Heap (Entry(..))
 import Data.Map.Strict (Map)
@@ -2167,26 +2174,104 @@ lconcatMap ::(IsStream t, Monad m) => (a -> t m b)
     -> Fold m b c
     -> Fold m a c
 lconcatMap s f1 f2 = undefined
+-}
 
 -- All the grouping transformation that we apply to a stream can also be
 -- applied to a fold input stream.
 
--- | Group the input elements of a fold input stream by some criterion and fold
--- each group using a given fold before its fed to the fold.
---
--- For example, we can copy and distribute a stream to multiple folds and then
--- in each fold we can group the input differently e.g. by one second, one
--- minute and one hour windows respectively and fold each resulting stream of
--- folds.
+-- | Group the input stream into groups of @n@ elements each and then fold each
+-- group using the provided fold function.
 --
 -- @
 --
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
-lchunksOf :: Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n f1 f2 = undefined
--}
+--
+lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
+    Fold step' initial' extract'
+
+    where
+
+    initial' = (Tuple3' 0) <$> initial1 <*> initial2
+    step' (Tuple3' i r1 r2) a = do
+        if i < n
+        then do
+            res <- step1 r1 a
+            return $ Tuple3' (i + 1) res r2
+        else do
+            i1 <- initial1
+            res1 <- extract1 r1
+            res <- step2 r2 res1
+            return $ Tuple3' 0 i1 res
+    extract' (Tuple3' _ _ r) = extract2 r
+
+-- | Group the input stream into windows of n second each and then fold each
+-- group using the provided fold function.
+--
+-- For example, we can copy and distribute a stream to multiple folds where
+-- each fold can group the input differently e.g. by one second, one minute and
+-- one hour windows respectively and fold each resulting stream of folds.
+--
+-- @
+--
+-- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
+--
+-- @
+lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
+lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
+    Fold step' initial' extract'
+
+    where
+
+    -- XXX MVar may be expensive we need a cheaper synch mechanism here
+    initial' = do
+        i1 <- initial1
+        i2 <- initial2
+        mv1 <- liftIO $ newMVar i1
+        mv2 <- liftIO $ newMVar (Right i2)
+        t <- control $ \run ->
+            mask $ \restore -> do
+                tid <- forkIO $ catch (restore $ void $ run (timerThread mv1 mv2))
+                                      (handleChildException mv2)
+                run (return tid)
+        return $ Tuple3' t mv1 mv2
+    step' acc@(Tuple3' _ mv1 _) a = do
+            r1 <- liftIO $ takeMVar mv1
+            res <- step1 r1 a
+            liftIO $ putMVar mv1 res
+            return acc
+    extract' (Tuple3' tid _ mv2) = do
+        r2 <- liftIO $ takeMVar mv2
+        liftIO $ killThread tid
+        case r2 of
+            Left e -> throwM e
+            Right x -> extract2 x
+
+    timerThread mv1 mv2 = do
+        liftIO $ threadDelay (round $ n * 1000000)
+
+        r1 <- liftIO $ takeMVar mv1
+        i1 <- initial1
+        liftIO $ putMVar mv1 i1
+
+        res1 <- extract1 r1
+        r2 <- liftIO $ takeMVar mv2
+        res <- case r2 of
+                    Left _ -> return r2
+                    Right x -> fmap Right $ step2 x res1
+        liftIO $ putMVar mv2 res
+        timerThread mv1 mv2
+
+    handleChildException ::
+        MVar (Either SomeException a) -> SomeException -> IO ()
+    handleChildException mv2 e = do
+        r2 <- takeMVar mv2
+        let r = case r2 of
+                    Left _ -> r2
+                    Right _ -> Left e
+        putMVar mv2 r
 
 ------------------------------------------------------------------------------
 -- Windowed classification
