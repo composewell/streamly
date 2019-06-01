@@ -4,6 +4,11 @@
 
 * Change the signature of `foldrM` to ensure that it is lazy
 * `scanx` would now require an additional `Monad m` constraint.
+* Change the signature of `iterateM` to ensure that it is lazy.
+
+### Bug Fixes
+
+* Fix a bug that caused `uniq` function to yield the same element twice.
 
 ### Major Enhancements
 
