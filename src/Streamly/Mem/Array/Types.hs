@@ -54,7 +54,9 @@ module Streamly.Mem.Array.Types
 
     -- * Utilities
     , defaultChunkSize
+    , mkChunkSize
     , mkChunkSizeKB
+    , reallocDouble
     )
 where
 
@@ -241,6 +243,26 @@ shrinkToFit arr@Array{..} = do
                 }
     else return arr
 
+-- | Expand the free space in the array doubling the size with a minimum
+-- exapnsion of the specified amount of bytes.
+{-# NOINLINE reallocDouble #-}
+reallocDouble :: forall a. Storable a => Int -> Array a -> IO (Array a)
+reallocDouble minIncrease Array{..} = do
+    assert (aEnd <= aBound) (return ())
+    let oldStart = unsafeForeignPtrToPtr aStart
+    let size = aEnd `minusPtr` oldStart
+        newSize = max (size * 2) (size + minIncrease)
+    newPtr <- mallocPlainForeignPtrAlignedBytes
+                newSize (alignment (undefined :: a))
+    withForeignPtr newPtr $ \pNew -> do
+        memcpy (castPtr pNew) (castPtr oldStart) size
+        touchForeignPtr aStart
+        return $ Array
+            { aStart = newPtr
+            , aEnd   = pNew `plusPtr` size
+            , aBound = pNew `plusPtr` newSize
+            }
+
 -- XXX when converting an array of Word8 from a literal string we can simply
 -- refer to the literal string. Is it possible to write rules such that
 -- fromList Word8 can be rewritten so that GHC does not first convert the
@@ -367,16 +389,7 @@ toArrayN n = Fold step initial extract
     step (Array start end bound) x = do
         liftIO $ poke end x
         return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-    extract = return
-
-{-
--- This can be implemented by combining the List of arrays from toArrays into a
--- single array.
--- | Fold the whole input to a single array.
-{-# INLINE toArray #-}
-toArray :: forall m a. (Monad m, Storable a) => Fold m a (Array a)
-toArray = Fold step begin done
--}
+    extract = liftIO . shrinkToFit
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
@@ -638,13 +651,16 @@ read = D.fromStreamD . toStreamD
 allocOverhead :: Int
 allocOverhead = 2 * sizeOf (undefined :: Int)
 
+mkChunkSize :: Int -> Int
+mkChunkSize n = n - allocOverhead
+
+mkChunkSizeKB :: Int -> Int
+mkChunkSizeKB n = mkChunkSize (n * k)
+   where k = 1024
+
 -- | Default maximum buffer size in bytes, for reading from and writing to IO
 -- devices, the value is 32KB minus GHC allocation overhead, which is a few
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
-defaultChunkSize = 32 * k - allocOverhead
-   where k = 1024
+defaultChunkSize = mkChunkSizeKB 32
 
-mkChunkSizeKB :: Int -> Int
-mkChunkSizeKB n = n * k - allocOverhead
-   where k = 1024

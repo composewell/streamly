@@ -22,12 +22,12 @@ main = do
     File.append file
         $ encodeChar8Unchecked
         $ S.concatMap A.read
-        $ S.concatMapBy parallel recv
+        $ S.concatMapBy parallel (flip NS.withSocketS recv)
         $ NS.connectionsOnAllAddrs 8090
 
     where
 
     recv =
-          FL.splitSuffixBy' (== '\n') (A.toArrayN 1024)
+          FL.splitSuffixBy' (== '\n') A.toArray
         . decodeChar8
-        . NS.fromSocket
+        . NS.read

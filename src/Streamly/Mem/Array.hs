@@ -99,7 +99,7 @@ module Streamly.Mem.Array
     -- Folds
     , toArrayN
     -- , toArrays
-    -- , toArray
+    , toArray
 
     -- Streams
     , arraysOf
@@ -132,8 +132,9 @@ module Streamly.Mem.Array
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity
+import Data.Functor.Identity (Identity)
 import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read)
@@ -141,11 +142,13 @@ import Prelude hiding (length, null, last, map, (!!), read)
 import Streamly.Mem.Array.Types hiding (flattenArrays, newArray)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.Fold (Fold, lchunksOf, toStream)
+import Streamly.Fold.Types (Fold(..))
 
+import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.Prelude as P
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -353,11 +356,63 @@ writeSliceRev arr i len s = undefined
 -- Streams of Arrays
 -------------------------------------------------------------------------------
 
+-- exponentially increasing sizes of the chunks upto the max limit.
+-- XXX this will be easier to implement with parsers/terminating folds
+-- With this we should be able to reduce the number of chunks/allocations.
+-- The reallocation/copy based toArray can also be implemented using this.
+--
+{-
+{-# INLINE toArraysInRange #-}
+toArraysInRange :: (IsStream t, MonadIO m, Storable a)
+    => Int -> Int -> Fold m (Array a) b -> Fold m a b
+toArraysInRange low high (Fold step initial extract) =
+-}
+
 -- | Fold the input to a pure buffered stream (List) of arrays.
-{-# INLINE _toArrays #-}
-_toArrays :: (MonadIO m, Storable a)
+{-# INLINE _toArraysOf #-}
+_toArraysOf :: (MonadIO m, Storable a)
     => Int -> Fold m a (SerialT Identity (Array a))
-_toArrays n = lchunksOf n (toArrayN n) toStream
+_toArraysOf n = FL.lchunksOf n (toArrayN n) FL.toStream
+
+-- XXX The realloc based implementation needs to make one extra copy if we use
+-- shrinkToFit.  On the other hand, the stream of arrays implementation may
+-- buffer the array chunk pointers in memory but it does not have to shrink as
+-- we know the exact size in the end. However, memory copying does not seems to
+-- be as expensive as the allocations. Therefore, we need to reduce the number
+-- of allocations instead. Also, the size of allocations matters, right sizing
+-- an allocation even at the cost of copying sems to help.  Should be measured
+-- on a big stream with heavy calls to toArray to see the effect.
+--
+-- XXX check if GHC's memory allocator is efficient enough. We can try the C
+-- malloc to compare against.
+
+{-# INLINE toArrayMinChunk #-}
+toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+-- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+toArrayMinChunk chunkSize = Fold step initial extract
+
+    where
+
+    insertElem (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+
+    initial = liftIO $ A.newArray (mkChunkSize chunkSize)
+    step arr@(Array _ end bound) x | end == bound = do
+        arr1 <- liftIO $ reallocDouble 1 arr
+        insertElem arr1 x
+    step arr x = insertElem arr x
+    extract = liftIO . shrinkToFit
+
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since 0.7.0
+{-# INLINE toArray #-}
+toArray :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+toArray = toArrayMinChunk 1024
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
@@ -389,14 +444,14 @@ arraysOf :: (IsStream t, MonadIO m, Storable a)
 arraysOf n str =
     D.fromStreamD $ fromStreamDArraysOf n (D.toStreamD str)
 
--- | Given a stream of arrays, splice them all together to generate a single
--- array. The stream must be /finite/.
---
--- @since 0.7.0
-{-# INLINABLE spliceArrays #-}
-spliceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
-spliceArrays s = do
-    buffered <- S.foldr S.cons S.nil s
+-- XXX Both of these implementations of splicing seem to perform equally well.
+-- We need to perform benchmarks over a range of sizes though.
+
+{-# INLINE _spliceArraysRealloced #-}
+_spliceArraysRealloced :: (MonadIO m, Storable a)
+    => SerialT m (Array a) -> m (Array a)
+_spliceArraysRealloced s = do
+    buffered <- P.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
 
     arr <- liftIO $ A.newArray len
@@ -410,6 +465,38 @@ spliceArrays s = do
                         let len = aEnd `minusPtr` src
                         memcpy (castPtr dst) (castPtr src) len
                         return $ dst `plusPtr` len
+
+{-# INLINE spliceArraysBuffered #-}
+spliceArraysBuffered :: (MonadIO m, Storable a)
+    => SerialT m (Array a) -> m (Array a)
+spliceArraysBuffered s = do
+    idst <- liftIO $ A.newArray (mkChunkSizeKB 4)
+    arr <- S.foldlM' appendArr idst s
+    liftIO $ shrinkToFit arr
+
+    where
+
+    appendArr dst@(Array _ end bound) src  = liftIO $ do
+        let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
+        dst1 <-
+            if end `plusPtr` srcLen >= bound
+            then reallocDouble srcLen dst
+            else return dst
+
+        withForeignPtr (aStart dst1) $ \_ -> do
+            withForeignPtr (aStart src) $ \psrc -> do
+                let pdst = aEnd dst1
+                memcpy (castPtr pdst) (castPtr psrc) srcLen
+                return $ dst1 { aEnd = pdst `plusPtr` srcLen }
+
+-- | Given a stream of arrays, splice them all together to generate a single
+-- array. The stream must be /finite/.
+--
+-- @since 0.7.0
+{-# INLINE spliceArrays #-}
+spliceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
+spliceArrays = spliceArraysBuffered
+-- spliceArrays = _spliceArraysRealloced
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
