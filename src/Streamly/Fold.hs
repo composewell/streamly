@@ -444,6 +444,10 @@ import qualified Streamly.Streams.Prelude as P
 -- Running a Fold
 ------------------------------------------------------------------------------
 
+-- XXX rename to foldStream to be consistent with foldArray for arrays? Should
+-- we move it in the stream module (Prelude as of now) or should we move
+-- foldArray as well here?
+
 -- | Fold a stream using the supplied monadic fold.
 --
 -- >>> FL.foldl' FL.sum (S.enumerateFromTo 1 100)

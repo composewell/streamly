@@ -34,7 +34,7 @@ module Streamly.Mem.Array.Types
     , fromList
     , fromListN
     , fromStreamDN
-    , fromStreamD
+    -- , fromStreamD
     , fromStreamDArraysOf
     , flattenArrays
     , flattenArraysRev
@@ -384,7 +384,9 @@ toArrayN n = Fold step initial extract
 
     where
 
-    initial = liftIO $ newArray n
+    initial = do
+        if n < 0 then error "toArrayN: negative count specified" else return ()
+        liftIO $ newArray n
     step arr@(Array _ end bound) _ | end == bound = return arr
     step (Array start end bound) x = do
         liftIO $ poke end x
@@ -652,7 +654,7 @@ allocOverhead :: Int
 allocOverhead = 2 * sizeOf (undefined :: Int)
 
 mkChunkSize :: Int -> Int
-mkChunkSize n = n - allocOverhead
+mkChunkSize n = let size = n - allocOverhead in max size 0
 
 mkChunkSizeKB :: Int -> Int
 mkChunkSizeKB n = mkChunkSize (n * k)
@@ -663,4 +665,3 @@ mkChunkSizeKB n = mkChunkSize (n * k)
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
-

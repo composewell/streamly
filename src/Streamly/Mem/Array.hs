@@ -128,9 +128,16 @@ module Streamly.Mem.Array
     , writeSlice
     , writeSliceRev
     -}
+    -- * Immutable Transformations
+    , transformWith
+
+    -- * Folds
+    , foldWith
+    , foldArray
     )
 where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
 import Foreign.ForeignPtr (withForeignPtr)
@@ -169,7 +176,9 @@ newArray len = undefined
 -- @since 0.7.0
 {-# INLINE writeN #-}
 writeN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-writeN n m = fromStreamDN n $ D.toStreamD m
+writeN n m = do
+    if n < 0 then error "writeN: negative write count specified" else return ()
+    fromStreamDN n $ D.toStreamD m
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -386,11 +395,17 @@ _toArraysOf n = FL.lchunksOf n (toArrayN n) FL.toStream
 -- XXX check if GHC's memory allocator is efficient enough. We can try the C
 -- malloc to compare against.
 
+{-# INLINE bytesToCount #-}
+bytesToCount :: Storable a => a -> Int -> Int
+bytesToCount x n =
+    let elemSize = sizeOf x
+    in n + elemSize - 1 `div` elemSize
+
 {-# INLINE toArrayMinChunk #-}
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
-toArrayMinChunk chunkSize = Fold step initial extract
+toArrayMinChunk elemCount = Fold step initial extract
 
     where
 
@@ -398,7 +413,9 @@ toArrayMinChunk chunkSize = Fold step initial extract
         liftIO $ poke end x
         return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
 
-    initial = liftIO $ A.newArray (mkChunkSize chunkSize)
+    initial = do
+        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
+        liftIO $ A.newArray elemCount
     step arr@(Array _ end bound) x | end == bound = do
         arr1 <- liftIO $ reallocDouble 1 arr
         insertElem arr1 x
@@ -412,7 +429,7 @@ toArrayMinChunk chunkSize = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE toArray #-}
 toArray :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-toArray = toArrayMinChunk 1024
+toArray = toArrayMinChunk (bytesToCount (undefined :: a) (mkChunkSize 1024))
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
@@ -467,10 +484,11 @@ _spliceArraysRealloced s = do
                         return $ dst `plusPtr` len
 
 {-# INLINE spliceArraysBuffered #-}
-spliceArraysBuffered :: (MonadIO m, Storable a)
+spliceArraysBuffered :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysBuffered s = do
-    idst <- liftIO $ A.newArray (mkChunkSizeKB 4)
+    idst <- liftIO $ A.newArray (bytesToCount (undefined :: a)
+                                (mkChunkSizeKB 4))
     arr <- S.foldlM' appendArr idst s
     liftIO $ shrinkToFit arr
 
@@ -508,8 +526,40 @@ spliceArrays = spliceArraysBuffered
 --
 {-# INLINE write #-}
 write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-write m = A.fromStreamD $ D.toStreamD m
+write = FL.foldl' toArray
+-- write m = A.fromStreamD $ D.toStreamD m
 
 -- XXX efficiently compare two streams of arrays. Two streams can have chunks
 -- of different sizes, we can handle that in the stream comparison abstraction.
 -- This could be useful e.g. to fast compare whether two files differ.
+
+-------------------------------------------------------------------------------
+-- Transform via stream operations
+-------------------------------------------------------------------------------
+
+-- for non-length changing operations we can use the original length for
+-- allocation. If we can predict the length then we can use the prediction for
+-- new allocation. Otherwise we can use a hint and adjust dynamically.
+
+-- | Transform an array into another array using a stream transformation
+-- operation.
+--
+-- @since 0.7.0
+{-# INLINE transformWith #-}
+transformWith :: (MonadIO m, Storable a, Storable b)
+    => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
+transformWith f arr = FL.foldl' (toArrayMinChunk (length arr)) $ f (read arr)
+
+-- | Fold an array using a 'Fold'.
+--
+-- @since 0.7.0
+{-# INLINE foldArray #-}
+foldArray :: (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
+foldArray f arr = FL.foldl' f (read arr)
+
+-- | Fold an array using a stream fold operation.
+--
+-- @since 0.7.0
+{-# INLINE foldWith #-}
+foldWith :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+foldWith f arr = f (read arr)
