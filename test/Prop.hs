@@ -12,7 +12,7 @@ import Control.Exception
 import Control.Monad (when, forM_, replicateM, replicateM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Function ((&))
-import Data.IORef (readIORef, modifyIORef, newIORef)
+import Data.IORef (readIORef, modifyIORef, newIORef, modifyIORef', IORef)
 import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
@@ -146,15 +146,56 @@ constructWithDoubleFromThenTo op l =
         in constructWithLen stream list op l
 #endif
 
-constructWithIterate :: IsStream t => (t IO Int -> SerialT IO Int) -> Spec
-constructWithIterate t = do
-    it "iterate" $
-        (S.toList . t . S.take 100) (S.iterate (+ 1) (0 :: Int))
-        `shouldReturn` take 100 (iterate (+ 1) 0)
-    it "iterateM" $ do
-        let addM y = return (y + 1)
-        S.toList . t . S.take 100 $ S.iterateM addM (0 :: Int)
-        `shouldReturn` take 100 (iterate (+ 1) 0)
+constructWithIterate ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithIterate op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <-
+            run $
+            (S.toList . op . S.take (fromIntegral len))
+                (S.iterate (+ 1) (0 :: Int))
+        let list = take (fromIntegral len) (iterate (+ 1) 0)
+        listEquals (==) stream list
+
+constructWithIterateM ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithIterateM op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        mvl <- run (newIORef [] :: IO (IORef [Int]))
+        let addM mv x y = modifyIORef' mv (++ [y + x]) >> return (y + x)
+            list = take (fromIntegral len) (iterate (+ 1) 0)
+        run $
+            S.drain . op $
+            S.take (fromIntegral len) $
+            S.iterateM (addM mvl 1) (addM mvl 0 0 :: IO Int)
+        streamEffect <- run $ readIORef mvl
+        listEquals (==) streamEffect list
+
+constructWithFromIndices ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithFromIndices op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <-
+            run $ (S.toList . op . S.take (fromIntegral len)) (S.fromIndices id)
+        let list = take (fromIntegral len) (iterate (+ 1) 0)
+        listEquals (==) stream list
+
+constructWithFromIndicesM ::
+       IsStream t => (t IO Int -> SerialT IO Int) -> Word8 -> Property
+constructWithFromIndicesM op len =
+    withMaxSuccess maxTestCount $
+    monadicIO $ do
+        mvl <- run (newIORef [] :: IO (IORef [Int]))
+        let addIndex mv i = modifyIORef' mv (++ [i]) >> return i
+            list = take (fromIntegral len) (iterate (+ 1) 0)
+        run $
+            S.drain . op $
+            S.take (fromIntegral len) $ S.fromIndicesM (addIndex mvl)
+        streamEffect <- run $ readIORef mvl
+        listEquals (==) streamEffect list
 
 -------------------------------------------------------------------------------
 -- Concurrent generation
@@ -560,7 +601,8 @@ transformCombineOpsOrdered constr desc eq t = do
         transform (dropWhile (> 0)) t (S.dropWhile (> 0))
     prop (desc <> " scan") $ transform (scanl' (+) 0) t (S.scanl' (+) 0)
 
-    -- XXX add uniq
+    prop (desc <> " uniq") $ transform referenceUniq t S.uniq
+
     prop (desc <> " deleteBy (<=) 0") $
         transform (deleteBy (<=) 0) t (S.deleteBy (<=) 0)
 
@@ -599,9 +641,22 @@ wrapOutOfBounds f i x | null x = Nothing
                       | otherwise = Just (f x i)
 
 wrapThe :: Eq a => [a] -> Maybe a
-wrapThe (x:xs) | all (x ==) xs = Just x
-                 | otherwise = Nothing
+wrapThe (x:xs)
+    | all (x ==) xs = Just x
+    | otherwise = Nothing
 wrapThe [] = Nothing
+
+-- This is the reference uniq implementation to compare uniq against,
+-- we can use uniq from vector package, but for now this should
+-- suffice.
+referenceUniq :: Eq a => [a] -> [a]
+referenceUniq = go
+  where
+    go [] = []
+    go (x:[]) = [x]
+    go (x:y:xs)
+        | x == y = go (x : xs)
+        | otherwise = x : go (y : xs)
 
 eliminationOps
     :: ([Int] -> t IO Int)
@@ -971,9 +1026,23 @@ main = hspec
         serialOps   $ prop "serially DoubleFromThenTo" .
                             constructWithDoubleFromThenTo
 #endif
+
+        serialOps   $ prop "serially iterate" . constructWithIterate
+
         -- XXX test for all types of streams
-        constructWithIterate serially
+        serialOps   $ prop "serially iterateM" . constructWithIterateM
+        -- take doesn't work well on concurrent streams. Even though it
+        -- seems like take only has a problem when used with parallely.
+        -- wSerialOps $ prop "wSerially iterateM" wSerially . constructWithIterate
+        -- aheadOps $ prop "aheadly iterateM" aheadly . onstructWithIterate
+        -- asyncOps $ prop "asyncly iterateM" asyncly . constructWithIterate
+        -- wAsyncOps $ prop "wAsyncly iterateM" wAsyncly . onstructWithIterate
+        -- parallelOps $ prop "parallely iterateM" parallely . onstructWithIterate
         -- XXX add tests for fromIndices
+
+        serialOps $ prop "serially fromIndices" . constructWithFromIndices
+
+        serialOps $ prop "serially fromIndicesM" . constructWithFromIndicesM
 
     describe "Functor operations" $ do
         serialOps    $ functorOps S.fromFoldable "serially" (==)
