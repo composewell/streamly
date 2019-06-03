@@ -2267,10 +2267,12 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
             res <- step1 r1 a
             return $ Tuple3' (i + 1) res r2
         else do
+            res <- extract1 r1
+            acc2 <- step2 r2 res
+
             i1 <- initial1
-            res1 <- extract1 r1
-            res <- step2 r2 res1
-            return $ Tuple3' 0 i1 res
+            acc1 <- step1 i1 a
+            return $ Tuple3' 1 acc1 acc2
     extract' (Tuple3' _ _ r) = extract2 r
 
 -- | Group the input stream into windows of n second each and then fold each
