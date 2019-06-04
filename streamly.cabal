@@ -421,6 +421,35 @@ test-suite array-test
         transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
+test-suite string-test
+  type: exitcode-stdio-1.0
+  main-is: String.hs
+  js-sources: jsbits/clock.js
+  hs-source-dirs: test
+  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
+  if flag(dev)
+    cpp-options:    -DDEVBUILD
+    ghc-options:    -Wmissed-specialisations
+                    -Wall-missed-specialisations
+  if impl(ghc >= 8.0)
+    ghc-options:    -Wcompat
+                    -Wunrecognised-warning-flags
+                    -Widentities
+                    -Wincomplete-record-updates
+                    -Wincomplete-uni-patterns
+                    -Wredundant-constraints
+                    -Wnoncanonical-monad-instances
+                    -Wnoncanonical-monadfail-instances
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , QuickCheck        >= 2.10  && < 2.14
+    , hspec             >= 2.0   && < 3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  default-language: Haskell2010
+
 test-suite maxrate
   type: exitcode-stdio-1.0
   default-language: Haskell2010
