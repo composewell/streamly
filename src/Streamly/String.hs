@@ -35,10 +35,10 @@ module Streamly.String
       encodeChar8
     , encodeChar8Unchecked
     , decodeChar8
-{-
+
     , encodeUtf8
     , decodeUtf8
-
+{-
     -- * Unicode aware operations
     , toCaseFold
     , toLower
@@ -47,28 +47,29 @@ module Streamly.String
 
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
+    , stripEnd-}
     , stripStart
-    , stripEnd
     , foldLines
     , foldWords
     , lines
-    , words
+    , words{-
     , unlines
-    , unwords
--}
+    , unwords-}
     )
 where
 
-import Data.Char (ord)
+import Control.Monad.IO.Class (MonadIO)
+import Data.Char (isSpace, ord)
 import Data.Word (Word8)
 import GHC.Base (unsafeChr)
 import Streamly (IsStream)
--- import Streamly.List (List)
 import Prelude hiding (String, lines, words, unlines, unwords)
--- import Streamly.Fold (Fold)
--- import Streamly.Array (Array)
+import Streamly.Fold (Fold)
+import Streamly.Mem.Array (Array, toArray)
 
 import qualified Streamly.Prelude as S
+import qualified Streamly.Fold as FL
+import qualified Streamly.Streams.StreamD as D
 
 -- type String = List Char
 
@@ -110,15 +111,17 @@ encodeChar8 = S.map convert
 encodeChar8Unchecked :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8Unchecked = S.map (fromIntegral . ord)
 
-{-
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
-decodeUtf8 :: IsStream t => t m Word8 -> t m Char
-decodeUtf8 = undefined
+{-# INLINE decodeUtf8 #-}
+decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8 = D.fromStreamD . D.decodeUtf8 . D.toStreamD
 
+{-# INLINE encodeUtf8 #-}
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
-encodeUtf8 :: IsStream t => t m Char -> t m Word8
-encodeUtf8 = undefined
+encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
+encodeUtf8 = D.fromStreamD . D.encodeUtf8 . D.toStreamD
 
+{-
 -------------------------------------------------------------------------------
 -- Unicode aware operations on strings
 -------------------------------------------------------------------------------
@@ -142,24 +145,31 @@ toTitle = undefined
 strip :: IsStream t => t m Char -> t m Char
 strip = undefined
 
-stripStart :: IsStream t => t m Char -> t m Char
-stripStart = undefined
-
 stripEnd :: IsStream t => t m Char -> t m Char
 stripEnd = undefined
+-}
 
-foldLines :: IsStream t => t m Char -> Fold m Char b -> t m b
-foldLines = undefined
+{-# INLINE stripStart #-}
+stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
+stripStart = S.dropWhile isSpace
 
-foldWords :: IsStream t => t m Char -> Fold m Char b -> t m b
-foldWords = undefined
+{-# INLINE foldLines #-}
+foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
+foldLines = flip (FL.splitSuffixBy (== '\n'))
 
-lines :: IsStream t => t m Char -> t m (Array Char)
-lines = undefined
+{-# INLINE foldWords #-}
+foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
+foldWords = flip (FL.wordsBy isSpace)
 
-words :: IsStream t => t m Char -> t m (Array Char)
-words = undefined
+{-# INLINE lines #-}
+lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
+lines = FL.splitSuffixBy (== '\n') toArray
 
+{-# INLINE words #-}
+words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
+words = FL.wordsBy isSpace toArray
+
+{-
 unlines :: IsStream t => t m (Array Char) -> t m Char
 unlines = undefined
 

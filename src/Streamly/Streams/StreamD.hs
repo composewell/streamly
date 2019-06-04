@@ -10,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE MagicHash                 #-}
 
 #include "inline.hs"
 
@@ -235,6 +236,10 @@ module Streamly.Streams.StreamD
     , onException
     , finally
     , handle
+
+    -- * UTF8 Encoding / Decoding transformations.
+    , decodeUtf8
+    , encodeUtf8
     )
 where
 
@@ -242,12 +247,16 @@ import Control.Exception (Exception)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
-import Data.Word (Word32)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Maybe (fromJust, isJust)
+import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
+import GHC.Base (assert, Char(..), unsafeChr, (-#), (+#), uncheckedIShiftL#,
+                word2Int#, chr#, ord)
+import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Types (SPEC(..))
+import GHC.Word (Word8(..))
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
@@ -2355,3 +2364,241 @@ the (Stream step state) = go state
                       | otherwise -> return Nothing
             Skip s -> go' n s
             Stop   -> return (Just n)
+
+--------------------------------------------------------------------------------
+-- UTF8 Encoding / Decoding
+--------------------------------------------------------------------------------
+
+-- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
+
+ord2 :: Char -> [Word8]
+ord2 c = assert (n >= 0x80 && n <= 0x07ff) [x1, x2]
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
+    x2 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+ord3 :: Char -> [Word8]
+ord3 c = assert (n >= 0x0800 && n <= 0xffff) [x1, x2, x3]
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 12) + 0xE0
+    x2 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+    x3 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+ord4 :: Char -> [Word8]
+ord4 c = assert (n >= 0x10000) [x1, x2, x3, x4]
+  where
+    n = ord c
+    x1 = fromIntegral $ (n `shiftR` 18) + 0xF0
+    x2 = fromIntegral $ ((n `shiftR` 12) .&. 0x3F) + 0x80
+    x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
+    x4 = fromIntegral $ (n .&. 0x3F) + 0x80
+
+{-# INLINE chr2 #-}
+chr2 :: Word8 -> Word8 -> Char
+chr2 (W8# x1#) (W8# x2#) = C# (chr# (z1# +# z2#))
+  where
+    !y1# = word2Int# x1#
+    !y2# = word2Int# x2#
+    !z1# = uncheckedIShiftL# (y1# -# 192#) 6#
+    !z2# = y2# -# 128#
+
+{-# INLINE chr3 #-}
+chr3 :: Word8 -> Word8 -> Word8 -> Char
+chr3 (W8# x1#) (W8# x2#) (W8# x3#) = C# (chr# (z1# +# z2# +# z3#))
+  where
+    !y1# = word2Int# x1#
+    !y2# = word2Int# x2#
+    !y3# = word2Int# x3#
+    !z1# = uncheckedIShiftL# (y1# -# 224#) 12#
+    !z2# = uncheckedIShiftL# (y2# -# 128#) 6#
+    !z3# = y3# -# 128#
+
+{-# INLINE chr4 #-}
+chr4 :: Word8 -> Word8 -> Word8 -> Word8 -> Char
+chr4 (W8# x1#) (W8# x2#) (W8# x3#) (W8# x4#) =
+    C# (chr# (z1# +# z2# +# z3# +# z4#))
+  where
+    !y1# = word2Int# x1#
+    !y2# = word2Int# x2#
+    !y3# = word2Int# x3#
+    !y4# = word2Int# x4#
+    !z1# = uncheckedIShiftL# (y1# -# 240#) 18#
+    !z2# = uncheckedIShiftL# (y2# -# 128#) 12#
+    !z3# = uncheckedIShiftL# (y3# -# 128#) 6#
+    !z4# = y4# -# 128#
+
+{-# INLINE between #-}
+between ::
+       Word8 -- ^ byte to check
+    -> Word8 -- ^ lower bound
+    -> Word8 -- ^ upper bound
+    -> Bool
+between x y z = x >= y && x <= z
+
+{-# INLINE validate3 #-}
+validate3 :: Word8 -> Word8 -> Word8 -> Bool
+validate3 x1 x2 x3 = validate3_1 ||
+                     validate3_2 ||
+                     validate3_3 ||
+                     validate3_4
+  where
+    validate3_1 = (x1 == 0xE0) &&
+                  between x2 0xA0 0xBF &&
+                  between x3 0x80 0xBF
+    validate3_2 = between x1 0xE1 0xEC &&
+                  between x2 0x80 0xBF &&
+                  between x3 0x80 0xBF
+    validate3_3 = x1 == 0xED &&
+                  between x2 0x80 0x9F &&
+                  between x3 0x80 0xBF
+    validate3_4 = between x1 0xEE 0xEF &&
+                  between x2 0x80 0xBF &&
+                  between x3 0x80 0xBF
+
+{-# INLINE validate4 #-}
+validate4 :: Word8 -> Word8 -> Word8 -> Word8 -> Bool
+validate4 x1 x2 x3 x4 = validate4_1 ||
+                        validate4_2 ||
+                        validate4_3
+  where
+    validate4_1 = x1 == 0xF0 &&
+                  between x2 0x90 0xBF &&
+                  between x3 0x80 0xBF &&
+                  between x4 0x80 0xBF
+    validate4_2 = between x1 0xF1 0xF3 &&
+                  between x2 0x80 0xBF &&
+                  between x3 0x80 0xBF &&
+                  between x4 0x80 0xBF
+    validate4_3 = x1 == 0xF4 &&
+                  between x2 0x80 0x8F &&
+                  between x3 0x80 0xBF &&
+                  between x4 0x80 0xBF
+
+data CodePoint = FreshPoint
+               | Two !Word8
+               | GoThree !Word8
+               | Three !Word8 !Word8
+               | GoFour !Word8
+               | Four1 !Word8 !Word8
+               | Four !Word8 !Word8 !Word8
+               | YieldPoint !Char
+
+{-# INLINE_NORMAL decodeUtf8 #-}
+decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, FreshPoint) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c0 s
+                    | c0 <= 0x7f ->
+                        Skip (s, YieldPoint $ unsafeChr (fromIntegral c0))
+                    | c0 >= 0xc0 && c0 <= 0xc1 -> error "Invalid Overlong forms"
+                    | c0 >= 0xc2 && c0 <= 0xdf -> Skip (s, Two c0)
+                    | c0 >= 0xe0 && c0 <= 0xef -> Skip (s, GoThree c0)
+                    | c0 >= 0xf0 -> Skip (s, GoFour c0)
+                    | otherwise -> error "Invalid Sequence"
+                Skip s -> Skip (s, FreshPoint)
+                Stop -> Stop
+
+    -- Decoding of a UTF8 character that spans two bytes with one byte (c0)
+    -- known.
+    step' gst (st, Two c0) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c1 s
+                    | c1 < 0x80 || c1 >= 0xc0 -> error "Invalid Sequence"
+                    | otherwise -> Skip (s, YieldPoint $ chr2 c0 c1)
+                Skip s -> Skip (s, Two c0)
+                Stop -> error "Input Underflow"
+
+    -- Decoding of a UTF8 character that spans three bytes with first byte (c0)
+    -- known.
+    step' gst (st, GoThree c0) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c1 s
+                    | not (validate3 c0 c1 0x80) -> error "Invalid Sequence"
+                                                    -- See #3341@ghc
+                    | otherwise -> Skip (s, Three c0 c1)
+                Skip s -> Skip (s, GoThree c0)
+                Stop -> error "Input Underflow"
+
+    -- Two bytes known of a 3 byte UTF8 encoded unicode character.
+    step' gst (st, Three c0 c1) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c2 s
+                    | not (validate3 c0 c1 c2) -> error "Invalid Sequence"
+                    | otherwise -> Skip (s, YieldPoint $ chr3 c0 c1 c2)
+                Skip s -> Skip (s, Three c0 c1)
+                Stop -> error "Input Underflow"
+
+    -- One byte known of a four byte UTF8 unicode character.
+    step' gst (st, GoFour c0) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c1 s
+                    | not (validate4 c0 c1 0x80 0x80) -> error "Invalid Sequence"
+                    | otherwise -> Skip (s, Four1 c0 c1)
+                Skip s -> Skip (s, GoFour c0)
+                Stop -> error "Input Underflow"
+
+    -- Two bytes known of a four byte UTF8 unicode character.
+    step' gst (st, Four1 c0 c1) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c2 s
+                    | not (validate4 c0 c1 c2 0x80) -> error "Invalid Sequence"
+                    | otherwise -> Skip (s, Four c0 c1 c2)
+                Skip s -> Skip (s, Four1 c0 c1)
+                Stop -> error "Input Underflow"
+
+    -- Three bytes known of a three byte UTF8 unicode character.
+    step' gst (st, Four c0 c1 c2) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c3 s
+                    | not (validate4 c0 c1 c2 c3) -> error "Invalid Sequence"
+                    | otherwise -> Skip (s, YieldPoint $ chr4 c0 c1 c2 c3)
+                Skip s -> Skip (s, Four c0 c1 c2)
+                Stop -> error "Input Underflow"
+
+    -- This way so that we only need one Yield.
+    step' _ (s, YieldPoint c) = return $ Yield c (s, FreshPoint)
+
+data YieldMany x = None
+                 | YieldMany !x
+
+{-# INLINE_NORMAL encodeUtf8 #-}
+encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8 (Stream step state) = Stream step' (state, None)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, None) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c s ->
+                    case ord c of
+                        x   | x <= 0x7F -> Skip (s, YieldMany [fromIntegral x])
+                            | x <= 0x7FF -> Skip (s, YieldMany (ord2 c))
+                            | x <= 0xFFFF ->
+                                if isSurrogate c
+                                    then error "Encountered a surrogate"
+                                    else Skip (s, YieldMany (ord3 c))
+                            | otherwise -> Skip (s, YieldMany (ord4 c))
+                Skip s -> Skip (s, None)
+                Stop -> Stop
+    step' _ (s, YieldMany []) = return $ Skip (s, None)
+    step' _ (s, YieldMany (x:xs)) = return $ Yield x (s, YieldMany xs)
