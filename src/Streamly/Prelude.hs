@@ -240,6 +240,8 @@ module Streamly.Prelude
 
     -- * Transformation
 
+    , transform
+
     -- ** Mapping
     -- | In imperative terms a map operation can be considered as a loop over
     -- the stream that transforms the stream into another stream by performing
@@ -506,6 +508,7 @@ import Streamly.Streams.Prelude
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Pipe.Types (Pipe (..))
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
@@ -1562,6 +1565,15 @@ toHandle h m = go m
             single a = liftIO (IO.hPutStrLn h a)
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
         in K.foldStream defState yieldk single stop m1
+
+------------------------------------------------------------------------------
+-- General Transformation
+------------------------------------------------------------------------------
+
+-- | Use a 'Pipe' to transform a stream.
+{-# INLINE transform #-}
+transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
+transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

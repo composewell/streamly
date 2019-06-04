@@ -205,11 +205,13 @@ library
                      , Streamly.Fold.Types
                      , Streamly.Sink.Types
                      , Streamly.Sink
+                     , Streamly.Pipe.Types
 
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time
                      , Streamly
                      , Streamly.Fold
+                     , Streamly.Pipe
 
                      , Streamly.String
 

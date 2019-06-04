@@ -30,6 +30,7 @@ import GHC.Generics (Generic)
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Pipe  as Pipe
 
 value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC
@@ -359,9 +360,14 @@ scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
+{-# INLINE transformMapM #-}
+{-# INLINE transformComposeMapM #-}
+{-# INLINE transformMergeMapM #-}
+{-# INLINE transformZipMapM #-}
 {-# INLINE map' #-}
 {-# INLINE fmap' #-}
-mapM, map' :: (S.IsStream t, S.MonadAsync m)
+mapM, map', transformMapM, transformComposeMapM, transformMergeMapM,
+    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
 
 fmap' :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
@@ -378,6 +384,18 @@ fmap' t       n = composeN' n $ t . Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
+
+transformMapM t n = composeN' n $ t . S.transform (Pipe.mapM return)
+transformComposeMapM t n = composeN' n $ t . S.transform
+    (Pipe.mapM (\x -> return (x + 1))
+        `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
+transformMergeMapM t n = composeN' n $ t . S.transform
+    (Pipe.mapM (\x -> return (x + 1))
+        `Pipe.merge` Pipe.mapM (\x -> return (x + 2)))
+transformZipMapM t n = composeN' n $ t . S.transform
+    (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
+        (Pipe.mapM (\x -> return (x + 2))))
+
 mapMaybe      n = composeN n $ S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just x)
 mapMaybeM     n = composeN n $ S.mapMaybeM

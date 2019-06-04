@@ -160,6 +160,8 @@ module Streamly.Streams.StreamD
     , toStreamD
 
     -- * Transformation
+    , transform
+
     -- ** By folding (scans)
     , scanlM'
     , scanl'
@@ -257,11 +259,13 @@ import qualified Control.Monad.Catch as MC
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
+import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
 
+import qualified Streamly.Pipe.Types as Pipe
 import qualified Streamly.Mem.Array.Types as A
 import qualified Streamly.Mem.Ring as RB
 import qualified Streamly.Streams.StreamK as K
@@ -1779,6 +1783,36 @@ handle f (Stream step state) = Stream step' (Just state)
                 Stop      -> return Stop
 
     step' _ Nothing = return Stop
+
+-------------------------------------------------------------------------------
+-- General transformation
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL transform #-}
+transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
+transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
+    Stream step' (Consume pstate, state)
+
+  where
+
+    {-# INLINE_LATE step' #-}
+
+    step' gst (Consume pst, st) = pst `seq` do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                res <- pstep1 pst x
+                case res of
+                    Pipe.Yield b pst' -> return $ Yield b (pst', s)
+                    Pipe.Continue pst' -> return $ Skip (pst', s)
+            Skip s -> return $ Skip (Consume pst, s)
+            Stop   -> return Stop
+
+    step' _ (Produce pst, st) = pst `seq` do
+        res <- pstep2 pst
+        case res of
+            Pipe.Yield b pst' -> return $ Yield b (pst', st)
+            Pipe.Continue pst' -> return $ Skip (pst', st)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

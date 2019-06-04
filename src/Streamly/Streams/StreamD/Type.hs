@@ -84,11 +84,13 @@ import qualified Streamly.Streams.StreamK as K
 -- the stream.
 data Step s a = Yield a s | Skip s | Stop
 
+{-
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap f (Yield x s) = Yield (f x) s
     fmap _ (Skip s) = Skip s
     fmap _ Stop = Stop
+-}
 
 -- gst = global state
 -- | A stream consists of a step function that generates the next step given a

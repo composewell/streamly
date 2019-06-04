@@ -16,6 +16,7 @@ import qualified LinearOps as Ops
 
 import Streamly
 import qualified Streamly.Fold as FL
+import qualified Streamly.Pipe as Pipe
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.Sink   as Sink
@@ -230,11 +231,29 @@ main =
         , benchIOSink "and" (\s -> FL.foldl' FL.and (S.map (<= Ops.maxValue) s))
         , benchIOSink "or" (\s -> FL.foldl' FL.or (S.map (> Ops.maxValue) s))
         ]
-      , bgroup "folds-mixed" -- Applicative
+      , bgroup "folds-transforms"
+        [ benchIOSink "drain" (FL.foldl' FL.drain)
+        , benchIOSink "lmap" (FL.foldl' (FL.lmap (+1) FL.drain))
+        , benchIOSink "pipe-mapM"
+            (FL.foldl' (FL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))
+        ]
+      , bgroup "folds-compositions" -- Applicative
         [
           benchIOSink "all,any"    (FL.foldl' ((,) <$> FL.all (<= Ops.maxValue)
                                                   <*> FL.any (> Ops.maxValue)))
         , benchIOSink "sum,length" (FL.foldl' ((,) <$> FL.sum <*> FL.length))
+        ]
+      , bgroup "pipes"
+        [ benchIOSink "mapM" (Ops.transformMapM serially 1)
+        , benchIOSink "compose" (Ops.transformComposeMapM serially 1)
+        , benchIOSink "merge" (Ops.transformMergeMapM serially 1)
+        , benchIOSink "zip" (Ops.transformZipMapM serially 1)
+        ]
+      , bgroup "pipesX4"
+        [ benchIOSink "mapM" (Ops.transformMapM serially 4)
+        , benchIOSink "compose" (Ops.transformComposeMapM serially 4)
+        , benchIOSink "merge" (Ops.transformMergeMapM serially 4)
+        , benchIOSink "zip" (Ops.transformZipMapM serially 4)
         ]
       , bgroup "transformation"
         [ benchIOSink "scanl" (Ops.scan 1)
