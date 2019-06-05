@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-
+{-# LANGUAGE FlexibleContexts #-}
 #include "inline.hs"
 
 -- |
@@ -57,6 +57,8 @@ module Streamly.Mem.Array.Types
     , mkChunkSize
     , mkChunkSizeKB
     , reallocDouble
+
+    , unlines
     )
 where
 
@@ -73,7 +75,7 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, foldr, read)
+import Prelude hiding (length, foldr, read, unlines, unwords)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
@@ -343,6 +345,22 @@ toStreamD Array{..} =
                     touchForeignPtr aStart
                     return r
         return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
+
+
+{-# INLINE toStreamK #-}
+toStreamK :: forall t m a. (K.IsStream t, Monad m, Storable a) => Array a -> t m a
+toStreamK Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+    in go p
+  where
+    go p | p == aEnd = K.nil
+         | otherwise =
+        -- See Note in toStreamD.
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        in x `K.cons` go (p `plusPtr` (sizeOf (undefined :: a)))
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
@@ -665,3 +683,28 @@ mkChunkSizeKB n = mkChunkSize (n * k)
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
+
+{-# INLINE_NORMAL unlines #-}
+unlines :: MonadIO m => D.Stream m (Array Char) -> D.Stream m Char
+unlines (D.Stream step state) = D.Stream step' (OuterLoop state)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (OuterLoop st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield Array{..} s ->
+                let p = unsafeForeignPtrToPtr aStart
+                in D.Skip (InnerLoop s aStart p aEnd)
+            D.Skip s -> D.Skip (OuterLoop s)
+            D.Stop -> D.Stop
+
+    step' _ (InnerLoop st _ p end) | p == end =
+        return $ D.Yield '\n' $ OuterLoop st
+
+    step' _ (InnerLoop st startf p end) = do
+        x <- liftIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ D.Yield x (InnerLoop st startf
+                            (p `plusPtr` (sizeOf (undefined :: Char))) end)

@@ -114,6 +114,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- References
@@ -174,10 +175,10 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- | @readArraysUpto size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE readArraysUpto #-}
-readArraysUpto :: (IsStream t, MonadIO m)
+{-# INLINABLE _readArraysUpto #-}
+_readArraysUpto :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
-readArraysUpto size h = go
+_readArraysUpto size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
@@ -185,6 +186,18 @@ readArraysUpto size h = go
         if A.length arr == 0
         then stp
         else yld arr go
+
+{-# INLINE_NORMAL readArraysUpto #-}
+readArraysUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
+readArraysUpto size h = D.fromStreamD (D.Stream step ())
+  where
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        arr <- liftIO $ readArrayUpto size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr ()
 
 -- XXX read 'Array a' instead of Word8
 --

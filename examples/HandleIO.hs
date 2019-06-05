@@ -2,6 +2,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.String as SS
 
 import Data.Char (ord)
 import System.Environment (getArgs)
@@ -18,7 +19,8 @@ ord' = (fromIntegral . ord)
 
 wcl :: Handle -> IO ()
 wcl src = print =<< (S.length
-    $ FL.splitSuffixBy (== ord' '\n') FL.drain
+    $ flip SS.foldLines FL.drain
+    $ SS.decodeChar8
     $ FH.read src)
 
 grepc :: String -> Handle -> IO ()

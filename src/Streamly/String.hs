@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 -- |
 -- Module      : Streamly.String
 -- Copyright   : (c) 2018 Composewell Technologies
@@ -52,23 +53,25 @@ module Streamly.String
     , foldLines
     , foldWords
     , lines
-    , words{-
+    , words
     , unlines
-    , unwords-}
+    , unwords
     )
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Data.Char (isSpace, ord)
+import Data.Char (ord)
 import Data.Word (Word8)
 import GHC.Base (unsafeChr)
-import Streamly (IsStream)
+import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import Streamly.Fold (Fold)
 import Streamly.Mem.Array (Array, toArray)
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
+import qualified Streamly.Mem.Array.Types as A (unlines)
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Streams.StreamD as D
 
 -- type String = List Char
@@ -112,12 +115,13 @@ encodeChar8Unchecked :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8Unchecked = S.map (fromIntegral . ord)
 
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- The incoming stream is truncated if an invalid codepoint is encountered.
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
 decodeUtf8 = D.fromStreamD . D.decodeUtf8 . D.toStreamD
 
-{-# INLINE encodeUtf8 #-}
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+{-# INLINE encodeUtf8 #-}
 encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
 encodeUtf8 = D.fromStreamD . D.encodeUtf8 . D.toStreamD
 
@@ -161,6 +165,18 @@ foldLines = flip (FL.splitSuffixBy (== '\n'))
 foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
 foldWords = flip (FL.wordsBy isSpace)
 
+foreign import ccall unsafe "u_iswspace"
+  iswspace :: Int -> Int
+
+-- Code copied from base/Data.Char to INLINE it
+{-# INLINE isSpace #-}
+isSpace :: Char -> Bool
+isSpace c
+  | uc <= 0x377 = uc == 32 || uc - 0x9 <= 4 || uc == 0xa0
+  | otherwise = iswspace (ord c) /= 0
+  where
+    uc = fromIntegral (ord c) :: Word
+
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 lines = FL.splitSuffixBy (== '\n') toArray
@@ -169,10 +185,10 @@ lines = FL.splitSuffixBy (== '\n') toArray
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 words = FL.wordsBy isSpace toArray
 
-{-
-unlines :: IsStream t => t m (Array Char) -> t m Char
-unlines = undefined
+{-# INLINE unlines #-}
+unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
+unlines = D.fromStreamD . A.unlines . D.toStreamD
 
-unwords :: IsStream t => t m (Array Char) -> t m Char
-unwords = undefined
--}
+{-# INLINE unwords #-}
+unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
+unwords = A.flattenArrays . (S.intersperseM (return $ A.fromList " "))

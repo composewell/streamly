@@ -3,14 +3,15 @@
 
 module Main (main) where
 
-import Test.Hspec.QuickCheck
-import Test.QuickCheck (Property, forAll, Gen, listOf, arbitraryUnicodeChar)
-import Test.QuickCheck.Monadic (monadicIO, assert)
+import           Test.Hspec.QuickCheck
+import           Test.QuickCheck (Property, forAll, Gen, listOf, arbitraryUnicodeChar)
+import           Test.QuickCheck.Monadic (run, monadicIO, assert)
 
-import Test.Hspec as H
+import           Test.Hspec as H
 
-import qualified Streamly.String as SS
+import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.String as SS
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -32,10 +33,59 @@ propDecodeEncodeId =
             chrs <- S.toList $ SS.decodeUtf8 wrds
             assert (chrs == list)
 
+testLines :: Property
+testLines =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            xs <- S.toList
+                $ S.map A.toList
+                $ SS.lines
+                $ S.fromList list
+            assert (xs == lines list)
+
+testWords :: Property
+testWords =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            xs <- S.toList
+                $ S.map A.toList
+                $ SS.words
+                $ S.fromList list
+            assert (xs == words list)
+
+testUnlines :: Property
+testUnlines =
+  forAll genUnicode $ \list ->
+      monadicIO $ do
+          xs <- S.toList
+              $ SS.unlines
+              $ SS.lines
+              $ S.fromList list
+          assert (xs == unlines (lines list))
+
+testUnwords :: Property
+testUnwords =
+  forAll genUnicode $ \list ->
+      monadicIO $ do
+          xs <- run
+              $ S.toList
+              $ SS.unwords
+              $ SS.words
+              $ S.fromList list
+          assert (xs == unwords (words list))
+
 main :: IO ()
 main = hspec
     $ H.parallel
-    $ modifyMaxSuccess (const maxTestCount)
+    $ modifyMaxSuccess (const 1000)
     $ do
     describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
+        prop "Streamly.String.lines == Prelude.lines" $ testLines
+        prop "Streamly.String.words == Prelude.words" $ testWords
+        prop
+            "Streamly.String.unlines . Streamly.String.lines == unlines . lines"
+             $ testUnlines
+        prop
+            "Streamly.String.unwords . Streamly.String.words == unwords . words"
+             $ testUnwords
