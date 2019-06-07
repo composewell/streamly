@@ -121,7 +121,7 @@ module Streamly.Pipe
     -}
 
     -- * Composing Pipes
-    , merge
+    , tee
     , zipWith
     , compose
 
@@ -253,7 +253,7 @@ import Prelude
 -- import Streamly (MonadAsync, parallel)
 -- import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types
-       (Pipe(..), PipeState(..), Step(..), zipWith, merge, map, compose)
+       (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
 -- import Streamly.Mem.Array.Types (Array)
 -- import Streamly.Mem.Ring (Ring)
 -- import Streamly.Streams.Serial (SerialT)

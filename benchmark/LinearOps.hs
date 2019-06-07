@@ -362,11 +362,11 @@ mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 {-# INLINE mapM #-}
 {-# INLINE transformMapM #-}
 {-# INLINE transformComposeMapM #-}
-{-# INLINE transformMergeMapM #-}
+{-# INLINE transformTeeMapM #-}
 {-# INLINE transformZipMapM #-}
 {-# INLINE map' #-}
 {-# INLINE fmap' #-}
-mapM, map', transformMapM, transformComposeMapM, transformMergeMapM,
+mapM, map', transformMapM, transformComposeMapM, transformTeeMapM,
     transformZipMapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
 
@@ -389,9 +389,9 @@ transformMapM t n = composeN' n $ t . S.transform (Pipe.mapM return)
 transformComposeMapM t n = composeN' n $ t . S.transform
     (Pipe.mapM (\x -> return (x + 1))
         `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
-transformMergeMapM t n = composeN' n $ t . S.transform
+transformTeeMapM t n = composeN' n $ t . S.transform
     (Pipe.mapM (\x -> return (x + 1))
-        `Pipe.merge` Pipe.mapM (\x -> return (x + 2)))
+        `Pipe.tee` Pipe.mapM (\x -> return (x + 2)))
 transformZipMapM t n = composeN' n $ t . S.transform
     (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
         (Pipe.mapM (\x -> return (x + 2))))

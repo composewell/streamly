@@ -16,7 +16,7 @@ module Streamly.Pipe.Types
     , Pipe (..)
     , PipeState (..)
     , zipWith
-    , merge
+    , tee
     , map
     , compose
     )
@@ -259,9 +259,9 @@ instance Monad m => Applicative (Pipe m a) where
 -- merges the outputs of the two.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL merge #-}
-merge :: Monad m => Pipe m a b -> Pipe m a b -> Pipe m a b
-merge (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
+{-# INLINE_NORMAL tee #-}
+tee :: Monad m => Pipe m a b -> Pipe m a b -> Pipe m a b
+tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
         Pipe consume produce state
     where
 
@@ -324,7 +324,7 @@ merge (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 
 instance Monad m => Semigroup (Pipe m a b) where
     {-# INLINE (<>) #-}
-    (<>) = merge
+    (<>) = tee
 
 -- | Lift a pure function to a 'Pipe'.
 --

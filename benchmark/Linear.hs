@@ -246,13 +246,13 @@ main =
       , bgroup "pipes"
         [ benchIOSink "mapM" (Ops.transformMapM serially 1)
         , benchIOSink "compose" (Ops.transformComposeMapM serially 1)
-        , benchIOSink "merge" (Ops.transformMergeMapM serially 1)
+        , benchIOSink "tee" (Ops.transformTeeMapM serially 1)
         , benchIOSink "zip" (Ops.transformZipMapM serially 1)
         ]
       , bgroup "pipesX4"
         [ benchIOSink "mapM" (Ops.transformMapM serially 4)
         , benchIOSink "compose" (Ops.transformComposeMapM serially 4)
-        , benchIOSink "merge" (Ops.transformMergeMapM serially 4)
+        , benchIOSink "tee" (Ops.transformTeeMapM serially 4)
         , benchIOSink "zip" (Ops.transformZipMapM serially 4)
         ]
       , bgroup "transformation"
