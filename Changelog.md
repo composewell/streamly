@@ -23,11 +23,18 @@ See `Streamly.Prelude` for new exception handling combinators like `before`,
 
 #### Composable Folds
 
-`Streamly.Fold` module provides composable folds (stream consumers). This
-brings in stream splitting, grouping, partitioning, unzipping and nesting
-feature without breaking the stream. Combinators are provided for temporal and
-spatial window based fold operations, for example, to support folding and
-aggregating data for timeout or inactivity based sessions.
+`Streamly.Fold` module provides composable folds (stream consumers). Folds
+allow splitting, grouping, partitioning, unzipping and nesting a stream onto
+multiple folds without breaking the stream. Combinators are provided for
+temporal and spatial window based fold operations, for example, to support
+folding and aggregating data for timeout or inactivity based sessions.
+
+#### Composable Pipes
+
+`Streamly.Pipes` module provides composable pipes (stream consumers and
+producers).  Pipes can partition, split or distribute a stream into multiple
+streams, apply transformations on each stream and merge back the results into a
+single stream.
 
 #### Streaming File IO
 
