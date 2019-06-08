@@ -274,16 +274,16 @@ instance Monad m => Applicative (Pipe m a) where
 -- input.
 
 data TeeConsume sL sR =
-      TCBoth sL sR
-    | TCLeft sL
-    | TCRight sR
+      TCBoth !sL !sR
+    | TCLeft !sL
+    | TCRight !sR
 
 data TeeProduce a s sLc sLp sRp sRc =
-      TPLeft a s sRc
-    | TPRight sLc sRp
-    | TPSwitchRightOnly a sRc
-    | TPRightOnly sRp
-    | TPLeftOnly sLp
+      TPLeft a s !sRc
+    | TPRight !sLc !sRp
+    | TPSwitchRightOnly a !sRc
+    | TPRightOnly !sRp
+    | TPLeftOnly !sLp
 
 -- | The composed pipe distributes the input to both the constituent pipes and
 -- merges the outputs of the two.
@@ -411,6 +411,17 @@ id :: Monad m => Pipe m a a
 id = map Prelude.id
 -}
 
+-- First 's' is for "State", second L/R are for left/right, third c/p are for
+-- consume/produce.
+data ComposeConsume sLc sRc = ComposeConsumeCC !sLc !sRc
+
+data ComposeProduce x sLc sRc sLp sRp =
+      ComposeProduceCPx x !sLc !sRp
+    | ComposeProduceCCx x !sLc !sRc
+    | ComposeProducePP !sLp !sRp
+    | ComposeProduceCP !sLc !sRp
+    | ComposeProducePC !sLp !sRc
+
 -- | Compose two pipes such that the output of the second pipe is attached to
 -- the input of the first pipe.
 --
@@ -422,76 +433,61 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 
     where
 
-    state = Tuple' (Consume stateL) (Consume stateR)
+    state = ComposeConsumeCC stateL stateR
 
-    consume (Tuple' sL sR) a = do
-        case sL of
-            Consume stt ->
-                case sR of
-                    Consume st -> do
-                        rres <- consumeR st a
-                        case rres of
-                            Yield x sR' -> do
-                                let next s =
-                                        if isProduce sR'
-                                        then Produce s
-                                        else Consume s
-                                lres <- consumeL stt x
-                                return $ case lres of
-                                    Yield y s1@(Consume _) ->
-                                        Yield y (next $ Tuple' s1 sR')
-                                    Yield y s1@(Produce _) ->
-                                        Yield y (Produce $ Tuple' s1 sR')
-                                    Continue s1@(Consume _) ->
-                                        Continue (next $ Tuple' s1 sR')
-                                    Continue s1@(Produce _) ->
-                                        Continue (Produce $ Tuple' s1 sR')
-                            Continue s1@(Consume _) ->
-                                return $ Continue (Consume $ Tuple' sL s1)
-                            Continue s1@(Produce _) ->
-                                return $ Continue (Produce $ Tuple' sL s1)
-                    Produce _ -> undefined
-            -- XXX we should never come here unless the initial state of the
-            -- first pipe is set to "Right".
-            Produce _ -> undefined
+    -- Both pipes are in Consume state.
+    consume (ComposeConsumeCC sL sR) a = do
+        r <- consumeR sR a
+        return $ case r of
+            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
+            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
+            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
 
-    -- XXX we need to write the code in mor optimized fashion. Use Continue
-    -- more and less yield points.
-    produce (Tuple' sL sR) = do
-        case sL of
-            Produce st -> do
-                r <- produceL st
-                let next s = if isProduce sR then Produce s else Consume s
-                return $ case r of
-                    Yield x s@(Consume _) -> Yield x (next $ Tuple' s sR)
-                    Yield x s@(Produce _) -> Yield x (Produce $ Tuple' s sR)
-                    Continue s@(Consume _) -> Continue (next $ Tuple' s sR)
-                    Continue s@(Produce _) -> Continue (Produce $ Tuple' s sR)
-            Consume stt ->
-                case sR of
-                    Produce st -> do
-                        rR <- produceR st
-                        case rR of
-                            Yield x sR' -> do
-                                let next s =
-                                        if isProduce sR'
-                                        then Produce s
-                                        else Consume s
-                                rL <- consumeL stt x
-                                return $ case rL of
-                                    Yield y s1@(Consume _) ->
-                                        Yield y (next $ Tuple' s1 sR')
-                                    Yield y s1@(Produce _) ->
-                                        Yield y (Produce $ Tuple' s1 sR')
-                                    Continue s1@(Consume _) ->
-                                        Continue (next $ Tuple' s1 sR')
-                                    Continue s1@(Produce _) ->
-                                        Continue (Produce $ Tuple' s1 sR')
-                            Continue s1@(Consume _) ->
-                                return $ Continue (Consume $ Tuple' sL s1)
-                            Continue s1@(Produce _) ->
-                                return $ Continue (Produce $ Tuple' sL s1)
-                    Consume _ -> return $ Continue (Consume $ Tuple' sL sR)
+    -- left consume, right produce
+    produce (ComposeProduceCPx a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
+            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+
+    -- left consume, right consume
+    produce (ComposeProduceCCx a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+
+    -- left consume, right produce
+    produce (ComposeProduceCP sL sR) = do
+        r <- produceR sR
+        return $ case r of
+            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
+            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
+            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
+
+    -- left produce, right produce
+    produce (ComposeProducePP sL sR) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
+            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+
+    -- left produce, right consume
+    produce (ComposeProducePC sL sR) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
 
 instance Monad m => Category (Pipe m) where
     {-# INLINE id #-}
