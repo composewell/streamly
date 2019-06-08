@@ -1802,17 +1802,19 @@ transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
         case r of
             Yield x s -> do
                 res <- pstep1 pst x
-                case res of
-                    Pipe.Yield b pst' -> return $ Yield b (pst', s)
-                    Pipe.Continue pst' -> return $ Skip (pst', s)
+                return $ case res of
+                    Pipe.Yield b pst' -> Yield b (pst', s)
+                    Pipe.Continue pst' -> Skip (pst', s)
+                    Pipe.Stop -> Stop
             Skip s -> return $ Skip (Consume pst, s)
             Stop   -> return Stop
 
     step' _ (Produce pst, st) = pst `seq` do
         res <- pstep2 pst
-        case res of
-            Pipe.Yield b pst' -> return $ Yield b (pst', st)
-            Pipe.Continue pst' -> return $ Skip (pst', st)
+        return $ case res of
+            Pipe.Yield b pst' -> Yield b (pst', st)
+            Pipe.Continue pst' -> Skip (pst', st)
+            Pipe.Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

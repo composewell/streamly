@@ -521,6 +521,8 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
             r <- pstep2 ps'
             go acc r
 
+        go acc Pipe.Stop = return (Tuple' undefined acc)
+
     extract (Tuple' _ fs) = fextract fs
 
 -- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
@@ -1427,6 +1429,10 @@ breakOn pat f m = undefined
 -- infix/suffix/prefix/condensing of separators, dropping both leading/trailing
 -- separators. We can have a single split operation taking the splitter config
 -- as argument.
+--
+-- Or we can use "before", "middle" and "after" folds to be applied to the
+-- first, intermediate and the last splits. By using different folds we can
+-- express the different types of splits.
 
 -- | Split a stream on separator elements determined by a predicate, dropping
 -- the separator.  Separators are not considered part of stream segments on
