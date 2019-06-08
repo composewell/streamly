@@ -443,6 +443,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
             Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
+            Stop                 -> Stop
 
     -- left consume, right produce
     produce (ComposeProduceCPx a sL sR) = do
@@ -452,6 +453,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
             Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+            Stop                 -> Stop
 
     -- left consume, right consume
     produce (ComposeProduceCCx a sL sR) = do
@@ -461,6 +463,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+            Stop                 -> Stop
 
     -- left consume, right produce
     produce (ComposeProduceCP sL sR) = do
@@ -470,6 +473,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
             Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
+            Stop                 -> Stop
 
     -- left produce, right produce
     produce (ComposeProducePP sL sR) = do
@@ -479,6 +483,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
             Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+            Stop                 -> Stop
 
     -- left produce, right consume
     produce (ComposeProducePC sL sR) = do
@@ -488,6 +493,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+            Stop                 -> Stop
 
 instance Monad m => Category (Pipe m) where
     {-# INLINE id #-}
