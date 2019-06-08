@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
@@ -27,7 +28,7 @@ import Control.Category (Category(..))
 import Data.Maybe (isJust)
 import Data.Semigroup (Semigroup(..))
 import Prelude hiding (zipWith, map, id, unzip, null)
-import Streamly.Strict (Tuple'(..), Tuple3'(..))
+import Streamly.Strict (Tuple'(..))
 
 import qualified Prelude
 
@@ -51,12 +52,14 @@ import qualified Prelude
 -- not consuming any more values. Similarly we can have a stop with error or
 -- exception and a done with error or leftover values.
 --
--- In generator mode, Continue means no output/continue. In fold mode Continue means
--- need more input to produce result. we can perhaps call it Continue instead.
+-- In generator mode, Continue means no output/continue. In fold mode Continue
+-- means need more input to produce result. we can perhaps call it Continue
+-- instead.
 --
 data Step s a =
       Yield a s
     | Continue s
+    | Stop
 
 -- | Represents a stateful transformation over an input stream of values of
 -- type @a@ to outputs of type @b@ in 'Monad' @m@.
@@ -76,7 +79,7 @@ data Step s a =
 -- consumption. Currently we are only starting with a consumption state.
 --
 -- An explicit either type for better readability of the code
-data PipeState s1 s2 = Consume s1 | Produce s2
+data PipeState s1 s2 = Consume !s1 | Produce !s2
 
 isProduce :: PipeState s1 s2 -> Bool
 isProduce s =
@@ -98,6 +101,7 @@ instance Monad m => Functor (Pipe m a) where
             return $ case r of
                 Yield x s -> Yield (f x) s
                 Continue s -> Continue s
+                Stop -> Stop
 
         {-# INLINE_LATE produce' #-}
         produce' st = do
@@ -105,6 +109,7 @@ instance Monad m => Functor (Pipe m a) where
             return $ case r of
                 Yield x s -> Yield (f x) s
                 Continue s -> Continue s
+                Stop -> Stop
 
 -- XXX move this to a separate module
 data Deque a = Deque [a] [a]
@@ -151,7 +156,9 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
         consume (Tuple' (sL, resL, lq) (sR, resR, rq)) a = do
             s1 <- drive sL resL lq consumeL produceL a
             s2 <- drive sR resR rq consumeR produceR a
-            yieldOutput s1 s2
+            case (s1,s2) of
+                (Just s1', Just s2') -> yieldOutput s1' s2'
+                _ -> return Stop
 
             where
 
@@ -161,8 +168,8 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
                     Nothing -> goConsume st queue val fConsume fProduce
                     Just x -> return $
                         case queue of
-                            Nothing -> (st, Just x, Just $ (Deque [val] []))
-                            Just q  -> (st, Just x, Just $ snoc val q)
+                            Nothing -> Just (st, Just x, Just $ (Deque [val] []))
+                            Just q  -> Just (st, Just x, Just $ snoc val q)
 
             {-# INLINE goConsume #-}
             goConsume stt queue val fConsume stp2 = do
@@ -172,28 +179,33 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
                             Nothing -> do
                                 r <- fConsume st val
                                 return $ case r of
-                                    Yield x s  -> (s, Just x, Nothing)
-                                    Continue s -> (s, Nothing, Nothing)
+                                    Yield x s  -> Just (s, Just x, Nothing)
+                                    Continue s -> Just (s, Nothing, Nothing)
+                                    Stop -> Nothing
                             Just queue' ->
                                 case uncons queue' of
                                     Just (v, q) -> do
                                         r <- fConsume st v
                                         let q' = snoc val q
                                         return $ case r of
-                                            Yield x s  -> (s, Just x, Just q')
-                                            Continue s -> (s, Nothing, Just q')
+                                            Yield x s  -> Just (s, Just x, Just q')
+                                            Continue s -> Just (s, Nothing, Just q')
+                                            Stop -> Nothing
                                     Nothing -> undefined -- never occurs
                     Produce st -> do
                         r <- stp2 st
                         return $ case r of
-                            Yield x s  -> (s, Just x, queue)
-                            Continue s -> (s, Nothing, queue)
+                            Yield x s  -> Just (s, Just x, queue)
+                            Continue s -> Just (s, Nothing, queue)
+                            Stop -> Nothing
 
         {-# INLINE_LATE produce #-}
         produce (Tuple' (sL, resL, lq) (sR, resR, rq)) = do
             s1 <- drive sL resL lq consumeL produceL
             s2 <- drive sR resR rq consumeR produceR
-            yieldOutput s1 s2
+            case (s1,s2) of
+                (Just s1', Just s2') -> yieldOutput s1' s2'
+                _ -> return Stop
 
             where
 
@@ -201,7 +213,7 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             drive stt res q fConsume fProduce = do
                 case res of
                     Nothing -> goProduce stt q fConsume fProduce
-                    Just x -> return (stt, Just x, q)
+                    Just x -> return $ Just (stt, Just x, q)
 
             {-# INLINE goProduce #-}
             goProduce stt queue fConsume fProduce = do
@@ -224,14 +236,16 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
                                                  then Nothing
                                                  else Just q
                                         return $ case r of
-                                            Yield x s  -> (s, Just x, q')
-                                            Continue s -> (s, Nothing, q')
-                                    Nothing -> return (stt, Nothing, Nothing)
+                                            Yield x s  -> Just (s, Just x, q')
+                                            Continue s -> Just (s, Nothing, q')
+                                            Stop -> Nothing
+                                    Nothing -> return $ Just (stt, Nothing, Nothing)
                     Produce st -> do
                         r <- fProduce st
                         return $ case r of
-                            Yield x s  -> (s, Just x, queue)
-                            Continue s -> (s, Nothing, queue)
+                            Yield x s  -> Just (s, Just x, queue)
+                            Continue s -> Just (s, Nothing, queue)
+                            Stop -> Nothing
 
         {-# INLINE yieldOutput #-}
         yieldOutput s1@(sL', resL', lq') s2@(sR', resR', rq') = return $
@@ -255,6 +269,22 @@ instance Monad m => Applicative (Pipe m a) where
 
     (<*>) = zipWith id
 
+-- XXX It is also possible to compose in a way so as to append the pipes after
+-- distributing the input to them, but that will require full buffering of the
+-- input.
+
+data TeeConsume sL sR =
+      TCBoth sL sR
+    | TCLeft sL
+    | TCRight sR
+
+data TeeProduce a s sLc sLp sRp sRc =
+      TPLeft a s sRc
+    | TPRight sLc sRp
+    | TPSwitchRightOnly a sRc
+    | TPRightOnly sRp
+    | TPLeftOnly sLp
+
 -- | The composed pipe distributes the input to both the constituent pipes and
 -- merges the outputs of the two.
 --
@@ -265,62 +295,99 @@ tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
         Pipe consume produce state
     where
 
-    state = Tuple' (Consume stateL) (Consume stateR)
+    state = TCBoth stateL stateR
 
-    consume (Tuple' sL sR) a = do
-        case sL of
-            Consume st -> do
-                r <- consumeL st a
-                return $ case r of
-                    Yield x s -> Yield x (Produce (Tuple3' (Just a) s sR))
-                    Continue s -> Continue (Produce (Tuple3' (Just a) s sR))
-            -- XXX we should never come here unless the initial state of the
-            -- first pipe is set to "Right".
-            Produce _st -> undefined -- do
-            {-
-                r <- produceL st
-                return $ case r of
-                    Yield x s -> Yield x (Right (Tuple3' (Just a) s sR))
-                    Continue s -> Continue (Right (Tuple3' (Just a) s sR))
-                -}
+    -- At the start both pipes are in Consume mode.
+    --
+    -- We start with the left pipe.  If either of the pipes goes in produce
+    -- mode then the tee goes to produce mode. After one pipe finishes
+    -- producing all outputs for a given input only then we move on to the next
+    -- pipe.
+    consume (TCBoth sL sR) a = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x s  -> Yield x  (Produce (TPLeft a s sR))
+            Continue s -> Continue (Produce (TPLeft a s sR))
+            Stop       -> Continue (Produce (TPSwitchRightOnly a sR))
 
-    produce (Tuple3' (Just a) sL sR) = do
-        case sL of
-            Consume _ -> do
-                case sR of
-                    Consume st -> do
-                        r <- consumeR st a
-                        let nextL s = Consume (Tuple' sL s)
-                        let nextR s = Produce (Tuple3' Nothing sL s)
-                        return $ case r of
-                            Yield x s@(Consume _) -> Yield x (nextL s)
-                            Yield x s@(Produce _) -> Yield x (nextR s)
-                            Continue s@(Consume _) -> Continue (nextL s)
-                            Continue s@(Produce _) -> Continue (nextR s)
-                    -- We will never come here unless the initial state of
-                    -- second pipe is set to "Right".
-                    Produce _ -> undefined
-            Produce st -> do
-                r <- produceL st
-                let next s = Produce (Tuple3' (Just a) s sR)
-                return $ case r of
-                    Yield x s -> Yield x (next s)
-                    Continue s -> Continue (next s)
+    -- Right pipe has stopped, only the left pipe is running
+    consume (TCLeft sL) a = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x (Consume s)  -> Yield x  (Consume (TCLeft s))
+            Yield x (Produce s)  -> Yield x  (Produce (TPLeftOnly s))
+            Continue (Consume s) -> Continue (Consume (TCLeft s))
+            Continue (Produce s) -> Continue (Produce (TPLeftOnly s))
+            Stop                 -> Stop
 
-    produce (Tuple3' Nothing sL sR) = do
-        case sR of
-            Consume _ -> undefined -- should never occur
-            Produce st -> do
-                r <- produceR st
-                return $ case r of
-                    Yield x s@(Consume _) ->
-                        Yield x (Consume (Tuple' sL s))
-                    Yield x s@(Produce _) ->
-                        Yield x (Produce (Tuple3' Nothing sL s))
-                    Continue s@(Consume _) ->
-                        Continue (Consume (Tuple' sL s))
-                    Continue s@(Produce _) ->
-                        Continue (Produce (Tuple3' Nothing sL s))
+    consume (TCRight sR) a = do
+        r <- consumeR sR a
+        return $ case r of
+            Yield x (Consume s)  -> Yield x  (Consume (TCRight s))
+            Yield x (Produce s)  -> Yield x  (Produce (TPRightOnly s))
+            Continue (Consume s) -> Continue (Consume (TCRight s))
+            Continue (Produce s) -> Continue (Produce (TPRightOnly s))
+            Stop                 -> Stop
+
+    -- Left pipe went to produce mode and right pipe is waiting for its turn.
+    produce (TPLeft a (Produce sL) sR) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x s  -> Yield x  (Produce (TPLeft a s sR))
+            Continue s -> Continue (Produce (TPLeft a s sR))
+            Stop       -> Continue (Produce (TPSwitchRightOnly a sR))
+
+    -- Left pipe is done consuming an input, both pipes are again in consume
+    -- mode and its Right pipe's turn to consume the buffered input now.
+    produce (TPLeft a (Consume sL) sR) = do
+        r <- consumeR sR a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume (TCBoth  sL s))
+            Yield x  (Produce s) -> Yield x  (Produce (TPRight sL s))
+            Continue (Consume s) -> Continue (Consume (TCBoth  sL s))
+            Continue (Produce s) -> Continue (Produce (TPRight sL s))
+            Stop                 -> Continue (Consume (TCLeft  sL))
+
+    -- Left pipe has stopped, we have to continue with just the right pipe.
+    produce (TPSwitchRightOnly a sR) = do
+        r <- consumeR sR a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume (TCRight s))
+            Yield x  (Produce s) -> Yield x  (Produce (TPRightOnly s))
+            Continue (Consume s) -> Continue (Consume (TCRight s))
+            Continue (Produce s) -> Continue (Produce (TPRightOnly s))
+            Stop                 -> Stop
+
+    -- Left pipe has consumed and produced, right pipe has consumed and is now
+    -- in produce mode.
+    produce (TPRight sL sR) = do
+        r <- produceR sR
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume (TCBoth sL s))
+            Yield x  (Produce s) -> Yield x  (Produce (TPRight sL s))
+            Continue (Consume s) -> Continue (Consume (TCBoth sL s))
+            Continue (Produce s) -> Continue (Produce (TPRight sL s))
+            Stop                 -> Continue (Consume (TCLeft sL))
+
+    -- Left pipe has stopped and right pipe is in produce mode.
+    produce (TPRightOnly sR) = do
+        r <- produceR sR
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume (TCRight s))
+            Yield x  (Produce s) -> Yield x  (Produce (TPRightOnly s))
+            Continue (Consume s) -> Continue (Consume (TCRight s))
+            Continue (Produce s) -> Continue (Produce (TPRightOnly s))
+            Stop                 -> Stop
+
+    -- Right pipe has stopped and left pipe is in produce mode.
+    produce (TPLeftOnly sL) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume (TCLeft s))
+            Yield x  (Produce s) -> Yield x  (Produce (TPLeftOnly s))
+            Continue (Consume s) -> Continue (Consume (TCLeft s))
+            Continue (Produce s) -> Continue (Produce (TPLeftOnly s))
+            Stop                 -> Stop
 
 instance Monad m => Semigroup (Pipe m a b) where
     {-# INLINE (<>) #-}
