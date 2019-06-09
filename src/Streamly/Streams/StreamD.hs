@@ -161,6 +161,7 @@ module Streamly.Streams.StreamD
 
     -- * Transformation
     , transform
+    -- , pipeAppend
 
     -- ** By folding (scans)
     , scanlM'
@@ -1790,31 +1791,79 @@ handle f (Stream step state) = Stream step' (Just state)
 
 {-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
-transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
-    Stream step' (Consume pstate, state)
+transform (Pipe pstate consume produce finalize) (Stream step state) =
+    Stream step' (Consume pstate, Just state)
 
   where
 
     {-# INLINE_LATE step' #-}
 
-    step' gst (Consume pst, st) = pst `seq` do
+    step' gst (Consume pst, Just st) = pst `seq` do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                res <- pstep1 pst x
+                res <- consume pst x
                 return $ case res of
-                    Pipe.Yield b pst' -> Yield b (pst', s)
-                    Pipe.Continue pst' -> Skip (pst', s)
-                    Pipe.Stop -> Stop
-            Skip s -> return $ Skip (Consume pst, s)
-            Stop   -> return Stop
+                    Pipe.Yield b pst' -> Yield b (Consume pst', Just s)
+                    Pipe.Continue pst' -> Skip (Consume pst', Just s)
+                    -- XXX what if we blocked without actually consuming the
+                    -- input, in that case we will lose that input.
+                    Pipe.Blocked pst' -> Skip (Produce pst', Just s)
+                    Pipe.Closed -> Stop
+            Skip s -> return $ Skip (Consume pst, Just s)
+            Stop   -> return $ Skip (Produce (finalize pst), Nothing)
+    -- We cannot be in consume state if the input is closed
+    step' _ (Consume _, Nothing) = undefined
 
-    step' _ (Produce pst, st) = pst `seq` do
-        res <- pstep2 pst
+    step' _ (Produce pst, Just st) = pst `seq` do
+        res <- produce pst
         return $ case res of
-            Pipe.Yield b pst' -> Yield b (pst', st)
-            Pipe.Continue pst' -> Skip (pst', st)
-            Pipe.Stop -> Stop
+            Pipe.Yield b pst' -> Yield b (Produce pst', Just st)
+            Pipe.Continue pst' -> Skip (Produce pst', Just st)
+            Pipe.Blocked pst' -> Skip (Consume pst', Just st)
+            Pipe.Closed -> Stop
+
+    step' _ (Produce pst, Nothing) = pst `seq` do
+        res <- produce pst
+        return $ case res of
+            Pipe.Yield b pst' -> Yield b (Produce pst', Nothing)
+            Pipe.Continue pst' -> Skip (Produce pst', Nothing)
+            Pipe.Blocked _ -> Stop
+            Pipe.Closed -> Stop
+
+{-
+{-# INLINE_NORMAL pipeAppend #-}
+pipeAppend :: Monad m => Stream m b -> Pipe m a b -> Pipe m a b
+pipeAppend (Stream step state) (Pipe consume produce pstate) =
+    Pipe consume' produce' pstate
+
+    where
+
+    consume' pst a = do
+        r <- consume pst a
+        return $ case r of
+            Pipe.Yield x  (Consume s) -> Pipe.Yield x  (Consume s)
+            Pipe.Yield x  (Produce s) -> Pipe.Yield x  (Produce (Left s))
+            Pipe.Continue (Consume s) -> Pipe.Continue (Consume s)
+            Pipe.Continue (Produce s) -> Pipe.Continue (Produce (Left s))
+            Pipe.Stop                 -> Pipe.Continue (Produce (Right state))
+
+    produce' (Left pst) = do
+        r <- produce pst
+        return $ case r of
+            Pipe.Yield x  (Consume s) -> Pipe.Yield x  (Consume s)
+            Pipe.Yield x  (Produce s) -> Pipe.Yield x  (Produce (Left s))
+            Pipe.Continue (Consume s) -> Pipe.Continue (Consume s)
+            Pipe.Continue (Produce s) -> Pipe.Continue (Produce (Left s))
+            Pipe.Stop                 -> Pipe.Continue (Produce (Right state))
+
+    produce' (Right st) = do
+        r <- step defState st
+        return $ case r of
+            Yield x s -> Pipe.Yield x  (Produce (Right s))
+            Skip s    -> Pipe.Continue (Produce (Right s))
+            Stop      -> Pipe.Stop
+            -}
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

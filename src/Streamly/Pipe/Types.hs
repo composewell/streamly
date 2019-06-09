@@ -16,24 +16,26 @@ module Streamly.Pipe.Types
     ( Step (..)
     , Pipe (..)
     , PipeState (..)
+    , map
+    {-
     , zipWith
     , tee
-    , map
+    -}
     , compose
     )
 where
 
 import Control.Arrow (Arrow(..))
-import Control.Category (Category(..))
 import Data.Maybe (isJust)
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (zipWith, map, id, unzip, null)
+import Prelude hiding (zipWith, map, unzip, null)
 import Streamly.Strict (Tuple'(..))
 
 import qualified Prelude
+import qualified Control.Category as Cat
 
 ------------------------------------------------------------------------------
--- Pipes
+-- Notes
 ------------------------------------------------------------------------------
 
 -- A scan is a much simpler version of pipes. A scan always produces an output
@@ -47,70 +49,80 @@ import qualified Prelude
 -- source, we may have to buffer the input to match the speeds. In case of
 -- scans we do not have that problem.
 --
--- We may also need a "Stop" constructor to indicate that we are not generating
--- any more values and we can have a "Done" constructor to indicate that we are
--- not consuming any more values. Similarly we can have a stop with error or
--- exception and a done with error or leftover values.
---
--- In generator mode, Continue means no output/continue. In fold mode Continue
--- means need more input to produce result. we can perhaps call it Continue
--- instead.
---
-data Step s a =
-      Yield a s
-    | Continue s
-    | Stop
-
--- | Represents a stateful transformation over an input stream of values of
--- type @a@ to outputs of type @b@ in 'Monad' @m@.
-
--- A pipe uses a consume function and a produce function. It can switch from
--- consume/fold mode to a produce/source mode. The first step function is a
--- fold function while the seocnd one is a stream generator function.
---
 -- We can upgrade a stream or a fold into a pipe. However, streams are more
--- efficient in generation and folds are more efficient in consumption.
+-- efficient for generation and folds are more efficient for consumption.
 --
 -- For pure transformation we can have a 'Scan' type. A Scan would be more
 -- efficient in zipping whereas pipes are useful for merging and zipping where
 -- we know buffering can occur. A Scan type can be upgraded to a pipe.
 --
--- XXX In general the starting state could either be for generation or for
--- consumption. Currently we are only starting with a consumption state.
+------------------------------------------------------------------------------
+-- Pipes
+------------------------------------------------------------------------------
+
+-- | The result yielded by running a single consume or produce step of the
+-- pipe.
+-- XXX the blocked mechanism to switch consumer/producer mode may be
+-- inefficient. This is more like a polling mechanism. We switch only after a
+-- try and if the pipe says blocked. In the other case where the pipe itself
+-- tells which mode to use next time, we definitively know the mode to use
+-- therefore no wasted tries. The composeX4 benchmark for this implementation
+-- is slower than the other impl.
+data Step s a =
+      Yield a s    -- Yield value 'a' with the next state 's'
+    | Continue s   -- Yields no value, the next state is 's'
+    -- XXX rename to Switch?
+    | Blocked s    -- The pipe is blocked on input or output
+    | Closed       -- The pipe is closed for input or output
+
+instance Functor (Step s) where
+    fmap f step =
+        case step of
+            Yield x s -> Yield (f x) s
+            Continue s -> Continue s
+            Blocked s -> Blocked s
+            Closed -> Closed
+
+-- | A 'Pipe' represents a stateful transformation over an input stream of
+-- values of type @a@ to outputs of type @b@ in 'Monad' @m@. The 'Pipe'
+-- consists of an initial state 's', a consume function, produce function and a
+-- finalize function to indicate that we no longer want to feed any more input
+-- to the pipe. The consume function can return 'Blocked' if it cannot accept
+-- any more input until the buffered output is removed using the produce
+-- function. Similalrly the produce funciton may return 'Blocked' if it cannot
+-- produce anything unless more input is fed via the consume function.
 --
--- An explicit either type for better readability of the code
-data PipeState s1 s2 = Consume !s1 | Produce !s2
-
-isProduce :: PipeState s1 s2 -> Bool
-isProduce s =
-    case s of
-        Produce _ -> True
-        Consume _ -> False
-
 data Pipe m a b =
-  forall s1 s2. Pipe (s1 -> a -> m (Step (PipeState s1 s2) b))
-                     (s2 -> m (Step (PipeState s1 s2) b)) s1
+    forall s. Pipe s          -- initial
+    (s -> a -> m (Step s b))  -- consume
+    (s -> m (Step s b))       -- produce
+    (s -> s)                  -- finalize
 
+-- An explicit either type for better readability of the code
+data PipeState a b = Consume !a | Produce !b
+
+-- | Maps a function on the output of the pipe.
 instance Monad m => Functor (Pipe m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Pipe consume produce initial) = Pipe consume' produce' initial
+    fmap f (Pipe initial consume produce finalize) =
+        Pipe initial consume' produce' finalize
         where
         {-# INLINE_LATE consume' #-}
-        consume' st a = do
-            r <- consume st a
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
-                Stop -> Stop
-
+        consume' st a = consume st a >>= return . fmap f
         {-# INLINE_LATE produce' #-}
-        produce' st = do
-            r <- produce st
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
-                Stop -> Stop
+        produce' st   = produce st   >>= return . fmap f
 
+-- | Lift a pure function to a 'Pipe'.
+--
+-- @since 0.7.0
+{-# INLINE map #-}
+map :: Monad m => (a -> b) -> Pipe m a b
+map f = Pipe () consume produce id
+    where
+    consume _ a = return $ Yield (f a) ()
+    produce _ = return $ Blocked ()
+
+{-
 -- XXX move this to a separate module
 data Deque a = Deque [a] [a]
 
@@ -139,8 +151,9 @@ uncons (Deque snocList consList) =
 -- @since 0.7.0
 {-# INLINE_NORMAL zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Pipe m i a -> Pipe m i b -> Pipe m i c
-zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
-                    Pipe consume produce state
+zipWith f (Pipe stateL consumeL produceL finalizeL)
+          (Pipe stateR consumeR produceR finalizeR) =
+                    Pipe state consume produce finalize
         where
 
         -- Left state means we need to consume input from the source. A Right
@@ -393,15 +406,7 @@ instance Monad m => Semigroup (Pipe m a b) where
     {-# INLINE (<>) #-}
     (<>) = tee
 
--- | Lift a pure function to a 'Pipe'.
---
--- @since 0.7.0
-{-# INLINE map #-}
-map :: Monad m => (a -> b) -> Pipe m a b
-map f = Pipe consume undefined ()
-    where
-    consume _ a = return $ Yield (f a) (Consume ())
-
+-}
 {-
 -- | A hollow or identity 'Pipe' passes through everything that comes in.
 --
@@ -413,6 +418,7 @@ id = map Prelude.id
 
 -- First 's' is for "State", second L/R are for left/right, third c/p are for
 -- consume/produce.
+{-
 data ComposeConsume sLc sRc = ComposeConsumeCC !sLc !sRc
 
 data ComposeProduce x sLc sRc sLp sRp =
@@ -421,6 +427,9 @@ data ComposeProduce x sLc sRc sLp sRp =
     | ComposeProducePP !sLp !sRp
     | ComposeProduceCP !sLc !sRp
     | ComposeProducePC !sLp !sRc
+    -}
+
+data ComposeState a = ConsumeR a | ProduceL a | ProduceR a
 
 -- | Compose two pipes such that the output of the second pipe is attached to
 -- the input of the first pipe.
@@ -428,25 +437,60 @@ data ComposeProduce x sLc sRc sLp sRp =
 -- @since 0.7.0
 {-# INLINE_NORMAL compose #-}
 compose :: Monad m => Pipe m b c -> Pipe m a b -> Pipe m a c
-compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
-    Pipe consume produce state
+compose (Pipe stateL consumeL produceL _)
+        (Pipe stateR consumeR produceR _) =
+    Pipe state consume produce finalize
 
     where
 
-    state = ComposeConsumeCC stateL stateR
+    state = (ConsumeR (stateL, stateR))
+    finalize = id
 
+    -- XXX Only the blocked case is different in several cases. So we can
+    -- perhaps pass the switching constructor to a common function.
+    --
     -- Both pipes are in Consume state.
-    consume (ComposeConsumeCC sL sR) a = do
+    consume (ConsumeR (sL, sR)) a = do
         r <- consumeR sR a
-        return $ case r of
-            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
-            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
-            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
-            Stop                 -> Stop
+        case r of
+            Yield xr sR' -> do
+                l <- consumeL sL xr
+                return $ case l of
+                    Yield xl sL' -> Yield xl (ConsumeR (sL', sR'))
+                    Continue sL' -> Continue (ConsumeR (sL', sR'))
+                    Blocked  sL' -> Blocked  (ProduceL (sL', sR'))
+                    Closed       -> Closed
+            Continue sR' -> return $ Continue (ConsumeR (sL, sR'))
+            Blocked  sR' -> return $ Continue (ProduceR (sL, sR'))
+            Closed       -> return $ Closed
+    -- XXX this can be avoided if we use separate state types s1, s2 for
+    -- consume and produce.
+    consume _ _ = undefined
 
-    -- left consume, right produce
-    produce (ComposeProduceCPx a sL sR) = do
+    produce (ProduceL (sL, sR)) = do
+        r <- produceL sL
+        return $ case r of
+            Yield xl sL' -> Yield xl (ConsumeR (sL', sR))
+            Continue sL' -> Continue (ConsumeR (sL', sR))
+            Blocked  sL' -> Continue (ConsumeR (sL', sR))
+            Closed       -> Closed
+
+    produce (ProduceR (sL, sR)) = do
+        r <- produceR sR
+        case r of
+            Yield xr sR' -> do
+                l <- consumeL sL xr
+                return $ case l of
+                    Yield xl sL' -> Yield xl (ConsumeR (sL', sR'))
+                    Continue sL' -> Continue (ConsumeR (sL', sR'))
+                    Blocked  sL' -> Blocked  (ProduceL (sL', sR'))
+                    Closed       -> Closed
+            Continue sR' -> return $ Continue (ConsumeR (sL, sR'))
+            Blocked  sR' -> return $ Continue (ConsumeR (sL, sR'))
+            Closed       -> return $ Closed
+    produce s = return $ Blocked s
+
+    {-
         r <- consumeL sL a
         return $ case r of
             Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
@@ -494,7 +538,9 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
             Stop                 -> Stop
+-}
 
+{-
 instance Monad m => Category (Pipe m) where
     {-# INLINE id #-}
     id = map Prelude.id
@@ -514,3 +560,4 @@ instance Monad m => Arrow (Pipe m) where
 
     {-# INLINE (&&&) #-}
     (&&&) = zipWith (,)
+    -}

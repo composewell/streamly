@@ -6,6 +6,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Pipe
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -34,6 +36,7 @@ module Streamly.Pipe
     -- * Pipe Type
       Pipe
 
+--    , extend
     -- * Pipes
     -- ** Mapping
     , map
@@ -91,8 +94,10 @@ module Streamly.Pipe
     , chunksOf
     , sessionsOf
 
+-}
     -- *** By Elements
-    , splitBy
+    -- , splitBy
+    {-
     , splitSuffixBy
     , splitSuffixBy'
     -- , splitPrefixBy
@@ -121,8 +126,8 @@ module Streamly.Pipe
     -}
 
     -- * Composing Pipes
-    , tee
-    , zipWith
+    -- , tee
+    -- , zipWith
     , compose
 
     {-
@@ -239,7 +244,7 @@ where
 
 -- import Foreign.Storable (Storable(..))
 import Prelude
-       hiding (id, filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
+       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
@@ -253,11 +258,11 @@ import Prelude
 -- import Streamly (MonadAsync, parallel)
 -- import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types
-       (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
+       (Pipe(..), PipeState(..), Step(..), map, compose) --  zipWith, tee, map, compose)
 -- import Streamly.Mem.Array.Types (Array)
 -- import Streamly.Mem.Ring (Ring)
 -- import Streamly.Streams.Serial (SerialT)
--- import Streamly.Streams.StreamK (IsStream())
+import Streamly.Streams.StreamK (IsStream())
 -- import Streamly.Time.Units
 -- (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
 -- toAbsTime)
@@ -266,7 +271,7 @@ import Streamly.Pipe.Types
 
 -- import qualified Streamly.Mem.Array.Types as A
 -- import qualified Streamly.Prelude as S
--- import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.StreamD as D
 -- import qualified Streamly.Streams.StreamK as K
 -- import qualified Streamly.Streams.Prelude as P
 
@@ -279,11 +284,12 @@ import Streamly.Pipe.Types
 -- @since 0.7.0
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Pipe m a b
-mapM f = Pipe consume undefined ()
+mapM f = Pipe () consume produce id
     where
     consume _ a = do
         r <- f a
-        return $ Yield r (Consume ())
+        return $ Yield r ()
+    produce _ = return $ Blocked ()
 {-
 ------------------------------------------------------------------------------
 -- Filtering
@@ -698,6 +704,7 @@ breakOn :: Monad m => Array a -> Fold m a b -> Fold m a c -> Fold m a (b,c)
 breakOn pat f m = undefined
 -}
 
+-}
 ------------------------------------------------------------------------------
 -- N-ary split on a predicate
 ------------------------------------------------------------------------------
@@ -707,6 +714,16 @@ breakOn pat f m = undefined
 -- infix/suffix/prefix/condensing of separators, dropping both leading/trailing
 -- separators. We can have a single split operation taking the splitter config
 -- as argument.
+
+{-
+data ComposeConsume sLc sRc = ComposeConsumeCC !sLc !sRc
+
+data ComposeProduce x sLc sRc sLp sRp =
+      ComposeProduceCPx x !sLc !sRp
+    | ComposeProduceCCx x !sLc !sRc
+    | ComposeProducePP !sLp !sRp
+    | ComposeProduceCP !sLc !sRp
+    | ComposeProducePC !sLp !sRc
 
 -- | Split a stream on separator elements determined by a predicate, dropping
 -- the separator.  Separators are not considered part of stream segments on
@@ -744,13 +761,88 @@ breakOn pat f m = undefined
 -- of the second segment after each break.
 --
 -- @since 0.7.0
-{-# INLINE splitBy #-}
-splitBy
-    :: (IsStream t, Monad m)
-    => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitBy predicate f m =
-    D.fromStreamD $ D.splitBy predicate f (D.toStreamD m)
+{-# INLINE_NORMAL splitBy #-}
+splitBy :: Monad m => (b -> Bool) -> Pipe m b c -> Pipe m a b -> Pipe m a c
+splitBy predicate (Pipe consumeL produceL stateL)
+                  (Pipe consumeR produceR stateR) =
+    Pipe consume produce state
 
+    where
+
+    state = ComposeConsumeCC stateL stateR
+
+    -- Both pipes are in Consume state.
+    consume (ComposeConsumeCC sL sR) a = do
+        r <- consumeR sR a
+        return $ case r of
+            Yield x  (Consume s) ->
+                    if predicate x
+                    then Continue (Consume $ ComposeConsumeCC stateL sR)
+                    else Continue (Produce $ ComposeProduceCCx x sL s)
+            Yield x  (Produce s) ->
+                    if predicate x
+                    then Continue (Consume $ ComposeConsumeCC stateL sR)
+                    else Continue (Produce $ ComposeProduceCPx x sL s)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
+            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
+            Stop                 -> Stop
+
+    -- left consume, right produce
+    produce (ComposeProduceCPx a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
+            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+            Stop                 -> Stop
+
+    -- left consume, right consume
+    produce (ComposeProduceCCx a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+            Stop                 -> Stop
+
+    -- left consume, right produce
+    produce (ComposeProduceCP sL sR) = do
+        r <- produceR sR
+        return $ case r of
+            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
+            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
+            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
+            Stop                 -> Stop
+
+    -- left produce, right produce
+    produce (ComposeProducePP sL sR) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
+            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
+            Stop                 -> Stop
+
+    -- left produce, right consume
+    produce (ComposeProducePC sL sR) = do
+        r <- produceL sL
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
+            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
+            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
+            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+            Stop                 -> Stop
+
+{-# INLINE_NORMAL extend #-}
+extend :: (IsStream t, Monad m) => t m b -> Pipe m a b -> Pipe m a b
+extend s p = D.pipeAppend (D.toStreamD s) p
+-}
+
+{-
 -- | Like 'splitBy' but the separator is treated as part of the previous
 -- stream segment (suffix).  Therefore, when the separator is in trailing
 -- position, no empty segment is considered to follow it. For example, @"a.b."@
@@ -1117,47 +1209,23 @@ reassembleBy
     -> t m b
 reassembleBy = undefined
 -}
+-}
+
+------------------------------------------------------------------------------
+-- Extending
+------------------------------------------------------------------------------
+
+{-
+prepend :: (IsStream t, Monad m) => t m b -> Pipe m a b -> Pipe m a b
+prepend = undefined
+-}
+
 
 ------------------------------------------------------------------------------
 -- Distributing
 ------------------------------------------------------------------------------
---
--- | Distribute one copy of the stream to each fold and zip the results.
---
--- @
---                 |-------Fold m a b--------|
--- ---stream m a---|                         |---m (b,c)
---                 |-------Fold m a c--------|
--- @
--- >>> FL.foldl' (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
--- (5050.0,100)
---
--- @since 0.7.0
-{-# INLINE tee #-}
-tee :: Monad m => Fold m a b -> Fold m a c -> Fold m a (b,c)
-tee f1 f2 = (,) <$> f1 <*> f2
 
-{-# INLINE foldNil #-}
-foldNil :: Monad m => Fold m a [b]
-foldNil = Fold step begin done  where
-  begin = return []
-  step _ _ = return []
-  done = return
-
-{-# INLINE foldCons #-}
-foldCons :: Monad m => Fold m a b -> Fold m a [b] -> Fold m a [b]
-foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
-    Fold step begin done
-
-    where
-
-    begin = Tuple' <$> beginL <*> beginR
-    step (Tuple' xL xR) a = Tuple' <$> stepL xL a <*> stepR xR a
-    done (Tuple' xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
-
--- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
--- number of consumers?
---
+{-
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
 --
