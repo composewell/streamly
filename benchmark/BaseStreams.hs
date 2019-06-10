@@ -101,6 +101,8 @@ main =
         , benchIO "mapMaybeM" (D.mapMaybeM 1) D.sourceUnfoldrM
         , benchIO "concatMap" (D.concatMap 1) (D.sourceUnfoldrMN D.value2)
         , benchIO "concatMapPure" (D.concatMap 1) (D.sourceUnfoldrN D.value2)
+        , benchIO "intersperse" (D.intersperse 1) (D.sourceUnfoldrMN D.value2)
+        , benchIO "interspersePure" (D.intersperse 1) (D.sourceUnfoldrN D.value2)
         -- , benchIO "foldrS"    (D.foldrS    1) D.sourceUnfoldrM
         -- This has horrible performance, never finishes
         -- , benchIO "foldlS"    (D.foldlS    1) D.sourceUnfoldrM
@@ -113,6 +115,7 @@ main =
         , benchIO "mapMaybe"  (D.mapMaybe  4) D.sourceUnfoldrM
         , benchIO "mapMaybeM" (D.mapMaybeM 4) D.sourceUnfoldrM
         -- , benchIO "concatMap" (D.concatMap 4) (D.sourceUnfoldrMN D.value16)
+        , benchIO "intersperse" (D.intersperse 4) (D.sourceUnfoldrMN D.value16)
         ]
       , bgroup "filtering"
         [ benchIO "filter-even"     (D.filterEven     1) D.sourceUnfoldrM
@@ -242,6 +245,8 @@ main =
         -- , benchIOSrcK "concatMap" K.concatMap
         , benchIO "concatMap" (K.concatMap 1) (K.sourceUnfoldrMN K.value2)
         , benchIO "concatMapPure" (K.concatMap 1) (K.sourceUnfoldrN K.value2)
+        , benchIO "intersperse" (K.intersperse 1) (K.sourceUnfoldrMN K.value2)
+        , benchIO "interspersePure" (K.intersperse 1) (K.sourceUnfoldrN K.value2)
         , benchIO "foldlS" (K.foldlS 1) K.sourceUnfoldrM
         ]
       , bgroup "transformationX4"
@@ -251,6 +256,7 @@ main =
         , benchIO "mapM"   (K.mapM 4) K.sourceUnfoldrM
         , benchIO "mapMSerial" (K.mapMSerial 4) K.sourceUnfoldrM
         -- , benchIO "concatMap" (K.concatMap 4) (K.sourceUnfoldrMN K.value16)
+        , benchIO "intersperse" (K.intersperse 4) (K.sourceUnfoldrMN K.value16)
         ]
       , bgroup "filtering"
         [ benchIO "filter-even"     (K.filterEven     1) K.sourceUnfoldrM

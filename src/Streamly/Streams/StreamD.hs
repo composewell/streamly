@@ -203,6 +203,8 @@ module Streamly.Streams.StreamD
     , sequence
 
     -- * Inserting
+    , intersperseM
+    , intersperse
     , insertBy
 
     -- * Deleting
@@ -2173,6 +2175,38 @@ sequence (Stream step state) = Stream step' state
 ------------------------------------------------------------------------------
 -- Inserting
 ------------------------------------------------------------------------------
+
+data LoopState x s = FirstYield s
+                   | InterspersingYield s
+                   | YieldAndCarry x s
+
+{-# INLINE_NORMAL intersperseM #-}
+intersperseM :: Monad m => m a -> Stream m a -> Stream m a
+intersperseM m (Stream step state) = Stream step' (FirstYield state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (FirstYield st) = do
+        r <- step gst st
+        return $
+            case r of
+                Yield x s -> Skip (YieldAndCarry x s)
+                Skip s -> Skip (FirstYield s)
+                Stop -> Stop
+
+    step' gst (InterspersingYield st) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                a <- m
+                return $ Yield a (YieldAndCarry x s)
+            Skip s -> return $ Skip $ InterspersingYield s
+            Stop -> return Stop
+
+    step' _ (YieldAndCarry x st) = return $ Yield x (InterspersingYield st)
+
+{-# INLINE intersperse #-}
+intersperse :: Monad m => a -> Stream m a -> Stream m a
+intersperse a = intersperseM (return a)
 
 {-# INLINE_NORMAL insertBy #-}
 insertBy :: Monad m => (a -> a -> Ordering) -> a -> Stream m a -> Stream m a

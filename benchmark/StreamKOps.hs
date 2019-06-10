@@ -205,7 +205,9 @@ scan, map, fmap, filterEven, filterAllOut,
 
 {-# INLINE mapM #-}
 {-# INLINE mapMSerial #-}
-mapM, mapMSerial :: S.MonadAsync m => Int -> Stream m Int -> m ()
+{-# INLINE intersperse #-}
+mapM, mapMSerial, intersperse
+    :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 scan           n = composeN n $ S.scanl' (+) 0
 map            n = composeN n $ P.fmap (+1)
@@ -224,6 +226,7 @@ dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
+intersperse    n = composeN n $ S.intersperse maxValue
 
 -------------------------------------------------------------------------------
 -- Iteration

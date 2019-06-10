@@ -143,6 +143,7 @@ module Streamly.Streams.StreamK
 
     -- ** Inserting
     , intersperseM
+    , intersperse
     , insertBy
 
     -- ** Deleting
@@ -825,6 +826,10 @@ intersperseM a m = prependingStart m
         let single i = foldStreamShared st yld sng stp $ a |: yield i
             yieldk i x = foldStreamShared st yld sng stp $ a |: return i |: go x
          in foldStream st yieldk single stp m2
+
+{-# INLINE intersperse #-}
+intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
+intersperse a = intersperseM (return a)
 
 {-# INLINE insertBy #-}
 insertBy :: IsStream t => (a -> a -> Ordering) -> a -> t m a -> t m a

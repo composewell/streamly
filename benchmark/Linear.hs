@@ -300,6 +300,7 @@ main =
         --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 1)
         , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 1)
         , benchIOSink "deleteBy" (Ops.deleteBy 1)
+        , benchIOSink "intersperse" (Ops.intersperse 1)
         , benchIOSink "insertBy" (Ops.insertBy 1)
         ]
       , bgroup "filteringX4"
@@ -315,6 +316,7 @@ main =
         --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 4)
         , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 4)
         , benchIOSink "deleteBy" (Ops.deleteBy 4)
+        , benchIOSink "intersperse" (Ops.intersperse 4)
         , benchIOSink "insertBy" (Ops.insertBy 4)
         ]
       , bgroup "multi-stream"

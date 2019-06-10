@@ -191,4 +191,4 @@ unlines = D.fromStreamD . A.unlines . D.toStreamD
 
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
-unwords = A.flattenArrays . (S.intersperseM (return $ A.fromList " "))
+unwords = A.flattenArrays . (S.intersperse (A.fromList " "))
