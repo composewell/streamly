@@ -494,21 +494,32 @@ mapM f = sequence . fmap f
 -- @since 0.7.0
 {-# INLINE transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pinitial consume produce _)
+transform (Pipe pinitial consume produce isConsume _)
           (Fold fstep finitial fextract) =
     Fold step initial extract
 
     where
 
-    initial = Tuple' <$> return (Just pinitial) <*> finitial
+    initial =
+        if isConsume pinitial
+        then Tuple' <$> return (Just pinitial) <*> finitial
+        -- XXX for now this case is not implemented
+        else undefined
+
+    next pst accum =
+        if isConsume pst
+        then return (Tuple' (Just pst) accum)
+        else go pst accum
+
     step (Tuple' (Just ps) acc) x = do
         r <- consume ps x
+
         case r of
             Pipe.Yield b ps' -> do
                 acc' <- fstep acc b
-                return (Tuple' (Just ps') acc')
-            Pipe.Continue ps' -> return (Tuple' (Just ps') acc)
-            Pipe.Blocked ps' -> go ps' acc
+                next ps' acc'
+            Pipe.Continue ps' -> next ps' acc
+            Pipe.Blocked -> undefined
             Pipe.Closed -> return (Tuple' Nothing acc)
     step acc _ = return acc
 
@@ -517,9 +528,9 @@ transform (Pipe pinitial consume produce _)
         case r of
             Pipe.Yield b ps' -> do
                 acc' <- fstep acc b
-                go ps' acc'
-            Pipe.Continue ps' -> go ps' acc
-            Pipe.Blocked ps' -> return (Tuple' (Just ps') acc)
+                next ps' acc'
+            Pipe.Continue ps' -> next ps' acc
+            Pipe.Blocked -> undefined
             Pipe.Closed -> return (Tuple' Nothing acc)
 
     extract (Tuple' _ fs) = fextract fs

@@ -60,19 +60,25 @@ import qualified Control.Category as Cat
 -- Pipes
 ------------------------------------------------------------------------------
 
+-- XXX A pipe may be closed for inputs but might still be producing outputs or
+-- it may be closed for outputs but might still be accepting inputs. Currently
+-- if a pipe is closed for inputs and we call consume it may return a Continue
+-- state with the state changed to Produce. Do we need two separate closing
+-- status, one for input and one for output?
+--
+-- The current model assumes that a pipe is either consuming or producing.
+-- However, in general a pipe may consume or produce at the same time. So we
+-- may need two different status checks i.e. isConsume, and isProduce. All
+-- combinations of consume and produce should be possible. isConsume/isProduce
+-- can return Ready, Blocked or Closed. We can perhaps learn more from TCP
+-- sockets.
+--
 -- | The result yielded by running a single consume or produce step of the
 -- pipe.
--- XXX the blocked mechanism to switch consumer/producer mode may be
--- inefficient. This is more like a polling mechanism. We switch only after a
--- try and if the pipe says blocked. In the other case where the pipe itself
--- tells which mode to use next time, we definitively know the mode to use
--- therefore no wasted tries. The composeX4 benchmark for this implementation
--- is slower than the other impl.
 data Step s a =
       Yield a s    -- Yield value 'a' with the next state 's'
     | Continue s   -- Yields no value, the next state is 's'
-    -- XXX rename to Switch?
-    | Blocked s    -- The pipe is blocked on input or output
+    | Blocked      -- The pipe is blocked on input or output
     | Closed       -- The pipe is closed for input or output
 
 instance Functor (Step s) where
@@ -80,7 +86,7 @@ instance Functor (Step s) where
         case step of
             Yield x s -> Yield (f x) s
             Continue s -> Continue s
-            Blocked s -> Blocked s
+            Blocked -> Blocked
             Closed -> Closed
 
 -- | A 'Pipe' represents a stateful transformation over an input stream of
@@ -92,10 +98,28 @@ instance Functor (Step s) where
 -- function. Similalrly the produce funciton may return 'Blocked' if it cannot
 -- produce anything unless more input is fed via the consume function.
 --
+-- If the pipe is called in consume mode and it returns "Blocked" then it must
+-- not consume the value. If it consumes the value it must return "Continue"
+-- instead of "Blocked". In other words, when Blocked is returned state must
+-- not change, that's why Blocked does not return the next state while Continue
+-- returns next state.
+--
+-- Blocked is returned only when consume is called in produce state or produce
+-- is called in consume state. It MUST not return "Blocked" if consume is
+-- called in consume state or produce is called in produce state.
+--
+-- In a multithreaded implementation the consume and produce ends of the pipe
+-- may run indepedently in spearate threads. In that case, "Blocked" can be
+-- used to indicate that the other thread needs to run and unblock us before we
+-- can proceed further. Instead of returning "Blocked" the implementation may
+-- choose to block the thread and the consumer can wake it up when a value has
+-- been removed. This is quite similar to the implementation of an SVar.
+
 data Pipe m a b =
     forall s. Pipe s          -- initial
     (s -> a -> m (Step s b))  -- consume
     (s -> m (Step s b))       -- produce
+    (s -> Bool)               -- isConsume?
     (s -> s)                  -- finalize
 
 -- An explicit either type for better readability of the code
@@ -104,8 +128,8 @@ data PipeState a b = Consume !a | Produce !b
 -- | Maps a function on the output of the pipe.
 instance Monad m => Functor (Pipe m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Pipe initial consume produce finalize) =
-        Pipe initial consume' produce' finalize
+    fmap f (Pipe initial consume produce isConsume finalize) =
+        Pipe initial consume' produce' isConsume finalize
         where
         {-# INLINE_LATE consume' #-}
         consume' st a = consume st a >>= return . fmap f
@@ -117,10 +141,10 @@ instance Monad m => Functor (Pipe m a) where
 -- @since 0.7.0
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> Pipe m a b
-map f = Pipe () consume produce id
+map f = Pipe () consume produce (const True) id
     where
     consume _ a = return $ Yield (f a) ()
-    produce _ = return $ Blocked ()
+    produce _ = return Blocked
 
 {-
 -- XXX move this to a separate module
@@ -416,20 +440,13 @@ id :: Monad m => Pipe m a a
 id = map Prelude.id
 -}
 
--- First 's' is for "State", second L/R are for left/right, third c/p are for
--- consume/produce.
-{-
-data ComposeConsume sLc sRc = ComposeConsumeCC !sLc !sRc
-
-data ComposeProduce x sLc sRc sLp sRp =
-      ComposeProduceCPx x !sLc !sRp
-    | ComposeProduceCCx x !sLc !sRc
-    | ComposeProducePP !sLp !sRp
-    | ComposeProduceCP !sLc !sRp
-    | ComposeProducePC !sLp !sRc
-    -}
-
-data ComposeState a = ConsumeR a | ProduceL a | ProduceR a
+data ComposeState l r =
+      ConsumeBoth  l r
+    | ProduceLeft  l r
+    | ProduceRight l r
+    | ProduceBoth  l r
+    | ProduceLeftOnly  l
+    | ProduceNone
 
 -- | Compose two pipes such that the output of the second pipe is attached to
 -- the input of the first pipe.
@@ -437,117 +454,144 @@ data ComposeState a = ConsumeR a | ProduceL a | ProduceR a
 -- @since 0.7.0
 {-# INLINE_NORMAL compose #-}
 compose :: Monad m => Pipe m b c -> Pipe m a b -> Pipe m a c
-compose (Pipe stateL consumeL produceL _)
-        (Pipe stateR consumeR produceR _) =
-    Pipe state consume produce finalize
+compose (Pipe stateL consumeL produceL isConsumeL finalizeL)
+        (Pipe stateR consumeR produceR isConsumeR finalizeR) =
+    Pipe state consume produce isConsume finalize
 
     where
 
-    state = (ConsumeR (stateL, stateR))
-    finalize = id
+    {-# INLINE_LATE nextState #-}
+    nextState l r =
+        let mkState =
+                case (isConsumeL l, isConsumeR r) of
+                    (True, True)   -> ConsumeBoth
+                    (True, False)  -> ProduceRight
+                    (False, True)  -> ProduceLeft
+                    (False, False) -> ProduceBoth
+        in mkState l r
 
-    -- XXX Only the blocked case is different in several cases. So we can
-    -- perhaps pass the switching constructor to a common function.
-    --
+    state = nextState stateL stateR
+
+    {-# INLINE_LATE isConsume #-}
+    isConsume (ConsumeBoth _ _) = True
+    isConsume _ = False
+
+    finalize (ConsumeBoth l r) = nextState l (finalizeR r)
+    finalize (ProduceRight l r) = nextState l (finalizeR r)
+    finalize (ProduceLeft l r) = nextState l (finalizeR r)
+    finalize (ProduceBoth l r) = nextState l (finalizeR r)
+    finalize x = x
+
+    {-# INLINE_LATE consume #-}
     -- Both pipes are in Consume state.
-    consume (ConsumeR (sL, sR)) a = do
-        r <- consumeR sR a
-        case r of
+    consume (ConsumeBoth sL sR) a = do
+        res <- consumeR sR a
+        case res of
             Yield xr sR' -> do
                 l <- consumeL sL xr
                 return $ case l of
-                    Yield xl sL' -> Yield xl (ConsumeR (sL', sR'))
-                    Continue sL' -> Continue (ConsumeR (sL', sR'))
-                    Blocked  sL' -> Blocked  (ProduceL (sL', sR'))
+                    Yield xl sL' -> Yield xl (nextState sL' sR')
+                    Continue sL' -> Continue (nextState sL' sR')
+                    -- Cannot return Blocked for consume in Consume state
+                    Blocked      -> undefined
                     Closed       -> Closed
-            Continue sR' -> return $ Continue (ConsumeR (sL, sR'))
-            Blocked  sR' -> return $ Continue (ProduceR (sL, sR'))
-            Closed       -> return $ Closed
-    -- XXX this can be avoided if we use separate state types s1, s2 for
-    -- consume and produce.
-    consume _ _ = undefined
+            Continue sR' ->
+                let nextr l r =
+                        if isConsumeR r
+                        then ConsumeBoth l r
+                        else ProduceRight l r
+                 in return $ Continue (nextr sL sR')
+            -- Cannot return Blocked for consume in Consume state
+            Blocked      -> undefined
+            Closed       ->
+                let sL' = finalizeL sL
+                in  if isConsumeL sL'
+                    then return $ Closed
+                    else return $ Continue (ProduceLeftOnly sL')
+    consume s _ =
+        if not (isConsume s)
+        then return Blocked
+        -- XXX this could be due to a bug in the implementation of the pipes
+        -- being composed.
+        else error "Bug: Streamly.Pipe.Types.compose: consume state not handled"
 
-    produce (ProduceL (sL, sR)) = do
-        r <- produceL sL
-        return $ case r of
-            Yield xl sL' -> Yield xl (ConsumeR (sL', sR))
-            Continue sL' -> Continue (ConsumeR (sL', sR))
-            Blocked  sL' -> Continue (ConsumeR (sL', sR))
+    {-# INLINE_LATE produce #-}
+    -- The right stream is in produce mode and left is in consume mode
+    produce (ProduceRight sL sR) = do
+        res <- produceR sR
+        case res of
+            Yield xr sR' -> do
+                l <- consumeL sL xr
+                return $ case l of
+                    Yield xl sL' -> Yield xl (nextState sL' sR')
+                    Continue sL' -> Continue (nextState sL' sR')
+                    Blocked      -> undefined
+                    Closed       -> Closed
+            Continue sR' ->
+                let nextr l r =
+                        if isConsumeR r
+                        then ConsumeBoth l r
+                        else ProduceRight l r
+                in return $ Continue (nextr sL sR')
+            Blocked      -> undefined
+            Closed       -> return $ Closed
+
+    -- Left stream is in produce state, the right stream is in consume state
+    produce (ProduceLeft sL sR) = do
+        let nextl l r =
+                if isConsumeL l
+                then ConsumeBoth l r
+                else ProduceLeft l r
+        res <- produceL sL
+        return $ case res of
+            Yield xl sL' -> Yield xl (nextl sL' sR)
+            Continue sL' -> Continue (nextl sL' sR)
+            Blocked      -> undefined
             Closed       -> Closed
 
-    produce (ProduceR (sL, sR)) = do
-        r <- produceR sR
-        case r of
-            Yield xr sR' -> do
-                l <- consumeL sL xr
-                return $ case l of
-                    Yield xl sL' -> Yield xl (ConsumeR (sL', sR'))
-                    Continue sL' -> Continue (ConsumeR (sL', sR'))
-                    Blocked  sL' -> Blocked  (ProduceL (sL', sR'))
-                    Closed       -> Closed
-            Continue sR' -> return $ Continue (ConsumeR (sL, sR'))
-            Blocked  sR' -> return $ Continue (ConsumeR (sL, sR'))
-            Closed       -> return $ Closed
-    produce s = return $ Blocked s
-
-    {-
-        r <- consumeL sL a
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
-            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
-            Stop                 -> Stop
-
-    -- left consume, right consume
-    produce (ComposeProduceCCx a sL sR) = do
-        r <- consumeL sL a
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
-            Stop                 -> Stop
-
-    -- left consume, right produce
-    produce (ComposeProduceCP sL sR) = do
-        r <- produceR sR
-        return $ case r of
-            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
-            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
-            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
-            Stop                 -> Stop
-
-    -- left produce, right produce
-    produce (ComposeProducePP sL sR) = do
+    -- Both streams are in produce mode
+    produce (ProduceBoth sL sR) = do
+        let nextl l r =
+                if isConsumeL l
+                then ProduceRight l r
+                else ProduceBoth l r
         r <- produceL sL
         return $ case r of
-            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
-            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
-            Stop                 -> Stop
+            Yield xl sL' -> Yield xl (nextl sL' sR)
+            Continue sL' -> Continue (nextl sL' sR)
+            Blocked      -> undefined
+            Closed       -> Closed
 
-    -- left produce, right consume
-    produce (ComposeProducePC sL sR) = do
-        r <- produceL sL
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
-            Stop                 -> Stop
--}
+    -- Left stream is in produce state, the right stream is done
+    produce (ProduceLeftOnly sL) = do
+        let nextl l =
+                if isConsumeL l
+                then ProduceNone
+                else ProduceLeftOnly l
+        res <- produceL sL
+        return $ case res of
+            Yield xl sL' -> Yield xl (nextl sL')
+            Continue sL' -> Continue (nextl sL')
+            Blocked      -> undefined
+            Closed       -> Closed
 
-{-
-instance Monad m => Category (Pipe m) where
+    produce ProduceNone = return Closed
+
+    produce s =
+        if isConsume s
+        then return Blocked
+        -- XXX this could be due to a bug in the implementation of the pipes
+        -- being composed.
+        else error "Bug: Streamly.Pipe.Types.compose: produce state not handled"
+
+instance Monad m => Cat.Category (Pipe m) where
     {-# INLINE id #-}
     id = map Prelude.id
 
     {-# INLINE (.) #-}
     (.) = compose
 
+{-
 unzip :: Pipe m a x -> Pipe m b y -> Pipe m (a, b) (x, y)
 unzip = undefined
 

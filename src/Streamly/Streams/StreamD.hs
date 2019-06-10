@@ -161,7 +161,7 @@ module Streamly.Streams.StreamD
 
     -- * Transformation
     , transform
-    -- , pipeAppend
+    , pipeAppend
 
     -- ** By folding (scans)
     , scanlM'
@@ -1789,47 +1789,144 @@ handle f (Stream step state) = Stream step' (Just state)
 -- General transformation
 -------------------------------------------------------------------------------
 
+data TransformState pst st =
+      TransformConsume !pst !st
+    | TransformProduce !pst !st
+    | TransformFinishing !pst
+    | TransformDone
+
 {-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
-transform (Pipe pstate consume produce finalize) (Stream step state) =
-    Stream step' (Consume pstate, Just state)
+transform (Pipe pstate consume produce isConsume finalize)
+          (Stream step state) =
+    Stream step' initial
 
   where
 
-    {-# INLINE_LATE step' #-}
+    initial =
+        if isConsume pstate
+        then TransformConsume pstate state
+        else TransformProduce pstate state
 
-    step' gst (Consume pst, Just st) = pst `seq` do
+    -- NOTE: we ensure that we never call consume in produce state or produce
+    -- in consume state so we should never encounter a "Blocked" result.
+    {-# INLINE next #-}
+    next ps ss =
+            if isConsume ps
+            then (TransformConsume ps ss)
+            else (TransformProduce ps ss)
+
+    {-# INLINE_LATE step' #-}
+    step' gst (TransformConsume pst st) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
                 res <- consume pst x
                 return $ case res of
-                    Pipe.Yield b pst' -> Yield b (Consume pst', Just s)
-                    Pipe.Continue pst' -> Skip (Consume pst', Just s)
-                    -- XXX what if we blocked without actually consuming the
-                    -- input, in that case we will lose that input.
-                    Pipe.Blocked pst' -> Skip (Produce pst', Just s)
+                    Pipe.Yield b pst' -> Yield b (next pst' s)
+                    Pipe.Continue pst' -> Skip (next pst' s)
+                    Pipe.Blocked -> undefined
                     Pipe.Closed -> Stop
-            Skip s -> return $ Skip (Consume pst, Just s)
-            Stop   -> return $ Skip (Produce (finalize pst), Nothing)
-    -- We cannot be in consume state if the input is closed
-    step' _ (Consume _, Nothing) = undefined
+            Skip s -> return $ Skip (next pst s)
+            Stop   -> return $
+                let pst' = finalize pst
+                in  if isConsume pst'
+                    then Stop
+                    else Skip (TransformFinishing pst')
 
-    step' _ (Produce pst, Just st) = pst `seq` do
+    step' _ (TransformProduce pst st) = do
         res <- produce pst
         return $ case res of
-            Pipe.Yield b pst' -> Yield b (Produce pst', Just st)
-            Pipe.Continue pst' -> Skip (Produce pst', Just st)
-            Pipe.Blocked pst' -> Skip (Consume pst', Just st)
+            Pipe.Yield b pst' -> Yield b (next pst' st)
+            Pipe.Continue pst' -> Skip (next pst' st)
+            Pipe.Blocked -> undefined
             Pipe.Closed -> Stop
 
-    step' _ (Produce pst, Nothing) = pst `seq` do
+    step' _ (TransformFinishing pst) = do
         res <- produce pst
+        let nexts s =
+                if isConsume s
+                then TransformDone
+                else TransformFinishing s
         return $ case res of
-            Pipe.Yield b pst' -> Yield b (Produce pst', Nothing)
-            Pipe.Continue pst' -> Skip (Produce pst', Nothing)
-            Pipe.Blocked _ -> Stop
+            Pipe.Yield b pst' -> Yield b (nexts pst')
+            Pipe.Continue pst' -> Skip (nexts pst')
+            Pipe.Blocked -> undefined
             Pipe.Closed -> Stop
+
+    step' _ TransformDone = return Stop
+
+data AppendState pst st =
+      AppendConsume pst
+    | AppendProduce pst
+    | AppendProduceDrain pst
+    | AppendProduceAppend st
+
+{-# INLINE_NORMAL pipeAppend #-}
+pipeAppend :: Monad m => Stream m b -> Pipe m a b -> Pipe m a b
+pipeAppend (Stream step state)
+           (Pipe pstate consume produce isConsume finalize) =
+    Pipe pstate' consume' produce' isConsume' finalize'
+
+    where
+
+    next s =
+        if isConsume s
+        then AppendConsume s
+        else AppendProduce s
+
+    pstate' = next pstate
+
+    doFinalize pst =
+        let pst' = finalize pst
+        in  if isConsume pst'
+            then AppendProduceAppend state
+            else AppendProduceDrain pst'
+
+    finalize' (AppendConsume pst)  = doFinalize pst
+    finalize' (AppendProduce pst)  = doFinalize pst
+    finalize' x = x
+
+    isConsume' (AppendConsume _) = True
+    isConsume' _ = False
+
+    consume' (AppendConsume pst) a = do
+        r <- consume pst a
+        return $ case r of
+            Pipe.Yield x s -> Pipe.Yield x (next s)
+            Pipe.Continue s -> Pipe.Continue (next s)
+            Pipe.Blocked -> undefined
+            Pipe.Closed -> Pipe.Continue (doFinalize pst)
+    consume' _ _ = return Pipe.Blocked
+
+    produce' (AppendProduce pst) = do
+        r <- produce pst
+        return $ case r of
+            Pipe.Yield x s -> Pipe.Yield x (next s)
+            Pipe.Continue s -> Pipe.Continue (next s)
+            Pipe.Blocked -> undefined
+            Pipe.Closed -> Pipe.Continue (doFinalize pst)
+
+    produce' (AppendProduceDrain pst) = do
+        r <- produce pst
+        let nexts s =
+                if isConsume s
+                then AppendProduceAppend state
+                else AppendProduceDrain s
+        return $ case r of
+            Pipe.Yield x s -> Pipe.Yield x (nexts s)
+            Pipe.Continue s -> Pipe.Continue (nexts s)
+            Pipe.Blocked -> undefined
+            Pipe.Closed -> Pipe.Continue (AppendProduceAppend state)
+
+    produce' (AppendProduceAppend st) = do
+        r <- step defState st
+        return $ case r of
+            Yield x s -> Pipe.Yield x (AppendProduceAppend s)
+            Skip s -> Pipe.Continue (AppendProduceAppend s)
+            Stop -> Pipe.Closed
+
+    produce' (AppendConsume _) = return Pipe.Blocked
 
 {-
 {-# INLINE_NORMAL pipeAppend #-}

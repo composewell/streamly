@@ -36,7 +36,7 @@ module Streamly.Pipe
     -- * Pipe Type
       Pipe
 
---    , extend
+    , extend
     -- * Pipes
     -- ** Mapping
     , map
@@ -284,12 +284,12 @@ import qualified Streamly.Streams.StreamD as D
 -- @since 0.7.0
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Pipe m a b
-mapM f = Pipe () consume produce id
+mapM f = Pipe () consume produce (const True) id
     where
     consume _ a = do
         r <- f a
         return $ Yield r ()
-    produce _ = return $ Blocked ()
+    produce _ = return Blocked
 {-
 ------------------------------------------------------------------------------
 -- Filtering
@@ -836,11 +836,11 @@ splitBy predicate (Pipe consumeL produceL stateL)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
             Stop                 -> Stop
+-}
 
 {-# INLINE_NORMAL extend #-}
 extend :: (IsStream t, Monad m) => t m b -> Pipe m a b -> Pipe m a b
 extend s p = D.pipeAppend (D.toStreamD s) p
--}
 
 {-
 -- | Like 'splitBy' but the separator is treated as part of the previous
