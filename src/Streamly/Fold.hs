@@ -6,6 +6,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -492,7 +494,7 @@ mapM f = sequence . fmap f
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
 --
 -- @since 0.7.0
-{-# INLINE transform #-}
+{-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
 transform (Pipe pinitial consume produce isConsume _)
           (Fold fstep finitial fextract) =
