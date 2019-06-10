@@ -26,7 +26,8 @@ module Streamly.Mem.Array.Types
     , unsafeInlineIO
     , withNewArray
     , newArray
-    , unsafeAppend
+    , unsafeSnoc
+    , snoc
     , shrinkToFit
     , memcpy
     , memcmp
@@ -215,14 +216,38 @@ withNewArray count f = do
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
 -- array. DOES NOT CHECK THE ARRAY BOUNDS.
-{-# INLINE unsafeAppend #-}
-unsafeAppend :: forall a. Storable a => Array a -> a -> IO (Array a)
-unsafeAppend arr@Array{..} x = do
+{-# INLINE unsafeSnoc #-}
+unsafeSnoc :: forall a. Storable a => Array a -> a -> IO (Array a)
+unsafeSnoc arr@Array{..} x = do
     when (aEnd == aBound) $
         error "BUG: unsafeAppend: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
     return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+
+{-# INLINE snoc #-}
+snoc :: forall a. Storable a => Array a -> a -> Array a
+snoc arr@Array {..} x = unsafePerformIO $
+    if (aEnd == aBound)
+    then do
+        let oldStart = unsafeForeignPtrToPtr aStart
+            size = aEnd `minusPtr` oldStart
+            newSize = (size + (sizeOf (undefined :: a)))
+        newPtr <- mallocPlainForeignPtrAlignedBytes newSize (alignment (undefined :: a))
+        withForeignPtr newPtr $ \pNew -> do
+          memcpy (castPtr pNew) (castPtr oldStart) size
+          poke (pNew `plusPtr` size) x
+          touchForeignPtr aStart
+          return $ Array
+              { aStart = newPtr
+              , aEnd   = pNew `plusPtr` (size + sizeOf (undefined :: a))
+              , aBound = pNew `plusPtr` newSize
+              }
+    else do
+        poke aEnd x
+        touchForeignPtr aStart
+        return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+
 
 -- | Remove the free space from an Array.
 shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
