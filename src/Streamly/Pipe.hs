@@ -41,6 +41,7 @@ module Streamly.Pipe
     -- ** Mapping
     , map
     , mapM
+    , drain
 
     {-
     -- ** Filtering
@@ -96,7 +97,7 @@ module Streamly.Pipe
 
 -}
     -- *** By Elements
-    -- , splitBy
+    , splitBy
     {-
     , splitSuffixBy
     , splitSuffixBy'
@@ -290,6 +291,31 @@ mapM f = Pipe () consume produce (const True) id
         r <- f a
         return $ Yield r ()
     produce _ = return Blocked
+
+data DrainState = DrainConsume | DrainProduce | DrainDone
+
+{-# INLINE drain #-}
+drain :: Monad m => Pipe m a ()
+drain = Pipe DrainConsume consume produce isConsume finalize
+    where
+
+    {-# INLINE finalize #-}
+    finalize DrainConsume = DrainProduce
+    finalize x = x
+
+    {-# INLINE isConsume #-}
+    isConsume DrainConsume = True
+    isConsume _       = False
+
+    {-# INLINE consume #-}
+    consume DrainConsume _ = return $ Continue DrainConsume
+    consume _ _ = return Blocked
+
+    {-# INLINE produce #-}
+    produce DrainProduce = return $ Yield () DrainDone
+    produce DrainDone = return Closed
+    produce _ = return Blocked
+
 {-
 ------------------------------------------------------------------------------
 -- Filtering
@@ -761,82 +787,171 @@ data ComposeProduce x sLc sRc sLp sRp =
 -- of the second segment after each break.
 --
 -- @since 0.7.0
+-}
+
+data ComposeState l r =
+      ConsumeBoth  l r
+    | ProduceLeft  l r
+    | ProduceRight l r
+    | ProduceBoth  l r
+    | ProduceLeftDrain l r
+    | ProduceLeftOnly  l
+    | ProduceNone
+
 {-# INLINE_NORMAL splitBy #-}
 splitBy :: Monad m => (b -> Bool) -> Pipe m b c -> Pipe m a b -> Pipe m a c
-splitBy predicate (Pipe consumeL produceL stateL)
-                  (Pipe consumeR produceR stateR) =
-    Pipe consume produce state
+splitBy predicate (Pipe stateL consumeL produceL isConsumeL finalizeL)
+                  (Pipe stateR consumeR produceR isConsumeR finalizeR) =
+    Pipe state consume produce isConsume finalize
 
     where
 
-    state = ComposeConsumeCC stateL stateR
+    {-# INLINE_LATE nextState #-}
+    nextState l r =
+        let mkState =
+                case (isConsumeL l, isConsumeR r) of
+                    (True, True)   -> ConsumeBoth
+                    (True, False)  -> ProduceRight
+                    (False, True)  -> ProduceLeft
+                    (False, False) -> ProduceBoth
+        in mkState l r
 
+    state = nextState stateL stateR
+
+    {-# INLINE_LATE isConsume #-}
+    isConsume (ConsumeBoth _ _) = True
+    isConsume _ = False
+
+    finalize (ConsumeBoth l r) = nextState l (finalizeR r)
+    finalize (ProduceRight l r) = nextState l (finalizeR r)
+    finalize (ProduceLeft l r) = nextState l (finalizeR r)
+    finalize (ProduceBoth l r) = nextState l (finalizeR r)
+    finalize x = x
+
+    {-# INLINE_LATE consume #-}
     -- Both pipes are in Consume state.
-    consume (ComposeConsumeCC sL sR) a = do
-        r <- consumeR sR a
-        return $ case r of
-            Yield x  (Consume s) ->
-                    if predicate x
-                    then Continue (Consume $ ComposeConsumeCC stateL sR)
-                    else Continue (Produce $ ComposeProduceCCx x sL s)
-            Yield x  (Produce s) ->
-                    if predicate x
-                    then Continue (Consume $ ComposeConsumeCC stateL sR)
-                    else Continue (Produce $ ComposeProduceCPx x sL s)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
-            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
-            Stop                 -> Stop
+    consume (ConsumeBoth sL sR) a = do
+        res <- consumeR sR a
+        case res of
+            Yield xr sR' -> do
+                    -- XXX Maybe we can factor this small logic part out of the
+                    -- rest of the cruft of composing two pipes.
+                    if predicate xr
+                    then return $
+                        let sL' = finalizeL sL
+                        in  if isConsumeL sL'
+                            then Continue (nextState stateL sR)
+                            else Continue (ProduceLeftDrain sL' sR)
+                    else do
+                        l <- consumeL sL xr
+                        return $ case l of
+                            Yield xl sL' -> Yield xl (nextState sL' sR')
+                            Continue sL' -> Continue (nextState sL' sR')
+                            -- Cannot return Blocked for consume in Consume state
+                            Blocked      -> undefined
+                            Closed       -> Closed
+            Continue sR' ->
+                let nextr l r =
+                        if isConsumeR r
+                        then ConsumeBoth l r
+                        else ProduceRight l r
+                 in return $ Continue (nextr sL sR')
+            -- Cannot return Blocked for consume in Consume state
+            Blocked      -> undefined
+            Closed       ->
+                let sL' = finalizeL sL
+                in  if isConsumeL sL'
+                    then return $ Closed
+                    else return $ Continue (ProduceLeftOnly sL')
+    consume s _ =
+        if not (isConsume s)
+        then return Blocked
+        -- XXX this could be due to a bug in the implementation of the pipes
+        -- being composed.
+        else error "Bug: Streamly.Pipe.Types.compose: consume state not handled"
 
-    -- left consume, right produce
-    produce (ComposeProduceCPx a sL sR) = do
-        r <- consumeL sL a
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
-            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
-            Stop                 -> Stop
+    {-# INLINE_LATE produce #-}
+    -- The right stream is in produce mode and left is in consume mode
+    produce (ProduceRight sL sR) = do
+        res <- produceR sR
+        case res of
+            Yield xr sR' -> do
+                l <- consumeL sL xr
+                return $ case l of
+                    Yield xl sL' -> Yield xl (nextState sL' sR')
+                    Continue sL' -> Continue (nextState sL' sR')
+                    Blocked      -> undefined
+                    Closed       -> Closed
+            Continue sR' ->
+                let nextr l r =
+                        if isConsumeR r
+                        then ConsumeBoth l r
+                        else ProduceRight l r
+                in return $ Continue (nextr sL sR')
+            Blocked      -> undefined
+            Closed       -> return $ Closed
 
-    -- left consume, right consume
-    produce (ComposeProduceCCx a sL sR) = do
-        r <- consumeL sL a
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
-            Stop                 -> Stop
+    -- Left stream is in produce state, the right stream is in consume state
+    produce (ProduceLeft sL sR) = do
+        let nextl l r =
+                if isConsumeL l
+                then ConsumeBoth l r
+                else ProduceLeft l r
+        res <- produceL sL
+        return $ case res of
+            Yield xl sL' -> Yield xl (nextl sL' sR)
+            Continue sL' -> Continue (nextl sL' sR)
+            Blocked      -> undefined
+            Closed       -> Closed
 
-    -- left consume, right produce
-    produce (ComposeProduceCP sL sR) = do
-        r <- produceR sR
-        return $ case r of
-            Yield x  (Consume s) -> Continue (Produce $ ComposeProduceCCx x sL s)
-            Yield x  (Produce s) -> Continue (Produce $ ComposeProduceCPx x sL s)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC sL s)
-            Continue (Produce s) -> Continue (Produce $ ComposeProduceCP sL s)
-            Stop                 -> Stop
-
-    -- left produce, right produce
-    produce (ComposeProducePP sL sR) = do
+    -- Both streams are in produce mode
+    produce (ProduceBoth sL sR) = do
+        let nextl l r =
+                if isConsumeL l
+                then ProduceRight l r
+                else ProduceBoth l r
         r <- produceL sL
         return $ case r of
-            Yield x  (Consume s) -> Yield x  (Produce $ ComposeProduceCP s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePP s sR)
-            Continue (Consume s) -> Continue (Produce $ ComposeProduceCP s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
-            Stop                 -> Stop
+            Yield xl sL' -> Yield xl (nextl sL' sR)
+            Continue sL' -> Continue (nextl sL' sR)
+            Blocked      -> undefined
+            Closed       -> Closed
 
-    -- left produce, right consume
-    produce (ComposeProducePC sL sR) = do
-        r <- produceL sL
-        return $ case r of
-            Yield x  (Consume s) -> Yield x  (Consume $ ComposeConsumeCC s sR)
-            Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
-            Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
-            Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
-            Stop                 -> Stop
--}
+    -- Left pipe is in produce state, the right pipe is done
+    produce (ProduceLeftOnly sL) = do
+        let nextl l =
+                if isConsumeL l
+                then ProduceNone
+                else ProduceLeftOnly l
+        res <- produceL sL
+        return $ case res of
+            Yield xl sL' -> Yield xl (nextl sL')
+            Continue sL' -> Continue (nextl sL')
+            Blocked      -> undefined
+            Closed       -> Closed
+
+    -- Left pipe is in drain state, right is pending in consume state to be
+    -- restarted once left is drained.
+    produce (ProduceLeftDrain sL sR) = do
+        let nextl l =
+                if isConsumeL l
+                then nextState stateL sR
+                else ProduceLeftDrain l sR
+        res <- produceL sL
+        return $ case res of
+            Yield xl sL' -> Yield xl (nextl sL')
+            Continue sL' -> Continue (nextl sL')
+            Blocked      -> undefined
+            Closed       -> Continue (nextState stateL sR)
+
+    produce ProduceNone = return Closed
+
+    produce s =
+        if isConsume s
+        then return Blocked
+        -- XXX this could be due to a bug in the implementation of the pipes
+        -- being composed.
+        else error "Bug: Streamly.Pipe.Types.compose: produce state not handled"
 
 {-# INLINE_NORMAL extend #-}
 extend :: (IsStream t, Monad m) => t m b -> Pipe m a b -> Pipe m a b
