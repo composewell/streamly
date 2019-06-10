@@ -161,6 +161,7 @@ module Streamly.Streams.StreamD
 
     -- * Transformation
     , transform
+    , pipeAppend
 
     -- ** By folding (scans)
     , scanlM'
@@ -1790,31 +1791,99 @@ handle f (Stream step state) = Stream step' (Just state)
 
 {-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
-transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
-    Stream step' (Consume pstate, state)
+transform (Pipe pstate consume produce finalize) (Stream step state) =
+    Stream step' (pstate, Just state)
 
   where
 
     {-# INLINE_LATE step' #-}
 
-    step' gst (Consume pst, st) = pst `seq` do
+    step' gst (Consume pst, Just st) = pst `seq` do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                res <- pstep1 pst x
+                res <- consume pst x
                 return $ case res of
-                    Pipe.Yield b pst' -> Yield b (pst', s)
-                    Pipe.Continue pst' -> Skip (pst', s)
+                    Pipe.Yield b pst' -> Yield b (pst', Just s)
+                    Pipe.Continue pst' -> Skip (pst', Just s)
                     Pipe.Stop -> Stop
-            Skip s -> return $ Skip (Consume pst, s)
-            Stop   -> return Stop
+            Skip s -> return $ Skip (Consume pst, Just s)
+            Stop   -> return $ Skip $ (finalize (Consume pst), Nothing)
+    step' _ (Consume _, Nothing) = return Stop
 
-    step' _ (Produce pst, st) = pst `seq` do
-        res <- pstep2 pst
+    step' _ (Produce pst, Just st) = pst `seq` do
+        res <- produce pst
         return $ case res of
-            Pipe.Yield b pst' -> Yield b (pst', st)
-            Pipe.Continue pst' -> Skip (pst', st)
+            Pipe.Yield b pst' -> Yield b (pst', Just st)
+            Pipe.Continue pst' -> Skip (pst', Just st)
             Pipe.Stop -> Stop
+
+    step' _ (Produce pst, Nothing) = pst `seq` do
+        res <- produce pst
+        return $ case res of
+            Pipe.Yield b pst' -> Yield b (pst', Nothing)
+            Pipe.Continue pst' -> Skip (pst', Nothing)
+            Pipe.Stop -> Stop
+
+data AppendProduce s s2 = Normal s | DrainWithParentPipe s | DrainStream s2
+
+{-# INLINE_NORMAL pipeAppend #-}
+pipeAppend :: Monad m => Stream m b -> Pipe m a b -> Pipe m a b
+pipeAppend (Stream step state) (Pipe pstate consume produce finalize) =
+    Pipe pstate' consume' produce' finalize'
+
+    where
+
+    pstate' = case pstate of
+        Consume pst -> Consume pst
+        _ -> undefined
+
+    finalize' pst = case pst of
+        Consume st -> case finalize (Consume st) of
+            Consume _ -> Produce (DrainStream state)
+            Produce s -> Produce (DrainWithParentPipe s)
+    -- XXX caller should call finalize only when the pipe is in consume state.
+    -- otherwise we will need one state to first drain and then finalize.
+        Produce (Normal _) -> undefined
+
+    consume' pst a = do
+        r <- consume pst a
+        return $ case r of
+            Pipe.Yield x  (Consume s) -> Pipe.Yield x  (Consume s)
+            Pipe.Yield x  (Produce s) -> Pipe.Yield x  (Produce (Normal s))
+            Pipe.Continue (Consume s) -> Pipe.Continue (Consume s)
+            Pipe.Continue (Produce s) -> Pipe.Continue (Produce (Normal s))
+            -- Pipe.Stop                 -> Pipe.Continue (Produce (Right state))
+            Pipe.Stop                 -> Pipe.Stop
+
+    produce' (Normal pst) = do
+        r <- produce pst
+        return $ case r of
+            Pipe.Yield x  (Consume s) -> Pipe.Yield x  (Consume s)
+            Pipe.Yield x  (Produce s) -> Pipe.Yield x  (Produce (Normal s))
+            Pipe.Continue (Consume s) -> Pipe.Continue (Consume s)
+            Pipe.Continue (Produce s) -> Pipe.Continue (Produce (Normal s))
+            -- Pipe.Stop                 -> Pipe.Continue (Produce (Right state))
+            Pipe.Stop                 -> Pipe.Stop
+
+{-
+    produce' (DrainWithParentPipe pst) = do
+        r <- produce pst
+        return $ case r of
+            Pipe.Yield x  (Consume s) -> Pipe.Yield x  (Consume s)
+            Pipe.Yield x  (Produce s) -> Pipe.Yield x  (Produce (Normal s))
+            Pipe.Continue (Consume s) -> Pipe.Continue (Consume s)
+            Pipe.Continue (Produce s) -> Pipe.Continue (Produce (Normal s))
+            Pipe.Stop                 -> Pipe.Continue (Produce (DrainStream state))
+            -- Pipe.Stop                 -> Pipe.Stop
+            -- -}
+
+    produce' (DrainStream st) = do
+        r <- step defState st
+        return $ case r of
+            Yield x s -> Pipe.Yield x  (Produce (DrainStream s))
+            Skip s    -> Pipe.Continue (Produce (DrainStream s))
+            Stop      -> Pipe.Stop
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

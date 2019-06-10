@@ -494,34 +494,37 @@ mapM f = sequence . fmap f
 -- @since 0.7.0
 {-# INLINE transform #-}
 transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
+transform (Pipe pinitial consume produce _) (Fold fstep finitial fextract) =
     Fold step initial extract
 
     where
 
     initial = Tuple' <$> return pinitial <*> finitial
-    step (Tuple' ps fs) x = do
-        r <- pstep1 ps x
+
+    step (Tuple' (Consume ps) fs) x = do
+        r <- consume ps x
         go fs r
 
         where
         -- XXX use SPEC?
         go acc (Pipe.Yield b (Consume ps')) = do
             acc' <- fstep acc b
-            return (Tuple' ps' acc')
+            return (Tuple' (Consume ps') acc')
 
         go acc (Pipe.Yield b (Produce ps')) = do
             acc' <- fstep acc b
-            r <- pstep2 ps'
+            r <- produce ps'
             go acc' r
 
-        go acc (Pipe.Continue (Consume ps')) = return (Tuple' ps' acc)
+        go acc (Pipe.Continue (Consume ps')) = return (Tuple' (Consume ps') acc)
 
         go acc (Pipe.Continue (Produce ps')) = do
-            r <- pstep2 ps'
+            r <- produce ps'
             go acc r
 
         go acc Pipe.Stop = return (Tuple' undefined acc)
+
+    step (Tuple' (Produce _) _) _ = undefined
 
     extract (Tuple' _ fs) = fextract fs
 

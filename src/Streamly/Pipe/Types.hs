@@ -16,24 +16,26 @@ module Streamly.Pipe.Types
     ( Step (..)
     , Pipe (..)
     , PipeState (..)
+    {-
     , zipWith
     , tee
+    -}
     , map
     , compose
     )
 where
 
 import Control.Arrow (Arrow(..))
-import Control.Category (Category(..))
 import Data.Maybe (isJust)
 import Data.Semigroup (Semigroup(..))
-import Prelude hiding (zipWith, map, id, unzip, null)
+import Prelude hiding (zipWith, map, unzip, null)
 import Streamly.Strict (Tuple'(..))
 
 import qualified Prelude
+import qualified Control.Category as Cat
 
 ------------------------------------------------------------------------------
--- Pipes
+-- Notes
 ------------------------------------------------------------------------------
 
 -- A scan is a much simpler version of pipes. A scan always produces an output
@@ -47,37 +49,31 @@ import qualified Prelude
 -- source, we may have to buffer the input to match the speeds. In case of
 -- scans we do not have that problem.
 --
--- We may also need a "Stop" constructor to indicate that we are not generating
--- any more values and we can have a "Done" constructor to indicate that we are
--- not consuming any more values. Similarly we can have a stop with error or
--- exception and a done with error or leftover values.
---
--- In generator mode, Continue means no output/continue. In fold mode Continue
--- means need more input to produce result. we can perhaps call it Continue
--- instead.
---
-data Step s a =
-      Yield a s
-    | Continue s
-    | Stop
-
--- | Represents a stateful transformation over an input stream of values of
--- type @a@ to outputs of type @b@ in 'Monad' @m@.
-
--- A pipe uses a consume function and a produce function. It can switch from
--- consume/fold mode to a produce/source mode. The first step function is a
--- fold function while the seocnd one is a stream generator function.
---
 -- We can upgrade a stream or a fold into a pipe. However, streams are more
--- efficient in generation and folds are more efficient in consumption.
+-- efficient for generation and folds are more efficient for consumption.
 --
 -- For pure transformation we can have a 'Scan' type. A Scan would be more
 -- efficient in zipping whereas pipes are useful for merging and zipping where
 -- we know buffering can occur. A Scan type can be upgraded to a pipe.
 --
--- XXX In general the starting state could either be for generation or for
--- consumption. Currently we are only starting with a consumption state.
---
+------------------------------------------------------------------------------
+-- Pipes
+------------------------------------------------------------------------------
+
+-- | The result yielded by running a single consume or produce step of the
+-- pipe.
+data Step s a =
+      Yield a s    -- Yield value 'a' with the next state 's'
+    | Continue s   -- Yields no value, the next state is 's'
+    | Stop         -- The pipe is closed for input or output
+
+instance Functor (Step s) where
+    fmap f step =
+        case step of
+            Yield x s -> Yield (f x) s
+            Continue s -> Continue s
+            Stop -> Stop
+
 -- An explicit either type for better readability of the code
 data PipeState s1 s2 = Consume !s1 | Produce !s2
 
@@ -87,30 +83,34 @@ isProduce s =
         Produce _ -> True
         Consume _ -> False
 
+-- XXX we can possibly use a single state type s instead of s1/s2. That would
+-- be simpler but weakly typed.
+--
+-- | A 'Pipe' represents a stateful transformation over an input stream of
+-- values of type @a@ to outputs of type @b@ in 'Monad' @m@. The 'Pipe'
+-- consists of an initial consumption/producer state 's', a consume function,
+-- produce function and a finalize function to indicate that we no longer want
+-- to feed any more input to the pipe.
+--
 data Pipe m a b =
-  forall s1 s2. Pipe (s1 -> a -> m (Step (PipeState s1 s2) b))
-                     (s2 -> m (Step (PipeState s1 s2) b)) s1
+  forall s1 s2. Pipe
+    (PipeState s1 s2)                           -- initial state
+    (s1 -> a -> m (Step (PipeState s1 s2) b))   -- consume
+    (s2      -> m (Step (PipeState s1 s2) b))   -- produce
+    (PipeState s1 s2 -> PipeState s1 s2)        -- finalize
 
+-- | Maps a function on the output of the pipe.
 instance Monad m => Functor (Pipe m a) where
     {-# INLINE_NORMAL fmap #-}
-    fmap f (Pipe consume produce initial) = Pipe consume' produce' initial
+    fmap f (Pipe initial consume produce finalize) =
+        Pipe initial consume' produce' finalize
         where
         {-# INLINE_LATE consume' #-}
-        consume' st a = do
-            r <- consume st a
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
-                Stop -> Stop
-
+        consume' st a = consume st a >>= return . fmap f
         {-# INLINE_LATE produce' #-}
-        produce' st = do
-            r <- produce st
-            return $ case r of
-                Yield x s -> Yield (f x) s
-                Continue s -> Continue s
-                Stop -> Stop
+        produce' st   = produce st   >>= return . fmap f
 
+{-
 -- XXX move this to a separate module
 data Deque a = Deque [a] [a]
 
@@ -392,13 +392,14 @@ tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 instance Monad m => Semigroup (Pipe m a b) where
     {-# INLINE (<>) #-}
     (<>) = tee
+-}
 
 -- | Lift a pure function to a 'Pipe'.
 --
 -- @since 0.7.0
 {-# INLINE map #-}
 map :: Monad m => (a -> b) -> Pipe m a b
-map f = Pipe consume undefined ()
+map f = Pipe (Consume ()) consume undefined id
     where
     consume _ a = return $ Yield (f a) (Consume ())
 
@@ -417,7 +418,9 @@ data ComposeConsume sLc sRc = ComposeConsumeCC !sLc !sRc
 
 data ComposeProduce x sLc sRc sLp sRp =
       ComposeProduceCPx x !sLc !sRp
+    | ComposeProduceCPxFinal x !sLc !sRp
     | ComposeProduceCCx x !sLc !sRc
+    | ComposeProduceCCxFinal x !sLc !sRc
     | ComposeProducePP !sLp !sRp
     | ComposeProduceCP !sLc !sRp
     | ComposeProducePC !sLp !sRc
@@ -428,12 +431,38 @@ data ComposeProduce x sLc sRc sLp sRp =
 -- @since 0.7.0
 {-# INLINE_NORMAL compose #-}
 compose :: Monad m => Pipe m b c -> Pipe m a b -> Pipe m a c
-compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
-    Pipe consume produce state
+compose (Pipe initialL consumeL produceL finalizeL)
+        (Pipe initialR consumeR produceR finalizeR) =
+    Pipe state consume produce finalize
 
     where
 
-    state = ComposeConsumeCC stateL stateR
+    mkState (s1, s2) = case (s1, s2) of
+        (Consume stateL, Consume stateR) ->
+            Consume (ComposeConsumeCC stateL stateR)
+        _ -> undefined
+
+    state = mkState (initialL, initialR)
+
+    -- flush the internal state and finalize the streams.
+    -- finalize cur@(Consume (ComposeConsumeCC sL sR)) =
+    finalize cur =
+        case cur of
+            (Consume (ComposeConsumeCC l r)) -> finalizeState (Consume l) (Consume r)
+            (Produce (ComposeProducePP l r)) -> finalizeState (Produce l) (Produce r)
+            (Produce (ComposeProduceCP l r)) -> finalizeState (Consume l) (Produce r)
+            (Produce (ComposeProducePC l r)) -> finalizeState (Produce l) (Consume r)
+            (Produce (ComposeProduceCPx x l r)) -> (Produce (ComposeProduceCPxFinal x l r))
+            (Produce (ComposeProduceCCx x l r)) -> (Produce (ComposeProduceCCxFinal x l r))
+            (Produce (ComposeProduceCPxFinal _ _ _)) -> undefined
+            (Produce (ComposeProduceCCxFinal _ _ _)) -> undefined
+
+    finalizeState l r =
+        case (finalizeL l, finalizeR r) of
+            (Consume sL', Consume sR') -> (Consume (ComposeConsumeCC sL' sR'))
+            (Consume sL', Produce sR') -> (Produce (ComposeProduceCP sL' sR'))
+            (Produce sL', Consume sR') -> (Produce (ComposeProducePC sL' sR'))
+            (Produce sL', Produce sR') -> (Produce (ComposeProducePP sL' sR'))
 
     -- Both pipes are in Consume state.
     consume (ComposeConsumeCC sL sR) a = do
@@ -455,6 +484,15 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Continue (Produce s) -> Continue (Produce $ ComposeProducePP s sR)
             Stop                 -> Stop
 
+    produce (ComposeProduceCPxFinal a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (finalize $ Produce $ ComposeProduceCP s sR)
+            Yield x  (Produce s) -> Yield x  (finalize $ Produce $ ComposeProducePP s sR)
+            Continue (Consume s) -> Continue (finalize $ Produce $ ComposeProduceCP s sR)
+            Continue (Produce s) -> Continue (finalize $ Produce $ ComposeProducePP s sR)
+            Stop                 -> Stop
+
     -- left consume, right consume
     produce (ComposeProduceCCx a sL sR) = do
         r <- consumeL sL a
@@ -463,6 +501,15 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Yield x  (Produce s) -> Yield x  (Produce $ ComposeProducePC s sR)
             Continue (Consume s) -> Continue (Consume $ ComposeConsumeCC s sR)
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
+            Stop                 -> Stop
+
+    produce (ComposeProduceCCxFinal a sL sR) = do
+        r <- consumeL sL a
+        return $ case r of
+            Yield x  (Consume s) -> Yield x  (finalize $ Consume $ ComposeConsumeCC s sR)
+            Yield x  (Produce s) -> Yield x  (finalize $ Produce $ ComposeProducePC s sR)
+            Continue (Consume s) -> Continue (finalize $ Consume $ ComposeConsumeCC s sR)
+            Continue (Produce s) -> Continue (finalize $ Produce $ ComposeProducePC s sR)
             Stop                 -> Stop
 
     -- left consume, right produce
@@ -495,13 +542,14 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             Continue (Produce s) -> Continue (Produce $ ComposeProducePC s sR)
             Stop                 -> Stop
 
-instance Monad m => Category (Pipe m) where
+instance Monad m => Cat.Category (Pipe m) where
     {-# INLINE id #-}
     id = map Prelude.id
 
     {-# INLINE (.) #-}
     (.) = compose
 
+{-
 unzip :: Pipe m a x -> Pipe m b y -> Pipe m (a, b) (x, y)
 unzip = undefined
 
@@ -514,3 +562,4 @@ instance Monad m => Arrow (Pipe m) where
 
     {-# INLINE (&&&) #-}
     (&&&) = zipWith (,)
+    -}

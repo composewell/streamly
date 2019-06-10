@@ -6,6 +6,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Pipe
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -38,6 +40,7 @@ module Streamly.Pipe
     -- ** Mapping
     , map
     , mapM
+    , extend
 
     {-
     -- ** Filtering
@@ -121,8 +124,8 @@ module Streamly.Pipe
     -}
 
     -- * Composing Pipes
-    , tee
-    , zipWith
+    -- , tee
+    -- , zipWith
     , compose
 
     {-
@@ -239,7 +242,7 @@ where
 
 -- import Foreign.Storable (Storable(..))
 import Prelude
-       hiding (id, filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
+       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
@@ -253,11 +256,11 @@ import Prelude
 -- import Streamly (MonadAsync, parallel)
 -- import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types
-       (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
+       (Pipe(..), PipeState(..), Step(..), map, compose)
 -- import Streamly.Mem.Array.Types (Array)
 -- import Streamly.Mem.Ring (Ring)
 -- import Streamly.Streams.Serial (SerialT)
--- import Streamly.Streams.StreamK (IsStream())
+import Streamly.Streams.StreamK (IsStream())
 -- import Streamly.Time.Units
 -- (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
 -- toAbsTime)
@@ -266,7 +269,7 @@ import Streamly.Pipe.Types
 
 -- import qualified Streamly.Mem.Array.Types as A
 -- import qualified Streamly.Prelude as S
--- import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.StreamD as D
 -- import qualified Streamly.Streams.StreamK as K
 -- import qualified Streamly.Streams.Prelude as P
 
@@ -279,11 +282,16 @@ import Streamly.Pipe.Types
 -- @since 0.7.0
 {-# INLINE mapM #-}
 mapM :: Monad m => (a -> m b) -> Pipe m a b
-mapM f = Pipe consume undefined ()
+mapM f = Pipe (Consume ()) consume undefined id
     where
     consume _ a = do
         r <- f a
         return $ Yield r (Consume ())
+
+{-# INLINE_NORMAL extend #-}
+extend :: (IsStream t, Monad m) => t m b -> Pipe m a b -> Pipe m a b
+extend s p = D.pipeAppend (D.toStreamD s) p
+
 {-
 ------------------------------------------------------------------------------
 -- Filtering
