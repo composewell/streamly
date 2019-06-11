@@ -513,7 +513,16 @@ spliceArraysBuffered s = do
 -- @since 0.7.0
 {-# INLINE spliceArrays #-}
 spliceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
-spliceArrays = spliceArraysBuffered
+spliceArrays s = do
+    r <- S.uncons s
+    case r of
+        Nothing -> write S.nil
+        Just (h, t) -> do
+            r1 <- S.uncons t
+            case r1 of
+                Nothing -> return h
+                Just (h1, t1) -> spliceArraysBuffered $
+                    h `S.cons` h1 `S.cons` t1
 -- spliceArrays = _spliceArraysRealloced
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
