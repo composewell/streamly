@@ -18,6 +18,7 @@ import Gauge
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.String as SS
 
 #ifdef DEVBUILD
 import Data.Char (ord, chr)
@@ -133,6 +134,21 @@ main = do
                 Handles inh outh <- readIORef href
                 FH.write outh (FH.read inh)
             ]
+        -- This needs an ascii file, as decode just errors out.
+        , bgroup "decode/encode"
+           [ mkBench "encodeChar8/decodeChar8" href $ do
+               Handles inh outh <- readIORef href
+               FH.write outh
+                 $ SS.encodeChar8
+                 $ SS.decodeChar8
+                 $ FH.read inh
+           , mkBench "encodeUtf8/decodeUtf8" href $ do
+               Handles inh outh <- readIORef href
+               FH.write outh
+                 $ SS.encodeUtf8
+                 $ SS.decodeUtf8
+                 $ FH.read inh
+           ]
         , bgroup "grouping"
             [ mkBench "chunksOf 1 (toArray)" href $ do
                 Handles inh _ <- readIORef href
@@ -148,6 +164,24 @@ main = do
             , mkBench "chunksOf 1000" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FL.chunksOf 1000 FL.drain (FH.read inh)
+            ]
+        , bgroup "group/ungroup"
+            [ mkBench "lines/unlines" href $ do
+                Handles inh outh <- readIORef href
+                FH.write outh
+                  $ SS.encodeChar8
+                  $ SS.unlines
+                  $ SS.lines
+                  $ SS.decodeChar8
+                  $ FH.read inh
+            , mkBench "words/unwords" href $ do
+                Handles inh outh <- readIORef href
+                FH.write outh
+                  $ SS.encodeChar8
+                  $ SS.unwords
+                  $ SS.words
+                  $ SS.decodeChar8
+                  $ FH.read inh
             ]
 
         , let lf = fromIntegral (ord '\n')
