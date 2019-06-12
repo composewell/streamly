@@ -177,10 +177,11 @@ composeN n f =
 {-# INLINE foldrS #-}
 {-# INLINE foldlS #-}
 {-# INLINE concatMap #-}
+{-# INLINE intersperse #-}
 scan, map, fmap, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse, foldrS, foldlS,
-    concatMap
+    concatMap, intersperse
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -207,6 +208,7 @@ dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
+intersperse    n = composeN n $ S.intersperse maxValue
 
 -------------------------------------------------------------------------------
 -- Iteration

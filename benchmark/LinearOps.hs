@@ -357,7 +357,8 @@ scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     => Int -> Stream m Int -> m ()
 
 {-# INLINE mapMaybeM #-}
-mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+{-# INLINE intersperse #-}
+mapMaybeM, intersperse :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
 {-# INLINE transformMapM #-}
@@ -415,6 +416,7 @@ dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 findIndices    n = composeN n $ S.findIndices (== maxValue)
 elemIndices    n = composeN n $ S.elemIndices maxValue
+intersperse    n = composeN n $ S.intersperse maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
 reverse        n = composeN n $ S.reverse

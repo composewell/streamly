@@ -369,6 +369,7 @@ module Streamly.Prelude
 
     , insertBy
     , intersperseM
+    , intersperse
     -- , intersperseBySpan
     , intersperseByTime
 
@@ -1933,7 +1934,20 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 -- @since 0.5.0
 {-# INLINE intersperseM #-}
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-intersperseM = K.intersperseM
+intersperseM m = fromStreamS . S.intersperseM m . toStreamS
+
+-- | Generate a stream by inserting a given element between consecutive
+-- elements of the given stream.
+--
+-- @
+-- > S.toList $ S.intersperse ',' $ S.fromList "hello"
+-- "h,e,l,l,o"
+-- @
+--
+-- @since 0.7.0
+{-# INLINE intersperse #-}
+intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
+intersperse a = fromStreamS . S.intersperse a . toStreamS
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@

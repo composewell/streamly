@@ -6,7 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UnboxedTuples #-}
-
+{-# LANGUAGE FlexibleContexts #-}
 #include "inline.hs"
 
 -- |
@@ -26,7 +26,8 @@ module Streamly.Mem.Array.Types
     , unsafeInlineIO
     , withNewArray
     , newArray
-    , unsafeAppend
+    , unsafeSnoc
+    , snoc
     , shrinkToFit
     , memcpy
     , memcmp
@@ -48,6 +49,8 @@ module Streamly.Mem.Array.Types
 
     , toStreamD
     , toStreamDRev
+    , toStreamK
+    , toStreamKRev
     , toList
     , toArrayN
     , read
@@ -57,6 +60,8 @@ module Streamly.Mem.Array.Types
     , mkChunkSize
     , mkChunkSizeKB
     , reallocDouble
+
+    , unlines
     )
 where
 
@@ -73,7 +78,7 @@ import Foreign.ForeignPtr
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, foldr, read)
+import Prelude hiding (length, foldr, read, unlines, unwords)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
@@ -213,14 +218,38 @@ withNewArray count f = do
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
 -- array. DOES NOT CHECK THE ARRAY BOUNDS.
-{-# INLINE unsafeAppend #-}
-unsafeAppend :: forall a. Storable a => Array a -> a -> IO (Array a)
-unsafeAppend arr@Array{..} x = do
+{-# INLINE unsafeSnoc #-}
+unsafeSnoc :: forall a. Storable a => Array a -> a -> IO (Array a)
+unsafeSnoc arr@Array{..} x = do
     when (aEnd == aBound) $
         error "BUG: unsafeAppend: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
     return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+
+{-# INLINE snoc #-}
+snoc :: forall a. Storable a => Array a -> a -> Array a
+snoc arr@Array {..} x = unsafePerformIO $
+    if (aEnd == aBound)
+    then do
+        let oldStart = unsafeForeignPtrToPtr aStart
+            size = aEnd `minusPtr` oldStart
+            newSize = (size + (sizeOf (undefined :: a)))
+        newPtr <- mallocPlainForeignPtrAlignedBytes newSize (alignment (undefined :: a))
+        withForeignPtr newPtr $ \pNew -> do
+          memcpy (castPtr pNew) (castPtr oldStart) size
+          poke (pNew `plusPtr` size) x
+          touchForeignPtr aStart
+          return $ Array
+              { aStart = newPtr
+              , aEnd   = pNew `plusPtr` (size + sizeOf (undefined :: a))
+              , aBound = pNew `plusPtr` newSize
+              }
+    else do
+        poke aEnd x
+        touchForeignPtr aStart
+        return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+
 
 -- | Remove the free space from an Array.
 shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
@@ -344,6 +373,23 @@ toStreamD Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
 
+{-# INLINE toStreamK #-}
+toStreamK :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamK Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+    in go p
+
+    where
+
+    go p | p == aEnd = K.nil
+         | otherwise =
+        -- See Note in toStreamD.
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        in x `K.cons` go (p `plusPtr` (sizeOf (undefined :: a)))
+
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
 toStreamDRev Array{..} =
@@ -361,6 +407,22 @@ toStreamDRev Array{..} =
                     touchForeignPtr aStart
                     return r
         return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
+
+{-# INLINE toStreamKRev #-}
+toStreamKRev :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamKRev Array {..} =
+    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    in go p
+
+    where
+
+    go p | p < unsafeForeignPtrToPtr aStart = K.nil
+         | otherwise =
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        in x `K.cons` go (p `plusPtr` negate (sizeOf (undefined :: a)))
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
@@ -665,3 +727,28 @@ mkChunkSizeKB n = mkChunkSize (n * k)
 -- bytes, so that the actual allocation is 32KB.
 defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
+
+{-# INLINE_NORMAL unlines #-}
+unlines :: MonadIO m => D.Stream m (Array Char) -> D.Stream m Char
+unlines (D.Stream step state) = D.Stream step' (OuterLoop state)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (OuterLoop st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield Array{..} s ->
+                let p = unsafeForeignPtrToPtr aStart
+                in D.Skip (InnerLoop s aStart p aEnd)
+            D.Skip s -> D.Skip (OuterLoop s)
+            D.Stop -> D.Stop
+
+    step' _ (InnerLoop st _ p end) | p == end =
+        return $ D.Yield '\n' $ OuterLoop st
+
+    step' _ (InnerLoop st startf p end) = do
+        x <- liftIO $ do
+                    r <- peek p
+                    touchForeignPtr startf
+                    return r
+        return $ D.Yield x (InnerLoop st startf
+                            (p `plusPtr` (sizeOf (undefined :: Char))) end)
