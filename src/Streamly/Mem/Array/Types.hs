@@ -49,6 +49,8 @@ module Streamly.Mem.Array.Types
 
     , toStreamD
     , toStreamDRev
+    , toStreamK
+    , toStreamKRev
     , toList
     , toArrayN
     , read
@@ -371,13 +373,14 @@ toStreamD Array{..} =
                     return r
         return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
 
-
 {-# INLINE toStreamK #-}
-toStreamK :: forall t m a. (K.IsStream t, Monad m, Storable a) => Array a -> t m a
+toStreamK :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
 toStreamK Array{..} =
     let p = unsafeForeignPtrToPtr aStart
     in go p
-  where
+
+    where
+
     go p | p == aEnd = K.nil
          | otherwise =
         -- See Note in toStreamD.
@@ -404,6 +407,22 @@ toStreamDRev Array{..} =
                     touchForeignPtr aStart
                     return r
         return $ D.Yield x (p `plusPtr` negate (sizeOf (undefined :: a)))
+
+{-# INLINE toStreamKRev #-}
+toStreamKRev :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
+toStreamKRev Array {..} =
+    let p = aEnd `plusPtr` negate (sizeOf (undefined :: a))
+    in go p
+
+    where
+
+    go p | p < unsafeForeignPtrToPtr aStart = K.nil
+         | otherwise =
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        in x `K.cons` go (p `plusPtr` negate (sizeOf (undefined :: a)))
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: forall a b. Storable a => (b -> a -> b) -> b -> Array a -> b
