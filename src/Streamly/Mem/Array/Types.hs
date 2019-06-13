@@ -23,29 +23,34 @@ module Streamly.Mem.Array.Types
       Array (..)
 
     -- * Construction
-    , unsafeInlineIO
     , withNewArray
     , newArray
     , unsafeSnoc
     , snoc
-    , shrinkToFit
-    , memcpy
-    , memcmp
+    , spliceWithDoubling
 
     , fromList
     , fromListN
     , fromStreamDN
     -- , fromStreamD
+
+    -- * Streams of arrays
     , fromStreamDArraysOf
     , flattenArrays
     , flattenArraysRev
+    , coalesceChunksOf
+    , groupIOVecsOf
+    , splitOn
 
     -- * Elimination
     , unsafeIndexIO
     , unsafeIndex
     , length
+    , byteLength
+    , byteCapacity
     , foldl'
     , foldr
+    , splitAt
 
     , toStreamD
     , toStreamDRev
@@ -59,7 +64,11 @@ module Streamly.Mem.Array.Types
     , defaultChunkSize
     , mkChunkSize
     , mkChunkSizeKB
-    , reallocDouble
+    , unsafeInlineIO
+    , realloc
+    , shrinkToFit
+    , memcpy
+    , memcmp
 
     , unlines
     )
@@ -74,11 +83,11 @@ import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Foreign.ForeignPtr
-       (ForeignPtr, withForeignPtr, touchForeignPtr)
+       (ForeignPtr, withForeignPtr, touchForeignPtr, plusForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (plusPtr, minusPtr, castPtr)
+import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, foldr, read, unlines, unwords)
+import Prelude hiding (length, foldr, read, unlines, splitAt)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
@@ -89,6 +98,7 @@ import GHC.Ptr (Ptr(..))
 
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (adaptState)
+import Streamly.FileSystem.FDIO (IOVec(..))
 
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
@@ -165,6 +175,9 @@ foreign import ccall unsafe "string.h memcpy" c_memcpy
 foreign import ccall unsafe "string.h strlen" c_strlen
     :: CString -> IO CSize
 
+foreign import ccall unsafe "string.h memchr" c_memchr
+    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
+
 -- XXX we are converting Int to CSize
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
 memcpy dst src len = c_memcpy dst src (fromIntegral len) >> return ()
@@ -222,14 +235,14 @@ withNewArray count f = do
 unsafeSnoc :: forall a. Storable a => Array a -> a -> IO (Array a)
 unsafeSnoc arr@Array{..} x = do
     when (aEnd == aBound) $
-        error "BUG: unsafeAppend: writing beyond array bounds"
+        error "BUG: unsafeSnoc: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
     return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
 
 {-# INLINE snoc #-}
-snoc :: forall a. Storable a => Array a -> a -> Array a
-snoc arr@Array {..} x = unsafePerformIO $
+snoc :: forall a. Storable a => Array a -> a -> IO (Array a)
+snoc arr@Array {..} x = do
     if (aEnd == aBound)
     then do
         let oldStart = unsafeForeignPtrToPtr aStart
@@ -250,37 +263,14 @@ snoc arr@Array {..} x = unsafePerformIO $
         touchForeignPtr aStart
         return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
 
-
--- | Remove the free space from an Array.
-shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
-shrinkToFit arr@Array{..} = do
-    assert (aEnd <= aBound) (return ())
-    if aEnd /= aBound
-    then do
-        let oldStart = unsafeForeignPtrToPtr aStart
-        let size = aEnd `minusPtr` oldStart
-        newPtr <- mallocPlainForeignPtrAlignedBytes
-                    size (alignment (undefined :: a))
-        withForeignPtr newPtr $ \pNew -> do
-            memcpy (castPtr pNew) (castPtr oldStart) size
-            touchForeignPtr aStart
-            let end = pNew `plusPtr` size
-            return $ Array
-                { aStart = newPtr
-                , aEnd   = end
-                , aBound = end
-                }
-    else return arr
-
--- | Expand the free space in the array doubling the size with a minimum
--- exapnsion of the specified amount of bytes.
-{-# NOINLINE reallocDouble #-}
-reallocDouble :: forall a. Storable a => Int -> Array a -> IO (Array a)
-reallocDouble minIncrease Array{..} = do
+-- | Reallocate the array to the specified size in bytes. If the size is less
+-- than the original array the array gets truncated.
+{-# NOINLINE realloc #-}
+realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
+realloc newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
-        newSize = max (size * 2) (size + minIncrease)
     newPtr <- mallocPlainForeignPtrAlignedBytes
                 newSize (alignment (undefined :: a))
     withForeignPtr newPtr $ \pNew -> do
@@ -291,6 +281,17 @@ reallocDouble minIncrease Array{..} = do
             , aEnd   = pNew `plusPtr` size
             , aBound = pNew `plusPtr` newSize
             }
+
+-- | Remove the free space from an Array.
+shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
+shrinkToFit arr@Array{..} = do
+    assert (aEnd <= aBound) (return ())
+    if aEnd /= aBound
+    then do
+        let oldStart = unsafeForeignPtrToPtr aStart
+        let size = aEnd `minusPtr` oldStart
+        realloc size arr
+    else return arr
 
 -- XXX when converting an array of Word8 from a literal string we can simply
 -- refer to the literal string. Is it possible to write rules such that
@@ -340,15 +341,30 @@ unsafeIndexIO Array {..} i =
 unsafeIndex :: forall a. Storable a => Array a -> Int -> a
 unsafeIndex arr i = let !r = unsafeInlineIO $ unsafeIndexIO arr i in r
 
--- | /O(1)/ Get the length of the array.
+-- | /O(1)/ Get the byte length of the array.
+--
+-- @since 0.7.0
+{-# INLINE byteLength #-}
+byteLength :: Array a -> Int
+byteLength Array{..} =
+    let p = unsafeForeignPtrToPtr aStart
+        len = aEnd `minusPtr` p
+    in assert (len >= 0) len
+
+-- | /O(1)/ Get the length of the array i.e. the number of elements in the
+-- array.
 --
 -- @since 0.7.0
 {-# INLINE length #-}
 length :: forall a. Storable a => Array a -> Int
-length Array{..} =
+length arr = byteLength arr `div` sizeOf (undefined :: a)
+
+{-# INLINE byteCapacity #-}
+byteCapacity :: Array a -> Int
+byteCapacity Array{..} =
     let p = unsafeForeignPtrToPtr aStart
-        aLen = aEnd `minusPtr` p
-    in assert (aLen >= 0) (aLen `div` sizeOf (undefined :: a))
+        len = aBound `minusPtr` p
+    in assert (len >= 0) len
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
@@ -729,8 +745,9 @@ defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
 
 {-# INLINE_NORMAL unlines #-}
-unlines :: MonadIO m => D.Stream m (Array Char) -> D.Stream m Char
-unlines (D.Stream step state) = D.Stream step' (OuterLoop state)
+unlines :: forall m a. (MonadIO m, Storable a)
+    => a -> D.Stream m (Array a) -> D.Stream m a
+unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
     where
     {-# INLINE_LATE step' #-}
     step' gst (OuterLoop st) = do
@@ -743,7 +760,7 @@ unlines (D.Stream step state) = D.Stream step' (OuterLoop state)
             D.Stop -> D.Stop
 
     step' _ (InnerLoop st _ p end) | p == end =
-        return $ D.Yield '\n' $ OuterLoop st
+        return $ D.Yield sep $ OuterLoop st
 
     step' _ (InnerLoop st startf p end) = do
         x <- liftIO $ do
@@ -751,4 +768,272 @@ unlines (D.Stream step state) = D.Stream step' (OuterLoop state)
                     touchForeignPtr startf
                     return r
         return $ D.Yield x (InnerLoop st startf
-                            (p `plusPtr` (sizeOf (undefined :: Char))) end)
+                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+
+{-# INLINE spliceTwo #-}
+spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceTwo arr1 arr2 = do
+    let src1 = unsafeForeignPtrToPtr (aStart arr1)
+        src2 = unsafeForeignPtrToPtr (aStart arr2)
+        len1 = aEnd arr1 `minusPtr` src1
+        len2 = aEnd arr2 `minusPtr` src2
+
+    arr <- liftIO $ newArray (len1 + len2)
+    let dst = unsafeForeignPtrToPtr (aStart arr)
+
+    liftIO $ do
+        memcpy (castPtr dst) (castPtr src1) len1
+        touchForeignPtr (aStart arr1)
+        memcpy (castPtr (dst `plusPtr` len1)) (castPtr src2) len2
+        touchForeignPtr (aStart arr2)
+    return arr { aEnd = dst `plusPtr` (len1 + len2) }
+
+-- Splice a new array into a pre-reserved array. The user must ensure that
+-- there is enough space in the array.
+{-# INLINE spliceWith #-}
+spliceWith :: (MonadIO m) => Array a -> Array a -> m (Array a)
+spliceWith dst@(Array _ end bound) src  = liftIO $ do
+    let srcLen = byteLength src
+    if end `plusPtr` srcLen > bound
+    then error "Bug: spliceIntoUnsafe: Not enough space in the target array"
+    else
+        withForeignPtr (aStart dst) $ \_ -> do
+            withForeignPtr (aStart src) $ \psrc -> do
+                let pdst = aEnd dst
+                memcpy (castPtr pdst) (castPtr psrc) srcLen
+                return $ dst { aEnd = pdst `plusPtr` srcLen }
+
+-- Splice a new array into a preallocated array, doubling the space if there is
+-- no space in the target array.
+{-# INLINE spliceWithDoubling #-}
+spliceWithDoubling :: (MonadIO m, Storable a)
+    => Array a -> Array a -> m (Array a)
+spliceWithDoubling dst@(Array start end bound) src  = do
+    assert (end <= bound) (return ())
+    let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
+
+    dst1 <-
+        if end `plusPtr` srcLen >= bound
+        then do
+            let oldStart = unsafeForeignPtrToPtr start
+                oldSize = end `minusPtr` oldStart
+                newSize = max (oldSize * 2) (oldSize + srcLen)
+            liftIO $ realloc newSize dst
+        else return dst
+    spliceWith dst1 src
+
+data SpliceState s arr
+    = SpliceInitial s
+    | SpliceBuffering s arr
+    | SpliceYielding arr (SpliceState s arr)
+    | SpliceFinish
+
+-- XXX can use general grouping combinators to achieve this?
+-- | Coalesce adajcent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL coalesceChunksOf #-}
+coalesceChunksOf :: (MonadIO m, Storable a)
+    => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
+coalesceChunksOf n (D.Stream step state) = D.Stream step' (SpliceInitial state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (SpliceInitial st) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> return $
+                let len = byteLength arr
+                 in if len >= n
+                    then D.Skip (SpliceYielding arr (SpliceInitial s))
+                    else D.Skip (SpliceBuffering s arr)
+            D.Skip s -> return $ D.Skip (SpliceInitial s)
+            D.Stop -> return $ D.Stop
+
+    step' gst (SpliceBuffering st buf) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> do
+                let len = byteLength buf + byteLength arr
+                if len > n
+                then return $ D.Skip (SpliceYielding buf (SpliceBuffering s arr))
+                else do
+                    buf' <- if byteCapacity buf < n
+                            then liftIO $ realloc n buf
+                            else return buf
+                    buf'' <- spliceWith buf' arr
+                    return $ D.Skip (SpliceBuffering s buf'')
+            D.Skip s -> return $ D.Skip (SpliceBuffering s buf)
+            D.Stop -> return $ D.Skip (SpliceYielding buf SpliceFinish)
+
+    step' _ SpliceFinish = return D.Stop
+
+    step' _ (SpliceYielding arr next) = return $ D.Yield arr next
+
+data GatherState s arr
+    = GatherInitial s
+    | GatherBuffering s arr Int
+    | GatherYielding arr (GatherState s arr)
+    | GatherFinish
+
+-- | @groupIOVecsOf maxBytes maxEntries@ groups arrays in the incoming stream
+-- to create a stream of 'IOVec' arrays with a maximum of @maxBytes@ bytes in
+-- each array and a maximum of @maxEntries@ entries in each array.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL groupIOVecsOf #-}
+groupIOVecsOf :: MonadIO m
+    => Int -> Int -> D.Stream m (Array a) -> D.Stream m (Array IOVec)
+groupIOVecsOf n maxIOVLen (D.Stream step state) =
+    D.Stream step' (GatherInitial state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (GatherInitial st) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield arr s -> do
+                let p = unsafeForeignPtrToPtr (aStart arr)
+                    len = byteLength arr
+                iov <- liftIO $ newArray maxIOVLen
+                iov' <- liftIO $ unsafeSnoc iov (IOVec (castPtr p)
+                                                (fromIntegral len))
+                if len >= n
+                then return $ D.Skip (GatherYielding iov' (GatherInitial s))
+                else return $ D.Skip (GatherBuffering s iov' len)
+            D.Skip s -> return $ D.Skip (GatherInitial s)
+            D.Stop -> return $ D.Stop
+
+    step' gst (GatherBuffering st iov len) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield arr s -> do
+                let p = unsafeForeignPtrToPtr (aStart arr)
+                    alen = byteLength arr
+                    len' = len + alen
+                if len' > n || length iov >= maxIOVLen
+                then do
+                    iov' <- liftIO $ newArray maxIOVLen
+                    iov'' <- liftIO $ unsafeSnoc iov' (IOVec (castPtr p)
+                                                      (fromIntegral alen))
+                    return $ D.Skip (GatherYielding iov
+                                        (GatherBuffering s iov'' alen))
+                else do
+                    iov' <- liftIO $ unsafeSnoc iov (IOVec (castPtr p)
+                                                    (fromIntegral alen))
+                    return $ D.Skip (GatherBuffering s iov' len')
+            D.Skip s -> return $ D.Skip (GatherBuffering s iov len)
+            D.Stop -> return $ D.Skip (GatherYielding iov GatherFinish)
+
+    step' _ GatherFinish = return D.Stop
+
+    step' _ (GatherYielding iov next) = return $ D.Yield iov next
+
+-- | Create two slices of an array without copying the original array. The
+-- specified index @i@ is the first index of the second slice.
+--
+-- @since 0.7.0
+splitAt :: forall a. Storable a => Int -> Array a -> (Array a, Array a)
+splitAt i arr@Array{..} =
+    let maxIndex = length arr - 1
+    in  if i < 0
+        then error "sliceAt: negative array index"
+        else if i > maxIndex
+             then error $ "sliceAt: specified array index " ++ show i
+                        ++ " is beyond the maximum index " ++ show maxIndex
+             else let off = i * sizeOf (undefined :: a)
+                      p = unsafeForeignPtrToPtr aStart `plusPtr` off
+                in ( Array
+                  { aStart = aStart
+                  , aEnd = p
+                  , aBound = p
+                  }
+                , Array
+                  { aStart = aStart `plusForeignPtr` off
+                  , aEnd = aEnd
+                  , aBound = aBound
+                  }
+                )
+
+-- Drops the separator byte
+{-# INLINE breakOn #-}
+breakOn :: MonadIO m
+    => Word8 -> Array Word8 -> m (Array Word8, Maybe (Array Word8))
+breakOn sep arr@Array{..} = liftIO $ do
+    let p = unsafeForeignPtrToPtr aStart
+    loc <- c_memchr p sep (fromIntegral $ aEnd `minusPtr` p)
+    return $
+        if loc == nullPtr
+        then (arr, Nothing)
+        else
+            ( Array
+                { aStart = aStart
+                , aEnd = loc
+                , aBound = loc
+                }
+            , Just $ Array
+                    { aStart = aStart `plusForeignPtr` (loc `minusPtr` p + 1)
+                    , aEnd = aEnd
+                    , aBound = aBound
+                    }
+            )
+
+data SplitState s arr
+    = Initial s
+    | Buffering s arr
+    | Splitting s arr
+    | Yielding arr (SplitState s arr)
+    | Finishing
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL splitOn #-}
+splitOn
+    :: MonadIO m
+    => Word8
+    -> D.Stream m (Array Word8)
+    -> D.Stream m (Array Word8)
+splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (Initial st) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> do
+                (arr1, marr2) <- breakOn byte arr
+                return $ case marr2 of
+                    Nothing   -> D.Skip (Buffering s arr1)
+                    Just arr2 -> D.Skip (Yielding arr1 (Splitting s arr2))
+            D.Skip s -> return $ D.Skip (Initial s)
+            D.Stop -> return $ D.Stop
+
+    step' gst (Buffering st buf) = do
+        r <- step gst st
+        case r of
+            D.Yield arr s -> do
+                (arr1, marr2) <- breakOn byte arr
+                buf' <- spliceTwo buf arr1
+                return $ case marr2 of
+                    Nothing -> D.Skip (Buffering s buf')
+                    Just x -> D.Skip (Yielding buf' (Splitting s x))
+            D.Skip s -> return $ D.Skip (Buffering s buf)
+            D.Stop -> return $
+                if byteLength buf == 0
+                then D.Stop
+                else D.Skip (Yielding buf Finishing)
+
+    step' _ (Splitting st buf) = do
+        (arr1, marr2) <- breakOn byte buf
+        return $ case marr2 of
+                Nothing -> D.Skip $ Buffering st arr1
+                Just arr2 -> D.Skip $ Yielding arr1 (Splitting st arr2)
+
+    step' _ (Yielding arr next) = return $ D.Yield arr next
+    step' _ Finishing = return $ D.Stop

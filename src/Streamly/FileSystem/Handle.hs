@@ -53,13 +53,13 @@ module Streamly.FileSystem.Handle
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    -- , readByChunks
+    , readByChunksUpto
 
     -- -- * Array Read
     -- , readArrayUpto
     -- , readArrayOf
 
-    , readArraysUpto
+    , readArraysOfUpto
     -- , readArraysOf
     , readArrays
 
@@ -68,7 +68,7 @@ module Streamly.FileSystem.Handle
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunks
+    , writeByChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -172,13 +172,13 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysUpto size h@ reads a stream of arrays from file handle @h@.
+-- | @readArraysOfUpto size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE _readArraysUpto #-}
-_readArraysUpto :: (IsStream t, MonadIO m)
+{-# INLINABLE _readArraysOfUpto #-}
+_readArraysOfUpto :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
-_readArraysUpto size h = go
+_readArraysOfUpto size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
@@ -187,9 +187,9 @@ _readArraysUpto size h = go
         then stp
         else yld arr go
 
-{-# INLINE_NORMAL readArraysUpto #-}
-readArraysUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
-readArraysUpto size h = D.fromStreamD (D.Stream step ())
+{-# INLINE_NORMAL readArraysOfUpto #-}
+readArraysOfUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
+readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -206,12 +206,12 @@ readArraysUpto size h = D.fromStreamD (D.Stream step ())
 -- 'readArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
 --
--- > readArrays = readArraysUpto defaultChunkSize
+-- > readArrays = readArraysOfUpto defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
-readArrays = readArraysUpto A.defaultChunkSize
+readArrays = readArraysOfUpto A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -221,15 +221,13 @@ readArrays = readArraysUpto A.defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
-{-
 -- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
 -- as soon as EOF is encountered.
 --
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
--}
+readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
@@ -267,11 +265,11 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunks n h m = writeArrays h $ A.arraysOf n m
+{-# INLINE writeByChunksOf #-}
+writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeByChunksOf n h m = writeArrays h $ A.arraysOf n m
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeByChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
@@ -280,7 +278,7 @@ writeByChunks n h m = writeArrays h $ A.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunks A.defaultChunkSize
+write = writeByChunksOf A.defaultChunkSize
 
 {-
 {-# INLINE write #-}

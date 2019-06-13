@@ -93,27 +93,32 @@ module Streamly.Mem.Array
     -- , newArray
     , writeN
     , write
-    , fromListN
-    , fromList
+    , A.fromListN
+    , A.fromList
 
     -- Folds
-    , toArrayN
+    , A.toArrayN
     -- , toArrays
     , toArray
 
-    -- Streams
+    -- Streams of arrays
     , arraysOf
 
     -- * Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
-    , read
+    , A.read
     , readRev
-    , toList
+    , A.toList
+
+    -- Streams of arrays
     , flattenArrays
     -- , flattenArraysRev
-    , spliceArrays
+    , coalesceArrays
+    , coalesceChunksOf
+    , unlinesArraysBy
+    , splitArraysOn
 
     -- * Random Access
     , length
@@ -123,8 +128,10 @@ module Streamly.Mem.Array
     {-
     , readSlice
     , readSliceRev
+    -}
 
     , writeIndex
+    {-
     , writeSlice
     , writeSliceRev
     -}
@@ -140,13 +147,14 @@ where
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity)
+import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read)
 
-import Streamly.Mem.Array.Types hiding (flattenArrays, newArray)
+import Streamly.Mem.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
@@ -178,7 +186,7 @@ newArray len = undefined
 writeN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
 writeN n m = do
     if n < 0 then error "writeN: negative write count specified" else return ()
-    fromStreamDN n $ D.toStreamD m
+    A.fromStreamDN n $ D.toStreamD m
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -189,7 +197,7 @@ writeN n m = do
 -- @since 0.7.0
 {-# INLINE_EARLY readRev #-}
 readRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-readRev = D.fromStreamD . toStreamDRev
+readRev = D.fromStreamD . A.toStreamDRev
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
@@ -199,7 +207,7 @@ _null :: Storable a => Array a -> Bool
 _null arr = length arr == 0
 
 {-# INLINE _last #-}
-_last :: forall a. Storable a => Array a -> Maybe a
+_last :: (MonadIO m, Storable a) => Array a -> m (Maybe a)
 _last arr = readIndex arr (length arr - 1)
 
 -------------------------------------------------------------------------------
@@ -306,11 +314,12 @@ foldbWith level f = undefined
 --
 -- @since 0.7.0
 {-# INLINE readIndex #-}
-readIndex :: Storable a => Array a -> Int -> Maybe a
+readIndex :: (MonadIO m, Storable a) => Array a -> Int -> m (Maybe a)
 readIndex arr i =
     if i < 0 || i > length arr - 1
-    then Nothing
-    else Just $ unsafeIndex arr i
+    then return Nothing
+    else liftIO $ withForeignPtr (aStart arr) $ \p ->
+            fmap Just $ peekElemOff p i
 
 {-
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
@@ -332,14 +341,25 @@ readSlice arr i len = undefined
 readSliceRev :: (IsStream t, Monad m, Storable a)
     => Array a -> Int -> Int -> t m a
 readSliceRev arr i len = undefined
+-}
 
 -- | /O(1)/ Write the given element at the given index in the array.
 --
 -- @since 0.7.0
 {-# INLINE writeIndex #-}
 writeIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
-writeIndex arr i a = undefined
+writeIndex arr i a = do
+    let maxIndex = length arr - 1
+    if i < 0
+    then error "writeIndex: negative array index"
+    else if i > maxIndex
+         then error $ "writeIndex: specified array index " ++ show i
+                    ++ " is beyond the maximum index " ++ show maxIndex
+         else
+            liftIO $ withForeignPtr (aStart arr) $ \p ->
+                pokeElemOff p i a
 
+{-
 -- | @writeSlice arr i count stream@ writes a stream to the array @arr@
 -- starting at index @i@ and writing up to @count@ elements in the forward
 -- direction ending at the index @i + count - 1@.
@@ -381,7 +401,7 @@ toArraysInRange low high (Fold step initial extract) =
 {-# INLINE _toArraysOf #-}
 _toArraysOf :: (MonadIO m, Storable a)
     => Int -> Fold m a (SerialT Identity (Array a))
-_toArraysOf n = FL.lchunksOf n (toArrayN n) FL.toStream
+_toArraysOf n = FL.lchunksOf n (A.toArrayN n) FL.toStream
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
 -- shrinkToFit.  On the other hand, the stream of arrays implementation may
@@ -401,7 +421,7 @@ bytesToCount x n =
     let elemSize = sizeOf x
     in n + elemSize - 1 `div` elemSize
 
-{-# INLINE toArrayMinChunk #-}
+{-# INLINE_NORMAL toArrayMinChunk #-}
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
@@ -416,11 +436,14 @@ toArrayMinChunk elemCount = Fold step initial extract
     initial = do
         when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
         liftIO $ A.newArray elemCount
-    step arr@(Array _ end bound) x | end == bound = do
-        arr1 <- liftIO $ reallocDouble 1 arr
+    step arr@(Array start end bound) x | end == bound = do
+        let p = unsafeForeignPtrToPtr start
+            oldSize = end `minusPtr` p
+            newSize = max (oldSize * 2) 1
+        arr1 <- liftIO $ A.realloc newSize arr
         insertElem arr1 x
     step arr x = insertElem arr x
-    extract = liftIO . shrinkToFit
+    extract = liftIO . A.shrinkToFit
 
 -- | Fold the whole input to a single array.
 --
@@ -429,7 +452,7 @@ toArrayMinChunk elemCount = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE toArray #-}
 toArray :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-toArray = toArrayMinChunk (bytesToCount (undefined :: a) (mkChunkSize 1024))
+toArray = toArrayMinChunk (bytesToCount (undefined :: a) (A.mkChunkSize 1024))
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
@@ -449,6 +472,39 @@ flattenArrays m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 _flattenArraysRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 _flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 
+-- XXX use an Array instead as separator? Or use a separate unlinesArraysBySeq
+-- API for that?
+--
+-- | Flatten a stream of arrays appending the given element after each
+-- array.
+--
+-- @since 0.7.0
+{-# INLINE unlinesArraysBy #-}
+unlinesArraysBy :: (MonadIO m, IsStream t, Storable a)
+    => a -> t m (Array a) -> t m a
+unlinesArraysBy x = D.fromStreamD . A.unlines x . D.toStreamD
+
+-- | Split a stream of arrays on a given separator byte, dropping the separator
+-- and coalescing all the arrays between two separators into a single array.
+--
+-- @since 0.7.0
+{-# INLINE splitArraysOn #-}
+splitArraysOn
+    :: (IsStream t, MonadIO m)
+    => Word8
+    -> t m (Array Word8)
+    -> t m (Array Word8)
+splitArraysOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
+
+-- | Coalesce adajcent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size.
+--
+-- @since 0.7.0
+{-# INLINE coalesceChunksOf #-}
+coalesceChunksOf :: (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> SerialT m (Array a)
+coalesceChunksOf n xs = D.fromStreamD $ A.coalesceChunksOf n (D.toStreamD xs)
+
 -- |
 -- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
 --
@@ -459,18 +515,17 @@ _flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
 arraysOf n str =
-    D.fromStreamD $ fromStreamDArraysOf n (D.toStreamD str)
+    D.fromStreamD $ A.fromStreamDArraysOf n (D.toStreamD str)
 
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.
 
-{-# INLINE _spliceArraysRealloced #-}
-_spliceArraysRealloced :: (MonadIO m, Storable a)
-    => SerialT m (Array a) -> m (Array a)
-_spliceArraysRealloced s = do
-    buffered <- P.foldr S.cons S.nil s
-    len <- S.sum (S.map length buffered)
-
+-- CAUTION! length must more than equal to lengths of all the arrays in the
+-- stream.
+{-# INLINE spliceArraysLenUnsafe #-}
+spliceArraysLenUnsafe :: (MonadIO m, Storable a)
+    => Int -> SerialT m (Array a) -> m (Array a)
+spliceArraysLenUnsafe len buffered = do
     arr <- liftIO $ A.newArray len
     end <- S.foldlM' writeArr (aEnd arr) buffered
     return $ arr {aEnd = end}
@@ -479,42 +534,36 @@ _spliceArraysRealloced s = do
 
     writeArr dst Array{..} =
         liftIO $ withForeignPtr aStart $ \src -> do
-                        let len = aEnd `minusPtr` src
-                        memcpy (castPtr dst) (castPtr src) len
-                        return $ dst `plusPtr` len
+                        let count = aEnd `minusPtr` src
+                        A.memcpy (castPtr dst) (castPtr src) count
+                        return $ dst `plusPtr` count
 
-{-# INLINE spliceArraysBuffered #-}
-spliceArraysBuffered :: forall m a. (MonadIO m, Storable a)
+{-# INLINE _spliceArraysBuffered #-}
+_spliceArraysBuffered :: (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
-spliceArraysBuffered s = do
+_spliceArraysBuffered s = do
+    buffered <- P.foldr S.cons S.nil s
+    len <- S.sum (S.map length buffered)
+    spliceArraysLenUnsafe len s
+
+{-# INLINE spliceArraysRealloced #-}
+spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
+    => SerialT m (Array a) -> m (Array a)
+spliceArraysRealloced s = do
     idst <- liftIO $ A.newArray (bytesToCount (undefined :: a)
-                                (mkChunkSizeKB 4))
-    arr <- S.foldlM' appendArr idst s
-    liftIO $ shrinkToFit arr
+                                (A.mkChunkSizeKB 4))
 
-    where
-
-    appendArr dst@(Array _ end bound) src  = liftIO $ do
-        let srcLen = aEnd src `minusPtr` unsafeForeignPtrToPtr (aStart src)
-        dst1 <-
-            if end `plusPtr` srcLen >= bound
-            then reallocDouble srcLen dst
-            else return dst
-
-        withForeignPtr (aStart dst1) $ \_ -> do
-            withForeignPtr (aStart src) $ \psrc -> do
-                let pdst = aEnd dst1
-                memcpy (castPtr pdst) (castPtr psrc) srcLen
-                return $ dst1 { aEnd = pdst `plusPtr` srcLen }
+    arr <- S.foldlM' A.spliceWithDoubling idst s
+    liftIO $ A.shrinkToFit arr
 
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.
 --
 -- @since 0.7.0
-{-# INLINE spliceArrays #-}
-spliceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
-spliceArrays = spliceArraysBuffered
--- spliceArrays = _spliceArraysRealloced
+{-# INLINE coalesceArrays #-}
+coalesceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
+coalesceArrays = spliceArraysRealloced
+-- spliceArrays = _spliceArraysBuffered
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
@@ -548,18 +597,18 @@ write = FL.foldl' toArray
 {-# INLINE transformWith #-}
 transformWith :: (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-transformWith f arr = FL.foldl' (toArrayMinChunk (length arr)) $ f (read arr)
+transformWith f arr = FL.foldl' (toArrayMinChunk (length arr)) $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --
 -- @since 0.7.0
 {-# INLINE foldArray #-}
 foldArray :: (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-foldArray f arr = FL.foldl' f (read arr)
+foldArray f arr = FL.foldl' f (A.read arr)
 
 -- | Fold an array using a stream fold operation.
 --
 -- @since 0.7.0
 {-# INLINE foldWith #-}
 foldWith :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-foldWith f arr = f (read arr)
+foldWith f arr = f (A.read arr)

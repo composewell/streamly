@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnboxedTuples #-}
@@ -8,37 +7,61 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.FileSystem.File
--- Copyright   : (c) 2019 Harendra Kumar
+-- Module      : Streamly.FileSystem.FD
+-- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Read and write streams and arrays to and from files specified by their paths
--- in the file system. Unlike the handle based APIs which can have a read/write
--- session consisting of multiple reads and writes to the handle, these APIs
--- are one shot read or write APIs. These APIs open the file handle, perform
--- the requested operation and close the handle. Thease are safer compared to
--- the handle based APIs as there is no possiblity of a file descriptor
--- leakage.
+-- This module is a an experimental replacement for
+-- "Streamly.FileSystem.Handle". The former module provides IO facilities based
+-- on the GHC Handle type. The APIs in this module avoid the GHC handle layer
+-- and provide more explicit control over buffering.
 --
--- > import qualified Streamly.FileSystem.File as File
+-- Read and write data as streams and arrays to and from files.
+--
+-- This module provides read and write APIs based on handles. Before reading or
+-- writing, a file must be opened first using 'openFile'. The 'Handle' returned
+-- by 'openFile' is then used to access the file. A 'Handle' is backed by an
+-- operating system file descriptor. When the 'Handle' is garbage collected the
+-- underlying file descriptor is automatically closed. A handle can be
+-- explicitly closed using 'closeFile'.
+--
+-- Reading and writing APIs are divided into two categories, sequential
+-- streaming APIs and random or seekable access APIs.  File IO APIs are quite
+-- similar to "Streamly.Mem.Array" read write APIs. In that regard, arrays can
+-- be considered as in-memory files or files can be considered as on-disk
+-- arrays.
+--
+-- > import qualified Streamly.FileSystem.FD as FD
 --
 
-module Streamly.FileSystem.File
+module Streamly.FileSystem.FD
     (
+    -- * File Handles
+      Handle
+    , stdin
+    , stdout
+    , stderr
+    , openFile
+
+    -- TODO file path based APIs
+    -- , readFile
+    -- , writeFile
+
     -- * Streaming IO
-    -- | Stream data to or from a file or device sequentially.  When reading,
-    -- the stream is lazy and generated on-demand as the consumer consumes it.
-    -- Read IO requests to the IO device are performed in chunks limited to a
-    -- maximum size of 32KiB, this is referred to as @defaultChunkSize@ in the
-    -- documentation. One IO request may or may not read the full
-    -- chunk. If the whole stream is not consumed, it is possible that we may
-    -- read slightly more from the IO device than what the consumer needed.
-    -- Unless specified otherwise in the API, writes are collected into chunks
-    -- of @defaultChunkSize@ before they are written to the IO device.
+    -- | Streaming APIs read or write data to or from a file or device
+    -- sequentially, they never perform a seek to a random location.  When
+    -- reading, the stream is lazy and generated on-demand as the consumer
+    -- consumes it.  Read IO requests to the IO device are performed in chunks
+    -- of 32KiB, this is referred to as @defaultChunkSize@ in the
+    -- documentation. One IO request may or may not read the full chunk. If the
+    -- whole stream is not consumed, it is possible that we may read slightly
+    -- more from the IO device than what the consumer needed.  Unless specified
+    -- otherwise in the API, writes are collected into chunks of
+    -- @defaultChunkSize@ before they are written to the IO device.
 
     -- Streaming APIs work for all kind of devices, seekable or non-seekable;
     -- including disks, files, memory devices, terminals, pipes, sockets and
@@ -47,43 +70,34 @@ module Streamly.FileSystem.File
     -- Devices like terminals, pipes, sockets and fifos do not have random
     -- access capability.
 
-    -- ** File IO Using Handle
-      withFile
-
-    -- ** Read From File
+    -- ** Read File to Stream
     , read
-    -- , readShared
-    -- , readTailForever
-
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    -- , readByChunks
+    , readByChunksUpto
 
     -- -- * Array Read
+    -- , readArrayUpto
     -- , readArrayOf
 
+    , readArrays
     , readArraysOfUpto
     -- , readArraysOf
-    , readArrays
 
-    -- ** Write To File
+    -- ** Write File from Stream
     , write
     -- , writeUtf8
-    -- , writeUtf8ByLines
-    -- , writeByFrames
-    , writeByChunks
+    -- , writeUtf8Lines
+    -- , writeFrames
+    , writeByChunksOf
 
     -- -- * Array Write
-    , writeArray
+    -- , writeArray
     , writeArrays
-
-    -- ** Append To File
-    , append
-    , appendByChunks
-    -- , appendShared
-    , appendArray
-    , appendArrays
+    , writeArraysOfUpto
+    , writev
+    , writevArraysOfUpto
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -106,26 +120,33 @@ module Streamly.FileSystem.File
     )
 where
 
-import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
+import Foreign.ForeignPtr (withForeignPtr)
+-- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.Ptr (plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import System.IO (Handle, openFile, IOMode(..), hClose)
+import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+-- import System.IO (Handle, hGetBufSome, hPutBuf)
+import System.IO (IOMode)
 import Prelude hiding (read)
 
-import qualified System.IO as SIO
+import qualified GHC.IO.FD as FD
+import qualified GHC.IO.Device as RawIO hiding (write)
+import qualified Streamly.FileSystem.FDIO as RawIO
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.SVar (MonadAsync)
+import Streamly.Streams.StreamD (toStreamD)
+import Streamly.Streams.StreamD.Type (fromStreamD)
+import Streamly.Streams.StreamK.Type (IsStream, mkStream)
+import Streamly.Mem.Array.Types (byteLength, defaultChunkSize, groupIOVecsOf)
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- References
@@ -141,68 +162,146 @@ import qualified Streamly.Prelude as S
 -- https://www.w3.org/TR/FileAPI/ for http file API.
 
 -------------------------------------------------------------------------------
--- Safe file reading
+-- Handles
 -------------------------------------------------------------------------------
 
--- | @'withFile' name mode act@ opens a file using 'openFile' and passes
--- the resulting handle to the computation @act@.  The handle will be
--- closed on exit from 'withFile', whether by normal termination or by
--- raising an exception.  If closing the handle raises an exception, then
--- this exception will be raised by 'withFile' rather than any exception
--- raised by 'act'.
-{-# INLINE withFile #-}
-withFile :: (IsStream t, MonadCatch m, MonadIO m)
-    => FilePath -> IOMode -> (Handle -> t m a) -> t m a
-withFile file mode = S.bracket (liftIO $ openFile file mode) (liftIO . hClose)
+-- XXX attach a finalizer
+-- | A 'Handle' is returned by 'openFile' and is subsequently used to perform
+-- read and write operations on a file.
+--
+newtype Handle = Handle FD.FD
+
+-- | File handle for standard input
+stdin :: Handle
+stdin = Handle FD.stdin
+
+-- | File handle for standard output
+stdout :: Handle
+stdout = Handle FD.stdout
+
+-- | File handle for standard error
+stderr :: Handle
+stderr = Handle FD.stderr
+
+-- XXX we can support all the flags that the "open" system call supports.
+-- Instead of using RTS locking mechanism can we use system provided locking
+-- instead?
+--
+-- | Open a file that is not a directory and return a file handle.
+-- 'openFile' enforces a multiple-reader single-writer locking on files. That
+-- is, there may either be many handles on the same file which manage input, or
+-- just one handle on the file which manages output. If any open handle is
+-- managing a file for output, no new handle can be allocated for that file. If
+-- any open handle is managing a file for input, new handles can only be
+-- allocated if they do not manage output. Whether two files are the same is
+-- implementation-dependent, but they should normally be the same if they have
+-- the same absolute path name and neither has been renamed, for example.
+--
+openFile :: FilePath -> IOMode -> IO Handle
+openFile path mode = fmap (Handle . fst) $ FD.openFile path mode True
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
 -------------------------------------------------------------------------------
 
--- TODO readArrayOf
+-- | Read a 'ByteArray' from a file handle. If no data is available on the
+-- handle it blocks until some data becomes available. If data is available
+-- then it immediately returns that data without blocking. It reads a maximum
+-- of up to the size requested.
+{-# INLINABLE readArrayUpto #-}
+readArrayUpto :: Int -> Handle -> IO (Array Word8)
+readArrayUpto size (Handle fd) = do
+    ptr <- mallocPlainForeignPtrBytes size
+    -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
+    withForeignPtr ptr $ \p -> do
+        -- n <- hGetBufSome h p size
+        n <- RawIO.read fd p size
+        let v = Array
+                { aStart = ptr
+                , aEnd   = p `plusPtr` n
+                , aBound = p `plusPtr` size
+                }
+        -- XXX shrink only if the diff is significant
+        -- A.shrinkToFit v
+        return v
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
 -------------------------------------------------------------------------------
 
--- | Write an array to a file. Overwrites the file if it exists.
+-- | Write an 'Array' to a file handle.
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: Storable a => FilePath -> Array a -> IO ()
-writeArray file arr = SIO.withFile file WriteMode (\h -> FH.writeArray h arr)
+writeArray :: Storable a => Handle -> Array a -> IO ()
+writeArray _ arr | A.length arr == 0 = return ()
+writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p -> do
+    RawIO.writeAll fd (castPtr p) aLen
+    {-
+    -- Experiment to compare "writev" based IO with "write" based IO.
+    iov <- A.newArray 1
+    let iov' = iov {aEnd = aBound iov}
+    A.writeIndex iov' 0 (RawIO.IOVec (castPtr p) (fromIntegral aLen))
+    RawIO.writevAll fd (unsafeForeignPtrToPtr (aStart iov')) 1
+    -}
+    where
+    aLen = byteLength arr
 
--- | append an array to a file.
+-- | Write an array of 'IOVec' to a file handle.
 --
 -- @since 0.7.0
-{-# INLINABLE appendArray #-}
-appendArray :: Storable a => FilePath -> Array a -> IO ()
-appendArray file arr = SIO.withFile file AppendMode (\h -> FH.writeArray h arr)
+{-# INLINABLE writeIOVec #-}
+writeIOVec :: Handle -> Array RawIO.IOVec -> IO ()
+writeIOVec _ iov | A.length iov == 0 = return ()
+writeIOVec (Handle fd) iov =
+    withForeignPtr (aStart iov) $ \p ->
+        RawIO.writevAll fd p (A.length iov)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOfUpto size file@ reads a stream of arrays from file @file@.
+-- | @readArraysOfUpto size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE readArraysOfUpto #-}
-readArraysOfUpto :: (IsStream t, MonadCatch m, MonadIO m)
-    => Int -> FilePath -> t m (Array Word8)
-readArraysOfUpto size file = withFile file ReadMode (FH.readArraysOfUpto size)
+{-# INLINABLE _readArraysOfUpto #-}
+_readArraysOfUpto :: (IsStream t, MonadIO m)
+    => Int -> Handle -> t m (Array Word8)
+_readArraysOfUpto size h = go
+  where
+    -- XXX use cons/nil instead
+    go = mkStream $ \_ yld _ stp -> do
+        arr <- liftIO $ readArrayUpto size h
+        if A.length arr == 0
+        then stp
+        else yld arr go
+
+{-# INLINE_NORMAL readArraysOfUpto #-}
+readArraysOfUpto :: (IsStream t, MonadIO m)
+    => Int -> Handle -> t m (Array Word8)
+readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
+  where
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        arr <- liftIO $ readArrayUpto size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr ()
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @readArrays file@ reads a stream of arrays from file @file@.
+-- | @readArrays h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is limited to @defaultChunkSize@.
+-- 'readArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
+-- on the 'Handle'.
 --
 -- > readArrays = readArraysOfUpto defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
-readArrays :: (IsStream t, MonadCatch m, MonadIO m)
-    => FilePath -> t m (Array Word8)
-readArrays = readArraysOfUpto A.defaultChunkSize
+readArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
+readArrays = readArraysOfUpto defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -212,66 +311,66 @@ readArrays = readArraysOfUpto A.defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
-{-
--- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
--- as soon as EOF is encountered.
+-- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file handle,
+-- reads are performed in chunks of up to @chunkSize@.  The stream ends as soon
+-- as EOF is encountered.
 --
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
--}
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
--- | Generate a stream of elements of the given type from a file specified by
--- path. The stream ends when EOF is encountered. File is locked using multiple
--- reader and single writer locking mode.
+-- | Generate a stream of elements of the given type from a file 'Handle'. The
+-- stream ends when EOF is encountered.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = A.flattenArrays $ withFile file ReadMode FH.readArrays
-
-{-
--- | Generate a stream of elements of the given type from a file 'Handle'. The
--- stream ends when EOF is encountered. File is not locked for exclusive reads,
--- writers can keep writing to the file.
---
--- @since 0.7.0
-{-# INLINE readShared #-}
-readShared :: (IsStream t, MonadIO m) => Handle -> t m Word8
-readShared = undefined
-
--- | Read a stream from a given file path. When end of file (EOF) is reached
--- this API waits for more data to be written to the file and keeps reading it
--- as it is written.
---
--- @since 0.7.0
-{-# INLINE readTailForever #-}
-readTailForever :: (IsStream t, MonadIO m) => Handle -> t m Word8
-readTailForever = undefined
--}
+read :: (IsStream t, MonadIO m) => Handle -> t m Word8
+read = A.flattenArrays . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
 -------------------------------------------------------------------------------
 
-{-# INLINE writeArraysMode #-}
-writeArraysMode :: (MonadAsync m, MonadCatch m, Storable a)
-    => IOMode -> FilePath -> SerialT m (Array a) -> m ()
-writeArraysMode mode file xs = S.drain $
-    withFile file mode (\h -> S.mapM (liftIO . FH.writeArray h) xs)
-
--- | Write a stream of arrays to a file. Overwrites the file if it exists.
+-- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadAsync m, MonadCatch m, Storable a)
-    => FilePath -> SerialT m (Array a) -> m ()
-writeArrays = writeArraysMode WriteMode
+writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
+writeArrays h m = S.mapM_ (liftIO . writeArray h) m
+
+-- | Write a stream of 'IOVec' arrays to a handle.
+--
+-- @since 0.7.0
+{-# INLINE writev #-}
+writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
+writev h m = S.mapM_ (liftIO . writeIOVec h) m
+
+-- | Write a stream of arrays to a handle after coalescing them in chunks of
+-- specified size. The chunk size is only a maximum and the actual writes could
+-- be smaller than that as we do not split the arrays to fit them to the
+-- specified size.
+--
+-- @since 0.7.0
+{-# INLINE writeArraysOfUpto #-}
+writeArraysOfUpto :: (MonadIO m, Storable a)
+    => Int -> Handle -> SerialT m (Array a) -> m ()
+writeArraysOfUpto n h xs = writeArrays h $ A.coalesceChunksOf n xs
+
+-- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
+-- of up to a maximum total size. Writes are performed using gather IO via
+-- @writev@ system call. The maximum number of entries in each 'IOVec' group
+-- limited to 512.
+--
+-- @since 0.7.0
+{-# INLINE writevArraysOfUpto #-}
+writevArraysOfUpto :: MonadIO m
+    => Int -> Handle -> SerialT m (Array a) -> m ()
+writevArraysOfUpto n h xs =
+    writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -286,64 +385,25 @@ writeArrays = writeArraysMode WriteMode
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> SerialT m Word8 -> m ()
-writeByChunks n file xs = writeArrays file $ A.arraysOf n xs
+{-# INLINE writeByChunksOf #-}
+writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeByChunksOf n h m = writeArrays h $ A.arraysOf n m
 
 -- > write = 'writeByChunks' A.defaultChunkSize
 --
--- | Write a byte stream to a file. Combines the bytes in chunks of size
--- up to 'A.defaultChunkSize' before writing. If the file exists it is
--- truncated to zero size before writing. If the file does not exist it is
--- created. File is locked using single writer locking mode.
+-- | Write a byte stream to a file handle. Combines the bytes in chunks of size
+-- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
+-- depends on the 'IOMode' and the current seek position of the handle.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-write = writeByChunks A.defaultChunkSize
+write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+write = writeByChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
 write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
 write = toHandleWith A.defaultChunkSize
--}
-
--- | Append a stream of arrays to a file.
---
--- @since 0.7.0
-{-# INLINE appendArrays #-}
-appendArrays :: (MonadAsync m, MonadCatch m, Storable a)
-    => FilePath -> SerialT m (Array a) -> m ()
-appendArrays = writeArraysMode AppendMode
-
--- | Like 'append' but provides control over the write buffer. Output will
--- be written to the IO device as soon as we collect the specified number of
--- input elements.
---
--- @since 0.7.0
-{-# INLINE appendByChunks #-}
-appendByChunks :: (MonadAsync m, MonadCatch m)
-    => Int -> FilePath -> SerialT m Word8 -> m ()
-appendByChunks n file xs = appendArrays file $ A.arraysOf n xs
-
--- | Append a byte stream to a file. Combines the bytes in chunks of size up to
--- 'A.defaultChunkSize' before writing.  If the file exists then the new data
--- is appended to the file.  If the file does not exist it is created. File is
--- locked using single writer locking mode.
---
--- @since 0.7.0
-{-# INLINE append #-}
-append :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-append = appendByChunks A.defaultChunkSize
-
-{-
--- | Like 'append' but the file is not locked for exclusive writes.
---
--- @since 0.7.0
-{-# INLINE appendShared #-}
-appendShared :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-appendShared = undefined
 -}
 
 -------------------------------------------------------------------------------

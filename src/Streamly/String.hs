@@ -187,7 +187,7 @@ words = FL.wordsBy isSpace toArray
 
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
-unlines = D.fromStreamD . A.unlines . D.toStreamD
+unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
 
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char

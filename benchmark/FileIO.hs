@@ -18,12 +18,12 @@ import Gauge
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
-import qualified Streamly.String as SS
 
 #ifdef DEVBUILD
 import Data.Char (ord, chr)
 import System.IO (hSeek, SeekMode(..))
 import qualified Streamly.Fold as FL
+import qualified Streamly.String as SS
 #endif
 
 -- Input and output file handles
@@ -94,8 +94,8 @@ main = do
                 Handles inh _ <- readIORef href
                 let s = FH.readArrays inh
                 larr <- S.last s
-                return $ case larr of
-                    Nothing -> Nothing
+                case larr of
+                    Nothing -> return Nothing
                     Just arr -> A.readIndex arr (A.length arr - 1)
             -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
             -- wc uses lseek to just determine the file size rather than reading

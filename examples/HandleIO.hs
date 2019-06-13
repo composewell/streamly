@@ -2,40 +2,52 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.FileSystem.Handle as FH
+import qualified System.IO as FH
+-- import qualified Streamly.FileSystem.FD as FH
 import qualified Streamly.String as SS
 
 import Data.Char (ord)
 import System.Environment (getArgs)
-import System.IO (openFile, IOMode(..), stdout, Handle, hSeek, SeekMode(..))
+import System.IO (IOMode(..), hSeek, SeekMode(..))
 
-cat :: Handle -> IO ()
-cat src = FH.writeArrays stdout $ FH.readArraysUpto (256*1024) src
+cat :: FH.Handle -> IO ()
+cat src = FH.writeArrays FH.stdout $ FH.readArraysOfUpto (256*1024) src
+{-
+cat src =
+      FH.writeByChunksOf (1024*1024) FH.stdout
+    $ FH.readByChunksUpto (16*1024) src
+-}
 
-cp :: Handle -> Handle -> IO ()
-cp src dst = FH.writeArrays dst $ FH.readArraysUpto (256*1024) src
+cp :: FH.Handle -> FH.Handle -> IO ()
+cp src dst = FH.writeArrays dst $ FH.readArraysOfUpto (256*1024) src
+{-
+cp src dst =
+      FH.writeByChunksOf (1024*1024) dst
+    $ FH.readByChunksUpto (16*1024) src
+-}
 
 ord' :: Num a => Char -> a
 ord' = (fromIntegral . ord)
 
-wcl :: Handle -> IO ()
+wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
     $ flip SS.foldLines FL.drain
     $ SS.decodeChar8
     $ FH.read src)
 
-grepc :: String -> Handle -> IO ()
+grepc :: String -> FH.Handle -> IO ()
 grepc pat src = print . (subtract 1) =<< (S.length
     $ FL.splitOn (A.fromList (map ord' pat)) FL.drain
     $ FH.read src)
 
-avgll :: Handle -> IO ()
+avgll :: FH.Handle -> IO ()
 avgll src = print =<< (FL.foldl' avg
     $ FL.splitSuffixBy (== ord' '\n') FL.length
     $ FH.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
-llhisto :: Handle -> IO ()
+llhisto :: FH.Handle -> IO ()
 llhisto src = print =<< (FL.foldl' (FL.classify FL.length)
     $ S.map bucket
     $ FL.splitSuffixBy (== ord' '\n') FL.length
@@ -46,7 +58,7 @@ llhisto src = print =<< (FL.foldl' (FL.classify FL.length)
 main :: IO ()
 main = do
     name <- fmap head getArgs
-    src <- openFile name ReadMode
+    src <- FH.openFile name ReadMode
     let rewind = hSeek src AbsoluteSeek 0
 
     rewind >> putStrLn "cat"    >> cat src          -- Unix cat program
@@ -55,5 +67,5 @@ main = do
     rewind >> putStr "avgll "   >> avgll src        -- get average line length
     rewind >> putStr "llhisto " >> llhisto src      -- get line length histogram
 
-    dst <- openFile "dst-xyz.txt" WriteMode
+    dst <- FH.openFile "dst-xyz.txt" WriteMode
     rewind >> putStr "cp " >> cp src dst       -- Unix cp program
