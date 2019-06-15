@@ -21,7 +21,6 @@ import qualified Streamly.Prelude as S
 
 #ifdef DEVBUILD
 import Data.Char (ord, chr)
-import System.IO (hSeek, SeekMode(..))
 import qualified Streamly.Fold as FL
 import qualified Streamly.String as SS
 #endif
@@ -67,6 +66,13 @@ isSpace c
 
 main :: IO ()
 main = do
+#ifdef DEVBUILD
+    -- This is a 500MB text file for text processing benchmarks.  We cannot
+    -- have it in the repo, therefore we use it locally with DEVBUILD
+    -- conditional (enabled by "dev" cabal flag). Some tests that depend on
+    -- this file are available only in DEVBUILD mode.
+    inHandle <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
+#else
     -- XXX will this work on windows/msys?
     let cmd = "mkdir -p " ++ scratchDir
                 ++ "; test -e " ++ infile
@@ -78,15 +84,9 @@ main = do
 
     runProcess_ (shell cmd)
     inHandle <- openFile infile ReadMode
+#endif
     outHandle <- openFile outfile WriteMode
     href <- newIORef $ Handles inHandle outHandle
-
--- This is a 500MB text file for text processing benchmarks.  We cannot have it
--- in the repo, therefore we use it locally with DEVBUILD conditional (enabled
--- by "dev" cabal flag).
-#ifdef DEVBUILD
-    inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
-#endif
 
     defaultMain
         [ bgroup "readArray"
@@ -136,13 +136,13 @@ main = do
             ]
         -- This needs an ascii file, as decode just errors out.
         , bgroup "decode-encode"
-           [ mkBench "encodeChar8-decodeChar8" href $ do
+           [ mkBench "char8" href $ do
                Handles inh outh <- readIORef href
                FH.write outh
                  $ SS.encodeChar8
                  $ SS.decodeChar8
                  $ FH.read inh
-           , mkBench "encodeUtf8-decodeUtf8" href $ do
+           , mkBench "utf8" href $ do
                Handles inh outh <- readIORef href
                FH.write outh
                  $ SS.encodeUtf8
@@ -196,68 +196,85 @@ main = do
               toarr = A.fromList . map (fromIntegral . ord)
           in bgroup "splitting"
             [ bgroup "predicate"
-                [ mkBenchText "splitBy \\n (line count)" inText $ do
+                [ mkBench "splitBy \\n (line count)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitBy (== lf) FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitSuffixBy \\n (line count)" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitSuffixBy \\n (line count)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitSuffixBy (== lf) FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "wordsBy isSpace (word count)" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "wordsBy isSpace (word count)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.wordsBy isSp FL.drain
-                        $ FH.read inText) >>= print
+                        $ FH.read inh) -- >>= print
                 ]
 
             , bgroup "empty-pattern"
-                [ mkBenchText "splitOn \"\"" inText $ do
+                [ mkBench "splitOn \"\"" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (A.fromList []) FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitSuffixOn \"\"" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitSuffixOn \"\"" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitSuffixOn (A.fromList []) FL.drain
-                        $ FH.read inText) >>= print
+                        $ FH.read inh) -- >>= print
                 ]
             , bgroup "short-pattern"
-                [ mkBenchText "splitOn \\n (line count)" inText $ do
+                [ mkBench "splitOn \\n (line count)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn lfarr FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitSuffixOn \\n (line count)" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitSuffixOn \\n (line count)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitSuffixOn lfarr FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn a" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn a" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "a") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn \\r\\n" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn \\r\\n" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "\r\n") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitSuffixOn \\r\\n)" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitSuffixOn \\r\\n)" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitSuffixOn (toarr "\r\n") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn aa" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn aa" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "aa") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn aaaa" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn aaaa" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "aaaa") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn abcdefgh" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn abcdefgh" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "abcdefgh") FL.drain
-                        $ FH.read inText) >>= print
+                        $ FH.read inh) -- >>= print
                 ]
             , bgroup "long-pattern"
-                [ mkBenchText "splitOn abcdefghi" inText $ do
+                [ mkBench "splitOn abcdefghi" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "abcdefghi") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn catcatcatcatcat" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn catcatcatcatcat" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "catcatcatcatcat") FL.drain
-                        $ FH.read inText) >>= print
-                , mkBenchText "splitOn abc...xyz" inText $ do
+                        $ FH.read inh) -- >>= print
+                , mkBench "splitOn abc...xyz" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
-                            $ FH.read inText) >>= print
-                , mkBenchText "splitSuffixOn abc...xyz" inText $ do
+                            $ FH.read inh) -- >>= print
+                , mkBench "splitSuffixOn abc...xyz" href $ do
+                    Handles inh _ <- readIORef href
                     (S.length $ FL.splitSuffixOn
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
-                            $ FH.read inText) >>= print
+                            $ FH.read inh) -- >>= print
                 ]
             ]
 #endif
@@ -276,8 +293,3 @@ main = do
                 writeIORef ref (Handles inHandle outHandle)
             )
             (\_ -> action)
-
-#ifdef DEVBUILD
-    mkBenchText name h action =
-        bench name $ perRunEnv (hSeek h AbsoluteSeek 0) (\_ -> action)
-#endif
