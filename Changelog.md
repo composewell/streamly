@@ -68,6 +68,8 @@ example, concat streams concurrently using this.
       periodically
     * `intersperse` intersperse an element in between consecutive elements in
       stream
+    * `insertAfterEach` to insert a monadic action after each element in th
+      stream
 
 ### Deprecations
 

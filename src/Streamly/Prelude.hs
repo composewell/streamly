@@ -1950,6 +1950,9 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
 intersperse a = fromStreamS . S.intersperse a . toStreamS
 
+-- | Insert a monadic action after each element in the stream.
+--
+-- @since 0.7.0
 {-# INLINE insertAfterEach #-}
 insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 insertAfterEach m = fromStreamS . S.insertAfterEach m . toStreamS
