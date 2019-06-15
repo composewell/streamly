@@ -33,7 +33,10 @@ import Control.Monad (when)
 import Data.Int (Int64)
 import Data.Word (Word8)
 import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
-import Foreign.C.Types (CSize(..), CInt(..), CBool(..))
+import Foreign.C.Types (CSize(..), CInt(..))
+#if __GLASGOW_HASKELL__ >= 802
+import Foreign.C.Types (CBool(..))
+#endif
 import Foreign.Ptr (plusPtr, Ptr)
 import System.Posix.Internals (c_write, c_safe_write)
 
@@ -60,8 +63,13 @@ isNonBlocking fd = fdIsNonBlocking fd /= 0
 
 -- "poll"s the fd for data to become available or timeout
 -- See cbits/inputReady.c in base package
+#if __GLASGOW_HASKELL__ >= 804
 foreign import ccall unsafe "fdReady"
-  unsafe_fdReady :: CInt -> CBool -> Int64 -> CBool -> IO CInt
+    unsafe_fdReady :: CInt -> CBool -> Int64 -> CBool -> IO CInt
+#else
+foreign import ccall safe "fdReady"
+    unsafe_fdReady :: CInt -> CInt -> CInt -> CInt -> IO CInt
+#endif
 
 writeNonBlocking :: String -> FD -> Ptr Word8 -> Int -> CSize -> IO CInt
 writeNonBlocking loc !fd !buf !off !len
@@ -183,6 +191,7 @@ writeAll fd ptr bytes = do
 writev :: FD -> Ptr IOVec -> Int -> IO CInt
 writev = writevNonBlocking "Streamly.FileSystem.FDIO"
 
+-- XXX incomplete
 -- | Keep writing an iovec in a loop until all the iovec entries are written.
 writevAll :: FD -> Ptr IOVec -> Int -> IO ()
 writevAll fd iovec count = do
