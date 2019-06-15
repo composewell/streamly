@@ -4,8 +4,7 @@ import qualified Streamly.Mem.Array as A
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
-import qualified Streamly.String as SS
-import Data.Word (Word8)
+-- import qualified Streamly.String as SS
 
 import Data.Char (ord)
 import System.Environment (getArgs)
@@ -13,21 +12,13 @@ import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
 cat src = FH.writeArrays FH.stdout $ FH.readArraysOfUpto (256*1024) src
-{-
 -- byte stream version
-cat src =
-      FH.writeByChunksOf (1024*1024) FH.stdout
-    $ FH.readByChunksUpto (16*1024) src
--}
+-- cat src = FH.write FH.stdout $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
 cp src dst = FH.writeArrays dst $ FH.readArraysOfUpto (256*1024) src
-{-
 -- byte stream version
-cp src dst =
-      FH.writeByChunksOf (1024*1024) dst
-    $ FH.readByChunksUpto (16*1024) src
--}
+-- cp src dst = FH.write dst $ FH.read src
 
 ord' :: Num a => Char -> a
 ord' = (fromIntegral . ord)
