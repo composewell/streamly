@@ -95,9 +95,9 @@ module Streamly.FileSystem.FD
     -- -- * Array Write
     -- , writeArray
     , writeArrays
-    , writeArraysOfUpto
+    , writeArraysPackedUpto
     , writev
-    , writevArraysOfUpto
+    , writevArraysPackedUpto
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -355,10 +355,10 @@ writev h m = S.mapM_ (liftIO . writeIOVec h) m
 -- specified size.
 --
 -- @since 0.7.0
-{-# INLINE writeArraysOfUpto #-}
-writeArraysOfUpto :: (MonadIO m, Storable a)
+{-# INLINE writeArraysPackedUpto #-}
+writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysOfUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
+writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
 
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
 -- of up to a maximum total size. Writes are performed using gather IO via
@@ -366,10 +366,10 @@ writeArraysOfUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
 -- limited to 512.
 --
 -- @since 0.7.0
-{-# INLINE writevArraysOfUpto #-}
-writevArraysOfUpto :: MonadIO m
+{-# INLINE writevArraysPackedUpto #-}
+writevArraysPackedUpto :: MonadIO m
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writevArraysOfUpto n h xs =
+writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
