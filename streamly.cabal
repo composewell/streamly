@@ -738,6 +738,7 @@ benchmark base
                    , Streamly.Streams.StreamD.Type
                    , Streamly.Streams.StreamD
                    , Streamly.Streams.Prelude
+                   , Streamly.FileSystem.IOVec
 
                    , StreamDOps
                    , StreamKOps
@@ -806,6 +807,7 @@ executable nano-bench
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.Streams.StreamD.Type
+                   , Streamly.FileSystem.IOVec
                    , Streamly.Streams.StreamD
   default-language: Haskell2010
   ghc-options:  -O2 -Wall -with-rtsopts "-T"

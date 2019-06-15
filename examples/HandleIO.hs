@@ -5,6 +5,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
 import qualified Streamly.String as SS
+import Data.Word (Word8)
 
 import Data.Char (ord)
 import System.Environment (getArgs)
@@ -13,6 +14,7 @@ import System.IO (IOMode(..), hSeek, SeekMode(..))
 cat :: FH.Handle -> IO ()
 cat src = FH.writeArrays FH.stdout $ FH.readArraysOfUpto (256*1024) src
 {-
+-- byte stream version
 cat src =
       FH.writeByChunksOf (1024*1024) FH.stdout
     $ FH.readByChunksUpto (16*1024) src
@@ -21,6 +23,7 @@ cat src =
 cp :: FH.Handle -> FH.Handle -> IO ()
 cp src dst = FH.writeArrays dst $ FH.readArraysOfUpto (256*1024) src
 {-
+-- byte stream version
 cp src dst =
       FH.writeByChunksOf (1024*1024) dst
     $ FH.readByChunksUpto (16*1024) src
@@ -31,9 +34,15 @@ ord' = (fromIntegral . ord)
 
 wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
+    $ A.splitArraysOn 10
+    $ FH.readArrays src)
+{-
+-- Char stream version
+wcl src = print =<< (S.length
     $ flip SS.foldLines FL.drain
     $ SS.decodeChar8
     $ FH.read src)
+-}
 
 grepc :: String -> FH.Handle -> IO ()
 grepc pat src = print . (subtract 1) =<< (S.length

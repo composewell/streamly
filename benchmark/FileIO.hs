@@ -135,14 +135,14 @@ main = do
                 FH.write outh (FH.read inh)
             ]
         -- This needs an ascii file, as decode just errors out.
-        , bgroup "decode/encode"
-           [ mkBench "encodeChar8/decodeChar8" href $ do
+        , bgroup "decode-encode"
+           [ mkBench "encodeChar8-decodeChar8" href $ do
                Handles inh outh <- readIORef href
                FH.write outh
                  $ SS.encodeChar8
                  $ SS.decodeChar8
                  $ FH.read inh
-           , mkBench "encodeUtf8/decodeUtf8" href $ do
+           , mkBench "encodeUtf8-decodeUtf8" href $ do
                Handles inh outh <- readIORef href
                FH.write outh
                  $ SS.encodeUtf8
@@ -165,8 +165,8 @@ main = do
                 Handles inh _ <- readIORef href
                 S.length $ FL.chunksOf 1000 FL.drain (FH.read inh)
             ]
-        , bgroup "group/ungroup"
-            [ mkBench "lines/unlines" href $ do
+        , bgroup "group-ungroup"
+            [ mkBench "lines-unlines" href $ do
                 Handles inh outh <- readIORef href
                 FH.write outh
                   $ SS.encodeChar8
@@ -174,7 +174,13 @@ main = do
                   $ SS.lines
                   $ SS.decodeChar8
                   $ FH.read inh
-            , mkBench "words/unwords" href $ do
+            , mkBench "lines-unlines-arrays" href $ do
+                Handles inh outh <- readIORef href
+                FH.writeArraysPackedUpto (1024*1024) outh
+                    $ S.insertAfterEach (return $ A.fromList [10])
+                    $ A.splitArraysOn 10
+                    $ FH.readArraysOfUpto (1024*1024) inh
+            , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href
                 FH.write outh
                   $ SS.encodeChar8

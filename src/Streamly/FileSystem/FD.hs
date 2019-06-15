@@ -358,7 +358,7 @@ writev h m = S.mapM_ (liftIO . writeIOVec h) m
 {-# INLINE writeArraysOfUpto #-}
 writeArraysOfUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysOfUpto n h xs = writeArrays h $ A.coalesceChunksOf n xs
+writeArraysOfUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
 
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
 -- of up to a maximum total size. Writes are performed using gather IO via

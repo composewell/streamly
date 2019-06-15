@@ -3,9 +3,12 @@
 
 module Main (main) where
 
-import           Test.Hspec.QuickCheck
-import           Test.QuickCheck (Property, forAll, Gen, listOf, arbitraryUnicodeChar)
-import           Test.QuickCheck.Monadic (run, monadicIO, assert)
+import Data.Char (ord, chr)
+import Data.Word (Word8)
+import Test.Hspec.QuickCheck
+import Test.QuickCheck
+       (Property, forAll, Gen, listOf, arbitraryUnicodeChar, arbitrary)
+import Test.QuickCheck.Monadic (run, monadicIO, assert)
 
 import           Test.Hspec as H
 
@@ -14,16 +17,21 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.String as SS
 
 -- Coverage build takes too long with default number of tests
+{-
 maxTestCount :: Int
 #ifdef DEVBUILD
 maxTestCount = 100
 #else
 maxTestCount = 10
 #endif
+-}
 
 -- Use quickcheck-unicode instead?
 genUnicode :: Gen String
 genUnicode = listOf arbitraryUnicodeChar
+
+genWord8 :: Gen [Word8]
+genWord8 = listOf arbitrary
 
 propDecodeEncodeId :: Property
 propDecodeEncodeId =
@@ -42,6 +50,17 @@ testLines =
                 $ SS.lines
                 $ S.fromList list
             assert (xs == lines list)
+
+testLinesArray :: Property
+testLinesArray =
+    forAll genWord8 $ \list ->
+        monadicIO $ do
+            xs <- S.toList
+                    $ S.map A.toList
+                    $ A.splitArraysOn 10
+                    $ S.yield (A.fromList list)
+            assert (xs == map (map (fromIntegral . ord))
+                              (lines (map (chr .  fromIntegral) list)))
 
 testWords :: Property
 testWords =
@@ -82,6 +101,7 @@ main = hspec
     describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
         prop "Streamly.String.lines == Prelude.lines" $ testLines
+        prop "Arrays Streamly.String.lines == Prelude.lines" $ testLinesArray
         prop "Streamly.String.words == Prelude.words" $ testWords
         prop
             "Streamly.String.unlines . Streamly.String.lines == unlines . lines"

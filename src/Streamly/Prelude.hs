@@ -370,6 +370,7 @@ module Streamly.Prelude
     , insertBy
     , intersperseM
     , intersperse
+    , insertAfterEach
     -- , intersperseBySpan
     , intersperseByTime
 
@@ -1948,6 +1949,10 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 {-# INLINE intersperse #-}
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
 intersperse a = fromStreamS . S.intersperse a . toStreamS
+
+{-# INLINE insertAfterEach #-}
+insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+insertAfterEach m = fromStreamS . S.insertAfterEach m . toStreamS
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@

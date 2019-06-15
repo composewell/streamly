@@ -73,6 +73,7 @@ module Streamly.FileSystem.Handle
     -- -- * Array Write
     , writeArray
     , writeArrays
+    , writeArraysPackedUpto
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -108,11 +109,11 @@ import Prelude hiding (read)
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
+import Streamly.Mem.Array.Types (defaultChunkSize, shrinkToFit)
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 
@@ -150,7 +151,7 @@ readArrayUpto size h = do
                 , aBound = p `plusPtr` size
                 }
         -- XXX shrink only if the diff is significant
-        A.shrinkToFit v
+        shrinkToFit v
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -211,7 +212,7 @@ readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
-readArrays = readArraysOfUpto A.defaultChunkSize
+readArrays = readArraysOfUpto defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -252,6 +253,17 @@ read = A.flattenArrays . readArrays
 writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
 writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 
+-- | Write a stream of arrays to a handle after coalescing them in chunks of
+-- specified size. The chunk size is only a maximum and the actual writes could
+-- be smaller than that as we do not split the arrays to fit them to the
+-- specified size.
+--
+-- @since 0.7.0
+{-# INLINE writeArraysPackedUpto #-}
+writeArraysPackedUpto :: (MonadIO m, Storable a)
+    => Int -> Handle -> SerialT m (Array a) -> m ()
+writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
+
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
 -- XXX test this
@@ -278,7 +290,7 @@ writeByChunksOf n h m = writeArrays h $ A.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunksOf A.defaultChunkSize
+write = writeByChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}

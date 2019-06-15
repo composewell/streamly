@@ -205,6 +205,7 @@ module Streamly.Streams.StreamD
     -- * Inserting
     , intersperseM
     , intersperse
+    , insertAfterEach
     , insertBy
 
     -- * Deleting
@@ -2203,6 +2204,28 @@ intersperseM m (Stream step state) = Stream step' (FirstYield state)
             Stop -> return Stop
 
     step' _ (YieldAndCarry x st) = return $ Yield x (InterspersingYield st)
+
+data SuffixState s a
+    = SuffixElem s
+    | SuffixSuffix s
+    | SuffixYield a (SuffixState s a)
+
+{-# INLINE_NORMAL insertAfterEach #-}
+insertAfterEach :: forall m a. Monad m => m a -> Stream m a -> Stream m a
+insertAfterEach action (Stream step state) = Stream step' (SuffixElem state)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (SuffixElem st) = do
+        r <- step gst st
+        return $ case r of
+            Yield x s -> Skip (SuffixYield x (SuffixSuffix s))
+            Skip s -> Skip (SuffixElem s)
+            Stop -> Stop
+
+    step' _ (SuffixSuffix st) = do
+        action >>= \r -> return $ Skip (SuffixYield r (SuffixElem st))
+
+    step' _ (SuffixYield x next) = return $ Yield x next
 
 {-# INLINE intersperse #-}
 intersperse :: Monad m => a -> Stream m a -> Stream m a

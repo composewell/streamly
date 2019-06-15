@@ -38,7 +38,7 @@ module Streamly.Mem.Array.Types
     , fromStreamDArraysOf
     , flattenArrays
     , flattenArraysRev
-    , coalesceChunksOf
+    , packArraysChunksOf
     , groupIOVecsOf
     , splitOn
 
@@ -485,12 +485,49 @@ fromStreamDN limit str = do
         liftIO $ poke ptr x
         return $ ptr `plusPtr` sizeOf (undefined :: a)
 
+data GroupState s start end bound
+    = GroupStart s
+    | GroupBuffer s start end bound
+    | GroupYield start end bound (GroupState s start end bound)
+    | GroupFinish
+
 -- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
-{-# INLINE fromStreamDArraysOf #-}
+{-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf :: (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
-fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
+-- fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
+fromStreamDArraysOf n (D.Stream step state) =
+    D.Stream step' (GroupStart state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ (GroupStart st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Mem.Array.Types.fromStreamDArraysOf: the size of "
+                 ++ "arrays [" ++ show n ++ "] must be a natural number"
+        Array start end bound <- liftIO $ newArray n
+        return $ D.Skip (GroupBuffer st start end bound)
+
+    step' gst (GroupBuffer st start end bound) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                liftIO $ poke end x
+                let end' = end `plusPtr` 1
+                return $
+                    if end' >= bound
+                    then D.Skip (GroupYield start end' bound (GroupStart s))
+                    else D.Skip (GroupBuffer s start end' bound)
+            D.Skip s -> return $ D.Skip (GroupBuffer s start end bound)
+            D.Stop -> return $ D.Skip (GroupYield start end bound GroupFinish)
+
+    step' _ (GroupYield start end bound next) =
+        return $ D.Yield (Array start end bound) next
+
+    step' _ GroupFinish = return D.Stop
 
 -- XXX concatMap does not seem to have the best possible performance so we have
 -- a custom way to concat arrays.
@@ -833,15 +870,20 @@ data SpliceState s arr
 -- maximum specified size.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL coalesceChunksOf #-}
-coalesceChunksOf :: (MonadIO m, Storable a)
+{-# INLINE_NORMAL packArraysChunksOf #-}
+packArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> D.Stream m (Array a) -> D.Stream m (Array a)
-coalesceChunksOf n (D.Stream step state) = D.Stream step' (SpliceInitial state)
+packArraysChunksOf n (D.Stream step state) =
+    D.Stream step' (SpliceInitial state)
 
     where
 
     {-# INLINE_LATE step' #-}
     step' gst (SpliceInitial st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Mem.Array.Types.packArraysChunksOf: the size of "
+                 ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
             D.Yield arr s -> return $
@@ -858,7 +900,8 @@ coalesceChunksOf n (D.Stream step state) = D.Stream step' (SpliceInitial state)
             D.Yield arr s -> do
                 let len = byteLength buf + byteLength arr
                 if len > n
-                then return $ D.Skip (SpliceYielding buf (SpliceBuffering s arr))
+                then return $
+                    D.Skip (SpliceYielding buf (SpliceBuffering s arr))
                 else do
                     buf' <- if byteCapacity buf < n
                             then liftIO $ realloc n buf
@@ -893,6 +936,14 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
 
     {-# INLINE_LATE step' #-}
     step' gst (GatherInitial st) = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Mem.Array.Types.groupIOVecsOf: the size of "
+                 ++ "groups [" ++ show n ++ "] must be a natural number"
+        when (maxIOVLen <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Mem.Array.Types.groupIOVecsOf: the number of "
+                 ++ "IOVec entries [" ++ show n ++ "] must be a natural number"
         r <- step (adaptState gst) st
         case r of
             D.Yield arr s -> do

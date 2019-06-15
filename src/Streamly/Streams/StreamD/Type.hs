@@ -65,7 +65,7 @@ module Streamly.Streams.StreamD.Type
 where
 
 import Control.Applicative (liftA2)
-import Control.Monad (ap)
+import Control.Monad (ap, when)
 import Control.Monad.Trans (lift, MonadTrans)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
@@ -520,6 +520,13 @@ groupsOf n f (Stream step state) =
 
     {-# INLINE_LATE stepOuter #-}
     stepOuter gst (Just st) = do
+        -- XXX shall we use the Natural type instead? Need to check performance
+        -- implications.
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Streams.StreamD.Type.groupsOf: the size of "
+                 ++ "groups [" ++ show n ++ "] must be a natural number"
+
         -- We retrieve the first element of the stream before we start to fold
         -- a chunk so that we do not return an empty chunk in case the stream
         -- is empty.

@@ -115,8 +115,8 @@ module Streamly.Mem.Array
     -- Streams of arrays
     , flattenArrays
     -- , flattenArraysRev
-    , coalesceArrays
-    , coalesceChunksOf
+    , packArrays
+    , packArraysChunksOf
     , unlinesArraysBy
     , splitArraysOn
 
@@ -500,10 +500,11 @@ splitArraysOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
 -- maximum specified size.
 --
 -- @since 0.7.0
-{-# INLINE coalesceChunksOf #-}
-coalesceChunksOf :: (MonadIO m, Storable a)
+{-# INLINE packArraysChunksOf #-}
+packArraysChunksOf :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
-coalesceChunksOf n xs = D.fromStreamD $ A.coalesceChunksOf n (D.toStreamD xs)
+packArraysChunksOf n xs =
+    D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
 
 -- |
 -- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
@@ -560,9 +561,9 @@ spliceArraysRealloced s = do
 -- array. The stream must be /finite/.
 --
 -- @since 0.7.0
-{-# INLINE coalesceArrays #-}
-coalesceArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
-coalesceArrays = spliceArraysRealloced
+{-# INLINE packArrays #-}
+packArrays :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
+packArrays = spliceArraysRealloced
 -- spliceArrays = _spliceArraysBuffered
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
