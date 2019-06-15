@@ -106,8 +106,6 @@ extra-source-files:
     docs/streamly-vs-async.md
     docs/transformers.md
     bench.sh
-    stack-7.10.yaml
-    stack-8.0.yaml
     stack.yaml
     src/Streamly/Streams/Instances.hs
     src/Streamly/Streams/inline.hs
@@ -263,7 +261,7 @@ library
 
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6
-                     , deepseq           >= 1.4.3 && < 1.5
+                     , deepseq           >= 1.4.2 && < 1.5
                      , containers        >= 0.5   && < 0.7
                      , heaps             >= 0.3   && < 0.4
 
@@ -535,7 +533,7 @@ benchmark linear
   build-depends:
       streamly
     , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
   if impl(ghc < 8.0)
@@ -570,7 +568,7 @@ benchmark linear-async
   build-depends:
       streamly
     , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
   if impl(ghc < 8.0)
@@ -604,7 +602,7 @@ benchmark linear-rate
   build-depends:
       streamly
     , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
   if impl(ghc < 8.0)
@@ -639,7 +637,7 @@ benchmark nested
   build-depends:
       streamly
     , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
   if impl(ghc < 8.0)
@@ -674,7 +672,7 @@ benchmark array
   build-depends:
       streamly
     , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
   if impl(ghc < 8.0)
@@ -710,7 +708,7 @@ benchmark fileio
     , base                >= 4.8   && < 5
     , gauge               >= 0.2.4 && < 0.3
     , typed-process       >= 0.2.3 && < 0.3
-    , deepseq             >= 1.4.3 && < 1.5
+    , deepseq             >= 1.4.2 && < 1.5
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
@@ -767,7 +765,7 @@ benchmark base
     buildable: True
     build-depends:
         base              >= 4.8   && < 5
-      , deepseq           >= 1.4.3 && < 1.5
+      , deepseq           >= 1.4.2 && < 1.5
       , random            >= 1.0   && < 2.0
       , gauge             >= 0.2.4 && < 0.3
 
@@ -822,7 +820,7 @@ executable nano-bench
        , gauge             >= 0.2.4 && < 0.3
        , ghc-prim          >= 0.2   && < 0.6
        , containers        >= 0.5   && < 0.7
-       , deepseq           >= 1.4.3 && < 1.5
+       , deepseq           >= 1.4.2 && < 1.5
        , heaps             >= 0.3   && < 0.4
        , random            >= 1.0   && < 2.0
 

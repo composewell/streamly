@@ -81,17 +81,14 @@ matrix:
   # CABAL_CONFIGURE_OPTIONS (cabal), CABAL_NEWBUILD_OPTIONS (cabal-new)
   # --------------------------------------------------------------------------
 
-  # Using stack builds, cabal builds get terminated because the tests
-  # take more than 10 minutes and it does not produce any output until the end.
-
   #- env: BUILD=cabal-new GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.6.4 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
-    addons: {apt: {packages: [cabal-install-head,ghc-8.6.4], sources: [hvr-ghc]}}
+  - env: BUILD=cabal-new GHCVER=8.6.5 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.6.5], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.6.4 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
-    addons: {apt: {packages: [cabal-install-head,ghc-8.6.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal-new GHCVER=8.6.5 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+  #  addons: {apt: {packages: [cabal-install-head,ghc-8.6.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-new GHC_OPTIONS="" GHCVER=8.4.4
     addons: {apt: {packages: [cabal-install-head,ghc-8.4.4], sources: [hvr-ghc]}}
@@ -99,11 +96,15 @@ matrix:
   #- env: BUILD=cabal-new GHCVER=8.2.2
   #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal GHCVER=8.0.2
-  #  addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
+  # Disable warnings because COMPLETE pragma is not available in this GHC
+  # version
+  - env: BUILD=cabal-new GHCVER=8.0.2 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+    addons: {apt: {packages: [cabal-install-2.4,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal GHCVER=7.10.3
-  #  addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3], sources: [hvr-ghc]}}
+  # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
+  # warnings.
+  - env: BUILD=cabal-new GHCVER=7.10.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+    addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # You can specify build flags like this:
   #- env: BUILD=cabal-new CABAL_NEWBUILD_OPTIONS="--flags=dev"
@@ -131,19 +132,15 @@ matrix:
   # are: STACK_YAML, STACK_OPTIONS, STACK_BUILD_OPTIONS
   # --------------------------------------------------------------------------
 
-  # Using cabal-install-1.24 for stack solver to work
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
-  # Use cabal-install-1.24 if you want stack solver to work
-  #- env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6
-  #  addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
+  - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  # Use cabal-install-1.24 if you want stack solver to work
   #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4
   #  addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
 
-  # Use cabal-install-1.24 for stack solver to work
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
   # So disable the benchmarks for this build.
   - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y DISABLE_BENCH=y
@@ -151,13 +148,13 @@ matrix:
 
   # Disable warnings because COMPLETE pragma is not available in this GHC
   # version
-  - env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 GHC_OPTIONS="" STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 GHC_OPTIONS="" STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  # addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
   # warnings.
-  - env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+  #  addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # You can keep a STACK_YAML file at any path location
   #- env: BUILD=stack STACK_YAML=.ci/stack-8.0.yaml
