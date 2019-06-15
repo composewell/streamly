@@ -1955,7 +1955,7 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- @since 0.7.0
 {-# INLINE insertAfterEach #-}
 insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-insertAfterEach m = fromStreamS . S.insertAfterEach m . toStreamS
+insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@

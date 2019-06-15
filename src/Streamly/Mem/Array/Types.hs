@@ -494,7 +494,7 @@ data GroupState s start end bound
 -- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
-fromStreamDArraysOf :: (MonadIO m, Storable a)
+fromStreamDArraysOf :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
 -- fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
 fromStreamDArraysOf n (D.Stream step state) =
@@ -516,7 +516,7 @@ fromStreamDArraysOf n (D.Stream step state) =
         case r of
             D.Yield x s -> do
                 liftIO $ poke end x
-                let end' = end `plusPtr` 1
+                let end' = end `plusPtr` sizeOf (undefined :: a)
                 return $
                     if end' >= bound
                     then D.Skip (GroupYield start end' bound (GroupStart s))
