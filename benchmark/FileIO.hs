@@ -18,11 +18,11 @@ import Gauge
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.Fold as FL
+import qualified Streamly.String as SS
 
 #ifdef DEVBUILD
 import Data.Char (ord, chr)
-import qualified Streamly.Fold as FL
-import qualified Streamly.String as SS
 #endif
 
 -- Input and output file handles
@@ -87,6 +87,7 @@ main = do
 #endif
     outHandle <- openFile outfile WriteMode
     href <- newIORef $ Handles inHandle outHandle
+    devNull <- openFile "/dev/null" WriteMode
 
     defaultMain
         [ bgroup "readArray"
@@ -104,11 +105,17 @@ main = do
                 Handles inh _ <- readIORef href
                 let s = FH.readArrays inh
                 S.sum (S.map A.length s)
+            , mkBench "linecount" href $ do
+                Handles inh _ <- readIORef href
+                S.length $ A.splitArraysOn 10 $ FH.readArrays inh
             , mkBench "sum" href $ do
                 let foldlArr' f z = runIdentity . S.foldl' f z . A.read
                 Handles inh _ <- readIORef href
                 let s = FH.readArrays inh
                 S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
+            , mkBench "cat" href $ do
+                Handles inh _ <- readIORef href
+                FH.writeArrays devNull $ FH.readArraysOfUpto (256*1024) inh
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
@@ -117,9 +124,18 @@ main = do
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
                 S.length $ FH.read inh
+            , mkBench "linecount" href $ do
+                Handles inh _ <- readIORef href
+                S.length
+                    $ flip SS.foldLines FL.drain
+                    $ SS.decodeChar8
+                    $ FH.read inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 S.sum $ FH.read inh
+            , mkBench "cat" href $ do
+                Handles inh _ <- readIORef href
+                FH.write devNull $ FH.read inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
