@@ -45,7 +45,10 @@ module Streamly.Streams.Serial
 where
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
+import Control.DeepSeq (NFData(..))
+#if MIN_VERSION_deepseq(1,4,3)
+import Control.DeepSeq (NFData1(..))
+#endif
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -203,6 +206,7 @@ map f = mapM (return . f)
 MONAD_APPLICATIVE_INSTANCE(SerialT,)
 MONAD_COMMON_INSTANCES(SerialT,)
 LIST_INSTANCES(SerialT)
+NFDATA1_INSTANCE(SerialT)
 FOLDABLE_INSTANCE(SerialT)
 TRAVERSABLE_INSTANCE(SerialT)
 
@@ -375,5 +379,6 @@ instance Monad m => Monad (WSerialT m) where
 MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
 LIST_INSTANCES(WSerialT)
+NFDATA1_INSTANCE(WSerialT)
 FOLDABLE_INSTANCE(WSerialT)
 TRAVERSABLE_INSTANCE(WSerialT)

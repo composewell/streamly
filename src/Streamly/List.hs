@@ -73,7 +73,10 @@ module Streamly.List
 where
 
 import Control.Arrow (second)
-import Control.DeepSeq (NFData(..), NFData1(..))
+import Control.DeepSeq (NFData(..))
+#if MIN_VERSION_deepseq(1,4,3)
+import Control.DeepSeq (NFData1(..))
+#endif
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
@@ -100,7 +103,10 @@ import qualified Streamly.Streams.StreamK as K
 --
 -- @since 0.6.0
 newtype List a = List { toSerial :: SerialT Identity a }
-    deriving (Show, Read, Eq, Ord, NFData, NFData1
+    deriving (Show, Read, Eq, Ord, NFData
+#if MIN_VERSION_deepseq(1,4,3)
+    , NFData1
+#endif
              , Semigroup, Monoid, Functor, Foldable
              , Applicative, Traversable, Monad)
 
@@ -159,7 +165,10 @@ pattern Cons x xs <-
 --
 -- @since 0.6.0
 newtype ZipList a = ZipList { toZipSerial :: ZipSerialM Identity a }
-    deriving (Show, Read, Eq, Ord, NFData, NFData1
+    deriving (Show, Read, Eq, Ord, NFData
+#if MIN_VERSION_deepseq(1,4,3)
+    , NFData1
+#endif
              , Semigroup, Monoid, Functor, Foldable
              , Applicative, Traversable)
 

@@ -56,6 +56,15 @@ instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
 -- well, because they do not get inlined. Need to add INLINE in Ord class in
 -- base?
 
+#if MIN_VERSION_deepseq(1,4,3)
+#define NFDATA1_INSTANCE(STREAM)                                              \
+instance NFData1 (STREAM Identity) where {                                    \
+    {-# INLINE liftRnf #-};                                                   \
+    liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
+#else
+#define NFDATA1_INSTANCE(STREAM)
+#endif
+
 #define LIST_INSTANCES(STREAM)                                                \
 instance IsList (STREAM Identity a) where {                                   \
     type (Item (STREAM Identity a)) = a;                                      \
@@ -98,10 +107,8 @@ instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
     {-# INLINE fromString #-};                                                \
     fromString = P.fromList };                                                \
                                                                               \
-instance NFData a => NFData (STREAM Identity a) where { rnf = rnf1 };         \
-instance NFData1 (STREAM Identity) where {                                    \
-    {-# INLINE liftRnf #-};                                                   \
-    liftRnf r = runIdentity . P.foldl' (\_ x -> r x) () }
+instance NFData a => NFData (STREAM Identity a) where {                       \
+    rnf = runIdentity . P.foldl' (\_ x -> rnf x) () };                        \
 
 -------------------------------------------------------------------------------
 -- Foldable

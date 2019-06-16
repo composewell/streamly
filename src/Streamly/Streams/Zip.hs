@@ -39,7 +39,10 @@ module Streamly.Streams.Zip
 where
 
 import Control.Applicative (liftA2)
-import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
+import Control.DeepSeq (NFData(..))
+#if MIN_VERSION_deepseq(1,4,3)
+import Control.DeepSeq (NFData1(..))
+#endif
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Foldable (fold)
 import Data.Semigroup (Semigroup(..))
@@ -124,6 +127,7 @@ instance IsStream ZipSerialM where
     (|:) = consMZip
 
 LIST_INSTANCES(ZipSerialM)
+NFDATA1_INSTANCE(ZipSerialM)
 
 instance Monad m => Functor (ZipSerialM m) where
     fmap = map

@@ -1,4 +1,8 @@
 {-# LANGUAGE CPP #-}
+#if __GLASGOW_HASKELL__ >= 800
+{-# OPTIONS_GHC -Wno-orphans #-}
+#endif
+
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -25,6 +29,10 @@ import Gauge
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
+
+#if !MIN_VERSION_deepseq(1,4,3)
+instance NFData Ordering where rnf = (`seq` ())
+#endif
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
