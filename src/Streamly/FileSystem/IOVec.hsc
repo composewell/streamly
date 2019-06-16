@@ -41,6 +41,10 @@ data IOVec = IOVec
   , iovLen  :: {-# UNPACK #-} !Word64
   } deriving (Eq, Show)
 
+#if __GLASGOW_HASKELL__ < 800
+#let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
+#endif
+
 instance Storable IOVec where
   sizeOf _ = #{size struct iovec}
   alignment _ = #{alignment struct iovec}
