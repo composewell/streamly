@@ -28,21 +28,25 @@ module Streamly.FileSystem.FDIO
     )
 where
 
+#if !defined(mingw32_HOST_OS)
 import Control.Concurrent (threadWaitWrite)
 import Control.Monad (when)
 import Data.Int (Int64)
-import Data.Word (Word8)
 import Foreign.C.Error (throwErrnoIfMinus1RetryMayBlock)
-import Foreign.C.Types (CSize(..), CInt(..))
 #if __GLASGOW_HASKELL__ >= 802
 import Foreign.C.Types (CBool(..))
 #endif
-import Foreign.Ptr (plusPtr, Ptr)
 import System.Posix.Internals (c_write, c_safe_write)
+import Streamly.FileSystem.IOVec (c_writev, c_safe_writev)
+#endif
+
+import Foreign.C.Types (CSize(..), CInt(..))
+import Data.Word (Word8)
+import Foreign.Ptr (plusPtr, Ptr)
 
 import GHC.IO.FD (FD(..))
 
-import Streamly.FileSystem.IOVec (IOVec(..), c_writev, c_safe_writev)
+import Streamly.FileSystem.IOVec (IOVec(..))
 
 -------------------------------------------------------------------------------
 -- IO Routines
@@ -54,12 +58,12 @@ import Streamly.FileSystem.IOVec (IOVec(..), c_writev, c_safe_writev)
 -- Write without blocking the underlying OS thread
 -------------------------------------------------------------------------------
 
+#if !defined(mingw32_HOST_OS)
+
 foreign import ccall unsafe "rtsSupportsBoundThreads" threaded :: Bool
 
 isNonBlocking :: FD -> Bool
 isNonBlocking fd = fdIsNonBlocking fd /= 0
-
-#if !defined(mingw32_HOST_OS)
 
 -- "poll"s the fd for data to become available or timeout
 -- See cbits/inputReady.c in base package
@@ -110,6 +114,25 @@ writevNonBlocking loc !fd !iov !cnt
     safe_write    = do_write (c_safe_writev (fdFD fd) iov (fromIntegral cnt))
 
 #else
+writeNonBlocking :: String -> FD -> Ptr Word8 -> Int -> CSize -> IO CInt
+writeNonBlocking = undefined
+
+writevNonBlocking :: String -> FD -> Ptr IOVec -> Int -> IO CInt
+writevNonBlocking = undefined
+#endif
+
+-- Windows code is disabled for now
+#if 0
+
+#if defined(mingw32_HOST_OS)
+# if defined(i386_HOST_ARCH)
+#  define WINDOWS_CCONV stdcall
+# elif defined(x86_64_HOST_ARCH)
+#  define WINDOWS_CCONV ccall
+# else
+#  error Unknown mingw32 arch
+# endif
+#endif
 
 foreign import WINDOWS_CCONV safe "recv"
    c_safe_recv :: CInt -> Ptr Word8 -> CInt -> CInt{-flags-} -> IO CInt

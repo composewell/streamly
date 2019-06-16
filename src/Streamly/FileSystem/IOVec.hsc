@@ -25,8 +25,10 @@ where
 import Data.Word (Word8, Word64)
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr)
-import Foreign.Storable (Storable(..))
 import System.Posix.Types (CSsize(..))
+#if !defined(mingw32_HOST_OS)
+import Foreign.Storable (Storable(..))
+#endif
 
 -------------------------------------------------------------------------------
 -- IOVec
@@ -65,6 +67,9 @@ foreign import capi safe "sys/uio.h writev"
    c_safe_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
 
 #else
+c_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
 c_writev = error "writev not implemented for windows"
+
+c_safe_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
 c_safe_writev = error "writev not implemented for windows"
 #endif

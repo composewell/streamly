@@ -139,10 +139,14 @@ import qualified Streamly.FileSystem.FDIO as RawIO
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.StreamK.Type (IsStream, mkStream)
+import Streamly.Mem.Array.Types (byteLength, defaultChunkSize)
+
+#if !defined(mingw32_HOST_OS)
+import Streamly.Mem.Array.Types (groupIOVecsOf)
 import Streamly.Streams.StreamD (toStreamD)
 import Streamly.Streams.StreamD.Type (fromStreamD)
-import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Mem.Array.Types (byteLength, defaultChunkSize, groupIOVecsOf)
+#endif
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
@@ -249,6 +253,7 @@ writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p -> do
     where
     aLen = byteLength arr
 
+#if !defined(mingw32_HOST_OS)
 -- | Write an array of 'IOVec' to a file handle.
 --
 -- @since 0.7.0
@@ -258,6 +263,7 @@ writeIOVec _ iov | A.length iov == 0 = return ()
 writeIOVec (Handle fd) iov =
     withForeignPtr (aStart iov) $ \p ->
         RawIO.writevAll fd p (A.length iov)
+#endif
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -344,14 +350,6 @@ read = A.flattenArrays . readArrays
 writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
 writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 
--- XXX this is incomplete
--- | Write a stream of 'IOVec' arrays to a handle.
---
--- @since 0.7.0
-{-# INLINE writev #-}
-writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
-writev h m = S.mapM_ (liftIO . writeIOVec h) m
-
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
 -- specified size. The chunk size is only a maximum and the actual writes could
 -- be smaller than that as we do not split the arrays to fit them to the
@@ -362,6 +360,15 @@ writev h m = S.mapM_ (liftIO . writeIOVec h) m
 writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
+
+#if !defined(mingw32_HOST_OS)
+-- XXX this is incomplete
+-- | Write a stream of 'IOVec' arrays to a handle.
+--
+-- @since 0.7.0
+{-# INLINE writev #-}
+writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
+writev h m = S.mapM_ (liftIO . writeIOVec h) m
 
 -- XXX this is incomplete
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
@@ -375,6 +382,7 @@ _writevArraysPackedUpto :: MonadIO m
     => Int -> Handle -> SerialT m (Array a) -> m ()
 _writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
+#endif
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --

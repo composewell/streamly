@@ -39,7 +39,9 @@ module Streamly.Mem.Array.Types
     , flattenArrays
     , flattenArraysRev
     , packArraysChunksOf
+#if !defined(mingw32_HOST_OS)
     , groupIOVecsOf
+#endif
     , splitOn
 
     -- * Elimination
@@ -97,7 +99,10 @@ import GHC.Ptr (Ptr(..))
 
 import Streamly.Fold.Types (Fold(..))
 import Streamly.SVar (adaptState)
+
+#if !defined(mingw32_HOST_OS)
 import Streamly.FileSystem.FDIO (IOVec(..))
+#endif
 
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
@@ -923,6 +928,7 @@ packArraysChunksOf n (D.Stream step state) =
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
 
+#if !defined(mingw32_HOST_OS)
 data GatherState s arr
     = GatherInitial s
     | GatherBuffering s arr Int
@@ -990,6 +996,7 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
     step' _ GatherFinish = return D.Stop
 
     step' _ (GatherYielding iov next) = return $ D.Yield iov next
+#endif
 
 -- | Create two slices of an array without copying the original array. The
 -- specified index @i@ is the first index of the second slice.
