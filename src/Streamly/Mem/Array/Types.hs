@@ -82,8 +82,7 @@ import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr
-       (ForeignPtr, withForeignPtr, touchForeignPtr, plusForeignPtr)
+import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
@@ -106,6 +105,15 @@ import qualified GHC.Exts as Exts
 
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
+#endif
+
+#if MIN_VERSION_base(4,10,0)
+import Foreign.ForeignPtr (plusForeignPtr)
+#else
+import GHC.Base (Int(..), plusAddr#)
+import GHC.ForeignPtr (ForeignPtr(..))
+plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
+plusForeignPtr (ForeignPtr addr c) (I# d) = ForeignPtr (plusAddr# addr d) c
 #endif
 
 -------------------------------------------------------------------------------
