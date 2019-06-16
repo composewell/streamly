@@ -32,14 +32,14 @@ import System.Posix.Types (CSsize(..))
 -- IOVec
 -------------------------------------------------------------------------------
 
-#if !defined(mingw32_HOST_OS)
-
-#include <sys/uio.h>
-
 data IOVec = IOVec
   { iovBase :: {-# UNPACK #-} !(Ptr Word8)
   , iovLen  :: {-# UNPACK #-} !Word64
   } deriving (Eq, Show)
+
+#if !defined(mingw32_HOST_OS)
+
+#include <sys/uio.h>
 
 #if __GLASGOW_HASKELL__ < 800
 #let alignment t = "%lu", (unsigned long)offsetof(struct {char x__; t (y__); }, y__)
