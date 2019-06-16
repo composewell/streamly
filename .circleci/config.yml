@@ -201,7 +201,7 @@ jobs:
               GHC_OPTIONS: "-DCOVERAGE_BUILD"
             command: |
               apt-get install -y ghc-8.2.2
-              apt-get install -y cabal-install-2.2
+              apt-get install -y cabal-install-2.4
               # required by hpc-coveralls
               apt-get install -y libcurl4-gnutls-dev
               apt-get install -y git
