@@ -1,7 +1,7 @@
 version: 2
 
 #-----------------------------------------------------------------------------
-# packcheck-0.3.1
+# packcheck-0.4.2
 # Packcheck global environment variables
 #-----------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ env: &env
       # ------------------------------------------------------------------------
       # Where to find the required tools
       # ------------------------------------------------------------------------
-      #PATH: /bin:/usr/bin
+      PATH: /opt/ghc/bin:/sbin:/usr/sbin:/bin:/usr/bin
       #TOOLS_DIR: /opt
 
       # ------------------------------------------------------------------------
@@ -54,12 +54,11 @@ env: &env
       # you can use it by specifying the PACKCHECK_REPO_URL option below in which
       # case it will be automatically copied from the packcheck repo to this path
       # during CI tests. In any case it is finally invoked from this path.
-      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
-      # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
+      PACKCHECK: "./packcheck.sh"
+      # If you have not committed packcheck.sh in your repo at PACKCHECK
       # then it is automatically pulled from this URL.
       PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
-      PACKCHECK_GITHUB_COMMIT: "42d90d6b93bee7741e577d0e3615754165c648f8"
-      PACKCHECK_CMD: "$PACKCHECK_LOCAL_PATH $BUILD PATH=/opt/ghc/bin:$PATH"
+      PACKCHECK_GITHUB_COMMIT: "d11a8a68fef00f4932bbedd6134950495ccd7420"
 
     docker:
       - image: debian:stretch
@@ -70,15 +69,22 @@ env: &env
 
 preinstall: &preinstall
   run: |
+        apt-get update
+        # required for https/cache save and restore
+        apt-get install -y ca-certificates
+
+        # For ghc and cabal-install packages from haskell.org
+        # gnupg is required for apt-key to work
+        apt-get install -y gnupg
+        apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys BA3CBA3FFE22B574
         echo "deb http://downloads.haskell.org/debian stretch main" >> /etc/apt/sources.list
         apt-get update
+
+        # required for packcheck
         apt-get install -y curl
-        # required for apt-key
-        apt-get install -y gnupg
-        # required for cache save and restore
-        apt-get install -y ca-certificates
-        apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys BA3CBA3FFE22B574
-        apt-get update
+
+        # required for outbound https for stack and for stack setup
+        apt-get install -y netbase xz-utils make
 
         # If a custom stack-yaml is specified, replace the default with that
         if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
@@ -87,8 +93,8 @@ preinstall: &preinstall
         # Get packcheck if needed
         CURL=$(which curl)
         PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
-        if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
-        chmod +x $PACKCHECK_LOCAL_PATH
+        if test ! -e "$PACKCHECK"; then $CURL -sL -o "$PACKCHECK" $PACKCHECK_URL; fi;
+        chmod +x $PACKCHECK
 
 restore: &restore
   # Needs to happen after installing ca-certificates
@@ -97,19 +103,92 @@ restore: &restore
 
 save: &save
   save_cache:
-    key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
-    paths:
-      - ~/.cabal
-      - ~/.ghc
-      - ~/.local
-      - ~/.stack
+      key: v1-{{ .Environment.CIRCLE_JOB }}-{{ .Branch }}
+      paths:
+        - ~/.cabal
+        - ~/.ghc
+        - ~/.local
+        - ~/.stack
 
 #-----------------------------------------------------------------------------
 # Build matrix
 #-----------------------------------------------------------------------------
 
 jobs:
-  coveralls:
+  cabal-ghc-8.6.5:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+              apt-get install -y ghc-8.6.3
+              apt-get install -y cabal-install-2.4
+              bash -c "$PACKCHECK cabal-v2"
+        - *save
+  cabal-ghc-8.4.4:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+              apt-get install -y ghc-8.4.4
+              apt-get install -y cabal-install-2.4
+              bash -c "$PACKCHECK cabal-v2"
+        - *save
+  cabal-ghc-8.2.2:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+              apt-get install -y ghc-8.2.2
+              apt-get install -y cabal-install-2.4
+              bash -c "$PACKCHECK cabal-v2"
+        - *save
+  cabal-ghc-8.0.2:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+              apt-get install -y ghc-8.0.2
+              apt-get install -y cabal-install-2.4
+              bash -c "$PACKCHECK cabal-v2"
+        - *save
+  cabal-ghc-7.10.3:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+              apt-get install -y ghc-7.10.3
+              apt-get install -y cabal-install-2.4
+              bash -c "$PACKCHECK cabal-v2"
+        - *save
+  stack-ghc-8.4:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+            bash -c "$PACKCHECK stack RESOLVER=lts-12"
+        - *save
+  stack-ghc-8.2:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run: |
+            bash -c "$PACKCHECK stack RESOLVER=lts-11"
+        - *save
+  coveralls-ghc-8.2.2:
       <<: *env
       steps:
         - checkout
@@ -126,11 +205,18 @@ jobs:
               # required by hpc-coveralls
               apt-get install -y libcurl4-gnutls-dev
               apt-get install -y git
-              bash -c "$PACKCHECK_CMD"
+              bash -c "$PACKCHECK cabal-v1"
         - *save
 
 workflows:
   version: 2
   build:
     jobs:
-      - coveralls
+      #- cabal-ghc-8.6.5
+      #- cabal-ghc-8.4.4
+      #- cabal-ghc-8.2.2
+      #- cabal-ghc-8.0.2
+      #- cabal-ghc-7.10.3
+      #- stack-ghc-8.4
+      #- stack-ghc-8.2
+      - coveralls-ghc-8.2.2

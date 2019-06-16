@@ -1,4 +1,4 @@
-# packcheck-0.4.0
+# packcheck-0.4.2
 # You can use any of the options supported by packcheck as environment
 # variables here.  See https://github.com/harendra-kumar/packcheck for all
 # options and their explanation.
@@ -59,7 +59,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="42d90d6b93bee7741e577d0e3615754165c648f8"
+  - PACKCHECK_GITHUB_COMMIT="d11a8a68fef00f4932bbedd6134950495ccd7420"
 
 notifications:
   email:
@@ -77,47 +77,40 @@ matrix:
   include:
 
   # --------------------------------------------------------------------------
-  # (Linux) cabal builds (BUILD=cabal, BUILD=cabal-new). Common envvars are:
-  # CABAL_CONFIGURE_OPTIONS (cabal), CABAL_NEWBUILD_OPTIONS (cabal-new)
+  # (Linux) cabal builds (BUILD=cabal-v1, BUILD=cabal-v2). Common envvars are:
+  # CABAL_CONFIGURE_OPTIONS (cabal-v1), CABAL_BUILD_OPTIONS (cabal-v2)
   # --------------------------------------------------------------------------
 
-  #- env: BUILD=cabal-new GHCVER=head
+  #- env: BUILD=cabal-v2 GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-new GHCVER=8.6.5 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags streamk"
+  - env: BUILD=cabal-v2 GHCVER=8.6.5 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags streamk"
     addons: {apt: {packages: [cabal-install-head,ghc-8.6.5], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal-new GHCVER=8.6.5 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
-  #  addons: {apt: {packages: [cabal-install-head,ghc-8.6.4,libsdl1.2-dev], sources: [hvr-ghc]}}
-
-  - env: BUILD=cabal-new GHC_OPTIONS="" GHCVER=8.4.4
+  - env: BUILD=cabal-v2 GHC_OPTIONS="" GHCVER=8.4.4
     addons: {apt: {packages: [cabal-install-head,ghc-8.4.4], sources: [hvr-ghc]}}
 
-  #- env: BUILD=cabal-new GHCVER=8.2.2
-  #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal-v2 GHCVER=8.2.2
+  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
 
-  # Disable warnings because COMPLETE pragma is not available in this GHC
-  # version
-  - env: BUILD=cabal-new GHCVER=8.0.2 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+  - env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
 
-  # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
-  # warnings.
-  - env: BUILD=cabal-new GHCVER=7.10.3 GHC_OPTIONS="" CABAL_NEWBUILD_OPTIONS="--flags examples-sdl"
+  - env: BUILD=cabal-v2 GHCVER=7.10.3 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   # You can specify build flags like this:
-  #- env: BUILD=cabal-new CABAL_NEWBUILD_OPTIONS="--flags=dev"
+  #- env: BUILD=cabal-v2 CABAL_BUILD_OPTIONS="--flags=dev"
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
   # GHCJS cabal builds
   # --------------------------------------------------------------------------
 
-  # Use CABAL_NEWBUILD_OPTIONS to pass any options to cabal e.g. project-file
+  # Use CABAL_BUILD_OPTIONS to pass any options to cabal e.g. project-file
   # DISABLE_SDIST_BUILD is set because of a cabal issue. 'cabal info'
   # unnecessarily requires "ghc".
-  - env: BUILD=cabal-new ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
+  - env: BUILD=cabal-v2 ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
     addons:
       apt:
         sources:
@@ -131,6 +124,10 @@ matrix:
   # (Linux) stack builds (BUILD=stack). Some common envvars for stack builds
   # are: STACK_YAML, STACK_OPTIONS, STACK_BUILD_OPTIONS
   # --------------------------------------------------------------------------
+  #
+  # NOTE: cabal-install is required for some of the packcheck options to work.
+  # We just install it so that packcheck does not build it from source
+  # otherwise.
 
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
@@ -146,15 +143,11 @@ matrix:
   - env: BUILD=stack GHCVER=8.2.2 RESOLVER=lts-11 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y DISABLE_BENCH=y
     addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
 
-  # Disable warnings because COMPLETE pragma is not available in this GHC
-  # version
-  #- env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0.2 GHC_OPTIONS="" STACK_YAML=stack-8.0.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-  # addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-9 GHCVER=8.0
+  # addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
 
-  # For 7.10.3 we disable -Werror because of some bogus SPECIALIZE pragma
-  # warnings.
-  #- env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10.3 GHC_OPTIONS="" STACK_YAML=stack-7.10.yaml DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
-  #  addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+  #- env: BUILD=stack RESOLVER=lts-6 GHCVER=7.10
+  # addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
 
   # You can keep a STACK_YAML file at any path location
   #- env: BUILD=stack STACK_YAML=.ci/stack-8.0.yaml
@@ -168,7 +161,7 @@ matrix:
 
   # GHC 8.6 cabal build using stack!
   # On OSX autoreconf is not installed therefore disable sdist build
-  - env: BUILD=cabal-new RESOLVER=lts-13 GHCVER=8.6 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y
+  - env: BUILD=cabal-v2 RESOLVER=lts-13 GHCVER=8.6 GHC_OPTIONS="" DISABLE_SDIST_BUILD=y
     os: osx
 
   # GHC 8.4/stack
@@ -185,22 +178,22 @@ matrix:
   # Build and send coverage report to coveralls.io using hpc-coveralls.  Add
   # your project to coveralls.io first, for available options see hpc-coveralls
   # docs. CAVEATS:
-  # * Works only with BUILD=cabal
+  # * Works only with BUILD=cabal-v1
   # * Does not work for multi-package repos
   # * hpc-coveralls does not build with Cabal-2.2/GHC-8.4.3. The workaround is
   #   to have a prebuilt hpc-coveralls binary installed on the build machine
   #   and then you can use any version of ghc.
   # --------------------------------------------------------------------------
 
-  #- env: BUILD=cabal COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
-  #  addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal-v1 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
+  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
   # Builds that are allowed to fail
   # --------------------------------------------------------------------------
 
   allow_failures:
-  - env: BUILD=cabal-new GHCVER=head GHC_OPTIONS=""
+  - env: BUILD=cabal-v2 GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
   - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
 
