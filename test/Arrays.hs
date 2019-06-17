@@ -99,11 +99,37 @@ testFromToStream =
                     $ A.read arr
                 assert (xs == list)
 
+testReadSlice :: Property
+testReadSlice =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (choose (0, len)) $ \count ->
+            forAll (choose (0, len)) $ \i ->
+                forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                    monadicIO $ do
+                        arrL <- S.toList $ A.readSlice (A.fromList list) i count
+                        assert (arrL == slice list i count)
+  where
+    slice xs i count = take count (drop i xs)
+
+testReadSliceRev :: Property
+testReadSliceRev =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (choose (0, len)) $ \count ->
+            forAll (choose (0, len)) $ \i ->
+                forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+                    monadicIO $ do
+                        arrL <- S.toList $ A.readSliceRev (A.fromList list) i count
+                        assert (arrL == slice list i count)
+    where
+      slice xs i count = let l = length xs
+                             ri = if i > l - 1 then l - 1 else i
+                          in take count (drop (l - 1 - ri) (reverse xs))
+
 main :: IO ()
 main = hspec
     $ H.parallel
     $ modifyMaxSuccess (const maxTestCount)
-    $ do
+    $
     describe "Construction" $ do
         prop "length . writeN n === n" $ testLength
         prop "read . writeN n === id" $ testFromToStreamN
@@ -111,3 +137,6 @@ main = hspec
         prop "arraysOf concats to original" $ testArraysOf
         prop "flattenArrays concats to original" $ testFlattenArrays
         prop "read . write === id" $ testFromToStream
+        prop "readSlice" testReadSlice
+        prop "readSliceRev" testReadSliceRev
+

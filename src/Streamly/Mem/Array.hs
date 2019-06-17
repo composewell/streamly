@@ -125,10 +125,8 @@ module Streamly.Mem.Array
     -- , (!!)
 
     , readIndex
-    {-
     , readSlice
     , readSliceRev
-    -}
 
     , writeIndex
     {-
@@ -321,27 +319,48 @@ readIndex arr i =
     else liftIO $ withForeignPtr (aStart arr) $ \p ->
             fmap Just $ peekElemOff p i
 
-{-
+
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
 -- at index @i@ and reading up to @count@ elements in the forward direction
 -- ending at the index @i + count - 1@.
 --
 -- @since 0.7.0
 {-# INLINE readSlice #-}
-readSlice :: (IsStream t, Monad m, Storable a)
+readSlice :: (IsStream t, MonadIO m, Storable a)
     => Array a -> Int -> Int -> t m a
-readSlice arr i len = undefined
+readSlice arr i len = D.fromStreamD (D.Stream step i)
+  where
+    step _ j
+        | j < i + len = do
+            r <- liftIO $ readIndex arr j
+            return $ case r of
+                Just a -> D.Yield a (j + 1)
+                Nothing -> D.Stop
+        | otherwise = return D.Stop
+
 
 -- | @readSliceRev arr i count@ streams a slice of the array @arr@ starting at
 -- index @i@ and reading up to @count@ elements in the reverse direction ending
 -- at the index @i - count + 1@.
 --
+-- If @i@ is greater than the length of the array, the stream starts from the
+-- last element in the array.
+--
 -- @since 0.7.0
 {-# INLINE readSliceRev #-}
-readSliceRev :: (IsStream t, Monad m, Storable a)
+readSliceRev :: (IsStream t, MonadIO m, Storable a)
     => Array a -> Int -> Int -> t m a
-readSliceRev arr i len = undefined
--}
+readSliceRev arr i len = D.fromStreamD (D.Stream step l)
+  where
+    step _ j
+        | j > l - len = do
+            r <- liftIO $ readIndex arr j
+            return $ case r of
+                Just a  -> D.Yield a (j - 1)
+                Nothing -> D.Stop
+        | otherwise = return D.Stop
+    l = if i > length arr - 1 then length arr - 1 else i
+
 
 -- | /O(1)/ Write the given element at the given index in the array.
 --
