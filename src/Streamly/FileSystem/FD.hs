@@ -134,8 +134,8 @@ import System.IO (IOMode)
 import Prelude hiding (read)
 
 import qualified GHC.IO.FD as FD
-import qualified GHC.IO.Device as RawIO hiding (write)
-import qualified Streamly.FileSystem.FDIO as RawIO
+import qualified GHC.IO.Device as RawIO
+import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
@@ -242,7 +242,8 @@ readArrayUpto size (Handle fd) = do
 writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p -> do
-    RawIO.writeAll fd (castPtr p) aLen
+    -- RawIO.writeAll fd (castPtr p) aLen
+    RawIO.write fd (castPtr p) aLen
     {-
     -- Experiment to compare "writev" based IO with "write" based IO.
     iov <- A.newArray 1
