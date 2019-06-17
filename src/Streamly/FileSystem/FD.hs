@@ -135,7 +135,6 @@ import Prelude hiding (read)
 
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
-import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
@@ -146,6 +145,7 @@ import Streamly.Mem.Array.Types (byteLength, defaultChunkSize)
 import Streamly.Mem.Array.Types (groupIOVecsOf)
 import Streamly.Streams.StreamD (toStreamD)
 import Streamly.Streams.StreamD.Type (fromStreamD)
+import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 #endif
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
