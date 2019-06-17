@@ -196,6 +196,7 @@ matrix:
   - env: BUILD=cabal-v2 GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
   - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
+  - env: BUILD=cabal-v2 ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
 
 # ------------------------------------------------------------------------
 #  Settings beyond this point are advanced and normally not tweaked
