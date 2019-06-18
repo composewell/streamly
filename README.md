@@ -129,9 +129,10 @@ benchmarks](https://github.com/composewell/streaming-benchmarks).
 The following code snippet implements some common Unix command line utilities
 using streamly. To get an idea about IO streaming performance, you can
 benchmark these against the regular unix utilities using the `time` command.
-Make sure to use a big enough input file and compile with `ghc -O2` when
-benchmarking. Use `+RTS -s` flags on the executable to check the space usage,
-look for `maximum residency` in the output.
+Make sure to use a big enough input file and compile with 
+`ghc -O2 -fspec-constr-recursive=10` when benchmarking. Use `+RTS -s` flags on
+the executable to check the space usage, look for `maximum residency` in the
+output.
 
 Note that `grep -c` counts the number of lines where the pattern occurs whereas
 the snippet below counts the total number of occurrences of the pattern,
