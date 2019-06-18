@@ -46,7 +46,7 @@ set_benchmarks() {
 find_report_prog() {
     local prog_name="chart"
     hash -r
-    local prog_path=$($STACK exec which $prog_name)
+    local prog_path=$($WHICH_COMMAND $prog_name)
     if test -x "$prog_path"
     then
       echo $prog_path
@@ -58,14 +58,14 @@ find_report_prog() {
 # $1: benchmark name (linear, nested, base)
 build_report_prog() {
     local prog_name="chart"
-    local prog_path=$($STACK exec which $prog_name)
+    local prog_path=$($WHICH_COMMAND $prog_name)
 
     hash -r
     if test ! -x "$prog_path" -a "$BUILD_ONCE" = "0"
     then
       echo "Building bench-graph executables"
       BUILD_ONCE=1
-      $STACK build --flag "streamly:dev" || die "build failed"
+      $BUILD_CHART_EXE || die "build failed"
     elif test ! -x "$prog_path"
     then
       return 1
@@ -93,9 +93,20 @@ build_report_progs() {
 # Use this command to find the exe if this script fails with an error:
 # find .stack-work/ -type f -name "benchmarks"
 
-find_bench_prog () {
+stack_bench_prog () {
   local bench_name=$1
-  local bench_prog=`$STACK path --dist-dir`/build/$bench_name/$bench_name
+  local bench_prog=`stack path --dist-dir`/build/$bench_name/$bench_name
+  if test -x "$bench_prog"
+  then
+    echo $bench_prog
+  else
+    return 1
+  fi
+}
+
+cabal_bench_prog () {
+  local bench_name=$1
+  local bench_prog=`$WHICH_COMMAND $1`
   if test -x "$bench_prog"
   then
     echo $bench_prog
@@ -126,7 +137,7 @@ run_bench () {
   local bench_name=$1
   local output_file=$(bench_output_file $bench_name)
   local bench_prog
-  bench_prog=$(find_bench_prog $bench_name) || \
+  bench_prog=$($GET_BENCH_PROG $bench_name) || \
     die "Cannot find benchmark executable for benchmark $bench_name"
 
   mkdir -p `dirname $output_file`
@@ -162,14 +173,14 @@ run_benches_comparing() {
     echo "Checking out base commit [$BASE] for benchmarking"
     git checkout "$BASE" || die "Checkout of base commit [$BASE] failed"
 
-    $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
+    $BUILD_BENCH || die "build failed"
     run_benches "$bench_list"
 
     echo "Checking out candidate commit [$CANDIDATE] for benchmarking"
     git checkout "$CANDIDATE" || \
         die "Checkout of candidate [$CANDIDATE] commit failed"
 
-    $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
+    $BUILD_BENCH || die "build failed"
     run_benches "$bench_list"
     # XXX reset back to the original commit
 }
@@ -233,10 +244,22 @@ GRAPH=0
 MEASURE=1
 SPEED_OPTIONS="--quick --min-samples 10 --time-limit 1 --min-duration 0"
 
-STACK=stack
 GAUGE_ARGS=
-
 BUILD_ONCE=0
+USE_STACK=0
+
+if test "$USE_STACK" = "1"
+then
+  WHICH_COMMAND="stack exec which"
+  BUILD_CHART_EXE="stack build --flag streamly:dev"
+  GET_BENCH_PROG=stack_bench_prog
+  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
+else
+  WHICH_COMMAND="cabal v2-exec which"
+  BUILD_CHART_EXE="cabal v2-build --flags dev chart"
+  GET_BENCH_PROG=cabal_bench_prog
+  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
+fi
 
 #-----------------------------------------------------------------------------
 # Read command line
@@ -271,6 +294,7 @@ set_benchmarks
 if echo "$BENCHMARKS" | grep -q base
 then
   STACK_BUILD_FLAGS="--flag streamly:dev"
+  CABAL_BUILD_FLAGS="--flags dev"
 fi
 
 #-----------------------------------------------------------------------------
@@ -287,7 +311,7 @@ build_report_progs "$BENCHMARKS"
 
 if test "$MEASURE" = "1"
 then
-  $STACK build $STACK_BUILD_FLAGS --bench --no-run-benchmarks || die "build failed"
+  $BUILD_BENCH || die "build failed"
   run_measurements "$BENCHMARKS"
 fi
 
