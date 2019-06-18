@@ -31,9 +31,6 @@ data Handles = Handles Handle Handle
 scratchDir :: String
 scratchDir = "benchmark/scratch/"
 
-infile :: String
-infile = scratchDir ++ "in-100MB.txt"
-
 outfile :: String
 outfile = scratchDir ++ "out.txt"
 
@@ -42,6 +39,13 @@ blockSize = 32768
 blockCount = 3200
 
 #ifdef DEVBUILD
+-- This is a 500MB text file for text processing benchmarks.  We cannot
+-- have it in the repo, therefore we use it locally with DEVBUILD
+-- conditional (enabled by "dev" cabal flag). Some tests that depend on
+-- this file are available only in DEVBUILD mode.
+infile :: String
+infile = "benchmark/text-processing/gutenberg-500.txt"
+
 fileSize :: Int
 fileSize = blockSize * blockCount
 
@@ -62,17 +66,14 @@ isSpace c
   | otherwise = iswspace (ord c) /= 0
   where
     uc = fromIntegral (ord c) :: Word
+#else
+infile :: String
+infile = scratchDir ++ "in-100MB.txt"
 #endif
 
 main :: IO ()
 main = do
-#ifdef DEVBUILD
-    -- This is a 500MB text file for text processing benchmarks.  We cannot
-    -- have it in the repo, therefore we use it locally with DEVBUILD
-    -- conditional (enabled by "dev" cabal flag). Some tests that depend on
-    -- this file are available only in DEVBUILD mode.
-    inHandle <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
-#else
+#ifndef DEVBUILD
     -- XXX will this work on windows/msys?
     let cmd = "mkdir -p " ++ scratchDir
                 ++ "; test -e " ++ infile
@@ -83,8 +84,8 @@ main = do
                 ++ ";}"
 
     runProcess_ (shell cmd)
-    inHandle <- openFile infile ReadMode
 #endif
+    inHandle <- openFile infile ReadMode
     outHandle <- openFile outfile WriteMode
     href <- newIORef $ Handles inHandle outHandle
     devNull <- openFile "/dev/null" WriteMode
