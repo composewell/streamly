@@ -982,9 +982,9 @@ executable HandleIO
   else
     buildable: False
 
-executable FileIO
+executable FileIOExamples
   default-language: Haskell2010
-  main-is: FileIO.hs
+  main-is: FileIOExamples.hs
   hs-source-dirs:  examples
   ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
