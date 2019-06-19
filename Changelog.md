@@ -63,6 +63,7 @@ example, concat streams concurrently using this.
 * Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
+    * `postscanl'` and `postscanlM'`
     * `reverse'` a several times faster reverse using Storable instance
     * `intersperseByTime` intersperse a mondadic action in a stream
       periodically

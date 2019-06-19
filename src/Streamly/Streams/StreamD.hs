@@ -1912,15 +1912,6 @@ scanlx' fstep begin done s =
 -- postscans
 ------------------------------------------------------------------------------
 
--- XXX if we make the initial value of the accumulator monadic then should we
--- execute it even if the stream is empty? In that case we would have generated
--- the effect but discarded the value, but that is what a fold does when the
--- stream is empty. Whatever we decide, need to reconcile this with prescan.
--- If we execute the initial value here without even using it then it is ok to
--- execute the last step there as well without using the value.
--- Looking at the duality with right fold, in case of right fold we always
--- perform the action when the construction terminates, so in case of left fold
--- we should perform it only when the reduction starts.
 {-# INLINE_NORMAL postscanlM' #-}
 postscanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 postscanlM' fstep begin (Stream step state) =

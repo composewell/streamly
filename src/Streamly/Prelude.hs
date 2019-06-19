@@ -313,8 +313,8 @@ module Streamly.Prelude
 
     , scanl'
     , scanlM'
-    -- , postscanl'
-    -- , postscanlM'
+    , postscanl'
+    , postscanlM'
     -- , prescanl'
     -- , prescanlM'
     , scanl1'
@@ -1659,23 +1659,22 @@ scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
 scanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 scanl' step z m = fromStreamS $ S.scanl' step z $ toStreamS m
 
--- XXX enable once the signature (monadic zero) change is settled
--- | Like scanl' but does not stream the initial value of the accumulator.
+-- | Like 'scanl'' but does not stream the initial value of the accumulator.
 --
--- > postscanl' f z xs = S.drop 1 $ scanl' f z xs
+-- > postscanl' f z xs = S.drop 1 $ S.scanl' f z xs
 --
--- @since 0.6.0
-{-# INLINE _postscanl' #-}
-_postscanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
-_postscanl' step z m = fromStreamD $ D.postscanl' step z $ toStreamD m
+-- @since 0.7.0
+{-# INLINE postscanl' #-}
+postscanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
+postscanl' step z m = fromStreamD $ D.postscanl' step z $ toStreamD m
 
 -- XXX this needs to be concurrent
--- | Like postscanl' but with a monadic step function.
+-- | Like 'postscanl'' but with a monadic step function.
 --
--- @since 0.6.0
-{-# INLINE _postscanlM' #-}
-_postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
-_postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
+-- @since 0.7.0
+{-# INLINE postscanlM' #-}
+postscanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
+postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 
 -- XXX prescanl does not sound very useful, enable only if there is a
 -- compelling use case.
