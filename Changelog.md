@@ -77,6 +77,10 @@ example, concat streams concurrently using this.
       stream
     * `insertAfterEach` to insert a monadic action after each element in th
       stream
+    * `trace` combinator maps a monadic function on a stream just for side
+      effects
+    * `tap` redirects a copy of the stream to a `Fold`
+    * `tee` redirects a copy of the stream to a concurrent fold function
 
 ### Deprecations
 

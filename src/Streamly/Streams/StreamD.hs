@@ -247,6 +247,7 @@ module Streamly.Streams.StreamD
 where
 
 import Control.Exception (Exception)
+import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
@@ -273,7 +274,6 @@ import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
-import Streamly.Sink.Types (Sink(..))
 
 import Streamly.Streams.StreamD.Type
 
@@ -2016,19 +2016,25 @@ scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))
 
 {-# INLINE tap #-}
-tap :: Monad m => Sink m a -> Stream m a -> Stream m a
-tap (Sink fstep) (Stream step state) = Stream step' state
+tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
+tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
 
     where
 
-    step' gst st = do
+    step' _ Nothing = do
+        r <- initial
+        return $ Skip (Just (r, state))
+
+    step' gst (Just (acc, st)) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                fstep x
-                return $ Yield x s
-            Skip s    -> return $ Skip s
-            Stop      -> return $ Stop
+                acc' <- fstep acc x
+                return $ Yield x (Just (acc', s))
+            Skip s    -> return $ Skip (Just (acc, s))
+            Stop      -> do
+                void $ extract acc
+                return $ Stop
 
 -------------------------------------------------------------------------------
 -- Filtering

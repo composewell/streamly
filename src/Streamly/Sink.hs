@@ -44,9 +44,6 @@ module Streamly.Sink
     -- -- * Comonad
     -- , duplicate
 
-    -- * Utilities
-    , tap
-
     -- * Input Transformation
     -- | These are contravariant operations i.e. they apply on the input of the
     -- 'Sink', for this reason they are prefixed with 'l' for 'left'.
@@ -79,7 +76,6 @@ import Streamly.Streams.Serial (SerialT)
 import qualified Data.Map.Strict as Map
 
 import qualified Streamly.Fold as FL
-import qualified Streamly.Streams.StreamD as D
 
 ------------------------------------------------------------------------------
 -- Conversion
@@ -222,28 +218,6 @@ unzipM f (Sink stepB) (Sink stepC) =
 {-# INLINE unzip #-}
 unzip :: Monad m => (a -> (b,c)) -> Sink m b -> Sink m c -> Sink m a
 unzip f = unzipM (return . f)
-
--- | Tap a stream to a 'Sink'. For example, you may add a tap to log the
--- contents flowing through the stream.
---
--- @
---                   Sink m a
---                       |
--- -----stream m a ---------------stream m a-----
---
--- @
---
--- @
--- > let pr x = Sink.drainM (putStrLn . ((x ++ " ") ++) . show)
--- > S.drain $ Sink.tap (pr \"L") (S.enumerateFromTo 1 2)
--- L 1
--- L 2
--- @
---
--- Compare with the 'trace' function.
---
-tap :: Monad m => Sink m a -> SerialT m a -> SerialT m a
-tap s m = D.fromStreamD $ D.tap s (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Input transformation

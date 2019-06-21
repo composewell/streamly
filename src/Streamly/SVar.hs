@@ -98,6 +98,8 @@ module Streamly.SVar
     , dispatchWorkerPaced
     , sendFirstWorker
     , delThread
+    , modifyThread
+    , doFork
 
     , toStreamVar
     , SVarStats (..)

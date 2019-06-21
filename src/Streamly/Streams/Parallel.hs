@@ -25,6 +25,7 @@ module Streamly.Streams.Parallel
     , parallel
     , parallelEndByFirst
     , parallelEndByAny
+    , tee
 
     -- * Function application
     , mkParallel
@@ -35,6 +36,8 @@ module Streamly.Streams.Parallel
     )
 where
 
+import Control.Concurrent (myThreadId)
+import Control.Exception (SomeException(..), throwIO)
 import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -51,7 +54,7 @@ import Prelude hiding (map)
 
 import qualified Data.Set as Set
 
-import Streamly.Streams.SVar (fromSVar)
+import Streamly.Streams.SVar (fromSVar, fromStreamVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
@@ -204,6 +207,86 @@ foldParallel f m = do
     sv <- newParallelVar StopNone defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
+
+{-# INLINE teeToSVar #-}
+teeToSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> t m a
+teeToSVar svr m = mkStream $ \st yld sng stp -> do
+    foldStreamShared st yld sng stp (go svr m)
+
+    where
+
+    go sv m0 = mkStream $ \st yld sng stp -> do
+        let stop = do
+                liftIO $ do
+                    incrementBufferLimit sv
+                    sendStop sv Nothing
+                    -- XXX wait for Stop response event on exception channel,
+                    -- drain the exception channel.
+                stp
+            sendit a = liftIO $ do
+                -- XXX check for exceptions before decrement so that we do not
+                -- block forever if the child already exited with an exception.
+                decrementBufferLimit sv
+                void $ send sv (ChildYield a)
+            single a = sendit a >> (liftIO $ sendStop sv Nothing) >> sng a
+            yieldk a r = sendit a >> yld a (go sv r)
+         in foldStreamShared st yieldk single stop m0
+
+-- In case of folds the roles of worker and parent on an SVar are reversed. The
+-- parent stream pushes values to an SVar instead of pulling from it and a
+-- worker thread running the fold pulls from the SVar and folds the stream. We
+-- keep a separate channel for pushing exceptions in the reverse direction i.e.
+-- from the fold to the parent stream.
+--
+-- NOTE: If we use fromSVar here it will kill the main computation (the parent)
+-- when the SVar goes away so we use fromStreamVar instead.
+
+{-# NOINLINE handleChildException #-}
+handleChildException :: SVar t m a -> SomeException -> IO ()
+handleChildException _sv e = do
+    -- tid <- myThreadId
+    -- void $ sendReverse sv (ChildStop tid (Just e))
+    throwIO e
+
+-- | Redirect a copy of the stream to a supplied fold and run it concurrently
+-- in an independent thread. The fold may buffer some elements. The buffer size
+-- is determined by the prevailing 'maxBuffer' setting.
+--
+-- @
+--               Stream m a -> m b
+--                       |
+-- -----stream m a ---------------stream m a-----
+--
+-- @
+--
+-- @
+-- > S.drain $ S.tee (S.mapM_ print) (S.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- @
+--
+-- Exceptions from the concurrently running fold are propagated to the current
+-- computation.  Note that, because of buffering in the fold, exceptions may be
+-- delayed and may not correspond to the current element being processed in the
+-- parent stream, but we guarantee that the tap finishes and all exceptions
+-- from it are drained before the parent stream stops.
+--
+--
+-- Compare with 'tap'.
+--
+-- @since 0.7.0
+{-# INLINE tee #-}
+tee :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
+tee f m = mkStream $ \st yld sng stp -> do
+    -- Buffer size for the SVar is derived from the current state
+    sv <- newParallelVar StopNone (adaptState st)
+    -- XXX exception handling
+    -- XXX if we terminate due to an exception, do we need to actively
+    -- terminate the fold?
+    liftIO myThreadId >>= modifyThread sv
+    void $ doFork (void $ f $ fromStream $ fromStreamVar sv)
+           (svarMrun sv) (handleChildException sv)
+    foldStreamShared st yld sng stp (teeToSVar sv m)
 
 ------------------------------------------------------------------------------
 -- Concurrent Application

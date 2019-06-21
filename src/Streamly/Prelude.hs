@@ -441,6 +441,11 @@ module Streamly.Prelude
     -- , interposeBy
     -- , intercalate
 
+    -- ** Distributing
+    , trace
+    , tap
+    , Par.tee
+
     -- ** Containers of Streams
     -- | These are variants of standard 'Foldable' fold functions that use a
     -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
@@ -486,6 +491,7 @@ where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception)
+import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
@@ -512,6 +518,7 @@ import Streamly.Streams.StreamK (IsStream(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Pipe.Types (Pipe (..))
 
+import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
@@ -2260,6 +2267,48 @@ interposeBy :: (IsStream t, Monad m)
 -- | A generalization of intersperseM to intersperse sequences.
 intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -}
+
+------------------------------------------------------------------------------
+-- Distributing
+------------------------------------------------------------------------------
+
+-- | Tap the data flowing through a stream into a 'Fold'. For example, you may
+-- add a tap to log the contents flowing through the stream. The fold is used
+-- only for effects, its result is discarded.
+--
+-- @
+--                   Fold m a b
+--                       |
+-- -----stream m a ---------------stream m a-----
+--
+-- @
+--
+-- @
+-- > S.drain $ S.tap (FL.drainBy print) (S.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- @
+--
+-- Compare with 'trace'.
+--
+-- @since 0.7.0
+tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
+tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
+
+-- | Apply a monadic function to each element flowing through the stream and
+-- discard the results.
+--
+-- @
+-- > S.drain $ S.trace print (S.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- @
+--
+-- Compare with 'tap'.
+--
+-- @since 0.7.0
+trace :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m a
+trace f = mapM (\x -> void (f x) >> return x)
 
 ------------------------------------------------------------------------------
 -- Exceptions

@@ -12,6 +12,7 @@
 --
 module Streamly.Streams.SVar
     ( fromSVar
+    , fromStreamVar
     , toSVar
     )
 where
