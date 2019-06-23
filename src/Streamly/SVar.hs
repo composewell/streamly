@@ -331,6 +331,18 @@ data SVarStats = SVarStats {
 -- This is essentially a 'Maybe Word' type
 data Limit = Unlimited | Limited Word deriving Show
 
+instance Eq Limit where
+    Unlimited == Unlimited = True
+    Unlimited == Limited _ = False
+    Limited _ == Unlimited = False
+    Limited x == Limited y = x == y
+
+instance Ord Limit where
+    Unlimited <= Unlimited = True
+    Unlimited <= Limited _ = False
+    Limited _ <= Unlimited = True
+    Limited x <= Limited y = x <= y
+
 -- When to stop the composed stream.
 data SVarStopStyle =
       StopNone -- stops only when all streams are finished
@@ -375,8 +387,15 @@ data SVar t m a = SVar
     , postProcess    :: m Bool
 
     -- Combined/aggregate parameters
+    -- This is truncated to maxBufferLimit if set to more than that. Otherwise
+    -- potentially each worker may yield one value to the buffer in the worst
+    -- case exceeding the requested buffer size.
     , maxWorkerLimit :: Limit
     , maxBufferLimit :: Limit
+
+    -- [LOCKING] Read only access by consumer when dispatching a worker.
+    -- Decremented by workers when picking work and undo decrement if the
+    -- worker does not yield a value.
     , remainingWork  :: Maybe (IORef Count)
     , yieldRateInfo  :: Maybe YieldRateInfo
 
@@ -947,8 +966,6 @@ send sv msg = do
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (outputDoorBell sv) ()
 
-    -- XXX we should reserve the buffer when we pick up the work from the
-    -- queue, instead of checking it here when it is too late.
     let limit = maxBufferLimit sv
     case limit of
         Unlimited -> return True
@@ -2085,7 +2102,7 @@ getAheadSVar st f mrun = do
             { outputQueue      = outQ
             , remainingWork  = yl
             , maxBufferLimit   = getMaxBuffer st
-            , maxWorkerLimit   = getMaxThreads st
+            , maxWorkerLimit   = min (getMaxThreads st) (getMaxBuffer st)
             , yieldRateInfo    = rateInfo
             , outputDoorBell   = outQMv
             , readOutputQ      = readOutput sv
