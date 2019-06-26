@@ -63,6 +63,14 @@ computations, and the IO monad providing an escape hatch to an imperative
 model, we just love to fall into the imperative trap, and start asking the same
 fundamental question again - why do we have to use the streaming data model?
 
+## Installing and using
+
+Please see
+[INSTALL.md](https://github.com/composewell/streamly/tree/master/INSTALL.md)
+for instructions on how to use streamly with your Haskell build tool or package
+manager. You may want to go through it before jumping to run the examples
+below.
+
 ## Show me an example
 
 Here is an IO monad code to list a directory recursively:
@@ -513,6 +521,8 @@ For more information, see:
 
 ## Support
 
+Please feel free to ask questions on the
+[streamly gitter channel](https://gitter.im/composewell/streamly).
 If you require professional support, consulting, training or timely
 enhancements to the library please contact
 [support@composewell.com](mailto:support@composewell.com).
