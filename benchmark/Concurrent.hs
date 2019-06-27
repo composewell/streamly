@@ -62,7 +62,14 @@ concatGroup buflen threads delay n =
 
 main :: IO ()
 main = do
-  defaultMain
+  defaultMainWith (defaultConfig
+    { timeLimit = Just 0
+    , minSamples = Just 1
+    , minDuration = 0
+    , includeFirstIter = True
+    , quickMode = True
+    })
+
     [ -- bgroup "append/buf-1-threads-10k-0sec"  (appendGroup 1 10000 0)
     -- , bgroup "append/buf-100-threads-100k-0sec"  (appendGroup 100 100000 0)
       bgroup "append/buf-10k-threads-10k-5sec"  (appendGroup 10000 10000 5000000)
