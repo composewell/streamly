@@ -951,17 +951,35 @@ main = hspec
                 _ -> S.foldMapWith (<>) return xs
             )
 
-    let makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
-        makeOps t =
+    let makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+        makeCommonOps t =
             [ ("default", t)
 #ifndef COVERAGE_BUILD
             , ("rate AvgRate 10000", t . avgRate 10000)
             , ("rate Nothing", t . rate Nothing)
             , ("maxBuffer 0", t . maxBuffer 0)
-            , ("maxBuffer 1", t . maxBuffer 1)
             , ("maxThreads 0", t . maxThreads 0)
             , ("maxThreads 1", t . maxThreads 1)
             , ("maxThreads -1", t . maxThreads (-1))
+#endif
+            ]
+
+    let makeOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
+        makeOps t = makeCommonOps t ++
+            [
+#ifndef COVERAGE_BUILD
+              ("maxBuffer 1", t . maxBuffer 1)
+#endif
+            ]
+
+    -- For concurrent application test we need a buffer of at least size 2 to
+    -- allow two threads to run.
+    let makeConcurrentAppOps :: IsStream t
+            => (t m a -> c) -> [(String, t m a -> c)]
+        makeConcurrentAppOps t = makeCommonOps t ++
+            [
+#ifndef COVERAGE_BUILD
+              ("maxBuffer 2", t . maxBuffer 2)
 #endif
             ]
 
@@ -993,13 +1011,23 @@ main = hspec
 #ifndef COVERAGE_BUILD
               <> [("maxBuffer (-1)", aheadly . maxBuffer (-1))]
 #endif
-    let parallelOps :: IsStream t => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
-        parallelOps spec = mapOps spec $ makeOps parallely
+    let parallelCommonOps :: IsStream t => [(String, ParallelT m a -> t m a)]
+        parallelCommonOps = []
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", parallely . avgRate 0.00000001)]
             <> [("maxBuffer (-1)", parallely . maxBuffer (-1))]
 #endif
-    let zipSerialOps :: IsStream t => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
+    let parallelOps :: IsStream t
+            => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
+        parallelOps spec = mapOps spec $ makeOps parallely <> parallelCommonOps
+
+    let parallelConcurrentAppOps :: IsStream t
+            => ((ParallelT IO a -> t IO a) -> Spec) -> Spec
+        parallelConcurrentAppOps spec =
+            mapOps spec $ makeConcurrentAppOps parallely <> parallelCommonOps
+
+    let zipSerialOps :: IsStream t
+            => ((ZipSerialM IO a -> t IO a) -> Spec) -> Spec
         zipSerialOps spec = mapOps spec $ makeOps zipSerially
 #ifndef COVERAGE_BUILD
             <> [("rate AvgRate 0.00000001", zipSerially . avgRate 0.00000001)]
@@ -1174,7 +1202,8 @@ main = hspec
         serialOps $ prop "serial" . concurrentApplication (==)
         asyncOps $ prop "async" . concurrentApplication sortEq
         aheadOps $ prop "ahead" . concurrentApplication (==)
-        parallelOps $ prop "parallel" . concurrentApplication sortEq
+        parallelConcurrentAppOps $
+            prop "parallel" . concurrentApplication sortEq
 
         prop "concurrent foldr application" $ withMaxSuccess maxTestCount
             concurrentFoldrApplication

@@ -88,8 +88,9 @@ module Streamly.SVar
     , workerRateControl
     , updateYieldCount
     , decrementYieldLimit
-    , decrementYieldLimitPost
     , incrementYieldLimit
+    , decrementBufferLimit
+    , incrementBufferLimit
     , postProcessBounded
     , postProcessPaced
     , readOutputQBounded
@@ -107,7 +108,7 @@ where
 import Control.Concurrent
        (ThreadId, myThreadId, threadDelay, throwTo)
 import Control.Concurrent.MVar
-       (MVar, newEmptyMVar, tryPutMVar, takeMVar, newMVar, tryReadMVar)
+       (MVar, newEmptyMVar, tryPutMVar, takeMVar, tryTakeMVar, newMVar, tryReadMVar)
 import Control.Exception
        (SomeException(..), catch, mask, assert, Exception, catches,
         throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
@@ -350,6 +351,26 @@ data SVarStopStyle =
     | StopBy   -- stop when a specific stream finishes
     deriving (Eq, Show)
 
+-- | Buffering policy for persistent push workers (in ParallelT).  In a pull
+-- style SVar (in AsyncT, AheadT etc.), the consumer side dispatches workers on
+-- demand, workers terminate if the buffer is full or if the consumer is not
+-- cosuming fast enough.  In a push style SVar, a worker is dispatched only
+-- once, workers are persistent and keep pushing work to the consumer via a
+-- bounded buffer. If the buffer becomes full the worker either blocks, or it
+-- can drop an item from the buffer to make space.
+--
+-- Pull style SVars are useful in lazy stream evaluation whereas push style
+-- SVars are useful in strict left Folds.
+--
+-- XXX Maybe we can separate the implementation in two different types instead
+-- of using a common SVar type.
+--
+data PushBufferPolicy =
+      PushBufferDropNew  -- drop the latest element and continue
+    | PushBufferDropOld  -- drop the oldest element and continue
+    | PushBufferBlock    -- block the thread until space
+                         -- becomes available
+
 -- IMPORTANT NOTE: we cannot update the SVar after generating it as we have
 -- references to the original SVar stored in several functions which will keep
 -- pointing to the original data and the new updates won't reflect there.
@@ -392,6 +413,13 @@ data SVar t m a = SVar
     -- case exceeding the requested buffer size.
     , maxWorkerLimit :: Limit
     , maxBufferLimit :: Limit
+    -- These two are valid and used only when maxBufferLimit is Limited.
+    , pushBufferSpace  :: IORef Count
+    , pushBufferPolicy :: PushBufferPolicy
+    -- [LOCKING] The consumer puts this MVar after emptying the buffer, workers
+    -- block on it when the buffer becomes full. No overhead unless the buffer
+    -- becomes full.
+    , pushBufferMVar :: MVar ()
 
     -- [LOCKING] Read only access by consumer when dispatching a worker.
     -- Decremented by workers when picking work and undo decrement if the
@@ -920,17 +948,6 @@ decrementYieldLimit sv =
             r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
             return $ r >= 1
 
--- decrementYieldLimit returns False when the old limit is 0. This one returns
--- False when the old limit is 1.
-{-# INLINE decrementYieldLimitPost #-}
-decrementYieldLimitPost :: SVar t m a -> IO Bool
-decrementYieldLimitPost sv =
-    case remainingWork sv of
-        Nothing -> return True
-        Just ref -> do
-            r <- atomicModifyIORefCAS ref $ \x -> (x - 1, x)
-            return $ r > 1
-
 {-# INLINE incrementYieldLimit #-}
 incrementYieldLimit :: SVar t m a -> IO ()
 incrementYieldLimit sv =
@@ -946,15 +963,81 @@ incrementYieldLimit sv =
 -- XXX Only yields should be counted in the buffer limit and not the Stop
 -- events.
 
+{-# INLINE decrementBufferLimit #-}
+decrementBufferLimit :: SVar t m a -> IO ()
+decrementBufferLimit sv =
+    case maxBufferLimit sv of
+        Unlimited -> return ()
+        Limited _ -> do
+            let ref = pushBufferSpace sv
+            old <- atomicModifyIORefCAS ref $ \x ->
+                        (if x >= 1 then x - 1 else x, x)
+            when (old <= 0) $
+                case pushBufferPolicy sv of
+                    PushBufferBlock -> blockAndRetry
+                    PushBufferDropNew -> do
+                        -- We just drop one item and proceed. It is possible
+                        -- that by the time we drop the item the consumer
+                        -- thread might have run and created space in the
+                        -- buffer, but we do not care about that condition.
+                        -- This is not pedantically correct but it should be
+                        -- fine in practice.
+                        -- XXX we may want to drop only if n == maxBuf
+                        -- otherwise we must have space in the buffer and a
+                        -- decrement should be possible.
+                        block <- atomicModifyIORefCAS (outputQueue sv) $
+                            \(es, n) ->
+                                case es of
+                                    [] -> (([],n), True)
+                                    _ : xs -> ((xs, n - 1), False)
+                        when block blockAndRetry
+                    -- XXX need a dequeue or ring buffer for this
+                    PushBufferDropOld -> undefined
+
+    where
+
+    blockAndRetry = do
+        let ref = pushBufferSpace sv
+        liftIO $ takeMVar (pushBufferMVar sv)
+        old <- atomicModifyIORefCAS ref $ \x ->
+                        (if x >= 1 then x - 1 else x, x)
+        -- When multiple threads sleep on takeMVar, the first thread would
+        -- wakeup due to a putMVar by the consumer, but the rest of the threads
+        -- would have to put back the MVar after taking it and decrementing the
+        -- buffer count, otherwise all other threads will remain asleep.
+        if old >= 1
+        then void $ liftIO $ tryPutMVar (pushBufferMVar sv) ()
+        -- We do not put the MVar back in this case, instead we
+        -- wait for the consumer to put it.
+        else blockAndRetry
+
+{-# INLINE incrementBufferLimit #-}
+incrementBufferLimit :: SVar t m a -> IO ()
+incrementBufferLimit sv =
+    case maxBufferLimit sv of
+        Unlimited -> return ()
+        Limited _ -> do
+            atomicModifyIORefCAS_ (pushBufferSpace sv) (+ 1)
+            writeBarrier
+            void $ liftIO $ tryPutMVar (pushBufferMVar sv) ()
+
+{-# INLINE resetBufferLimit #-}
+resetBufferLimit :: SVar t m a -> IO ()
+resetBufferLimit sv =
+    case maxBufferLimit sv of
+        Unlimited -> return ()
+        Limited n -> atomicModifyIORefCAS_ (pushBufferSpace sv)
+                                           (const (fromIntegral n))
+
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
-send :: SVar t m a -> ChildEvent a -> IO Bool
+send :: SVar t m a -> ChildEvent a -> IO Int
 send sv msg = do
     -- XXX can the access to outputQueue and maxBufferLimit be made faster
     -- somehow?
-    len <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
+    oldlen <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
         ((msg : es, n + 1), n)
-    when (len <= 0) $ do
+    when (oldlen <= 0) $ do
         -- The wake up must happen only after the store has finished otherwise
         -- we can have lost wakeup problems.
         writeBarrier
@@ -965,13 +1048,7 @@ send sv msg = do
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
         void $ tryPutMVar (outputDoorBell sv) ()
-
-    let limit = maxBufferLimit sv
-    case limit of
-        Unlimited -> return True
-        Limited lim -> do
-            active <- readIORef (workerCount sv)
-            return $ len < (fromIntegral lim - active)
+    return oldlen
 
 workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecond64))
 workerCollectLatency winfo = do
@@ -1062,10 +1139,18 @@ workerRateControl sv yinfo winfo = do
 -- XXX we should do rate control here but not latency update in case of ahead
 -- streams. latency update must be done when we yield directly to outputQueue
 -- or when we yield to heap.
+--
+-- returns whether the worker should continue (True) or stop (False).
 {-# INLINE sendYield #-}
 sendYield :: SVar t m a -> Maybe WorkerInfo -> ChildEvent a -> IO Bool
 sendYield sv mwinfo msg = do
-    r <- send sv msg
+    oldlen <- send sv msg
+    let limit = maxBufferLimit sv
+    bufferSpaceOk <- case limit of
+            Unlimited -> return True
+            Limited lim -> do
+                active <- readIORef (workerCount sv)
+                return $ (oldlen + 1) < (fromIntegral lim - active)
     rateLimitOk <-
         case mwinfo of
             Just winfo ->
@@ -1073,7 +1158,7 @@ sendYield sv mwinfo msg = do
                     Nothing -> return True
                     Just yinfo -> workerRateControl sv yinfo winfo
             Nothing -> return True
-    return $ r && rateLimitOk
+    return $ bufferSpaceOk && rateLimitOk
 
 {-# INLINE workerStopUpdate #-}
 workerStopUpdate :: WorkerInfo -> YieldRateInfo -> IO ()
@@ -2102,6 +2187,9 @@ getAheadSVar st f mrun = do
             { outputQueue      = outQ
             , remainingWork  = yl
             , maxBufferLimit   = getMaxBuffer st
+            , pushBufferSpace = undefined
+            , pushBufferPolicy = undefined
+            , pushBufferMVar   = undefined
             , maxWorkerLimit   = min (getMaxThreads st) (getMaxBuffer st)
             , yieldRateInfo    = rateInfo
             , outputDoorBell   = outQMv
@@ -2173,6 +2261,12 @@ getParallelSVar ss st mrun = do
             Nothing -> return Nothing
             Just x -> Just <$> newIORef x
     rateInfo <- getYieldRateInfo st
+    let bufLim =
+            case getMaxBuffer st of
+                Unlimited -> undefined
+                Limited x -> (fromIntegral x)
+    remBuf <- newIORef bufLim
+    pbMVar <- newMVar ()
 
     stats <- newSVarStats
     tid <- myThreadId
@@ -2184,8 +2278,11 @@ getParallelSVar ss st mrun = do
 
     let sv =
             SVar { outputQueue      = outQ
-                 , remainingWork  = yl
-                 , maxBufferLimit   = Unlimited
+                 , remainingWork    = yl
+                 , maxBufferLimit   = getMaxBuffer st
+                 , pushBufferSpace  = remBuf
+                 , pushBufferPolicy = PushBufferBlock
+                 , pushBufferMVar   = pbMVar
                  , maxWorkerLimit   = Unlimited
                  -- Used only for diagnostics
                  , yieldRateInfo    = rateInfo
@@ -2222,7 +2319,13 @@ getParallelSVar ss st mrun = do
         case yieldRateInfo sv of
             Nothing -> return ()
             Just yinfo -> void $ collectLatency sv yinfo False
-        fst `fmap` readOutputQRaw sv
+        r <- fst `fmap` readOutputQRaw sv
+        liftIO $ do
+            void $ tryTakeMVar (pushBufferMVar sv)
+            resetBufferLimit sv
+            writeBarrier
+            void $ tryPutMVar (pushBufferMVar sv) ()
+        return r
 
 sendFirstWorker :: MonadAsync m => SVar t m a -> t m a -> m (SVar t m a)
 sendFirstWorker sv m = do

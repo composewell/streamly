@@ -5,6 +5,12 @@
 * Change the signature of `foldrM` to ensure that it is lazy
 * `scanx` would now require an additional `Monad m` constraint.
 * Change the signature of `iterateM` to ensure that it is lazy.
+* Earlier ParallelT was unaffected by `maxBuffer` directive, now `maxBuffer`
+  can limit the buffer of a ParallelT stream as well. When the buffer becomes
+  full the producer threads block.
+* ParallelT streams no longer have an unlimited buffer by default. Now the
+  buffer for parallel streams is limited to 1500 by default, the same as other
+  concurrent stream types.
 
 ### Bug Fixes
 

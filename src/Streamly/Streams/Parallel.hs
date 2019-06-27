@@ -68,29 +68,26 @@ import qualified Streamly.Streams.StreamK as K
 runOne
     :: MonadIO m
     => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
-runOne st m winfo = foldStreamShared st yieldk single stop m
+runOne st m winfo = do
+    yieldLimitOk <- liftIO $ decrementYieldLimit sv
+    if yieldLimitOk
+    then do
+        liftIO $ decrementBufferLimit sv
+        foldStreamShared st yieldk single stop m
+    else liftIO $ cleanupSVarFromWorker sv
 
     where
 
     sv = fromJust $ streamVar st
     mrun = runInIO $ svarMrun sv
 
-    withLimitCheck action = do
-        yieldLimitOk <- liftIO $ decrementYieldLimitPost sv
-        if yieldLimitOk
-        then action
-        else liftIO $ cleanupSVarFromWorker sv
-
-    stop = liftIO $ sendStop sv winfo
-    sendit a = liftIO $ sendYield sv winfo (ChildYield a)
-    single a = sendit a >> withLimitCheck stop
-
-    -- XXX there is no flow control in parallel case. We should perhaps use a
-    -- queue and queue it back on that and exit the thread when the outputQueue
-    -- overflows. Parallel is dangerous because it can accumulate unbounded
-    -- output in the buffer.
-    yieldk a r = void (sendit a)
-        >> withLimitCheck (void $ liftIO $ mrun $ runOne st r winfo)
+    stop = liftIO $ do
+        incrementBufferLimit sv
+        incrementYieldLimit sv
+        sendStop sv winfo
+    sendit a = liftIO $ void $ send sv (ChildYield a)
+    single a = sendit a >> (liftIO $ sendStop sv winfo)
+    yieldk a r = sendit a >> (void $ liftIO $ mrun $ runOne st r winfo)
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: (IsStream t, MonadAsync m)
