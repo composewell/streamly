@@ -248,6 +248,12 @@ GAUGE_ARGS=
 BUILD_ONCE=0
 USE_STACK=0
 
+GHC_VERSION=$(ghc --numeric-version)
+
+cabal_which() {
+  find dist-newstyle -type f -path "*${GHC_VERSION}*/$1"
+}
+
 if test "$USE_STACK" = "1"
 then
   WHICH_COMMAND="stack exec which"
@@ -255,7 +261,9 @@ then
   GET_BENCH_PROG=stack_bench_prog
   BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
 else
-  WHICH_COMMAND="cabal v2-exec which"
+  # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
+  #WHICH_COMMAND="cabal v2-exec which"
+  WHICH_COMMAND=cabal_which
   BUILD_CHART_EXE="cabal v2-build --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
   BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
