@@ -81,7 +81,6 @@ runOne st m0 winfo = go m0
         else liftIO $ cleanupSVarFromWorker sv
 
     sv = fromJust $ streamVar st
-    mrun = runInIO $ svarMrun sv
 
     stop = liftIO $ do
         incrementBufferLimit sv
@@ -89,7 +88,7 @@ runOne st m0 winfo = go m0
         sendStop sv winfo
     sendit a = liftIO $ void $ send sv (ChildYield a)
     single a = sendit a >> (liftIO $ sendStop sv winfo)
-    yieldk a r = sendit a >> (void $ liftIO $ mrun $ go r)
+    yieldk a r = sendit a >> go r
 
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: (IsStream t, MonadAsync m)
