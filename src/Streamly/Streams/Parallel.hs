@@ -68,7 +68,30 @@ import qualified Streamly.Streams.StreamK as K
 runOne
     :: MonadIO m
     => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
-runOne st m0 winfo = go m0
+runOne st m0 winfo =
+    case getYieldLimit st of
+        Nothing -> go m0
+        Just _  -> runOneLimited st m0 winfo
+
+    where
+
+    go m = do
+        liftIO $ decrementBufferLimit sv
+        foldStreamShared st yieldk single stop m
+
+    sv = fromJust $ streamVar st
+
+    stop = liftIO $ do
+        incrementBufferLimit sv
+        sendStop sv winfo
+    sendit a = liftIO $ void $ send sv (ChildYield a)
+    single a = sendit a >> (liftIO $ sendStop sv winfo)
+    yieldk a r = sendit a >> go r
+
+runOneLimited
+    :: MonadIO m
+    => State Stream m a -> Stream m a -> Maybe WorkerInfo -> m ()
+runOneLimited st m0 winfo = go m0
 
     where
 
