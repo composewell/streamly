@@ -623,7 +623,7 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
 -- | Run a streaming composition, discard the results.
 {-# INLINE_LATE drain #-}
 drain :: Monad m => Stream m a -> m ()
--- drain m = foldrM (\x xs -> x `seq` xs) (return ()) m
+-- drain = foldrM (\_ xs -> xs) (return ())
 drain (Stream step state) = go SPEC state
   where
     go !_ st = do
