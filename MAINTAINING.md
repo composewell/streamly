@@ -51,7 +51,9 @@
         * Create a git tag corresponding to the release where X.Y.Z is the new
           package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Mask out the build status lines from the README
-        * Upload to hackage (`stack upload .`)
+        * Upload to hackage 
+          * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
+          * `stack upload .`
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
         * Optionally upload `package-X.Y.Z-sdist.tar.gz` to github release page
             * Update release contributors on github release page
