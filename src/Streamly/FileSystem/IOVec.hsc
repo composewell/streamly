@@ -59,7 +59,12 @@ instance Storable IOVec where
           len  :: #{type size_t} = iovLen  vec
       #{poke struct iovec, iov_base} ptr base
       #{poke struct iovec, iov_len}  ptr len
+#endif
 
+-- capi calling convention does not work without -fobject-code option with GHCi
+-- so using this in DEVBUILD only for now.
+--
+#if !defined(mingw32_HOST_OS) && defined DEVBUILD
 foreign import capi unsafe "sys/uio.h writev"
    c_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
 
@@ -68,8 +73,8 @@ foreign import capi safe "sys/uio.h writev"
 
 #else
 c_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
-c_writev = error "writev not implemented for windows"
+c_writev = error "writev not implemented"
 
 c_safe_writev :: CInt -> Ptr IOVec -> CInt -> IO CSsize
-c_safe_writev = error "writev not implemented for windows"
+c_safe_writev = error "writev not implemented"
 #endif
