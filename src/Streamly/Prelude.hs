@@ -747,6 +747,7 @@ replicateMSerial n = fromStreamS . S.replicateM n
 -- Generate a stream of length @n@ by repeating a value @n@ times.
 --
 -- @since 0.6.0
+{-# INLINE_NORMAL replicate #-}
 replicate :: (IsStream t, Monad m) => Int -> a -> t m a
 replicate n = fromStreamS . S.replicate n
 
