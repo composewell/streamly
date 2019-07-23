@@ -20,6 +20,8 @@
 
     * Update the README if needed.
     * Make sure haddock docs are consistent with the changes in the release
+    * Make sure tutorial has been updated for new changes
+    * Make sure documents in the docs directory are consistent with new changes
 
 * _Benchmarks_:
 
