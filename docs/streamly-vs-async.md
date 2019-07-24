@@ -36,7 +36,7 @@ generalization of the IO monad with non-deterministic composition of streams
 added on top.
 
 However, if you would like to just run only some concurrent portions of your
-program using streamly, you can do that too. Just use `runStream` if you want
+program using streamly, you can do that too. Just use `drain` if you want
 to run the stream without collecting the outputs of the concurrent actions or
 use `toList` if you want to convert the output stream into a list.  Other
 stream folding operations can also be used, see the docs for more details.
@@ -84,10 +84,10 @@ return 2 first and then 1.
 
 ### concurrently_
 
-Use `runStream` instead of `toList` to run the actions but ignore the results:
+Use `drain` instead of `toList` to run the actions but ignore the results:
 
 ```haskell
-  runStream $ parallely $ getURL 1 |: getURL 2 |: S.nil
+  S.drain $ parallely $ getURL 1 |: getURL 2 |: S.nil
 ```
 
 ### Concurrent Applicative
@@ -135,7 +135,7 @@ other actions will be canceled, for example:
   instance Exception Result
 
   main = do
-      url <- try $ runStream $ parallely $
+      url <- try $ S.drain $ parallely $
                    (getURL 2 >>= throwM . Result)
                 |: (getURL 1 >>= throwM . Result)
                 |: S.nil
