@@ -122,17 +122,22 @@ module Streamly.Mem.Array
 
     -- * Random Access
     , length
+    , bsearch
+    , bsearchIndex
     -- , (!!)
+    , find
+    , findIndex
 
     , readIndex
     , readSlice
     , readSliceRev
 
     , writeIndex
-    {-
     , writeSlice
     , writeSliceRev
-    -}
+
+    , partitionBy
+
     -- * Immutable Transformations
     , transformWith
 
@@ -156,6 +161,7 @@ import Streamly.Mem.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
+import Streamly.SVar (defState)
 
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array.Types as A
@@ -216,28 +222,81 @@ _last arr = readIndex arr (length arr - 1)
 -- Searching
 -------------------------------------------------------------------------------
 
-{-
+
 -- | Perform a binary search in the array to find an element.
-bsearch :: a -> Array a -> Maybe Bool
-bsearch = undefined
+{-# INLINE bsearch #-}
+bsearch :: (MonadIO m, Ord a , Storable a) => a -> Array a -> m Bool
+bsearch ele arr = go 0 (length arr - 1)
+  where
+    go low high
+        | high < low = return False
+        | otherwise = do
+            r <- readIndex arr mid
+            let go'
+                    | Just value <- r
+                    , value > ele = go low (mid - 1)
+                    | Just value <- r
+                    , value < ele = go (mid + 1) high
+                      -- The following case is always true.
+                    | Just value <- r
+                    , value == ele = return True
+                    | otherwise = return False
+            go'
+      where
+        mid = low + ((high - low) `div` 2)
+
 
 -- | Perform a binary search in the array to find an element index.
-{-# INLINE elemIndex #-}
-bsearchIndex :: a -> Array a -> Maybe Int
-bsearchIndex elem arr = undefined
+{-# INLINE bsearchIndex #-}
+bsearchIndex :: (MonadIO m, Ord a, Storable a) => a -> Array a -> m (Maybe Int)
+bsearchIndex ele arr = go 0 (length arr - 1)
+  where
+    go low high
+        | high < low = return Nothing
+        | otherwise = do
+            r <- readIndex arr mid
+            let go'
+                    | Just value <- r
+                    , value > ele = go low (mid - 1)
+                    | Just value <- r
+                    , value < ele = go (mid + 1) high
+                    -- The following case is always true.
+                    | Just value <- r
+                    , value == ele = return $ Just mid
+                    | otherwise = return Nothing
+            go'
+      where
+        mid = low + ((high - low) `div` 2)
 
 -- find/findIndex etc can potentially be implemented more efficiently on arrays
 -- compared to streams by using SIMD instructions.
+{-# INLINE find #-}
+find :: (MonadIO m, Storable a) => (a -> Bool) -> Array a -> m Bool
+find p arr = go 0
+  where
+    go i = do
+      r <- readIndex arr i
+      case r of
+          Just x -> if p x
+                    then return True
+                    else go (i + 1)
+          Nothing -> return False
 
-find :: (a -> Bool) -> Array a -> Bool
-find = undefined
+{-# INLINE findIndex #-}
+findIndex :: (MonadIO m, Storable a) => (a -> Bool) -> Array a -> m (Maybe Int)
+findIndex p arr = go 0
+  where
+    go i = do
+      r <- readIndex arr i
+      case r of
+          Just x -> if p x
+                    then return $ Just i
+                    else go (i + 1)
+          Nothing -> return Nothing
 
-findIndex :: (a -> Bool) -> Array a -> Maybe Int
-findIndex = undefined
-
+{-
 findIndices :: (a -> Bool) -> Array a -> Array Int
 findIndices = undefined
--}
 
 -------------------------------------------------------------------------------
 -- Folds
@@ -249,7 +308,6 @@ findIndices = undefined
 -- Slice and splice
 -------------------------------------------------------------------------------
 
-{-
 slice :: Int -> Int -> Array a
 slice begin end arr = undefined
 
@@ -260,7 +318,7 @@ splitAt i arr = undefined
 -- | Append two arrays together to create a single array.
 splice :: Array a -> Array a -> Array a
 splice arr1 arr2 = undefined
-
+-}
 -------------------------------------------------------------------------------
 -- In-place mutation APIs
 -------------------------------------------------------------------------------
@@ -269,9 +327,17 @@ splice arr1 arr2 = undefined
 -- first half retains values where the predicate is 'False' and the second half
 -- retains values where the predicate is 'True'.
 {-# INLINE partitionBy #-}
-partitionBy :: (a -> Bool) -> Array a -> (Array a, Array a)
-partitionBy f arr = undefined
+partitionBy :: (MonadIO m, Storable a) => (a -> Bool) -> Array a -> m (Array a, Array a)
+partitionBy p =
+    A.foldl'
+        (\mab x ->
+             mab >>= \(a, b) ->
+                 if p x
+                     then (,) <$> return a <*> liftIO (b `A.snoc` x)
+                     else (,) <$> liftIO (a `A.snoc` x) <*> return b)
+        ((,) <$> liftIO (A.newArray 1024) <*> liftIO (A.newArray 1024))
 
+{-
 -- | Shuffle corresponding elements from two arrays using a shuffle function.
 -- If the shuffle function returns 'False' then do nothing otherwise swap the
 -- elements. This can be used in a bottom up fold to shuffle or reorder the
@@ -324,6 +390,9 @@ readIndex arr i =
 -- at index @i@ and reading up to @count@ elements in the forward direction
 -- ending at the index @i + count - 1@.
 --
+-- >>> S.toList $ readSlice (fromList [1..10]) 3 4
+-- > [4,5,6,7]
+--
 -- @since 0.7.0
 {-# INLINE readSlice #-}
 readSlice :: (IsStream t, MonadIO m, Storable a)
@@ -343,8 +412,14 @@ readSlice arr i len = D.fromStreamD (D.Stream step i)
 -- index @i@ and reading up to @count@ elements in the reverse direction ending
 -- at the index @i - count + 1@.
 --
+-- >>> S.toList $ readSliceRev (fromList [1..10]) 4 3
+-- > [3,4,5]
+--
 -- If @i@ is greater than the length of the array, the stream starts from the
 -- last element in the array.
+--
+-- >>> S.toList $ readSliceRev (fromList [1..10]) 30 3
+-- > [10, 9, 8]
 --
 -- @since 0.7.0
 {-# INLINE readSliceRev #-}
@@ -378,16 +453,30 @@ writeIndex arr i a = do
             liftIO $ withForeignPtr (aStart arr) $ \p ->
                 pokeElemOff p i a
 
-{-
+
 -- | @writeSlice arr i count stream@ writes a stream to the array @arr@
 -- starting at index @i@ and writing up to @count@ elements in the forward
 -- direction ending at the index @i + count - 1@.
 --
 -- @since 0.7.0
 {-# INLINE writeSlice #-}
-writeSlice :: (IsStream t, Monad m, Storable a)
+writeSlice :: (IsStream t, MonadIO m, Storable a)
     => Array a -> Int -> Int -> t m a -> m ()
-writeSlice arr i len s = undefined
+writeSlice arr i len s = writeSliceD arr i len (D.toStreamD s)
+
+{-# INLINE writeSliceD #-}
+writeSliceD :: (MonadIO m, Storable a)
+    => Array a -> Int -> Int -> D.Stream m a -> m ()
+writeSliceD arr i len (D.Stream step state) = go (i, state)
+  where
+    go (j, st)
+        | j < i + len = do
+            r <- step defState st
+            case r of
+                D.Yield x s -> writeIndex arr j x >> go (j + 1, s)
+                D.Skip s -> go (j, s)
+                D.Stop -> return ()
+        | otherwise = return ()
 
 -- | @writeSliceRev arr i count stream@ writes a stream to the array @arr@
 -- starting at index @i@ and writing up to @count@ elements in the reverse
@@ -395,10 +484,24 @@ writeSlice arr i len s = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSliceRev #-}
-writeSliceRev :: (IsStream t, Monad m, Storable a)
+writeSliceRev :: (IsStream t, MonadIO m, Storable a)
     => Array a -> Int -> Int -> t m a -> m ()
-writeSliceRev arr i len s = undefined
--}
+writeSliceRev arr i len s = writeSliceRevD arr i len (D.toStreamD s)
+
+{-# INLINE writeSliceRevD #-}
+writeSliceRevD :: (MonadIO m, Storable a)
+    => Array a -> Int -> Int -> D.Stream m a -> m ()
+writeSliceRevD arr i len (D.Stream step state) = go (i, state)
+  where
+    go (j, st)
+        | j > i - len = do
+            r <- step defState st
+            case r of
+                D.Yield x s -> writeIndex arr j x >> go (j - 1, s)
+                D.Skip s -> go (j, s)
+                D.Stop -> return ()
+        | otherwise = return ()
+
 
 -------------------------------------------------------------------------------
 -- Streams of Arrays
