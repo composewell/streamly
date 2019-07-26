@@ -266,6 +266,10 @@ cmpBy src = S.cmpBy P.compare src src
 zip :: Monad m => Stream m Int -> m ()
 zip src = transform $ S.zipWith (,) src src
 
+{-# INLINE concatMapRepl4xN #-}
+concatMapRepl4xN :: Monad m => Stream m Int -> m ()
+concatMapRepl4xN src = transform $ (S.concatMap (S.replicate 4) src)
+
 -------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------

@@ -225,6 +225,8 @@ dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
+-- We use a (sqrt n) element stream as source and then concat the same stream
+-- for each element to produce an n element stream.
 concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
 intersperse    n = composeN n $ S.intersperse maxValue
 
@@ -273,6 +275,10 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 -------------------------------------------------------------------------------
 
 zip src       = transform $ S.zipWith (,) src src
+
+{-# INLINE concatMapRepl4xN #-}
+concatMapRepl4xN :: Monad m => Stream m Int -> m ()
+concatMapRepl4xN src = transform $ (S.concatMap (S.replicate 4) src)
 
 -------------------------------------------------------------------------------
 -- Mixed Composition

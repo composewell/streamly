@@ -126,6 +126,15 @@ sourceUnfoldr n = S.unfoldr step n
         then Nothing
         else Just (cnt, cnt + 1)
 
+{-# INLINE sourceUnfoldrN #-}
+sourceUnfoldrN :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceUnfoldrN upto start = S.unfoldr step start
+    where
+    step cnt =
+        if cnt > start + upto
+        then Nothing
+        else Just (cnt, cnt + 1)
+
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
 sourceUnfoldrM n = S.unfoldrM step n
@@ -137,10 +146,10 @@ sourceUnfoldrM n = S.unfoldrM step n
 
 {-# INLINE sourceUnfoldrMN #-}
 sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
-sourceUnfoldrMN m n = S.unfoldrM step n
+sourceUnfoldrMN upto start = S.unfoldrM step start
     where
     step cnt =
-        if cnt > n + m
+        if cnt > start + upto
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
@@ -533,16 +542,29 @@ eqBy src = S.eqBy (==) src src
 cmpBy :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
 cmpBy src = S.cmpBy P.compare src src
 
-concatStreamLen, maxNested :: Int
--- concatStreamLen = value2
--- maxNested = value2
-concatStreamLen = 1
-maxNested = 100000
-
+-- The worst case for concatMap, concat a 1 element stream n times.
 {-# INLINE concatMap #-}
 concatMap :: S.MonadAsync m => Int -> Stream m Int
-concatMap n = S.concatMap (\_ -> sourceUnfoldrMN maxNested n)
-                          (sourceUnfoldrMN concatStreamLen n)
+concatMap n = S.concatMap (\_ -> sourceUnfoldrMN 1 n)
+                          (sourceUnfoldrMN value n)
+
+{-# INLINE concatMapPure1xN #-}
+concatMapPure1xN :: S.MonadAsync m => Int -> Stream m Int
+concatMapPure1xN n = S.concatMap (\_ -> sourceUnfoldrN 1 n)
+                          (sourceUnfoldrN value n)
+
+-- We use a (sqrt n) element stream as source and then generate and concat a
+-- (sqrt n) element stream for each element of the source to produce an n
+-- element stream.
+{-# INLINE concatMapNxN #-}
+concatMapNxN :: S.MonadAsync m => Int -> Stream m Int
+concatMapNxN n = S.concatMap (\_ -> sourceUnfoldrMN value2 n)
+                          (sourceUnfoldrMN value2 n)
+
+{-# INLINE concatMapRepl4xN #-}
+concatMapRepl4xN :: S.MonadAsync m => Int -> Stream m Int
+concatMapRepl4xN n = S.concatMap (S.replicate 4)
+                          (sourceUnfoldrMN (value `div` 4) n)
 
 -------------------------------------------------------------------------------
 -- Mixed Composition

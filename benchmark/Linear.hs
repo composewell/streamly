@@ -336,7 +336,10 @@ main =
         , benchIOSink "isPrefixOf" Ops.isPrefixOf
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
         , benchIOSink "stripPrefix" Ops.stripPrefix
-        , benchIOSrc  serially "concatMap" Ops.concatMap
+        , benchIOSrc serially "concatMap1xN" Ops.concatMap
+        , benchIOSrc serially "concatMapPure1xN" Ops.concatMapPure1xN
+        , benchIOSrc serially "concatMapNxN" Ops.concatMapNxN
+        , benchIOSrc serially "concatMapRepl4xN" Ops.concatMapRepl4xN
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not

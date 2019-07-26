@@ -99,8 +99,10 @@ main =
         , benchIO "mapM"      (D.mapM      1) D.sourceUnfoldrM
         , benchIO "mapMaybe"  (D.mapMaybe  1) D.sourceUnfoldrM
         , benchIO "mapMaybeM" (D.mapMaybeM 1) D.sourceUnfoldrM
-        , benchIO "concatMap" (D.concatMap 1) (D.sourceUnfoldrMN D.value2)
-        , benchIO "concatMapPure" (D.concatMap 1) (D.sourceUnfoldrN D.value2)
+        , benchIO "concatMapNxN" (D.concatMap 1) (D.sourceUnfoldrMN D.value2)
+        , benchIO "concatMapRepl4xN" D.concatMapRepl4xN
+            (D.sourceUnfoldrMN (D.value `div` 4))
+        , benchIO "concatMapPureNxN" (D.concatMap 1) (D.sourceUnfoldrN D.value2)
         , benchIO "intersperse" (D.intersperse 1) (D.sourceUnfoldrMN D.value2)
         , benchIO "interspersePure" (D.intersperse 1) (D.sourceUnfoldrN D.value2)
         -- , benchIO "foldrS"    (D.foldrS    1) D.sourceUnfoldrM
@@ -243,8 +245,10 @@ main =
         , benchIO "mapM"   (K.mapM 1) K.sourceUnfoldrM
         , benchIO "mapMSerial"  (K.mapMSerial 1) K.sourceUnfoldrM
         -- , benchIOSrcK "concatMap" K.concatMap
-        , benchIO "concatMap" (K.concatMap 1) (K.sourceUnfoldrMN K.value2)
-        , benchIO "concatMapPure" (K.concatMap 1) (K.sourceUnfoldrN K.value2)
+        , benchIO "concatMapNxN" (K.concatMap 1) (K.sourceUnfoldrMN K.value2)
+        , benchIO "concatMapPureNxN" (K.concatMap 1) (K.sourceUnfoldrN K.value2)
+        , benchIO "concatMapRepl4xN" K.concatMapRepl4xN
+            (K.sourceUnfoldrMN (K.value `div` 4))
         , benchIO "intersperse" (K.intersperse 1) (K.sourceUnfoldrMN K.value2)
         , benchIO "interspersePure" (K.intersperse 1) (K.sourceUnfoldrN K.value2)
         , benchIO "foldlS" (K.foldlS 1) K.sourceUnfoldrM
