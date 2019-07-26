@@ -36,7 +36,7 @@ i.e. phase 0, 1 and 2. We have defined them as follows in `inline.h`:
 unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step seed = fromStreamS (S.unfoldr step seed)
 {-# RULES "unfoldr fallback to StreamK" [1]
-     forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}```
+     forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
 ```
 
 *  Assuming that `fromStreamK/toStreamK` have been removed in the
