@@ -512,6 +512,8 @@ test-suite inspection
       streamly
     , base               >= 4.8   && < 5
     , inspection-testing >= 0.4   && < 0.5
+  if impl(ghc < 8.0)
+    buildable: False
 
 -------------------------------------------------------------------------------
 -- Benchmarks
