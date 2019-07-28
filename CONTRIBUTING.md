@@ -131,10 +131,15 @@ their existing code to the new change.
 
 ## Developer documentation
 
-Build haddock with the `--show-all` option to see the documentation for all
-modules including the ones not exposed to users of the library.
-For example,
-`stack haddock --haddock-arguments "--show-all" --no-haddock-deps`.
+To build haddock documentation for all modules, including the ones not exposed
+to users of the library, use the following commands:
+
+```
+$ cabal v2-haddock --haddock-internal
+$ stack haddock --haddock-arguments "--show-all" --no-haddock-deps
+```
+
+For design documentation see the `design` directory.
 
 ## Coding
 
