@@ -514,6 +514,9 @@ test-suite inspection
     , inspection-testing >= 0.4   && < 0.5
   if impl(ghc < 8.0)
     buildable: False
+  -- On Windows we're getting "unknown symbol `clock_gettime'"
+  if os(windows)
+    buildable: False
 
 -------------------------------------------------------------------------------
 -- Benchmarks
