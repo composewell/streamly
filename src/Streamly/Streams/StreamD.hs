@@ -275,7 +275,7 @@ import qualified Control.Monad.Catch as MC
 import Streamly.Mem.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
-import Streamly.SVar (MonadAsync, defState, adaptState, State)
+import Streamly.SVar (MonadAsync, defState, adaptState)
 
 import Streamly.Streams.StreamD.Type
 
@@ -372,11 +372,11 @@ replicateM :: forall m a. Monad m => Int -> m a -> Stream m a
 replicateM n p = Stream step n
   where
     {-# INLINE_LATE step #-}
-    step :: State K.Stream m a -> Int -> m (Step Int a)
-    step _ i | i <= 0    = return Stop
-             | otherwise = do
-                x <- p
-                return $ Yield x (i - 1)
+    step _ (i :: Int)
+      | i <= 0    = return Stop
+      | otherwise = do
+          x <- p
+          return $ Yield x (i - 1)
 
 -- | For use with flatten
 {-# INLINE replicateGen #-}

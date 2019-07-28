@@ -6,6 +6,7 @@ extra-deps:
     - Chart-1.9.1
     - Chart-diagrams-1.9.2
     - bench-show-0.2.2
+    - inspection-testing-0.4.2.1
 
 #allow-newer: true
 flags: {}
