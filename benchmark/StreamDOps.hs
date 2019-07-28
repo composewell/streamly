@@ -270,6 +270,11 @@ zip src = transform $ S.zipWith (,) src src
 concatMapRepl4xN :: Monad m => Stream m Int -> m ()
 concatMapRepl4xN src = transform $ (S.concatMap (S.replicate 4) src)
 
+{-# INLINE flattenRepl4xN #-}
+flattenRepl4xN :: Monad m => Stream m Int -> m ()
+flattenRepl4xN src = transform $
+    S.flatten S.replicateGen (\x -> return (x,4)) src
+
 -------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------

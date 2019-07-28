@@ -103,6 +103,8 @@ main =
         , benchIO "concatMapRepl4xN" D.concatMapRepl4xN
             (D.sourceUnfoldrMN (D.value `div` 4))
         , benchIO "concatMapPureNxN" (D.concatMap 1) (D.sourceUnfoldrN D.value2)
+        , benchIO "flattenRepl4xN" D.flattenRepl4xN
+            (D.sourceUnfoldrMN (D.value `div` 4))
         , benchIO "intersperse" (D.intersperse 1) (D.sourceUnfoldrMN D.value2)
         , benchIO "interspersePure" (D.intersperse 1) (D.sourceUnfoldrN D.value2)
         -- , benchIO "foldrS"    (D.foldrS    1) D.sourceUnfoldrM

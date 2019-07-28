@@ -58,6 +58,8 @@ module Streamly.Streams.StreamD
     -- | Generate a monadic stream from a seed.
     , repeat
     , replicate
+    , replicateGen
+    , flatten
     , replicateM
     , fromIndices
     , fromIndicesM
@@ -375,6 +377,14 @@ replicateM n p = Stream step n
              | otherwise = do
                 x <- p
                 return $ Yield x (i - 1)
+
+-- | For use with flatten
+{-# INLINE replicateGen #-}
+replicateGen :: Monad m => (a, Int) -> m (Step (a, Int) a)
+replicateGen (x, i) = return $
+    if i <= 0
+    then Stop
+    else Yield x (x, (i - 1))
 
 {-# INLINE_NORMAL replicate #-}
 replicate :: Monad m => Int -> a -> Stream m a
