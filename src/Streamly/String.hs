@@ -16,6 +16,9 @@
 -- stream fusion. If strings are to be stored or buffered in memory, they can
 -- be encoded to 'Word8' arrays using the encoding routines provided in the
 -- module. Therefore, a separate type for text representation is not required.
+-- A @Stream Identity Char@ can be used almost as a drop-in replacement for the
+-- standard Haskell @String@, especially when used with @OverloadedStrings@
+-- extension, with little differences.
 
 -- The 'String' type in this module is just a synonym for the type @List Char@.
 -- It provides better performance compared to the standard Haskell @String@
@@ -49,6 +52,7 @@ module Streamly.String
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
     , stripEnd-}
+    -- * Substrings
     , stripStart
     , foldLines
     , foldWords
@@ -153,14 +157,27 @@ stripEnd :: IsStream t => t m Char -> t m Char
 stripEnd = undefined
 -}
 
+-- | Remove leading whitespace from a String.
+--
+-- > stripStart = S.dropWhile isSpace
 {-# INLINE stripStart #-}
 stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
 stripStart = S.dropWhile isSpace
 
+-- | Fold each line of the stream using the supplied Fold
+-- and stream the result.
+--
+-- >>> S.toList $ foldLines (S.fromList "lines\nthis\nstring\n\n\n") FL.toList
+-- ["lines", "this", "string", "", ""]
 {-# INLINE foldLines #-}
 foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
 foldLines = flip (FL.splitSuffixBy (== '\n'))
 
+-- | Fold each word of the stream using the supplied Fold
+-- and stream the result.
+--
+-- >>>  S.toList $ foldWords (S.fromList "fold these     words") FL.toList
+-- ["fold", "these", "words"]
 {-# INLINE foldWords #-}
 foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
 foldWords = flip (FL.wordsBy isSpace)
@@ -168,7 +185,7 @@ foldWords = flip (FL.wordsBy isSpace)
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
 
--- Code copied from base/Data.Char to INLINE it
+-- | Code copied from base/Data.Char to INLINE it
 {-# INLINE isSpace #-}
 isSpace :: Char -> Bool
 isSpace c
@@ -177,18 +194,56 @@ isSpace c
   where
     uc = fromIntegral (ord c) :: Word
 
+-- | Break a string up into a list of strings at newline characters.
+-- The resulting strings do not contain newlines.
+--
+-- >>> S.toList $ lines $ S.fromList "lines\nthis\nstring\n\n\n"
+-- ["lines","this","string","",""]
+--
+-- If you're dealing with lines of massive length, consider using
+-- 'foldLines' instead.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 lines = FL.splitSuffixBy (== '\n') toArray
 
+-- | Break a string up into a list of strings, which were delimited
+-- by characters representing white space.
+--
+-- >>> S.toList $ words $ S.fromList "A  newline\nis considered white space?"
+-- ["A", "newline", "is", "considered", "white", "space?"]
+--
+-- If you're dealing with words of massive length, consider using
+-- 'foldWords' instead.
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 words = FL.wordsBy isSpace toArray
 
+-- | Flattens the stream of @Array Char@, after appending a terminating
+-- newline to each string.
+--
+-- 'unlines' is an inverse operation to 'lines'.
+--
+-- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
+-- "lines\nthis\nstring\n"
+--
+-- Note that, in general
+--
+-- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
 unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
 
+-- | Flattens the stream of @Array Char@, after appending a separating
+-- space to each string.
+--
+-- 'unwords' is an inverse operation to 'words'.
+--
+-- >>> S.toList $ unwords $ S.fromList ["unwords", "this", "string"]
+-- "unwords this string"
+--
+-- Note that, in general
+--
+-- > unwords . words /= id
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
 unwords = A.flattenArrays . (S.intersperse (A.fromList " "))
