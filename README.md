@@ -104,22 +104,33 @@ the semigroup operation `<>` is concurrent. This makes `foldMap` concurrent
 too. You can replace `AsyncT` with `SerialT` and the above code will become
 serial, exactly equivalent to a `ListT`.
 
-## How does it perform?
+## Comparative Performance
 
-Providing monadic streaming and high level declarative concurrency does not
-mean that `streamly` compromises with performance in any way. The
-non-concurrent performance of `streamly` competes with lists and the `vector`
-library. The concurrent performance is as good as it gets, see [concurrency
+High performance and simplicity are the two primary goals of streamly.
+`Streamly` employs two different stream representations (CPS and direct style)
+and interconverts between the two to get the best of both worlds on different
+operations. It uses both foldr/build (for CPS style) and stream fusion (for
+direct style) techniques to fuse operations. Streamly redefines "blazing fast"
+for streaming libraries, it competes with lists and `vector`.  Other streaming
+libraries like "streaming", "pipes" and "conduit" are orders of magnitude
+slower on most microbenchmarks.  See [streaming
+benchmarks](https://github.com/composewell/streaming-benchmarks) for detailed
+comparison.
+
+The following chart shows a comparison of those streamly and list operations
+where performance of the two differs by more than 10%. Positive y-axis displays
+how many times worse is a list operation compared to the same streamly
+operation, negative y-axis shows where streamly is worse compared to lists.
+
+![Streamly vs Lists (time) comparison](charts-0/streamly-vs-list-time.svg)
+
+Streamly uses lock-free synchronization for concurrent operations. It employs
+auto-scaling of the degree of concurrency based on demand. For CPU bound tasks
+it tries to keep the threads close to the number of CPUs available whereas for
+IO bound tasks more threads can be utilized. Parallelism can be utilized with
+little overhead even if the task size is very small.  See [concurrency
 benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
 performance results and a comparison with the `async` package.
-
-The following chart shows a summary of the cost of key streaming operations
-processing a million elements. The timings for `streamly` and `vector` are in
-the 600-700 microseconds range and therefore can barely be seen in the graph.
-For more details, see [streaming
-benchmarks](https://github.com/composewell/streaming-benchmarks).
-
-![Streaming Operations at a Glance](charts-0/KeyOperations-time.svg)
 
 ## File IO
 
