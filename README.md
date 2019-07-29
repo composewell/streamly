@@ -30,26 +30,27 @@ and declarative monadic concurrency.
 
 ## Where to use streamly?
 
-Streamly is a general purpose programming framwework.  It can be used equally
+Streamly is a general purpose programming framework.  It can be used equally
 efficiently from a simple `Hello World!` program to a massively concurrent
 application. The answer to the question, "where to use streamly?" - would be
 similar to the answer to - "Where to use Haskell lists or the IO monad?".
-Streamly generalizes lists to monadic streams, and the `IO` monad to
-non-deterministic and concurrent stream composition. The `IO` monad is a
-special case of streamly; if we use single element streams the behavior of
-streamly becomes identical to the IO monad.  The IO monad code can be replaced
-with streamly by just prefixing the IO actions with `liftIO`, without any other
-changes, and without any loss of performance.  Pure lists too are a special
-case of streamly; if we use `Identity` as the underlying monad, streamly
-streams turn into pure lists.  Non-concurrent programs are just a special case
-of concurrent ones, simply adding a combinator turns a non-concurrent program
-into a concurrent one.
 
-In other words, streamly combines the functionality of lists and IO, with
-builtin concurrency.  If you want to write a program that involves IO,
-concurrent or not, then you can just use streamly as the base monad, in fact,
-you could even use streamly for pure computations, as streamly performs at par
-with pure lists or `vector`.
+Streamly simplifies streaming and makes it as intuitive as plain lists. Unlike
+other streaming libraries, no fancy types are required.  Streamly is simply a
+generalization of Haskell lists to monadic streaming optionally with concurrent
+composition. Streamly stream type can be considered as a list type
+parameterized by a monad. For example, `SerialT IO a` is an equivalent of `[a]`
+in the IO monad.  A stream in an `Identity` monad, `SerialT Identity a`, is
+equivalent to pure lists with equal or better performance.  Streams are
+constructed just like lists are constructed, using `nil` and `cons` instead of
+`[]` and `:`.  Unlike lists, streams can be constructed from monadic actions,
+not just pure elements.  Streams are processed just like lists are processed.
+Streamly provides all the list combinators and more, but they are monadic and
+work in a streaming fashion. In other words streamly just completes what lists
+lack, you do not need to learn anything new.
+
+Not surprisingly, the monad instance of streamly is a list transformer, with
+concurrency capability.
 
 ## Why data flow programming?
 
@@ -71,49 +72,37 @@ for instructions on how to use streamly with your Haskell build tool or package
 manager. You may want to go through it before jumping to run the examples
 below.
 
+The module `Streamly` provides just the core stream types, type casting and
+concurrency control combinators.  Stream construction, transformation, folding,
+merging, zipping combinators are found in `Streamly.Prelude`.
+
 ## Show me an example
 
-Here is an IO monad code to list a directory recursively:
+The following code snippet lists a directory tree recursively, reading multiple
+directories concurrently:
 
 ```haskell
 import Control.Monad.IO.Class (liftIO)
 import Path.IO (listDir, getCurrentDir) -- from path-io package
+import Streamly (AsyncT, adapt)
+import qualified Streamly.Prelude as S
 
-listDirRecursive = getCurrentDir >>= readdir
+listDirRecursive :: AsyncT IO ()
+listDirRecursive = getCurrentDir >>= readdir >>= liftIO . mapM_ putStrLn
   where
     readdir dir = do
       (dirs, files) <- listDir dir
-      liftIO $ mapM_ putStrLn
-             $ map show dirs ++ map show files
-      foldMap readdir dirs
-```
-
-This is your usual IO monad code, with no streamly specific code whatsoever.
-This is how you can run this:
-
-``` haskell
-main :: IO ()
-main = listDirRecursive
-```
-
-And, this is how you can run exactly the same code using streamly with
-lookahead style concurrency, the only difference is that this time multiple
-directories are read concurrently:
-
-``` haskell
-import Streamly (aheadly)
-import qualified Streamly.Prelude as S
+      S.yield (map show dirs ++ map show files) <> foldMap readdir dirs
 
 main :: IO ()
-main = S.drain $ aheadly $ listDirRecursive
+main = S.drain $ adapt $ listDirRecursive
 ```
 
-Isn't that magical? What's going on here? Streamly does not introduce any new
-abstractions, it just uses standard abstractions like `Semigroup` or
-`Monoid` to combine monadic streams concurrently, the way lists combine a
-sequence of pure values non-concurrently. The `foldMap` in the code
-above turns into a concurrent monoidal composition of a stream of `readdir`
-computations.
+`AsyncT` is a stream monad transformer. If you are familiar with a list
+transformer, it is nothing but `ListT` with concurrency semantics. For example,
+the semigroup operation `<>` is concurrent. This makes `foldMap` concurrent
+too. You can replace `AsyncT` with `SerialT` and the above code will become
+serial, exactly equivalent to a `ListT`.
 
 ## How does it perform?
 
@@ -219,32 +208,49 @@ composes stream data instead of stream processors (functions).  A stream is
 just like a list and is explicitly passed around to functions that process the
 stream.  Therefore, no special operator is needed to join stages in a streaming
 pipeline, just the standard function application (`$`) or reverse function
-application (`&`) operator is enough.  Combinators are provided in
-`Streamly.Prelude` to transform or fold streams.
+application (`&`) operator is enough.
 
 ## Concurrent Stream Generation
 
-Monadic construction and generation functions e.g. `consM`, `unfoldrM`,
-`replicateM`, `repeatM`, `iterateM` and `fromFoldableM` etc. work concurrently
-when used with appropriate stream type combinator (e.g. `asyncly`, `aheadly` or
-`parallely`).
+`consM` or its operator form `|:` can be used to construct a stream from
+monadic actions. A stream constructed with `consM` can run the monadic actions
+in the stream concurrently when used with appropriate stream type combinator
+(e.g. `asyncly`, `aheadly` or `parallely`).
 
-The following code finishes in 3 seconds (6 seconds when serial):
+The following code finishes in 3 seconds (6 seconds when serial), note the
+order of elements in the resulting output, the outputs are consumed as soon as
+each action is finished (asyncly):
 
 ``` haskell
 > let p n = threadDelay (n * 1000000) >> return n
-> S.toList $ aheadly $ p 3 |: p 2 |: p 1 |: S.nil
-[3,2,1]
-
-> S.toList $ parallely $ p 3 |: p 2 |: p 1 |: S.nil
+> S.toList $ asyncly $ p 3 |: p 2 |: p 1 |: S.nil
 [1,2,3]
 ```
+
+Use `aheadly` if you want speculative concurrency i.e. execute the actions in
+the stream concurrently but consume the results in the specified order:
+
+``` haskell
+> S.toList $ aheadly $ p 3 |: p 2 |: p 1 |: S.nil
+[3,2,1]
+```
+
+Monadic stream generation functions e.g. `unfoldrM`, `replicateM`, `repeatM`,
+`iterateM` and `fromFoldableM` etc. can work concurrently.
 
 The following finishes in 10 seconds (100 seconds when serial):
 
 ``` haskell
 S.drain $ asyncly $ S.replicateM 10 $ p 10
 ```
+
+## Concurrency Auto Scaling
+
+Concurrency is auto-scaled i.e. more actions are executed concurrently if the
+consumer is consuming the stream at a higher speed. How many tasks are executed
+concurrently can be controlled by `maxThreads` and how many results are
+buffered ahead of consumption can be controlled by `maxBuffer`. See the
+documentation in the `Streamly` module.
 
 ## Concurrent Streaming Pipelines
 
@@ -344,43 +350,18 @@ main = S.drain loops
 
 ## Concurrent Nested Loops
 
-To run the above code with, lookahead style concurrency i.e. each iteration in
-the loop can run run concurrently by but the results are presented in the same
-order as serial execution:
+To run the above code with speculative concurrency i.e. each iteration in the
+loop can run concurrently but the results are presented to the consumer of the
+output in the same order as serial execution:
 
 ``` haskell
 main = S.drain $ aheadly $ loops
 ```
 
-To run it with depth first concurrency yielding results asynchronously in the
-same order as they become available (deep async composition):
-
-``` haskell
-main = S.drain $ asyncly $ loops
-```
-
-To run it with breadth first concurrency and yeilding results asynchronously
-(wide async composition):
-
-``` haskell
-main = S.drain $ wAsyncly $ loops
-```
-
-The above streams provide lazy/demand-driven concurrency which is automatically
-scaled as per demand and is controlled/bounded so that it can be used on
-infinite streams. The following combinator provides strict, unbounded
-concurrency irrespective of demand:
-
-``` haskell
-main = S.drain $ parallely $ loops
-```
-
-To run it serially but interleaving the outer and inner loop iterations
-(breadth first serial):
-
-``` haskell
-main = S.drain $ wSerially $ loops
-```
+Different stream types execute the loop iterations in different ways. For
+example, `wSerially` interleaves the loop iterations. There are several
+concurrent stream styles to execute the loop iterations concurrently in
+different ways, see the `Streamly.Tutorial` module for a detailed treatment.
 
 ## Magical Concurrency
 
@@ -444,7 +425,6 @@ There is no notion of explicit threads in streamly, therefore, no
 asynchronous exceptions to deal with. You can just ignore the zillions of
 blogs, talks, caveats about async exceptions. Async exceptions just don't
 exist.  Please don't use things like `myThreadId` and `throwTo` just for fun!
-
 
 ## Reactive Programming (FRP)
 
