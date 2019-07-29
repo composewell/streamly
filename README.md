@@ -361,6 +361,40 @@ rate. Rate control works precisely even at throughputs as high as millions of
 yields per second. For more sophisticated rate control see the haddock
 documentation.
 
+## Arrays
+
+The `Streamly.Mem.Array` module provides mutable arrays.  Arrays are the
+computing duals of streams. Streams are good at sequential access, immutable
+transformations of in-transit data whereas arrays are good at random access,
+in-place transformations of buffered data. Unlike streams which are potentially
+infinite, arrays are necessarily finite. Arrays can be used as an efficient
+interface between streams and external storage systems like memory, files and
+network. Streams and arrays complete each other to provide a general purpose
+computing system. The design of streamly as a general purpose computing
+framework is centered around these two fundamental aspects of computing and
+storage. 
+
+Arrays in streamly use pinned memory outside GC and therefore avoid any GC
+overhead for the storage in arrays. `ByteString` data type from the
+`bytestring` package and the `Text` data type from the `text` package are just
+special cases of arrays. `ByteString` is equivalent to `Array Word8` and `Text`
+is equivalent to a `utf16` encoded `Array Word8`. All the bytestring and text
+operations can be performed on arrays with equivalent or better performance by
+converting them to and from streams.
+
+## Folds
+
+`Streamly.Fold` module provides composable left folds. A `Fold` is a consumer
+of a stream. Folds can be used to fold a stream. Folds can be composed in many
+ways, a stream can be distributed to multiple folds, or it can be partitioned
+across multiple folds, or demultiplexed over multiple folds, or unzipped to two
+folds. We can also use folds to fold segments of stream generating a stream of
+the folded results.
+
+If you are familiar with the `foldl` library, these are the same composable
+left folds but simpler and better integrated with streamly, and with many more
+powerful ways of composing and applying them.
+
 ## File IO
 
 The following code snippet implements some common Unix command line utilities
