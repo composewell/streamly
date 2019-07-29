@@ -64,6 +64,35 @@ computations, and the IO monad providing an escape hatch to an imperative
 model, we just love to fall into the imperative trap, and start asking the same
 fundamental question again - why do we have to use the streaming data model?
 
+## Comparative Performance
+
+High performance and simplicity are the two primary goals of streamly.
+`Streamly` employs two different stream representations (CPS and direct style)
+and interconverts between the two to get the best of both worlds on different
+operations. It uses both foldr/build (for CPS style) and stream fusion (for
+direct style) techniques to fuse operations. In terms of performance,
+Streamly's goal is to compete with equivalent C programs. Streamly redefines
+"blazing fast" for streaming libraries, it competes with lists and `vector`.
+Other streaming libraries like "streaming", "pipes" and "conduit" are orders of
+magnitude slower on most microbenchmarks.  See [streaming
+benchmarks](https://github.com/composewell/streaming-benchmarks) for detailed
+comparison.
+
+The following chart shows a comparison of those streamly and list operations
+where performance of the two differs by more than 10%. Positive y-axis displays
+how many times worse is a list operation compared to the same streamly
+operation, negative y-axis shows where streamly is worse compared to lists.
+
+![Streamly vs Lists (time) comparison](charts-0/streamly-vs-list-time.svg)
+
+Streamly uses lock-free synchronization for concurrent operations. It employs
+auto-scaling of the degree of concurrency based on demand. For CPU bound tasks
+it tries to keep the threads close to the number of CPUs available whereas for
+IO bound tasks more threads can be utilized. Parallelism can be utilized with
+little overhead even if the task size is very small.  See [concurrency
+benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
+performance results and a comparison with the `async` package.
+
 ## Installing and using
 
 Please see
@@ -103,34 +132,6 @@ transformer, it is nothing but `ListT` with concurrency semantics. For example,
 the semigroup operation `<>` is concurrent. This makes `foldMap` concurrent
 too. You can replace `AsyncT` with `SerialT` and the above code will become
 serial, exactly equivalent to a `ListT`.
-
-## Comparative Performance
-
-High performance and simplicity are the two primary goals of streamly.
-`Streamly` employs two different stream representations (CPS and direct style)
-and interconverts between the two to get the best of both worlds on different
-operations. It uses both foldr/build (for CPS style) and stream fusion (for
-direct style) techniques to fuse operations. Streamly redefines "blazing fast"
-for streaming libraries, it competes with lists and `vector`.  Other streaming
-libraries like "streaming", "pipes" and "conduit" are orders of magnitude
-slower on most microbenchmarks.  See [streaming
-benchmarks](https://github.com/composewell/streaming-benchmarks) for detailed
-comparison.
-
-The following chart shows a comparison of those streamly and list operations
-where performance of the two differs by more than 10%. Positive y-axis displays
-how many times worse is a list operation compared to the same streamly
-operation, negative y-axis shows where streamly is worse compared to lists.
-
-![Streamly vs Lists (time) comparison](charts-0/streamly-vs-list-time.svg)
-
-Streamly uses lock-free synchronization for concurrent operations. It employs
-auto-scaling of the degree of concurrency based on demand. For CPU bound tasks
-it tries to keep the threads close to the number of CPUs available whereas for
-IO bound tasks more threads can be utilized. Parallelism can be utilized with
-little overhead even if the task size is very small.  See [concurrency
-benchmarks](https://github.com/composewell/concurrency-benchmarks) for detailed
-performance results and a comparison with the `async` package.
 
 ## File IO
 
