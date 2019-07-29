@@ -457,6 +457,16 @@ main = do
     llhisto src      -- get line length histogram
 ```
 
+## Socket IO
+
+Its easy to build concurrent client and server programs using streamly.
+`Streamly.Network.*` modules provide easy combinators to build network servers
+and client programs using streamly. See
+[FromFileClient.hs](https://github.com/composewell/streamly/tree/master/examples/FromFileClient.hs),
+[EchoServer.hs](https://github.com/composewell/streamly/tree/master/examples/EchoServer.hs),
+[FileSinkServer.hs](https://github.com/composewell/streamly/tree/master/examples/FileSinkServer.hs)
+in the examples directory.
+
 ## Exceptions
 
 Exceptions can be thrown at any point using the `MonadThrow` instance. Standard
