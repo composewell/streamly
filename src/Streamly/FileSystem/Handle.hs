@@ -18,19 +18,22 @@
 -- Read and write streams and arrays to and from file handles. File handle IO
 -- APIs are quite similar to "Streamly.Mem.Array" read write APIs. In that
 -- regard, arrays can be considered as in-memory files or files can be
--- considered as on-disk arrays.  IO APIs are divided into two categories,
--- sequential streaming IO APIs and random access IO APIs.  Control over the
--- file reading and writing behavior in terms of buffering, encoding, decoding
--- is in the hands of the programmer, the 'TextEncoding', 'NewLineMode', and
--- 'Buffering' options of the underlying handle provided by GHC are not needed
--- and ignored.
+-- considered as on-disk arrays.
+--
+-- Control over file reading and writing behavior in terms of buffering,
+-- encoding, decoding is in the hands of the programmer, the 'TextEncoding',
+-- 'NewLineMode', and 'Buffering' options of the underlying handle provided by
+-- GHC are not needed and ignored.
 --
 -- > import qualified Streamly.FileSystem.Handle as FH
 --
 
+-- IO APIs are divided into two categories, sequential streaming IO APIs and
+-- random access IO APIs.
+
 module Streamly.FileSystem.Handle
     (
-    -- * Streaming IO
+    -- * Sequential/Streaming IO
     -- | Stream data to or from a file or device sequentially.  When reading,
     -- the stream is lazy and generated on-demand as the consumer consumes it.
     -- Read IO requests to the IO device are performed in chunks limited to a
@@ -48,7 +51,12 @@ module Streamly.FileSystem.Handle
     -- Devices like terminals, pipes, sockets and fifos do not have random
     -- access capability.
 
-    -- ** Read Handle to Stream
+    -- ** Read From Handle
+    -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
+    -- underlying handle are ignored. The read occurs from the current seek
+    -- position of the file handle. The stream ends as soon as EOF is
+    -- encountered.
+
       read
     -- , readUtf8
     -- , readLines
@@ -63,7 +71,12 @@ module Streamly.FileSystem.Handle
     -- , readArraysOf
     , readArrays
 
-    -- ** Write File from Stream
+    -- ** Write to Handle
+    -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
+    -- underlying handle are ignored. The write occurs from the current seek
+    -- position of the file handle.  The write behavior depends on the 'IOMode'
+    -- of the handle.
+    --
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines
@@ -157,7 +170,7 @@ readArrayUpto size h = do
 -- Array IO (output)
 -------------------------------------------------------------------------------
 
--- | Write an Array to a file handle.
+-- | Write an 'Array' to a file handle.
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
@@ -188,6 +201,10 @@ _readArraysOfUpto size h = go
         then stp
         else yld arr go
 
+-- | @readArraysOfUpto size handle@ reads a stream of arrays from the file
+-- handle @handle@.  The maximum size of a single array is limited to @size@.
+--
+-- @since 0.7.0
 {-# INLINE_NORMAL readArraysOfUpto #-}
 readArraysOfUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
 readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
@@ -202,10 +219,9 @@ readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @readArrays h@ reads a stream of arrays from file handle @h@.
--- The maximum size of a single array is limited to @defaultChunkSize@.
--- 'readArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
+-- | @readArrays handle@ reads a stream of arrays from the specified file
+-- handle.  The maximum size of a single array is limited to
+-- @defaultChunkSize@.
 --
 -- > readArrays = readArraysOfUpto defaultChunkSize
 --
@@ -223,19 +239,19 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- also control the read throughput in mbps or IOPS.
 
 -- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
--- as soon as EOF is encountered.
+-- handle, reads are performed in chunks of up to @chunkSize@.
 --
+-- @since 0.7.0
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
 
 -- TODO
+-- Generate a stream of elements of the given type from a file 'Handle'.
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
--- | Generate a stream of elements of the given type from a file 'Handle'. The
--- stream ends when EOF is encountered.
+-- | Generate a byte stream from a file 'Handle'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
@@ -253,10 +269,10 @@ read = A.flattenArrays . readArrays
 writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
 writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 
--- | Write a stream of arrays to a handle after coalescing them in chunks of
--- specified size. The chunk size is only a maximum and the actual writes could
--- be smaller than that as we do not split the arrays to fit them to the
--- specified size.
+-- | @writeArraysPackedUpto chunkSize handle stream@ writes a stream of arrays
+-- to @handle@ after coalescing the adjacent arrays in chunks of @chunkSize@.
+-- The chunk size is only a maximum and the actual writes could be smaller as
+-- we do not split the arrays to fit exactly to the specified size.
 --
 -- @since 0.7.0
 {-# INLINE writeArraysPackedUpto #-}
@@ -272,9 +288,9 @@ writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
 -- do not want buffering to occur at GHC level as well. Same thing applies to
 -- writes as well.
 
--- | Like 'write' but provides control over the write buffer. Output will
--- be written to the IO device as soon as we collect the specified number of
--- input elements.
+-- | @writeByChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
+-- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
+-- collect the required input size.
 --
 -- @since 0.7.0
 {-# INLINE writeByChunksOf #-}
@@ -283,9 +299,8 @@ writeByChunksOf n h m = writeArrays h $ A.arraysOf n m
 
 -- > write = 'writeByChunksOf' A.defaultChunkSize
 --
--- | Write a byte stream to a file handle. Combines the bytes in chunks of size
--- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
--- depends on the 'IOMode' and the current seek position of the handle.
+-- | Write a byte stream to a file handle. Combines the bytes in chunks of
+-- up to 'A.defaultChunkSize' before writing.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
@@ -369,6 +384,23 @@ readFrames = undefined -- foldFrames . read
 writeByFrames :: (IsStream t, MonadIO m, Storable a)
     => Array a -> Handle -> t m a -> m ()
 writeByFrames = undefined
+
+-------------------------------------------------------------------------------
+-- Framing by time
+-------------------------------------------------------------------------------
+
+-- | Write collecting the input in sessions of n seconds or if chunkSize
+-- gets exceeded.
+{-# INLINE writeByChunksOrSessionsOf #-}
+writeByChunksOrSessionsOf :: MonadIO m
+    => Int -> Double -> Handle -> SerialT m Word8 -> m ()
+writeByChunksOrSessionsOf chunkSize sessionSize h m = undefined
+
+-- | Write collecting the input in sessions of n seconds or if defaultChunkSize
+-- gets exceeded.
+{-# INLINE writeBySessionsOf #-}
+writeBySessionsOf :: MonadIO m => Double -> Handle -> SerialT m Word8 -> m ()
+writeBySessionsOf n = writeByChunksOrSessionsOf defaultChunkSize n
 
 -------------------------------------------------------------------------------
 -- Random Access IO (Seek)
