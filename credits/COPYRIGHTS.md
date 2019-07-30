@@ -16,6 +16,11 @@ notices in the individual files.
    * http://hackage.haskell.org/package/clock-0.7.2
    * See clock-0.7.2.txt for the original license.
 
+* Portions of UTF8 encoding/decoding code taken from the "base" package
+  * Copyright (c) The University of Glasgow, 2009
+  * http://hackage.haskell.org/package/base-4.12.0.0
+  * See base-4.12.0.0.txt for the original license.
+
 ## 0.4.0
 
 * Implementation of direct style monadic streams includes code from the

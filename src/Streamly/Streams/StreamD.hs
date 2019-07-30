@@ -18,6 +18,7 @@
 -- Module      : Streamly.Streams.StreamD
 -- Copyright   : (c) 2018 Harendra Kumar
 -- Copyright   : (c) Roman Leshchinskiy 2008-2010
+-- Copyright   : (c) The University of Glasgow, 2009
 --
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
