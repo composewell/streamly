@@ -35,16 +35,9 @@ multiple folds without breaking the stream. Combinators are provided for
 temporal and spatial window based fold operations, for example, to support
 folding and aggregating data for timeout or inactivity based sessions.
 
-#### Composable Pipes
-
-`Streamly.Pipes` module provides composable pipes (stream consumers and
-producers).  Pipes can partition, split or distribute a stream into multiple
-streams, apply transformations on each stream and merge back the results into a
-single stream.
-
 #### Streaming File IO
 
-`Streamly.FileSystem.File` provides handle based streaming file IO
+`Streamly.FileSystem.Handle` provides handle based streaming file IO
 operations.
 
 #### Streaming Network IO
