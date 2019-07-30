@@ -30,7 +30,7 @@ import GHC.Generics (Generic)
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Pipe  as Pipe
+-- import qualified Streamly.Pipe  as Pipe
 
 value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC
@@ -370,14 +370,9 @@ scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
 mapMaybeM, intersperse :: S.MonadAsync m => Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
-{-# INLINE transformMapM #-}
-{-# INLINE transformComposeMapM #-}
-{-# INLINE transformTeeMapM #-}
-{-# INLINE transformZipMapM #-}
 {-# INLINE map' #-}
 {-# INLINE fmap' #-}
-mapM, map', transformMapM, transformComposeMapM, transformTeeMapM,
-    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
+mapM, map' :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
 
 fmap' :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
@@ -395,6 +390,18 @@ map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
 
+-- Temporarily commented these ops as they depend on the hidden
+-- Pipe module.
+{-
+{-# INLINE transformMapM #-}
+{-# INLINE transformComposeMapM #-}
+{-# INLINE transformTeeMapM #-}
+{-# INLINE transformZipMapM #-}
+
+transformMapM, transformComposeMapM, transformTeeMapM,
+    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
+
 transformMapM t n = composeN' n $ t . S.transform (Pipe.mapM return)
 transformComposeMapM t n = composeN' n $ t . S.transform
     (Pipe.mapM (\x -> return (x + 1))
@@ -405,6 +412,7 @@ transformTeeMapM t n = composeN' n $ t . S.transform
 transformZipMapM t n = composeN' n $ t . S.transform
     (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
         (Pipe.mapM (\x -> return (x + 2))))
+-}
 
 mapMaybe      n = composeN n $ S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just x)

@@ -9,21 +9,24 @@ import System.Environment (getArgs)
 
 import Streamly
 import Streamly.String
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Network.Socket as NS
 import qualified Streamly.Network.Server as NS
 import qualified Streamly.Prelude as S
 
+import System.IO (withFile, IOMode(..))
+
 main :: IO ()
 main = do
     file <- fmap head getArgs
-    File.append file
+    withFile file AppendMode
+        (\src -> FH.write src
         $ encodeChar8Unchecked
         $ S.concatMap A.read
         $ S.concatMapBy parallel (flip NS.withSocketS recv)
-        $ NS.connectionsOnAllAddrs 8090
+        $ NS.connectionsOnAllAddrs 8090)
 
     where
 

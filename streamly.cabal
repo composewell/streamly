@@ -204,27 +204,27 @@ library
                      , Streamly.Sink.Types
                      , Streamly.Sink
                      , Streamly.Pipe.Types
+                     , Streamly.Pipe
 
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
-
-    exposed-modules:   Streamly.Prelude
-                     , Streamly.Time
-                     , Streamly
-                     , Streamly.Fold
-                     , Streamly.Pipe
-
-                     , Streamly.String
-
-                    -- IO devices
-                     , Streamly.Mem.Array
                      , Streamly.FileSystem.FD
-                     , Streamly.FileSystem.Handle
                      , Streamly.FileSystem.File
 
                     -- Time
                      , Streamly.Time.Units
                      , Streamly.Time.Clock
+
+    exposed-modules:   Streamly.Prelude
+                     , Streamly.Time
+                     , Streamly
+                     , Streamly.Fold
+
+                     , Streamly.String
+
+                    -- IO devices
+                     , Streamly.Mem.Array
+                     , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
                      , Streamly.Internal
@@ -1041,7 +1041,7 @@ executable FileIOExamples
   hs-source-dirs:  examples
   ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
-    buildable: True
+    buildable: False
     build-Depends:
         streamly
       , base              >= 4.8   && < 5

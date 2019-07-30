@@ -136,7 +136,7 @@ module Streamly.Fold
     , mapM
 
     -- ** Mapping
-    , transform
+    --, transform
     , lmap
     --, lsequence
     , lmapM
@@ -320,6 +320,7 @@ module Streamly.Fold
     -- , chunksOf
     , duplicate  -- experimental
 
+    {-
     -- * Windowed Classification
     -- | Split the stream into windows or chunks in space or time. Each window
     -- can be associated with a key, all events associated with a particular
@@ -333,13 +334,13 @@ module Streamly.Fold
     -- ** Tumbling Windows
     -- | A new window starts after the previous window is finished.
     -- , classifyChunksOf
-    , classifySessionsOf
+    -- , classifySessionsOf
 
     -- ** Keep Alive Windows
     -- | The window size is extended if an event arrives within the specified
     -- window size. This can represent sessions with idle or inactive timeout.
     -- , classifyKeepAliveChunks
-    , classifyKeepAliveSessions
+    -- , classifyKeepAliveSessions
 
     {-
     -- ** Sliding Windows
@@ -351,6 +352,7 @@ module Streamly.Fold
     -- ** Sliding Window Buffers
     -- , slidingChunkBuffer
     -- , slidingSessionBuffer
+    -}
     )
 where
 
@@ -492,9 +494,9 @@ mapM f = sequence . fmap f
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
 --
 -- @since 0.7.0
-{-# INLINE transform #-}
-transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
+{-# INLINE _transform #-}
+_transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
+_transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
     Fold step initial extract
 
     where
@@ -2636,14 +2638,14 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
 -- only if no event is received within the specified session window size.
 --
 -- @since 0.7.0
-{-# INLINABLE classifyKeepAliveSessions #-}
-classifyKeepAliveSessions
+{-# INLINABLE _classifyKeepAliveSessions #-}
+_classifyKeepAliveSessions
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ session inactive timeout
     -> Fold m a b     -- ^ Fold to be applied to session payload data
     -> t m (k, a, Bool, AbsTime) -- ^ session key, data, close flag, timestamp
     -> t m (k, b)
-classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
+_classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows
@@ -2685,11 +2687,11 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- the timestamps with a clock resolution of 1 second.
 --
 -- @since 0.7.0
-{-# INLINABLE classifySessionsOf #-}
-classifySessionsOf
+{-# INLINABLE _classifySessionsOf #-}
+_classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
     -> Fold m a b     -- ^ Fold to be applied to window events
     -> t m (k, a, Bool, AbsTime) -- ^ window key, data, close flag, timestamp
     -> t m (k, b)
-classifySessionsOf interval = classifySessionsBy 1 interval False
+_classifySessionsOf interval = classifySessionsBy 1 interval False
