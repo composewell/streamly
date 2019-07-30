@@ -1,7 +1,7 @@
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.FileSystem.Handle as Handle
+import qualified Streamly.FileSystem.File as File
 
 import Data.Char (ord)
 import System.Environment (getArgs)
