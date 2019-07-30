@@ -38,16 +38,15 @@ similar to the answer to - "Where to use Haskell lists or the IO monad?".
 Streamly simplifies streaming and makes it as intuitive as plain lists. Unlike
 other streaming libraries, no fancy types are required.  Streamly is simply a
 generalization of Haskell lists to monadic streaming optionally with concurrent
-composition. Streamly stream type can be considered as a list type
-parameterized by a monad. For example, `SerialT IO a` is an equivalent of `[a]`
-in the IO monad.  A stream in an `Identity` monad, `SerialT Identity a`, is
-equivalent to pure lists with equal or better performance.  Streams are
-constructed just like lists are constructed, using `nil` and `cons` instead of
-`[]` and `:`.  Unlike lists, streams can be constructed from monadic actions,
-not just pure elements.  Streams are processed just like lists are processed.
-Streamly provides all the list combinators and more, but they are monadic and
-work in a streaming fashion. In other words streamly just completes what lists
-lack, you do not need to learn anything new.
+composition. The basic stream type in streamly `SerialT m a` can be considered
+as a list type `[a]` parameterized by the monad `m`. For example, `SerialT IO
+a` is a moral equivalent of `[a]` in the IO monad. `SerialT Identity a`, is
+equivalent to pure lists.  Streams are constructed very much like lists, except
+that they use `nil` and `cons` instead of `[]` and `:`.  Unlike lists, streams
+can be constructed from monadic effects, not just pure elements.  Streams are
+processed just like lists, with list like combinators, except that they are
+monadic and work in a streaming fashion. In other words streamly just completes
+what lists lack, you do not need to learn anything new.
 
 Not surprisingly, the monad instance of streamly is a list transformer, with
 concurrency capability.
