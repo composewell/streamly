@@ -17,14 +17,14 @@
 -- Portability : GHC
 --
 -- Arrays are the computing duals of streams.  Streams are good at sequential
--- access, immutable transformations of in-transit data whereas arrays are good
--- at random access, in-place transformations of buffered data.  Unlike streams
--- which are potentially infinite, arrays are necessarily /finite/.  Arrays can
--- be used as an efficient interface between streams and external storage
--- systems like memory, files and network. Streams and arrays complete each
--- other to provide a general purpose computing system. The design of streamly
--- as a general purpose computing framework is centered around these two
--- fundamental aspects of computing and storage.
+-- access and immutable transformations of in-transit data whereas arrays are
+-- good at random access and in-place transformations of buffered data.  Unlike
+-- streams which are potentially infinite, arrays are necessarily /finite/.
+-- Arrays can be used as an efficient interface between streams and external
+-- storage systems like memory, files and network. Streams and arrays complete
+-- each other to provide a general purpose computing system. The design of
+-- streamly as a general purpose computing framework is centered around these
+-- two fundamental aspects of computing and storage.
 --
 -- Even though the implementation allows for in-place mutation, the current
 -- implementation of arrays is immutable. Arrays are of fixed size. The size of
@@ -90,35 +90,27 @@ module Streamly.Mem.Array
     -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
     -- 'fromList' can be used to construct an array from a string literal.
 
-    -- , newArray
-    , writeN
-    , write
+    -- Pure List APIs
     , A.fromListN
     , A.fromList
 
-    -- Folds
+    -- Monadic APIs
+    -- , newArray
+    , writeN
+    , write
+
+    -- Stream Folds
     , A.toArrayN
     -- , toArrays
     , toArray
-
-    -- Streams of arrays
-    , arraysOf
 
     -- * Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
+    , A.toList
     , A.read
     , readRev
-    , A.toList
-
-    -- Streams of arrays
-    , flattenArrays
-    -- , flattenArraysRev
-    , packArrays
-    , packArraysChunksOf
-    , unlinesArraysBy
-    , splitArraysOn
 
     -- * Random Access
     , length
@@ -135,10 +127,22 @@ module Streamly.Mem.Array
     , writeSlice
     , writeSliceRev
     -}
+
+    -- * Streams of arrays
+    , arraysOf
+
+    -- Streams of arrays
+    , flattenArrays
+    -- , flattenArraysRev
+    , packArrays
+    , packArraysChunksOf
+    , unlinesArraysBy
+    , splitArraysOn
+
     -- * Immutable Transformations
     , transformWith
 
-    -- * Folds
+    -- * Folding Arrays
     , foldWith
     , foldArray
     )
@@ -344,6 +348,7 @@ readSliceRev arr i len = undefined
 -}
 
 -- | /O(1)/ Write the given element at the given index in the array.
+-- Performs in-place mutation of the array.
 --
 -- @since 0.7.0
 {-# INLINE writeIndex #-}
@@ -456,6 +461,10 @@ toArray = toArrayMinChunk (bytesToCount (undefined :: a) (A.mkChunkSize 1024))
 
 -- | Convert a stream of arrays into a stream of their elements.
 --
+-- Same as the following but more efficient:
+--
+-- > flattenArrays = S.concatMap A.read
+--
 -- @since 0.7.0
 {-# INLINE flattenArrays #-}
 flattenArrays :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
@@ -506,10 +515,11 @@ packArraysChunksOf :: (MonadIO m, Storable a)
 packArraysChunksOf n xs =
     D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
 
--- |
--- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
+-- | Groups the elements in an input stream into arrays of given size.
 --
--- Groups the elements in an input stream into arrays of given size.
+-- Same as the following but more efficient:
+--
+-- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
 --
 -- @since 0.7.0
 {-# INLINE arraysOf #-}
