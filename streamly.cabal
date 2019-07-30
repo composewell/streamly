@@ -1053,7 +1053,7 @@ executable EchoServer
   main-is: EchoServer.hs
   hs-source-dirs:  examples
   ghc-options: -Wall
-  if flag(examples) || flag(examples-sdl)
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
         streamly
@@ -1066,7 +1066,7 @@ executable FileSinkServer
   main-is: FileSinkServer.hs
   hs-source-dirs:  examples
   ghc-options: -Wall
-  if flag(examples) || flag(examples-sdl)
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
         streamly
@@ -1079,7 +1079,7 @@ executable FromFileClient
   main-is: FromFileClient.hs
   hs-source-dirs:  examples
   ghc-options: -Wall
-  if flag(examples) || flag(examples-sdl)
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
         streamly
