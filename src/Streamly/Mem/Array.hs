@@ -150,7 +150,7 @@ where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Functor.Identity (Identity)
+-- import Data.Functor.Identity (Identity)
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -402,11 +402,13 @@ toArraysInRange :: (IsStream t, MonadIO m, Storable a)
 toArraysInRange low high (Fold step initial extract) =
 -}
 
+{-
 -- | Fold the input to a pure buffered stream (List) of arrays.
 {-# INLINE _toArraysOf #-}
 _toArraysOf :: (MonadIO m, Storable a)
     => Int -> Fold m a (SerialT Identity (Array a))
 _toArraysOf n = FL.lchunksOf n (A.toArrayN n) FL.toStream
+-}
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
 -- shrinkToFit.  On the other hand, the stream of arrays implementation may

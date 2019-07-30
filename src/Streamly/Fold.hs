@@ -226,8 +226,8 @@ module Streamly.Fold
     , chunksOf
     , sessionsOf
 
-    , lchunksOf
-    , lsessionsOf
+    -- , lchunksOf
+    -- , lsessionsOf
 
     -- *** By Elements
     , splitBy
@@ -2292,9 +2292,9 @@ lchunksInRange low high (Fold step1 initial1 extract1)
 --
 -- @
 --
-{-# INLINE lchunksOf #-}
-lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
+{-# INLINE _lchunksOf #-}
+_lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
+_lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
     Fold step' initial' extract'
 
     where
@@ -2326,9 +2326,9 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
 -- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
 --
 -- @
-{-# INLINE lsessionsOf #-}
-lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
+{-# INLINE _lsessionsOf #-}
+_lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
+_lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
     Fold step' initial' extract'
 
     where
