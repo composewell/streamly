@@ -240,7 +240,7 @@ module Streamly.Prelude
 
     -- * Transformation
 
-    , transform
+    --, transform
 
     -- ** Mapping
     -- | In imperative terms a map operation can be considered as a loop over
@@ -1581,9 +1581,9 @@ toHandle h m = go m
 ------------------------------------------------------------------------------
 
 -- | Use a 'Pipe' to transform a stream.
-{-# INLINE transform #-}
-transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
-transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
+{-# INLINE _transform #-}
+_transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
+_transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

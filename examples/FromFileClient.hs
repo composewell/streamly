@@ -7,10 +7,14 @@ import System.Environment (getArgs)
 
 import Streamly
 import qualified Streamly.Prelude as S
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Network.Client as Client
+
+import System.IO (withFile, IOMode(..))
 
 main :: IO ()
 main =
-    let sendFile = Client.writeArrays (127,0,0,1) 8090 . File.readArrays
-    in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList
+    let sendFile file =
+            withFile file ReadMode $ \src ->
+                Client.writeArrays (127, 0, 0, 1) 8090 $ FH.readArrays src
+     in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList
