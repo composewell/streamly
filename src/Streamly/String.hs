@@ -93,6 +93,8 @@ import qualified Streamly.Streams.StreamD as D
 
 -- | Decode a stream of bytes to Unicode characters by mapping each byte to a
 -- corresponding Unicode 'Char' in 0-255 range.
+--
+-- @since 0.7.0
 {-# INLINE decodeChar8 #-}
 decodeChar8 :: (IsStream t, Monad m) => t m Word8 -> t m Char
 decodeChar8 = S.map (unsafeChr . fromIntegral)
@@ -100,6 +102,8 @@ decodeChar8 = S.map (unsafeChr . fromIntegral)
 -- | Encode a stream of Unicode characters to bytes by mapping each character
 -- to a byte in 0-255 range. Throws an error if the input stream contains
 -- characters beyond 255.
+--
+-- @since 0.7.0
 {-# INLINE encodeChar8 #-}
 encodeChar8 :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8 = S.map convert
@@ -114,17 +118,23 @@ encodeChar8 = S.map convert
 -- | Like 'encodeChar8' but silently truncates and maps input characters beyond
 -- 255 to (incorrect) chars in 0-255 range. No error or exception is thrown
 -- when such truncation occurs.
+--
+-- @since 0.7.0
 {-# INLINE encodeChar8Unchecked #-}
 encodeChar8Unchecked :: (IsStream t, Monad m) => t m Char -> t m Word8
 encodeChar8Unchecked = S.map (fromIntegral . ord)
 
 -- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
 -- The incoming stream is truncated if an invalid codepoint is encountered.
+--
+-- @since 0.7.0
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
 decodeUtf8 = D.fromStreamD . D.decodeUtf8 . D.toStreamD
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
+--
+-- @since 0.7.0
 {-# INLINE encodeUtf8 #-}
 encodeUtf8 :: (Monad m, IsStream t) => t m Char -> t m Word8
 encodeUtf8 = D.fromStreamD . D.encodeUtf8 . D.toStreamD
@@ -160,6 +170,8 @@ stripEnd = undefined
 -- | Remove leading whitespace from a String.
 --
 -- > stripStart = S.dropWhile isSpace
+--
+-- @since 0.7.0
 {-# INLINE stripStart #-}
 stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
 stripStart = S.dropWhile isSpace
@@ -169,6 +181,8 @@ stripStart = S.dropWhile isSpace
 --
 -- >>> S.toList $ foldLines (S.fromList "lines\nthis\nstring\n\n\n") FL.toList
 -- ["lines", "this", "string", "", ""]
+--
+-- @since 0.7.0
 {-# INLINE foldLines #-}
 foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
 foldLines = flip (FL.splitSuffixBy (== '\n'))
@@ -178,6 +192,8 @@ foldLines = flip (FL.splitSuffixBy (== '\n'))
 --
 -- >>>  S.toList $ foldWords (S.fromList "fold these     words") FL.toList
 -- ["fold", "these", "words"]
+--
+-- @since 0.7.0
 {-# INLINE foldWords #-}
 foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
 foldWords = flip (FL.wordsBy isSpace)
@@ -202,6 +218,8 @@ isSpace c
 --
 -- If you're dealing with lines of massive length, consider using
 -- 'foldLines' instead.
+--
+-- @since 0.7.0
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 lines = FL.splitSuffixBy (== '\n') toArray
@@ -214,6 +232,8 @@ lines = FL.splitSuffixBy (== '\n') toArray
 --
 -- If you're dealing with words of massive length, consider using
 -- 'foldWords' instead.
+--
+-- @since 0.7.0
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 words = FL.wordsBy isSpace toArray
@@ -229,6 +249,8 @@ words = FL.wordsBy isSpace toArray
 -- Note that, in general
 --
 -- > unlines . lines /= id
+--
+-- @since 0.7.0
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
 unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
@@ -244,6 +266,8 @@ unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
 -- Note that, in general
 --
 -- > unwords . words /= id
+--
+-- @since 0.7.0
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
 unwords = A.flattenArrays . (S.intersperse (A.fromList " "))
