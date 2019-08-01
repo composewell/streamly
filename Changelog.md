@@ -63,12 +63,7 @@ example, concat streams concurrently using this.
     * `foldrS` to fold a stream to a stream
     * `foldrT` to fold a stream to an arbitrary transformer monad
     * `postscanl'` and `postscanlM'`
-    * `reverse'` a several times faster reverse using Storable instance
-    * `intersperseByTime` intersperse a mondadic action in a stream
-      periodically
     * `intersperse` intersperse an element in between consecutive elements in
-      stream
-    * `insertAfterEach` to insert a monadic action after each element in th
       stream
     * `trace` combinator maps a monadic function on a stream just for side
       effects
@@ -81,8 +76,8 @@ example, concat streams concurrently using this.
 * `runN` has been replaced by `drainN`
 * `runWhile` has been replaced by `drainWhile`
 
-* `foldWith`, `foldMapWith`, `forEachWith` have been moved from
-  "Streamly" module to "Streamly.Prelude" module.
+* `foldWith`, `foldMapWith`, `forEachWith` have been deprecated in "Streamly"
+  module and moved to "Streamly.Prelude" module.
 
 * In "Streamly.Prelude":
     * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`

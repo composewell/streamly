@@ -141,7 +141,7 @@ module Streamly
     , (<=>)
     , (<|)
 
-    -- * Moved
+    -- * Deprecated/Moved
     -- | These APIs have been moved to other modules
     , foldWith
     , foldMapWith
