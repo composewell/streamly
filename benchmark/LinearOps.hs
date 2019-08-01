@@ -352,7 +352,7 @@ composeN' n f =
 {-# INLINE insertBy #-}
 {-# INLINE deleteBy #-}
 {-# INLINE reverse #-}
-{-# INLINE reverse' #-}
+-- {-# INLINE reverse' #-}
 {-# INLINE foldrS #-}
 {-# INLINE foldrSMap #-}
 {-# INLINE foldrT #-}
@@ -360,7 +360,7 @@ composeN' n f =
 scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy, reverse, reverse',
+    findIndices, elemIndices, insertBy, deleteBy, reverse, -- reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
     :: MonadIO m
     => Int -> Stream m Int -> m ()
@@ -437,7 +437,7 @@ intersperse    n = composeN n $ S.intersperse maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
 reverse        n = composeN n $ S.reverse
-reverse'       n = composeN n $ S.reverse'
+-- reverse'       n = composeN n $ S.reverse'
 foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldrSMap      n = composeN n $ S.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
 foldrT         n = composeN n $ S.foldrT S.cons S.nil

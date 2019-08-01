@@ -219,10 +219,10 @@ main =
         , benchIOSink "mconcat" (FL.foldl' FL.mconcat . (S.map (Last . Just)))
         , benchIOSink "foldMap" (FL.foldl' (FL.foldMap (Last . Just)))
 
-        -- , benchIOSink "toList" (FL.foldl' FL.toList)
-        , benchIOSink "toListRev" (FL.foldl' FL.toListRev)
+        , benchIOSink "toList" (FL.foldl' FL.toList)
+        -- , benchIOSink "toListRev" (FL.foldl' FL.toListRev)
         -- , benchIOSink "toStream" (FL.foldl' FL.toStream)
-        , benchIOSink "toStreamRev" (FL.foldl' FL.toStreamRev)
+        -- , benchIOSink "toStreamRev" (FL.foldl' FL.toStreamRev)
         , benchIOSink "toArrayN" (FL.foldl' (A.toArrayN Ops.value))
 
         , benchIOSink "index" (FL.foldl' (FL.index Ops.maxValue))
@@ -276,7 +276,7 @@ main =
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
         , benchIOSink "reverse" (Ops.reverse 1)
-        , benchIOSink "reverse'" (Ops.reverse' 1)
+        -- , benchIOSink "reverse'" (Ops.reverse' 1)
         , benchIOSink "foldrS" (Ops.foldrS 1)
         , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
         , benchIOSink "foldrT" (Ops.foldrT 1)
