@@ -21,14 +21,21 @@ Some (among many others) of the Haskell packages that we looked at and might
 have taken some ideas or inspiration from include:
 
 * http://hackage.haskell.org/package/base
-* http://hackage.haskell.org/package/vector
-* http://hackage.haskell.org/package/machines
-* http://hackage.haskell.org/package/streaming
+
 * https://hackage.haskell.org/package/logict
-* https://hackage.haskell.org/package/foldl
-* http://hackage.haskell.org/package/bytestring
-* http://hackage.haskell.org/package/transient
 * https://hackage.haskell.org/package/list-transformer
+* http://hackage.haskell.org/package/transient
+
+* http://hackage.haskell.org/package/streaming
+* http://hackage.haskell.org/package/machines
 * https://hackage.haskell.org/package/simple-conduit
 * http://hackage.haskell.org/package/pipes
 * http://hackage.haskell.org/package/conduit
+
+* http://hackage.haskell.org/package/vector
+* http://hackage.haskell.org/package/bytestring
+* http://hackage.haskell.org/package/text
+
+* http://hackage.haskell.org/package/split
+* https://hackage.haskell.org/package/foldl
+* https://github.com/effectfully/prefolds
