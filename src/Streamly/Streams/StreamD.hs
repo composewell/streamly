@@ -11,6 +11,7 @@
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE MagicHash                 #-}
+{-# LANGUAGE TypeApplications          #-}
 
 #include "inline.hs"
 
@@ -255,6 +256,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
+import Data.Functor.Identity (Identity)
 import Data.Maybe (fromJust, isJust)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
@@ -2353,7 +2355,7 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
             Stop     -> return Stop
 
 {-# RULES "zipWithM xs xs"
-    forall f xs. zipWithM f xs xs = mapM (\x -> f x x) xs #-}
+    forall f xs. zipWithM @Identity f xs xs = mapM (\x -> f x x) xs #-}
 
 {-# INLINE zipWith #-}
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
