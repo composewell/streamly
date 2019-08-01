@@ -147,6 +147,13 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
 consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
 consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
+-- TODO
+-- Different variants of parallel differ in how the combined stream ends:
+--
+-- -                  - parallel  - ends when all stream end
+-- parallelEndByFirst - parallel1 - ends when the first stream ends
+-- parallelEndByAny   - parallel_ - ends when any stream ends
+--
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
 --

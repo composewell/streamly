@@ -299,6 +299,22 @@ instance IsStream WSerialT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
+-- TODO
+-- We always starts with the first stream yielding but there can be many ways
+-- to end it.  In general we can have the following variants of interleaving
+-- streams:
+-- wSerial           - interleave  - end when both streams end
+-- wSerialEndByAny   - interleave_ - end as soon as any stream ends
+-- wSerialEndByFirst - interleave1 - make sure we end with first
+-- -                 - interleave2 - make sure we end with second
+--
+-- Additionally we can have m elements yield from the first stream and n
+-- elements yeilding from the second stream. We can also have time slicing
+-- variants of positional interleaving, e.g. run first stream for m seconds and
+-- run the second stream for n seconds.
+--
+-- Similar combinators can be implemented using WAhead style.
+
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'WSerialT'.
 -- Interleaves two streams, yielding one element from each stream alternately.
 -- When one stream stops the rest of the other stream is used in the output
