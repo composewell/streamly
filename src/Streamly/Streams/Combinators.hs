@@ -42,7 +42,8 @@ import Streamly.Streams.Serial (SerialT)
 -- | Specify the maximum number of threads that can be spawned concurrently for
 -- any concurrent combinator in a stream.
 -- A value of 0 resets the thread limit to default, a negative value means
--- there is no limit. The default value is 1500.
+-- there is no limit. The default value is 1500. 'maxThreads' does not affect
+-- 'ParallelT' streams as they can use unbounded number of threads.
 --
 -- When the actions in a stream are IO bound, having blocking IO calls, this
 -- option can be used to control the maximum number of in-flight IO requests.

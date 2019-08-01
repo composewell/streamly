@@ -378,49 +378,30 @@ x |&. f = f |$. x
 -- ParallelT
 ------------------------------------------------------------------------------
 
--- | Async composition with simultaneous traversal of all streams.
+-- | Async composition with strict concurrent execution of all streams.
 --
--- The Semigroup instance of 'ParallelT' concurrently /merges/ two streams,
--- running both strictly concurrently and yielding elements from both streams
--- as they arrive. When multiple streams are combined using 'ParallelT' each
--- one is evaluated in its own thread and the results produced are presented in
--- the combined stream on a first come first serve basis.
+-- The 'Semigroup' instance of 'ParallelT' executes both the streams
+-- concurrently without any delay or without waiting for the consumer demand
+-- and /merges/ the results as they arrive. If the consumer does not consume
+-- the results, they are buffered upto a configured maximum, controlled by the
+-- 'maxBuffer' primitive. If the buffer becomes full the concurrent tasks will
+-- block until there is space in the buffer.
 --
--- 'AsyncT' and 'WAsyncT' are /concurrent lookahead streams/ each with a
--- specific type of consumption pattern (depth first or breadth first). Since
--- they are lookahead, they may introduce certain default latency in starting
--- more concurrent tasks for efficiency reasons or may put a default limitation
--- on the resource consumption (e.g. number of concurrent threads for
--- lookahead).  If we look at the implementation detail, they both can share a
--- pool of worker threads to evaluate the streams in the desired pattern and at
--- the desired rate. However, 'ParallelT' uses a separate runtime thread to
--- evaluate each stream.
+-- Both 'WAsyncT' and 'ParallelT', evaluate the constituent streams fairly in a
+-- round robin fashion. The key difference is that 'WAsyncT' might wait for the
+-- consumer demand before it executes the tasks whereas 'ParallelT' starts
+-- executing all the tasks immediately without waiting for the consumer demand.
+-- For 'WAsyncT' the 'maxThreads' limit applies whereas for 'ParallelT' it does
+-- not apply. In other words, 'WAsyncT' can be lazy whereas 'ParallelT' is
+-- strict.
 --
--- 'WAsyncT' is similar to 'ParallelT', as both of them evaluate the
--- constituent streams fairly in a round robin fashion.
--- However, the key difference is that 'WAsyncT' is lazy or pull driven
--- whereas 'ParallelT' is strict or push driven.  'ParallelT' immediately
--- starts concurrent evaluation of both the streams (in separate threads) and
--- later picks the results whereas 'WAsyncT' may wait for a certain latency
--- threshold before initiating concurrent evaluation of the next stream. The
--- concurrent scheduling of the next stream or the degree of concurrency is
--- driven by the feedback from the consumer. In case of 'ParallelT' each stream
--- is evaluated in a separate thread and results are /pushed/ to a shared
--- output buffer, the evaluation rate is controlled by blocking when the buffer
--- is full.
---
--- Concurrent lookahead streams are generally more efficient than
--- 'ParallelT' and can work pretty efficiently even for smaller tasks because
--- they do not necessarily use a separate thread for each task. So they should
--- be preferred over 'ParallelT' especially when efficiency is a concern and
--- simultaneous strict evaluation is not a requirement.  'ParallelT' is useful
--- for cases when the streams are required to be evaluated simultaneously
--- irrespective of how the consumer consumes them e.g.  when we want to race
--- two tasks and want to start both strictly at the same time or if we have
--- timers in the parallel tasks and our results depend on the timers being
--- started at the same time.  We can say that 'ParallelT' is almost the same
--- (modulo some implementation differences) as 'WAsyncT' when the latter is
--- used with unlimited lookahead and zero latency in initiating lookahead.
+-- 'ParallelT' is useful for cases when the streams are required to be
+-- evaluated simultaneously irrespective of how the consumer consumes them e.g.
+-- when we want to race two tasks and want to start both strictly at the same
+-- time or if we have timers in the parallel tasks and our results depend on
+-- the timers being started at the same time. If we do not have such
+-- requirements then 'AsyncT' or 'AheadT' are recommended as they can be more
+-- efficient than 'ParallelT'.
 --
 -- @
 -- main = ('toList' . 'parallely' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
@@ -462,7 +443,9 @@ x |&. f = f |$. x
 -- Note that parallel composition can only combine a finite number of
 -- streams as it needs to retain state for each unfinished stream.
 --
--- @since 0.1.0
+-- /Since: 0.7.0 (maxBuffer applies to ParallelT streams)/
+--
+-- /Since: 0.1.0/
 newtype ParallelT m a = ParallelT {getParallelT :: Stream m a}
     deriving (MonadTrans)
 

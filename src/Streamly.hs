@@ -409,9 +409,7 @@ forEachWith = P.forEachWith
 -- parameters to control the concurrency of the enclosed stream.  A parameter
 -- set at any point remains effective for any concurrent combinators used
 -- downstream until it is reset.  These control parameters have no effect on
--- non-concurrent combinators in the stream, or on non-concurrent streams. They
--- also do not affect 'Parallel' streams, as concurrency for 'Parallel' streams
--- is always unbounded.
+-- non-concurrent combinators in the stream, or on non-concurrent streams.
 
 -- $adapters
 --
