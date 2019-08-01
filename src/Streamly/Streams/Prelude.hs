@@ -268,7 +268,9 @@ foldbWith f = K.foldb f K.nil
 --
 -- @foldWith 'async' $ map return [1..3]@
 --
--- @since 0.1.0
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
+-- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE foldWith #-}
 foldWith :: (IsStream t, Foldable f)
     => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
@@ -280,7 +282,9 @@ foldWith f = Prelude.foldr f K.nil
 --
 -- @foldMapWith 'async' return [1..3]@
 --
--- @since 0.1.0
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
+-- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE foldMapWith #-}
 foldMapWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
@@ -289,7 +293,9 @@ foldMapWith f g = Prelude.foldr (f . g) K.nil
 -- | Like 'foldMapWith' but with the last two arguments reversed i.e. the
 -- monadic streaming function is the last argument.
 --
--- @since 0.1.0
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
+-- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE forEachWith #-}
 forEachWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b

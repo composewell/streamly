@@ -370,13 +370,13 @@ module Streamly.Prelude
     , insertBy
     , intersperseM
     , intersperse
-    , insertAfterEach
+    -- , insertAfterEach
     -- , intersperseBySpan
-    , intersperseByTime
+    -- , intersperseByTime
 
     -- ** Reordering
     , reverse
-    , reverse'
+    -- , reverse'
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -815,7 +815,9 @@ iterate step = fromStream . go
 --
 -- /Concurrent/
 --
--- @since 0.1.2
+-- /Since: 0.7.0 (signature change)/
+--
+-- /Since: 0.1.2/
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
 iterateM step = go
     where
@@ -872,7 +874,7 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
-{-# DEPRECATED fromHandle "Please use Streamly.FileIO instead." #-}
+{-# DEPRECATED fromHandle "Please use Streamly.FileSystem.Handle instead." #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -983,7 +985,11 @@ fromHandle h = go
 -- incrementally in FIFO style. Therefore, a strict left fold is more suitable
 -- for reductions.
 --
--- @since 0.7.0
+-- /Since: 0.7.0 (signature changed)/
+--
+-- /Since: 0.2.0 (signature changed)/
+--
+-- /Since: 0.1.0/
 {-# INLINE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> SerialT m a -> m b
 foldrM = P.foldrM
@@ -1209,11 +1215,16 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- as 'SerialT', to run other types of streams use the type adapting
 -- combinators for example @drain . 'asyncly'@.
 --
--- @since 0.2.0
+-- @since 0.7.0
 {-# INLINE drain #-}
 drain :: Monad m => SerialT m a -> m ()
 drain = P.drain
 
+-- | Run a stream, discarding the results. By default it interprets the stream
+-- as 'SerialT', to run other types of streams use the type adapting
+-- combinators for example @runStream . 'asyncly'@.
+--
+-- @since 0.2.0
 {-# DEPRECATED runStream "Please use \"drain\" instead" #-}
 {-# INLINE runStream #-}
 runStream :: Monad m => SerialT m a -> m ()
@@ -1229,6 +1240,12 @@ runStream = drain
 drainN :: Monad m => Int -> SerialT m a -> m ()
 drainN n = drain . take n
 
+-- |
+-- > runN n = runStream . take n
+--
+-- Run maximum up to @n@ iterations of a stream.
+--
+-- @since 0.6.0
 {-# DEPRECATED runN "Please use \"drainN\" instead" #-}
 {-# INLINE runN #-}
 runN :: Monad m => Int -> SerialT m a -> m ()
@@ -1239,11 +1256,17 @@ runN = drainN
 --
 -- Run a stream as long as the predicate holds true.
 --
--- @since 0.6.0
+-- @since 0.7.0
 {-# INLINE drainWhile #-}
 drainWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
 drainWhile p = drain . takeWhile p
 
+-- |
+-- > runWhile p = runStream . takeWhile p
+--
+-- Run a stream as long as the predicate holds true.
+--
+-- @since 0.6.0
 {-# DEPRECATED runWhile "Please use \"drainWhile\" instead" #-}
 {-# INLINE runWhile #-}
 runWhile :: Monad m => (a -> Bool) -> SerialT m a -> m ()
@@ -1566,7 +1589,7 @@ _toListRev = D.toListRev . toStreamD
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
-{-# DEPRECATED toHandle "Please use Streamly.FileIO instead." #-}
+{-# DEPRECATED toHandle "Please use Streamly.FileSystem.Handle instead." #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go m
     where
@@ -1604,7 +1627,9 @@ _transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 -- designed to work with the @foldl@ library. The suffix @x@ is a mnemonic for
 -- extraction.
 --
--- @since 0.2.0
+-- /Since: 0.7.0 (Monad m constraint)/
+--
+-- /Since 0.2.0/
 {-# DEPRECATED scanx "Please use scanl followed by map instead." #-}
 {-# INLINE scanx #-}
 scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
@@ -1911,7 +1936,9 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- /Note:/ 'reverse'' is much faster than this, use that when performance
 -- matters.
 --
--- @since 0.1.1
+-- /Since 0.7.0 (Monad m constraint)/
+--
+-- /Since: 0.1.1/
 {-# INLINE reverse #-}
 reverse :: (IsStream t, Monad m) => t m a -> t m a
 reverse s = fromStreamS $ S.reverse $ toStreamS s
@@ -1919,9 +1946,9 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
 -- @since 0.7.0
-{-# INLINE reverse' #-}
-reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
-reverse' s = fromStreamD $ D.reverse' $ toStreamD s
+{-# INLINE _reverse' #-}
+_reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
+_reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
@@ -1960,9 +1987,9 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- | Insert a monadic action after each element in the stream.
 --
 -- @since 0.7.0
-{-# INLINE insertAfterEach #-}
-insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
+{-# INLINE _insertAfterEach #-}
+_insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+_insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@
@@ -1988,11 +2015,11 @@ intersperseBySpan _n _f _xs = undefined
 -- @
 --
 -- @since 0.7.0
-{-# INLINE intersperseByTime #-}
-intersperseByTime
+{-# INLINE _intersperseByTime #-}
+_intersperseByTime
     :: (IsStream t, MonadAsync m)
     => Double -> m a -> t m a -> t m a
-intersperseByTime n f xs = xs `Par.parallelEndByFirst` repeatM timed
+_intersperseByTime n f xs = xs `Par.parallelEndByFirst` repeatM timed
     where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
