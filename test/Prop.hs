@@ -24,7 +24,7 @@ import GHC.Word (Word8)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
        (counterexample, Property, withMaxSuccess, forAll, choose, Gen,
-       arbitrary, elements, frequency, listOf, listOf1, vectorOf, suchThat)
+       arbitrary, elements, frequency, listOf) --, listOf1, vectorOf, suchThat)
 import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
 import Test.Hspec as H
@@ -493,7 +493,7 @@ transformCombineOpsCommon constr desc eq t = do
 
     -- reordering
     prop (desc <> " reverse") $ transform reverse t S.reverse
-    prop (desc <> " reverse'") $ transform reverse t S.reverse'
+    -- prop (desc <> " reverse'") $ transform reverse t S.reverse'
 
     -- inserting
     prop (desc <> " intersperseM") $
@@ -510,56 +510,66 @@ transformCombineOpsCommon constr desc eq t = do
                 t (S.concatMap (const (S.fromList [1..n])))
 
 toListFL :: Monad m => FL.Fold m a [a]
-toListFL = fmap reverse FL.toListRev
+toListFL = FL.toList
 
 groupSplitOps :: String -> Spec
 groupSplitOps desc = do
     -- splitting
     -- XXX add tests with multichar separators too
 
-    prop (desc <> " intercalate . splitOn == id (nil separator)") $
+{-
+    prop (desc <> " intercalate . splitOnSeq == id (nil separator)") $
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOn [] toListFL (S.fromList xs)
+                    ys <- S.toList $ FL.splitOnSeq [] toListFL (S.fromList xs)
                     listEquals (==) (intercalate [] ys) xs
 
-    prop (desc <> " intercalate . splitOn == id (single element separator)") $
+    prop (desc <> " intercalate . splitOnSeq == id (single element separator)") $
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
+                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
                     listEquals (==) (intercalate [0] ys) xs
 
-    prop (desc <> " concat . splitOn . intercalate == concat (nil separator/possibly empty list)") $
+    prop (desc <> " concat . splitOnSeq . intercalate == concat (nil separator/possibly empty list)") $
         forAll listsWithoutZeroes $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [] xss
-                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
+                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
                     listEquals (==) (concat ys) (concat xss)
 
-    prop (desc <> " concat . splitOn . intercalate == concat (non-nil separator/possibly empty list)") $
+    prop (desc <> " concat . splitOnSeq . intercalate == concat (non-nil separator/possibly empty list)") $
         forAll listsWithoutZeroes $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
+                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
                     listEquals (==) (concat ys) (concat xss)
 
-    prop (desc <> " splitOn . intercalate == id (exclusive separator/non-empty list)") $
+    prop (desc <> " splitOnSeq . intercalate == id (exclusive separator/non-empty list)") $
         forAll listsWithoutZeroes1 $ \xss -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
                     let xs = intercalate [0] xss
-                    ys <- S.toList $ FL.splitOn [0] toListFL (S.fromList xs)
+                    ys <- S.toList $ FL.splitOnSeq [0] toListFL (S.fromList xs)
                     listEquals (==) ys xss
+-}
+
+    prop (desc <> " intercalate [x] . splitOn (== x) == id") $
+        forAll listWithZeroes $ \xs -> do
+            withMaxSuccess maxTestCount $
+                monadicIO $ do
+                    ys <- S.toList $ FL.splitOn (== 0) toListFL (S.fromList xs)
+                    listEquals (==) (intercalate [0] ys) xs
 
     where
 
     listWithZeroes :: Gen [Int]
     listWithZeroes = listOf $ frequency [(3, arbitrary), (1, elements [0])]
 
+{-
     listWithoutZeroes = vectorOf 4 $ suchThat arbitrary (/= 0)
 
     listsWithoutZeroes :: Gen [[Int]]
@@ -567,6 +577,7 @@ groupSplitOps desc = do
 
     listsWithoutZeroes1 :: Gen [[Int]]
     listsWithoutZeroes1 = listOf1 listWithoutZeroes
+-}
 
 -- transformation tests that can only work reliably for ordered streams i.e.
 -- Serial, Ahead and Zip. For example if we use "take 1" on an async stream, it

@@ -171,7 +171,7 @@ stripStart = S.dropWhile isSpace
 -- ["lines", "this", "string", "", ""]
 {-# INLINE foldLines #-}
 foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
-foldLines = flip (FL.splitSuffixBy (== '\n'))
+foldLines = flip (FL.splitOnSuffix (== '\n'))
 
 -- | Fold each word of the stream using the supplied Fold
 -- and stream the result.
@@ -204,7 +204,7 @@ isSpace c
 -- 'foldLines' instead.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-lines = FL.splitSuffixBy (== '\n') toArray
+lines = FL.splitOnSuffix (== '\n') toArray
 
 -- | Break a string up into a list of strings, which were delimited
 -- by characters representing white space.

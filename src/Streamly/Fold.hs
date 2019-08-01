@@ -89,11 +89,11 @@ module Streamly.Fold
     -- applications, they buffer all the input in GC memory which can be
     -- detrimental to performance if the input is large.
 
-    , toStream  -- experimental
-    , toStreamRev  -- experimental
+    -- , toStream  -- experimental
+    -- , toStreamRev  -- experimental
 
     , toList
-    , toListRev  -- experimental
+    -- , toListRev  -- experimental
 
     -- ** Partial Folds
     -- , drainN
@@ -158,9 +158,9 @@ module Streamly.Fold
     -- , lprescanl'
     -- , lprescanlM'
 
-    -- ** Filtering
-    , lfilter
-    , lfilterM
+    -- -- ** Filtering
+    -- , lfilter
+    -- , lfilterM
     -- , ldeleteBy
     -- , luniq
 
@@ -198,17 +198,17 @@ module Streamly.Fold
     -- ** Breaking
 
     -- By chunks
-    , splitAt
-    -- , splitIn -- time
+    -- , splitAt -- spanN
+    -- , splitIn -- sessionN
 
     -- By elements
-    , span
-    , break -- breakPre
-    -- , breakPost
+    -- , span  -- spanWhile
+    -- , break -- breakBefore
+    -- , breakAfter
     -- , breakOn
     -- , breakAround
     -- , spanBy
-    -- , spanRollingBy
+    -- , spanByRolling
 
     -- By sequences
     -- breakOnSeq
@@ -225,40 +225,45 @@ module Streamly.Fold
 
     -- , groupScan
 
-    -- *** By Chunks
+    -- *** Chunks
     , chunksOf
     , sessionsOf
 
     -- , lchunksOf
     -- , lsessionsOf
 
-    -- *** By Elements
-    , splitBy
-    , splitSuffixBy
-    , splitSuffixBy'
-    -- , splitPrefixBy
-    , wordsBy
-
-    -- *** By Sequences
+    -- *** Using Element Separators
+    -- On == Dropping the separator
     , splitOn
-    , splitSuffixOn
-    -- , splitPrefixOn
-    -- , wordsOn
+    , splitOnSuffix
+    -- , splitOnPrefix
+
+    -- By == Keeping the separator
+    -- , splitBy
+    -- , splitBySuffix
+    -- , splitByPrefix
+    , wordsBy -- stripAndCompactBy
+
+    -- -- *** Using Sequence Separators
+    -- , splitOnSeq
+    -- , splitOnSuffixSeq
+    -- , splitOnPrefixSeq
 
     -- Keeping the delimiters
-    , splitOn'
-    , splitSuffixOn'
-    -- , splitPrefixOn'
+    -- , splitBySeq
+    -- , splitBySeqSuffix
+    -- , splitBySeqPrefix
+    -- , wordsBySeq
 
-    -- Splitting by multiple sequences
-    -- , splitOnAny
-    -- , splitSuffixOnAny
-    -- , splitPrefixOnAny
+    -- Splitting using multiple sequence separators
+    -- , splitOnAnySeq
+    -- , splitOnAnySuffixSeq
+    -- , splitOnAnyPrefixSeq
 
     -- ** Grouping
     , groups
     , groupsBy
-    , groupsRollingBy
+    , groupsByRolling
 
     -- * Distributing
     -- |
@@ -296,19 +301,26 @@ module Streamly.Fold
 
     -- * Partitioning
     -- |
-    -- Direct items in the input stream to different folds using a function to
-    -- select the fold. This is useful to demultiplex the input stream.
+    -- Direct items in the input stream to different folds using a binary
+    -- fold selector.
+
     -- , partitionByM
     -- , partitionBy
     , partition
 
     -- * Demultiplexing
+    -- | Direct values in the input stream to different folds using an n-ary
+    -- fold selector.
+
     , demux
     -- , demuxWith
     , demux_
     -- , demuxWith_
 
     -- * Classifying
+    -- | In an input stream of key value pairs fold values for different keys
+    -- in individual output buckets using the given fold.
+
     , classify
     -- , classifyWith
 
@@ -318,7 +330,7 @@ module Streamly.Fold
     -- , unzipWith
     -- , unzipWithM
 
-    -- * Nested Folds
+    -- -- * Nested Folds
     -- , concatMap
     -- , chunksOf
     -- , duplicate  -- experimental
@@ -403,6 +415,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Streams.Parallel as Par
 
 -- $termination
 --
@@ -1210,8 +1223,11 @@ sessionsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
 sessionsOf n f xs =
-    splitSuffixBy' isNothing (lcatMaybes f)
-        (S.intersperseByTime n (return Nothing) (S.map Just xs))
+    splitBySuffix isNothing (lcatMaybes f)
+        (intersperseByTime n (return Nothing) (S.map Just xs))
+    where
+    intersperseByTime n f xs = xs `Par.parallelEndByFirst` S.repeatM timed
+        where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1355,7 +1371,8 @@ _spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR)
 -- first group, if @a \`cmp` b@ is 'True' then @b@ is also assigned to the same
 -- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
 -- group and so on. When the comparison fails a new group is started. Each
--- group is folded using the fold @f@.
+-- group is folded using the fold @f@ and the result of the fold is emitted in
+-- the output stream.
 --
 -- >>> S.toList $ FL.groupsBy (>) FL.toList $ S.fromList [1,3,7,0,2,5]
 -- > [[1,3,7],[0,2,5]]
@@ -1371,31 +1388,31 @@ groupsBy
 groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 
 -- | Unlike @groupsBy@ this function performs a rolling comparison of two
--- successive elements in the input stream. @groupsRollingBy cmp f $ S.fromList
+-- successive elements in the input stream. @groupsByRolling cmp f $ S.fromList
 -- [a,b,c,...]@ assigns the element @a@ to the first group, if @a \`cmp` b@ is
 -- 'True' then @b@ is also assigned to the same group.  If @b \`cmp` c@ is
 -- 'True' then @c@ is also assigned to the same group and so on. When the
 -- comparison fails a new group is started. Each group is folded using the fold
 -- @f@.
 --
--- >>> S.toList $ FL.groupsRollingBy (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
+-- >>> S.toList $ FL.groupsByRolling (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
 -- > [[1,2,3],[7,8,9]]
 --
 -- @since 0.7.0
-{-# INLINE groupsRollingBy #-}
-groupsRollingBy
+{-# INLINE groupsByRolling #-}
+groupsByRolling
     :: (IsStream t, Monad m)
     => (a -> a -> Bool)
     -> Fold m a b
     -> t m a
     -> t m b
-groupsRollingBy cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
+groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD m)
 
 -- |
 -- > groups = groupsBy (==)
--- > groups = groupsRollingBy (==)
+-- > groups = groupsByRolling (==)
 --
--- Groups a contiguous span of equal elements together in one group.
+-- Groups contiguous spans of equal elements together in individual groups.
 --
 -- >>> S.toList $ FL.groups FL.toList $ S.fromList [1,1,2,2]
 -- > [[1,1],[2,2]]
@@ -1435,92 +1452,104 @@ breakOn pat f m = undefined
 -- as argument.
 
 -- | Split a stream on separator elements determined by a predicate, dropping
--- the separator.  Separators are not considered part of stream segments on
--- either side of it instead they are treated as infixed between two stream
--- segments. For example, with @.@ as separator, @"a.b.c"@ would be parsed as
--- @["a","b","c"]@. When @.@ is in leading or trailing position it is still
--- considered as infixed, treating the first or the last segment as empty.  For
--- example, @".a."@ would be parsed as @["","a",""]@.  This operation is
--- opposite of 'intercalate'.
+-- the separator. Separator is considered as infixed between two segments, if
+-- one side of the separator is missing then it is parsed as an empty stream.
+-- With '-' representing elements and '.' as separator, 'splitOn' splits as
+-- follows:
+--
+-- @
+-- "--.--" => "--" "--"
+-- "--."   => "--" ""
+-- ".--"   => ""   "--"
+-- @
+--
+-- @splitOn (== x)@ is an inverse of @intercalate (S.yield x)@
 --
 -- Let's use the following definition for illustration:
 --
--- > splitBy_ p xs = S.toList $ FL.splitBy p (FL.toList) (S.fromList xs)
+-- > splitOn' p xs = S.toList $ FL.splitOn p (FL.toList) (S.fromList xs)
 --
--- >>> splitBy_ (== '.') ""
+-- >>> splitOn' (== '.') ""
 -- [""]
 --
--- >>> splitBy_ (== '.') "."
+-- >>> splitOn' (== '.') "."
 -- ["",""]
 --
--- >>> splitBy_ (== '.') ".a"
+-- >>> splitOn' (== '.') ".a"
 -- > ["","a"]
 --
--- >>> splitBy_ (== '.') "a."
+-- >>> splitOn' (== '.') "a."
 -- > ["a",""]
 --
--- >>> splitBy_ (== '.') "a.b"
+-- >>> splitOn' (== '.') "a.b"
 -- > ["a","b"]
 --
--- >>> splitBy_ (== '.') "a..b"
+-- >>> splitOn' (== '.') "a..b"
 -- > ["a","","b"]
 --
--- This can be considered as an n-fold version of 'break' where we apply
--- 'break' successively on the input stream, dropping the first element
+-- @since 0.7.0
+
+-- This can be considered as an n-fold version of 'breakOn' where we apply
+-- 'breakOn' successively on the input stream, dropping the first element
 -- of the second segment after each break.
 --
--- @since 0.7.0
-{-# INLINE splitBy #-}
-splitBy
+{-# INLINE splitOn #-}
+splitOn
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitBy predicate f m =
+splitOn predicate f m =
     D.fromStreamD $ D.splitBy predicate f (D.toStreamD m)
 
--- | Like 'splitBy' but the separator is treated as part of the previous
--- stream segment (suffix).  Therefore, when the separator is in trailing
--- position, no empty segment is considered to follow it. For example, @"a.b."@
--- would be parsed as @["a","b"]@ instead of @["a","b",""]@ as in the case of
--- 'splitBy'.
+-- | Like 'splitOn' but the separator is considered as suffixed to the segments
+-- in the stream. A missing suffix at the end is allowed. A separator at the
+-- beginning is parsed as empty segment.  With '-' representing elements and
+-- '.' as separator, 'splitOnSuffix' splits as follows:
 --
--- > splitSuffixBy_ p xs = S.toList $ FL.splitSuffixBy p (FL.toList) (S.fromList xs)
+-- @
+--  "--.--." => "--" "--"
+--  "--.--"  => "--" "--"
+--  ".--."   => "" "--"
+-- @
 --
--- >>> splitSuffixBy_ (== '.') ""
+-- > splitOnSuffix' p xs = S.toList $ FL.splitSuffixBy p (FL.toList) (S.fromList xs)
+--
+-- >>> splitOnSuffix' (== '.') ""
 -- []
 --
--- >>> splitSuffixBy_ (== '.') "."
+-- >>> splitOnSuffix' (== '.') "."
 -- [""]
 --
--- >>> splitSuffixBy_ (== '.') "a"
+-- >>> splitOnSuffix' (== '.') "a"
 -- ["a"]
 --
--- >>> splitSuffixBy_ (== '.') ".a"
+-- >>> splitOnSuffix' (== '.') ".a"
 -- > ["","a"]
 --
--- >>> splitSuffixBy_ (== '.') "a."
+-- >>> splitOnSuffix' (== '.') "a."
 -- > ["a"]
 --
--- >>> splitSuffixBy_ (== '.') "a.b"
+-- >>> splitOnSuffix' (== '.') "a.b"
 -- > ["a","b"]
 --
--- >>> splitSuffixBy_ (== '.') "a.b."
+-- >>> splitOnSuffix' (== '.') "a.b."
 -- > ["a","b"]
 --
--- >>> splitSuffixBy_ (== '.') "a..b.."
+-- >>> splitOnSuffix' (== '.') "a..b.."
 -- > ["a","","b",""]
 --
--- > lines = splitSuffixBy (== '\n')
+-- > lines = splitOnSuffix (== '\n')
 --
+-- @since 0.7.0
+
 -- This can be considered as an n-fold version of 'breakPost' where we apply
 -- 'breakPost' successively on the input stream, dropping the first element
 -- of the second segment after each break.
 --
--- @since 0.7.0
-{-# INLINE splitSuffixBy #-}
-splitSuffixBy
+{-# INLINE splitOnSuffix #-}
+splitOnSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitSuffixBy predicate f m =
+splitOnSuffix predicate f m =
     D.fromStreamD $ D.splitSuffixBy predicate f (D.toStreamD m)
 
 -- | Like 'splitBy' but ignores repeated separators or separators in leading
@@ -1549,49 +1578,45 @@ wordsBy
 wordsBy predicate f m =
     D.fromStreamD $ D.wordsBy predicate f (D.toStreamD m)
 
--- XXX we should express this using the Splitter config.
+-- | Like 'splitOnSuffix' but keeps the suffix attached to the resulting
+-- splits.
 --
--- We can get splitSuffixBy' by appending the suffix to the output segments
--- produced by splitSuffixBy. However, it may add an additional suffix if the last
--- fragment did not have a suffix in the first place.
-
--- | Like 'splitSuffixBy' but keeps the suffix in the splits.
+-- > splitBySuffix' p xs = S.toList $ FL.splitBySuffix p (FL.toList) (S.fromList xs)
 --
--- > splitSuffixBy'_ p xs = S.toList $ FL.splitSuffixBy' p (FL.toList) (S.fromList xs)
---
--- >>> splitSuffixBy'_ (== '.') ""
+-- >>> splitBySuffix' (== '.') ""
 -- []
 --
--- >>> splitSuffixBy'_ (== '.') "."
+-- >>> splitBySuffix' (== '.') "."
 -- ["."]
 --
--- >>> splitSuffixBy'_ (== '.') "a"
+-- >>> splitBySuffix' (== '.') "a"
 -- ["a"]
 --
--- >>> splitSuffixBy'_ (== '.') ".a"
+-- >>> splitBySuffix' (== '.') ".a"
 -- > [".","a"]
 --
--- >>> splitSuffixBy'_ (== '.') "a."
+-- >>> splitBySuffix' (== '.') "a."
 -- > ["a."]
 --
--- >>> splitSuffixBy'_ (== '.') "a.b"
+-- >>> splitBySuffix' (== '.') "a.b"
 -- > ["a.","b"]
 --
--- >>> splitSuffixBy'_ (== '.') "a.b."
+-- >>> splitBySuffix' (== '.') "a.b."
 -- > ["a.","b."]
 --
--- >>> splitSuffixBy'_ (== '.') "a..b.."
+-- >>> splitBySuffix' (== '.') "a..b.."
 -- > ["a.",".","b.","."]
 --
+-- @since 0.7.0
+
 -- This can be considered as an n-fold version of 'breakPost' where we apply
 -- 'breakPost' successively on the input stream.
 --
--- @since 0.7.0
-{-# INLINE splitSuffixBy' #-}
-splitSuffixBy'
+{-# INLINE splitBySuffix #-}
+splitBySuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitSuffixBy' predicate f m =
+splitBySuffix predicate f m =
     D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
@@ -1624,43 +1649,43 @@ splitSuffixBy' predicate f m =
 -- >>> splitList [1,2,3,3,4] [1,2,3,3,4]
 -- > [[],[]]
 
--- | Split the stream on both sides of a separator sequence, dropping the
--- separator.
+-- | Like 'splitOn' but the separator is a sequence of elements instead of a
+-- single element.
 --
 -- For illustration, let's define a function that operates on pure lists:
 --
 -- @
--- splitOn_ pat xs = S.toList $ FL.splitOn (A.fromList pat) (FL.toList) (S.fromList xs)
+-- splitOnSeq' pat xs = S.toList $ FL.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 -- @
 --
--- >>> splitOn_ "" "hello"
+-- >>> splitOnSeq' "" "hello"
 -- > ["h","e","l","l","o"]
 --
--- >>> splitOn_ "hello" ""
+-- >>> splitOnSeq' "hello" ""
 -- > [""]
 --
--- >>> splitOn_ "hello" "hello"
+-- >>> splitOnSeq' "hello" "hello"
 -- > ["",""]
 --
--- >>> splitOn_ "x" "hello"
+-- >>> splitOnSeq' "x" "hello"
 -- > ["hello"]
 --
--- >>> splitOn_ "h" "hello"
+-- >>> splitOnSeq' "h" "hello"
 -- > ["","ello"]
 --
--- >>> splitOn_ "o" "hello"
+-- >>> splitOnSeq' "o" "hello"
 -- > ["hell",""]
 --
--- >>> splitOn_ "e" "hello"
+-- >>> splitOnSeq' "e" "hello"
 -- > ["h","llo"]
 --
--- >>> splitOn_ "l" "hello"
+-- >>> splitOnSeq' "l" "hello"
 -- > ["he","","o"]
 --
--- >>> splitOn_ "ll" "hello"
+-- >>> splitOnSeq' "ll" "hello"
 -- > ["he","o"]
 --
--- 'splitOn' is an inverse of 'intercalate'. The following law always holds:
+-- 'splitOnSeq' is an inverse of 'intercalate'. The following law always holds:
 --
 -- > intercalate . splitOn == id
 --
@@ -1669,16 +1694,18 @@ splitSuffixBy' predicate f m =
 --
 -- > splitOn . intercalate == id
 --
--- The following law always holds:
---
--- > concat . splitOn . intercalate == concat
---
 -- @since 0.7.0
-{-# INLINE splitOn #-}
-splitOn
+
+-- XXX We can use a polymorphic vector implemented by Array# to represent the
+-- sequence, that way we can avoid the Storable constraint. If we still need
+-- Storable Array for performance, we can use a separate splitOnArray API for
+-- that. We can also have an API where the sequence itself is a lazy stream, so
+-- that we can search files in files for example.
+{-# INLINE splitOnSeq #-}
+splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOn patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
+splitOnSeq patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
 
 {-
 -- This can be implemented easily using Rabin Karp
@@ -1722,11 +1749,11 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- > lines = splitSuffixOn "\n"
 --
 -- @since 0.7.0
-{-# INLINE splitSuffixOn #-}
-splitSuffixOn
+{-# INLINE splitOnSuffixSeq #-}
+splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitSuffixOn patt f m =
+splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
 
 {-
@@ -1741,7 +1768,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 
 -- XXX use a non-monadic intersperse to remove the MonadAsync constraint.
 --
--- | Like 'splitOn' but splits the separator as well, as an infix token.
+-- | Like 'splitOnSeq' but splits the separator as well, as an infix token.
 --
 -- > splitOn'_ pat xs = S.toList $ FL.splitOn' (A.fromList pat) (FL.toList) (S.fromList xs)
 --
@@ -1773,11 +1800,11 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- > ["he","ll","o"]
 --
 -- @since 0.7.0
-{-# INLINE splitOn' #-}
-splitOn'
+{-# INLINE splitBySeq #-}
+splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOn' patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOn patt f m
+splitBySeq patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --
@@ -1808,11 +1835,11 @@ splitOn' patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOn patt f m
 -- > ["a.",".","b.","."]
 --
 -- @since 0.7.0
-{-# INLINE splitSuffixOn' #-}
-splitSuffixOn'
+{-# INLINE splitBySuffixSeq #-}
+splitBySuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitSuffixOn' patt f m =
+splitBySuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
 
 {-
@@ -1882,7 +1909,8 @@ foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
     done (Tuple' xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
 
 -- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
--- number of consumers?
+-- number of consumers? For polymorphic case a vector could be helpful. For
+-- Storables we can use arrays. Will need separate APIs for those.
 --
 -- | Distribute one copy of the stream to each fold and collect the results in
 -- a container.
@@ -2010,11 +2038,15 @@ partition = partitionBy id
 -- partitionN fs = Fold step begin done
 -}
 
--- Demultiplex an input element into a number of typed variants. We want to
--- statically restrict the target values within a set of predefined types, an
--- enumeration of a GADT. We also want to make sure that the Map contains only
--- those types and the full set of those types.  Instead of Map it should
--- probably be a lookup-table using an array and not in GC memory.
+-- TODO Demultiplex an input element into a number of typed variants. We want
+-- to statically restrict the target values within a set of predefined types,
+-- an enumeration of a GADT. We also want to make sure that the Map contains
+-- only those types and the full set of those types.
+--
+-- TODO Instead of the input Map it should probably be a lookup-table using an
+-- array and not in GC memory. The same applies to the output Map as well.
+-- However, that would only be helpful if we have a very large data structure,
+-- need to measure and see how it scales.
 --
 -- This is the consumer side dual of the producer side 'mux' operation (XXX to
 -- be implemented).
@@ -2131,9 +2163,9 @@ demuxWith_ f kv = Fold step initial extract
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
 demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
 
--- XXX instead of a Map we could yield the results as a pure stream as they
--- complete. We could then concatMap the fold results to implement the
--- windowing combinators.
+-- TODO If the data is large we may need a map/hashmap in pinned memory instead
+-- of a regular Map. That may require a serializable constraint though. We can
+-- have another API for that.
 --
 -- | Split the input stream based on a key field and fold each split using the
 -- given fold. Useful for map/reduce, bucketizing the input in different bins
@@ -2175,11 +2207,12 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --
+-- @since 0.7.0
+
 -- Same as:
 --
 -- > classify fld = classifyWith fst (lmap snd fld)
 --
--- @since 0.7.0
 {-# INLINE classify #-}
 classify :: (Monad m, Ord k) => Fold m a b -> Fold m (k, a) (Map k b)
 classify fld = classifyWith fst (lmap snd fld)
@@ -2219,9 +2252,9 @@ unzipWith f = unzipWithM (return . f)
 --
 -- @
 --
---                           |-------Fold a x--------|
--- -----Stream m x----(a,b)--|                       |----m (x,y)
---                           |-------Fold b y--------|
+--                           |-------Fold m a x--------|
+-- ---------stream of (a,b)--|                         |----m (x,y)
+--                           |-------Fold m b y--------|
 --
 -- @
 --
