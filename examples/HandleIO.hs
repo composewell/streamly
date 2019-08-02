@@ -35,14 +35,16 @@ wcl src = print =<< (S.length
     $ FH.read src)
 -}
 
+{-
 grepc :: String -> FH.Handle -> IO ()
 grepc pat src = print . (subtract 1) =<< (S.length
-    $ FL.splitOn (A.fromList (map ord' pat)) FL.drain
+    $ FL.splitOnSeq (A.fromList (map ord' pat)) FL.drain
     $ FH.read src)
+-}
 
 avgll :: FH.Handle -> IO ()
 avgll src = print =<< (FL.foldl' avg
-    $ FL.splitSuffixBy (== ord' '\n') FL.length
+    $ FL.splitBySuffix (== ord' '\n') FL.length
     $ FH.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
@@ -50,7 +52,7 @@ avgll src = print =<< (FL.foldl' avg
 llhisto :: FH.Handle -> IO ()
 llhisto src = print =<< (FL.foldl' (FL.classify FL.length)
     $ S.map bucket
-    $ FL.splitSuffixBy (== ord' '\n') FL.length
+    $ FL.splitBySuffix (== ord' '\n') FL.length
     $ FH.read src)
     where
     bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)
@@ -63,7 +65,7 @@ main = do
 
     rewind >> putStrLn "cat"    >> cat src          -- Unix cat program
     rewind >> putStr "wcl "     >> wcl src          -- Unix wc -l program
-    rewind >> putStr "grepc "   >> grepc "aaaa" src -- Unix grep -c program
+ -- rewind >> putStr "grepc "   >> grepc "aaaa" src -- Unix grep -c program
     rewind >> putStr "avgll "   >> avgll src        -- get average line length
     rewind >> putStr "llhisto " >> llhisto src      -- get line length histogram
 
