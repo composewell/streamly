@@ -108,6 +108,7 @@ instance (a ~ Char) => IsString (STREAM Identity a) where {                   \
     fromString = P.fromList };                                                \
                                                                               \
 instance NFData a => NFData (STREAM Identity a) where {                       \
+    {-# INLINE rnf #-};                                                       \
     rnf = runIdentity . P.foldl' (\_ x -> rnf x) () };                        \
 
 -------------------------------------------------------------------------------
