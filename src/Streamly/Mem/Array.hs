@@ -132,7 +132,7 @@ module Streamly.Mem.Array
     , transformWith
 
     -- * Folding Arrays
-    , foldWith
+    -- , foldWith
     , foldArray
     )
 where
@@ -486,6 +486,6 @@ foldArray f arr = FL.foldl' f (A.read arr)
 -- | Fold an array using a stream fold operation.
 --
 -- @since 0.7.0
-{-# INLINE foldWith #-}
-foldWith :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-foldWith f arr = f (A.read arr)
+{-# INLINE _foldWith #-}
+_foldWith :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+_foldWith f arr = f (A.read arr)
