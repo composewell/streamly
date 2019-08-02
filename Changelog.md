@@ -3,14 +3,39 @@
 ### Breaking changes
 
 * Change the signature of `foldrM` to ensure that it is lazy
-* `scanx` would now require an additional `Monad m` constraint.
 * Change the signature of `iterateM` to ensure that it is lazy.
-* Earlier ParallelT was unaffected by `maxBuffer` directive, now `maxBuffer`
-  can limit the buffer of a ParallelT stream as well. When the buffer becomes
-  full the producer threads block.
-* ParallelT streams no longer have an unlimited buffer by default. Now the
+* `scanx` would now require an additional `Monad m` constraint.
+
+### Behavior change
+
+* Earlier `ParallelT` was unaffected by `maxBuffer` directive, now `maxBuffer`
+  can limit the buffer of a `ParallelT` stream as well. When the buffer becomes
+  full, the producer threads block.
+* `ParallelT` streams no longer have an unlimited buffer by default. Now the
   buffer for parallel streams is limited to 1500 by default, the same as other
   concurrent stream types.
+
+### Deprecations
+
+* In `Streamly.Prelude`:
+    * `runStream` has been replaced by `drain`
+    * `runN` has been replaced by `drainN`
+    * `runWhile` has been replaced by `drainWhile`
+    * `fromHandle` has been deprecated. Please use
+      `Streamly.FileSystem.Handle.read`, `Streamly.String.decodeUtf8` and
+      `Streamly.String.lines` to split the stream into lines. Use
+      `Streamly.String.foldLine` with `Streamly.Fold.toList` if you want to
+      convert the stream to a stream of `String`.
+    * `toHandle` has been deprecated. Please use `intersperse` and `concat` to
+      add newlines to a stream, `Streamly.String.encodeUtf8` for encoding and
+      `Streamly.FileSystem.Handle.write` for writing to a file handle.
+    * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
+    * Remove deprecated APIs `scan`, `foldl`, `foldlM`
+
+* In `Streamly` module:
+    * `runStream` has been deprecated, please use `Streamly.Prelude.drain`
+    * `foldWith`, `foldMapWith`, `forEachWith` have been moved to
+      `Streamly.Prelude` module.
 
 ### Bug Fixes
 
@@ -69,19 +94,6 @@ example, concat streams concurrently using this.
       effects
     * `tap` redirects a copy of the stream to a `Fold`
     * `tee` redirects a copy of the stream to a concurrent fold function
-
-### Deprecations
-
-* `runStream` has been replaced by `Streamly.Prelude.drain`
-* `runN` has been replaced by `drainN`
-* `runWhile` has been replaced by `drainWhile`
-
-* `foldWith`, `foldMapWith`, `forEachWith` have been deprecated in "Streamly"
-  module and moved to "Streamly.Prelude" module.
-
-* In "Streamly.Prelude":
-    * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
-    * Remove deprecated APIs `scan`, `foldl`, `foldlM`
 
 ## 0.6.1
 
