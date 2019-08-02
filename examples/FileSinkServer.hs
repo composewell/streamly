@@ -31,6 +31,6 @@ main = do
     where
 
     recv =
-          FL.splitSuffixBy' (== '\n') A.toArray
+          FL.splitBySuffix (== '\n') A.toArray
         . decodeChar8
         . NS.read

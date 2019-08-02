@@ -447,23 +447,9 @@ main = withArg2 cp
 ``` haskell
 wcl =
       S.length
-    . FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.drain
+    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.drain
     . FH.read
 main = withArg wcl >>= print
-```
-
-### grep -c 
-
-Note that `grep -c` counts the number of lines where the pattern occurs whereas
-the snippet below counts the total number of occurrences of the pattern,
-therefore, the output may differ.
-
-``` haskell
-grepc pat =
-      S.length
-    . FL.splitOn (A.fromList (map (fromIntegral . ord) pat)) FL.drain
-    . FH.read
-main = withArg (grepc "pattern") >>= print . subtract 1
 ```
 
 ### Average Line Length
@@ -471,7 +457,7 @@ main = withArg (grepc "pattern") >>= print . subtract 1
 ``` haskell
 avgll = 
       FL.foldl' avg
-    . FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.length
+    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.length
     . FH.read
 
     where avg      = (/) <$> toDouble FL.sum <*> toDouble FL.length
@@ -486,7 +472,7 @@ main = withArg avgll >>= print
 llhisto =
       FL.foldl' (FL.classify FL.length)
     . S.map bucket
-    . FL.splitSuffixBy (== fromIntegral (ord '\n')) FL.length
+    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.length
     . FH.read
 
     where
