@@ -874,7 +874,8 @@ each = K.fromFoldable
 -- | Read lines from an IO Handle into a stream of Strings.
 --
 -- @since 0.1.0
-{-# DEPRECATED fromHandle "Please use Streamly.FileSystem.Handle instead." #-}
+{-# DEPRECATED fromHandle
+   "Please use Streamly.FileSystem.Handle module (see the changelog)" #-}
 fromHandle :: (IsStream t, MonadIO m) => IO.Handle -> t m String
 fromHandle h = go
   where
@@ -1589,7 +1590,8 @@ _toListRev = D.toListRev . toStreamD
 -- Write a stream of Strings to an IO Handle.
 --
 -- @since 0.1.0
-{-# DEPRECATED toHandle "Please use Streamly.FileSystem.Handle instead." #-}
+{-# DEPRECATED toHandle
+   "Please use Streamly.FileSystem.Handle module (see the changelog)" #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
 toHandle h m = go m
     where
