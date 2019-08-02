@@ -17,6 +17,7 @@ import Gauge
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.String as SS
@@ -108,7 +109,7 @@ main = do
                 S.sum (S.map A.length s)
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ A.splitArraysOn 10 $ FH.readArrays inh
+                S.length $ AS.splitOn 10 $ FH.readArrays inh
             , mkBench "sum" href $ do
                 let foldlArr' f z = runIdentity . S.foldl' f z . A.read
                 Handles inh _ <- readIORef href
@@ -191,12 +192,14 @@ main = do
                   $ SS.lines
                   $ SS.decodeChar8
                   $ FH.read inh
+            {-
             , mkBench "lines-unlines-arrays" href $ do
                 Handles inh outh <- readIORef href
                 FH.writeArraysPackedUpto (1024*1024) outh
                     $ S.insertAfterEach (return $ A.fromList [10])
-                    $ A.splitArraysOn 10
+                    $ AS.splitOn 10
                     $ FH.readArraysOfUpto (1024*1024) inh
+            -}
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href
                 FH.write outh
@@ -208,18 +211,18 @@ main = do
             ]
 
         , let lf = fromIntegral (ord '\n')
-              lfarr = A.fromList [lf]
+              -- lfarr = A.fromList [lf]
               isSp = isSpace . chr . fromIntegral
-              toarr = A.fromList . map (fromIntegral . ord)
+              -- toarr = A.fromList . map (fromIntegral . ord)
           in bgroup "splitting"
             [ bgroup "predicate"
-                [ mkBench "splitBy \\n (line count)" href $ do
+                [ mkBench "splitOn \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitBy (== lf) FL.drain
+                    (S.length $ FL.splitOn (== lf) FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitSuffixBy \\n (line count)" href $ do
+                , mkBench "splitOnSuffix \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitSuffixBy (== lf) FL.drain
+                    (S.length $ FL.splitOnSuffix (== lf) FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "wordsBy isSpace (word count)" href $ do
                     Handles inh _ <- readIORef href
@@ -227,72 +230,74 @@ main = do
                         $ FH.read inh) -- >>= print
                 ]
 
+            {-
             , bgroup "empty-pattern"
-                [ mkBench "splitOn \"\"" href $ do
+                [ mkBench "splitOnSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (A.fromList []) FL.drain
+                    (S.length $ FL.splitOnSeq (A.fromList []) FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitSuffixOn \"\"" href $ do
+                , mkBench "splitOnSuffixSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitSuffixOn (A.fromList []) FL.drain
+                    (S.length $ FL.splitOnSuffixSeq (A.fromList []) FL.drain
                         $ FH.read inh) -- >>= print
                 ]
             , bgroup "short-pattern"
-                [ mkBench "splitOn \\n (line count)" href $ do
+                [ mkBench "splitOnSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn lfarr FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitSuffixOn \\n (line count)" href $ do
+                , mkBench "splitOnSuffixSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitSuffixOn lfarr FL.drain
+                    (S.length $ FL.splitOnSuffixSeq lfarr FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn a" href $ do
+                , mkBench "splitOnSeq a" href $ do
                     Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "a") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn \\r\\n" href $ do
+                , mkBench "splitOnSeq \\r\\n" href $ do
                     Handles inh _ <- readIORef href
                     (S.length $ FL.splitOn (toarr "\r\n") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitSuffixOn \\r\\n)" href $ do
+                , mkBench "splitOnSuffixSeq \\r\\n)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitSuffixOn (toarr "\r\n") FL.drain
+                    (S.length $ FL.splitOnSuffixSeq (toarr "\r\n") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn aa" href $ do
+                , mkBench "splitOnSeq aa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "aa") FL.drain
+                    (S.length $ FL.splitOnSeq (toarr "aa") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn aaaa" href $ do
+                , mkBench "splitOnSeq aaaa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "aaaa") FL.drain
+                    (S.length $ FL.splitOnSeq (toarr "aaaa") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn abcdefgh" href $ do
+                , mkBench "splitOnSeq abcdefgh" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "abcdefgh") FL.drain
+                    (S.length $ FL.splitOnSeq (toarr "abcdefgh") FL.drain
                         $ FH.read inh) -- >>= print
                 ]
             , bgroup "long-pattern"
-                [ mkBench "splitOn abcdefghi" href $ do
+                [ mkBench "splitOnSeq abcdefghi" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "abcdefghi") FL.drain
+                    (S.length $ FL.splitOnSeq (toarr "abcdefghi") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn catcatcatcatcat" href $ do
+                , mkBench "splitOnSeq catcatcatcatcat" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "catcatcatcatcat") FL.drain
+                    (S.length $ FL.splitOnSeq (toarr "catcatcatcatcat") FL.drain
                         $ FH.read inh) -- >>= print
-                , mkBench "splitOn abc...xyz" href $ do
+                , mkBench "splitOnSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn
+                    (S.length $ FL.splitOnSeq
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
                             $ FH.read inh) -- >>= print
-                , mkBench "splitSuffixOn abc...xyz" href $ do
+                , mkBench "splitOnSuffixSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitSuffixOn
+                    (S.length $ FL.splitOnSuffixSeq
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
                             $ FH.read inh) -- >>= print
                 ]
+                -}
             ]
 #endif
         ]

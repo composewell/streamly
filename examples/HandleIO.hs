@@ -1,6 +1,7 @@
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
-import qualified Streamly.Mem.Array as A
+-- import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
@@ -25,7 +26,7 @@ ord' = (fromIntegral . ord)
 
 wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
-    $ A.splitArraysOn 10
+    $ AS.splitOn 10
     $ FH.readArrays src)
 {-
 -- Char stream version

@@ -127,6 +127,7 @@ import Streamly.Mem.Array.Types (defaultChunkSize, shrinkToFit)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 
@@ -244,7 +245,7 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
+readByChunksUpto chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -256,7 +257,7 @@ readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Handle -> t m Word8
-read = A.flattenArrays . readArrays
+read = AS.flatten . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -278,7 +279,7 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 {-# INLINE writeArraysPackedUpto #-}
 writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
+writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -295,7 +296,7 @@ writeArraysPackedUpto n h xs = writeArrays h $ A.packArraysChunksOf n xs
 -- @since 0.7.0
 {-# INLINE writeByChunksOf #-}
 writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunksOf n h m = writeArrays h $ A.arraysOf n m
+writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
 -- > write = 'writeByChunksOf' A.defaultChunkSize
 --

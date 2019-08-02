@@ -409,6 +409,7 @@ module Main where
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 
@@ -431,24 +432,21 @@ withArg2 f = do
 ### cat
 
 ``` haskell
-cat = FH.writeArrays stdout . FH.readArraysOfUpto (256*1024)
+cat = FH.writeArrays stdout . FH.readArrays
 main = withArg cat
 ```
 
 ### cp
 
 ``` haskell
-cp src dst = FH.writeArrays dst $ FH.readArraysOfUpto (256*1024) src
+cp src dst = FH.writeArrays dst $ FH.readArrays src
 main = withArg2 cp
 ```
 
 ### wc -l
 
 ``` haskell
-wcl =
-      S.length
-    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.drain
-    . FH.read
+wcl = S.length . AS.splitOn 10 . FH.readArrays
 main = withArg wcl >>= print
 ```
 
@@ -457,7 +455,7 @@ main = withArg wcl >>= print
 ``` haskell
 avgll = 
       FL.foldl' avg
-    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.length
+    . FL.splitBySuffix (== 10) FL.length
     . FH.read
 
     where avg      = (/) <$> toDouble FL.sum <*> toDouble FL.length
@@ -472,7 +470,7 @@ main = withArg avgll >>= print
 llhisto =
       FL.foldl' (FL.classify FL.length)
     . S.map bucket
-    . FL.splitBySuffix (== fromIntegral (ord '\n')) FL.length
+    . FL.splitBySuffix (== 10) FL.length
     . FH.read
 
     where

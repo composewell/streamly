@@ -93,6 +93,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
@@ -265,7 +266,7 @@ readByChunksUpto chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Socket -> t m Word8
-read = A.flattenArrays . readArrays
+read = AS.flatten . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -293,7 +294,7 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 -- @since 0.7.0
 {-# INLINE writeByChunks #-}
 writeByChunks :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeByChunks n h m = writeArrays h $ A.arraysOf n m
+writeByChunks n h m = writeArrays h $ AS.arraysOf n m
 
 -- > write = 'writeByChunks' A.defaultChunkSize
 --

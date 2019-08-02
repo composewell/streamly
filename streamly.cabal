@@ -232,6 +232,7 @@ library
 
                     -- IO devices
                      , Streamly.Mem.Array
+                     , Streamly.Mem.Array.Stream
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial

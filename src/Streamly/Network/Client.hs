@@ -70,7 +70,7 @@ import Streamly.Mem.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
-import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 
@@ -108,7 +108,7 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-read addr port = A.flattenArrays $ withConnection addr port SK.readArrays
+read addr port = AS.flatten $ withConnection addr port SK.readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -141,7 +141,7 @@ writeByChunks
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-writeByChunks n addr port m = writeArrays addr port $ A.arraysOf n m
+writeByChunks n addr port m = writeArrays addr port $ AS.arraysOf n m
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --

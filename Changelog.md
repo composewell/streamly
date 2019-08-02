@@ -83,6 +83,8 @@ example, concat streams concurrently using this.
     character streams and other character stream operations.
   * _Arrays_: `Streamly.Mem.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.
+  * `Streamly.Mem.Array.Stream` module provide combinators to work on streams
+    of arrays.
 
 * Add the following to `Streamly.Prelude`:
     * `foldrS` to fold a stream to a stream

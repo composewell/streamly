@@ -123,7 +123,7 @@ import Streamly.SVar (MonadAsync)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Mem.Array as A
+import qualified Streamly.Mem.Array.Stream as AS
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
@@ -233,7 +233,7 @@ readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = A.flattenArrays $ withFile file ReadMode FH.readArrays
+read file = AS.flatten $ withFile file ReadMode FH.readArrays
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -289,7 +289,7 @@ writeArrays = writeArraysMode WriteMode
 {-# INLINE writeByChunks #-}
 writeByChunks :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeByChunks n file xs = writeArrays file $ A.arraysOf n xs
+writeByChunks n file xs = writeArrays file $ AS.arraysOf n xs
 
 -- > write = 'writeByChunks' A.defaultChunkSize
 --
@@ -325,7 +325,7 @@ appendArrays = writeArraysMode AppendMode
 {-# INLINE appendByChunks #-}
 appendByChunks :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-appendByChunks n file xs = appendArrays file $ A.arraysOf n xs
+appendByChunks n file xs = appendArrays file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
