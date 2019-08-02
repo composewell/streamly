@@ -240,7 +240,7 @@ module Streamly.Fold
 
     -- By == Keeping the separator
     -- , splitBy
-    -- , splitBySuffix
+    , splitBySuffix
     -- , splitByPrefix
     , wordsBy -- stripAndCompactBy
 
@@ -817,9 +817,9 @@ toList = Fold (\f x -> return $ f . (x :))
 -- @since 0.7.0
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toListRev #-}
-toListRev :: Monad m => Fold m a [a]
-toListRev = Fold (\xs x -> return $ x:xs) (return []) return
+{-# INLINABLE _toListRev #-}
+_toListRev :: Monad m => Fold m a [a]
+_toListRev = Fold (\xs x -> return $ x:xs) (return []) return
 
 -- | A fold that buffers its input to a pure stream.
 --
@@ -827,9 +827,9 @@ toListRev = Fold (\xs x -> return $ x:xs) (return []) return
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.7.0
-{-# INLINE toStream #-}
-toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ f . (x `K.cons`))
+{-# INLINE _toStream #-}
+_toStream :: Monad m => Fold m a (SerialT Identity a)
+_toStream = Fold (\f x -> return $ f . (x `K.cons`))
                 (return id)
                 (return . ($ K.nil))
 
@@ -845,9 +845,9 @@ toStream = Fold (\f x -> return $ f . (x `K.cons`))
 -- @since 0.7.0
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE toStreamRev #-}
-toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = Fold (\xs x -> return $ x `S.cons` xs) (return S.nil) return
+{-# INLINABLE _toStreamRev #-}
+_toStreamRev :: Monad m => Fold m a (SerialT Identity a)
+_toStreamRev = Fold (\xs x -> return $ x `S.cons` xs) (return S.nil) return
 
 ------------------------------------------------------------------------------
 -- Partial Folds
@@ -1044,9 +1044,9 @@ lfilter f (Fold step begin done) = Fold step' begin done
 -- | Like 'lfilter' but with a monadic predicate.
 --
 -- @since 0.7.0
-{-# INLINABLE lfilterM #-}
-lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-lfilterM f (Fold step begin done) = Fold step' begin done
+{-# INLINABLE _lfilterM #-}
+_lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
+_lfilterM f (Fold step begin done) = Fold step' begin done
   where
     step' x a = do
       use <- f a
@@ -1125,14 +1125,14 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
 -- the segments instead of discarding the leftover.
 --
 -- @since 0.7.0
-{-# INLINE splitAt #-}
-splitAt
+{-# INLINE _splitAt #-}
+_splitAt
     :: Monad m
     => Int
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+_splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step init extract
     where
       init  = Tuple3' <$> return n <*> initialL <*> initialR
@@ -1226,8 +1226,8 @@ sessionsOf n f xs =
     splitBySuffix isNothing (lcatMaybes f)
         (intersperseByTime n (return Nothing) (S.map Just xs))
     where
-    intersperseByTime n f xs = xs `Par.parallelEndByFirst` S.repeatM timed
-        where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
+    intersperseByTime n' f' xs' = xs' `Par.parallelEndByFirst` S.repeatM timed
+        where timed = liftIO (threadDelay (round $ n' * 1000000)) >> f'
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -1329,14 +1329,14 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- > ([],[3,2,1])
 --
 -- @since 0.7.0
-{-# INLINE break #-}
-break
+{-# INLINE _break #-}
+_break
     :: Monad m
     => (a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-break p = span (not . p)
+_break p = span (not . p)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
@@ -1749,11 +1749,11 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- > lines = splitSuffixOn "\n"
 --
 -- @since 0.7.0
-{-# INLINE splitOnSuffixSeq #-}
-splitOnSuffixSeq
+{-# INLINE _splitOnSuffixSeq #-}
+_splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitOnSuffixSeq patt f m =
+_splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
 
 {-
@@ -1800,11 +1800,11 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- > ["he","ll","o"]
 --
 -- @since 0.7.0
-{-# INLINE splitBySeq #-}
-splitBySeq
+{-# INLINE _splitBySeq #-}
+_splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitBySeq patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOnSeq patt f m
+_splitBySeq patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --
@@ -1835,11 +1835,11 @@ splitBySeq patt f m = S.intersperseM (foldl' f (A.read patt)) $ splitOnSeq patt 
 -- > ["a.",".","b.","."]
 --
 -- @since 0.7.0
-{-# INLINE splitBySuffixSeq #-}
-splitBySuffixSeq
+{-# INLINE _splitBySuffixSeq #-}
+_splitBySuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitBySuffixSeq patt f m =
+_splitBySuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
 
 {-
