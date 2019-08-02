@@ -212,29 +212,60 @@ foldParallel f m = do
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
 
+------------------------------------------------------------------------------
+-- Clone and distribute a stream in parallel
+------------------------------------------------------------------------------
+
+-- push values to a fold worker via an SVar. Returns whether the fold is done.
+{-# INLINE pushToFold #-}
+pushToFold :: SVar Stream m a -> a -> IO Bool
+pushToFold sv a = do
+    -- Check for exceptions before decrement so that we do not
+    -- block forever if the child already exited with an exception.
+    let qref = outputQueueRev sv
+    done <- do
+        (_, n) <- readIORef qref
+        if (n > 0)
+        then fromStreamVarRev sv
+        else return False
+    if done
+    then return True
+    else do
+        decrementBufferLimit sv
+        void $ send sv (ChildYield a)
+        return False
+
 {-# INLINE teeToSVar #-}
 teeToSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> t m a
 teeToSVar svr m = mkStream $ \st yld sng stp -> do
-    foldStreamShared st yld sng stp (go svr m)
+    foldStreamShared st yld sng stp (go svr False m)
 
     where
 
-    go sv m0 = mkStream $ \st yld sng stp -> do
-        let stop = do
-                liftIO $ do
-                    incrementBufferLimit sv
-                    sendStop sv Nothing
-                    -- XXX wait for Stop response event on exception channel,
-                    -- drain the exception channel.
-                stp
-            sendit a = liftIO $ do
-                -- XXX check for exceptions before decrement so that we do not
-                -- block forever if the child already exited with an exception.
-                decrementBufferLimit sv
-                void $ send sv (ChildYield a)
-            single a = sendit a >> (liftIO $ sendStop sv Nothing) >> sng a
-            yieldk a r = sendit a >> yld a (go sv r)
+    go sv False m0 = mkStream $ \st yld sng stp -> do
+        let goDrain = do
+                -- In general, a Stop event would come equipped with the result
+                -- of the fold. It is not used here but it would be useful in
+                -- applicative and distribute.
+                done <- fromStreamVarRev sv
+                when (not done) $
+                    liftIO $ withDiagMVar sv "teeToSVar: waiting to drain"
+                                     $ takeMVar (outputDoorBellRev sv)
+                    goDrain
+
+            stopFold = liftIO $ do
+                sendStop sv Nothing
+                goDrain
+
+            stop = stopFold >> stp
+            single a = do
+                r <- pushToFold a
+                when (not r) $ stopFold
+                sng a
+            yieldk a r = pushToFold a >>= \done -> yld a (go sv done r)
          in foldStreamShared st yieldk single stop m0
+
+    go sv True m0 = m0
 
 -- In case of folds the roles of worker and parent on an SVar are reversed. The
 -- parent stream pushes values to an SVar instead of pulling from it and a
@@ -242,15 +273,23 @@ teeToSVar svr m = mkStream $ \st yld sng stp -> do
 -- keep a separate channel for pushing exceptions in the reverse direction i.e.
 -- from the fold to the parent stream.
 --
+-- Note: If we terminate due to an exception, we do not actively terminate the
+-- fold. It gets cleaned up by GC.
+--
 -- NOTE: If we use fromSVar here it will kill the main computation (the parent)
 -- when the SVar goes away so we use fromStreamVar instead.
 
 {-# NOINLINE handleChildException #-}
 handleChildException :: SVar t m a -> SomeException -> IO ()
-handleChildException _sv e = do
-    -- tid <- myThreadId
-    -- void $ sendReverse sv (ChildStop tid (Just e))
-    throwIO e
+handleChildException sv e = do
+    tid <- myThreadId
+    void $ sendRev sv (ChildStop tid (Just e))
+
+{-# NOINLINE sendStopRev #-}
+sendStopRev :: SVar t m a -> IO ()
+sendStopRev sv = do
+    tid <- myThreadId
+    void $ sendRev sv (ChildStop tid Nothing)
 
 -- | Redirect a copy of the stream to a supplied fold and run it concurrently
 -- in an independent thread. The fold may buffer some elements. The buffer size
@@ -272,8 +311,8 @@ handleChildException _sv e = do
 -- Exceptions from the concurrently running fold are propagated to the current
 -- computation.  Note that, because of buffering in the fold, exceptions may be
 -- delayed and may not correspond to the current element being processed in the
--- parent stream, but we guarantee that the tap finishes and all exceptions
--- from it are drained before the parent stream stops.
+-- parent stream, but we guarantee that before the parent stream stops the tap
+-- finishes and all exceptions from it are drained.
 --
 --
 -- Compare with 'tap'.
@@ -284,12 +323,18 @@ tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
     -- Buffer size for the SVar is derived from the current state
     sv <- newParallelVar StopNone (adaptState st)
-    -- XXX exception handling
-    -- XXX if we terminate due to an exception, do we need to actively
-    -- terminate the fold?
     liftIO myThreadId >>= modifyThread sv
-    void $ doFork (void $ f $ fromStream $ fromStreamVar sv)
-           (svarMrun sv) (handleChildException sv)
+
+    -- A wrapper to send a Stop event when the fold receives a stop from the
+    -- pusher.
+    let pullForFold = mkStream $ \s yd sg sp -> do
+            let stop = sendStopRev sv >> sp
+                single a = yd a (yieldM stop)
+            foldStreamShared s yd single stop (fromStreamVar sv)
+
+    void $ doFork (void $ f $ fromStream $ pullForFold)
+                  (svarMrun sv)
+                  (handleChildException sv)
     foldStreamShared st yld sng stp (teeToSVar sv m)
 
 ------------------------------------------------------------------------------

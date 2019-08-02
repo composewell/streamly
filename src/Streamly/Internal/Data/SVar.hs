@@ -95,6 +95,7 @@ module Streamly.Internal.Data.SVar
     , postProcessPaced
     , readOutputQBounded
     , readOutputQPaced
+    , readOutputQBasic
     , dispatchWorkerPaced
     , sendFirstWorker
     , delThread
@@ -416,6 +417,12 @@ data SVar t m a = SVar
     , outputDoorBell :: MVar ()  -- signal the consumer about output
     , readOutputQ    :: m [ChildEvent a]
     , postProcess    :: m Bool
+
+    -- channel to send events from the consumer to the worker. Used to send
+    -- exceptions from a fold driver to the fold computation running as a
+    -- consumer thread in the concurrent fold cases.
+    , outputQueueRev :: IORef ([ChildEvent a], Int)
+    , outputDoorBellRev :: MVar ()
 
     -- Combined/aggregate parameters
     -- This is truncated to maxBufferLimit if set to more than that. Otherwise
@@ -1039,13 +1046,12 @@ resetBufferLimit sv =
         Limited n -> atomicModifyIORefCAS_ (pushBufferSpace sv)
                                            (const (fromIntegral n))
 
--- | This function is used by the producer threads to queue output for the
--- consumer thread to consume. Returns whether the queue has more space.
-send :: SVar t m a -> ChildEvent a -> IO Int
-send sv msg = do
-    -- XXX can the access to outputQueue and maxBufferLimit be made faster
-    -- somehow?
-    oldlen <- atomicModifyIORefCAS (outputQueue sv) $ \(es, n) ->
+{-# INLINE sendWithDoorBell #-}
+sendWithDoorBell ::
+    IORef ([ChildEvent a], Int) -> MVar () -> ChildEvent a -> IO Int
+sendWithDoorBell q bell msg = do
+    -- XXX can the access to outputQueue be made faster somehow?
+    oldlen <- atomicModifyIORefCAS q $ \(es, n) ->
         ((msg : es, n + 1), n)
     when (oldlen <= 0) $ do
         -- The wake up must happen only after the store has finished otherwise
@@ -1057,8 +1063,19 @@ send sv msg = do
         -- to read the queue again and find it empty.
         -- The important point is that the consumer is guaranteed to receive a
         -- doorbell if something was added to the queue after it empties it.
-        void $ tryPutMVar (outputDoorBell sv) ()
+        void $ tryPutMVar bell ()
     return oldlen
+
+-- | This function is used by the producer threads to queue output for the
+-- consumer thread to consume. Returns whether the queue has more space.
+send :: SVar t m a -> ChildEvent a -> IO Int
+send sv msg = sendWithDoorBell (outputQueue sv) (outputDoorBell sv) msg
+
+-- There is no bound implemented on the buffer, this is assumed to be low
+-- traffic.
+sendRev :: SVar t m a -> ChildEvent a -> IO Int
+sendRev sv msg =
+    sendWithDoorBell (outputQueueRev sv) (outputDoorBellRev sv) msg
 
 workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecond64))
 workerCollectLatency winfo = do
@@ -1998,10 +2015,14 @@ sendWorkerWait delay dispatch sv = do
 -- Reading from the workers' output queue/buffer
 -------------------------------------------------------------------------------
 
+{-# INLINE readOutputQBasic #-}
+readOutputQBasic :: IORef ([ChildEvent a], Int) -> IO ([ChildEvent a], Int)
+readOutputQBasic q = atomicModifyIORefCAS q $ \x -> (([],0), x)
+
 {-# INLINE readOutputQRaw #-}
 readOutputQRaw :: SVar t m a -> IO ([ChildEvent a], Int)
 readOutputQRaw sv = do
-    (list, len) <- atomicModifyIORefCAS (outputQueue sv) $ \x -> (([],0), x)
+    (list, len) <- readOutputQBasic (outputQueue sv)
     when (svarInspectMode sv) $ do
         let ref = maxOutQSize $ svarStats sv
         oqLen <- readIORef ref
