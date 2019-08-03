@@ -44,16 +44,16 @@ grepc pat src = print . (subtract 1) =<< (S.length
 -}
 
 avgll :: FH.Handle -> IO ()
-avgll src = print =<< (FL.foldl' avg
-    $ FL.splitBySuffix (== ord' '\n') FL.length
+avgll src = print =<< (S.runFold avg
+    $ S.splitBySuffix (== ord' '\n') FL.length
     $ FH.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
 llhisto :: FH.Handle -> IO ()
-llhisto src = print =<< (FL.foldl' (FL.classify FL.length)
+llhisto src = print =<< (S.runFold (FL.classify FL.length)
     $ S.map bucket
-    $ FL.splitBySuffix (== ord' '\n') FL.length
+    $ S.splitBySuffix (== ord' '\n') FL.length
     $ FH.read src)
     where
     bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)

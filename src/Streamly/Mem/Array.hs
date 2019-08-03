@@ -129,11 +129,11 @@ module Streamly.Mem.Array
     -}
 
     -- * Immutable Transformations
-    , transformWith
+    , runTransform
 
     -- * Folding Arrays
-    -- , foldWith
-    , foldArray
+    -- , runStreamFold
+    , runFold
     )
 where
 
@@ -151,8 +151,9 @@ import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
 
-import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array.Types as A
+import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D
 
 -------------------------------------------------------------------------------
@@ -452,7 +453,7 @@ toArray =
 --
 {-# INLINE write #-}
 write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-write = FL.foldl' toArray
+write = P.runFold toArray
 -- write m = A.fromStreamD $ D.toStreamD m
 
 -- XXX efficiently compare two streams of arrays. Two streams can have chunks
@@ -467,25 +468,36 @@ write = FL.foldl' toArray
 -- allocation. If we can predict the length then we can use the prediction for
 -- new allocation. Otherwise we can use a hint and adjust dynamically.
 
+{-
+-- | Transform an array into another array using a pipe transformation
+-- operation.
+--
+-- @since 0.7.0
+{-# INLINE runPipe #-}
+runPipe :: (MonadIO m, Storable a, Storable b)
+    => Pipe m a b -> Array a -> m (Array b)
+runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
+-}
+
 -- | Transform an array into another array using a stream transformation
 -- operation.
 --
 -- @since 0.7.0
-{-# INLINE transformWith #-}
-transformWith :: (MonadIO m, Storable a, Storable b)
+{-# INLINE runTransform #-}
+runTransform :: (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-transformWith f arr = FL.foldl' (toArrayMinChunk (length arr)) $ f (A.read arr)
+runTransform f arr = P.runFold (toArrayMinChunk (length arr)) $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --
 -- @since 0.7.0
-{-# INLINE foldArray #-}
-foldArray :: (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-foldArray f arr = FL.foldl' f (A.read arr)
+{-# INLINE runFold #-}
+runFold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
+runFold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
 -- @since 0.7.0
-{-# INLINE _foldWith #-}
-_foldWith :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-_foldWith f arr = f (A.read arr)
+{-# INLINE _runStreamFold #-}
+_runStreamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+_runStreamFold f arr = f (A.read arr)

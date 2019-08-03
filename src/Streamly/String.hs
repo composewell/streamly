@@ -73,7 +73,6 @@ import Streamly.Fold (Fold)
 import Streamly.Mem.Array (Array, toArray)
 
 import qualified Streamly.Prelude as S
-import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array.Types as A (unlines)
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Mem.Array.Stream as AS
@@ -172,7 +171,7 @@ stripStart = S.dropWhile isSpace
 -- ["lines", "this", "string", "", ""]
 {-# INLINE foldLines #-}
 foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
-foldLines = flip (FL.splitOnSuffix (== '\n'))
+foldLines = flip (S.splitOnSuffix (== '\n'))
 
 -- | Fold each word of the stream using the supplied Fold
 -- and stream the result.
@@ -181,7 +180,7 @@ foldLines = flip (FL.splitOnSuffix (== '\n'))
 -- ["fold", "these", "words"]
 {-# INLINE foldWords #-}
 foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
-foldWords = flip (FL.wordsBy isSpace)
+foldWords = flip (S.wordsBy isSpace)
 
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
@@ -205,7 +204,7 @@ isSpace c
 -- 'foldLines' instead.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-lines = FL.splitOnSuffix (== '\n') toArray
+lines = S.splitOnSuffix (== '\n') toArray
 
 -- | Break a string up into a list of strings, which were delimited
 -- by characters representing white space.
@@ -217,7 +216,7 @@ lines = FL.splitOnSuffix (== '\n') toArray
 -- 'foldWords' instead.
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-words = FL.wordsBy isSpace toArray
+words = S.wordsBy isSpace toArray
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.

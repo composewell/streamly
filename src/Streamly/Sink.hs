@@ -17,9 +17,6 @@ module Streamly.Sink
     (
       Sink (..)
 
-    -- * Running
-    , sink
-
     -- * Upgrading
     , toFold
 
@@ -71,11 +68,8 @@ import Prelude
 
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Sink.Types (Sink(..))
-import Streamly.Streams.Serial (SerialT)
 
 import qualified Data.Map.Strict as Map
-
-import qualified Streamly.Fold as FL
 
 ------------------------------------------------------------------------------
 -- Conversion
@@ -89,15 +83,6 @@ toFold (Sink f) = Fold step begin done
     begin = return ()
     step _ = f
     done _ = return ()
-
-------------------------------------------------------------------------------
--- Running a sink
-------------------------------------------------------------------------------
-
--- | Drain a stream to a 'Sink'.
-{-# INLINE sink #-}
-sink :: Monad m => Sink m a -> SerialT m a -> m ()
-sink = FL.foldl' . toFold
 
 ------------------------------------------------------------------------------
 -- Composing with sinks

@@ -561,7 +561,7 @@ groupSplitOps desc = do
         forAll listWithZeroes $ \xs -> do
             withMaxSuccess maxTestCount $
                 monadicIO $ do
-                    ys <- S.toList $ FL.splitOn (== 0) toListFL (S.fromList xs)
+                    ys <- S.toList $ S.splitOn (== 0) toListFL (S.fromList xs)
                     listEquals (==) (intercalate [0] ys) xs
 
     where

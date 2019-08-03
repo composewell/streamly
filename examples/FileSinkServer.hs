@@ -10,7 +10,6 @@ import System.Environment (getArgs)
 import Streamly
 import Streamly.String
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
 import qualified Streamly.Network.Socket as NS
 import qualified Streamly.Network.Server as NS
@@ -31,6 +30,6 @@ main = do
     where
 
     recv =
-          FL.splitBySuffix (== '\n') A.toArray
+          S.splitBySuffix (== '\n') A.toArray
         . decodeChar8
         . NS.read

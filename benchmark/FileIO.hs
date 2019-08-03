@@ -170,18 +170,18 @@ main = do
         , bgroup "grouping"
             [ mkBench "chunksOf 1 (toArray)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf fileSize (A.toArrayN fileSize)
+                S.length $ S.chunksOf fileSize (A.toArrayN fileSize)
                                 (FH.read inh)
 
             , mkBench "chunksOf 1" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 1 FL.drain (FH.read inh)
+                S.length $ S.chunksOf 1 FL.drain (FH.read inh)
             , mkBench "chunksOf 10" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 10 FL.drain (FH.read inh)
+                S.length $ S.chunksOf 10 FL.drain (FH.read inh)
             , mkBench "chunksOf 1000" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FL.chunksOf 1000 FL.drain (FH.read inh)
+                S.length $ S.chunksOf 1000 FL.drain (FH.read inh)
             ]
         , bgroup "group-ungroup"
             [ mkBench "lines-unlines" href $ do
@@ -218,15 +218,15 @@ main = do
             [ bgroup "predicate"
                 [ mkBench "splitOn \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (== lf) FL.drain
+                    (S.length $ S.splitOn (== lf) FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSuffix \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSuffix (== lf) FL.drain
+                    (S.length $ S.splitOnSuffix (== lf) FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "wordsBy isSpace (word count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.wordsBy isSp FL.drain
+                    (S.length $ S.wordsBy isSp FL.drain
                         $ FH.read inh) -- >>= print
                 ]
 
@@ -234,65 +234,65 @@ main = do
             , bgroup "empty-pattern"
                 [ mkBench "splitOnSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (A.fromList []) FL.drain
+                    (S.length $ S.splitOnSeq (A.fromList []) FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSuffixSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSuffixSeq (A.fromList []) FL.drain
+                    (S.length $ S.splitOnSuffixSeq (A.fromList []) FL.drain
                         $ FH.read inh) -- >>= print
                 ]
             , bgroup "short-pattern"
                 [ mkBench "splitOnSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn lfarr FL.drain
+                    (S.length $ S.splitOn lfarr FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSuffixSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSuffixSeq lfarr FL.drain
+                    (S.length $ S.splitOnSuffixSeq lfarr FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq a" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "a") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "a") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq \\r\\n" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOn (toarr "\r\n") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "\r\n") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSuffixSeq \\r\\n)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSuffixSeq (toarr "\r\n") FL.drain
+                    (S.length $ S.splitOnSuffixSeq (toarr "\r\n") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq aa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (toarr "aa") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "aa") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq aaaa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (toarr "aaaa") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "aaaa") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq abcdefgh" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (toarr "abcdefgh") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "abcdefgh") FL.drain
                         $ FH.read inh) -- >>= print
                 ]
             , bgroup "long-pattern"
                 [ mkBench "splitOnSeq abcdefghi" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (toarr "abcdefghi") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "abcdefghi") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq catcatcatcatcat" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq (toarr "catcatcatcatcat") FL.drain
+                    (S.length $ S.splitOnSeq (toarr "catcatcatcatcat") FL.drain
                         $ FH.read inh) -- >>= print
                 , mkBench "splitOnSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSeq
+                    (S.length $ S.splitOnSeq
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
                             $ FH.read inh) -- >>= print
                 , mkBench "splitOnSuffixSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ FL.splitOnSuffixSeq
+                    (S.length $ S.splitOnSuffixSeq
                                     (toarr "abcdefghijklmnopqrstuvwxyz")
                                     FL.drain
                             $ FH.read inh) -- >>= print

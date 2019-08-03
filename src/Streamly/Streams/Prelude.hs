@@ -37,6 +37,7 @@ module Streamly.Streams.Prelude
     , foldlx'
     , foldlMx'
     , foldl'
+    , runFold
 
     -- Lazy left folds are useful only for reversing the stream
     , foldlS
@@ -65,6 +66,8 @@ where
 import Control.Monad.Trans (MonadTrans(..))
 import Prelude hiding (foldr)
 import qualified Prelude
+
+import Streamly.Fold.Types (Fold (..))
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
@@ -182,6 +185,10 @@ foldlS = K.foldlS
 foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
     => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
 foldlT f z s = S.foldlT f z (toStreamS s)
+
+{-# INLINE runFold #-}
+runFold :: (Monad m, IsStream t) => Fold m a b -> t m a -> m b
+runFold (Fold step begin done) = foldlMx' step begin done
 
 ------------------------------------------------------------------------------
 -- Scans
