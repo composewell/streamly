@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Mem.Array.Types
+-- Module      : Streamly.Memory.Array.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Mem.Array.Types
+module Streamly.Memory.Array.Types
     (
       Array (..)
 
@@ -526,7 +526,7 @@ fromStreamDArraysOf n (D.Stream step state) =
     step' _ (GroupStart st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Mem.Array.Types.fromStreamDArraysOf: the size of "
+            error $ "Streamly.Memory.Array.Types.fromStreamDArraysOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         Array start end bound <- liftIO $ newArray n
         return $ D.Skip (GroupBuffer st start end bound)
@@ -902,7 +902,7 @@ packArraysChunksOf n (D.Stream step state) =
     step' gst (SpliceInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Mem.Array.Types.packArraysChunksOf: the size of "
+            error $ "Streamly.Memory.Array.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
         r <- step gst st
         case r of
@@ -959,11 +959,11 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
     step' gst (GatherInitial st) = do
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Mem.Array.Types.groupIOVecsOf: the size of "
+            error $ "Streamly.Memory.Array.Types.groupIOVecsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         when (maxIOVLen <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Mem.Array.Types.groupIOVecsOf: the number of "
+            error $ "Streamly.Memory.Array.Types.groupIOVecsOf: the number of "
                  ++ "IOVec entries [" ++ show n ++ "] must be a natural number"
         r <- step (adaptState gst) st
         case r of

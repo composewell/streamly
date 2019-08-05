@@ -216,7 +216,7 @@ import qualified Streamly.Streams.StreamK as K
 -- > S.length $ S.splitOnSuffix FL.drain 10 $ FH.read fh
 --
 -- The following example folds the lines to arrays of 'Word8' using the
--- 'Streamly.Mem.Array.writeF' fold and then wraps the lines in square
+-- 'Streamly.Memory.Array.writeF' fold and then wraps the lines in square
 -- brackets before writing them to standard output using
 -- 'Streamly.FileSystem.Handle.write':
 --
@@ -267,7 +267,7 @@ import qualified Streamly.Streams.StreamK as K
 
 -- $arrays
 --
--- Streamly arrays (See "Streamly.Mem.Array") complement streams to provide an
+-- Streamly arrays (See "Streamly.Memory.Array") complement streams to provide an
 -- efficient computing paradigm.  Streams are suitable for immutable
 -- transformations of /potentially infinite/ data using /sequential access/ and
 -- pipelined transformations whereas arrays are suitable for in-place

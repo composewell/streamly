@@ -21,7 +21,7 @@ import qualified LinearOps as Ops
 import Streamly
 import qualified Streamly.Fold as FL
 --import qualified Streamly.Pipe as Pipe
-import qualified Streamly.Mem.Array as A
+import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.Sink   as Sink
 import Gauge

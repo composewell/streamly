@@ -16,7 +16,7 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from file handles. File handle IO
--- APIs are quite similar to "Streamly.Mem.Array" read write APIs. In that
+-- APIs are quite similar to "Streamly.Memory.Array" read write APIs. In that
 -- regard, arrays can be considered as in-memory files or files can be
 -- considered as on-disk arrays.
 --
@@ -119,15 +119,15 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
-import Streamly.Mem.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Mem.Array.Types (defaultChunkSize, shrinkToFit)
+import Streamly.Memory.Array.Types (defaultChunkSize, shrinkToFit)
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.ArrayStream as AS
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 

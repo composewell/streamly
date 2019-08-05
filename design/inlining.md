@@ -62,7 +62,7 @@ concatMap1 src = runStream $ S.concatMap (S.replicate 3) src
   as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
   `INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
   etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
-  `Streamly.Mem.Array` should also follow the same rules.
+  `Streamly.Memory.Array` should also follow the same rules.
 
 * The inlining of the `step` function (in case of `StreamD`) is annotated as
   `INLINE_LATE` so that those are inlined after fusion rules have been applied.

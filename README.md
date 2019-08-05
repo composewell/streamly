@@ -361,7 +361,7 @@ documentation.
 
 ## Arrays
 
-The `Streamly.Mem.Array` module provides mutable arrays.  Arrays are the
+The `Streamly.Memory.Array` module provides mutable arrays.  Arrays are the
 computing duals of streams. Streams are good at sequential access, immutable
 transformations of in-transit data whereas arrays are good at random access,
 in-place transformations of buffered data. Unlike streams which are potentially
@@ -407,8 +407,8 @@ module Main where
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
-import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.ArrayStream as AS
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 
