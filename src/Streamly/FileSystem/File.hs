@@ -123,7 +123,7 @@ import Streamly.SVar (MonadAsync)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Mem.Array.Stream as AS
+import qualified Streamly.Mem.ArrayStream as AS
 import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 

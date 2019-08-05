@@ -70,7 +70,7 @@ import Streamly.Mem.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
-import qualified Streamly.Mem.Array.Stream as AS
+import qualified Streamly.Mem.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 

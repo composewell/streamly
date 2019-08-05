@@ -127,7 +127,7 @@ import Streamly.Mem.Array.Types (defaultChunkSize, shrinkToFit)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.Array.Stream as AS
+import qualified Streamly.Mem.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 

@@ -75,7 +75,7 @@ import Streamly.Mem.Array (Array)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Mem.Array.Types as A (unlines)
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.Array.Stream as AS
+import qualified Streamly.Mem.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
 
 -- type String = List Char

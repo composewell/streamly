@@ -408,7 +408,7 @@ module Main where
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.Array.Stream as AS
+import qualified Streamly.Mem.ArrayStream as AS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 

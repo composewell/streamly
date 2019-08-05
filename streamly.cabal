@@ -232,7 +232,7 @@ library
 
                     -- IO devices
                      , Streamly.Mem.Array
-                     , Streamly.Mem.Array.Stream
+                     , Streamly.Mem.ArrayStream
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
