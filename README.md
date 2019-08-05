@@ -46,7 +46,8 @@ that they use `nil` and `cons` instead of `[]` and `:`.  Unlike lists, streams
 can be constructed from monadic effects, not just pure elements.  Streams are
 processed just like lists, with list like combinators, except that they are
 monadic and work in a streaming fashion. In other words streamly just completes
-what lists lack, you do not need to learn anything new.
+what lists lack, you do not need to learn anything new. Please see [streamly vs
+lists](docs/streamly-vs-lists.md) for a detailed comparison.
 
 Not surprisingly, the monad instance of streamly is a list transformer, with
 concurrency capability.
@@ -94,11 +95,9 @@ performance results and a comparison with the `async` package.
 
 ## Installing and using
 
-Please see
-[INSTALL.md](https://github.com/composewell/streamly/tree/master/INSTALL.md)
-for instructions on how to use streamly with your Haskell build tool or package
-manager. You may want to go through it before jumping to run the examples
-below.
+Please see [INSTALL.md](INSTALL.md) for instructions on how to use streamly
+with your Haskell build tool or package manager. You may want to go through it
+before jumping to run the examples below.
 
 The module `Streamly` provides just the core stream types, type casting and
 concurrency control combinators.  Stream construction, transformation, folding,
@@ -574,8 +573,8 @@ For more information, see:
 
   * [Detailed tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
   * [Reference documentation](https://hackage.haskell.org/package/streamly)
-  * [Examples](https://github.com/composewell/streamly/tree/master/examples)
-  * [Guides](https://github.com/composewell/streamly/blob/master/docs)
+  * [Examples](examples)
+  * [Guides](docs)
   * [Streaming benchmarks](https://github.com/composewell/streaming-benchmarks)
   * [Concurrency benchmarks](https://github.com/composewell/concurrency-benchmarks)
 
@@ -601,9 +600,7 @@ See the `credits` directory for full list of contributors, credits and licenses.
 ## Contributing
 
 The code is available under BSD-3 license
-[on github](https://github.com/composewell/streamly). Join the
-[gitter chat](https://gitter.im/composewell/streamly) channel for discussions.
-You can find some of the
-[todo items on the github wiki](https://github.com/composewell/streamly/wiki/Things-To-Do).
-Please ask on the gitter channel or [contact the maintainer directly](mailto:harendra.kumar@gmail.com)
-for more details on each item. All contributions are welcome!
+[on github](https://github.com/composewell/streamly). Join the [gitter
+chat](https://gitter.im/composewell/streamly) channel for discussions.  Please
+ask any questions on the gitter channel or [contact the maintainer
+directly](mailto:harendra.kumar@gmail.com). All contributions are welcome!
