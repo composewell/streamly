@@ -30,6 +30,6 @@ main = do
     where
 
     recv =
-          S.splitBySuffix (== '\n') A.toArray
+          S.splitBySuffix (== '\n') A.writeF
         . decodeChar8
         . NS.read

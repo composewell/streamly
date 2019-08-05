@@ -168,9 +168,9 @@ main = do
                  $ FH.read inh
            ]
         , bgroup "grouping"
-            [ mkBench "chunksOf 1 (toArray)" href $ do
+            [ mkBench "chunksOf 1 (A.writeNF)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf fileSize (A.toArrayN fileSize)
+                S.length $ S.chunksOf fileSize (A.writeNF fileSize)
                                 (FH.read inh)
 
             , mkBench "chunksOf 1" href $ do

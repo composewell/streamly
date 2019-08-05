@@ -16,57 +16,40 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Arrays are the computing duals of streams.  Streams are good at sequential
--- access and immutable transformations of in-transit data whereas arrays are
--- good at random access and in-place transformations of buffered data.  Unlike
--- streams which are potentially infinite, arrays are necessarily /finite/.
--- Arrays can be used as an efficient interface between streams and external
--- storage systems like memory, files and network. Streams and arrays complete
--- each other to provide a general purpose computing system. The design of
--- streamly as a general purpose computing framework is centered around these
--- two fundamental aspects of computing and storage.
+-- This module provides immutable arrays suitable for storage and random
+-- access. Once created an array cannot be mutated without copying.  Arrays in
+-- this module are chunks of memory that hold a sequence of 'Storable' values
+-- of a given type. They are designed to store serializable data, they cannot
+-- store non-serializable data like functions, this is reflected by the
+-- 'Storable' constraint. For efficient buffering of data, arrays use pinned
+-- memory and therefore can hold arbitrary number of elements with a single
+-- movable pointer visible to GC, therefore, adding no pressure to GC.
+-- Moreover, pinned memory allows communication with foreign consumers and
+-- producers (e.g. file or network IO) without copying the data.
 --
--- Even though the implementation allows for in-place mutation, the current
--- implementation of arrays is immutable. Arrays are of fixed size. The size of
--- an array is fixed at creation and cannot be changed later without copying.
--- Arrays are chunks of memory that hold a sequence of 'Storable' values of a
--- given type. They are designed to store serializable data, they cannot store
--- non-serializable data like functions, this is reflected by the 'Storable'
--- constraint. For efficient buffering of data, arrays use pinned memory and
--- therefore can hold arbitrary number of elements with a single movable
--- pointer visible to GC, therefore, adding no pressure to GC.  Moreover,
--- pinned memory allows communication with foreign consumers and producers
--- (e.g. file or network IO) without copying the data.
---
--- By design, there are no transformation operations provided in this module,
--- only stream conversion and IO routines are provided. An array is purely a
--- data store, therefore, it is not a 'Functor'. Arrays can be operated upon
--- /efficiently/ by converting them into a stream, applying the desired
--- transformations on the stream and then converting it back to an array.
--- 'Foldable' instance is not provided because the implementation would be much
--- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
--- instances are deliberately not provided to avoid misuse; concatenating
--- arrays using binary operations can be highly inefficient.  Instead, use
--- 'spliceArrays' to concatenate N arrays at once.
---
--- To summarize:
---
--- * Arrays are finite and fixed in size
--- * provide /O(1)/ access to elements
--- * store only data and not functions
--- * provide efficient IO interfacing
---
--- 'ByteString' data type from the 'bytestring' package and the 'Text' data
--- type from the 'text' package are just special cases of arrays.  'ByteString'
--- is equivalent to @Array Word8@ and 'Text' is equivalent to a @utf16@ encoded
--- @Array Word8@. All the 'bytestring' and 'text' operations can be performed
--- on arrays with equivalent or better performance by converting them to and
--- from streams.
+-- By design, there are no array transformation operations provided in this
+-- module, only conversion to and from stream is provided.  Arrays can be
+-- operated upon /efficiently/ by converting them into a stream, applying the
+-- desired stream transformations from "Streamly.Prelude" and then converting
+-- it back to an array.
 --
 -- This module is designed to be imported qualified:
 --
 -- > import qualified Streamly.Array as A
 
+-- To summarize:
+--
+--  Arrays are finite and fixed in size
+--  provide /O(1)/ access to elements
+--  store only data and not functions
+--  provide efficient IO interfacing
+--
+-- 'Foldable' instance is not provided because the implementation would be much
+-- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
+-- instances are deliberately not provided to avoid misuse; concatenating
+-- arrays using binary operations can be highly inefficient.  Instead, use
+-- 'Streamly.Mem.Array.Stream.toArray' to concatenate N arrays at once.
+--
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
 -- single byte) are only as good as holding those elements in a Haskell list.
 -- However, small arrays can be compacted into large ones to reduce the
@@ -100,9 +83,8 @@ module Streamly.Mem.Array
     , write
 
     -- Stream Folds
-    , A.toArrayN
-    -- , toArrays
-    , toArray
+    , A.writeNF
+    , writeF
 
     -- * Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
@@ -128,12 +110,14 @@ module Streamly.Mem.Array
     , writeSliceRev
     -}
 
+    {-
     -- * Immutable Transformations
     , runTransform
 
     -- * Folding Arrays
     -- , runStreamFold
     , runFold
+    -}
     )
 where
 
@@ -178,6 +162,64 @@ writeN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
 writeN n m = do
     if n < 0 then error "writeN: negative write count specified" else return ()
     A.fromStreamDN n $ D.toStreamD m
+
+-- XXX The realloc based implementation needs to make one extra copy if we use
+-- shrinkToFit.  On the other hand, the stream of arrays implementation may
+-- buffer the array chunk pointers in memory but it does not have to shrink as
+-- we know the exact size in the end. However, memory copying does not seems to
+-- be as expensive as the allocations. Therefore, we need to reduce the number
+-- of allocations instead. Also, the size of allocations matters, right sizing
+-- an allocation even at the cost of copying sems to help.  Should be measured
+-- on a big stream with heavy calls to toArray to see the effect.
+--
+-- XXX check if GHC's memory allocator is efficient enough. We can try the C
+-- malloc to compare against.
+
+{-# INLINE_NORMAL toArrayMinChunk #-}
+toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+-- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+toArrayMinChunk elemCount = Fold step initial extract
+
+    where
+
+    insertElem (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+
+    initial = do
+        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
+        liftIO $ A.newArray elemCount
+    step arr@(Array start end bound) x | end == bound = do
+        let p = unsafeForeignPtrToPtr start
+            oldSize = end `minusPtr` p
+            newSize = max (oldSize * 2) 1
+        arr1 <- liftIO $ A.realloc newSize arr
+        insertElem arr1 x
+    step arr x = insertElem arr x
+    extract = liftIO . A.shrinkToFit
+
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since 0.7.0
+{-# INLINE writeF #-}
+writeF :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+writeF = toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
+
+-- | Create an 'Array' from a stream. This is useful when we want to create a
+-- single array from a stream of unknown size. 'writeN' is at least twice
+-- as efficient when the size is already known.
+--
+-- Note that if the input stream is too large memory allocation for the array
+-- may fail.  When the stream size is not known, `arraysOf` followed by
+-- processing of indvidual arrays in the resulting stream should be preferred.
+--
+{-# INLINE write #-}
+write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+write = P.runFold writeF
+-- write m = A.fromStreamD $ D.toStreamD m
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -374,93 +416,6 @@ writeSliceRev arr i len s = undefined
 -}
 
 -------------------------------------------------------------------------------
--- Streams of Arrays
--------------------------------------------------------------------------------
-
--- exponentially increasing sizes of the chunks upto the max limit.
--- XXX this will be easier to implement with parsers/terminating folds
--- With this we should be able to reduce the number of chunks/allocations.
--- The reallocation/copy based toArray can also be implemented using this.
---
-{-
-{-# INLINE toArraysInRange #-}
-toArraysInRange :: (IsStream t, MonadIO m, Storable a)
-    => Int -> Int -> Fold m (Array a) b -> Fold m a b
-toArraysInRange low high (Fold step initial extract) =
--}
-
-{-
--- | Fold the input to a pure buffered stream (List) of arrays.
-{-# INLINE _toArraysOf #-}
-_toArraysOf :: (MonadIO m, Storable a)
-    => Int -> Fold m a (SerialT Identity (Array a))
-_toArraysOf n = FL.lchunksOf n (A.toArrayN n) FL.toStream
--}
-
--- XXX The realloc based implementation needs to make one extra copy if we use
--- shrinkToFit.  On the other hand, the stream of arrays implementation may
--- buffer the array chunk pointers in memory but it does not have to shrink as
--- we know the exact size in the end. However, memory copying does not seems to
--- be as expensive as the allocations. Therefore, we need to reduce the number
--- of allocations instead. Also, the size of allocations matters, right sizing
--- an allocation even at the cost of copying sems to help.  Should be measured
--- on a big stream with heavy calls to toArray to see the effect.
---
--- XXX check if GHC's memory allocator is efficient enough. We can try the C
--- malloc to compare against.
-
-{-# INLINE_NORMAL toArrayMinChunk #-}
-toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
-toArrayMinChunk elemCount = Fold step initial extract
-
-    where
-
-    insertElem (Array start end bound) x = do
-        liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-
-    initial = do
-        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
-        liftIO $ A.newArray elemCount
-    step arr@(Array start end bound) x | end == bound = do
-        let p = unsafeForeignPtrToPtr start
-            oldSize = end `minusPtr` p
-            newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ A.realloc newSize arr
-        insertElem arr1 x
-    step arr x = insertElem arr x
-    extract = liftIO . A.shrinkToFit
-
--- | Fold the whole input to a single array.
---
--- /Caution! Do not use this on infinite streams./
---
--- @since 0.7.0
-{-# INLINE toArray #-}
-toArray :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-toArray =
-    toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
-
--- | Create an 'Array' from a stream. This is useful when we want to create a
--- single array from a stream of unknown size. 'writeN' is at least twice
--- as efficient when the size is already known.
---
--- Note that if the input stream is too large memory allocation for the array
--- may fail.  When the stream size is not known, `arraysOf` followed by
--- processing of indvidual arrays in the resulting stream should be preferred.
---
-{-# INLINE write #-}
-write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-write = P.runFold toArray
--- write m = A.fromStreamD $ D.toStreamD m
-
--- XXX efficiently compare two streams of arrays. Two streams can have chunks
--- of different sizes, we can handle that in the stream comparison abstraction.
--- This could be useful e.g. to fast compare whether two files differ.
-
--------------------------------------------------------------------------------
 -- Transform via stream operations
 -------------------------------------------------------------------------------
 
@@ -483,17 +438,17 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -- operation.
 --
 -- @since 0.7.0
-{-# INLINE runTransform #-}
-runTransform :: (MonadIO m, Storable a, Storable b)
+{-# INLINE _runTransform #-}
+_runTransform :: (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-runTransform f arr = P.runFold (toArrayMinChunk (length arr)) $ f (A.read arr)
+_runTransform f arr = P.runFold (toArrayMinChunk (length arr)) $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --
 -- @since 0.7.0
-{-# INLINE runFold #-}
-runFold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-runFold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
+{-# INLINE _runFold #-}
+_runFold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
+_runFold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --

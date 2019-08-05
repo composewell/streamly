@@ -54,6 +54,10 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Prelude as P
 
+-- XXX efficiently compare two streams of arrays. Two streams can have chunks
+-- of different sizes, we can handle that in the stream comparison abstraction.
+-- This could be useful e.g. to fast compare whether two files differ.
+
 -- | Convert a stream of arrays into a stream of their elements.
 --
 -- Same as the following but more efficient:
@@ -100,21 +104,21 @@ splitOn
     -> t m (Array Word8)
 splitOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
 
--- | Coalesce adajcent arrays in incoming stream to form bigger arrays of a
--- maximum specified size.
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size in bytes.
 --
 -- @since 0.7.0
 {-# INLINE compact #-}
 compact :: (MonadIO m, Storable a)
     => Int -> SerialT m (Array a) -> SerialT m (Array a)
-compact n xs =
-    D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
+compact n xs = D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
 
--- | Groups the elements in an input stream into arrays of given size.
+-- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- @n@ elements each.
 --
 -- Same as the following but more efficient:
 --
--- > arraysOf n = FL.groupsOf n (FL.toArrayN n)
+-- > arraysOf n = FL.chunksOf n (A.writeNF n)
 --
 -- @since 0.7.0
 {-# INLINE arraysOf #-}
@@ -171,3 +175,22 @@ toArray :: (MonadIO m, Storable a) => SerialT m (Array a) -> m (Array a)
 toArray = spliceArraysRealloced
 -- spliceArrays = _spliceArraysBuffered
 
+-- exponentially increasing sizes of the chunks upto the max limit.
+-- XXX this will be easier to implement with parsers/terminating folds
+-- With this we should be able to reduce the number of chunks/allocations.
+-- The reallocation/copy based toArray can also be implemented using this.
+--
+{-
+{-# INLINE toArraysInRange #-}
+toArraysInRange :: (IsStream t, MonadIO m, Storable a)
+    => Int -> Int -> Fold m (Array a) b -> Fold m a b
+toArraysInRange low high (Fold step initial extract) =
+-}
+
+{-
+-- | Fold the input to a pure buffered stream (List) of arrays.
+{-# INLINE _toArraysOf #-}
+_toArraysOf :: (MonadIO m, Storable a)
+    => Int -> Fold m a (SerialT Identity (Array a))
+_toArraysOf n = FL.lchunksOf n (A.writeNF n) FL.toStream
+-}

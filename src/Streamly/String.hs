@@ -70,7 +70,7 @@ import GHC.Base (unsafeChr)
 import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import Streamly.Fold (Fold)
-import Streamly.Mem.Array (Array, toArray)
+import Streamly.Mem.Array (Array)
 
 import qualified Streamly.Prelude as S
 import qualified Streamly.Mem.Array.Types as A (unlines)
@@ -204,7 +204,7 @@ isSpace c
 -- 'foldLines' instead.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-lines = S.splitOnSuffix (== '\n') toArray
+lines = S.splitOnSuffix (== '\n') A.writeF
 
 -- | Break a string up into a list of strings, which were delimited
 -- by characters representing white space.
@@ -216,7 +216,7 @@ lines = S.splitOnSuffix (== '\n') toArray
 -- 'foldWords' instead.
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-words = S.wordsBy isSpace toArray
+words = S.wordsBy isSpace A.writeF
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.

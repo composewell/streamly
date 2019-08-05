@@ -59,7 +59,7 @@ module Streamly.Mem.Array.Types
     , toStreamK
     , toStreamKRev
     , toList
-    , toArrayN
+    , writeNF
     , read
 
     -- * Utilities
@@ -472,18 +472,18 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- Instances
 -------------------------------------------------------------------------------
 
--- | @toArrayN n@ folds a maximum of @n@ elements from the input stream to an
+-- | @writeNF n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL toArrayN #-}
-toArrayN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
-toArrayN n = Fold step initial extract
+{-# INLINE_NORMAL writeNF #-}
+writeNF :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeNF n = Fold step initial extract
 
     where
 
     initial = do
-        if n < 0 then error "toArrayN: negative count specified" else return ()
+        if n < 0 then error "writeNF: negative count specified" else return ()
         liftIO $ newArray n
     step arr@(Array _ end bound) _ | end == bound = return arr
     step (Array start end bound) x = do
@@ -516,7 +516,7 @@ data GroupState s start end bound
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
--- fromStreamDArraysOf n str = D.groupsOf n (toArrayN n) str
+-- fromStreamDArraysOf n str = D.groupsOf n (writeNF n) str
 fromStreamDArraysOf n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 
@@ -886,7 +886,7 @@ data SpliceState s arr
     | SpliceFinish
 
 -- XXX can use general grouping combinators to achieve this?
--- | Coalesce adajcent arrays in incoming stream to form bigger arrays of a
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size.
 --
 -- @since 0.7.0
