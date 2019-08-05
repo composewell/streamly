@@ -25,13 +25,14 @@ import Streamly.Strict (Tuple'(..))
 
 -- | Represents a left fold over an input stream of values of type @a@ to a
 -- single value of type @b@ in 'Monad' @m@.
+--
+-- @since 0.7.0
 
 -- The fold uses an intermediate type @x@ as accumulator. The fold accumulator
 -- is initialized by calling the @init@ function and is then driven by calling
 -- the step function repeatedly. When the fold is done the @extract@ function
 -- is used to map the intermediate type @x@ to the final type @b@. This allows
 -- the state of the fold to be embedded in an arbitrary type @x@.
---
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall x. Fold (x -> a -> m x) (m x) (x -> m b)
@@ -46,9 +47,8 @@ instance Applicative m => Functor (Fold m a) where
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
--- | The input (type @a@) of the composed fold is distributed to both the
--- constituent folds. The outputs of the constituent folds (type @b@) are
--- applied to a function.
+-- | The fold resulting from '<*>' distributes its input to both the argument
+-- folds and combines their output using the supplied function.
 instance Applicative m => Applicative (Fold m a) where
     {-# INLINE pure #-}
     pure b = Fold (\() _ -> pure ()) (pure ()) (\() -> pure b)

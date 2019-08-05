@@ -170,16 +170,18 @@ module Streamly.Prelude
 -- the previous step. However, it is possible to fold parts of the stream in
 -- parallel and then combine the results using a monoid.
 
+    -- ** Right Folds
     , foldrM
     , foldrS
     , foldrT
     , foldr
 
+    -- ** Left Folds
     , foldl'
     , foldl1'
     , foldlM'
 
-    -- * Running Folds
+    -- ** Composable Left Folds
     -- $runningfolds
 
     , runFold
@@ -316,6 +318,7 @@ module Streamly.Prelude
     -- > foldl f z xs = last $ scanl f z xs
     -- > foldr f z xs = head $ scanr f z xs
 
+    -- ** Left scans
     , scanl'
     , scanlM'
     , postscanl'
@@ -325,7 +328,7 @@ module Streamly.Prelude
     , scanl1'
     , scanl1M'
 
-    -- ** Running Scans
+    -- ** Scan Using Fold
     , runScan
     , runPostscan
 
@@ -339,6 +342,7 @@ module Streamly.Prelude
     -- , lprescanl'
     -- , lprescanlM'
 
+    -- ** Indexing
     , indexed
     , indexedR
     -- , timestamped
@@ -460,7 +464,7 @@ module Streamly.Prelude
     -- , interposeBy
     -- , intercalate
 
-    -- ** Breaking
+    -- -- ** Breaking
 
     -- By chunks
     -- , splitAt -- spanN
@@ -490,14 +494,14 @@ module Streamly.Prelude
 
     -- , groupScan
 
-    -- *** Chunks
+    -- -- *** Chunks
     , chunksOf
     , sessionsOf
 
     -- , lchunksOf
     -- , lsessionsOf
 
-    -- *** Using Element Separators
+    -- -- *** Using Element Separators
     -- On == Dropping the separator
     , splitOn
     , splitOnSuffix
@@ -1346,19 +1350,20 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
 -- $runningfolds
 --
--- We can use the left folds in this module instead of the folds in
--- "Streamly.Prelude". For example the following two ways of folding are
--- equivalent in functionality and performance,
+-- "Streamly.Fold" module defines composable left folds which can be combined
+-- together in many interesting ways. Those folds can be run using 'runFold'.
+-- The following two ways of folding are equivalent in functionality and
+-- performance,
 --
--- >>> FL.foldl' FL.sum (S.enumerateFromTo 1 100)
+-- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
 -- 5050
 -- >>> S.sum (S.enumerateFromTo 1 100)
 -- 5050
 --
--- However, left folds are push type folds. That means we push the entire input
--- to a fold before we can get the output.  Therefore, the performance is
+-- However, left folds cannot terminate early even if it does not need to
+-- consume more input to determine the result.  Therefore, the performance is
 -- equivalent only for full folds like 'sum' and 'length'. For partial folds
--- like 'head' or 'any' the folds in "Streamly.Prelude" may be much more
+-- like 'head' or 'any' the the folds defined in this module may be much more
 -- efficient because they are implemented as right folds that terminate as soon
 -- as we get the result. Note that when a full fold is composed with a partial
 -- fold in parallel the performance is not impacted as we anyway have to
@@ -1366,13 +1371,13 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 --
 -- >>> S.head (1 `S.cons` undefined)
 -- Just 1
--- >>> FL.foldl' FL.head (1 `S.cons` undefined)
+-- >>> S.runFold FL.head (1 `S.cons` undefined)
 -- *** Exception: Prelude.undefined
 --
 -- However, we can wrap the fold in a scan to convert it into a lazy stream of
 -- fold steps. We can then terminate the stream whenever we want.  For example,
 --
--- >>> S.toList $ S.take 1 $ FL.scanl' FL.head (1 `S.cons` undefined)
+-- >>> S.toList $ S.take 1 $ S.runScan FL.head (1 `S.cons` undefined)
 -- [Nothing]
 --
 -- The following example extracts the input stream up to a point where the
@@ -1382,15 +1387,15 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 -- > S.toList
 --   $ S.map (fromJust . fst)
 --   $ S.takeWhile (\\(_,x) -> x <= 10)
---   $ FL.postscanl' ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
+--   $ S.runPostscan ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
 -- @
 -- @
 --  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
 -- @
 
--- | Fold a stream using the supplied monadic fold.
+-- | Fold a stream using the supplied left fold.
 --
--- >>> S.foldlStream FL.sum (S.enumerateFromTo 1 100)
+-- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
 -- 5050
 --
 -- @since 0.7.0
@@ -2181,14 +2186,14 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 -- XXX Use a compact region list to temporarily store the list, in both reverse
 -- as well as in reverse'.
 --
+-- /Note:/ 'reverse'' is much faster than this, use that when performance
+-- matters.
+--
 -- |
 -- > reverse = S.foldlT (flip S.cons) S.nil
 --
 -- Returns the elements of the stream in reverse order.  The stream must be
 -- finite. Note that this necessarily buffers the entire stream in memory.
---
--- /Note:/ 'reverse'' is much faster than this, use that when performance
--- matters.
 --
 -- /Since 0.7.0 (Monad m constraint)/
 --
@@ -2567,7 +2572,7 @@ intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
 -- is consumed by fold @f2@.
 --
--- > let splitAt_ n xs = FL.foldl' (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
+-- > let splitAt_ n xs = S.runFold (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> splitAt_ 6 "Hello World!"
 -- > ("Hello ","World!")
@@ -2656,7 +2661,7 @@ groupScan split fold m = undefined
 -- | Group the input stream into groups of @n@ elements each and then fold each
 -- group using the provided fold function.
 --
--- >> S.toList $ FL.chunksOf 2 FL.sum (S.enumerateFromTo 1 10)
+-- >> S.toList $ S.chunksOf 2 FL.sum (S.enumerateFromTo 1 10)
 -- > [3,7,11,15,19]
 --
 -- This can be considered as an n-fold version of 'ltake' where we apply
@@ -2736,7 +2741,7 @@ _spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
 -- input.
 --
--- > let span_ p xs = FL.foldl' (FL.span p FL.toList FL.toList) $ S.fromList xs
+-- > let span_ p xs = S.runFold (S.span p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> span_ (< 1) [1,2,3]
 -- > ([],[1,2,3])
@@ -2781,7 +2786,7 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 -- This is the binary version of 'splitBy'.
 --
--- > let break_ p xs = FL.foldl' (FL.break p FL.toList FL.toList) $ S.fromList xs
+-- > let break_ p xs = S.runFold (S.break p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> break_ (< 1) [3,2,1]
 -- > ([3,2,1],[])
@@ -2838,7 +2843,7 @@ _spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR)
 -- group is folded using the fold @f@ and the result of the fold is emitted in
 -- the output stream.
 --
--- >>> S.toList $ FL.groupsBy (>) FL.toList $ S.fromList [1,3,7,0,2,5]
+-- >>> S.toList $ S.groupsBy (>) FL.toList $ S.fromList [1,3,7,0,2,5]
 -- > [[1,3,7],[0,2,5]]
 --
 -- @since 0.7.0
@@ -2859,7 +2864,7 @@ groupsBy cmp f m = D.fromStreamD $ D.groupsBy cmp f (D.toStreamD m)
 -- comparison fails a new group is started. Each group is folded using the fold
 -- @f@.
 --
--- >>> S.toList $ FL.groupsByRolling (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
+-- >>> S.toList $ S.groupsByRolling (\a b -> a + 1 == b) FL.toList $ S.fromList [1,2,3,7,8,9]
 -- > [[1,2,3],[7,8,9]]
 --
 -- @since 0.7.0
@@ -2878,7 +2883,7 @@ groupsByRolling cmp f m =  D.fromStreamD $ D.groupsRollingBy cmp f (D.toStreamD 
 --
 -- Groups contiguous spans of equal elements together in individual groups.
 --
--- >>> S.toList $ FL.groups FL.toList $ S.fromList [1,1,2,2]
+-- >>> S.toList $ S.groups FL.toList $ S.fromList [1,1,2,2]
 -- > [[1,1],[2,2]]
 --
 -- @since 0.7.0
@@ -2895,7 +2900,7 @@ groups = groupsBy (==)
 -- stream before the sequence and the second part consisting of the sequence
 -- and the rest of the stream.
 --
--- > let breakOn_ pat xs = FL.foldl' (FL.breakOn pat FL.toList FL.toList) $ S.fromList xs
+-- > let breakOn_ pat xs = S.runFold (S.breakOn pat FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> breakOn_ "dear" "Hello dear world!"
 -- > ("Hello ","dear world!")
@@ -2931,7 +2936,7 @@ breakOn pat f m = undefined
 --
 -- Let's use the following definition for illustration:
 --
--- > splitOn' p xs = S.toList $ FL.splitOn p (FL.toList) (S.fromList xs)
+-- > splitOn' p xs = S.toList $ S.splitOn p (FL.toList) (S.fromList xs)
 --
 -- >>> splitOn' (== '.') ""
 -- [""]
@@ -2975,7 +2980,7 @@ splitOn predicate f m =
 --  ".--."   => "" "--"
 -- @
 --
--- > splitOnSuffix' p xs = S.toList $ FL.splitSuffixBy p (FL.toList) (S.fromList xs)
+-- > splitOnSuffix' p xs = S.toList $ S.splitSuffixBy p (FL.toList) (S.fromList xs)
 --
 -- >>> splitOnSuffix' (== '.') ""
 -- []
@@ -3021,7 +3026,7 @@ splitOnSuffix predicate f m =
 -- @["a","b"]@.  In other words, it treats the input like words separated by
 -- whitespace elements determined by the predicate.
 --
--- > wordsBy' p xs = S.toList $ FL.wordsBy p (FL.toList) (S.fromList xs)
+-- > wordsBy' p xs = S.toList $ S.wordsBy p (FL.toList) (S.fromList xs)
 --
 -- >>> wordsBy' (== ',') ""
 -- > []
@@ -3045,7 +3050,7 @@ wordsBy predicate f m =
 -- | Like 'splitOnSuffix' but keeps the suffix attached to the resulting
 -- splits.
 --
--- > splitBySuffix' p xs = S.toList $ FL.splitBySuffix p (FL.toList) (S.fromList xs)
+-- > splitBySuffix' p xs = S.toList $ S.splitBySuffix p (FL.toList) (S.fromList xs)
 --
 -- >>> splitBySuffix' (== '.') ""
 -- []
@@ -3119,7 +3124,7 @@ splitBySuffix predicate f m =
 -- For illustration, let's define a function that operates on pure lists:
 --
 -- @
--- splitOnSeq' pat xs = S.toList $ FL.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
+-- splitOnSeq' pat xs = S.toList $ S.splitOnSeq (A.fromList pat) (FL.toList) (S.fromList xs)
 -- @
 --
 -- >>> splitOnSeq' "" "hello"
@@ -3184,7 +3189,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- | Like 'splitSuffixBy' but the separator is a sequence of elements, instead
 -- of a predicate for a single element.
 --
--- > splitSuffixOn_ pat xs = S.toList $ FL.splitSuffixOn (A.fromList pat) (FL.toList) (S.fromList xs)
+-- > splitSuffixOn_ pat xs = S.toList $ S.splitSuffixOn (A.fromList pat) (FL.toList) (S.fromList xs)
 --
 -- >>> splitSuffixOn_ "." ""
 -- [""]
@@ -3234,7 +3239,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 --
 -- | Like 'splitOnSeq' but splits the separator as well, as an infix token.
 --
--- > splitOn'_ pat xs = S.toList $ FL.splitOn' (A.fromList pat) (FL.toList) (S.fromList xs)
+-- > splitOn'_ pat xs = S.toList $ S.splitOn' (A.fromList pat) (FL.toList) (S.fromList xs)
 --
 -- >>> splitOn'_ "" "hello"
 -- > ["h","","e","","l","","l","","o"]
