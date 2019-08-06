@@ -154,9 +154,9 @@ readArrayUptoWith f size h = do
 -- handle it blocks until some data becomes available. If data is available
 -- then it immediately returns that data without blocking. It reads a maximum
 -- of up to the size requested.
-{-# INLINABLE readArrayUpto #-}
-readArrayUpto :: Int -> Socket -> IO (Array Word8)
-readArrayUpto = readArrayUptoWith recvBuf
+{-# INLINABLE readArrayOf #-}
+readArrayOf :: Int -> Socket -> IO (Array Word8)
+readArrayOf = readArrayUptoWith recvBuf
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -217,14 +217,14 @@ readArraysUptoWith f size h = go
         then stp
         else yld arr go
 
--- | @readArraysUpto size h@ reads a stream of arrays from file handle @h@.
+-- | @readArraysOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is limited to @size@.
 -- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
-{-# INLINABLE readArraysUpto #-}
-readArraysUpto :: (IsStream t, MonadIO m)
+{-# INLINABLE readArraysOf #-}
+readArraysOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
-readArraysUpto = readArraysUptoWith readArrayUpto
+readArraysOf = readArraysUptoWith readArrayOf
 
 -- XXX read 'Array a' instead of Word8
 --
@@ -236,7 +236,7 @@ readArraysUpto = readArraysUptoWith readArrayUpto
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadIO m) => Socket -> t m (Array Word8)
-readArrays = readArraysUpto A.defaultChunkSize
+readArrays = readArraysOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream

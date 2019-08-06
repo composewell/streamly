@@ -117,7 +117,7 @@ main = do
                 S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
-                FH.writeArrays devNull $ FH.readArraysOfUpto (256*1024) inh
+                FH.writeArrays devNull $ FH.readArraysOf (256*1024) inh
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
@@ -198,7 +198,7 @@ main = do
                 FH.writeArraysPackedUpto (1024*1024) outh
                     $ S.insertAfterEach (return $ A.fromList [10])
                     $ AS.splitOn 10
-                    $ FH.readArraysOfUpto (1024*1024) inh
+                    $ FH.readArraysOf (1024*1024) inh
             -}
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href

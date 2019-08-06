@@ -63,7 +63,7 @@ module Streamly.FileSystem.File
     -- -- * Array Read
     -- , readArrayOf
 
-    , readArraysOfUpto
+    , readArraysOf
     -- , readArraysOf
     , readArrays
 
@@ -183,26 +183,27 @@ appendArray file arr = SIO.withFile file AppendMode (\h -> FH.writeArray h arr)
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOfUpto size file@ reads a stream of arrays from file @file@.
+-- | @readArraysOf size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE readArraysOfUpto #-}
-readArraysOfUpto :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINABLE readArraysOf #-}
+readArraysOf :: (IsStream t, MonadCatch m, MonadIO m)
     => Int -> FilePath -> t m (Array Word8)
-readArraysOfUpto size file = withFile file ReadMode (FH.readArraysOfUpto size)
+readArraysOf size file = withFile file ReadMode (FH.readArraysOf size)
 
 -- XXX read 'Array a' instead of Word8
 --
 -- | @readArrays file@ reads a stream of arrays from file @file@.
--- The maximum size of a single array is limited to @defaultChunkSize@.
+-- The maximum size of a single array is limited to @defaultChunkSize@. The
+-- actual size read may be less than @defaultChunkSize@.
 --
--- > readArrays = readArraysOfUpto defaultChunkSize
+-- > readArrays = readArraysOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadCatch m, MonadIO m)
     => FilePath -> t m (Array Word8)
-readArrays = readArraysOfUpto A.defaultChunkSize
+readArrays = readArraysOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -219,7 +220,7 @@ readArrays = readArraysOfUpto A.defaultChunkSize
 --
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
+readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -}
 
 -- TODO

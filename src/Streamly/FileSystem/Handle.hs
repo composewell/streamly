@@ -67,7 +67,7 @@ module Streamly.FileSystem.Handle
     -- , readArrayUpto
     -- , readArrayOf
 
-    , readArraysOfUpto
+    , readArraysOf
     -- , readArraysOf
     , readArrays
 
@@ -187,13 +187,13 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOfUpto size h@ reads a stream of arrays from file handle @h@.
+-- | @readArraysOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE _readArraysOfUpto #-}
-_readArraysOfUpto :: (IsStream t, MonadIO m)
+{-# INLINABLE _readArraysOf #-}
+_readArraysOf :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
-_readArraysOfUpto size h = go
+_readArraysOf size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
@@ -202,13 +202,14 @@ _readArraysOfUpto size h = go
         then stp
         else yld arr go
 
--- | @readArraysOfUpto size handle@ reads a stream of arrays from the file
+-- | @readArraysOf size handle@ reads a stream of arrays from the file
 -- handle @handle@.  The maximum size of a single array is limited to @size@.
+-- The actual size read may be less than or equal to @size@.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL readArraysOfUpto #-}
-readArraysOfUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
-readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
+{-# INLINE_NORMAL readArraysOf #-}
+readArraysOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
+readArraysOf size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -222,14 +223,15 @@ readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
 --
 -- | @readArrays handle@ reads a stream of arrays from the specified file
 -- handle.  The maximum size of a single array is limited to
+-- @defaultChunkSize@. The actual size read may be less than or equal to
 -- @defaultChunkSize@.
 --
--- > readArrays = readArraysOfUpto defaultChunkSize
+-- > readArrays = readArraysOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
-readArrays = readArraysOfUpto defaultChunkSize
+readArrays = readArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -245,7 +247,7 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readByChunksUpto #-}
 readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
+readByChunksUpto chunkSize h = AS.flatten $ readArraysOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
