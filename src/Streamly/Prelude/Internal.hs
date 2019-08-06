@@ -6,10 +6,10 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 #endif
 
-#include "Streams/inline.hs"
+#include "../Streams/inline.hs"
 
 -- |
--- Module      : Streamly.Prelude
+-- Module      : Streamly.Prelude.Internal
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -17,33 +17,8 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- This module is designed to be imported qualified:
---
--- @
--- import qualified Streamly.Prelude as S
--- @
---
--- Functions with the suffix @M@ are general functions that work on monadic
--- arguments. The corresponding functions without the suffix @M@ work on pure
--- arguments and can in general be derived from their monadic versions but are
--- provided for convenience and for consistency with other pure APIs in the
--- @base@ package.
---
--- In many cases, short definitions of the combinators are provided in the
--- documentation for illustration. The actual implementation may differ for
--- performance reasons.
---
--- Functions having a 'MonadAsync' constraint work concurrently when used with
--- appropriate stream type combinator. Please be careful to not use 'parallely'
--- with infinite streams.
---
--- Deconstruction and folds accept a 'SerialT' type instead of a polymorphic
--- type to ensure that streams always have a concrete monomorphic type by
--- default, reducing type errors. In case you want to use any other type of
--- stream you can use one of the type combinators provided in the "Streamly"
--- module to convert the stream type.
 
-module Streamly.Prelude
+module Streamly.Prelude.Internal
     (
     -- * Construction
     -- ** Primitives

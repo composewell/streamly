@@ -214,6 +214,7 @@ library
                      , Streamly.Pipe.Types
                      , Streamly.Pipe
 
+                     , Streamly.Prelude.Internal
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
