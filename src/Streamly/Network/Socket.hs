@@ -56,7 +56,7 @@ module Streamly.Network.Socket
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunks
+    , writeInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -292,11 +292,11 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeByChunks n h m = writeArrays h $ AS.arraysOf n m
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
@@ -305,7 +305,7 @@ writeByChunks n h m = writeArrays h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Socket -> SerialT m Word8 -> m ()
-write = writeByChunks A.defaultChunkSize
+write = writeInChunksOf A.defaultChunkSize
 
 {-
 {-# INLINE write #-}

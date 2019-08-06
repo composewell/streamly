@@ -47,7 +47,7 @@ module Streamly.Network.Client
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    -- , writeByChunks
+    -- , writeInChunksOf
 
     -- -- * Array Write
     -- , writeArray
@@ -133,15 +133,15 @@ writeArrays addr port xs =
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf
     :: (MonadCatch m, MonadAsync m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-writeByChunks n addr port m = writeArrays addr port $ AS.arraysOf n m
+writeInChunksOf n addr port m = writeArrays addr port $ AS.arraysOf n m
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
@@ -149,4 +149,4 @@ writeByChunks n addr port m = writeArrays addr port $ AS.arraysOf n m
 {-# INLINE write #-}
 write :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
-write = writeByChunks defaultChunkSize
+write = writeInChunksOf defaultChunkSize

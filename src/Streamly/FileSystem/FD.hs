@@ -403,7 +403,7 @@ _writevArraysPackedUpto n h xs =
 writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
 writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior

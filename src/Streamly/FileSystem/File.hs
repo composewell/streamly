@@ -72,7 +72,7 @@ module Streamly.FileSystem.File
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunks
+    , writeInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -287,12 +287,12 @@ writeArrays = writeArraysMode WriteMode
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks :: (MonadAsync m, MonadCatch m)
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeByChunks n file xs = writeArrays file $ AS.arraysOf n xs
+writeInChunksOf n file xs = writeArrays file $ AS.arraysOf n xs
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing. If the file exists it is
@@ -302,7 +302,7 @@ writeByChunks n file xs = writeArrays file $ AS.arraysOf n xs
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-write = writeByChunks A.defaultChunkSize
+write = writeInChunksOf A.defaultChunkSize
 
 {-
 {-# INLINE write #-}
