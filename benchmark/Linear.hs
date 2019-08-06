@@ -20,6 +20,7 @@ import qualified LinearOps as Ops
 
 import Streamly
 import qualified Streamly.Fold as FL
+import qualified Streamly.Internal as Internal
 --import qualified Streamly.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
@@ -241,7 +242,7 @@ main =
         ]
       , bgroup "folds-transforms"
         [ benchIOSink "drain" (S.runFold FL.drain)
-        , benchIOSink "lmap" (S.runFold (FL.lmap (+1) FL.drain))
+        , benchIOSink "lmap" (S.runFold (Internal.lmap (+1) FL.drain))
         {-, benchIOSink "pipe-mapM"
              (S.runFold (FL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))-}
         ]

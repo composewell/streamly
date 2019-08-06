@@ -134,12 +134,12 @@ module Streamly.Fold
 
     -- ** Mapping
     --, transform
-    , lmap
+    -- , lmap
     --, lsequence
-    , lmapM
+    -- , lmapM
 
     -- -- ** Filtering
-    , lfilter
+    -- , lfilter
     -- , lfilterM
     -- , ldeleteBy
     -- , luniq
@@ -247,13 +247,7 @@ module Streamly.Fold
     )
 where
 
-import Control.Concurrent (threadDelay, forkIO, killThread)
-import Control.Concurrent.MVar (MVar, newMVar, takeMVar, putMVar)
-import Control.Exception (SomeException(..), catch, mask)
 import Control.Monad (void)
-import Control.Monad.Catch (throwM)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (control)
 import Data.Map.Strict (Map)
 
 import Prelude
@@ -267,8 +261,7 @@ import Prelude
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.SVar (MonadAsync)
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Fold.Types (Fold(..), lmap)
 import Streamly.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Strict
 
@@ -335,27 +328,6 @@ _transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
             go acc r
 
     extract (Tuple' _ fs) = fextract fs
-
--- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
---
--- >>> S.runFold (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
--- 338350
---
--- @since 0.7.0
-{-# INLINABLE lmap #-}
-lmap :: (a -> b) -> Fold m b r -> Fold m a r
-lmap f (Fold step begin done) = Fold step' begin done
-  where
-    step' x a = step x (f a)
-
--- | @(lmapM f fold)@ maps the monadic function @f@ on the input of the fold.
---
--- @since 0.7.0
-{-# INLINABLE lmapM #-}
-lmapM :: Monad m => (a -> m b) -> Fold m b r -> Fold m a r
-lmapM f (Fold step begin done) = Fold step' begin done
-  where
-    step' x a = f a >>= step x
 
 ------------------------------------------------------------------------------
 -- Utilities
@@ -775,65 +747,6 @@ or :: Monad m => Fold m Bool Bool
 or = Fold (\x a -> return $ x || a) (return False) return
 
 ------------------------------------------------------------------------------
--- Filtering
-------------------------------------------------------------------------------
-
--- | Include only those elements that pass a predicate.
---
--- >>> S.runFold (lfilter (> 5) FL.sum) [1..10]
--- 40
---
--- @since 0.7.0
-{-# INLINABLE lfilter #-}
-lfilter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
-lfilter f (Fold step begin done) = Fold step' begin done
-  where
-    step' x a = if f a then step x a else return x
-
--- | Like 'lfilter' but with a monadic predicate.
---
--- @since 0.7.0
-{-# INLINABLE _lfilterM #-}
-_lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-_lfilterM f (Fold step begin done) = Fold step' begin done
-  where
-    step' x a = do
-      use <- f a
-      if use then step x a else return x
-
--- | Take first 'n' elements from the stream and discard the rest.
---
--- @since 0.7.0
-{-# INLINABLE _ltake #-}
-_ltake :: Monad m => Int -> Fold m a b -> Fold m a b
-_ltake n (Fold step initial done) = Fold step' initial' done'
-    where
-    initial' = fmap (Tuple' 0) initial
-    step' (Tuple' i r) a = do
-        if i < n
-        then do
-            res <- step r a
-            return $ Tuple' (i + 1) res
-        else return $ Tuple' i r
-    done' (Tuple' _ r) = done r
-
--- | Takes elements from the input as long as the predicate succeeds.
---
--- @since 0.7.0
-{-# INLINABLE _ltakeWhile #-}
-_ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-_ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
-    where
-    initial' = fmap Left' initial
-    step' (Left' r) a = do
-        if predicate a
-        then fmap Left' $ step r a
-        else return (Right' r)
-    step' r _ = return r
-    done' (Left' r) = done r
-    done' (Right' r) = done r
-
-------------------------------------------------------------------------------
 -- Distributing
 ------------------------------------------------------------------------------
 --
@@ -1231,23 +1144,6 @@ unzip = unzipWith id
 -- Nesting
 ------------------------------------------------------------------------------
 --
--- | Modify the fold such that when the fold is done, instead of returning the
--- accumulator, it returns a fold. The returned fold starts from where we left
--- i.e. it uses the last accumulator value as the initial value of the
--- accumulator. Thus we can resume the fold later and feed it more input.
---
--- >> do
--- >    more <- S.runFold (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
--- >    evenMore <- S.runFold (FL.duplicate more) (S.enumerateFromTo 11 20)
--- >    S.runFold evenMore (S.enumerateFromTo 21 30)
--- > 465
---
--- @since 0.7.0
-{-# INLINABLE _duplicate #-}
-_duplicate :: Applicative m => Fold m a b -> Fold m a (Fold m a b)
-_duplicate (Fold step begin done) =
-    Fold step begin (\x -> pure (Fold step (pure x) done))
-
 {-
 -- All the stream flattening transformations can also be applied to a fold
 -- input stream.
@@ -1281,101 +1177,3 @@ lchunksInRange :: Monad m
 lchunksInRange low high (Fold step1 initial1 extract1)
                         (Fold step2 initial2 extract2) = undefined
 -}
-
--- | Group the input stream into groups of @n@ elements each and then fold each
--- group using the provided fold function.
---
--- @
---
--- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
---
--- @
---
-{-# INLINE _lchunksOf #-}
-_lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c
-_lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
-
-    where
-
-    initial' = (Tuple3' 0) <$> initial1 <*> initial2
-    step' (Tuple3' i r1 r2) a = do
-        if i < n
-        then do
-            res <- step1 r1 a
-            return $ Tuple3' (i + 1) res r2
-        else do
-            res <- extract1 r1
-            acc2 <- step2 r2 res
-
-            i1 <- initial1
-            acc1 <- step1 i1 a
-            return $ Tuple3' 1 acc1 acc2
-    extract' (Tuple3' _ _ r) = extract2 r
-
--- | Group the input stream into windows of n second each and then fold each
--- group using the provided fold function.
---
--- For example, we can copy and distribute a stream to multiple folds where
--- each fold can group the input differently e.g. by one second, one minute and
--- one hour windows respectively and fold each resulting stream of folds.
---
--- @
---
--- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
---
--- @
-{-# INLINE _lsessionsOf #-}
-_lsessionsOf :: MonadAsync m => Double -> Fold m a b -> Fold m b c -> Fold m a c
-_lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
-    Fold step' initial' extract'
-
-    where
-
-    -- XXX MVar may be expensive we need a cheaper synch mechanism here
-    initial' = do
-        i1 <- initial1
-        i2 <- initial2
-        mv1 <- liftIO $ newMVar i1
-        mv2 <- liftIO $ newMVar (Right i2)
-        t <- control $ \run ->
-            mask $ \restore -> do
-                tid <- forkIO $ catch (restore $ void $ run (timerThread mv1 mv2))
-                                      (handleChildException mv2)
-                run (return tid)
-        return $ Tuple3' t mv1 mv2
-    step' acc@(Tuple3' _ mv1 _) a = do
-            r1 <- liftIO $ takeMVar mv1
-            res <- step1 r1 a
-            liftIO $ putMVar mv1 res
-            return acc
-    extract' (Tuple3' tid _ mv2) = do
-        r2 <- liftIO $ takeMVar mv2
-        liftIO $ killThread tid
-        case r2 of
-            Left e -> throwM e
-            Right x -> extract2 x
-
-    timerThread mv1 mv2 = do
-        liftIO $ threadDelay (round $ n * 1000000)
-
-        r1 <- liftIO $ takeMVar mv1
-        i1 <- initial1
-        liftIO $ putMVar mv1 i1
-
-        res1 <- extract1 r1
-        r2 <- liftIO $ takeMVar mv2
-        res <- case r2 of
-                    Left _ -> return r2
-                    Right x -> fmap Right $ step2 x res1
-        liftIO $ putMVar mv2 res
-        timerThread mv1 mv2
-
-    handleChildException ::
-        MVar (Either SomeException a) -> SomeException -> IO ()
-    handleChildException mv2 e = do
-        r2 <- takeMVar mv2
-        let r = case r2 of
-                    Left _ -> r2
-                    Right _ -> Left e
-        putMVar mv2 r

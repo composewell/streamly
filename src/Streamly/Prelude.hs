@@ -657,6 +657,7 @@ import Streamly.Strict
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Fold as FL
+import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
