@@ -131,7 +131,7 @@ main = do
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
                 S.length
-                    $ flip SS.foldLines FL.drain
+                    $ SS.foldLines FL.drain
                     $ SS.decodeChar8
                     $ FH.read inh
             , mkBench "sum" href $ do
