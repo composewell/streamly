@@ -70,12 +70,12 @@ import GHC.Base (unsafeChr)
 import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import Streamly.Fold (Fold)
-import Streamly.Mem.Array (Array)
+import Streamly.Memory.Array (Array)
 
 import qualified Streamly.Prelude as S
-import qualified Streamly.Mem.Array.Types as A (unlines)
-import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.ArrayStream as AS
+import qualified Streamly.Memory.Array.Types as A (unlines)
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
 
 -- type String = List Char

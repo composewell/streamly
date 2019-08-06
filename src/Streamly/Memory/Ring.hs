@@ -4,7 +4,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 
 -- |
--- Module      : Streamly.Mem.Ring
+-- Module      : Streamly.Memory.Ring
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -12,7 +12,7 @@
 -- Portability : GHC
 --
 
-module Streamly.Mem.Ring
+module Streamly.Memory.Ring
     ( Ring(..)
 
     -- * Construction
@@ -40,7 +40,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, concat)
 
-import qualified Streamly.Mem.Array.Types as A
+import qualified Streamly.Memory.Array.Types as A
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the

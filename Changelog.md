@@ -81,9 +81,9 @@ example, concat streams concurrently using this.
 * Add the following new features/modules:
   * _Unicode Strings_: `Streamly.String` module provides encoding/decoding of
     character streams and other character stream operations.
-  * _Arrays_: `Streamly.Mem.Array` module provides arrays for efficient
+  * _Arrays_: `Streamly.Memory.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.
-  * `Streamly.Mem.Array.Stream` module provide combinators to work on streams
+  * `Streamly.Memory.Array.Stream` module provide combinators to work on streams
     of arrays.
 
 * Add the following to `Streamly.Prelude`:

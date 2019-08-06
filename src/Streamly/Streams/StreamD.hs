@@ -280,7 +280,7 @@ import Prelude
 
 import qualified Control.Monad.Catch as MC
 
-import Streamly.Mem.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
@@ -288,8 +288,8 @@ import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Streams.StreamD.Type
 
 import qualified Streamly.Pipe.Types as Pipe
-import qualified Streamly.Mem.Array.Types as A
-import qualified Streamly.Mem.Ring as RB
+import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Streams.StreamK as K
 
 ------------------------------------------------------------------------------

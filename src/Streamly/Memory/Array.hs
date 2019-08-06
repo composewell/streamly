@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Mem.Array
+-- Module      : Streamly.Memory.Array
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -48,7 +48,7 @@
 -- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
 -- instances are deliberately not provided to avoid misuse; concatenating
 -- arrays using binary operations can be highly inefficient.  Instead, use
--- 'Streamly.Mem.Array.Stream.toArray' to concatenate N arrays at once.
+-- 'Streamly.Memory.Array.Stream.toArray' to concatenate N arrays at once.
 --
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
 -- single byte) are only as good as holding those elements in a Haskell list.
@@ -59,7 +59,7 @@
 -- arbitrarily large amounts of memory but still using small chunks of
 -- contiguous memory.
 
-module Streamly.Mem.Array
+module Streamly.Memory.Array
     (
       Array
 
@@ -130,12 +130,12 @@ import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read)
 
-import Streamly.Mem.Array.Types (Array(..), length)
+import Streamly.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
 
-import qualified Streamly.Mem.Array.Types as A
+import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D

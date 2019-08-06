@@ -17,7 +17,7 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from network sockets. Socket IO
--- APIs are quite similar to "Streamly.Mem.Array" read write APIs and almost
+-- APIs are quite similar to "Streamly.Memory.Array" read write APIs and almost
 -- identical to the sequential streaming APIs in "Streamly.FileSystem.File".
 --
 -- Read IO requests to the socket are performed in chunks of 32KiB, this is
@@ -86,15 +86,15 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Mem.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 -- import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.ArrayStream as AS
-import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Memory.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
 -- | @'withSocket' socket act@ runs the monadic computation @act@ passing the

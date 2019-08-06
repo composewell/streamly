@@ -185,8 +185,8 @@ library
                      , Streamly.Enumeration
 
                     -- Memory storage
-                     , Streamly.Mem.Array.Types
-                     , Streamly.Mem.Ring
+                     , Streamly.Memory.Array.Types
+                     , Streamly.Memory.Ring
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
@@ -231,8 +231,8 @@ library
                      , Streamly.String
 
                     -- IO devices
-                     , Streamly.Mem.Array
-                     , Streamly.Mem.ArrayStream
+                     , Streamly.Memory.Array
+                     , Streamly.Memory.ArrayStream
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial

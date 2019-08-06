@@ -640,7 +640,7 @@ import qualified System.IO as IO
 
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Fold.Types (Fold (..))
-import Streamly.Mem.Array (Array)
+import Streamly.Memory.Array (Array)
 import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
@@ -656,7 +656,7 @@ import Streamly.Time.Units
 
 import Streamly.Strict
 
-import qualified Streamly.Mem.Array as A
+import qualified Streamly.Memory.Array as A
 import qualified Streamly.Fold as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K

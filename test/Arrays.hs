@@ -11,8 +11,8 @@ import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import Test.Hspec as H
 
-import qualified Streamly.Mem.Array as A
-import qualified Streamly.Mem.ArrayStream as AS
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 
 -- Coverage build takes too long with default number of tests

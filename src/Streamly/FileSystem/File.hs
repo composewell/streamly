@@ -115,7 +115,7 @@ import Prelude hiding (read)
 
 import qualified System.IO as SIO
 
-import Streamly.Mem.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.SVar (MonadAsync)
@@ -123,8 +123,8 @@ import Streamly.SVar (MonadAsync)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Mem.ArrayStream as AS
-import qualified Streamly.Mem.Array.Types as A hiding (flattenArrays)
+import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Memory.Array.Types as A hiding (flattenArrays)
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
