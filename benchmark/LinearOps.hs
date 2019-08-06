@@ -30,6 +30,7 @@ import GHC.Generics (Generic)
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal as Internal
 -- import qualified Streamly.Pipe  as Pipe
 
 value, maxValue, value2 :: Int
@@ -261,11 +262,9 @@ mapM_  = S.mapM_ (\_ -> return ())
 
 toList = S.toList
 
-{-
-{-# INLINE toRevList #-}
-toRevList :: Monad m => Stream m Int -> m [Int]
-toRevList = S.toRevList
--}
+{-# INLINE toListRev #-}
+toListRev :: Monad m => Stream m Int -> m [Int]
+toListRev = Internal.toListRev
 
 foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
 foldl'Build = S.foldl' (flip (:)) []
@@ -352,7 +351,7 @@ composeN' n f =
 {-# INLINE insertBy #-}
 {-# INLINE deleteBy #-}
 {-# INLINE reverse #-}
--- {-# INLINE reverse' #-}
+{-# INLINE reverse' #-}
 {-# INLINE foldrS #-}
 {-# INLINE foldrSMap #-}
 {-# INLINE foldrT #-}
@@ -360,7 +359,7 @@ composeN' n f =
 scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
     filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
     dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy, reverse, -- reverse',
+    findIndices, elemIndices, insertBy, deleteBy, reverse, reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
     :: MonadIO m
     => Int -> Stream m Int -> m ()
@@ -437,11 +436,11 @@ intersperse    n = composeN n $ S.intersperse maxValue
 insertBy       n = composeN n $ S.insertBy compare maxValue
 deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
 reverse        n = composeN n $ S.reverse
--- reverse'       n = composeN n $ S.reverse'
-foldrS         n = composeN n $ S.foldrS S.cons S.nil
-foldrSMap      n = composeN n $ S.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
-foldrT         n = composeN n $ S.foldrT S.cons S.nil
-foldrTMap      n = composeN n $ S.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
+reverse'       n = composeN n $ Internal.reverse'
+foldrS         n = composeN n $ Internal.foldrS S.cons S.nil
+foldrSMap      n = composeN n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
+foldrT         n = composeN n $ Internal.foldrT S.cons S.nil
+foldrTMap      n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
 
 -------------------------------------------------------------------------------
 -- Iteration

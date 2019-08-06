@@ -83,11 +83,7 @@ module Streamly.Fold
     -- applications, they buffer all the input in GC memory which can be
     -- detrimental to performance if the input is large.
 
-    -- , toStream  -- experimental
-    -- , toStreamRev  -- experimental
-
     , toList
-    -- , toListRev  -- experimental
 
     -- ** Partial Folds
     -- , drainN
@@ -575,21 +571,6 @@ toList = Fold (\f x -> return $ f . (x :))
               (return id)
               (return . ($ []))
 
--- This is more efficient than 'toList'. toList is exactly the same as
--- reversing the list after toListRev.
---
--- | Buffers the input stream to a list in the reverse order of the input.
---
--- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Array" instead.
---
--- @since 0.7.0
-
---  xn : ... : x2 : x1 : []
-{-# INLINABLE _toListRev #-}
-_toListRev :: Monad m => Fold m a [a]
-_toListRev = Fold (\xs x -> return $ x:xs) (return []) return
-
 ------------------------------------------------------------------------------
 -- Partial Folds
 ------------------------------------------------------------------------------
@@ -1048,7 +1029,7 @@ demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
 --
 -- @
 -- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.runFold (FL.classify FL.toListRev) input
+--   in S.runFold (FL.classify FL.toList) input
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --
@@ -1078,7 +1059,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 --
 -- @
 -- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.runFold (FL.classify FL.toListRev) input
+--   in S.runFold (FL.classify FL.toList) input
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --

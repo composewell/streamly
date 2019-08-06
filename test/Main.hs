@@ -23,6 +23,7 @@ import Test.Hspec as H
 import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal as Internal
 
 singleton :: IsStream t => a -> t m a
 singleton a = a .: nil
@@ -637,12 +638,12 @@ checkFoldrLaziness = do
              (return False) (S.fromList (2:4:5:undefined :: [Int]))
         `shouldReturn` True
 
-    S.toList (S.foldrS (\x xs -> if odd x then return True else xs)
+    S.toList (Internal.foldrS (\x xs -> if odd x then return True else xs)
                         (return False)
                         $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
         `shouldReturn` [True]
 
-    S.toList (S.foldrT (\x xs -> if odd x then return True else xs)
+    S.toList (Internal.foldrT (\x xs -> if odd x then return True else xs)
                         (return False)
                         $ (S.fromList (2:4:5:undefined) :: SerialT IO Int))
         `shouldReturn` [True]

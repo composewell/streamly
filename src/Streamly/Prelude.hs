@@ -172,8 +172,8 @@ module Streamly.Prelude
 
     -- ** Right Folds
     , foldrM
-    , foldrS
-    , foldrT
+    -- , foldrS
+    -- , foldrT
     , foldr
 
     -- ** Left Folds

@@ -13,6 +13,7 @@
 
 module Streamly.Fold.Types
     ( Fold (..)
+    , toListRevF  -- experimental
     , lmap
     , lmapM
     , lfilter
@@ -194,6 +195,21 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 ------------------------------------------------------------------------------
 -- Internal APIs
 ------------------------------------------------------------------------------
+
+-- This is more efficient than 'toList'. toList is exactly the same as
+-- reversing the list after toListRev.
+--
+-- | Buffers the input stream to a list in the reverse order of the input.
+--
+-- /Warning!/ working on large lists accumulated as buffers in memory could be
+-- very inefficient, consider using "Streamly.Array" instead.
+--
+-- @since 0.7.0
+
+--  xn : ... : x2 : x1 : []
+{-# INLINABLE toListRevF #-}
+toListRevF :: Monad m => Fold m a [a]
+toListRevF = Fold (\xs x -> return $ x:xs) (return []) return
 
 -- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --

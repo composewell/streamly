@@ -200,7 +200,7 @@ main =
         , benchIOSink "minimum" Ops.minimum
 
         , benchIOSink "toList" Ops.toList
-        -- , benchIOSink "toListRev" Ops.toListRev
+        , benchIOSink "toListRev" Ops.toListRev
         ]
       , bgroup "folds"
         [ benchIOSink "drain" (S.runFold FL.drain)
@@ -221,9 +221,9 @@ main =
         , benchIOSink "foldMap" (S.runFold (FL.foldMap (Last . Just)))
 
         , benchIOSink "toList" (S.runFold FL.toList)
-        -- , benchIOSink "toListRev" (S.runFold FL.toListRev)
-        -- , benchIOSink "toStream" (S.runFold FL.toStream)
-        -- , benchIOSink "toStreamRev" (S.runFold FL.toStreamRev)
+        , benchIOSink "toListRevF" (S.runFold Internal.toListRevF)
+        , benchIOSink "toStream" (S.runFold Internal.toStream)
+        , benchIOSink "toStreamRev" (S.runFold Internal.toStreamRev)
         , benchIOSink "writeNF" (S.runFold (A.writeNF Ops.value))
 
         , benchIOSink "index" (S.runFold (FL.index Ops.maxValue))
@@ -277,7 +277,7 @@ main =
         , benchIOSink "findIndices" (Ops.findIndices 1)
         , benchIOSink "elemIndices" (Ops.elemIndices 1)
         , benchIOSink "reverse" (Ops.reverse 1)
-        -- , benchIOSink "reverse'" (Ops.reverse' 1)
+        , benchIOSink "reverse'" (Ops.reverse' 1)
         , benchIOSink "foldrS" (Ops.foldrS 1)
         , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
         , benchIOSink "foldrT" (Ops.foldrT 1)

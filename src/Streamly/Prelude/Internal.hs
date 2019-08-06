@@ -181,7 +181,9 @@ module Streamly.Prelude.Internal
     , minimumBy
     , minimum
     , the
-    -- , toListRev -- experimental
+    , toListRev -- experimental
+    , toStream
+    , toStreamRev
 
     -- ** Lazy Folds
     --
@@ -222,7 +224,7 @@ module Streamly.Prelude.Internal
 
     -- * Transformation
 
-    --, transform
+    , transform
 
     -- ** Mapping
     -- | In imperative terms a map operation can be considered as a loop over
@@ -298,8 +300,8 @@ module Streamly.Prelude.Internal
     , scanlM'
     , postscanl'
     , postscanlM'
-    -- , prescanl'
-    -- , prescanlM'
+    , prescanl'
+    , prescanlM'
     , scanl1'
     , scanl1M'
 
@@ -368,13 +370,13 @@ module Streamly.Prelude.Internal
     , insertBy
     , intersperseM
     , intersperse
-    -- , insertAfterEach
+    , insertAfterEach
     -- , intersperseBySpan
-    -- , intersperseByTime
+    , intersperseByTime
 
     -- ** Reordering
     , reverse
-    -- , reverse'
+    , reverse'
 
     -- * Multi-Stream Operations
     -- | New streams can be constructed by appending, merging or zipping
@@ -442,20 +444,20 @@ module Streamly.Prelude.Internal
     -- -- ** Breaking
 
     -- By chunks
-    -- , splitAt -- spanN
+    , splitAt -- spanN
     -- , splitIn -- sessionN
 
     -- By elements
-    -- , span  -- spanWhile
-    -- , break -- breakBefore
+    , span  -- spanWhile
+    , break -- breakBefore
     -- , breakAfter
     -- , breakOn
     -- , breakAround
-    -- , spanBy
-    -- , spanByRolling
+    , spanBy
+    , spanByRolling
 
     -- By sequences
-    -- breakOnSeq
+    -- , breakOnSeq
 
     -- ** Splitting
     -- | Streams can be split into segments in space or in time. We use the
@@ -473,9 +475,6 @@ module Streamly.Prelude.Internal
     , chunksOf
     , sessionsOf
 
-    -- , lchunksOf
-    -- , lsessionsOf
-
     -- -- *** Using Element Separators
     -- On == Dropping the separator
     , splitOn
@@ -489,14 +488,14 @@ module Streamly.Prelude.Internal
     , wordsBy -- stripAndCompactBy
 
     -- -- *** Using Sequence Separators
-    -- , splitOnSeq
-    -- , splitOnSuffixSeq
+    , splitOnSeq
+    , splitOnSuffixSeq
     -- , splitOnPrefixSeq
 
     -- Keeping the delimiters
-    -- , splitBySeq
-    -- , splitBySeqSuffix
-    -- , splitBySeqPrefix
+    , splitBySeq
+    , splitBySuffixSeq
+    -- , splitByPrefixSeq
     -- , wordsBySeq
 
     -- Splitting using multiple sequence separators
@@ -513,7 +512,6 @@ module Streamly.Prelude.Internal
     , trace
     , tap
 
-    {-
     -- * Windowed Classification
     -- | Split the stream into windows or chunks in space or time. Each window
     -- can be associated with a key, all events associated with a particular
@@ -527,13 +525,14 @@ module Streamly.Prelude.Internal
     -- ** Tumbling Windows
     -- | A new window starts after the previous window is finished.
     -- , classifyChunksOf
-    -- , classifySessionsOf
+    , classifySessionsBy
+    , classifySessionsOf
 
     -- ** Keep Alive Windows
     -- | The window size is extended if an event arrives within the specified
     -- window size. This can represent sessions with idle or inactive timeout.
     -- , classifyKeepAliveChunks
-    -- , classifyKeepAliveSessions
+    , classifyKeepAliveSessions
 
     {-
     -- ** Sliding Windows
@@ -545,7 +544,6 @@ module Streamly.Prelude.Internal
     -- ** Sliding Window Buffers
     -- , slidingChunkBuffer
     -- , slidingSessionBuffer
-    -}
 
     -- ** Containers of Streams
     -- | These are variants of standard 'Foldable' fold functions that use a
@@ -605,7 +603,7 @@ import Prelude
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, span)
+               scanl, scanl1, replicate, concatMap, span, splitAt, break)
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
@@ -621,7 +619,7 @@ import Streamly.Streams.Combinators (maxYields)
 import Streamly.Streams.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
-import Streamly.Streams.StreamK (IsStream(..))
+import Streamly.Streams.StreamK (IsStream((|:), consM))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Pipe.Types (Pipe (..))
 import Streamly.Time.Units
@@ -901,7 +899,7 @@ repeatM = go
 --
 -- @since 0.1.2
 iterate :: IsStream t => (a -> a) -> a -> t m a
-iterate step = fromStream . go
+iterate step = K.fromStream . go
     where
     go s = K.cons s (go (step s))
 
@@ -1762,9 +1760,9 @@ toList = P.toList
 -- very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.7.0
-{-# INLINE _toListRev #-}
-_toListRev :: Monad m => SerialT m a -> m [a]
-_toListRev = D.toListRev . toStreamD
+{-# INLINE toListRev #-}
+toListRev :: Monad m => SerialT m a -> m [a]
+toListRev = D.toListRev . toStreamD
 
 -- |
 -- @
@@ -1791,9 +1789,9 @@ toHandle h m = go m
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
 -- @since 0.7.0
-{-# INLINE _toStream #-}
-_toStream :: Monad m => Fold m a (SerialT Identity a)
-_toStream = Fold (\f x -> return $ f . (x `K.cons`))
+{-# INLINE toStream #-}
+toStream :: Monad m => Fold m a (SerialT Identity a)
+toStream = Fold (\f x -> return $ f . (x `K.cons`))
                 (return id)
                 (return . ($ K.nil))
 
@@ -1809,18 +1807,18 @@ _toStream = Fold (\f x -> return $ f . (x `K.cons`))
 -- @since 0.7.0
 
 --  xn : ... : x2 : x1 : []
-{-# INLINABLE _toStreamRev #-}
-_toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-_toStreamRev = Fold (\xs x -> return $ x `K.cons` xs) (return K.nil) return
+{-# INLINABLE toStreamRev #-}
+toStreamRev :: Monad m => Fold m a (SerialT Identity a)
+toStreamRev = Fold (\xs x -> return $ x `K.cons` xs) (return K.nil) return
 
 ------------------------------------------------------------------------------
 -- General Transformation
 ------------------------------------------------------------------------------
 
 -- | Use a 'Pipe' to transform a stream.
-{-# INLINE _transform #-}
-_transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
-_transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
+{-# INLINE transform #-}
+transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
+transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -1929,17 +1927,17 @@ postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 -- | Like scanl' but does not stream the final value of the accumulator.
 --
 -- @since 0.6.0
-{-# INLINE _prescanl' #-}
-_prescanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
-_prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
+{-# INLINE prescanl' #-}
+prescanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
+prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
 
 -- XXX this needs to be concurrent
 -- | Like postscanl' but with a monadic step function.
 --
 -- @since 0.6.0
-{-# INLINE _prescanlM' #-}
-_prescanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
-_prescanlM' step z m = fromStreamD $ D.prescanlM' step z $ toStreamD m
+{-# INLINE prescanlM' #-}
+prescanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
+prescanlM' step z m = fromStreamD $ D.prescanlM' step z $ toStreamD m
 
 -- XXX this needs to be concurrent
 -- | Like 'scanl1'' but with a monadic step function.
@@ -2180,9 +2178,9 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
 -- @since 0.7.0
-{-# INLINE _reverse' #-}
-_reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
-_reverse' s = fromStreamD $ D.reverse' $ toStreamD s
+{-# INLINE reverse' #-}
+reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
+reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
@@ -2221,9 +2219,9 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- | Insert a monadic action after each element in the stream.
 --
 -- @since 0.7.0
-{-# INLINE _insertAfterEach #-}
-_insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-_insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
+{-# INLINE insertAfterEach #-}
+insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@
@@ -2571,14 +2569,14 @@ intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 -- the segments instead of discarding the leftover.
 --
 -- @since 0.7.0
-{-# INLINE _splitAt #-}
-_splitAt
+{-# INLINE splitAt #-}
+splitAt
     :: Monad m
     => Int
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-_splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
     where
       initial  = Tuple3' <$> return n <*> initialL <*> initialR
@@ -2678,13 +2676,13 @@ sessionsOf n f xs =
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
 --
-_spanBy
+spanBy
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-_spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
     where
@@ -2767,25 +2765,25 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- > ([],[3,2,1])
 --
 -- @since 0.7.0
-{-# INLINE _break #-}
-_break
+{-# INLINE break #-}
+break
     :: Monad m
     => (a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-_break p = span (not . p)
+break p = span (not . p)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
-{-# INLINE _spanRollingBy #-}
-_spanRollingBy
+{-# INLINE spanByRolling #-}
+spanByRolling
     :: Monad m
     => (a -> a -> Bool)
     -> Fold m a b
     -> Fold m a c
     -> Fold m a (b, c)
-_spanRollingBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+spanByRolling cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
 
   where
@@ -3187,11 +3185,11 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- > lines = splitSuffixOn "\n"
 --
 -- @since 0.7.0
-{-# INLINE _splitOnSuffixSeq #-}
-_splitOnSuffixSeq
+{-# INLINE splitOnSuffixSeq #-}
+splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-_splitOnSuffixSeq patt f m =
+splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
 
 {-
@@ -3238,11 +3236,11 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- > ["he","ll","o"]
 --
 -- @since 0.7.0
-{-# INLINE _splitBySeq #-}
-_splitBySeq
+{-# INLINE splitBySeq #-}
+splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-_splitBySeq patt f m = intersperseM (runFold f (A.read patt)) $ splitOnSeq patt f m
+splitBySeq patt f m = intersperseM (runFold f (A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --
@@ -3273,11 +3271,11 @@ _splitBySeq patt f m = intersperseM (runFold f (A.read patt)) $ splitOnSeq patt 
 -- > ["a.",".","b.","."]
 --
 -- @since 0.7.0
-{-# INLINE _splitBySuffixSeq #-}
-_splitBySuffixSeq
+{-# INLINE splitBySuffixSeq #-}
+splitBySuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-_splitBySuffixSeq patt f m =
+splitBySuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
 
 {-
@@ -3608,14 +3606,14 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
 -- only if no event is received within the specified session window size.
 --
 -- @since 0.7.0
-{-# INLINABLE _classifyKeepAliveSessions #-}
-_classifyKeepAliveSessions
+{-# INLINABLE classifyKeepAliveSessions #-}
+classifyKeepAliveSessions
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ session inactive timeout
     -> Fold m a b     -- ^ Fold to be applied to session payload data
     -> t m (k, a, Bool, AbsTime) -- ^ session key, data, close flag, timestamp
     -> t m (k, b)
-_classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
+classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows
@@ -3657,14 +3655,15 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- the timestamps with a clock resolution of 1 second.
 --
 -- @since 0.7.0
-{-# INLINABLE _classifySessionsOf #-}
-_classifySessionsOf
+{-# INLINABLE classifySessionsOf #-}
+classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
     -> Fold m a b     -- ^ Fold to be applied to window events
     -> t m (k, a, Bool, AbsTime) -- ^ window key, data, close flag, timestamp
     -> t m (k, b)
-_classifySessionsOf interval = classifySessionsBy 1 interval False
+classifySessionsOf interval = classifySessionsBy 1 interval False
+
 ------------------------------------------------------------------------------
 -- Exceptions
 ------------------------------------------------------------------------------

@@ -17,13 +17,43 @@
 -- https://github.com/composewell/streamly/issues .
 --
 module Streamly.Internal
-    ( Fold (..)
-    , inspectMode
+    (
+    -- * Diagnostics
+      inspectMode
 
-    -- * Streamly.Prelude
+    -- * Streamly.Prelude Experimental Exports
+    , foldrS
+    , foldrT
+    , prescanl'
+    , prescanlM'
+
+    , toListRev
+    , toListRevF
+    , toStream
+    , toStreamRev
+
+    , insertAfterEach
+    , intersperseByTime
+    , reverse'
+
+    , splitAt -- spanN
+    , span  -- spanWhile
+    , break -- breakBefore
+    , spanBy
+    , spanByRolling
+    , splitOnSeq
+    , splitOnSuffixSeq
+    , splitBySeq
+    , splitBySuffixSeq
+
     , tapAsync
 
-    -- * Streamly.Fold
+    , classifySessionsOf
+    , classifySessionsBy
+    , classifyKeepAliveSessions
+
+    -- * Streamly.Fold Experimental Exports
+    , Fold (..)
     , lmap
     , lmapM
     , lfilter
@@ -37,7 +67,10 @@ module Streamly.Internal
     )
 where
 
+import Prelude hiding (break, span, splitAt)
+
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
 
+import Streamly.Prelude.Internal
 import Streamly.Fold.Types
