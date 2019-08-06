@@ -17,6 +17,7 @@ module Streamly.Fold.Types
     , lmapM
     , lfilter
     , lfilterM
+    , lcatMaybes
     , ltake
     , ltakeWhile
     , lsessionsOf
@@ -33,6 +34,7 @@ import Control.Monad (void)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
+import Data.Maybe (isJust, fromJust)
 import Data.Semigroup (Semigroup(..))
 import Streamly.Strict (Tuple'(..), Tuple3'(..), Either'(..))
 import Streamly.SVar (MonadAsync)
@@ -240,6 +242,12 @@ lfilterM f (Fold step begin done) = Fold step' begin done
     step' x a = do
       use <- f a
       if use then step x a else return x
+
+-- | Transform a fold from a pure input to a 'Maybe' input, consuming only
+-- 'Just' values.
+{-# INLINE lcatMaybes #-}
+lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
+lcatMaybes = lfilter isJust . lmap fromJust
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --

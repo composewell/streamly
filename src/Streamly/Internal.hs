@@ -28,6 +28,7 @@ module Streamly.Internal
     , lmapM
     , lfilter
     , lfilterM
+    , lcatMaybes
     , ltake
     , ltakeWhile
     , lsessionsOf
@@ -36,6 +37,7 @@ module Streamly.Internal
     )
 where
 
-import Streamly.Fold.Types
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
+
+import Streamly.Fold.Types

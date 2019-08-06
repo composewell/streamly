@@ -2674,12 +2674,6 @@ chunksOf
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
--- | Transform a fold from a pure input to a 'Maybe' input, consuming only
--- 'Just' values.
-{-# INLINE lcatMaybes #-}
-lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
-lcatMaybes = FL.lfilter isJust . FL.lmap fromJust
-
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
 -- >>> S.toList $ S.take 5 $ sessionsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
@@ -2694,7 +2688,7 @@ sessionsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
 sessionsOf n f xs =
-    splitBySuffix isNothing (lcatMaybes f)
+    splitBySuffix isNothing (FL.lcatMaybes f)
         (intersperseByTime n (return Nothing) (Serial.map Just xs))
 
 ------------------------------------------------------------------------------
