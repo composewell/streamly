@@ -75,7 +75,7 @@ module Streamly.FileSystem.FD
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    , readByChunksUpto
+    , readInChunksOf
 
     -- -- * Array Read
     -- , readArrayUpto
@@ -321,13 +321,13 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
--- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file handle,
+-- | @readInChunksOf chunkSize handle@ reads a byte stream from a file handle,
 -- reads are performed in chunks of up to @chunkSize@.  The stream ends as soon
 -- as EOF is encountered.
 --
-{-# INLINE readByChunksUpto #-}
-readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
+{-# INLINE readInChunksOf #-}
+readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readInChunksOf chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
