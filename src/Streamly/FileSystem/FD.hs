@@ -75,7 +75,7 @@ module Streamly.FileSystem.FD
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    , readByChunksUpto
+    , readInChunksOf
 
     -- -- * Array Read
     -- , readArrayUpto
@@ -90,7 +90,7 @@ module Streamly.FileSystem.FD
     -- , writeUtf8
     -- , writeUtf8Lines
     -- , writeFrames
-    , writeByChunksOf
+    , writeInChunksOf
 
     -- -- * Array Write
     -- , writeArray
@@ -321,13 +321,13 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
--- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file handle,
+-- | @readInChunksOf chunkSize handle@ reads a byte stream from a file handle,
 -- reads are performed in chunks of up to @chunkSize@.  The stream ends as soon
 -- as EOF is encountered.
 --
-{-# INLINE readByChunksUpto #-}
-readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
+{-# INLINE readInChunksOf #-}
+readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readInChunksOf chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
@@ -399,11 +399,11 @@ _writevArraysPackedUpto n h xs =
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunksOf #-}
-writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
@@ -412,7 +412,7 @@ writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunksOf defaultChunkSize
+write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}

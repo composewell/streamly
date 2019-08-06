@@ -61,13 +61,13 @@ module Streamly.FileSystem.Handle
     -- , readUtf8
     -- , readLines
     -- , readFrames
-    , readByChunksUpto
+    , readInChunksOf
 
     -- -- * Array Read
     -- , readArrayUpto
     -- , readArrayOf
 
-    , readArraysOfUpto
+    , readArraysOf
     -- , readArraysOf
     , readArrays
 
@@ -81,7 +81,7 @@ module Streamly.FileSystem.Handle
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunksOf
+    , writeInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -187,13 +187,13 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOfUpto size h@ reads a stream of arrays from file handle @h@.
+-- | @readArraysOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE _readArraysOfUpto #-}
-_readArraysOfUpto :: (IsStream t, MonadIO m)
+{-# INLINABLE _readArraysOf #-}
+_readArraysOf :: (IsStream t, MonadIO m)
     => Int -> Handle -> t m (Array Word8)
-_readArraysOfUpto size h = go
+_readArraysOf size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
@@ -202,13 +202,14 @@ _readArraysOfUpto size h = go
         then stp
         else yld arr go
 
--- | @readArraysOfUpto size handle@ reads a stream of arrays from the file
+-- | @readArraysOf size handle@ reads a stream of arrays from the file
 -- handle @handle@.  The maximum size of a single array is limited to @size@.
+-- The actual size read may be less than or equal to @size@.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL readArraysOfUpto #-}
-readArraysOfUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
-readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
+{-# INLINE_NORMAL readArraysOf #-}
+readArraysOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m (Array Word8)
+readArraysOf size h = D.fromStreamD (D.Stream step ())
   where
     {-# INLINE_LATE step #-}
     step _ _ = do
@@ -222,14 +223,15 @@ readArraysOfUpto size h = D.fromStreamD (D.Stream step ())
 --
 -- | @readArrays handle@ reads a stream of arrays from the specified file
 -- handle.  The maximum size of a single array is limited to
+-- @defaultChunkSize@. The actual size read may be less than or equal to
 -- @defaultChunkSize@.
 --
--- > readArrays = readArraysOfUpto defaultChunkSize
+-- > readArrays = readArraysOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
-readArrays = readArraysOfUpto defaultChunkSize
+readArrays = readArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -239,13 +241,13 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
--- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file
+-- | @readInChunksOf chunkSize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @chunkSize@.
 --
 -- @since 0.7.0
-{-# INLINE readByChunksUpto #-}
-readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
+{-# INLINE readInChunksOf #-}
+readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readInChunksOf chunkSize h = AS.flatten $ readArraysOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -289,16 +291,16 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 -- do not want buffering to occur at GHC level as well. Same thing applies to
 -- writes as well.
 
--- | @writeByChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
+-- | @writeInChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
 -- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunksOf #-}
-writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
--- > write = 'writeByChunksOf' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of
 -- up to 'A.defaultChunkSize' before writing.
@@ -306,7 +308,7 @@ writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunksOf defaultChunkSize
+write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}

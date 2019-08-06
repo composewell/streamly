@@ -63,7 +63,7 @@ module Streamly.FileSystem.File
     -- -- * Array Read
     -- , readArrayOf
 
-    , readArraysOfUpto
+    , readArraysOf
     -- , readArraysOf
     , readArrays
 
@@ -72,7 +72,7 @@ module Streamly.FileSystem.File
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunks
+    , writeInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -183,26 +183,27 @@ appendArray file arr = SIO.withFile file AppendMode (\h -> FH.writeArray h arr)
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOfUpto size file@ reads a stream of arrays from file @file@.
+-- | @readArraysOf size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE readArraysOfUpto #-}
-readArraysOfUpto :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINABLE readArraysOf #-}
+readArraysOf :: (IsStream t, MonadCatch m, MonadIO m)
     => Int -> FilePath -> t m (Array Word8)
-readArraysOfUpto size file = withFile file ReadMode (FH.readArraysOfUpto size)
+readArraysOf size file = withFile file ReadMode (FH.readArraysOf size)
 
 -- XXX read 'Array a' instead of Word8
 --
 -- | @readArrays file@ reads a stream of arrays from file @file@.
--- The maximum size of a single array is limited to @defaultChunkSize@.
+-- The maximum size of a single array is limited to @defaultChunkSize@. The
+-- actual size read may be less than @defaultChunkSize@.
 --
--- > readArrays = readArraysOfUpto defaultChunkSize
+-- > readArrays = readArraysOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadCatch m, MonadIO m)
     => FilePath -> t m (Array Word8)
-readArrays = readArraysOfUpto A.defaultChunkSize
+readArrays = readArraysOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -213,13 +214,13 @@ readArrays = readArraysOfUpto A.defaultChunkSize
 -- also control the read throughput in mbps or IOPS.
 
 {-
--- | @readByChunksUpto chunkSize handle@ reads a byte stream from a file
+-- | @readInChunksOf chunkSize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
 -- as soon as EOF is encountered.
 --
-{-# INLINE readByChunksUpto #-}
-readByChunksUpto :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readByChunksUpto chunkSize h = A.flattenArrays $ readArraysOfUpto chunkSize h
+{-# INLINE readInChunksOf #-}
+readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -}
 
 -- TODO
@@ -286,12 +287,12 @@ writeArrays = writeArraysMode WriteMode
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunks #-}
-writeByChunks :: (MonadAsync m, MonadCatch m)
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeByChunks n file xs = writeArrays file $ AS.arraysOf n xs
+writeInChunksOf n file xs = writeArrays file $ AS.arraysOf n xs
 
--- > write = 'writeByChunks' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing. If the file exists it is
@@ -301,7 +302,7 @@ writeByChunks n file xs = writeArrays file $ AS.arraysOf n xs
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-write = writeByChunks A.defaultChunkSize
+write = writeInChunksOf A.defaultChunkSize
 
 {-
 {-# INLINE write #-}
