@@ -15,8 +15,12 @@
 module Streamly.Internal
     ( Fold (..)
     , inspectMode
+
+    -- * Streamly.Prelude
+    , tapAsync
     )
 where
 
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Streams.Combinators (inspectMode)
+import Streamly.Streams.Parallel (tapAsync)

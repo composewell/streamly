@@ -25,7 +25,7 @@ module Streamly.Streams.Parallel
     , parallel
     , parallelEndByFirst
     , parallelEndByAny
-    , tee
+    , tapAsync
 
     -- * Function application
     , mkParallel
@@ -267,7 +267,7 @@ handleChildException _sv e = do
 -- @
 --
 -- @
--- > S.drain $ S.tee (S.mapM_ print) (S.enumerateFromTo 1 2)
+-- > S.drain $ S.tapAsync (S.mapM_ print) (S.enumerateFromTo 1 2)
 -- 1
 -- 2
 -- @
@@ -282,9 +282,9 @@ handleChildException _sv e = do
 -- Compare with 'tap'.
 --
 -- @since 0.7.0
-{-# INLINE tee #-}
-tee :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
-tee f m = mkStream $ \st yld sng stp -> do
+{-# INLINE tapAsync #-}
+tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
+tapAsync f m = mkStream $ \st yld sng stp -> do
     -- Buffer size for the SVar is derived from the current state
     sv <- newParallelVar StopNone (adaptState st)
     -- XXX exception handling

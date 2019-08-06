@@ -537,7 +537,6 @@ module Streamly.Prelude
     -- ** Distributing
     , trace
     , tap
-    , Par.tee
 
     {-
     -- * Windowed Classification
