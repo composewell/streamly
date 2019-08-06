@@ -90,7 +90,7 @@ module Streamly.FileSystem.FD
     -- , writeUtf8
     -- , writeUtf8Lines
     -- , writeFrames
-    , writeByChunksOf
+    , writeInChunksOf
 
     -- -- * Array Write
     -- , writeArray
@@ -399,9 +399,9 @@ _writevArraysPackedUpto n h xs =
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunksOf #-}
-writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
 -- > write = 'writeByChunks' A.defaultChunkSize
 --
@@ -412,7 +412,7 @@ writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunksOf defaultChunkSize
+write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}

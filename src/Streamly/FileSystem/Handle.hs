@@ -81,7 +81,7 @@ module Streamly.FileSystem.Handle
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeByChunksOf
+    , writeInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -291,16 +291,16 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 -- do not want buffering to occur at GHC level as well. Same thing applies to
 -- writes as well.
 
--- | @writeByChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
+-- | @writeInChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
 -- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
 -- @since 0.7.0
-{-# INLINE writeByChunksOf #-}
-writeByChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
--- > write = 'writeByChunksOf' A.defaultChunkSize
+-- > write = 'writeInChunksOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of
 -- up to 'A.defaultChunkSize' before writing.
@@ -308,7 +308,7 @@ writeByChunksOf n h m = writeArrays h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-write = writeByChunksOf defaultChunkSize
+write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
