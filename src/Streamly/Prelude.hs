@@ -612,6 +612,9 @@ module Streamly.Prelude
     , runWhile
     , fromHandle
     , toHandle
+
+    , transvertM
+    , evertM
     )
 where
 

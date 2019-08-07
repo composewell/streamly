@@ -250,6 +250,9 @@ module Streamly.Streams.StreamD
     -- * UTF8 Encoding / Decoding transformations.
     , decodeUtf8
     , encodeUtf8
+
+    , evertM
+    , transvertM
     )
 where
 
@@ -257,6 +260,8 @@ import Control.Exception (Exception)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader (ReaderT(..), runReaderT)
+import Control.Monad.Trans.Free
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 #if __GLASGOW_HASKELL__ >= 801
@@ -2677,3 +2682,73 @@ encodeUtf8 (Stream step state) = Stream step' (state, None)
                 Stop -> Stop
     step' _ (s, YieldMany []) = return $ Skip (s, None)
     step' _ (s, YieldMany (x:xs)) = return $ Yield x (s, YieldMany xs)
+
+data Input a = Done | Await | Element a
+
+{-# INLINE_NORMAL promptsT  #-}
+promptsT :: (K.IsStream t, Monad m) => t (ReaderT (Input a) m) a
+promptsT = fromStreamD $ Stream step ()
+  where
+    {-# INLINE_LATE step #-}
+    step _ _ =
+        ReaderT $ \input ->
+            case input of
+                Done -> return Stop
+                Await -> return $ Skip ()
+                Element a -> return $ Yield a ()
+
+{-# INLINE transvertM #-}
+transvertM ::
+       (K.IsStream s1, K.IsStream s2, MonadAsync m)
+    => (forall t. (MonadTrans t, MonadAsync (t m)) =>
+                      s1 (t m) a -> s2 (t m) b)
+    -> Fold m b c
+    -> Fold m a c
+transvertM f (Fold stepa begina extracta) = Fold step begin extract
+  where
+    begin = (,) <$> begina <*> (return $ toStreamD $ f promptsT)
+    step (fx, Stream sstep state) a = do
+        r <- runReaderT (sstep defState state) (Element a)
+        case r of
+            Yield b st -> (,) <$> stepa fx b <*> (return $ Stream sstep st)
+            Skip s -> step (fx, Stream sstep s) a
+            Stop -> error "Stream quit while fold input exists"
+    extract (fx, _) = extracta fx
+
+{-# INLINE_NORMAL promptsFT #-}
+promptsFT :: (K.IsStream s, Monad m) => s (FreeT ((->) (Input a)) m) a
+promptsFT = fromStreamD $ Stream step ()
+  where
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        r <- liftF id
+        return $
+            case r of
+                Element a -> a `seq` Yield a ()
+                Await -> Skip ()
+                Done -> Stop
+
+{-# INLINE evertM #-}
+evertM ::
+       (K.IsStream s, MonadIO m)
+    => (forall t. (MonadTrans t, MonadIO (t m)) =>
+                      s (t m) a -> (t m) b)
+    -> Fold m a b
+evertM f = Fold step begin extract
+  where
+    begin = return (f promptsFT) -- :: FreeT ((->) (Input a)) m b, FreeF ((->) (Input a)) b (FreeT ((->) (Input a)) m b)
+    step (FreeT ms) a = do
+        ff <- ms
+        case ff of
+            Pure _ -> error "What is this?"
+            Free f -> a `seq` return (f (Element a))
+    extract (FreeT ms) = do
+        ff <- ms
+        case ff of
+            Pure _ -> error "What is this?"
+            Free f -> do
+                let FreeT ms' = f Done
+                ff' <- ms'
+                case ff' of
+                    Pure b -> b `seq` return b
+                    Free _ -> error "Who knows?"

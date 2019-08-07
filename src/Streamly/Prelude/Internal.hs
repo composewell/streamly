@@ -585,6 +585,9 @@ module Streamly.Prelude.Internal
     , runWhile
     , fromHandle
     , toHandle
+
+    , transvertM
+    , evertM
     )
 where
 
@@ -3717,3 +3720,47 @@ bracket bef aft bet = D.fromStreamD $
 handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> m a) -> t m a -> t m a
 handle handler xs = D.fromStreamD $ D.handle handler $ D.toStreamD xs
+
+-- | Convert Stream transforms to Fold transforms.
+-- > delay n = threadDelay (n * 1000000) >> print n >> return n
+-- > md = S.mapM (lift . delay) :: (MonadTrans t, MonadAsync (t IO)) => SerialT (t IO) Int -> SerialT (t IO) Int
+--
+-- @
+-- > S.runFold (S.transvertM md FL.product) (S.fromList [1..4])
+-- 1
+-- 2
+-- 3
+-- 4
+-- 24
+-- @
+-- XXX This is only working for serial transformations, if the transformation
+-- function is concurrent, this goes haywire. Do async operations not make sense,
+-- or some problem with MonadTransControl of ReaderT? Most likely it's a problem with
+-- the implementation of this function.
+{-# INLINE transvertM #-}
+transvertM ::
+       (IsStream s1, IsStream s2, MonadAsync m)
+    => (forall t. (MonadTrans t, MonadAsync (t m)) =>
+                      s1 (t m) a -> s2 (t m) b)
+    -> Fold m b c
+    -> Fold m a c
+transvertM = D.transvertM
+
+-- | Convert Stream folds to Fold folds.
+--
+-- > delay n = threadDelay (n * 1000000) >> return n
+-- > ps = delay 1 |: delay 2 |: delay 3 |: delay 4 |: nil
+--
+-- >>> S.runFold ((,) <$> S.evertM S.product <*> FL.sum) (parallely ps)
+-- > (24, 10)
+--
+-- >>> S.runFold ((,) <$> S.evertM (S.mapM_ (lift . print)) <*> FL.sum) ps
+--
+-- TODO: We can also separately have evert, evertM, evertMIO.
+{-# INLINE evertM #-}
+evertM ::
+       (IsStream s, MonadIO m)
+    => (forall t. (MonadTrans t, MonadIO (t m)) =>
+                      s (t m) a -> (t m) b)
+    -> Fold m a b
+evertM = D.evertM
