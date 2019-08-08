@@ -204,7 +204,7 @@ isSpace c
 -- 'foldLines' instead.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-lines = S.splitOnSuffix (== '\n') A.writeF
+lines = S.splitOnSuffix (== '\n') A.write
 
 -- | Break a string up into a list of strings, which were delimited
 -- by characters representing white space.
@@ -216,7 +216,7 @@ lines = S.splitOnSuffix (== '\n') A.writeF
 -- 'foldWords' instead.
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-words = S.wordsBy isSpace A.writeF
+words = S.wordsBy isSpace A.write
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.

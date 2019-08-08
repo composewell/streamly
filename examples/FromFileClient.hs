@@ -16,5 +16,6 @@ main :: IO ()
 main =
     let sendFile file =
             withFile file ReadMode $ \src ->
-                Client.writeArrays (127, 0, 0, 1) 8090 $ FH.readArrays src
+                  S.runFold (Client.writeArrays (127, 0, 0, 1) 8090)
+                $ FH.readArrays src
      in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList

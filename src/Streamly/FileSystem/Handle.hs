@@ -86,7 +86,8 @@ module Streamly.FileSystem.Handle
     -- -- * Array Write
     , writeArray
     , writeArrays
-    , writeArraysPackedUpto
+    -- , writeArraysPackedUpto
+    , writeArraysInChunksOf
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -122,10 +123,12 @@ import Prelude hiding (read)
 import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Memory.Array.Types (defaultChunkSize, shrinkToFit)
--- import Streamly.Fold (Fold)
+import Streamly.Memory.Array.Types (defaultChunkSize, shrinkToFit, lpackArraysChunksOf)
+import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
+import qualified Streamly.Fold as FL
+import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
@@ -268,9 +271,17 @@ read = AS.flatten . readArrays
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
+{-# INLINE writeArraysS #-}
+writeArraysS :: (MonadIO m, Storable a)
+    => Handle -> SerialT m (Array a) -> m ()
+writeArraysS h m = S.mapM_ (liftIO . writeArray h) m
+
+-- | Write a stream of arrays to a handle.
+--
+-- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
-writeArrays h m = S.mapM_ (liftIO . writeArray h) m
+writeArrays :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
+writeArrays h = FL.drainBy (liftIO . writeArray h)
 
 -- | @writeArraysPackedUpto chunkSize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @chunkSize@.
@@ -278,10 +289,22 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 -- we do not split the arrays to fit exactly to the specified size.
 --
 -- @since 0.7.0
-{-# INLINE writeArraysPackedUpto #-}
-writeArraysPackedUpto :: (MonadIO m, Storable a)
+{-# INLINE _writeArraysPackedUpto #-}
+_writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
+_writeArraysPackedUpto n h xs = writeArraysS h $ AS.compact n xs
+
+-- | @writeArraysInChunksOf chunkSize handle@ writes a stream of arrays
+-- to @handle@ after coalescing the adjacent arrays in chunks of @chunkSize@.
+-- We never split an array, if a single array is bigger than the specified size
+-- it emitted as it is. Multiple arrays are coalesed as long as the total size
+-- remains below the specified size.
+--
+-- @since 0.7.0
+{-# INLINE writeArraysInChunksOf #-}
+writeArraysInChunksOf :: (MonadIO m, Storable a)
+    => Int -> Handle -> Fold m (Array a) ()
+writeArraysInChunksOf n h = lpackArraysChunksOf n (writeArrays h)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -296,18 +319,37 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 -- collect the required input size.
 --
 -- @since 0.7.0
+{-# INLINE writeInChunksOfS #-}
+writeInChunksOfS :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOfS n h m = writeArraysS h $ AS.arraysOf n m
+
+-- | @writeInChunksOf chunkSize handle@ writes the input stream to @handle@ in
+-- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
+-- collect the required input size.
+--
+-- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
-writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
+writeInChunksOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
+writeInChunksOf n h = FL.lchunksOf n A.write (writeArrays h)
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --
--- | Write a byte stream to a file handle. Combines the bytes in chunks of
+-- | Write a byte stream to a file handle. Accumulates the input in chunks of
+-- up to 'A.defaultChunkSize' before writing.
+--
+-- @since 0.7.0
+{-# INLINE _writeS #-}
+_writeS :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+_writeS = writeInChunksOfS defaultChunkSize
+
+-- > write = 'writeInChunksOf' A.defaultChunkSize
+--
+-- | Write a byte stream to a file handle. Accumulates the input in chunks of
 -- up to 'A.defaultChunkSize' before writing.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeInChunksOf defaultChunkSize
 
 {-

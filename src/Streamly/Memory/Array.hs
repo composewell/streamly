@@ -79,12 +79,12 @@ module Streamly.Memory.Array
 
     -- Monadic APIs
     -- , newArray
-    , writeN
+    , A.writeN
     , write
 
     -- Stream Folds
-    , A.writeNF
-    , writeF
+    -- , writeNS
+    -- , writeS
 
     -- * Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
@@ -157,9 +157,9 @@ newArray len = undefined
 -- array may hold less than N elements.
 --
 -- @since 0.7.0
-{-# INLINE writeN #-}
-writeN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-writeN n m = do
+{-# INLINE _writeNS #-}
+_writeNS :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
+_writeNS n m = do
     if n < 0 then error "writeN: negative write count specified" else return ()
     A.fromStreamDN n $ D.toStreamD m
 
@@ -204,9 +204,9 @@ toArrayMinChunk elemCount = Fold step initial extract
 -- /Caution! Do not use this on infinite streams./
 --
 -- @since 0.7.0
-{-# INLINE writeF #-}
-writeF :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-writeF = toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
+{-# INLINE write #-}
+write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+write = toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
@@ -216,9 +216,9 @@ writeF = toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
 -- may fail.  When the stream size is not known, `arraysOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
-{-# INLINE write #-}
-write :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-write = P.runFold writeF
+{-# INLINE _writeS #-}
+_writeS :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+_writeS = P.runFold write
 -- write m = A.fromStreamD $ D.toStreamD m
 
 -------------------------------------------------------------------------------

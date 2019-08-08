@@ -66,10 +66,13 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
+import Streamly.Fold.Types (Fold(..))
 import Streamly.Memory.Array.Types (Array(..), defaultChunkSize)
-import Streamly.Streams.Serial (SerialT)
+-- import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
+import qualified Streamly.Fold.Types as FL
+import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
@@ -114,6 +117,7 @@ read addr port = AS.flatten $ withConnection addr port SK.readArrays
 -- Writing
 -------------------------------------------------------------------------------
 
+{-
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
 --
@@ -127,7 +131,27 @@ writeArrays
     -> m ()
 writeArrays addr port xs =
     S.drain $ withConnection addr port (\sk -> S.yieldM $ SK.writeArrays sk xs)
+-}
 
+-- | Write a stream of arrays to the supplied IPv4 host address and port
+-- number.
+--
+-- @since 0.7.0
+{-# INLINE writeArrays #-}
+writeArrays
+    :: (MonadAsync m)
+    => (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> Fold m (Array Word8) ()
+writeArrays addr port = Fold step initial extract
+    where
+    initial = do
+        skt <- liftIO (openConnection addr port)
+        FL.initialize (SK.writeArrays skt)
+    step = FL.runStep
+    extract (Fold _ initial1 extract1) = initial1 >>= extract1
+
+{-
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
@@ -142,11 +166,36 @@ writeInChunksOf
     -> SerialT m Word8
     -> m ()
 writeInChunksOf n addr port m = writeArrays addr port $ AS.arraysOf n m
+-}
 
+-- | Like 'write' but provides control over the write buffer. Output will
+-- be written to the IO device as soon as we collect the specified number of
+-- input elements.
+--
+-- @since 0.7.0
+{-# INLINE writeInChunksOf #-}
+writeInChunksOf
+    :: (MonadAsync m)
+    => Int
+    -> (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> Fold m Word8 ()
+writeInChunksOf n addr port = FL.lchunksOf n A.write (writeArrays addr port)
+
+{-
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
+write = writeInChunksOf defaultChunkSize
+-}
+
+-- | Write a stream to the supplied IPv4 host address and port number.
+--
+-- @since 0.7.0
+{-# INLINE write #-}
+write :: MonadAsync m
+    => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
 write = writeInChunksOf defaultChunkSize

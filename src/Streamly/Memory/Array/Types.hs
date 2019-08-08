@@ -39,6 +39,7 @@ module Streamly.Memory.Array.Types
     , flattenArrays
     , flattenArraysRev
     , packArraysChunksOf
+    , lpackArraysChunksOf
 #if !defined(mingw32_HOST_OS)
     , groupIOVecsOf
 #endif
@@ -59,7 +60,7 @@ module Streamly.Memory.Array.Types
     , toStreamK
     , toStreamKRev
     , toList
-    , writeNF
+    , writeN
     , read
 
     -- * Utilities
@@ -99,6 +100,7 @@ import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Fold.Types (Fold(..))
+import Streamly.Strict (Tuple'(..))
 import Streamly.SVar (adaptState)
 
 #if !defined(mingw32_HOST_OS)
@@ -472,18 +474,18 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- Instances
 -------------------------------------------------------------------------------
 
--- | @writeNF n@ folds a maximum of @n@ elements from the input stream to an
+-- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL writeNF #-}
-writeNF :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
-writeNF n = Fold step initial extract
+{-# INLINE_NORMAL writeN #-}
+writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
+writeN n = Fold step initial extract
 
     where
 
     initial = do
-        if n < 0 then error "writeNF: negative count specified" else return ()
+        if n < 0 then error "writeN: negative count specified" else return ()
         liftIO $ newArray n
     step arr@(Array _ end bound) _ | end == bound = return arr
     step (Array start end bound) x = do
@@ -516,7 +518,7 @@ data GroupState s start end bound
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> D.Stream m (Array a)
--- fromStreamDArraysOf n str = D.groupsOf n (writeNF n) str
+-- fromStreamDArraysOf n str = D.groupsOf n (writeN n) str
 fromStreamDArraysOf n (D.Stream step state) =
     D.Stream step' (GroupStart state)
 
@@ -887,7 +889,10 @@ data SpliceState s arr
 
 -- XXX can use general grouping combinators to achieve this?
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
--- maximum specified size.
+-- maximum specified size. Note that if a single array is bigger than the
+-- specified size we do not split it to fit. When we coalesce multiple arrays
+-- if the size would exceed the specified size we do not coalesce therefore the
+-- actual array size may be less than the specified chunk size.
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL packArraysChunksOf #-}
@@ -934,6 +939,54 @@ packArraysChunksOf n (D.Stream step state) =
     step' _ SpliceFinish = return D.Stop
 
     step' _ (SpliceYielding arr next) = return $ D.Yield arr next
+
+-- XXX instead of writing two different versions of this operation, we should
+-- write it as a pipe.
+{-# INLINE_NORMAL lpackArraysChunksOf #-}
+lpackArraysChunksOf :: (MonadIO m, Storable a)
+    => Int -> Fold m (Array a) () -> Fold m (Array a) ()
+lpackArraysChunksOf n (Fold step1 initial1 extract1) =
+    Fold step initial extract
+
+    where
+
+    initial = do
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Memory.Array.Types.packArraysChunksOf: the size of "
+                 ++ "arrays [" ++ show n ++ "] must be a natural number"
+        r1 <- initial1
+        return (Tuple' Nothing r1)
+
+    extract (Tuple' Nothing r1) = extract1 r1
+    extract (Tuple' (Just buf) r1) = do
+        r <- step1 r1 buf
+        extract1 r
+
+    step (Tuple' Nothing r1) arr = do
+            let len = byteLength arr
+             in if len >= n
+                then do
+                    r <- step1 r1 arr
+                    extract1 r
+                    r1' <- initial1
+                    return (Tuple' Nothing r1')
+                else return (Tuple' (Just arr) r1)
+
+    step (Tuple' (Just buf) r1) arr = do
+            let len = byteLength buf + byteLength arr
+            buf' <- if byteCapacity buf < len
+                    then liftIO $ realloc len buf
+                    else return buf
+            buf'' <- spliceWith buf' arr
+
+            if len >= n
+            then do
+                r <- step1 r1 buf''
+                extract1 r
+                r1' <- initial1
+                return (Tuple' Nothing r1')
+            else return (Tuple' (Just buf'') r1)
 
 #if !defined(mingw32_HOST_OS)
 data GatherState s arr

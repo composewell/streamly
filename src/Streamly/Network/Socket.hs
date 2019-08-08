@@ -89,9 +89,11 @@ import qualified Network.Socket as Net
 import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
--- import Streamly.Fold (Fold)
+import Streamly.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
+import qualified Streamly.Fold as FL
+import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Memory.Array.Types as A hiding (flattenArrays)
@@ -228,10 +230,8 @@ readArraysOf = readArraysUptoWith readArrayOf
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @readArrays h@ reads a stream of arrays from file handle @h@.
+-- | @readArrays h@ reads a stream of arrays from socket handle @h@.
 -- The maximum size of a single array is limited to @defaultChunkSize@.
--- 'readArrays' ignores the prevailing 'TextEncoding' and 'NewlineMode'
--- on the 'Handle'.
 --
 -- @since 0.7.0
 {-# INLINE readArrays #-}
@@ -260,7 +260,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
--- | Generate a stream of elements of the given type from a file 'Handle'. The
+-- | Generate a stream of elements of the given type from a socket. The
 -- stream ends when EOF is encountered.
 --
 -- @since 0.7.0
@@ -275,9 +275,17 @@ read = AS.flatten . readArrays
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
+{-# INLINE writeArraysS #-}
+writeArraysS :: (MonadIO m, Storable a)
+    => Socket -> SerialT m (Array a) -> m ()
+writeArraysS h m = S.mapM_ (liftIO . writeArray h) m
+
+-- | Write a stream of arrays to a socket.
+--
+-- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Storable a) => Socket -> SerialT m (Array a) -> m ()
-writeArrays h m = S.mapM_ (liftIO . writeArray h) m
+writeArrays :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
+writeArrays h = FL.drainBy (liftIO . writeArray h)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -292,9 +300,17 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 -- input elements.
 --
 -- @since 0.7.0
+{-# INLINE writeInChunksOfS #-}
+writeInChunksOfS :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+writeInChunksOfS n h m = writeArraysS h $ AS.arraysOf n m
+
+-- | Write a byte stream to a socket. Accumulates the input in chunks of
+-- specified number of bytes before writing.
+--
+-- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
-writeInChunksOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
+writeInChunksOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
+writeInChunksOf n h = FL.lchunksOf n A.write (writeArrays h)
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --
@@ -303,8 +319,20 @@ writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 -- depends on the 'IOMode' and the current seek position of the handle.
 --
 -- @since 0.7.0
+{-# INLINE _writeS #-}
+_writeS :: MonadIO m => Socket -> SerialT m Word8 -> m ()
+_writeS = writeInChunksOfS A.defaultChunkSize
+
+-- | Write a byte stream to a socket. Accumulates the input in chunks of
+-- up to 'A.defaultChunkSize' bytes before writing.
+--
+-- @
+-- write = 'writeInChunksOf' 'A.defaultChunkSize'
+-- @
+--
+-- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Socket -> SerialT m Word8 -> m ()
+write :: MonadIO m => Socket -> Fold m Word8 ()
 write = writeInChunksOf A.defaultChunkSize
 
 {-

@@ -23,7 +23,10 @@ module Streamly.Fold.Types
     , ltakeWhile
     , lsessionsOf
     , lchunksOf
+
     , duplicate
+    , initialize
+    , runStep
     )
 where
 
@@ -318,14 +321,26 @@ duplicate :: Applicative m => Fold m a b -> Fold m a (Fold m a b)
 duplicate (Fold step begin done) =
     Fold step begin (\x -> pure (Fold step (pure x) done))
 
--- | Group the input stream into groups of @n@ elements each and then fold each
--- group using the provided fold function.
+-- | Run the initialization effect of a fold. The returned fold would use the
+-- value returned by this effect as its initial value.
 --
--- @
---
--- -----Fold m a b----|-Fold n a c-|-Fold n a c-|-...-|----Fold m a c
---
--- @
+{-# INLINABLE initialize #-}
+initialize :: Monad m => Fold m a b -> m (Fold m a b)
+initialize (Fold step initial extract) = do
+    i <- initial
+    return $ Fold step (return i) extract
+
+-- | Run one step of a fold and store the accumulator as an initial value in
+-- the returned fold.
+{-# INLINABLE runStep #-}
+runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
+runStep (Fold step initial extract) a = do
+    i <- initial
+    r <- step i a
+    return $ (Fold step (return r) extract)
+
+-- | For every n input items, apply the first fold and supply the result to the
+-- next fold.
 --
 {-# INLINE lchunksOf #-}
 lchunksOf :: Monad m => Int -> Fold m a b -> Fold m b c -> Fold m a c

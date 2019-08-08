@@ -224,7 +224,7 @@ main =
         , benchIOSink "toListRevF" (S.runFold Internal.toListRevF)
         , benchIOSink "toStream" (S.runFold Internal.toStream)
         , benchIOSink "toStreamRev" (S.runFold Internal.toStreamRev)
-        , benchIOSink "writeNF" (S.runFold (A.writeNF Ops.value))
+        , benchIOSink "writeN" (S.runFold (A.writeN Ops.value))
 
         , benchIOSink "index" (S.runFold (FL.index Ops.maxValue))
         , benchIOSink "head" (S.runFold FL.head)

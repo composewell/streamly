@@ -118,7 +118,7 @@ main = do
                 S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
-                FH.writeArrays devNull $ FH.readArraysOf (256*1024) inh
+                S.runFold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
@@ -138,32 +138,32 @@ main = do
                 S.sum $ FH.read inh
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
-                FH.write devNull $ FH.read inh
+                S.runFold (FH.write devNull) $ FH.read inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
                 Handles inh outh <- readIORef href
                 let s = FH.readArrays inh
-                FH.writeArrays outh s
+                S.runFold (FH.writeArrays outh) s
             ]
 #ifdef DEVBUILD
         -- This takes a little longer therefore put under the dev conditional
         , bgroup "copyStream"
             [ mkBench "fromToHandle" href $ do
                 Handles inh outh <- readIORef href
-                FH.write outh (FH.read inh)
+                S.runFold (FH.write outh) (FH.read inh)
             ]
         -- This needs an ascii file, as decode just errors out.
         , bgroup "decode-encode"
            [ mkBench "char8" href $ do
                Handles inh outh <- readIORef href
-               FH.write outh
+               S.runFold (FH.write outh)
                  $ SS.encodeChar8
                  $ SS.decodeChar8
                  $ FH.read inh
            , mkBench "utf8" href $ do
                Handles inh outh <- readIORef href
-               FH.write outh
+               S.runFold (FH.write outh)
                  $ SS.encodeUtf8
                  $ SS.decodeUtf8
                  $ FH.read inh
@@ -171,7 +171,7 @@ main = do
         , bgroup "grouping"
             [ mkBench "chunksOf 1 (A.writeNF)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf fileSize (A.writeNF fileSize)
+                S.length $ S.chunksOf fileSize (A.writeN fileSize)
                                 (FH.read inh)
 
             , mkBench "chunksOf 1" href $ do
@@ -187,7 +187,7 @@ main = do
         , bgroup "group-ungroup"
             [ mkBench "lines-unlines" href $ do
                 Handles inh outh <- readIORef href
-                FH.write outh
+                S.runFold (FH.write outh)
                   $ SS.encodeChar8
                   $ SS.unlines
                   $ SS.lines
@@ -195,13 +195,13 @@ main = do
                   $ FH.read inh
             , mkBench "lines-unlines-arrays" href $ do
                 Handles inh outh <- readIORef href
-                FH.writeArraysPackedUpto (1024*1024) outh
+                S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
                     $ Internal.insertAfterEach (return $ A.fromList [10])
                     $ AS.splitOn 10
                     $ FH.readArraysOf (1024*1024) inh
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href
-                FH.write outh
+                S.runFold (FH.write outh)
                   $ SS.encodeChar8
                   $ SS.unwords
                   $ SS.words

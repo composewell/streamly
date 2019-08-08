@@ -12,12 +12,12 @@ import System.Environment (getArgs)
 import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
-cat src = FH.writeArrays FH.stdout $ FH.readArraysOf (256*1024) src
+cat src = S.runFold (FH.writeArrays FH.stdout) $ FH.readArraysOf (256*1024) src
 -- byte stream version
 -- cat src = FH.write FH.stdout $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
-cp src dst = FH.writeArrays dst $ FH.readArraysOf (256*1024) src
+cp src dst = S.runFold (FH.writeArrays dst) $ FH.readArraysOf (256*1024) src
 -- byte stream version
 -- cp src dst = FH.write dst $ FH.read src
 

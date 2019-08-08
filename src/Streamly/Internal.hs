@@ -64,6 +64,8 @@ module Streamly.Internal
     , lsessionsOf
     , lchunksOf
     , duplicate
+    , initialize
+    , runStep
     )
 where
 
