@@ -2740,12 +2740,12 @@ evertM f = Fold step begin extract
     step (FreeT ms) a = do
         ff <- ms
         case ff of
-            Pure _ -> error "What is this?"
+            Pure b -> return $ FreeT $ return (Pure b) -- Run through the spine of the input stream a.
             Free f -> a `seq` return (f (Element a))
     extract (FreeT ms) = do
         ff <- ms
         case ff of
-            Pure _ -> error "What is this?"
+            Pure b -> b `seq` return b --error "What is this?2" --
             Free f -> do
                 let FreeT ms' = f Done
                 ff' <- ms'
