@@ -2,7 +2,7 @@
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|fileio|base>]"
+  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|fileio|array|base>]"
   echo "       [--group-diff]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
@@ -231,7 +231,7 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
-ALL_BENCHMARKS="linear linear-async linear-rate nested fileio base"
+ALL_BENCHMARKS="linear linear-async linear-rate nested fileio array base"
 GROUP_DIFF=0
 
 COMPARE=0

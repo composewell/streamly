@@ -22,7 +22,14 @@ import BenchShow
 -- Command line parsing
 ------------------------------------------------------------------------------
 
-data BenchType = Linear | LinearAsync | LinearRate | Nested | Base | FileIO
+data BenchType
+    = Linear
+    | LinearAsync
+    | LinearRate
+    | Nested
+    | Base
+    | FileIO
+    | Array
     deriving Show
 
 data Options = Options
@@ -63,6 +70,7 @@ parseBench = do
         Just "nested" -> setBenchType Nested
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
+        Just "array" -> setBenchType Array
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -233,6 +241,10 @@ makeFileIOGraphs :: Config -> String -> IO ()
 makeFileIOGraphs cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile "fileIO" cfg
 
+makeArrayGraphs :: Config -> String -> IO ()
+makeArrayGraphs cfg@Config{..} inputFile =
+    ignoringErr $ graph inputFile "array" cfg
+
 ------------------------------------------------------------------------------
 -- Reports/Charts for base streams
 ------------------------------------------------------------------------------
@@ -334,6 +346,11 @@ main = do
                             makeFileIOGraphs
                             "charts/fileio/results.csv"
                             "charts/fileio"
+                Array -> benchShow opts cfg
+                            { title = Just "Array" }
+                            makeArrayGraphs
+                            "charts/array/results.csv"
+                            "charts/array"
                 Base -> do
                     let cfg' = cfg { title = Just "100,000 elems" }
                     if groupDiff
