@@ -300,6 +300,7 @@ instance Monad m => Monad (Stream m) where
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
 foldrM f z (Stream step state) = go SPEC state
   where
+    {-# INLINE_LATE go #-}
     go !_ st = do
           r <- step defState st
           case r of
@@ -312,6 +313,7 @@ foldrMx :: Monad m
     => (a -> m x -> m x) -> m x -> (m x -> m b) -> Stream m a -> m b
 foldrMx fstep final convert (Stream step state) = convert $ go SPEC state
   where
+    {-# INLINE_LATE go #-}
     go !_ st = do
           r <- step defState st
           case r of
@@ -349,6 +351,7 @@ foldrS
     -> Stream m b
 foldrS f final (Stream step state) = go SPEC state
   where
+    {-# INLINE_LATE go #-}
     go !_ st = do
         -- defState??
         r <- yieldM $ step defState st
@@ -365,6 +368,7 @@ foldrT :: (Monad m, Monad (t m), MonadTrans t)
     => (a -> t m b -> t m b) -> t m b -> Stream m a -> t m b
 foldrT f final (Stream step state) = go SPEC state
   where
+    {-# INLINE_LATE go #-}
     go !_ st = do
           r <- lift $ step defState st
           case r of
@@ -383,6 +387,7 @@ foldlMx' fstep begin done (Stream step state) =
     begin >>= \x -> go SPEC x state
   where
     -- XXX !acc?
+    {-# INLINE_LATE go #-}
     go !_ acc st = acc `seq` do
         r <- step defState st
         case r of
@@ -402,6 +407,7 @@ foldlx' fstep begin done m =
 foldlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> m b
 foldlM' fstep begin (Stream step state) = go SPEC begin state
   where
+    {-# INLINE_LATE go #-}
     go !_ acc st = acc `seq` do
         r <- step defState st
         case r of
