@@ -10,26 +10,39 @@ i.e. phase 0, 1 and 2. We have defined them as follows in `inline.h`:
 #define INLINE_LATE   INLINE [0]
 ```
 
-* The combinators in `Streamly.Prelude` are defined in terms of combinators in
-  `Streamly.Streams.StreamD` (Direct style streams) or
-  `Streamly.Streams.StreamK` (CPS style streams). We convert the stream from
-  `StreamD` to `StreamK` representation or vice versa in some cases. In the
-  first inlining phase we expand these combinators and apply the rewrite rules
-  to rewrite transformations like `fromStreamK . toStreamK` to `id`. A plain
-  `INLINE` pragma is usually enough to achieve that.
+## Low Level `fromStreamD/toStreamD` Fusion
+
+The combinators in `Streamly.Prelude` are defined in terms of combinators in
+`Streamly.Streams.StreamD` (Direct style streams) or `Streamly.Streams.StreamK`
+(CPS style streams). We convert the stream from `StreamD` to `StreamK`
+representation or vice versa in some cases. 
+
+In the first inlining phase (INLINE_EARLY or INLINE) we expand
+the combinators in `Streamly.Prelude` into
+fromStreamD/fromStreamK/toStreamD/toStreamK and combinators defined in StreamD
+or StreamK modules. Once we do that fromStreamD/toStreamD get exposed and we
+can apply rewrite rules to rewrite transformations like `fromStreamK .
+toStreamK` to `id`. A plain `INLINE` pragma is usually enough on combinators in
+`Streamly.Prelude`.
 
 ```
 {-# RULES "fromStreamK/toStreamK fusion"
   forall s. toStreamK (fromStreamK s) = s #-}
 ```
 
-* In some cases, if the operation could not fuse we want to use a fallback
-  rewrite rule in the next phase. For such cases we use the INLINE_EARLY phase
-  for the first rewrite and the INLINE_NORMAL phase for the fallback rules.
+Also, we have to prevent fromStreamK and toStreamK themselves from inlining in
+this phase so that rewrite rules can be applied on them, therefore, we annotate
+these functions with `INLINE_LATE`.
 
-  The fallback rules make sure that if we could not fuse the direct style
-  operations then better use the CPS style operation, because unfused direct
-  style would have worse performance than the CPS style ops.
+## Fallback Rules
+
+In some cases, if the operation could not fuse we want to use a fallback
+rewrite rule in the next phase. For such cases we use the INLINE_EARLY phase
+for the first rewrite and the INLINE_NORMAL phase for the fallback rules.
+
+The fallback rules make sure that if we could not fuse the direct style
+operations then better use the CPS style operation, because unfused direct
+style would have worse performance than the CPS style ops.
 
 ```
 {-# INLINE_EARLY unfoldr #-}
@@ -39,37 +52,44 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
      forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
 ```
 
-*  Assuming that `fromStreamK/toStreamK` have been removed in the
-   `INLINE_EARLY` phase, we can then apply the combinator fusion rules in the
-   `INLINE_NORMAL` phase. For example, we can fuse two `map` operations into a
-   single `map` operation. Note that without removing the
-   `fromStreamK/toStreamK` wrapped around combinators, combinator fusion may
-   not work.
+## High Level Operation Fusion
 
-* Note that partially applied functions cannot be inlined. So if we have a code
-  like this:
+Since each high level combinator in `Streamly.Prelude` is wrapped in
+`fromStreamD/toStreamD` etc. the combinator fusion cannot work unless we have
+removed those and exposed consecutive operations e.g. a `map` followed by
+another `map`.  Assuming that redundant `fromStreamK/toStreamK` have been
+removed in the `INLINE_EARLY` phase, we can then apply the combinator fusion
+rules in the `INLINE_NORMAL` phase.  For example, we can fuse two `map`
+operations into a single `map` operation.  Note that now we have exposed the
+`StreamD/StreamK` implementations of combinators and the rules would apply on
+those.
+
+## Inlining Higher Order Functions
+
+Note that partially applied functions cannot be inlined. So if we have a code
+like this:
 
 ```
 concatMap1 src = runStream $ S.concatMap (S.replicate 3) src
 ```
 
-  We want to ensure that `concatMap` gets inlined before `replicate` so that
-  `replicate` becomes fully applied before it gets inlined. Currently ensuring
-  that both of them are inlined in the same phase (`INLINE_NORMAL`) seems to be
-  enough to achieve that. In general, we should try to ensure that higher order
-  functions are inlined before or in the same phase as the functions they can
-  consume as arguments. This means `StreamD` combinators should not be marked
-  as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
-  `INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
-  etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
-  `Streamly.Memory.Array` should also follow the same rules.
+We want to ensure that `concatMap` gets inlined before `replicate` so that
+`replicate` becomes fully applied before it gets inlined. Currently ensuring
+that both of them are inlined in the same phase (`INLINE_NORMAL`) seems to be
+enough to achieve that. In general, we should try to ensure that higher order
+functions are inlined before or in the same phase as the functions they can
+consume as arguments. This means `StreamD` combinators should not be marked
+as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
+`INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
+etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
+`Streamly.Memory.Array` should also follow the same rules.
 
-* The inlining of the `step` function (in case of `StreamD`) is annotated as
-  `INLINE_LATE` so that those are inlined after fusion rules have been applied.
+## Stream Fusion
 
-* The inlining of, `fromStreamK/toStreamK` also happens in the `INLINE_LATE`
-  phase because the INLINE_EARLY and INLINE_NORMAL phases require them
-  uninlined for rewrite rules to work.
+In StreamD combinators, inlining the inner step or loop functions too early
+i.e. in the same pahse or before the outer function is inlined may block stream
+fusion opportunities. Therefore, the inner step functions and folding loops are
+marked as INLINE_LATE.
 
 ## Specialization
 
@@ -87,3 +107,5 @@ on `i` to get it specialized:
                 x <- action
                 return $ Yield x (i - 1)
 ```
+
+`-flate-specialise` also helps in this case.
