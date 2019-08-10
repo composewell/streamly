@@ -206,7 +206,7 @@ toArrayMinChunk elemCount = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = toArrayMinChunk (A.bytesToCount (undefined :: a) (A.mkChunkSize 1024))
+write = toArrayMinChunk (A.bytesToElemCount (undefined :: a) (A.mkChunkSize 1024))
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice

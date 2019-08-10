@@ -160,7 +160,7 @@ _spliceArraysBuffered s = do
 spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    idst <- liftIO $ A.newArray (A.bytesToCount (undefined :: a)
+    idst <- liftIO $ A.newArray (A.bytesToElemCount (undefined :: a)
                                 (A.mkChunkSizeKB 4))
 
     arr <- S.foldlM' A.spliceWithDoubling idst s

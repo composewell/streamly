@@ -72,7 +72,7 @@ module Streamly.Memory.Array.Types
     , shrinkToFit
     , memcpy
     , memcmp
-    , bytesToCount
+    , bytesToElemCount
 
     , unlines
     )
@@ -213,9 +213,9 @@ memcmp p1 p2 len = do
 unsafeInlineIO :: IO a -> a
 unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
 
-{-# INLINE bytesToCount #-}
-bytesToCount :: Storable a => a -> Int -> Int
-bytesToCount x n =
+{-# INLINE bytesToElemCount #-}
+bytesToElemCount :: Storable a => a -> Int -> Int
+bytesToElemCount x n =
     let elemSize = sizeOf x
     in n + elemSize - 1 `div` elemSize
 
