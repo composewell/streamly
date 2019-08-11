@@ -21,6 +21,7 @@ import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.String as SS
+import qualified Streamly.Internal as Internal
 
 #ifdef DEVBUILD
 import Data.Char (ord, chr)
@@ -139,6 +140,9 @@ main = do
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
                 S.runFold (FH.write devNull) $ FH.read inh
+            , mkBench "catStream" href $ do
+                Handles inh _ <- readIORef href
+                Internal.writeS devNull $ FH.read inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
