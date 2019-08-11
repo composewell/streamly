@@ -330,7 +330,7 @@ writeInChunksOfS n h m = writeArraysS h $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeInChunksOf n h = FL.lchunksOf n A.write (writeArrays h)
+writeInChunksOf n h = FL.lchunksOf n (A.writeN n) (writeArrays h)
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

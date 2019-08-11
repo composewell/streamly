@@ -491,7 +491,7 @@ writeN n = Fold step initial extract
     step (Array start end bound) x = do
         liftIO $ poke end x
         return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-    extract = liftIO . shrinkToFit
+    extract = return -- liftIO . shrinkToFit
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)

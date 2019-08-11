@@ -180,7 +180,7 @@ writeInChunksOf
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m Word8 ()
-writeInChunksOf n addr port = FL.lchunksOf n A.write (writeArrays addr port)
+writeInChunksOf n addr port = FL.lchunksOf n (A.writeN n) (writeArrays addr port)
 
 {-
 -- | Write a stream to the supplied IPv4 host address and port number.
