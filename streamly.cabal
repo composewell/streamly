@@ -219,6 +219,7 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
                      , Streamly.FileSystem.File
+                     , Streamly.FileSystem.Handle.Internal
 
                     -- Time
                      , Streamly.Time.Units

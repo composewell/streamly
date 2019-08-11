@@ -66,11 +66,15 @@ module Streamly.Internal
     , duplicate
     , initialize
     , runStep
+
+    -- * Streamly.FileSystem.Handle
+    , writeS
     )
 where
 
 import Prelude hiding (break, span, splitAt)
 
+import Streamly.FileSystem.Handle.Internal (writeS)
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
 
