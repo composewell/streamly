@@ -431,14 +431,14 @@ withArg2 f = do
 ### cat
 
 ``` haskell
-cat = FH.writeArrays stdout . FH.readArrays
+cat = S.runFold (FH.writeArrays stdout) . FH.readArrays
 main = withArg cat
 ```
 
 ### cp
 
 ``` haskell
-cp src dst = FH.writeArrays dst $ FH.readArrays src
+cp src dst = S.runFold (FH.writeArrays dst) $ FH.readArrays src
 main = withArg2 cp
 ```
 
