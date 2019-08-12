@@ -83,19 +83,16 @@ example, concat streams concurrently using this.
     character streams and other character stream operations.
   * _Arrays_: `Streamly.Memory.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.
-  * `Streamly.Memory.Array.Stream` module provide combinators to work on streams
+  * `Streamly.Memory.ArrayStream` module provide combinators to work on streams
     of arrays.
 
 * Add the following to `Streamly.Prelude`:
-    * `foldrS` to fold a stream to a stream
-    * `foldrT` to fold a stream to an arbitrary transformer monad
     * `postscanl'` and `postscanlM'`
     * `intersperse` intersperse an element in between consecutive elements in
       stream
     * `trace` combinator maps a monadic function on a stream just for side
       effects
     * `tap` redirects a copy of the stream to a `Fold`
-    * `tee` redirects a copy of the stream to a concurrent fold function
 
 ## 0.6.1
 
