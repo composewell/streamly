@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 -- |
--- Module      : Streamly.String
+-- Module      : Streamly.Data.String
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -31,7 +31,7 @@
 -- TBD write a note on performance comparison with text, bytestrings, lists and
 -- vector.
 --
-module Streamly.String
+module Streamly.Data.String
     (
     -- String
 

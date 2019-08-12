@@ -20,7 +20,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
-import qualified Streamly.String as SS
+import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal as Internal
 
 #ifdef DEVBUILD
@@ -99,8 +99,8 @@ main = do
                 Handles inh _ <- readIORef href
                 let s = FH.readArrays inh
                 larr <- S.last s
-                case larr of
-                    Nothing -> return Nothing
+                return $ case larr of
+                    Nothing -> Nothing
                     Just arr -> A.readIndex arr (A.length arr - 1)
             -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
             -- wc uses lseek to just determine the file size rather than reading

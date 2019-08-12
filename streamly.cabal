@@ -230,7 +230,7 @@ library
                      , Streamly
                      , Streamly.Fold
 
-                     , Streamly.String
+                     , Streamly.Data.String
 
                     -- IO devices
                      , Streamly.Memory.Array
