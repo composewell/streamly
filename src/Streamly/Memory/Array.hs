@@ -240,7 +240,7 @@ _null :: Storable a => Array a -> Bool
 _null arr = length arr == 0
 
 {-# INLINE _last #-}
-_last :: (MonadIO m, Storable a) => Array a -> m (Maybe a)
+_last :: Storable a => Array a -> Maybe a
 _last arr = readIndex arr (length arr - 1)
 
 -------------------------------------------------------------------------------
@@ -343,16 +343,16 @@ foldbWith level f = undefined
 -- Random reads and writes
 -------------------------------------------------------------------------------
 
--- | /O(1)/ Lookup the element at the given index.
+-- | /O(1)/ Lookup the element at the given index, starting from 0.
 --
 -- @since 0.7.0
 {-# INLINE readIndex #-}
-readIndex :: (MonadIO m, Storable a) => Array a -> Int -> m (Maybe a)
+readIndex :: Storable a => Array a -> Int -> Maybe a
 readIndex arr i =
     if i < 0 || i > length arr - 1
-    then return Nothing
-    else liftIO $ withForeignPtr (aStart arr) $ \p ->
-            fmap Just $ peekElemOff p i
+        then Nothing
+        else A.unsafeInlineIO $
+             withForeignPtr (aStart arr) $ \p -> fmap Just $ peekElemOff p i
 
 {-
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
