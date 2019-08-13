@@ -627,7 +627,7 @@ module Streamly.Prelude
     -- | These are variants of standard 'Foldable' fold functions that use a
     -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
     -- finite container of streams. Note that these are just special cases of
-    -- the more general 'concatMapBy' operation.
+    -- the more general 'concatMapWith' operation.
     --
     , foldMapWith
     , forEachWith
@@ -657,8 +657,8 @@ module Streamly.Prelude
     -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
     --
 
-    -- XXX add stateful concatMapBy
-    , concatMapBy
+    -- XXX add stateful concatMapWith
+    , concatMapWith
     --, bindWith
     , concatMap
     , concatMapM

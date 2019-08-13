@@ -24,7 +24,7 @@ main = do
         (\src -> S.runFold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatMap A.read
-        $ S.concatMapBy parallel (flip NS.withSocketS recv)
+        $ S.concatMapWith parallel (flip NS.withSocketS recv)
         $ NS.connectionsOnAllAddrs 8090)
 
     where
