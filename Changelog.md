@@ -22,12 +22,12 @@
     * `runN` has been replaced by `drainN`
     * `runWhile` has been replaced by `drainWhile`
     * `fromHandle` has been deprecated. Please use
-      `Streamly.FileSystem.Handle.read`, `Streamly.String.decodeUtf8` and
-      `Streamly.String.lines` to split the stream into lines. Use
-      `Streamly.String.foldLine` with `Streamly.Fold.toList` if you want to
+      `Streamly.FileSystem.Handle.read`, `Streamly.Data.String.decodeUtf8` and
+      `Streamly.Data.String.lines` to split the stream into lines. Use
+      `Streamly.Data.String.foldLine` with `Streamly.Fold.toList` if you want to
       convert the stream to a stream of `String`.
     * `toHandle` has been deprecated. Please use `intersperse` and `concat` to
-      add newlines to a stream, `Streamly.String.encodeUtf8` for encoding and
+      add newlines to a stream, `Streamly.Data.String.encodeUtf8` for encoding and
       `Streamly.FileSystem.Handle.write` for writing to a file handle.
     * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
     * Remove deprecated APIs `scan`, `foldl`, `foldlM`
@@ -79,7 +79,7 @@ example, concat streams concurrently using this.
 ### Other Enhancements
 
 * Add the following new features/modules:
-  * _Unicode Strings_: `Streamly.String` module provides encoding/decoding of
+  * _Unicode Strings_: `Streamly.Data.String` module provides encoding/decoding of
     character streams and other character stream operations.
   * _Arrays_: `Streamly.Memory.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.

@@ -15,7 +15,7 @@ import           Test.Hspec as H
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
-import qualified Streamly.String as SS
+import qualified Streamly.Data.String as SS
 
 -- Coverage build takes too long with default number of tests
 {-
@@ -101,12 +101,12 @@ main = hspec
     $ do
     describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
-        prop "Streamly.String.lines == Prelude.lines" $ testLines
-        prop "Arrays Streamly.String.lines == Prelude.lines" $ testLinesArray
-        prop "Streamly.String.words == Prelude.words" $ testWords
+        prop "Streamly.Data.String.lines == Prelude.lines" $ testLines
+        prop "Arrays Streamly.Data.String.lines == Prelude.lines" $ testLinesArray
+        prop "Streamly.Data.String.words == Prelude.words" $ testWords
         prop
-            "Streamly.String.unlines . Streamly.String.lines == unlines . lines"
+            "Streamly.Data.String.unlines . Streamly.Data.String.lines == unlines . lines"
              $ testUnlines
         prop
-            "Streamly.String.unwords . Streamly.String.words == unwords . words"
+            "Streamly.Data.String.unwords . Streamly.Data.String.words == unwords . words"
              $ testUnwords

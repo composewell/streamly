@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 -- |
--- Module      : Streamly.String
+-- Module      : Streamly.Data.String
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -31,7 +31,7 @@
 -- TBD write a note on performance comparison with text, bytestrings, lists and
 -- vector.
 --
-module Streamly.String
+module Streamly.Data.String
     (
     -- String
 
@@ -167,20 +167,20 @@ stripStart = S.dropWhile isSpace
 -- | Fold each line of the stream using the supplied Fold
 -- and stream the result.
 --
--- >>> S.toList $ foldLines (S.fromList "lines\nthis\nstring\n\n\n") FL.toList
+-- >>> S.toList $ foldLines FL.toList (S.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines", "this", "string", "", ""]
 {-# INLINE foldLines #-}
-foldLines :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
-foldLines = flip (S.splitOnSuffix (== '\n'))
+foldLines :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
+foldLines = S.splitOnSuffix (== '\n')
 
 -- | Fold each word of the stream using the supplied Fold
 -- and stream the result.
 --
--- >>>  S.toList $ foldWords (S.fromList "fold these     words") FL.toList
+-- >>>  S.toList $ foldWords FL.toList (S.fromList "fold these     words")
 -- ["fold", "these", "words"]
 {-# INLINE foldWords #-}
-foldWords :: (Monad m, IsStream t) => t m Char -> Fold m Char b -> t m b
-foldWords = flip (S.wordsBy isSpace)
+foldWords :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
+foldWords = S.wordsBy isSpace
 
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
