@@ -454,7 +454,7 @@ main = withArg wcl >>= print
 ``` haskell
 avgll = 
       S.runFold avg
-    . S.splitBySuffix (== 10) FL.length
+    . S.splitWithSuffix (== 10) FL.length
     . FH.read
 
     where avg      = (/) <$> toDouble FL.sum <*> toDouble FL.length
@@ -469,7 +469,7 @@ main = withArg avgll >>= print
 llhisto =
       S.runFold (FL.classify FL.length)
     . S.map bucket
-    . S.splitBySuffix (== 10) FL.length
+    . S.splitWithSuffix (== 10) FL.length
     . FH.read
 
     where

@@ -267,7 +267,7 @@ module Streamly.Prelude.Internal
     -- , splitOnPrefix
 
     -- , splitBy
-    , splitBySuffix
+    , splitWithSuffix
     -- , splitByPrefix
     , wordsBy -- stripAndCompactBy
 
@@ -278,7 +278,7 @@ module Streamly.Prelude.Internal
 
     -- Keeping the delimiters
     , splitBySeq
-    , splitBySuffixSeq
+    , splitWithSuffixSeq
     -- , splitByPrefixSeq
     -- , wordsBySeq
 
@@ -2249,7 +2249,7 @@ intervalsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
 intervalsOf n f xs =
-    splitBySuffix isNothing (FL.lcatMaybes f)
+    splitWithSuffix isNothing (FL.lcatMaybes f)
         (intersperseByTime n (return Nothing) (Serial.map Just xs))
 
 ------------------------------------------------------------------------------
@@ -2609,30 +2609,30 @@ wordsBy predicate f m =
 -- | Like 'splitOnSuffix' but keeps the suffix attached to the resulting
 -- splits.
 --
--- > splitBySuffix' p xs = S.toList $ S.splitBySuffix p (FL.toList) (S.fromList xs)
+-- > splitWithSuffix' p xs = S.toList $ S.splitWithSuffix p (FL.toList) (S.fromList xs)
 --
--- >>> splitBySuffix' (== '.') ""
+-- >>> splitWithSuffix' (== '.') ""
 -- []
 --
--- >>> splitBySuffix' (== '.') "."
+-- >>> splitWithSuffix' (== '.') "."
 -- ["."]
 --
--- >>> splitBySuffix' (== '.') "a"
+-- >>> splitWithSuffix' (== '.') "a"
 -- ["a"]
 --
--- >>> splitBySuffix' (== '.') ".a"
+-- >>> splitWithSuffix' (== '.') ".a"
 -- > [".","a"]
 --
--- >>> splitBySuffix' (== '.') "a."
+-- >>> splitWithSuffix' (== '.') "a."
 -- > ["a."]
 --
--- >>> splitBySuffix' (== '.') "a.b"
+-- >>> splitWithSuffix' (== '.') "a.b"
 -- > ["a.","b"]
 --
--- >>> splitBySuffix' (== '.') "a.b."
+-- >>> splitWithSuffix' (== '.') "a.b."
 -- > ["a.","b."]
 --
--- >>> splitBySuffix' (== '.') "a..b.."
+-- >>> splitWithSuffix' (== '.') "a..b.."
 -- > ["a.",".","b.","."]
 --
 -- @since 0.7.0
@@ -2640,11 +2640,11 @@ wordsBy predicate f m =
 -- This can be considered as an n-fold version of 'breakPost' where we apply
 -- 'breakPost' successively on the input stream.
 --
-{-# INLINE splitBySuffix #-}
-splitBySuffix
+{-# INLINE splitWithSuffix #-}
+splitWithSuffix
     :: (IsStream t, Monad m)
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
-splitBySuffix predicate f m =
+splitWithSuffix predicate f m =
     D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
@@ -2863,11 +2863,11 @@ splitBySeq patt f m = intersperseM (runFold f (A.read patt)) $ splitOnSeq patt f
 -- > ["a.",".","b.","."]
 --
 -- @since 0.7.0
-{-# INLINE splitBySuffixSeq #-}
-splitBySuffixSeq
+{-# INLINE splitWithSuffixSeq #-}
+splitWithSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitBySuffixSeq patt f m =
+splitWithSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)
 
 {-

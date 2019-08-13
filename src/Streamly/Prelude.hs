@@ -494,7 +494,7 @@ module Streamly.Prelude
     -- the separator may be kept attached to the stream segments in prefix or
     -- suffix position or as a separate element in infix position. Combinators
     -- like 'splitOn' that use @On@ in their names drop the separator and
-    -- combinators that use 'By' in their names keep the separator. When a
+    -- combinators that use 'With' in their names keep the separator. When a
     -- segment is missing it is considered as empty, therefore, we never
     -- encounter an error in parsing.
 
@@ -504,7 +504,7 @@ module Streamly.Prelude
     -- , splitOnPrefix
 
     -- , splitBy
-    , splitBySuffix
+    , splitWithSuffix
     -- , splitByPrefix
     , wordsBy -- strip, compact and split
 
