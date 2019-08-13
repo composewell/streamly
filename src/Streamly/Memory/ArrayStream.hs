@@ -118,7 +118,7 @@ compact n xs = D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
 --
 -- Same as the following but more efficient:
 --
--- > arraysOf n = FL.chunksOf n (A.writeNF n)
+-- > arraysOf n = S.chunksOf n (A.writeN n)
 --
 -- @since 0.7.0
 {-# INLINE arraysOf #-}
