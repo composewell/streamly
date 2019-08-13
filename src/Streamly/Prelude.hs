@@ -171,12 +171,14 @@ module Streamly.Prelude
 -- parallel and then combine the results using a monoid.
 
     -- ** Right Folds
+    -- $rightfolds
     , foldrM
     -- , foldrS
     -- , foldrT
     , foldr
 
     -- ** Left Folds
+    -- $leftfolds
     , foldl'
     , foldl1'
     , foldlM'
@@ -245,6 +247,19 @@ module Streamly.Prelude
     , and
     , or
 
+    -- ** Multi-Stream folds
+    , eqBy
+    , cmpBy
+    , isPrefixOf
+    -- , isSuffixOf
+    -- , isInfixOf
+    , isSubsequenceOf
+
+    -- trimming sequences
+    , stripPrefix
+    -- , stripSuffix
+    -- , stripInfix
+
     -- * Transformation
 
     --, transform
@@ -264,7 +279,11 @@ module Streamly.Prelude
     , map
     , sequence
     , mapM
+
+    -- ** Special Maps
     , mapM_
+    , trace
+    , tap
 
     -- ** Scanning
     --
@@ -342,12 +361,6 @@ module Streamly.Prelude
     -- , lprescanl'
     -- , lprescanlM'
 
-    -- ** Indexing
-    , indexed
-    , indexedR
-    -- , timestamped
-    -- , timestampedR -- timer
-
     -- ** Filtering
     -- | Remove some elements from the stream based on a predicate. In
     -- imperative terms a filter over a stream corresponds to a loop with a
@@ -356,7 +369,50 @@ module Streamly.Prelude
     , filter
     , filterM
 
-    -- ** Stateful Filters
+    -- ** Mapping Filters
+    -- | Mapping along with filtering
+
+    , mapMaybe
+    , mapMaybeM
+
+    -- ** Deleting Elements
+    -- | Deleting elements is a special case of de-interleaving streams.
+    , deleteBy
+    , uniq
+    -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
+    -- , uniqOn -- to remove duplicate sequences
+    -- , pruneBy -- dropAround + uniqBy - like words
+
+    -- ** Inserting Elements
+    -- | Inserting elements is a special case of interleaving/merging streams.
+
+    , insertBy
+    , intersperseM
+    , intersperse
+    -- , insertAfterEach
+    -- , intersperseBySpan
+    -- , intersperseByIndices -- using an index function/stream
+    -- , intersperseByTime
+    -- , intersperseByEvent
+
+    -- -- * Inserting Streams in Streams
+    -- , interposeBy
+    -- , intercalate
+
+    -- ** Indexing
+    -- | Indexing can be considered as a special type of zipping where we zip a
+    -- stream with an index stream.
+    , indexed
+    , indexedR
+    -- , timestamped
+    -- , timestampedR -- timer
+
+    -- ** Reordering Elements
+    , reverse
+    -- , reverse'
+
+    -- ** Trimming
+    -- | Take or remove elements from one or both ends of a stream.
     , take
     -- , takeEnd
     , takeWhile
@@ -368,101 +424,6 @@ module Streamly.Prelude
     , dropWhileM
     -- , dropWhileEnd
     -- , dropAround
-    , deleteBy
-    , uniq
-    -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
-    -- , uniqOn -- to remove duplicate sequences
-    -- , pruneBy -- dropAround + uniqBy - like words
-
-    -- ** Mapping Filters
-    -- | Mapping along with filtering
-
-    , mapMaybe
-    , mapMaybeM
-
-    -- ** Scanning Filters
-    -- | Stateful transformation along with filtering
-
-    , findIndices
-    , elemIndices
-    -- , seqIndices -- search a sequence in the stream
-
-    -- ** Insertion
-    -- | Insertion adds more elements to the stream.
-
-    , insertBy
-    , intersperseM
-    , intersperse
-    -- , insertAfterEach
-    -- , intersperseBySpan
-    -- , intersperseByTime
-
-    -- ** Reordering
-    , reverse
-    -- , reverse'
-
-    -- * Multi-Stream Operations
-    -- | New streams can be constructed by appending, merging or zipping
-    -- existing streams.
-
-    -- ** Appending
-    -- | Streams form a 'Semigroup' and a 'Monoid' under the append
-    -- operation.
-    --
-    -- @
-    --
-    -- -------Stream m a------|-------Stream m a------|=>----Stream m a---
-    --
-    -- @
-    --
-    -- @
-    -- >> S.toList $ S.fromList [1,2] \<> S.fromList [3,4]
-    -- [1,2,3,4]
-    -- >> S.toList $ fold $ [S.fromList [1,2], S.fromList [3,4]]
-    -- [1,2,3,4]
-    -- @
-
-    -- ** Merging
-    -- | Streams form a commutative semigroup under the merge
-    -- operation.
-    --
-    -- @
-    --
-    -- -------Stream m a------|
-    --                        |=>----Stream m a---
-    -- -------Stream m a------|
-    -- @
-    --
-
-    -- , merge
-    , mergeBy
-    , mergeByM
-    , mergeAsyncBy
-    , mergeAsyncByM
-
-    -- ** Zipping
-    -- |
-    -- @
-    --
-    -- -------Stream m a------|
-    --                        |=>----Stream m c---
-    -- -------Stream m b------|
-    -- @
-    --
-    , zipWith
-    , zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
-
-    -- ** Nested Streams
-    -- | Stream operations represent loops in imperative programming, streams
-    -- of streams represent nested loops.
-
-    , concatMapM
-    , concatMap
-    , concatMapBy
-    -- , interposeBy
-    -- , intercalate
 
     -- -- ** Breaking
 
@@ -480,10 +441,11 @@ module Streamly.Prelude
     -- , spanByRolling
 
     -- By sequences
-    -- breakOnSeq
+    -- breakOnSeq/breakOnArray -- on a fixed sequence
+    -- breakOnStream -- on a stream
 
-    -- ** Splitting
-    -- | Streams can be split into segments in space or in time. We use the
+    -- ** Slicing
+    -- | Streams can be sliced into segments in space or in time. We use the
     -- term @chunk@ to refer to a spatial length of the stream (spatial window)
     -- and the term @session@ to refer to a length in time (time window).
 
@@ -494,26 +456,59 @@ module Streamly.Prelude
 
     -- , groupScan
 
-    -- -- *** Chunks
     , chunksOf
     , sessionsOf
 
-    -- , lchunksOf
-    -- , lsessionsOf
+    -- ** Searching
+    -- | Finding the presence or location of an element, a sequence of elements
+    -- or another stream within a stream.
 
-    -- -- *** Using Element Separators
-    -- On == Dropping the separator
+    -- -- ** Searching Elements
+    , findIndices
+    , elemIndices
+
+    -- -- *** Searching Sequences
+    -- , seqIndices -- search a sequence in the stream
+
+    -- -- *** Searching Multiple Sequences
+    -- , seqIndices -- search a sequence in the stream
+
+    -- -- ** Searching Streams
+    -- -- | Finding a stream within another stream.
+
+    -- ** Splitting
+    -- | In general we can express splitting in terms of parser combinators.
+    -- These are some common use functions for convenience and efficiency.
+    -- While parsers can fail these functions are designed to transform a
+    -- stream without failure with a predefined behavior for all cases.
+    --
+    -- In general, there are three possible ways of combining stream segments
+    -- with a separator. The separator could be prefixed to each segment,
+    -- suffixed to each segment, or it could be infixed between segments.
+    -- 'intersperse' and 'intercalate' operations are examples of infixed
+    -- combining whereas 'unlines' is an example of suffixed combining. When we
+    -- split a stream with separators we can split in three different ways,
+    -- each being an opposite of the three ways of combining.
+    --
+    -- Splitting may keep the separator or drop it. Depending on how we split,
+    -- the separator may be kept attached to the stream segments in prefix or
+    -- suffix position or as a separate element in infix position. Combinators
+    -- like 'splitOn' that use @On@ in their names drop the separator and
+    -- combinators that use 'By' in their names keep the separator. When a
+    -- segment is missing it is considered as empty, therefore, we never
+    -- encounter an error in parsing.
+
+    -- -- ** Splitting By Elements
     , splitOn
     , splitOnSuffix
     -- , splitOnPrefix
 
-    -- By == Keeping the separator
     -- , splitBy
     , splitBySuffix
     -- , splitByPrefix
-    , wordsBy -- stripAndCompactBy
+    , wordsBy -- strip, compact and split
 
-    -- -- *** Using Sequence Separators
+    -- -- *** Splitting By Sequences
     -- , splitOnSeq
     -- , splitOnSuffixSeq
     -- , splitOnPrefixSeq
@@ -524,19 +519,20 @@ module Streamly.Prelude
     -- , splitBySeqPrefix
     -- , wordsBySeq
 
-    -- Splitting using multiple sequence separators
+    -- Splitting By Multiple Sequences
     -- , splitOnAnySeq
     -- , splitOnAnySuffixSeq
     -- , splitOnAnyPrefixSeq
 
+    -- -- ** Splitting By Streams
+    -- -- | Splitting a stream using another stream as separator.
+
     -- ** Grouping
+    -- | Splitting a stream by combining multiple contiguous elements into
+    -- groups using some criterion.
     , groups
     , groupsBy
     , groupsByRolling
-
-    -- ** Distributing
-    , trace
-    , tap
 
     {-
     -- * Windowed Classification
@@ -572,25 +568,100 @@ module Streamly.Prelude
     -- , slidingSessionBuffer
     -}
 
-    -- ** Containers of Streams
+    -- * Combining Streams
+    -- | New streams can be constructed by appending, merging or zipping
+    -- existing streams.
+
+    -- ** Appending
+    -- | Streams form a 'Semigroup' and a 'Monoid' under the append
+    -- operation. Appending can be considered as a generalization of the `cons`
+    -- operation to consing a stream to a stream.
+    --
+    -- @
+    --
+    -- -------Stream m a------|-------Stream m a------|=>----Stream m a---
+    --
+    -- @
+    --
+    -- @
+    -- >> S.toList $ S.fromList [1,2] \<> S.fromList [3,4]
+    -- [1,2,3,4]
+    -- >> S.toList $ fold $ [S.fromList [1,2], S.fromList [3,4]]
+    -- [1,2,3,4]
+    -- @
+
+    -- ** Merging
+    -- | Streams form a commutative semigroup under the merge
+    -- operation. Merging can be considered as a generalization of inserting an
+    -- element in a stream to interleaving a stream with another stream.
+    --
+    -- @
+    --
+    -- -------Stream m a------|
+    --                        |=>----Stream m a---
+    -- -------Stream m a------|
+    -- @
+    --
+
+    -- , merge
+    , mergeBy
+    , mergeByM
+    , mergeAsyncBy
+    , mergeAsyncByM
+
+    -- ** Zipping
+    -- |
+    -- @
+    --
+    -- -------Stream m a------|
+    --                        |=>----Stream m c---
+    -- -------Stream m b------|
+    -- @
+    --
+    , zipWith
+    , zipWithM
+    , zipAsyncWith
+    , zipAsyncWithM
+
+    -- ** Folding Containers of Streams
     -- | These are variants of standard 'Foldable' fold functions that use a
     -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
-    -- finite container of streams.
+    -- finite container of streams. Note that these are just special cases of
+    -- the more general 'concatMapBy' operation.
     --
-    , foldWith
     , foldMapWith
     , forEachWith
+    , foldWith
 
-    -- ** Folding
-    , eqBy
-    , cmpBy
-    , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
-    , isSubsequenceOf
-    , stripPrefix
-    -- , stripSuffix
-    -- , stripInfix
+    -- ** Folding Streams of Streams
+    -- | Stream operations like map and filter represent loop processing in
+    -- imperative programming terms. Similarly, the imperative concept of
+    -- nested loops are represented by streams of streams. The 'concatMap'
+    -- operation represents nested looping.
+    -- A 'concatMap' operation loops over the input stream and then for each
+    -- element of the input stream generates another stream and then loops over
+    -- that inner stream as well producing effects and generating a single
+    -- output stream.
+    -- The 'Monad' instances of different stream types provide a more
+    -- convenient way of writing nested loops. Note that the monad bind
+    -- operation is just @flip concatMap@.
+    --
+    -- One dimension loops are just a special case of nested loops.  For
+    -- example, 'concatMap' can degenerate to a simple map operation:
+    --
+    -- > map f m = S.concatMap (\x -> S.yield (f x)) m
+    --
+    -- Similarly, 'concatMap' can perform filtering by mapping an element to a
+    -- 'nil' stream:
+    --
+    -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
+    --
+
+    -- XXX add stateful concatMapBy
+    , concatMapBy
+    --, bindWith
+    , concatMap
+    , concatMapM
 
     -- * Exceptions
     , before
@@ -623,3 +694,235 @@ import Prelude
                scanl, scanl1, repeat, replicate, concatMap, span)
 
 import Streamly.Prelude.Internal
+
+-- $rightfolds
+--
+-- Let's take a closer look at the @foldr@ definition for lists, as given
+-- earlier:
+--
+-- @
+-- foldr f z (x:xs) = x \`f` foldr f z xs
+-- @
+--
+-- @foldr@ invokes the fold step function @f@ as @f x (foldr f z xs)@. At each
+-- invocation of @f@, @foldr@ gives us the next element in the input container
+-- @x@ and a recursive expression @foldr f z xs@ representing the yet unbuilt
+-- (lazy thunk) part of the output.
+--
+-- When @f x xs@ is lazy in @xs@ it can consume the input one element at a time
+-- in FIFO order to build a lazy output expression. For example,
+--
+-- > f x remaining = show x : remaining
+--
+-- @take 2 $ foldr f [] (1:2:undefined)@ would consume the input lazily on
+-- demand, consuming only first two elements and resulting in ["1", "2"]. @f@
+-- can terminate recursion by not evaluating the @remaining@ part:
+--
+-- > f 2 remaining = show 2 : []
+-- > f x remaining = show x : remaining
+--
+-- @f@ would terminate recursion whenever it sees element @2@ in the input.
+-- Therefore, @take 2 $ foldr f [] (1:2:undefined)@ would work without any
+-- problem.
+--
+-- On the other hand, if @f a b@ is strict in @b@ it would end up consuming the
+-- whole input right away and expanding the recursive expression @b@ (i.e.
+-- @foldr f z xs@) fully before it yields an output expression, resulting in
+-- the following /right associated expression/:
+--
+-- @
+-- foldr f z xs == x1 \`f` (x2 \`f` ...(xn \`f` z))
+-- @
+--
+-- For example,
+--
+-- > f x remaining = x + remaining
+--
+-- With this definition, @foldr f 0 [1..1000]@, would recurse completely until
+-- it reaches the terminating case @... `f` (1000 `f` 0)@, and then
+-- start reducing the whole expression from right to left, therefore, consuming
+-- the input elements in LIFO order. Thus, such an evaluation would require
+-- memory proportional to the size of input. Try out @foldr (+) 0 (map (\\x ->
+-- trace (show x) x) [1..10])@.
+--
+-- Notice the order of the arguments to the step function @f a b@. It follows
+-- the order of @a@ and @b@ in the right associative recursive expression
+-- generated by expanding @a \`f` b@.
+--
+-- A right fold is a pull fold, the step function is the puller, it can pull
+-- more data from the input container by using its second argument in the
+-- output expression or terminate pulling by not using it. As a corollary:
+--
+-- 1. a step function which is lazy in its second argument (usually functions
+-- or constructors that build a lazy structure e.g. @(:)@) can pull lazily on
+-- demand.
+-- 2. a step function strict in its second argument (usually reducers e.g.
+-- (+)) would end up pulling all of its input and buffer it in memory before
+-- potentially reducing it.
+--
+-- A right fold is suitable for lazy reconstructions e.g.  transformation,
+-- mapping, filtering of /right associated input structures/ (e.g. cons lists).
+-- Whereas a left fold is suitable for reductions (e.g. summing a stream of
+-- numbers) of right associated structures. Note that these roles will reverse
+-- for left associated structures (e.g. snoc lists). Most of our observations
+-- here assume right associated structures, lists being the canonical example.
+--
+-- 1. A lazy FIFO style pull using a right fold allows pulling a potentially
+-- /infinite/ input stream lazily, perform transformations on it, and
+-- reconstruct a new structure without having to buffer the whole structure. In
+-- contrast, a left fold would buffer the entire structure before the
+-- reconstructed structure can be consumed.
+-- 2. Even if buffering the entire input structure is ok, we need to keep in
+-- mind that a right fold reconstructs structures in a FIFO style, whereas a
+-- left fold reconstructs in a LIFO style, thereby reversing the order of
+-- elements..
+-- 3. A right fold has termination control and therefore can terminate early
+-- without going throught the entire input, a left fold cannot terminate
+-- without consuming all of its input.  For example, a right fold
+-- implementation of 'or' can terminate as soon as it finds the first 'True'
+-- element, whereas a left fold would necessarily go through the entire input
+-- irrespective of that.
+-- 4. Reduction (e.g. using (+) on a stream of numbers) using a right fold
+-- occurs in a LIFO style, which means that the entire input gets buffered
+-- before reduction starts. Whereas with a strict left fold reductions occur
+-- incrementally in FIFO style. Therefore, a strict left fold is more suitable
+-- for reductions.
+--
+
+-- $leftfolds
+--
+-- Note that the observations below about the behavior of a left fold assume
+-- that we are working on a right associated structure like cons lists and
+-- streamly streams. If we are working on a left associated structure (e.g.
+-- snoc lists) the roles of right and left folds would reverse.
+--
+-- Let's take a closer look at the @foldl@ definition for lists given above:
+--
+-- @
+-- foldl f z (x:xs) = foldl f (z \`f` x) xs
+-- @
+--
+-- @foldl@ calls itself recursively, in each call it invokes @f@ as @f z x@
+-- providing it with the result accumulated till now @z@ (the state) and the
+-- next element from the input container. First call to @f@ is supplied with
+-- the initial value of the accumulator @z@ and each subsequent call uses the
+-- output of the previous call to @f z x@.
+--
+-- >> foldl' (+) 0 [1,2,3]
+-- > 6
+--
+-- The recursive call at the head of the output expression is bound to be
+-- evaluated until recursion terminates, therefore, a left fold always
+-- /consumes the whole input container/. The following would result in an
+-- error, even though the fold is not using the values at all:
+--
+-- >> foldl' (\_ _ -> 0) 0 (1:undefined)
+-- > *** Exception: Prelude.undefined
+--
+-- As @foldl@ recurses, it builds the left associated expression shown below.
+-- Notice, the order of the arguments to the step function @f b a@. It follows
+-- the left associative recursive expression generated by expanding @b \`f` a@.
+--
+-- @
+-- foldl f z xs == (((z \`f` x1) \`f` x2) ...) \`f` xn
+-- @
+--
+--
+-- The strict left fold @foldl'@ forces the reduction of its argument @z \`f`
+-- x@ before using it, therefore it never builds the whole expression in
+-- memory.  Thus, @z \`f` x1@ would get reduced to @z1@ and then @z1 \`f` x2@
+-- would get reduced to @z2@ and so on, incrementally reducing the expression
+-- from left to right as it recurses, consuming the input in FIFO order.  Try
+-- out @foldl' (+) 0 (map (\\x -> trace (show x) x) [1..10])@ to see how it
+-- works. For example:
+--
+-- @
+-- > S.foldl' (+) 0 $ S.fromList [1,2,3,4]
+-- 10
+-- @
+--
+-- @
+-- 0 + 1 = 1
+-- 1 + 2 = 3
+-- 3 + 3 = 6
+-- 6 + 4 = 10
+-- @
+--
+-- However, @foldl'@ evaluates the accumulator only to WHNF. It may further
+-- help if the step function uses a strict data structure as accumulator to
+-- improve performance and to keep the expression fully reduced at all times
+-- during the fold.
+--
+-- A left fold can also build a new structure instead of reducing one if a
+-- constructor is used as a fold step. However, it may not be very useful
+-- because it will consume the whole input and construct the new structure in
+-- memory before we can consume it. Thus the whole structure gets buffered in
+-- memory. When the list constructor is used it would build a new list in
+-- reverse (LIFO) order:
+--
+-- @
+-- > S.foldl' (flip (:)) [] $ S.fromList [1,2,3,4]
+-- [4,3,2,1]
+-- @
+--
+-- A left fold is a push fold. The producer pushes its contents to the step
+-- function of the fold. The step function therefore has no control to stop the
+-- input, it can only discard it if it does not need it. We can also consider a
+-- left fold as a state machine where the state is store in the accumulator,
+-- the state can be modified based on new inputs that are pushed to the fold.
+--
+-- In general, a strict left fold is a reducing fold, whereas a right fold is a
+-- constructing fold. A strict left fold reduces in a FIFO order whereas it
+-- constructs in a LIFO order, and vice-versa for the right fold. See the
+-- documentation of 'foldrM' for a discussion on where a left or right fold is
+-- suitable.
+--
+-- To perform a left fold lazily without having to consume all the input one
+-- can use @scanl@ to stream the intermediate results of the fold and consume
+-- the resulting stream lazily.
+--
+
+-- $runningfolds
+--
+-- "Streamly.Fold" module defines composable left folds which can be combined
+-- together in many interesting ways. Those folds can be run using 'runFold'.
+-- The following two ways of folding are equivalent in functionality and
+-- performance,
+--
+-- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
+-- 5050
+-- >>> S.sum (S.enumerateFromTo 1 100)
+-- 5050
+--
+-- However, left folds cannot terminate early even if it does not need to
+-- consume more input to determine the result.  Therefore, the performance is
+-- equivalent only for full folds like 'sum' and 'length'. For partial folds
+-- like 'head' or 'any' the the folds defined in this module may be much more
+-- efficient because they are implemented as right folds that terminate as soon
+-- as we get the result. Note that when a full fold is composed with a partial
+-- fold in parallel the performance is not impacted as we anyway have to
+-- consume the whole stream due to the full fold.
+--
+-- >>> S.head (1 `S.cons` undefined)
+-- Just 1
+-- >>> S.runFold FL.head (1 `S.cons` undefined)
+-- *** Exception: Prelude.undefined
+--
+-- However, we can wrap the fold in a scan to convert it into a lazy stream of
+-- fold steps. We can then terminate the stream whenever we want.  For example,
+--
+-- >>> S.toList $ S.take 1 $ S.runScan FL.head (1 `S.cons` undefined)
+-- [Nothing]
+--
+-- The following example extracts the input stream up to a point where the
+-- running average of elements is no more than 10:
+--
+-- @
+-- > S.toList
+--   $ S.map (fromJust . fst)
+--   $ S.takeWhile (\\(_,x) -> x <= 10)
+--   $ S.runPostscan ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
+-- @
+-- @
+--  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]
+-- @
