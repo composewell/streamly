@@ -72,7 +72,7 @@ operations.
 
 #### Concurrent concatMap
 
-The new `concatMapBy` combinator performs a `concatMap` using a supplied
+The new `concatMapWith` combinator performs a `concatMap` using a supplied
 merge/concat strategy. This is a very powerful combinator as you can, for
 example, concat streams concurrently using this.
 
@@ -87,6 +87,10 @@ example, concat streams concurrently using this.
     of arrays.
 
 * Add the following to `Streamly.Prelude`:
+    * `runFold`, `runScan` and `runPostscan`
+    * `intervalsOf` and `chunksOf`
+    * `splitOn`, `splitOnSuffix`, `splitWithSuffix`, and `wordsBy`
+    * `groups`, `groupsBy` and `groupsByRolling`
     * `postscanl'` and `postscanlM'`
     * `intersperse` intersperse an element in between consecutive elements in
       stream
