@@ -259,7 +259,7 @@ module Streamly.Prelude.Internal
 
     -- -- *** Chunks
     , chunksOf
-    , sessionsOf
+    , intervalsOf
 
     -- -- *** Using Element Separators
     , splitOn
@@ -2237,18 +2237,18 @@ chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
--- >>> S.toList $ S.take 5 $ sessionsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
+-- >>> S.toList $ S.take 5 $ intervalsOf 1 FL.sum $ constRate 2 $ S.enumerateFrom 1
 -- > [3,7,11,15,19]
 --
 -- | Group the input stream into windows of @n@ second each and then fold each
 -- group using the provided fold function.
 --
 -- @since 0.7.0
-{-# INLINE sessionsOf #-}
-sessionsOf
+{-# INLINE intervalsOf #-}
+intervalsOf
     :: (IsStream t, MonadAsync m)
     => Double -> Fold m a b -> t m a -> t m b
-sessionsOf n f xs =
+intervalsOf n f xs =
     splitBySuffix isNothing (FL.lcatMaybes f)
         (intersperseByTime n (return Nothing) (Serial.map Just xs))
 

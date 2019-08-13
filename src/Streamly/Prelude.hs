@@ -457,7 +457,7 @@ module Streamly.Prelude
     -- , groupScan
 
     , chunksOf
-    , sessionsOf
+    , intervalsOf
 
     -- ** Searching
     -- | Finding the presence or location of an element, a sequence of elements
