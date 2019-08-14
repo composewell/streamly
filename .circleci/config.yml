@@ -205,6 +205,7 @@ jobs:
               # required by hpc-coveralls
               apt-get install -y libcurl4-gnutls-dev
               apt-get install -y git
+              apt-get install libtinfo-dev
               bash -c "$PACKCHECK cabal-v1"
         - *save
 
