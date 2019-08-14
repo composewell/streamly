@@ -24,12 +24,12 @@ main = do
         (\src -> S.runFold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatMap A.read
-        $ S.concatMapBy parallel (flip NS.withSocketS recv)
+        $ S.concatMapWith parallel (flip NS.withSocketS recv)
         $ NS.connectionsOnAllAddrs 8090)
 
     where
 
     recv =
-          S.splitBySuffix (== '\n') A.write
+          S.splitWithSuffix (== '\n') A.write
         . decodeChar8
         . NS.read
