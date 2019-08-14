@@ -8,23 +8,38 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Stream of 'Char' are the equivalent of Haskell Strings but without any
--- performance issues that are usually associated with the 'String' type.
--- Haskell lists are not suitable for storage in GC memory. We use streams for
--- processing and arrays for storing. We can use the usual stream processing
--- routines on these 'Char' streams. Stream processing is very efficient due to
--- stream fusion. If strings are to be stored or buffered in memory, they can
--- be encoded to 'Word8' arrays using the encoding routines provided in the
--- module. Therefore, a separate type for text representation is not required.
--- A @Stream Identity Char@ can be used almost as a drop-in replacement for the
--- standard Haskell @String@, especially when used with @OverloadedStrings@
--- extension, with little differences.
-
--- The 'String' type in this module is just a synonym for the type @List Char@.
--- It provides better performance compared to the standard Haskell @String@
--- type and can be used almost as a drop-in replacement, especially when used
--- with @OverloadedStrings@ extension, with little differences.
+-- A unicode string can be represented either as a stream of 'Char' e.g.
+-- 'SerialT' 'Identity' 'Char' or as 'Array' 'Char'.  Unicode text processing
+-- can be done efficiently by applying stream operations and folds on the
+-- stream of 'Char'. When using 'Array' 'Char' direct array operations can be
+-- applied where available or the array can be read into a stream and then
+-- processed using stream operations. Use 'Array' 'Char' when you need to store
+-- or buffer strings temporarily in memory.  Streams in 'Identity' monad and
+-- 'Array' 'Char' are instances of 'IsString' and 'IsList', therefore,
+-- 'OverloadedStrings' and 'OverloadedLists' extensions can be used for
+-- convenience.
 --
+-- 'Array' 'Char' is usually perfectly fine to buffer short to medium or even
+-- large amounts of text in memory. Also, it is computationally efficient as
+-- there is no encoding/decoding involved.  We recommend using true streaming
+-- operations to avoid buffering large amounts of data as long as possible e.g.
+-- use `foldLines` instead of `lines`. However, if for some reason you are
+-- buffering very large amounts of text in memory and are worried about space
+-- efficiency you can use 'encodeUtf8' on the stream to convert it to a utf8
+-- encoded 'Array' 'Word8'.
+--
+-- Please note the following:
+--
+-- * Case conversion: Some unicode characters translate to more than one code
+-- point on case conversion. The 'toUpper' and 'toLower' functions in @base@
+-- package do not handle such characters. Therefore, operations like @map
+-- toUpper@ on a character stream or character array may not always perform
+-- correct conversion.
+-- * String comparison: In some cases, visually identical strings may have
+-- different unicode representations, therefore, a character stream or
+-- character array cannot be directly compared. A normalized comparison may be
+-- needed to check string equivalence correctly.
+
 -- See "Streamly.List", <src/docs/streamly-vs-lists.md> for more details and
 -- <src/test/PureStreams.hs> for comprehensive usage examples.
 
@@ -33,15 +48,14 @@
 --
 module Streamly.Data.String
     (
-    -- String
-
-    -- * Encoding and Decoding
-      encodeChar8
-    , encodeChar8Unchecked
-    , decodeChar8
-
-    , encodeUtf8
+    -- * Construction (Decoding)
+      decodeChar8
     , decodeUtf8
+
+    -- * Elimination (Encoding)
+    , encodeChar8
+    , encodeChar8Unchecked
+    , encodeUtf8
 {-
     -- * Unicode aware operations
     , toCaseFold
@@ -52,10 +66,12 @@ module Streamly.Data.String
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
     , stripEnd-}
-    -- * Substrings
+    -- * Transformation
     , stripStart
     , foldLines
     , foldWords
+
+    -- * Streams of Strings
     , lines
     , words
     , unlines
@@ -73,7 +89,6 @@ import Streamly.Fold (Fold)
 import Streamly.Memory.Array (Array)
 
 import qualified Streamly.Prelude as S
-import qualified Streamly.Memory.Array.Types as A (unlines)
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
@@ -157,27 +172,33 @@ stripEnd :: IsStream t => t m Char -> t m Char
 stripEnd = undefined
 -}
 
--- | Remove leading whitespace from a String.
+-- | Remove leading whitespace from a string.
 --
 -- > stripStart = S.dropWhile isSpace
 {-# INLINE stripStart #-}
 stripStart :: (Monad m, IsStream t) => t m Char -> t m Char
 stripStart = S.dropWhile isSpace
 
--- | Fold each line of the stream using the supplied Fold
+-- | Fold each line of the stream using the supplied 'Fold'
 -- and stream the result.
 --
 -- >>> S.toList $ foldLines FL.toList (S.fromList "lines\nthis\nstring\n\n\n")
 -- ["lines", "this", "string", "", ""]
+--
+-- > foldLines = S.splitOnSuffix (== '\n')
+--
 {-# INLINE foldLines #-}
 foldLines :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
 foldLines = S.splitOnSuffix (== '\n')
 
--- | Fold each word of the stream using the supplied Fold
+-- | Fold each word of the stream using the supplied 'Fold'
 -- and stream the result.
 --
 -- >>>  S.toList $ foldWords FL.toList (S.fromList "fold these     words")
 -- ["fold", "these", "words"]
+--
+-- > foldWords = S.wordsBy isSpace
+--
 {-# INLINE foldWords #-}
 foldWords :: (Monad m, IsStream t) => Fold m Char b -> t m Char -> t m b
 foldWords = S.wordsBy isSpace
@@ -194,29 +215,33 @@ isSpace c
   where
     uc = fromIntegral (ord c) :: Word
 
--- | Break a string up into a list of strings at newline characters.
+-- | Break a string up into a stream of strings at newline characters.
 -- The resulting strings do not contain newlines.
+--
+-- > lines = foldLines A.write
 --
 -- >>> S.toList $ lines $ S.fromList "lines\nthis\nstring\n\n\n"
 -- ["lines","this","string","",""]
 --
 -- If you're dealing with lines of massive length, consider using
--- 'foldLines' instead.
+-- 'foldLines' instead to avoid buffering the data in 'Array'.
 {-# INLINE lines #-}
 lines :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-lines = S.splitOnSuffix (== '\n') A.write
+lines = foldLines A.write
 
--- | Break a string up into a list of strings, which were delimited
+-- | Break a string up into a stream of strings, which were delimited
 -- by characters representing white space.
+--
+-- > words = foldWords A.write
 --
 -- >>> S.toList $ words $ S.fromList "A  newline\nis considered white space?"
 -- ["A", "newline", "is", "considered", "white", "space?"]
 --
 -- If you're dealing with words of massive length, consider using
--- 'foldWords' instead.
+-- 'foldWords' instead to avoid buffering the data in 'Array'.
 {-# INLINE words #-}
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
-words = S.wordsBy isSpace A.write
+words = foldWords A.write
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.
@@ -226,12 +251,14 @@ words = S.wordsBy isSpace A.write
 -- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
+-- > unlines = AS.unlinesBy '\n'
+--
 -- Note that, in general
 --
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
-unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
+unlines = AS.unlinesBy '\n'
 
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.
@@ -240,6 +267,9 @@ unlines = D.fromStreamD . A.unlines '\n' . D.toStreamD
 --
 -- >>> S.toList $ unwords $ S.fromList ["unwords", "this", "string"]
 -- "unwords this string"
+--
+--
+-- > unwords = AS.flatten . (S.intersperse (A.fromList " "))
 --
 -- Note that, in general
 --
