@@ -1,15 +1,15 @@
 # Using `streamly` package
 
-The latest stable release of the package is available 
-[on Hackage](https://hackage.haskell.org/package/streamly). You can also try
-the latest development version 
-[from github](https://github.com/composewell/streamly).
+* [Latest stable release](https://hackage.haskell.org/package/streamly) is available on
+  Hackage.
+* [Latest development version](https://github.com/composewell/streamly) is
+  available on github.
+* See [recommeded compilation options here](docs/Build.md).
 
-The default version available to you and how to pick a specific version may
-depend on the build tool you are using. We have provided instructions to use a
-specific version for some tools below.
+If you are using `stack` or `nix` please make sure to add the latest version
+from Hackage to your tool configuration.
 
-## cabal
+## Using with `cabal`
 
 Make sure you have `cabal` version 2.4 or later installed and you have `ghc`
 available in your PATH. Refresh your package list:
@@ -18,19 +18,20 @@ available in your PATH. Refresh your package list:
 $ cabal v2-update
 ```
 
-### hackage version in repl
+### Using hackage version in repl
 
 ```
-# Pick the latest version on Hackage
+# Run repl with the latest version from Hackage
 $ cabal v2-repl --build-depends streamly
 
-# Pick a specific version on Hackage
+# Run repl with a specific version from Hackage
 $ cabal v2-repl --build-depends streamly==0.6.1
 ```
 
-### github version in repl
+### Using github version in repl
 
-Create a `test` directory and create a `cabal.project` file in it as follows:
+Create a directory for your playground (e.g. `test`) and create a
+`cabal.project` file in it as follows:
 
 ```
 packages: .
@@ -40,7 +41,7 @@ source-repository-package
   tag: master
 ```
 
-Create a `test.cabal` file as follows
+Create a cabal file (e.g. `test.cabal`) as follows
 
 ```
 cabal-version: 2.4
@@ -57,7 +58,7 @@ Run repl:
 $ cabal v2-repl
 ```
 
-### ghc
+### Compiling with ghc
 
 ```
 $ cat hello.hs
@@ -71,7 +72,7 @@ $ cabal v2-install streamly-0.6.1
 $ ghc -package streamly-0.6.1 hello.hs
 ```
 
-### Project
+### Using in a Project
 
 Add `streamly` to the `build-depends` section of your library/executable in
 your `<package>.cabal` file. Appropriate version from Hackage will be picked
