@@ -17,7 +17,6 @@ import Gauge
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Data.String as SS
@@ -111,7 +110,7 @@ main = do
                 S.sum (S.map A.length s)
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ AS.splitOn 10 $ FH.readArrays inh
+                S.length $ A.splitOn 10 $ FH.readArrays inh
             , mkBench "sum" href $ do
                 let foldlArr' f z = runIdentity . S.foldl' f z . A.read
                 Handles inh _ <- readIORef href
@@ -201,7 +200,7 @@ main = do
                 Handles inh outh <- readIORef href
                 S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
                     $ Internal.insertAfterEach (return $ A.fromList [10])
-                    $ AS.splitOn 10
+                    $ A.splitOn 10
                     $ FH.readArraysOf (1024*1024) inh
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href

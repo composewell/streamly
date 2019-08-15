@@ -214,6 +214,7 @@ library
                      , Streamly.Pipe.Types
                      , Streamly.Pipe
 
+                     , Streamly.Memory.ArrayStream
                      , Streamly.Prelude.Internal
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
@@ -234,7 +235,6 @@ library
 
                     -- IO devices
                      , Streamly.Memory.Array
-                     , Streamly.Memory.ArrayStream
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial

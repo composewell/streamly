@@ -13,7 +13,6 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert)
 import           Test.Hspec as H
 
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
 
@@ -58,7 +57,7 @@ testLinesArray =
         monadicIO $ do
             xs <- S.toList
                     $ S.map A.toList
-                    $ AS.splitOn 10
+                    $ A.splitOn 10
                     $ S.yield (A.fromList list)
             assert (xs == map (map (fromIntegral . ord))
                               (lines (map (chr .  fromIntegral) list)))

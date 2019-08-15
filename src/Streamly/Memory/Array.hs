@@ -65,7 +65,8 @@ module Streamly.Memory.Array
 
     -- , defaultChunkSize
 
-    -- * Construction
+    -- * Arrays
+    -- ** Construction
     -- | When performance matters, the fastest way to generate an array is
     -- 'writeN'. For regular use, 'IsList' and 'IsString' instances can be
     -- used to conveniently construct arrays from literal values.
@@ -86,7 +87,7 @@ module Streamly.Memory.Array
     -- , writeNS
     -- , writeS
 
-    -- * Elimination
+    -- ** Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
@@ -94,7 +95,7 @@ module Streamly.Memory.Array
     , A.read
     , readRev
 
-    -- * Random Access
+    -- ** Random Access
     , length
     -- , (!!)
 
@@ -118,6 +119,20 @@ module Streamly.Memory.Array
     -- , runStreamFold
     , runFold
     -}
+
+    -- * Streams of Arrays
+    -- ** Creation
+    , AS.arraysOf
+
+    -- ** Elimination
+    , AS.flatten
+    -- , AS.concatRev
+    , AS.unlinesBy
+    , AS.toArray
+
+    -- ** Transformation
+    , AS.splitOn
+    , AS.compact -- compact
     )
 where
 
@@ -136,6 +151,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
 
 import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D
