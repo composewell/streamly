@@ -42,6 +42,7 @@ module Streamly.Data.String
 
     , encodeUtf8
     , decodeUtf8
+    , decodeUtf8Lenient
 {-
     -- * Unicode aware operations
     , toCaseFold
@@ -123,6 +124,13 @@ encodeChar8Unchecked = S.map (fromIntegral . ord)
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: (Monad m, IsStream t) => t m Word8 -> t m Char
 decodeUtf8 = D.fromStreamD . D.decodeUtf8 . D.toStreamD
+
+-- | Decode a UTF-8 encoded bytestream to a stream of Unicode characters.
+-- Any invalid codepoint encountered is replaced with the unicode replacement
+-- character.
+{-# INLINE decodeUtf8Lenient #-}
+decodeUtf8Lenient :: (Monad m, IsStream t) => t m Word8 -> t m Char
+decodeUtf8Lenient = D.fromStreamD . D.decodeUtf8Lenient . D.toStreamD
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
 {-# INLINE encodeUtf8 #-}
