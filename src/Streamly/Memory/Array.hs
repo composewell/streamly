@@ -127,7 +127,7 @@ module Streamly.Memory.Array
     -- ** Elimination
     , AS.concat
     -- , AS.concatRev
-    , AS.unlinesBy
+    , AS.concatWithSuffix
     , AS.toArray
 
     -- ** Transformation

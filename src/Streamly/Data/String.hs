@@ -250,14 +250,14 @@ words = foldWords A.write
 -- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
--- > unlines = AS.unlinesBy '\n'
+-- > unlines = A.concatWithSuffix '\n'
 --
 -- Note that, in general
 --
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
-unlines = AS.unlinesBy '\n'
+unlines = A.concatWithSuffix '\n'
 
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.
@@ -268,7 +268,7 @@ unlines = AS.unlinesBy '\n'
 -- "unwords this string"
 --
 --
--- > unwords = AS.flatten . (S.intersperse (A.fromList " "))
+-- > unwords = A.concat . (S.intersperse (A.fromList " "))
 --
 -- Note that, in general
 --

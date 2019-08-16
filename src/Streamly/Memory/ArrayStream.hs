@@ -26,7 +26,7 @@ module Streamly.Memory.ArrayStream
     -- * Flattening to elements
     , concat
     , concatRev
-    , unlinesBy
+    , concatWithSuffix
 
     -- * Transformation
     , splitOn
@@ -87,10 +87,10 @@ concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 -- array.
 --
 -- @since 0.7.0
-{-# INLINE unlinesBy #-}
-unlinesBy :: (MonadIO m, IsStream t, Storable a)
+{-# INLINE concatWithSuffix #-}
+concatWithSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
-unlinesBy x = D.fromStreamD . A.unlines x . D.toStreamD
+concatWithSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
