@@ -79,13 +79,40 @@ module Streamly
       MonadAsync
 
     -- * Stream transformers
+    -- | A stream represents a sequence of pure or effectful actions. The
+    -- `cons` and `consM` operations and the corresponding operators '.:' and
+    -- '|:' can be used to join pure values or effectful actions in a sequence.
+    -- The effects in the stream can be executed in many different ways
+    -- depending on the type of stream. In other words, the behavior of 'consM'
+    -- depends on the type of the stream.
+    --
+    -- There are three high level categories of streams, /spatially ordered/
+    -- streams, /speculative/ streams and /time ordered/ streams. Spatially
+    -- ordered streams, 'SerialT' and 'WSerialT', execute the effects in serial
+    -- order i.e. one at a time and present the outputs of those effects to the
+    -- consumer in the same order.  Speculative streams, 'AheadT', may execute
+    -- many effects concurrently but present the outputs to the consumer in the
+    -- specified spatial order.  Time ordered streams, 'AsyncT', 'WAsyncT' and
+    -- 'ParallelT', may execute many effects concurrently and present the
+    -- outputs of those effects to the consumer in time order i.e. as soon as
+    -- the output is generated.
+    --
+    -- We described above how the effects in a sequence are executed for
+    -- different types of streams. The behvavior of the 'Semigroup' and 'Monad'
+    -- instances follow the behavior of 'consM'. Stream generation operations
+    -- like 'repeatM' also execute the effects differently for different
+    -- streams, providing a concurrent generation capability when used with
+    -- stream types that execute effects concurrently. Similarly, effectful
+    -- transformation operations like 'mapM' also execute the transforming
+    -- effects differently for different types of streams.
+
     -- ** Serial Streams
     -- $serial
     , SerialT
     , WSerialT
 
     -- ** Speculative Streams
-    -- $lookahead
+    -- $ahead
     , AheadT
 
     -- ** Asynchronous Streams
@@ -415,21 +442,93 @@ forEachWith = P.forEachWith
 
 -- $serial
 --
--- Serial streams compose serially or non-concurrently. In a composed stream,
--- each action is executed only after the previous action has finished.  The two
--- serial stream types 'SerialT' and 'WSerialT' differ in how they traverse the
--- streams in a 'Semigroup' or 'Monad' composition.
+-- When a stream consumer demands an element from a serial stream constructed
+-- as @a \`consM` b \`consM` ... nil@, the action @a@ at the head of the stream
+-- sequence is executed and the result is supplied to the consumer. When the
+-- next element is demanded, the action @b@ is executed and its result is
+-- supplied.  Thus, the effects are performed and results are consumed strictly
+-- in a serial order.  Serial streams can be considered as /spatially ordered/
+-- streams as the order of execution and consumption is the same as the spatial
+-- order in which the actions are composed by the programmer.
+--
+-- Serial streams enforce the side effects as well as the results of the
+-- actions to be in the same order in which the actions are added to the
+-- stream.  Therefore, the semigroup operation for serial streams is not
+-- commutative:
+--
+-- @
+-- a <> b is not the same as b <> a
+-- @
+--
+-- There are two serial stream types 'SerialT' and 'WSerialT'. The stream
+-- evaluation of both the variants works in the same way as described above,
+-- they differ only in the 'Semigroup' and 'Monad' implementaitons.
+
+-- $ahead
+--
+-- When a stream consumer demands an element from a speculative stream
+-- constructed as @a \`consM` b \`consM` ... nil@, the action @a@ at the head
+-- of the stream is executed and the output of the action is supplied to the
+-- consumer. However, in addition to the action at the head multiple actions
+-- following it may also be executed concurrently and the results buffered.
+-- When the next element is demanded it may be served from the buffer and we
+-- may execute the next action in the sequence to keep the buffer adequately
+-- filled.  Thus, the actions are executed concurrently but results consumed in
+-- serial order just like serial streams.  `consM` can be used to fold an
+-- infinite lazy container of effects, as the number of concurrent executions
+-- is limited.
+--
+-- Similar to 'consM', the monadic stream generation (e.g. replicateM) and
+-- transformation operations (e.g. mapM) on speculative streams can execute
+-- multiple effects concurrently in a speculative manner.
+--
+-- How many effects can be executed concurrently and how many results can be
+-- buffered are controlled by 'maxThreads' and 'maxBuffer' combinators
+-- respectively.  The actual number of concurrent threads is adjusted according
+-- to the rate at which the consumer is consuming the stream. It may even
+-- execute actions serially in a single thread if that is enough to match the
+-- consumer's speed.
+--
+-- Speculative streams enforce ordering of the results of actions in the stream
+-- but the side effects are only partially ordered.  Therefore, the semigroup
+-- operation for speculative streams is not commutative from the pure outputs
+-- perspective but commutative from side effects perspective.
 
 -- $async
 --
--- The async style streams execute actions asynchronously and consume the
--- outputs as well asynchronously. In a composed stream, at any point of time
--- more than one stream can run concurrently and yield elements.  The elements
--- are yielded by the composed stream as they are generated by the constituent
--- streams on a first come first serve basis.  Therefore, on each run the
--- stream may yield elements in a different sequence depending on the delays
--- introduced by scheduling.  The two async types 'AsyncT' and 'WAsyncT' differ
--- in how they traverse streams in 'Semigroup' or 'Monad' compositions.
+-- When a stream consumer demands an element from an asynchronous stream,
+-- constructed as @a \`consM` b \`consM` ... nil@, the action @a@ along with
+-- multiple following at the head of the stream sequence are executed
+-- concurrently and the output of the one that completes first is supplied to
+-- the consumer. As more actions complete, their results are buffered in the
+-- order of completion.  When the next element is demanded it may be served
+-- from the buffer and we may initiate execution of more actions in the
+-- sequence to keep the buffer adequately filled.  Thus, the actions are
+-- executed concurrently and their results are consumed in the order of
+-- completion.  `consM` can be used to fold an infinite lazy container of
+-- effects, as the number of concurrent executions is limited.
+--
+-- Similar to 'consM', the monadic stream generation (e.g. replicateM) and
+-- transformation operations (e.g. mapM) on asynchronous streams can execute
+-- multiple effects concurrently in an asynchronous manner.
+--
+-- How many effects can be executed concurrently and how many results can be
+-- buffered are controlled by 'maxThreads' and 'maxBuffer' combinators
+-- respectively.  The actual number of concurrent threads is adjusted according
+-- to the rate at which the consumer is consuming the stream. It may even
+-- execute actions serially in a single thread if that is enough to match the
+-- consumer's speed.
+--
+-- Asynchronous streams do not enforce any spatial order on the side effects or
+-- on the results of the actions. However there is a partial ordering as the
+-- actions to be executed are picked from the head of stream. The results are
+-- presented to the consumer in the completion time order.  Therefore, the
+-- semigroup operation for asynchronous streams is commutative i.e. the stream
+-- is considered unordered.
+--
+-- There are two asynchronous stream types 'AsyncT' and 'WAsyncT'. The stream
+-- evaluation of both the variants works in the same way as described above,
+-- they differ only in the 'Semigroup' and 'Monad' implementaitons.
 
 -- $zipping
 --

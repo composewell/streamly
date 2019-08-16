@@ -78,16 +78,17 @@ import qualified Streamly.Streams.StreamD as D
 -- SerialT
 ------------------------------------------------------------------------------
 
--- | Deep serial composition or serial composition with depth first traversal.
--- The 'Semigroup' instance of 'SerialT' appends two streams serially in a
--- depth first manner, yielding all elements from the first stream, and then
--- all elements from the second stream.
+-- | The 'Semigroup' operation for 'SerialT' behaves like a regular append
+-- operation.  Therefore, when @a <> b@ is evaluated, stream @a@ is evaluated
+-- first until it exhausts and then stream @b@ is evaluated. In other words,
+-- the elements of stream @b@ are appended to the elements of stream @a@. This
+-- operation can be used to fold an infinite lazy container of streams.
 --
 -- @
 -- import Streamly
 -- import qualified "Streamly.Prelude" as S
 --
--- main = ('toList' . 'serially' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- main = (S.toList . 'serially' $ (S.fromList [1,2]) \<\> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,2,3,4]
@@ -97,7 +98,7 @@ import qualified Streamly.Streams.StreamD as D
 -- element of the stream, serially.
 --
 -- @
--- main = 'drain' . 'serially' $ do
+-- main = S.drain . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     S.yieldM $ print x
 -- @
@@ -109,7 +110,7 @@ import qualified Streamly.Streams.StreamD as D
 -- 'SerialT' nests streams serially in a depth first manner.
 --
 -- @
--- main = 'drain' . 'serially' $ do
+-- main = S.drain . 'serially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     S.yieldM $ print (x, y)
@@ -121,17 +122,17 @@ import qualified Streamly.Streams.StreamD as D
 -- (2,4)
 -- @
 --
--- This behavior of 'SerialT' is exactly like a list transformer. We call the
--- monadic code being run for each element of the stream a monadic
+-- We call the monadic code being run for each element of the stream a monadic
 -- continuation. In imperative paradigm we can think of this composition as
 -- nested @for@ loops and the monadic continuation is the body of the loop. The
 -- loop iterates for all elements of the stream.
 --
--- The 'serially' combinator can be omitted as the default stream type is
--- 'SerialT'.
--- Note that serial composition with depth first traversal can be used to
--- combine an infinite number of streams as it explores only one stream at a
--- time.
+-- Note that the behavior and semantics  of 'SerialT', including 'Semigroup'
+-- and 'Monad' instances are exactly like Haskell lists except that 'SerialT'
+-- can contain effectful actions while lists are pure.
+--
+-- In the code above, the 'serially' combinator can be omitted as the default
+-- stream type is 'SerialT'.
 --
 -- @since 0.2.0
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
@@ -214,16 +215,25 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- WSerialT
 ------------------------------------------------------------------------------
 
--- | Wide serial composition or serial composition with a breadth first
--- traversal. The 'Semigroup' instance of 'WSerialT' traverses
--- the two streams in a breadth first manner. In other words, it interleaves
--- two streams, yielding one element from each stream alternately.
+-- | The 'Semigroup' operation for 'WSerialT' interleaves the elements from the
+-- two streams.  Therefore, when @a <> b@ is evaluated, stream @a@ is evaluated
+-- first to produce the first element of the combined stream and then stream
+-- @b@ is evaluated to produce the next element of the combined stream, and
+-- then we go back to evaluating stream @a@ and so on. In other words, the
+-- elements of stream @a@ are interleaved with the elements of stream @b@.
+--
+-- Note that when multiple actions are combined like @a <> b <> c ... <> z@ we
+-- interleave them in a binary fashion i.e. @a@ and @b@ are interleaved with
+-- each other and the result is interleaved with @c@ and so on. This will not
+-- act as a true round-robin scheduling across all the streams.  Note that this
+-- operation cannot be used to fold a container of infinite streams as the
+-- state that it needs to maintain is proportional to the number of streams.
 --
 -- @
 -- import Streamly
 -- import qualified "Streamly.Prelude" as S
 --
--- main = ('toList' . 'wSerially' $ (fromFoldable [1,2]) \<\> (fromFoldable [3,4])) >>= print
+-- main = (S.toList . 'wSerially' $ (S.fromList [1,2]) \<\> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -234,7 +244,7 @@ TRAVERSABLE_INSTANCE(SerialT)
 --
 --
 -- @
--- main = 'drain' . 'wSerially' $ do
+-- main = S.drain . 'wSerially' $ do
 --     x <- return 1 \<\> return 2
 --     y <- return 3 \<\> return 4
 --     S.yieldM $ print (x, y)
@@ -245,10 +255,6 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- (1,4)
 -- (2,4)
 -- @
---
--- Note that a serial composition with breadth first traversal can only combine
--- a finite number of streams as it needs to retain state for each unfinished
--- stream.
 --
 -- @since 0.2.0
 newtype WSerialT m a = WSerialT {getWSerialT :: Stream m a}
