@@ -73,7 +73,6 @@ import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 
@@ -111,7 +110,7 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-read addr port = AS.flatten $ withConnection addr port SK.readArrays
+read addr port = A.concat $ withConnection addr port SK.readArrays
 
 -------------------------------------------------------------------------------
 -- Writing

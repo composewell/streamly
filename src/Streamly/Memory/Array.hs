@@ -125,7 +125,7 @@ module Streamly.Memory.Array
     , AS.arraysOf
 
     -- ** Elimination
-    , AS.flatten
+    , AS.concat
     -- , AS.concatRev
     , AS.unlinesBy
     , AS.toArray
@@ -143,7 +143,7 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, null, last, map, (!!), read)
+import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)

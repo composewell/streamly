@@ -84,7 +84,7 @@ testFlattenArrays =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ A.flatten
+                    $ A.concat
                     $ A.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
@@ -109,5 +109,5 @@ main = hspec
         prop "read . writeN n === id" $ testFromToStreamN
         prop "readRev . write === reverse" $ testToStreamRev
         prop "arraysOf concats to original" $ testArraysOf
-        prop "flattenArrays concats to original" $ testFlattenArrays
+        prop "concats to original" $ testFlattenArrays
         prop "read . write === id" $ testFromToStream

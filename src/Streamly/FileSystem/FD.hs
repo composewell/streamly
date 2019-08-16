@@ -136,10 +136,9 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Memory.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Memory.Array.Types (byteLength, defaultChunkSize)
 
 #if !defined(mingw32_HOST_OS)
 import Streamly.Memory.Array.Types (groupIOVecsOf)
@@ -151,7 +150,6 @@ import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 
@@ -327,7 +325,7 @@ readArrays = readArraysOfUpto defaultChunkSize
 --
 {-# INLINE readInChunksOf #-}
 readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
+readInChunksOf chunkSize h = A.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
@@ -339,7 +337,7 @@ readInChunksOf chunkSize h = AS.flatten $ readArraysOfUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Handle -> t m Word8
-read = AS.flatten . readArrays
+read = A.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -361,7 +359,7 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 {-# INLINE writeArraysPackedUpto #-}
 writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
+writeArraysPackedUpto n h xs = writeArrays h $ A.compact n xs
 
 #if !defined(mingw32_HOST_OS)
 -- XXX this is incomplete
@@ -401,7 +399,7 @@ _writevArraysPackedUpto n h xs =
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
+writeInChunksOf n h m = writeArrays h $ A.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --
@@ -534,7 +532,7 @@ readSliceWith chunkSize h pos len = undefined
 {-# INLINE readSlice #-}
 readSlice :: (IsStream t, MonadIO m, Storable a)
     => Handle -> Int -> Int -> t m a
-readSlice = readSliceWith A.defaultChunkSize
+readSlice = readSliceWith defaultChunkSize
 
 -- | @readSliceRev h i count@ streams a slice from the file handle @h@ starting
 -- at index @i@ and reading up to @count@ elements in the reverse direction

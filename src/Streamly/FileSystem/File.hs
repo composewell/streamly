@@ -115,7 +115,7 @@ import Prelude hiding (read)
 
 import qualified System.IO as SIO
 
-import Streamly.Memory.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.SVar (MonadAsync)
@@ -123,8 +123,7 @@ import Streamly.SVar (MonadAsync)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.ArrayStream as AS
-import qualified Streamly.Memory.Array.Types as A hiding (flattenArrays)
+import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -203,7 +202,7 @@ readArraysOf size file = withFile file ReadMode (FH.readArraysOf size)
 {-# INLINE readArrays #-}
 readArrays :: (IsStream t, MonadCatch m, MonadIO m)
     => FilePath -> t m (Array Word8)
-readArrays = readArraysOf A.defaultChunkSize
+readArrays = readArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -226,7 +225,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
--- > read = 'readByChunks' A.defaultChunkSize
+-- > read = 'readByChunks' defaultChunkSize
 -- | Generate a stream of elements of the given type from a file specified by
 -- path. The stream ends when EOF is encountered. File is locked using multiple
 -- reader and single writer locking mode.
@@ -234,7 +233,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = AS.flatten $ withFile file ReadMode FH.readArrays
+read file = A.concat $ withFile file ReadMode FH.readArrays
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -290,9 +289,9 @@ writeArrays = writeArraysMode WriteMode
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeInChunksOf n file xs = writeArrays file $ AS.arraysOf n xs
+writeInChunksOf n file xs = writeArrays file $ A.arraysOf n xs
 
--- > write = 'writeInChunksOf' A.defaultChunkSize
+-- > write = 'writeInChunksOf' defaultChunkSize
 --
 -- | Write a byte stream to a file. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing. If the file exists it is
@@ -302,7 +301,7 @@ writeInChunksOf n file xs = writeArrays file $ AS.arraysOf n xs
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-write = writeInChunksOf A.defaultChunkSize
+write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
@@ -326,7 +325,7 @@ appendArrays = writeArraysMode AppendMode
 {-# INLINE appendByChunks #-}
 appendByChunks :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-appendByChunks n file xs = appendArrays file $ AS.arraysOf n xs
+appendByChunks n file xs = appendArrays file $ A.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data
@@ -336,7 +335,7 @@ appendByChunks n file xs = appendArrays file $ AS.arraysOf n xs
 -- @since 0.7.0
 {-# INLINE append #-}
 append :: (MonadAsync m, MonadCatch m) => FilePath -> SerialT m Word8 -> m ()
-append = appendByChunks A.defaultChunkSize
+append = appendByChunks defaultChunkSize
 
 {-
 -- | Like 'append' but the file is not locked for exclusive writes.
@@ -461,7 +460,7 @@ readSliceWith chunkSize h pos len = undefined
 {-# INLINE readSlice #-}
 readSlice :: (IsStream t, MonadIO m, Storable a)
     => Handle -> Int -> Int -> t m a
-readSlice = readSliceWith A.defaultChunkSize
+readSlice = readSliceWith defaultChunkSize
 
 -- | @readSliceRev h i count@ streams a slice from the file handle @h@ starting
 -- at index @i@ and reading up to @count@ elements in the reverse direction

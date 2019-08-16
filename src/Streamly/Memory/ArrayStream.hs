@@ -24,8 +24,8 @@ module Streamly.Memory.ArrayStream
       arraysOf
 
     -- * Flattening to elements
-    , flatten
-    -- , _flattenArraysRev
+    , concat
+    , concatRev
     , unlinesBy
 
     -- * Transformation
@@ -43,7 +43,7 @@ import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
-import Prelude hiding (length, null, last, map, (!!), read)
+import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
@@ -62,12 +62,12 @@ import qualified Streamly.Streams.Prelude as P
 --
 -- Same as the following but more efficient:
 --
--- > flatten = S.concatMap A.read
+-- > concat = S.concatMap A.read
 --
 -- @since 0.7.0
-{-# INLINE flatten #-}
-flatten :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
-flatten m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
+{-# INLINE concat #-}
+concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
+concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 
 -- XXX should we have a reverseArrays API to reverse the stream of arrays
 -- instead?
@@ -76,9 +76,9 @@ flatten m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- contents of each array before flattening.
 --
 -- @since 0.7.0
-{-# INLINE _flattenArraysRev #-}
-_flattenArraysRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
-_flattenArraysRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
+{-# INLINE concatRev #-}
+concatRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
+concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 
 -- XXX use an Array instead as separator? Or use a separate unlinesArraysBySeq
 -- API for that?

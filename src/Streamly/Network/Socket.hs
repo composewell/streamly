@@ -95,8 +95,7 @@ import Streamly.Fold (Fold)
 import qualified Streamly.Fold as FL
 import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
-import qualified Streamly.Memory.Array.Types as A hiding (flattenArrays)
+import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
 
 -- | @'withSocket' socket act@ runs the monadic computation @act@ passing the
@@ -266,7 +265,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Socket -> t m Word8
-read = AS.flatten . readArrays
+read = A.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -302,7 +301,7 @@ writeArrays h = FL.drainBy (liftIO . writeArray h)
 -- @since 0.7.0
 {-# INLINE writeInChunksOfS #-}
 writeInChunksOfS :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeInChunksOfS n h m = writeArraysS h $ AS.arraysOf n m
+writeInChunksOfS n h m = writeArraysS h $ A.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
