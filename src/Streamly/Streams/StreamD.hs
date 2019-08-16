@@ -264,6 +264,7 @@ module Streamly.Streams.StreamD
     -- * UTF8 Encoding / Decoding transformations.
     , decodeUtf8
     , encodeUtf8
+    , decodeUtf8Lenient
     )
 where
 
@@ -3077,12 +3078,29 @@ data CodePoint = FreshPoint
                | GoFour !Word8
                | Four1 !Word8 !Word8
                | Four !Word8 !Word8 !Word8
-               | YieldPoint !Char
+               | YieldAndContinue !Char
+               | YieldAndStop !Char
+               | Done
 
-{-# INLINE_NORMAL decodeUtf8 #-}
-decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
+data CodingFailureMode
+    = TransliterateCodingFailure
+    | ErrorOnCodingFailure
+    deriving (Show)
+
+{-# INLINE_NORMAL decodeUtf8With #-}
+decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
+decodeUtf8With cfm (Stream step state) = Stream step' (state, FreshPoint)
   where
+    {-# INLINE transliterateOrError #-}
+    {-# INLINE inputUnderflow #-}
+    transliterateOrError e s =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> Skip (s, YieldAndContinue '\xFFFD')
+    inputUnderflow s = case cfm of
+       ErrorOnCodingFailure -> error "Input Underflow"
+       TransliterateCodingFailure -> Skip (s, YieldAndStop '\xFFFD')
+
     {-# INLINE_LATE step' #-}
     step' gst (st, FreshPoint) = do
         r <- step (adaptState gst) st
@@ -3090,12 +3108,13 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
             case r of
                 Yield c0 s
                     | c0 <= 0x7f ->
-                        Skip (s, YieldPoint $ unsafeChr (fromIntegral c0))
-                    | c0 >= 0xc0 && c0 <= 0xc1 -> error "Invalid Overlong forms"
+                        Skip (s, YieldAndContinue $ unsafeChr (fromIntegral c0))
+                    | c0 >= 0xc0 && c0 <= 0xc1 ->
+                        transliterateOrError "Invalid Overlong forms" s
                     | c0 >= 0xc2 && c0 <= 0xdf -> Skip (s, Two c0)
                     | c0 >= 0xe0 && c0 <= 0xef -> Skip (s, GoThree c0)
-                    | c0 >= 0xf0 -> Skip (s, GoFour c0)
-                    | otherwise -> error "Invalid Sequence"
+                     | c0 >= 0xf0 -> Skip (s, GoFour c0)
+                    | otherwise -> transliterateOrError "Invalid Sequence" s
                 Skip s -> Skip (s, FreshPoint)
                 Stop -> Stop
 
@@ -3106,10 +3125,11 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c1 s
-                    | c1 < 0x80 || c1 >= 0xc0 -> error "Invalid Sequence"
-                    | otherwise -> Skip (s, YieldPoint $ chr2 c0 c1)
+                    | c1 < 0x80 || c1 >= 0xc0 ->
+                        transliterateOrError "Invalid Sequence" s
+                    | otherwise -> Skip (s, YieldAndContinue $ chr2 c0 c1)
                 Skip s -> Skip (s, Two c0)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- Decoding of a UTF8 character that spans three bytes with first byte (c0)
     -- known.
@@ -3118,11 +3138,12 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c1 s
-                    | not (validate3 c0 c1 0x80) -> error "Invalid Sequence"
+                    | not (validate3 c0 c1 0x80) ->
+                        transliterateOrError "Invalid Sequence" s
                                                     -- See #3341@ghc
                     | otherwise -> Skip (s, Three c0 c1)
                 Skip s -> Skip (s, GoThree c0)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- Two bytes known of a 3 byte UTF8 encoded unicode character.
     step' gst (st, Three c0 c1) = do
@@ -3130,10 +3151,11 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c2 s
-                    | not (validate3 c0 c1 c2) -> error "Invalid Sequence"
-                    | otherwise -> Skip (s, YieldPoint $ chr3 c0 c1 c2)
+                    | not (validate3 c0 c1 c2) ->
+                        transliterateOrError "Invalid Sequence" s
+                    | otherwise -> Skip (s, YieldAndContinue $ chr3 c0 c1 c2)
                 Skip s -> Skip (s, Three c0 c1)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- One byte known of a four byte UTF8 unicode character.
     step' gst (st, GoFour c0) = do
@@ -3141,10 +3163,11 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c1 s
-                    | not (validate4 c0 c1 0x80 0x80) -> error "Invalid Sequence"
+                    | not (validate4 c0 c1 0x80 0x80) ->
+                        transliterateOrError "Invalid Sequence" s
                     | otherwise -> Skip (s, Four1 c0 c1)
                 Skip s -> Skip (s, GoFour c0)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- Two bytes known of a four byte UTF8 unicode character.
     step' gst (st, Four1 c0 c1) = do
@@ -3152,10 +3175,11 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c2 s
-                    | not (validate4 c0 c1 c2 0x80) -> error "Invalid Sequence"
+                    | not (validate4 c0 c1 c2 0x80) ->
+                        transliterateOrError "Invalid Sequence" s
                     | otherwise -> Skip (s, Four c0 c1 c2)
                 Skip s -> Skip (s, Four1 c0 c1)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- Three bytes known of a three byte UTF8 unicode character.
     step' gst (st, Four c0 c1 c2) = do
@@ -3163,13 +3187,24 @@ decodeUtf8 (Stream step state) = Stream step' (state, FreshPoint)
         return $
             case r of
                 Yield c3 s
-                    | not (validate4 c0 c1 c2 c3) -> error "Invalid Sequence"
-                    | otherwise -> Skip (s, YieldPoint $ chr4 c0 c1 c2 c3)
+                    | not (validate4 c0 c1 c2 c3) ->
+                        transliterateOrError "Invalid Sequence" s
+                    | otherwise -> Skip (s, YieldAndContinue $ chr4 c0 c1 c2 c3)
                 Skip s -> Skip (s, Four c0 c1 c2)
-                Stop -> error "Input Underflow"
+                Stop -> inputUnderflow st
 
     -- This way so that we only need one Yield.
-    step' _ (s, YieldPoint c) = return $ Yield c (s, FreshPoint)
+    step' _ (s, YieldAndStop c) = return $ Yield c (s, Done)
+    step' _ (s, YieldAndContinue c) = return $ Yield c (s, FreshPoint)
+    step' _ (_, Done) = return Stop
+
+{-# INLINE decodeUtf8 #-}
+decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8 = decodeUtf8With ErrorOnCodingFailure
+
+{-# INLINE decodeUtf8Lenient #-}
+decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
 
 data YieldMany x = None
                  | YieldMany !x
