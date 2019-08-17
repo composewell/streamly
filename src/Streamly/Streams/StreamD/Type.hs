@@ -42,7 +42,6 @@ module Streamly.Streams.StreamD.Type
     , yieldM
     , concatMap
     , concatMapM
-    , flatten
 
     , foldrT
     , foldrM
@@ -221,38 +220,6 @@ concatMap f = concatMapM (return . f)
 --
 -- {-# RULES "concatMap Array.toStreamD"
 --      concatMap Array.toStreamD = Array.flattenArray #-}
-
--- | @flatten step inject stream@ uses the unfold @step@ function to generate
--- streams from the input stream and flatten them into a single output stream.
--- The @inject@ function is used to wrap the input element into the state of
--- unfold step.
---
--- This is like 'concatMap' but uses an unfold with an explicit state to
--- generate the stream instead of a 'Stream' type generator. This allows better
--- optimization via fusion.  This can be many times more efficient than
--- 'concatMap'.
-
-{-# INLINE_NORMAL flatten #-}
-flatten :: Monad m
-    => (s -> m (Step s b)) -> (a -> m s) -> Stream m a -> Stream m b
-flatten istep inject (Stream ostep u) = Stream step (Left u)
-  where
-    {-# INLINE_LATE step #-}
-    step gst (Left t) = do
-        r <- ostep (adaptState gst) t
-        case r of
-            Yield a t' -> do
-                s <- inject a
-                s `seq` return (Skip (Right (s, t')))
-            Skip t' -> return $ Skip (Left t')
-            Stop -> return $ Stop
-
-    step _ (Right (s, t)) = do
-        r <- istep s
-        return $ case r of
-            Yield x s' -> Yield x (Right (s', t))
-            Skip s'    -> Skip (Right (s', t))
-            Stop       -> Skip (Left t)
 
 -- | Create a singleton 'Stream' from a pure value.
 {-# INLINE_NORMAL yield #-}

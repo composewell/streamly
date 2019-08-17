@@ -207,6 +207,10 @@ library
                     -- Pure streams
                      , Streamly.List
 
+                    -- Unfolds
+                     , Streamly.Unfold.Types
+                     , Streamly.Unfold
+
                     -- Folds
                      , Streamly.Fold.Types
                      , Streamly.Sink.Types

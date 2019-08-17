@@ -19,6 +19,7 @@ import Prelude
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
+import qualified Streamly.Unfold as UF
 
 -- We try to keep the total number of iterations same irrespective of nesting
 -- of the loops so that the overhead is easy to compare.
@@ -270,10 +271,9 @@ zip src = transform $ S.zipWith (,) src src
 concatMapRepl4xN :: Monad m => Stream m Int -> m ()
 concatMapRepl4xN src = transform $ (S.concatMap (S.replicate 4) src)
 
-{-# INLINE flattenRepl4xN #-}
-flattenRepl4xN :: Monad m => Stream m Int -> m ()
-flattenRepl4xN src = transform $
-    S.flatten S.replicateGen (\x -> return (x,4)) src
+{-# INLINE concatMapURepl4xN #-}
+concatMapURepl4xN :: Monad m => Stream m Int -> m ()
+concatMapURepl4xN src = transform $ S.concatMapU (UF.replicateM 4) src
 
 -------------------------------------------------------------------------------
 -- Mixed Composition

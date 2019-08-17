@@ -63,8 +63,6 @@ module Streamly.Streams.StreamD
     -- | Generate a monadic stream from a seed.
     , repeat
     , replicate
-    , replicateGen
-    , flatten
     , replicateM
     , fromIndices
     , fromIndicesM
@@ -137,6 +135,7 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
+    , concatMapU
 
     -- ** Grouping
     , groupsOf
@@ -284,6 +283,7 @@ import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
+import Streamly.Unfold.Types (Unfold(..))
 
 import Streamly.Streams.StreamD.Type
 
@@ -385,14 +385,6 @@ replicateM n p = Stream step n
       | otherwise = do
           x <- p
           return $ Yield x (i - 1)
-
--- | For use with flatten
-{-# INLINE replicateGen #-}
-replicateGen :: Monad m => (a, Int) -> m (Step (a, Int) a)
-replicateGen (x, i) = return $
-    if i <= 0
-    then Stop
-    else Yield x (x, (i - 1))
 
 {-# INLINE_NORMAL replicate #-}
 replicate :: Monad m => Int -> a -> Stream m a
@@ -1701,6 +1693,40 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
 {-# INLINE_NORMAL mapM_ #-}
 mapM_ :: Monad m => (a -> m b) -> Stream m a -> m ()
 mapM_ m = drain . mapM m
+
+-------------------------------------------------------------------------------
+-- Stream transformations using Unfolds
+-------------------------------------------------------------------------------
+
+-- | @concatMapU unfold stream@ uses @unfold@ to map the input stream elements
+-- to streams and then flattens the generated streams into a single output
+-- stream.
+
+-- This is like 'concatMap' but uses an unfold with an explicit state to
+-- generate the stream instead of a 'Stream' type generator. This allows better
+-- optimization via fusion.  This can be many times more efficient than
+-- 'concatMap'.
+
+{-# INLINE_NORMAL concatMapU #-}
+concatMapU :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+concatMapU (Unfold istep inject) (Stream ostep u) = Stream step (Left u)
+  where
+    {-# INLINE_LATE step #-}
+    step gst (Left t) = do
+        r <- ostep (adaptState gst) t
+        case r of
+            Yield a t' -> do
+                s <- inject a
+                s `seq` return (Skip (Right (s, t')))
+            Skip t' -> return $ Skip (Left t')
+            Stop -> return $ Stop
+
+    step _ (Right (s, t)) = do
+        r <- istep s
+        return $ case r of
+            Yield x s' -> Yield x (Right (s', t))
+            Skip s'    -> Skip (Right (s', t))
+            Stop       -> Skip (Left t)
 
 ------------------------------------------------------------------------------
 -- Exceptions
