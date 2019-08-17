@@ -52,6 +52,8 @@ module Streamly.Internal
     , classifySessionsBy
     , classifyKeepAliveSessions
 
+    , concatMapU
+
     -- * Streamly.Fold Experimental Exports
     , Fold (..)
     , lmap
@@ -67,6 +69,12 @@ module Streamly.Internal
     , initialize
     , runStep
 
+    -- * Streamly.Unfold Experimental Exports
+    , Unfold (..)
+
+    -- * Streamly.Memory.Array
+    , readU
+
     -- * Streamly.FileSystem.Handle
     , writeS
     )
@@ -75,8 +83,10 @@ where
 import Prelude hiding (break, span, splitAt)
 
 import Streamly.FileSystem.Handle.Internal (writeS)
+import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
+import Streamly.Unfold.Types (Unfold(..))
 
 import Streamly.Prelude.Internal
 import Streamly.Fold.Types

@@ -231,6 +231,7 @@ module Streamly.Prelude.Internal
 
     -- ** Nested Streams
     , concatMapM
+    , concatMapU
     , concatMap
     , concatMapWith
     -- , interposeBy
@@ -379,6 +380,7 @@ import qualified System.IO as IO
 
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Fold.Types (Fold (..))
+import Streamly.Unfold.Types (Unfold)
 import Streamly.Memory.Array.Types (Array)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.SVar (MonadAsync, defState)
@@ -2098,6 +2100,15 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 {-# INLINE concatMapM #-}
 concatMapM :: (IsStream t, Monad m) => (a -> m (t m b)) -> t m a -> t m b
 concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
+
+-- | Like 'concatMap' but uses an 'Unfold' for stream generation. Unlike
+-- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
+-- therefore provide many times better performance.
+--
+-- @since 0.7.0
+{-# INLINE concatMapU #-}
+concatMapU ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
+concatMapU u m = fromStreamD $ D.concatMapU u (toStreamD m)
 
 {-
 -- | A generalization of insertBy to inserting sequences.

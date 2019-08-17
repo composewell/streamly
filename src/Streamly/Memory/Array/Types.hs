@@ -62,6 +62,7 @@ module Streamly.Memory.Array.Types
     , toList
     , writeN
     , read
+    , readU
 
     -- * Utilities
     , defaultChunkSize
@@ -100,6 +101,7 @@ import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Fold.Types (Fold(..))
+import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Strict (Tuple'(..))
 import Streamly.SVar (adaptState)
 
@@ -387,6 +389,31 @@ byteCapacity Array{..} =
     let p = unsafeForeignPtrToPtr aStart
         len = aBound `minusPtr` p
     in assert (len >= 0) len
+
+{-# INLINE_NORMAL readU #-}
+readU :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+readU = Unfold step inject
+    where
+
+    -- Note we have repurposed the Array type here
+    inject Array{..} =
+        return $ Array aStart (unsafeForeignPtrToPtr aStart) aEnd
+
+    {-# INLINE_LATE step #-}
+    step (Array _ p end) | p == end = return D.Stop
+    step (Array start p end) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = unsafeInlineIO $ do
+                        r <- peek p
+                        touchForeignPtr start
+                        return r
+            return $ D.Yield x
+                (Array start (p `plusPtr` (sizeOf (undefined :: a))) end)
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
