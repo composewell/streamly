@@ -2105,14 +2105,15 @@ interposeBy :: (IsStream t, Monad m)
     => (a -> a -> Ordering) -> t m a -> t m a -> t m a
 interposeBy = undefined
 
--- XXX shall we intercalate an Array instead? A stream is exhaustible and
--- should be used only once unless it is a pure stream. or we can have
--- intercalateN to intercalate n elements from the input stream at a time and
--- generate the stream by cycling the array.
---
--- | A generalization of intersperseM to intersperse sequences.
-intercalate :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+-- | Insert a stream between segements of streams and flatten.
+intercalate :: (IsStream t, MonadAsync m)
+    => SerialT Identity b -> (a -> t m b) -> t m a -> t m b
 intercalate = undefined
+
+-- | Insert a stream after segements of streams and flatten.
+intercalatePost :: (IsStream t, MonadAsync m)
+    => SerialT Identity b -> (a -> t m b) -> t m a -> t m b
+intercalatePost = undefined
 -}
 
 ------------------------------------------------------------------------------
