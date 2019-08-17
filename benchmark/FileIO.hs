@@ -133,6 +133,12 @@ main = do
                     $ SS.foldLines FL.drain
                     $ SS.decodeChar8
                     $ FH.read inh
+            , mkBench "linecountU" href $ do
+                Handles inh _ <- readIORef href
+                S.length
+                    $ SS.foldLines FL.drain
+                    $ SS.decodeChar8
+                    $ Internal.concatMapU Internal.readU (FH.readArrays inh)
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 S.sum $ FH.read inh

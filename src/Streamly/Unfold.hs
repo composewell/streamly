@@ -2,6 +2,7 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE PatternSynonyms           #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -34,6 +35,9 @@ module Streamly.Unfold
 where
 
 import Streamly.Streams.StreamD.Type (Stream(..), Step(..))
+#if __GLASGOW_HASKELL__ < 800
+import Streamly.Streams.StreamD.Type (pattern Stream)
+#endif
 import Streamly.Unfold.Types (Unfold(..))
 
 -------------------------------------------------------------------------------
