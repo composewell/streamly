@@ -46,7 +46,7 @@ import Streamly.Memory.Array.Types (defaultChunkSize)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude.Internal as S
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -98,7 +98,7 @@ writeSArraysInChunksOf n h xs = writeSArrays h $ AS.compact n xs
 -- @since 0.7.0
 {-# INLINE writeSInChunksOf #-}
 writeSInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeSInChunksOf n h m = writeSArrays h $ AS.arraysOf n m
+writeSInChunksOf n h m = writeSArrays h $ A.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

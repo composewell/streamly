@@ -1,0 +1,225 @@
+
+==================== Tidy Core ====================
+
+Result size of Tidy Core
+  = {terms: 310, types: 330, coercions: 29, joins: 3/6}
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule2
+$trModule2 = "Main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule1
+$trModule1 = TrNameS $trModule2
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+$trModule4
+$trModule4 = "main"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+$trModule3
+$trModule3 = TrNameS $trModule4
+
+-- RHS size: {terms: 3, types: 0, coercions: 0, joins: 0/0}
+$trModule
+$trModule = Module $trModule3 $trModule1
+
+-- RHS size: {terms: 1, types: 0, coercions: 0, joins: 0/0}
+main3
+main3 = "/dev/null"#
+
+-- RHS size: {terms: 2, types: 0, coercions: 0, joins: 0/0}
+main2
+main2 = unpackCString# main3
+
+-- RHS size: {terms: 283, types: 297, coercions: 20, joins: 3/6}
+main1
+main1
+  = \ s_i3OH ->
+      case ((allocaBytesAligned
+               $fStorableBool7 $fStorableBool7 (getArgs1 `cast` <Co:7>))
+            `cast` <Co:3>)
+             s_i3OH
+      of
+      { (# ipv_i3P4, ipv1_i3P5 #) ->
+      case openFile1 (head ipv1_i3P5) ReadMode ipv_i3P4 of
+      { (# ipv2_X3P1, ipv3_X3P3 #) ->
+      case openFile1 main2 WriteMode ipv2_X3P1 of
+      { (# ipv4_X3P7, ipv5_X3P9 #) ->
+      joinrec {
+        $sgo_s8O2
+        $sgo_s8O2 sc_s8NW sc1_s8NS sc2_s8NT sc3_s8NU sc4_s8NV
+          = case newAlignedPinnedByteArray# 32752# 1# sc_s8NW of
+            { (# ipv6_i650, ipv7_i651 #) ->
+            let {
+              ipv8_i64Z
+              ipv8_i64Z = byteArrayContents# (ipv7_i651 `cast` <Co:5>) } in
+            jump $sgo2_s8Nn
+              ipv6_i650
+              sc1_s8NS
+              sc2_s8NT
+              sc3_s8NU
+              sc4_s8NV
+              ipv8_i64Z
+              ipv7_i651
+              ipv8_i64Z
+              (plusAddr# ipv8_i64Z 32752#)
+              0#
+            };
+        $sgo1_s8NQ
+        $sgo1_s8NQ sc_s8NH
+                   sc1_s8Nz
+                   sc2_s8NA
+                   sc3_s8NB
+                   _
+                   sc5_s8ND
+                   sc6_s8NE
+                   sc7_s8NF
+                   sc8_s8NG
+          = case minusAddr# sc3_s8NB sc1_s8Nz of wild_X1z {
+              __DEFAULT ->
+                case $whPutBuf' ipv5_X3P9 (Ptr sc1_s8Nz) wild_X1z True sc_s8NH of
+                { (# ipv6_i7t6, ipv7_i7t7 #) ->
+                case touch# (PlainPtr sc2_s8NA) ipv6_i7t6 of s'_i7t9 { __DEFAULT ->
+                jump $sgo_s8O2 s'_i7t9 sc5_s8ND sc6_s8NE sc7_s8NF sc8_s8NG
+                }
+                };
+              0# -> jump $sgo_s8O2 sc_s8NH sc5_s8ND sc6_s8NE sc7_s8NF sc8_s8NG
+            };
+        $sgo2_s8Nn
+        $sgo2_s8Nn sc_s8Nh
+                   sc1_s8N8
+                   sc2_s8N9
+                   sc3_s8Na
+                   sc4_s8Nb
+                   sc5_s8Nc
+                   sc6_s8Nd
+                   sc7_s8Ne
+                   sc8_s8Nf
+                   sc9_s8Ng
+          = case eqAddr# sc3_s8Na sc4_s8Nb of {
+              __DEFAULT ->
+                case readWord8OffAddr# sc3_s8Na 0# sc_s8Nh of
+                { (# ipv6_i7QV, ipv7_i7QW #) ->
+                case touch# sc2_s8N9 ipv6_i7QV of s'_i7bw { __DEFAULT ->
+                case writeWord8OffAddr# sc7_s8Ne 0# ipv7_i7QW s'_i7bw of s2_i7Px
+                { __DEFAULT ->
+                let {
+                  x2_i7d4
+                  x2_i7d4 = +# sc9_s8Ng 1# } in
+                case >=# x2_i7d4 32752# of {
+                  __DEFAULT ->
+                    jump $sgo2_s8Nn
+                      s2_i7Px
+                      sc1_s8N8
+                      sc2_s8N9
+                      (plusAddr# sc3_s8Na 1#)
+                      sc4_s8Nb
+                      sc5_s8Nc
+                      sc6_s8Nd
+                      (plusAddr# sc7_s8Ne 1#)
+                      sc8_s8Nf
+                      x2_i7d4;
+                  1# ->
+                    jump $sgo1_s8NQ
+                      s2_i7Px
+                      sc5_s8Nc
+                      sc6_s8Nd
+                      (plusAddr# sc7_s8Ne 1#)
+                      sc8_s8Nf
+                      sc1_s8N8
+                      sc2_s8N9
+                      (plusAddr# sc3_s8Na 1#)
+                      sc4_s8Nb
+                }
+                }
+                }
+                };
+              1# ->
+                case $wreadArrayUpto 32752# ipv3_X3P3 sc_s8Nh of
+                { (# ipv6_i3OK, ipv7_i3OL #) ->
+                case ipv7_i3OL of { Array dt_i7a2 dt1_i7a3 dt2_i7a4 dt3_i7a5 ->
+                case minusAddr# dt2_i7a4 dt_i7a2 of {
+                  __DEFAULT ->
+                    jump $sgo2_s8Nn
+                      ipv6_i3OK
+                      dt_i7a2
+                      dt1_i7a3
+                      dt_i7a2
+                      dt2_i7a4
+                      sc5_s8Nc
+                      sc6_s8Nd
+                      sc7_s8Ne
+                      sc8_s8Nf
+                      sc9_s8Ng;
+                  0# ->
+                    case minusAddr# sc7_s8Ne sc5_s8Nc of wild1_X1z {
+                      __DEFAULT ->
+                        case $whPutBuf' ipv5_X3P9 (Ptr sc5_s8Nc) wild1_X1z True ipv6_i3OK
+                        of
+                        { (# ipv8_i7t6, ipv9_i7t7 #) ->
+                        case touch# (PlainPtr sc6_s8Nd) ipv8_i7t6 of s'_i7t9 { __DEFAULT ->
+                        (# s'_i7t9, () #)
+                        }
+                        };
+                      0# -> (# ipv6_i3OK, () #)
+                    }
+                }
+                }
+                }
+            }; } in
+      case newAlignedPinnedByteArray# 32752# 1# ipv4_X3P7 of
+      { (# ipv6_i650, ipv7_i651 #) ->
+      let {
+        ipv8_i64Z
+        ipv8_i64Z = byteArrayContents# (ipv7_i651 `cast` <Co:5>) } in
+      case $wreadArrayUpto 32752# ipv3_X3P3 ipv6_i650 of
+      { (# ipv9_i3OK, ipv10_i3OL #) ->
+      case ipv10_i3OL of { Array dt_i7a2 dt1_i7a3 dt2_i7a4 dt3_i7a5 ->
+      case minusAddr# dt2_i7a4 dt_i7a2 of {
+        __DEFAULT ->
+          jump $sgo2_s8Nn
+            ipv9_i3OK
+            dt_i7a2
+            dt1_i7a3
+            dt_i7a2
+            dt2_i7a4
+            ipv8_i64Z
+            ipv7_i651
+            ipv8_i64Z
+            (plusAddr# ipv8_i64Z 32752#)
+            0#;
+        0# ->
+          case minusAddr# ipv8_i64Z ipv8_i64Z of wild1_X1z {
+            __DEFAULT ->
+              case $whPutBuf' ipv5_X3P9 (Ptr ipv8_i64Z) wild1_X1z True ipv9_i3OK
+              of
+              { (# ipv11_i7t6, ipv12_i7t7 #) ->
+              case touch# (PlainPtr ipv7_i651) ipv11_i7t6 of s'_i7t9
+              { __DEFAULT ->
+              (# s'_i7t9, () #)
+              }
+              };
+            0# -> (# ipv9_i3OK, () #)
+          }
+      }
+      }
+      }
+      }
+      }
+      }
+      }
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main
+main = main1 `cast` <Co:3>
+
+-- RHS size: {terms: 2, types: 1, coercions: 3, joins: 0/0}
+main4
+main4 = runMainIO1 (main1 `cast` <Co:3>)
+
+-- RHS size: {terms: 1, types: 0, coercions: 3, joins: 0/0}
+main
+main = main4 `cast` <Co:3>
+
+

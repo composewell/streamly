@@ -260,6 +260,7 @@ module Streamly.Prelude.Internal
 
     -- -- *** Chunks
     , chunksOf
+    , arraysOf
     , intervalsOf
 
     -- -- *** Using Element Separators
@@ -2246,6 +2247,12 @@ chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+
+{-# INLINE arraysOf #-}
+arraysOf :: (IsStream t, MonadIO m, Storable a)
+    => Int -> t m a -> t m (Array a)
+-- arraysOf n = chunksOf n (A.writeN n)
+arraysOf n m = D.fromStreamD $ D.groupsOf n (A.writeN n) (D.toStreamD m)
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

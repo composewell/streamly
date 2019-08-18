@@ -126,8 +126,9 @@ compact n xs = D.fromStreamD $ A.packArraysChunksOf n (D.toStreamD xs)
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
-arraysOf n str =
-    D.fromStreamD $ A.fromStreamDArraysOf n (D.toStreamD str)
+-- arraysOf n str = D.fromStreamD $ A.fromStreamDArraysOf n (D.toStreamD str)
+arraysOf n str = D.fromStreamD $ A.arraysOfx n (D.toStreamD str)
+-- arraysOf n = S.chunksOf n (A.writeN n)
 
 -- XXX Both of these implementations of splicing seem to perform equally well.
 -- We need to perform benchmarks over a range of sizes though.

@@ -475,7 +475,8 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
 
-{-# INLINE_LATE foldOneGroup #-}
+{-
+{-# INLINE_NORMAL foldOneGroup #-}
 foldOneGroup
     :: Monad m
     => Int
@@ -492,6 +493,7 @@ foldOneGroup n (Fold fstep begin done) x gst step state = do
 
     where
 
+    {-# INLINE_LATE go #-}
     -- XXX is it strict enough?
     go !_ st !acc i | i < n = do
         r <- step gst st
@@ -512,6 +514,15 @@ foldOneGroup n (Fold fstep begin done) x gst step state = do
 -- using (+) takes just 1.5 sec, so we are still pretty slow (7x slow), there
 -- is scope to make it faster. There is a possibility of better fusion here.
 --
+-}
+
+-- s = stream state, fs = fold state
+data GroupState s fs
+    = GroupStart s
+    | GroupBuffer s fs Int
+    | GroupYield fs (GroupState s fs)
+    | GroupFinish
+
 {-# INLINE_NORMAL groupsOf #-}
 groupsOf
     :: Monad m
@@ -519,31 +530,42 @@ groupsOf
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-groupsOf n f (Stream step state) =
-    n `seq` Stream stepOuter (Just state)
+groupsOf n (Fold fstep initial extract) (Stream step state) =
+    n `seq` Stream step' (GroupStart state)
 
     where
 
-    {-# INLINE_LATE stepOuter #-}
-    stepOuter gst (Just st) = do
+    {-# INLINE_NORMAL step' #-}
+    step' _ (GroupStart st) = do
         -- XXX shall we use the Natural type instead? Need to check performance
         -- implications.
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
             error $ "Streamly.Streams.StreamD.Type.groupsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
+        -- fs = fold state
+        fs <- initial
+        -- XXX we have to track n right here, but if the fold is a terminating
+        -- fold we can check the result of the fold itself to see if it has
+        -- consumed n elements.
+        return $ Skip (GroupBuffer st fs 0)
 
-        -- We retrieve the first element of the stream before we start to fold
-        -- a chunk so that we do not return an empty chunk in case the stream
-        -- is empty.
-        res <- step (adaptState gst) st
-        case res of
+    step' gst (GroupBuffer st fs i) = do
+        r <- step (adaptState gst) st
+        case r of
             Yield x s -> do
-                -- XXX how to make sure that stepInner and f get fused
-                -- This problem seems to be similar to the concatMap problem
-                (r, s1) <- foldOneGroup n f x (adaptState gst) step s
-                return $ Yield r s1
-            Skip s    -> return $ Skip $ Just s
-            Stop      -> return Stop
+                fs' <- fstep fs x
+                let i' = i + 1
+                return $
+                    if i' >= n
+                    then Skip (GroupYield fs' (GroupStart s))
+                    else Skip (GroupBuffer s fs' i')
+            Skip s -> return $ Skip (GroupBuffer s fs i)
+            Stop -> return $ Skip (GroupYield fs GroupFinish)
 
-    stepOuter _ Nothing = return Stop
+    step' _ (GroupYield fs next) = do
+        r <- extract fs
+        return $ Yield r next
+
+    step' _ GroupFinish = return Stop
+

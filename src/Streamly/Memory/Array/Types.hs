@@ -36,6 +36,7 @@ module Streamly.Memory.Array.Types
 
     -- * Streams of arrays
     , fromStreamDArraysOf
+    , arraysOfx
     , flattenArrays
     , flattenArraysRev
     , packArraysChunksOf
@@ -577,6 +578,66 @@ fromStreamDArraysOf n (D.Stream step state) =
         return $ D.Yield (Array start end bound) next
 
     step' _ GroupFinish = return D.Stop
+
+data GroupState1 s fs
+    = GroupStart1 s
+    | GroupBuffer1 s fs Int
+    | GroupYield1 fs (GroupState1 s fs)
+    | GroupFinish1
+
+{-# INLINE_NORMAL arraysOfx #-}
+arraysOfx
+    :: forall m a. (Storable a, MonadIO m)
+    => Int
+    -> D.Stream m a
+    -> D.Stream m (Array a)
+arraysOfx n (D.Stream step state) =
+    D.Stream step' (GroupStart1 state)
+
+    where
+
+    initial = liftIO $ newArray n
+    {-# INLINE fstep #-}
+    -- Commenting the following line generates fused code with 10x better performance
+    fstep arr@(Array _ end bound) _ | end == bound = return arr
+    fstep (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+    extract = return -- liftIO . shrinkToFit
+
+    {-# INLINE_LATE step' #-}
+    step' _ (GroupStart1 st) = do
+        -- XXX shall we use the Natural type instead? Need to check performance
+        -- implications.
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Streams.StreamD.Type.groupsOf: the size of "
+                 ++ "groups [" ++ show n ++ "] must be a natural number"
+        -- fs = fold state
+        fs <- initial
+        -- XXX we have to track n right here, but if the fold is a terminating
+        -- fold we can check the result of the fold itself to see if it has
+        -- consumed n elements.
+        return $ D.Skip (GroupBuffer1 st fs 0)
+
+    step' gst (GroupBuffer1 st fs i) = do
+        r <- step (adaptState gst) st
+        case r of
+            D.Yield x s -> do
+                fs' <- fstep fs x
+                let i' = i + 1
+                return $
+                    if i' >= n
+                    then D.Skip (GroupYield1 fs' (GroupStart1 s))
+                    else D.Skip (GroupBuffer1 s fs' i')
+            D.Skip s -> return $ D.Skip (GroupBuffer1 s fs i)
+            D.Stop -> return $ D.Skip (GroupYield1 fs GroupFinish1)
+
+    step' _ (GroupYield1 fs next) = do
+        r <- extract fs
+        return $ D.Yield r next
+
+    step' _ GroupFinish1 = return D.Stop
 
 -- XXX concatMap does not seem to have the best possible performance so we have
 -- a custom way to concat arrays.
