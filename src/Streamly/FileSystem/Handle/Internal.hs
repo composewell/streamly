@@ -46,7 +46,7 @@ import Streamly.Memory.Array.Types (defaultChunkSize)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude.Internal as S
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -91,6 +91,16 @@ writeSArraysInChunksOf :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 writeSArraysInChunksOf n h xs = writeSArrays h $ AS.compact n xs
 
+-- XXX Using custom array chunking with A.arraysOf, writeS gives 2x faster
+-- readStream/catStream benchmark compared to S.arraysOf based writeS as well
+-- as compared to the fold IO version of cat benchmark i.e. readStream/cat.
+-- However, if we use the most optimal A.writeNUnsafe fold then the fold
+-- version of cat is also as fast. But with the most optimal version of
+-- A.writeNUnsafe, fusion breaks. Once GHC fusion problem gets fixed we should
+-- be able to use that.
+--
+-- Until then we are keeping the custom A.arraysOf code.
+--
 -- | @writeSInChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
 -- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
@@ -98,6 +108,7 @@ writeSArraysInChunksOf n h xs = writeSArrays h $ AS.compact n xs
 -- @since 0.7.0
 {-# INLINE writeSInChunksOf #-}
 writeSInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+-- writeSInChunksOf n h m = writeSArrays h $ S.arraysOf n m
 writeSInChunksOf n h m = writeSArrays h $ AS.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize

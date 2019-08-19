@@ -13,6 +13,7 @@ import Test.Hspec as H
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.Internal as Internal
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -74,7 +75,7 @@ testArraysOf =
             monadicIO $ do
                 xs <- S.toList
                     $ S.concatMap A.read
-                    $ A.arraysOf 240
+                    $ Internal.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
 
@@ -85,7 +86,7 @@ testFlattenArrays =
             monadicIO $ do
                 xs <- S.toList
                     $ A.concat
-                    $ A.arraysOf 240
+                    $ Internal.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
 

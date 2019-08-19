@@ -260,6 +260,7 @@ module Streamly.Prelude.Internal
 
     -- -- *** Chunks
     , chunksOf
+    , arraysOf
     , intervalsOf
 
     -- -- *** Using Element Separators
@@ -381,7 +382,7 @@ import qualified System.IO as IO
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Fold.Types (Fold (..))
 import Streamly.Unfold.Types (Unfold)
-import Streamly.Memory.Array.Types (Array)
+import Streamly.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
@@ -2246,6 +2247,19 @@ chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+
+-- | @arraysOf n stream@ groups the elements in the input stream into arrays of
+-- @n@ elements each.
+--
+-- Same as the following but may be more efficient:
+--
+-- > arraysOf n = S.chunksOf n (A.writeN n)
+--
+-- @since 0.7.0
+{-# INLINE arraysOf #-}
+arraysOf :: (IsStream t, MonadIO m, Storable a)
+    => Int -> t m a -> t m (Array a)
+arraysOf n = chunksOf n (writeNUnsafe n)
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control

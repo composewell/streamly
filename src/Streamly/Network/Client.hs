@@ -67,7 +67,7 @@ import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
 import Streamly.Fold.Types (Fold(..))
-import Streamly.Memory.Array.Types (Array(..), defaultChunkSize)
+import Streamly.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 -- import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
@@ -179,7 +179,8 @@ writeInChunksOf
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m Word8 ()
-writeInChunksOf n addr port = FL.lchunksOf n (A.writeN n) (writeArrays addr port)
+writeInChunksOf n addr port =
+    FL.lchunksOf n (writeNUnsafe n) (writeArrays addr port)
 
 {-
 -- | Write a stream to the supplied IPv4 host address and port number.

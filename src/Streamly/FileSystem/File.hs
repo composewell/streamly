@@ -124,6 +124,7 @@ import Streamly.SVar (MonadAsync)
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -289,7 +290,7 @@ writeArrays = writeArraysMode WriteMode
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeInChunksOf n file xs = writeArrays file $ A.arraysOf n xs
+writeInChunksOf n file xs = writeArrays file $ AS.arraysOf n xs
 
 -- > write = 'writeInChunksOf' defaultChunkSize
 --
@@ -325,7 +326,7 @@ appendArrays = writeArraysMode AppendMode
 {-# INLINE appendByChunks #-}
 appendByChunks :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-appendByChunks n file xs = appendArrays file $ A.arraysOf n xs
+appendByChunks n file xs = appendArrays file $ AS.arraysOf n xs
 
 -- | Append a byte stream to a file. Combines the bytes in chunks of size up to
 -- 'A.defaultChunkSize' before writing.  If the file exists then the new data

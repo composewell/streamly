@@ -61,6 +61,7 @@ module Streamly.Memory.Array.Types
     , toStreamKRev
     , toList
     , writeN
+    , writeNUnsafe
     , read
     , readU
 
@@ -511,10 +512,51 @@ writeN n = Fold step initial extract
 
     where
 
-    initial = do
-        if n < 0 then error "writeN: negative count specified" else return ()
-        liftIO $ newArray n
+    initial = liftIO $ newArray (max n 0)
     step arr@(Array _ end bound) _ | end == bound = return arr
+    step (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+    extract = return -- liftIO . shrinkToFit
+
+-- | Like 'writeN' but does not check the array bounds when writing. The fold
+-- driver must not call the step function more than 'n' times otherwise it will
+-- corrupt the memory and crash. This function exists mainly because any
+-- conditional in the step function blocks fusion causing 10x performance
+-- slowdown.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL writeNUnsafe #-}
+writeNUnsafe :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+writeNUnsafe n = Fold step initial extract
+
+    where
+
+    {-
+    -- XXX this implementation is good on all benchmarks except
+    -- readStream/catStream which uses a stream based writeS instead of a fold
+    -- based write. In the writeS case it does not fuse and therefore performs
+    -- 10x worse.
+    initial = do
+        (Array start end _) <- liftIO $ newArray (max n 0)
+        return (start, end)
+    -- XXX any if condition in the step causes fusion to fail with groupsOf
+    -- If we need to do bounds check we can use 'n' instead of threading around
+    -- bound pointer.
+    step (start, end) x = do
+        liftIO $ poke end x
+        return $ (start, (end `plusPtr` sizeOf (undefined :: a)))
+    extract (start, end) = return $ Array start end end -- liftIO . shrinkToFit
+    -}
+    -- This implementation fuses in all known cases as of now. Even though both
+    -- readStream/cat and readStream/catStream benchmarks perform 2x worse when
+    -- arraysOf uses this impl compared to their best seen performance.
+    -- readStream/cat is best with the above implementation and
+    -- readStream/catStream is best when using the custom arraysOf
+    -- implementation.
+    initial = do
+        liftIO $ newArray (max n 0)
     step (Array start end bound) x = do
         liftIO $ poke end x
         return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound

@@ -119,7 +119,7 @@ import System.IO (Handle, hGetBufSome)
 import Prelude hiding (read)
 
 import Streamly.FileSystem.Handle.Internal (writeArray)
-import Streamly.Memory.Array.Types (Array(..))
+import Streamly.Memory.Array.Types (Array(..), writeNUnsafe)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 import Streamly.Memory.Array.Types
        (defaultChunkSize, shrinkToFit, lpackArraysChunksOf)
@@ -283,7 +283,7 @@ writeArraysInChunksOf n h = lpackArraysChunksOf n (writeArrays h)
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeInChunksOf n h = FL.lchunksOf n (A.writeN n) (writeArrays h)
+writeInChunksOf n h = FL.lchunksOf n (writeNUnsafe n) (writeArrays h)
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

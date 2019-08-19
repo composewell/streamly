@@ -95,6 +95,7 @@ import Streamly.Fold (Fold)
 import qualified Streamly.Fold as FL
 import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
 
@@ -301,7 +302,7 @@ writeArrays h = FL.drainBy (liftIO . writeArray h)
 -- @since 0.7.0
 {-# INLINE writeInChunksOfS #-}
 writeInChunksOfS :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeInChunksOfS n h m = writeArraysS h $ A.arraysOf n m
+writeInChunksOfS n h m = writeArraysS h $ AS.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
@@ -309,7 +310,7 @@ writeInChunksOfS n h m = writeArraysS h $ A.arraysOf n m
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
 writeInChunksOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeInChunksOf n h = FL.lchunksOf n (A.writeN n) (writeArrays h)
+writeInChunksOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeArrays h)
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --

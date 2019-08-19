@@ -121,8 +121,8 @@ module Streamly.Memory.Array
     -}
 
     -- * Streams of Arrays
-    -- ** Creation
-    , AS.arraysOf
+    -- -- ** Creation
+    -- , AS.arraysOf
 
     -- ** Elimination
     , AS.concat

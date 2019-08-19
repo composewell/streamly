@@ -74,6 +74,7 @@ module Streamly.Internal
 
     -- * Streamly.Memory.Array
     , readU
+    , A.arraysOf
 
     -- * Streamly.FileSystem.Handle
     , writeS
@@ -88,5 +89,6 @@ import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
 import Streamly.Unfold.Types (Unfold(..))
 
+import qualified Streamly.Memory.ArrayStream as A
 import Streamly.Prelude.Internal
 import Streamly.Fold.Types
