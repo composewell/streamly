@@ -8,24 +8,14 @@
 {-# LANGUAGE CPP #-}
 
 import Control.DeepSeq (NFData)
-import Data.Functor.Identity (runIdentity)
 import System.IO (openFile, IOMode(..), Handle, hClose)
 import System.Process.Typed (shell, runProcess_)
 
 import Data.IORef
 import Gauge
 
-import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Prelude as S
-import qualified Streamly.Fold as FL
-import qualified Streamly.Data.String as SS
-import qualified Streamly.Internal as Internal
-
-#ifdef DEVBUILD
-import Data.Char (ord, chr)
-import qualified Streamly.Internal as Internal
-#endif
+import qualified Streamly.Benchmark.FileIO.Stream as BFS
+import qualified Streamly.Benchmark.FileIO.Array as BFA
 
 -- Input and output file handles
 data Handles = Handles Handle Handle
@@ -51,23 +41,6 @@ infile = "benchmark/text-processing/gutenberg-500.txt"
 fileSize :: Int
 fileSize = blockSize * blockCount
 
-foreign import ccall unsafe "u_iswspace"
-  iswspace :: Int -> Int
-
--- Code copied from base/Data.Char to INLINE it
-{-# INLINE isSpace #-}
-isSpace                 :: Char -> Bool
--- isSpace includes non-breaking space
--- The magic 0x377 isn't really that magical. As of 2014, all the codepoints
--- at or below 0x377 have been assigned, so we shouldn't have to worry about
--- any new spaces appearing below there. It would probably be best to
--- use branchless ||, but currently the eqLit transformation will undo that,
--- so we'll do it like this until there's a way around that.
-isSpace c
-  | uc <= 0x377 = uc == 32 || uc - 0x9 <= 4 || uc == 0xa0
-  | otherwise = iswspace (ord c) /= 0
-  where
-    uc = fromIntegral (ord c) :: Word
 #else
 infile :: String
 infile = scratchDir ++ "in-100MB.txt"
@@ -96,213 +69,154 @@ main = do
         [ bgroup "readArray"
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
-                let s = FH.readArrays inh
-                larr <- S.last s
-                return $ case larr of
-                    Nothing -> Nothing
-                    Just arr -> A.readIndex arr (A.length arr - 1)
+                BFA.last inh
             -- Note: this cannot be fairly compared with GNU wc -c or wc -m as
             -- wc uses lseek to just determine the file size rather than reading
             -- and counting characters.
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
-                let s = FH.readArrays inh
-                S.sum (S.map A.length s)
+                BFA.countBytes inh
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ A.splitOn 10 $ FH.readArrays inh
+                BFA.countLines inh
             , mkBench "sum" href $ do
-                let foldlArr' f z = runIdentity . S.foldl' f z . A.read
                 Handles inh _ <- readIORef href
-                let s = FH.readArrays inh
-                S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
+                BFA.sumBytes inh
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
-                S.runFold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
+                BFA.cat devNull inh
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
                 Handles inh _ <- readIORef href
-                S.last $ FH.read inh
+                BFS.last inh
             , mkBench "length (bytecount)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ FH.read inh
+                BFS.countBytes inh
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
-                S.length
-                    $ SS.foldLines FL.drain
-                    $ SS.decodeChar8
-                    $ FH.read inh
+                BFS.countLines inh
             , mkBench "linecountU" href $ do
                 Handles inh _ <- readIORef href
-                S.length
-                    $ SS.foldLines FL.drain
-                    $ SS.decodeChar8
-                    $ Internal.concatMapU Internal.readU (FH.readArrays inh)
+                BFS.countLinesU inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
-                S.sum $ FH.read inh
+                BFS.sumBytes inh
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
-                S.runFold (FH.write devNull) $ FH.read inh
+                BFS.cat devNull inh
             , mkBench "catStream" href $ do
                 Handles inh _ <- readIORef href
-                Internal.writeS devNull $ FH.read inh
+                BFS.catStreamWrite devNull inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
                 Handles inh outh <- readIORef href
-                let s = FH.readArrays inh
-                S.runFold (FH.writeArrays outh) s
+                BFA.copy inh outh
             ]
 #ifdef DEVBUILD
         -- This takes a little longer therefore put under the dev conditional
         , bgroup "copyStream"
             [ mkBench "fromToHandle" href $ do
                 Handles inh outh <- readIORef href
-                S.runFold (FH.write outh) (FH.read inh)
+                BFS.copy inh outh
             ]
         -- This needs an ascii file, as decode just errors out.
         , bgroup "decode-encode"
            [ mkBench "char8" href $ do
                Handles inh outh <- readIORef href
-               S.runFold (FH.write outh)
-                 $ SS.encodeChar8
-                 $ SS.decodeChar8
-                 $ FH.read inh
+               BFS.copyCodecChar8 inh outh
            , mkBench "utf8" href $ do
                Handles inh outh <- readIORef href
-               S.runFold (FH.write outh)
-                 $ SS.encodeUtf8
-                 $ SS.decodeUtf8
-                 $ FH.read inh
+               BFS.copyCodecUtf8 inh outh
            ]
         , bgroup "grouping"
-            [ mkBench "chunksOf 1 (A.writeNF)" href $ do
+            [ mkBench "chunksOf 1 (A.writeN)" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf fileSize (A.writeN fileSize)
-                                (FH.read inh)
+                BFS.chunksOf fileSize inh
 
             , mkBench "chunksOf 1" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf 1 FL.drain (FH.read inh)
+                BFS.chunksOf 1 inh
             , mkBench "chunksOf 10" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf 10 FL.drain (FH.read inh)
+                BFS.chunksOf 10 inh
             , mkBench "chunksOf 1000" href $ do
                 Handles inh _ <- readIORef href
-                S.length $ S.chunksOf 1000 FL.drain (FH.read inh)
+                BFS.chunksOf 1000 inh
             ]
         , bgroup "group-ungroup"
             [ mkBench "lines-unlines" href $ do
                 Handles inh outh <- readIORef href
-                S.runFold (FH.write outh)
-                  $ SS.encodeChar8
-                  $ SS.unlines
-                  $ SS.lines
-                  $ SS.decodeChar8
-                  $ FH.read inh
+                BFS.linesUnlinesCopy inh outh
             , mkBench "lines-unlines-arrays" href $ do
                 Handles inh outh <- readIORef href
-                S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
-                    $ Internal.insertAfterEach (return $ A.fromList [10])
-                    $ A.splitOn 10
-                    $ FH.readArraysOf (1024*1024) inh
+                BFA.linesUnlinesCopy inh outh
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href
-                S.runFold (FH.write outh)
-                  $ SS.encodeChar8
-                  $ SS.unwords
-                  $ SS.words
-                  $ SS.decodeChar8
-                  $ FH.read inh
+                BFS.wordsUnwordsCopy inh outh
             ]
 
-        , let lf = fromIntegral (ord '\n')
-              lfarr = A.fromList [lf]
-              isSp = isSpace . chr . fromIntegral
-              toarr = A.fromList . map (fromIntegral . ord)
-          in bgroup "splitting"
+        , bgroup "splitting"
             [ bgroup "predicate"
                 [ mkBench "splitOn \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ S.splitOn (== lf) FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOn inh
                 , mkBench "splitOnSuffix \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ S.splitOnSuffix (== lf) FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSuffix inh
                 , mkBench "wordsBy isSpace (word count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ S.wordsBy isSp FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.wordsBy inh
                 ]
 
             , bgroup "empty-pattern"
                 [ mkBench "splitOnSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (A.fromList []) FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "" inh
                 , mkBench "splitOnSuffixSeq \"\"" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSuffixSeq (A.fromList []) FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSuffixSeq "" inh
                 ]
             , bgroup "short-pattern"
                 [ mkBench "splitOnSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq lfarr FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "\n" inh
                 , mkBench "splitOnSuffixSeq \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSuffixSeq lfarr FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSuffixSeq "\n" inh
                 , mkBench "splitOnSeq a" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "a") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "a" inh
                 , mkBench "splitOnSeq \\r\\n" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "\r\n") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "\r\n" inh
                 , mkBench "splitOnSuffixSeq \\r\\n)" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSuffixSeq (toarr "\r\n") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSuffixSeq "\r\n" inh
                 , mkBench "splitOnSeq aa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "aa") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "aa" inh
                 , mkBench "splitOnSeq aaaa" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "aaaa") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "aaaa" inh
                 , mkBench "splitOnSeq abcdefgh" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "abcdefgh") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "abcdefgh" inh
                 ]
             , bgroup "long-pattern"
                 [ mkBench "splitOnSeq abcdefghi" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "abcdefghi") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "abcdefghi" inh
                 , mkBench "splitOnSeq catcatcatcatcat" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq (toarr "catcatcatcatcat") FL.drain
-                        $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "catcatcatcatcat" inh
                 , mkBench "splitOnSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSeq
-                                    (toarr "abcdefghijklmnopqrstuvwxyz")
-                                    FL.drain
-                            $ FH.read inh) -- >>= print
+                    BFS.splitOnSeq "abcdefghijklmnopqrstuvwxyz" inh
                 , mkBench "splitOnSuffixSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
-                    (S.length $ Internal.splitOnSuffixSeq
-                                    (toarr "abcdefghijklmnopqrstuvwxyz")
-                                    FL.drain
-                            $ FH.read inh) -- >>= print
+                    BFS.splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
                 ]
             ]
 #endif
