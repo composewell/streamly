@@ -155,7 +155,7 @@ chunksOf n inh =
     S.length $ S.chunksOf n (A.writeN n) (FH.read inh)
 
 hinspect $ hasNoTypeClasses 'chunksOf
--- hinspect $ 'chunksOf `hasNoType` ''Step
+hinspect $ 'chunksOf `hasNoType` ''Step
 
 -- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
