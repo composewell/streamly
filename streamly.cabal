@@ -261,7 +261,16 @@ library
                      , Streamly.Benchmark.FileIO.Stream
 
     default-language: Haskell2010
-    ghc-options:      -Wall -O2 -fspec-constr-recursive=10
+    -- We need optimization options here to optimize internal (non-inlined)
+    -- versions of functions. Also, we have some benchmarking inspection tests
+    -- part of the library when built with --benchmarks flag. Thos tests fail
+    -- if we do not use optimization options here. It was observed that due to
+    -- -O2 here some concurrent/nested benchmarks improved and others regressed.
+    -- We can investigate a bit more here why the regression occurred.
+    ghc-options:      -Wall
+                      -O2
+                      -fspec-constr-recursive=10
+                      -fmax-worker-args=16
 
     if flag(has-llvm)
       ghc-options: -fllvm
@@ -562,7 +571,11 @@ benchmark linear
   main-is: Linear.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -596,7 +609,11 @@ benchmark linear-async
   main-is: LinearAsync.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -631,7 +648,11 @@ benchmark linear-rate
   main-is: LinearRate.hs
   other-modules: LinearOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -665,7 +686,11 @@ benchmark nested
   main-is: Nested.hs
   other-modules: NestedOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -700,7 +725,11 @@ benchmark array
   main-is: Array.hs
   other-modules: ArrayOps
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T" -fspec-constr-recursive=10
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -734,7 +763,11 @@ benchmark fileio
   hs-source-dirs: benchmark
   main-is: FileIO.hs
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -770,7 +803,11 @@ benchmark concurrent
   hs-source-dirs: benchmark
   main-is: Concurrent.hs
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -830,7 +867,11 @@ benchmark base
                    , StreamKOps
 
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -fspec-constr-recursive=10 -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -896,7 +937,11 @@ executable nano-bench
                    , Streamly.FileSystem.IOVec
                    , Streamly.Streams.StreamD
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -928,7 +973,11 @@ executable adaptive
   hs-source-dirs: benchmark
   main-is: Adaptive.hs
   default-language: Haskell2010
-  ghc-options:  -O2 -Wall -with-rtsopts "-T"
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
 
   if flag(has-llvm)
     ghc-options: -fllvm
@@ -965,7 +1014,11 @@ executable SearchQuery
   default-language: Haskell2010
   main-is: SearchQuery.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -979,7 +1032,11 @@ executable ListDir
   default-language: Haskell2010
   main-is: ListDir.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -996,7 +1053,11 @@ executable MergeSort
   default-language: Haskell2010
   main-is: MergeSort.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1010,7 +1071,11 @@ executable AcidRain
   default-language: Haskell2010
   main-is: AcidRain.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1028,7 +1093,11 @@ executable CirclingSquare
   default-language: Haskell2010
   main-is: CirclingSquare.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1061,7 +1130,11 @@ executable HandleIO
   default-language: Haskell2010
   main-is: HandleIO.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1074,7 +1147,11 @@ executable FileIOExamples
   default-language: Haskell2010
   main-is: FileIOExamples.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: False
     build-Depends:
@@ -1087,7 +1164,11 @@ executable EchoServer
   default-language: Haskell2010
   main-is: EchoServer.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -1100,7 +1181,11 @@ executable FileSinkServer
   default-language: Haskell2010
   main-is: FileSinkServer.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -1113,7 +1198,11 @@ executable FromFileClient
   default-language: Haskell2010
   main-is: FromFileClient.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
+  ghc-options:  -O2
+                -fspec-constr-recursive=10
+                -fmax-worker-args=16
+                -Wall
+                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
