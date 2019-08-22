@@ -60,6 +60,7 @@ module Streamly.Streams.StreamD.Type
     , eqBy
     , cmpBy
     , take
+    , GroupState (..) -- for inspection testing
     , groupsOf
     )
 where

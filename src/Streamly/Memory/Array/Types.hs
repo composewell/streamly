@@ -36,6 +36,7 @@ module Streamly.Memory.Array.Types
 
     -- * Streams of arrays
     , fromStreamDArraysOf
+    , FlattenState (..) -- for inspection testing
     , flattenArrays
     , flattenArraysRev
     , packArraysChunksOf
