@@ -45,7 +45,6 @@ import Streamly.Benchmark.Inspection (hinspect)
 import qualified Streamly.Memory.Array.Types as AT
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.FileSystem.Handle.Internal as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude.Internal as S
 import qualified Streamly.Fold as FL
@@ -170,8 +169,8 @@ chunksOf n inh =
 
 hinspect $ hasNoTypeClasses 'chunksOf
 hinspect $ 'chunksOf `hasNoType` ''Step
--- hinspect $ 'chunksOf `hasNoType` ''AT.FlattenState
--- hinspect $ 'chunksOf `hasNoType` ''GroupState
+hinspect $ 'chunksOf `hasNoType` ''AT.FlattenState
+hinspect $ 'chunksOf `hasNoType` ''GroupState
 
 -- This is to make sure that the concatMap in FH.read, groupsOf and foldlM'
 -- together can fuse.
@@ -186,8 +185,8 @@ chunksOfD n inh =
 
 hinspect $ hasNoTypeClasses 'chunksOf
 hinspect $ 'chunksOf `hasNoType` ''Step
--- hinspect $ 'chunksOfD `hasNoType` ''GroupState
--- hinspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
+hinspect $ 'chunksOfD `hasNoType` ''GroupState
+hinspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
 
 -- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
