@@ -131,7 +131,7 @@ main = do
                BFS.copyCodecUtf8 inh outh
            ]
         , bgroup "grouping"
-            [ mkBench "chunksOf 1 (A.writeN)" href $ do
+            [ mkBench "chunksOf (single chunk)" href $ do
                 Handles inh _ <- readIORef href
                 BFS.chunksOf fileSize inh
 
