@@ -648,7 +648,6 @@ drain (Stream step state) = go SPEC state
 null :: Monad m => Stream m a -> m Bool
 null m = foldrM (\_ _ -> return False) (return True) m
 
--- XXX SPEC?
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
 head m = foldrM (\x _ -> return (Just x)) (return Nothing) m

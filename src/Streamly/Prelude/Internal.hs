@@ -1024,7 +1024,7 @@ runWhile = drainWhile
 -- @since 0.1.1
 {-# INLINE null #-}
 null :: Monad m => SerialT m a -> m Bool
-null = K.null
+null = S.null . toStreamS
 
 -- | Extract the first element of the stream, if any.
 --
@@ -1033,7 +1033,7 @@ null = K.null
 -- @since 0.1.0
 {-# INLINE head #-}
 head :: Monad m => SerialT m a -> m (Maybe a)
-head = K.head
+head = S.head . toStreamS
 
 -- |
 -- > tail = fmap (fmap snd) . uncons
