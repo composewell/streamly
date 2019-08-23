@@ -10,13 +10,18 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TemplateHaskell #-}
+
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 
 module Streamly.Benchmark.Prelude where
 
+import Control.DeepSeq (NFData)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
+import GHC.Generics (Generic)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
@@ -25,8 +30,11 @@ import Prelude
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
-import Control.DeepSeq (NFData)
-import GHC.Generics (Generic)
+
+import Test.Inspection
+
+import Streamly.Streams.StreamD.Type (Step(..))
+import Streamly.Benchmark.Inspection (hinspect)
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
@@ -489,23 +497,39 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 -------------------------------------------------------------------------------
 
 {-# INLINE zip #-}
-{-# INLINE zipM #-}
-{-# INLINE mergeBy #-}
-zip, zipM, mergeBy :: Monad m => Stream m Int -> m ()
-
+zip :: Monad m => Stream m Int -> m ()
 zip src       = do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipWith (,) src src1)
-zipM src      =  do
+
+{-# INLINE zipM' #-}
+zipM' :: Monad m => Stream m Int -> m ()
+zipM' src      =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.zipWithM (curry return) src src1)
 
-mergeBy src     =  do
+{-# INLINE zipM #-}
+zipM :: Int -> IO ()
+zipM n = zipM' $ source n
+
+hinspect $ hasNoTypeClasses 'zipM
+-- hinspect $ 'zipM `hasNoType` ''Step
+
+{-# INLINE mergeBy' #-}
+mergeBy' :: Monad m => Stream m Int -> m ()
+mergeBy' src     =  do
     r <- S.tail src
     let src1 = fromJust r
     transform (S.mergeBy P.compare src src1)
+
+{-# INLINE mergeBy #-}
+mergeBy :: Int -> IO ()
+mergeBy n = mergeBy' $ source n
+
+hinspect $ hasNoTypeClasses 'mergeBy
+-- hinspect $ 'mergeBy `hasNoType` ''Step
 
 {-# INLINE isPrefixOf #-}
 {-# INLINE isSubsequenceOf #-}
@@ -541,13 +565,41 @@ zipAsyncAp src  = do
     transform (S.zipAsyncly $ (,) <$> S.serially src
                                   <*> S.serially src1)
 
+{-# INLINE eqBy' #-}
+eqBy' :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
+eqBy' src = S.eqBy (==) src src
+
 {-# INLINE eqBy #-}
-eqBy :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
-eqBy src = S.eqBy (==) src src
+eqBy :: Int -> IO Bool
+eqBy n = eqBy' (source n)
+
+hinspect $ hasNoTypeClasses 'eqBy
+hinspect $ 'eqBy `hasNoType` ''Step
+
+{-# INLINE eqByPure #-}
+eqByPure :: Int -> Identity Bool
+eqByPure n = eqBy' (sourceUnfoldr n)
+
+hinspect $ hasNoTypeClasses 'eqByPure
+hinspect $ 'eqByPure `hasNoType` ''Step
+
+{-# INLINE cmpBy' #-}
+cmpBy' :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
+cmpBy' src = S.cmpBy P.compare src src
 
 {-# INLINE cmpBy #-}
-cmpBy :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
-cmpBy src = S.cmpBy P.compare src src
+cmpBy :: Int -> IO P.Ordering
+cmpBy n = cmpBy' (source n)
+
+hinspect $ hasNoTypeClasses 'cmpBy
+hinspect $ 'cmpBy `hasNoType` ''Step
+
+{-# INLINE cmpByPure #-}
+cmpByPure :: Int -> Identity P.Ordering
+cmpByPure n = cmpBy' (sourceUnfoldr n)
+
+hinspect $ hasNoTypeClasses 'cmpByPure
+hinspect $ 'cmpByPure `hasNoType` ''Step
 
 -- The worst case for concatMap, concat a 1 element stream n times.
 {-# INLINE concatMap #-}

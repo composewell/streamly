@@ -45,6 +45,12 @@ benchIOSink
     => String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 
+-- XXX once we convert all the functions to use this we can rename this to
+-- benchIOSink
+{-# INLINE benchIOSink1 #-}
+benchIOSink1 :: NFData b => String -> (Int -> IO b) -> Benchmark
+benchIOSink1 name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
 -- XXX We should be using sourceUnfoldrM for fair comparison with IO monad, but
 -- we can't use it as it requires MonadAsync constraint.
 {-# INLINE benchIdentitySink #-}
@@ -70,6 +76,13 @@ benchPure name src f = bench name $ nfIO $ randomRIO (1,1) >>= return . f . src
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b => String -> (SerialT Identity Int -> b) -> Benchmark
 benchPureSink name f = benchPure name Ops.sourceUnfoldr f
+
+-- XXX once we convert all the functions to use this we can rename this to
+-- benchPureSink
+{-# INLINE benchPureSink1 #-}
+benchPureSink1 :: NFData b => String -> (Int -> Identity b) -> Benchmark
+benchPureSink1 name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= return . runIdentity . f
 
 {-# INLINE benchPureSinkIO #-}
 benchPureSinkIO
@@ -97,10 +110,10 @@ main =
     [ bgroup "serially"
       [ bgroup "pure"
         [ benchPureSink "id" id
-        , benchPureSink "eqBy" Ops.eqBy
+        , benchPureSink1 "eqBy" Ops.eqByPure
         , benchPureSink "==" Ops.eqInstance
         , benchPureSink "/=" Ops.eqInstanceNotEq
-        , benchPureSink "cmpBy" Ops.cmpBy
+        , benchPureSink1 "cmpBy" Ops.cmpByPure
         , benchPureSink "<" Ops.ordInstance
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSrc "IsList.fromList" Ops.sourceIsList
@@ -329,11 +342,11 @@ main =
         , benchIOSink "insertBy" (Ops.insertBy 4)
         ]
       , bgroup "multi-stream"
-        [ benchIOSink "eqBy" Ops.eqBy
-        , benchIOSink "cmpBy" Ops.cmpBy
+        [ benchIOSink1 "eqBy" Ops.eqBy
+        , benchIOSink1 "cmpBy" Ops.cmpBy
         , benchIOSink "zip" Ops.zip
-        , benchIOSink "zipM" Ops.zipM
-        , benchIOSink "mergeBy" Ops.mergeBy
+        , benchIOSink1 "zipM" Ops.zipM
+        , benchIOSink1 "mergeBy" Ops.mergeBy
         , benchIOSink "isPrefixOf" Ops.isPrefixOf
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
         , benchIOSink "stripPrefix" Ops.stripPrefix
