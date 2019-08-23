@@ -2,7 +2,7 @@
 
 Recommended GHC options are: 
 
-  `-O2 -fspec-constr-recursive=10`
+  `-O2 -fspec-constr-recursive=10 -fmax-worker-args=16`
 
 At the very least `-O` compilation option is required. In some cases, the
 program may exhibit memory hog with default optimization options.  For example,
