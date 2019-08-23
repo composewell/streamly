@@ -1,3 +1,4 @@
+cabal-version:      2.2
 name:               streamly
 version:            0.6.1
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
@@ -86,7 +87,7 @@ description:
 
 homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues
-license:             BSD3
+license:             BSD-3-Clause
 license-file:        LICENSE
 tested-with:         GHC==7.10.3
                    , GHC==8.0.2
@@ -98,7 +99,6 @@ copyright:           2017 Harendra Kumar
 category:            Control, Concurrency, Streaming, Reactivity
 stability:           Experimental
 build-type:          Configure
-cabal-version:       >= 1.10
 
 extra-source-files:
     Changelog.md
@@ -172,10 +172,80 @@ flag examples-sdl
   default: False
 
 -------------------------------------------------------------------------------
+-- Common stanzas
+-------------------------------------------------------------------------------
+
+common compile-options
+    default-language: Haskell2010
+    if flag(streamk)
+      cpp-options:    -DUSE_STREAMK_ONLY
+
+    if flag(no-fusion)
+      cpp-options:    -DDISABLE_FUSION
+
+    if flag(dev)
+      cpp-options:    -DDEVBUILD
+
+    ghc-options:      -Wall
+
+    if flag(has-llvm)
+      ghc-options: -fllvm
+
+    if flag(dev)
+      ghc-options:    -Wmissed-specialisations
+                      -Wall-missed-specialisations
+                      -fno-ignore-asserts
+    if impl(ghc >= 8.0)
+      ghc-options:    -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
+                      -Wnoncanonical-monadfail-instances
+
+common optimization-options
+  ghc-options: -O2
+               -fspec-constr-recursive=10
+               -fmax-worker-args=16
+
+common threading-options
+  ghc-options:  -threaded
+                -with-rtsopts=-N
+
+-- We need optimization options here to optimize internal (non-inlined)
+-- versions of functions. Also, we have some benchmarking inspection tests
+-- part of the library when built with --benchmarks flag. Thos tests fail
+-- if we do not use optimization options here. It was observed that due to
+-- -O2 here some concurrent/nested benchmarks improved and others regressed.
+-- We can investigate a bit more here why the regression occurred.
+common lib-options
+  import: compile-options, optimization-options
+
+-- Compilation for coverage builds on CI machines takes too long without -O0
+-- XXX we should use coverage flag for that, -O0 may take too long to run tests
+-- in general.
+common test-options
+  import: compile-options, threading-options
+  ghc-options:  -O0
+                -fno-ignore-asserts
+
+-- Used by maxrate test, benchmarks and executables
+common exe-options
+  import: compile-options, optimization-options, threading-options
+
+-- Some benchmarks are threaded some are not
+common bench-options
+  import: compile-options, optimization-options
+  ghc-options: -with-rtsopts "-T"
+
+-------------------------------------------------------------------------------
 -- Library
 -------------------------------------------------------------------------------
 
 library
+    import: lib-options
     js-sources: jsbits/clock.js
     include-dirs:     src/Streamly/Time
                     , src/Streamly/Streams
@@ -260,42 +330,6 @@ library
                      , Streamly.Benchmark.FileIO.Array
                      , Streamly.Benchmark.FileIO.Stream
 
-    default-language: Haskell2010
-    -- We need optimization options here to optimize internal (non-inlined)
-    -- versions of functions. Also, we have some benchmarking inspection tests
-    -- part of the library when built with --benchmarks flag. Thos tests fail
-    -- if we do not use optimization options here. It was observed that due to
-    -- -O2 here some concurrent/nested benchmarks improved and others regressed.
-    -- We can investigate a bit more here why the regression occurred.
-    ghc-options:      -Wall
-                      -O2
-                      -fspec-constr-recursive=10
-                      -fmax-worker-args=16
-
-    if flag(has-llvm)
-      ghc-options: -fllvm
-
-    if flag(streamk)
-      cpp-options:    -DUSE_STREAMK_ONLY
-
-    if flag(no-fusion)
-      cpp-options:    -DDISABLE_FUSION
-
-    if flag(dev)
-      cpp-options:    -DDEVBUILD
-      ghc-options:    -Wmissed-specialisations
-                      -Wall-missed-specialisations
-                      -fno-ignore-asserts
-    if impl(ghc >= 8.0)
-      ghc-options:    -Wcompat
-                      -Wunrecognised-warning-flags
-                      -Widentities
-                      -Wincomplete-record-updates
-                      -Wincomplete-uni-patterns
-                      -Wredundant-constraints
-                      -Wnoncanonical-monad-instances
-                      -Wnoncanonical-monadfail-instances
-
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6
                      , deepseq           >= 1.4.1 && < 1.5
@@ -328,27 +362,12 @@ library
 -- Test suites
 -------------------------------------------------------------------------------
 
--- Compilation for coverage builds on CI machines takes too long without -O0
-
 test-suite test
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Main.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
-  ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N -fno-ignore-asserts
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -360,23 +379,10 @@ test-suite test
   default-language: Haskell2010
 
 test-suite pure-streams-base
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: PureStreams.hs
   hs-source-dirs: test
-  ghc-options:  -Wall -threaded -with-rtsopts=-N -fno-ignore-asserts
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -385,23 +391,10 @@ test-suite pure-streams-base
 
 -- test-suite pure-streams-streamly
 --   type: exitcode-stdio-1.0
+--  import: test-options
 --   main-is: PureStreams.hs
 --   hs-source-dirs: test
 --   cpp-options:  -DUSE_STREAMLY_LIST
---   ghc-options:  -O0 -Wall -threaded -with-rtsopts=-N -fno-ignore-asserts
---   if flag(dev)
---     cpp-options:    -DDEVBUILD
---     ghc-options:    -Wmissed-specialisations
---                     -Wall-missed-specialisations
---   if impl(ghc >= 8.0)
---     ghc-options:    -Wcompat
---                     -Wunrecognised-warning-flags
---                     -Widentities
---                     -Wincomplete-record-updates
---                     -Wincomplete-uni-patterns
---                     -Wredundant-constraints
---                     -Wnoncanonical-monad-instances
---                     -Wnoncanonical-monadfail-instances
 --   build-depends:
 --       streamly
 --     , base              >= 4.8   && < 5
@@ -409,24 +402,11 @@ test-suite pure-streams-base
 --   default-language: Haskell2010
 
 test-suite properties
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Prop.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
-  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -438,24 +418,11 @@ test-suite properties
   default-language: Haskell2010
 
 test-suite array-test
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: Arrays.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
-  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -467,24 +434,11 @@ test-suite array-test
   default-language: Haskell2010
 
 test-suite string-test
+  import: test-options
   type: exitcode-stdio-1.0
   main-is: String.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
-  ghc-options:  -fno-ignore-asserts -Wall -O0 -threaded -with-rtsopts=-N
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -496,12 +450,12 @@ test-suite string-test
   default-language: Haskell2010
 
 test-suite maxrate
+  import: exe-options
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   main-is: MaxRate.hs
   js-sources: jsbits/clock.js
   hs-source-dirs:  test
-  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   if flag(dev)
     buildable: True
     build-Depends:
@@ -514,43 +468,43 @@ test-suite maxrate
     buildable: False
 
 test-suite loops
+  import: test-options
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   main-is: loops.hs
   hs-source-dirs:  test
-  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base >= 4.8   && < 5
 
 test-suite nested-loops
+  import: test-options
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   main-is: nested-loops.hs
   hs-source-dirs:  test
-  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base   >= 4.8   && < 5
     , random >= 1.0.0 && < 2
 
 test-suite parallel-loops
+  import: test-options
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   main-is: parallel-loops.hs
   hs-source-dirs:  test
-  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base   >= 4.8   && < 5
     , random >= 1.0.0 && < 2
 
 test-suite inspection
+  import: test-options
   type: exitcode-stdio-1.0
   default-language: Haskell2010
   main-is: inspection.hs
   hs-source-dirs:  test
-  ghc-options:  -fno-ignore-asserts -O2 -Wall -threaded -with-rtsopts=-N
   build-Depends:
       streamly
     , base               >= 4.8   && < 5
@@ -566,33 +520,11 @@ test-suite inspection
 -------------------------------------------------------------------------------
 
 benchmark linear
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Linear.hs
   other-modules: LinearOps
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -604,34 +536,12 @@ benchmark linear
         transformers  >= 0.4 && < 0.6
 
 benchmark linear-async
+  import: bench-options
+  cpp-options: -DLINEAR_ASYNC
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
   other-modules: LinearOps
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  cpp-options: -DLINEAR_ASYNC
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -643,33 +553,11 @@ benchmark linear-async
         transformers  >= 0.4 && < 0.6
 
 benchmark linear-rate
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
   other-modules: LinearOps
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -681,34 +569,11 @@ benchmark linear-rate
         transformers  >= 0.4 && < 0.6
 
 benchmark nested
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Nested.hs
   other-modules: NestedOps
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -720,34 +585,11 @@ benchmark nested
         transformers  >= 0.4 && < 0.6
 
 benchmark array
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Array.hs
   other-modules: ArrayOps
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -759,33 +601,10 @@ benchmark array
         transformers  >= 0.4 && < 0.6
 
 benchmark fileio
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: FileIO.hs
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   if flag(benchmark)
     buildable: True
     build-depends:
@@ -799,33 +618,10 @@ benchmark fileio
     buildable: False
 
 benchmark concurrent
+  import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Concurrent.hs
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    cpp-options:    -DDEVBUILD
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
   if flag(dev)
     buildable: True
     build-depends:
@@ -843,6 +639,7 @@ benchmark concurrent
 -- way to use unexposed modules from the library.
 
 benchmark base
+  import: bench-options
   type: exitcode-stdio-1.0
   include-dirs:     src/Streamly/Time
                   , src/Streamly/Streams
@@ -865,30 +662,6 @@ benchmark base
 
                    , StreamDOps
                    , StreamKOps
-
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
-  if flag(dev)
-    ghc-options:    -Wmissed-specialisations
-                    -Wall-missed-specialisations
-                    -fno-ignore-asserts
-  if impl(ghc >= 8.0)
-    ghc-options:    -Wcompat
-                    -Wunrecognised-warning-flags
-                    -Widentities
-                    -Wincomplete-record-updates
-                    -Wincomplete-uni-patterns
-                    -Wredundant-constraints
-                    -Wnoncanonical-monad-instances
-                    -Wnoncanonical-monadfail-instances
 
   if flag(dev)
     buildable: True
@@ -919,6 +692,7 @@ benchmark base
     buildable: False
 
 executable nano-bench
+  import: bench-options
   hs-source-dirs: benchmark, src
   include-dirs:     src/Streamly/Time
                   , src/Streamly/Streams
@@ -936,16 +710,6 @@ executable nano-bench
                    , Streamly.Streams.StreamD.Type
                    , Streamly.FileSystem.IOVec
                    , Streamly.Streams.StreamD
-  default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
   if flag(dev)
     buildable: True
     build-depends:
@@ -970,18 +734,10 @@ executable nano-bench
     buildable: False
 
 executable adaptive
+  import: bench-options
   hs-source-dirs: benchmark
   main-is: Adaptive.hs
   default-language: Haskell2010
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
-
-  if flag(has-llvm)
-    ghc-options: -fllvm
-
   if flag(dev)
     buildable: True
     build-depends:
@@ -994,6 +750,7 @@ executable adaptive
 
 executable chart
   default-language: Haskell2010
+  ghc-options: -Wall
   hs-source-dirs: benchmark
   main-is: Chart.hs
   if flag(dev) && !flag(no-charts) && !impl(ghcjs)
@@ -1011,14 +768,9 @@ executable chart
 -------------------------------------------------------------------------------
 
 executable SearchQuery
-  default-language: Haskell2010
+  import: exe-options
   main-is: SearchQuery.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -1029,14 +781,9 @@ executable SearchQuery
     buildable: False
 
 executable ListDir
-  default-language: Haskell2010
+  import: exe-options
   main-is: ListDir.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1050,14 +797,9 @@ executable ListDir
     buildable: False
 
 executable MergeSort
-  default-language: Haskell2010
+  import: exe-options
   main-is: MergeSort.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1068,14 +810,9 @@ executable MergeSort
     buildable: False
 
 executable AcidRain
-  default-language: Haskell2010
+  import: exe-options
   main-is: AcidRain.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1090,14 +827,9 @@ executable AcidRain
     buildable: False
 
 executable CirclingSquare
-  default-language: Haskell2010
+  import: exe-options
   main-is: CirclingSquare.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1108,10 +840,9 @@ executable CirclingSquare
     buildable: False
 
 executable ControlFlow
-  default-language: Haskell2010
+  import: exe-options
   main-is: ControlFlow.hs
   hs-source-dirs:  examples
-  ghc-options: -Wall
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1127,14 +858,9 @@ executable ControlFlow
     buildable: False
 
 executable HandleIO
-  default-language: Haskell2010
+  import: exe-options
   main-is: HandleIO.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: True
     build-Depends:
@@ -1144,14 +870,9 @@ executable HandleIO
     buildable: False
 
 executable FileIOExamples
-  default-language: Haskell2010
+  import: exe-options
   main-is: FileIOExamples.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if flag(examples) || flag(examples-sdl)
     buildable: False
     build-Depends:
@@ -1161,14 +882,9 @@ executable FileIOExamples
     buildable: False
 
 executable EchoServer
-  default-language: Haskell2010
+  import: exe-options
   main-is: EchoServer.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -1178,14 +894,9 @@ executable EchoServer
     buildable: False
 
 executable FileSinkServer
-  default-language: Haskell2010
+  import: exe-options
   main-is: FileSinkServer.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
@@ -1195,14 +906,9 @@ executable FileSinkServer
     buildable: False
 
 executable FromFileClient
-  default-language: Haskell2010
+  import: exe-options
   main-is: FromFileClient.hs
   hs-source-dirs:  examples
-  ghc-options:  -O2
-                -fspec-constr-recursive=10
-                -fmax-worker-args=16
-                -Wall
-                -with-rtsopts "-T"
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
     build-Depends:
