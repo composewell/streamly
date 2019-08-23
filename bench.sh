@@ -259,14 +259,14 @@ then
   WHICH_COMMAND="stack exec which"
   BUILD_CHART_EXE="stack build --flag streamly:dev"
   GET_BENCH_PROG=stack_bench_prog
-  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
+  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --flags "streamly:benchmark" --bench --no-run-benchmarks"
 else
   # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
   #WHICH_COMMAND="cabal v2-exec which"
   WHICH_COMMAND=cabal_which
   BUILD_CHART_EXE="cabal v2-build --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
-  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
+  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --flag benchmark --enable-benchmarks"
 fi
 
 #-----------------------------------------------------------------------------

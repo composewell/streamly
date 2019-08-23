@@ -16,7 +16,7 @@ import System.Random (randomRIO)
 import Data.Monoid (Last(..))
 
 import qualified GHC.Exts as GHC
-import qualified LinearOps as Ops
+import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import qualified Streamly.Fold as FL

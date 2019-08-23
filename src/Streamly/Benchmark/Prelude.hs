@@ -1,5 +1,5 @@
 -- |
--- Module      : BenchmarkOps
+-- Module      : Streamly.Benchmark.Prelude
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : MIT
@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module LinearOps where
+module Streamly.Benchmark.Prelude where
 
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)

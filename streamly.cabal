@@ -329,6 +329,7 @@ library
                        Streamly.Benchmark.Inspection
                      , Streamly.Benchmark.FileIO.Array
                      , Streamly.Benchmark.FileIO.Stream
+                     , Streamly.Benchmark.Prelude
 
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6
@@ -524,16 +525,19 @@ benchmark linear
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Linear.hs
-  other-modules: LinearOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
+  if flag(benchmark)
+    buildable: True
     build-depends:
-        transformers  >= 0.4 && < 0.6
+        streamly
+      , base                >= 4.8   && < 5
+      , deepseq             >= 1.4.1 && < 1.5
+      , random              >= 1.0   && < 2.0
+      , gauge               >= 0.2.4 && < 0.3
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
+  else
+    buildable: False
 
 benchmark linear-async
   import: bench-options
@@ -541,32 +545,38 @@ benchmark linear-async
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
-  other-modules: LinearOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
+  if flag(benchmark)
+    buildable: True
     build-depends:
-        transformers  >= 0.4 && < 0.6
+        streamly
+      , base                >= 4.8   && < 5
+      , deepseq             >= 1.4.1 && < 1.5
+      , random              >= 1.0   && < 2.0
+      , gauge               >= 0.2.4 && < 0.3
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
+  else
+    buildable: False
 
 benchmark linear-rate
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
-  other-modules: LinearOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
+  if flag(benchmark)
+    buildable: True
     build-depends:
-        transformers  >= 0.4 && < 0.6
+        streamly
+      , base                >= 4.8   && < 5
+      , deepseq             >= 1.4.1 && < 1.5
+      , random              >= 1.0   && < 2.0
+      , gauge               >= 0.2.4 && < 0.3
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
+  else
+    buildable: False
 
 benchmark nested
   import: bench-options
