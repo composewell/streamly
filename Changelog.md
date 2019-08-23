@@ -40,6 +40,8 @@
 ### Bug Fixes
 
 * Fix a bug that caused `uniq` function to yield the same element twice.
+* Fix a bug that caused "thread blocked indefinitely in an MVar operation"
+  exception in a parallel stream.
 
 ### Major Enhancements
 

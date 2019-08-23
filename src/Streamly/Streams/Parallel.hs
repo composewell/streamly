@@ -104,7 +104,9 @@ runOneLimited st m0 winfo = go m0
         then do
             liftIO $ decrementBufferLimit sv
             foldStreamShared st yieldk single stop m
-        else liftIO $ cleanupSVarFromWorker sv
+        else do
+            liftIO $ cleanupSVarFromWorker sv
+            liftIO $ sendStop sv winfo
 
     sv = fromJust $ streamVar st
 
