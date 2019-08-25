@@ -109,3 +109,15 @@ on `i` to get it specialized:
 ```
 
 `-flate-specialise` also helps in this case.
+
+## Stream and Fold State Data Structures
+
+Since state is an internal data structure threaded around in the loop, it is a
+good practice to use strict unboxed fields for state data structures where
+possible. In most cases it is not necessary, but in some cases it may affect
+fusion and make a difference of 10x performance or more.  For example, using
+non-strict fields can increase the code size for internal join points and
+functions created during transformations, which can affect the inlining of
+these code blocks which in turn can affect stream fusion. 
+
+See https://gitlab.haskell.org/ghc/ghc/issues/17075 .

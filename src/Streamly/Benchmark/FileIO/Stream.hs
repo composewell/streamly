@@ -165,6 +165,7 @@ hinspect $ hasNoTypeClasses 'copyCodecUtf8
 {-# INLINE chunksOf #-}
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
+    -- writeNUnsafe gives 2.5x boost here over writeN.
     S.length $ S.chunksOf n (AT.writeNUnsafe n) (FH.read inh)
 
 hinspect $ hasNoTypeClasses 'chunksOf
