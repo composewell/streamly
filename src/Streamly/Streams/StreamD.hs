@@ -265,6 +265,7 @@ module Streamly.Streams.StreamD
     , decodeUtf8
     , encodeUtf8
     , decodeUtf8Lenient
+    , decodeUtf8Arrays
     )
 where
 
@@ -307,6 +308,11 @@ import qualified Streamly.Pipe.Types as Pipe
 import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Streams.StreamK as K
+
+import Foreign.Ptr (plusPtr)
+import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
+import Data.Array.Unboxed (UArray, listArray, (!))
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -2966,6 +2972,7 @@ the (Stream step state) = go state
 
 -- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
 
+{-# INLINE ord2 #-}
 ord2 :: Char -> [Word8]
 ord2 c = assert (n >= 0x80 && n <= 0x07ff) [x1, x2]
   where
@@ -2973,6 +2980,7 @@ ord2 c = assert (n >= 0x80 && n <= 0x07ff) [x1, x2]
     x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
     x2 = fromIntegral $ (n .&. 0x3F) + 0x80
 
+{-# INLINE ord3 #-}
 ord3 :: Char -> [Word8]
 ord3 c = assert (n >= 0x0800 && n <= 0xffff) [x1, x2, x3]
   where
@@ -2981,6 +2989,7 @@ ord3 c = assert (n >= 0x0800 && n <= 0xffff) [x1, x2, x3]
     x2 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
     x3 = fromIntegral $ (n .&. 0x3F) + 0x80
 
+{-# INLINE ord4 #-}
 ord4 :: Char -> [Word8]
 ord4 c = assert (n >= 0x10000) [x1, x2, x3, x4]
   where
@@ -3071,16 +3080,16 @@ validate4 x1 x2 x3 x4 = validate4_1 ||
                   between x3 0x80 0xBF &&
                   between x4 0x80 0xBF
 
-data CodePoint = FreshPoint
-               | Two !Word8
-               | GoThree !Word8
-               | Three !Word8 !Word8
-               | GoFour !Word8
-               | Four1 !Word8 !Word8
-               | Four !Word8 !Word8 !Word8
-               | YieldAndContinue !Char
-               | YieldAndStop !Char
-               | Done
+data CPoint s
+    = FreshPoint s
+    | Two !Word8 s
+    | GoThree !Word8 s
+    | Three !Word8 !Word8 s
+    | GoFour !Word8 s
+    | Four1 !Word8 !Word8 s
+    | Four !Word8 !Word8 !Word8 s
+    | YieldAndContinue !Char (CPoint s)
+    | Done
 
 data CodingFailureMode
     = TransliterateCodingFailure
@@ -3089,51 +3098,51 @@ data CodingFailureMode
 
 {-# INLINE_NORMAL decodeUtf8With #-}
 decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
-decodeUtf8With cfm (Stream step state) = Stream step' (state, FreshPoint)
+decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint state)
   where
     {-# INLINE transliterateOrError #-}
-    {-# INLINE inputUnderflow #-}
     transliterateOrError e s =
         case cfm of
             ErrorOnCodingFailure -> error e
-            TransliterateCodingFailure -> Skip (s, YieldAndContinue '\xFFFD')
-    inputUnderflow s = case cfm of
+            TransliterateCodingFailure -> Skip $ YieldAndContinue '\xFFFD' (FreshPoint s)
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow = case cfm of
        ErrorOnCodingFailure -> error "Input Underflow"
-       TransliterateCodingFailure -> Skip (s, YieldAndStop '\xFFFD')
+       TransliterateCodingFailure -> Skip $ YieldAndContinue '\xFFFD' Done
 
     {-# INLINE_LATE step' #-}
-    step' gst (st, FreshPoint) = do
+    step' gst (FreshPoint st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c0 s
                     | c0 <= 0x7f ->
-                        Skip (s, YieldAndContinue $ unsafeChr (fromIntegral c0))
+                        Skip $ YieldAndContinue (unsafeChr (fromIntegral c0)) (FreshPoint s)
                     | c0 >= 0xc0 && c0 <= 0xc1 ->
                         transliterateOrError "Invalid Overlong forms" s
-                    | c0 >= 0xc2 && c0 <= 0xdf -> Skip (s, Two c0)
-                    | c0 >= 0xe0 && c0 <= 0xef -> Skip (s, GoThree c0)
-                     | c0 >= 0xf0 -> Skip (s, GoFour c0)
+                    | c0 >= 0xc2 && c0 <= 0xdf -> Skip (Two c0 s)
+                    | c0 >= 0xe0 && c0 <= 0xef -> Skip (GoThree c0 s)
+                    | c0 >= 0xf0 -> Skip (GoFour c0 s)
                     | otherwise -> transliterateOrError "Invalid Sequence" s
-                Skip s -> Skip (s, FreshPoint)
+                Skip s -> Skip (FreshPoint s)
                 Stop -> Stop
 
     -- Decoding of a UTF8 character that spans two bytes with one byte (c0)
     -- known.
-    step' gst (st, Two c0) = do
+    step' gst (Two c0 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c1 s
                     | c1 < 0x80 || c1 >= 0xc0 ->
                         transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip (s, YieldAndContinue $ chr2 c0 c1)
-                Skip s -> Skip (s, Two c0)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ YieldAndContinue (chr2 c0 c1) (FreshPoint s)
+                Skip s -> Skip $ Two c0 s
+                Stop -> inputUnderflow
 
     -- Decoding of a UTF8 character that spans three bytes with first byte (c0)
     -- known.
-    step' gst (st, GoThree c0) = do
+    step' gst (GoThree c0 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
@@ -3141,93 +3150,197 @@ decodeUtf8With cfm (Stream step state) = Stream step' (state, FreshPoint)
                     | not (validate3 c0 c1 0x80) ->
                         transliterateOrError "Invalid Sequence" s
                                                     -- See #3341@ghc
-                    | otherwise -> Skip (s, Three c0 c1)
-                Skip s -> Skip (s, GoThree c0)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ Three c0 c1 s
+                Skip s -> Skip $ GoThree c0 s
+                Stop -> inputUnderflow
 
     -- Two bytes known of a 3 byte UTF8 encoded unicode character.
-    step' gst (st, Three c0 c1) = do
+    step' gst (Three c0 c1 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c2 s
                     | not (validate3 c0 c1 c2) ->
                         transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip (s, YieldAndContinue $ chr3 c0 c1 c2)
-                Skip s -> Skip (s, Three c0 c1)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ YieldAndContinue (chr3 c0 c1 c2) (FreshPoint s)
+                Skip s -> Skip $ Three c0 c1 s
+                Stop -> inputUnderflow
 
     -- One byte known of a four byte UTF8 unicode character.
-    step' gst (st, GoFour c0) = do
+    step' gst (GoFour c0 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c1 s
                     | not (validate4 c0 c1 0x80 0x80) ->
                         transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip (s, Four1 c0 c1)
-                Skip s -> Skip (s, GoFour c0)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ Four1 c0 c1 s
+                Skip s -> Skip $ GoFour c0 s
+                Stop -> inputUnderflow
 
     -- Two bytes known of a four byte UTF8 unicode character.
-    step' gst (st, Four1 c0 c1) = do
+    step' gst (Four1 c0 c1 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c2 s
                     | not (validate4 c0 c1 c2 0x80) ->
                         transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip (s, Four c0 c1 c2)
-                Skip s -> Skip (s, Four1 c0 c1)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ Four c0 c1 c2 s
+                Skip s -> Skip $ Four1 c0 c1 s
+                Stop -> inputUnderflow
 
     -- Three bytes known of a three byte UTF8 unicode character.
-    step' gst (st, Four c0 c1 c2) = do
+    step' gst (Four c0 c1 c2 st) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c3 s
                     | not (validate4 c0 c1 c2 c3) ->
                         transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip (s, YieldAndContinue $ chr4 c0 c1 c2 c3)
-                Skip s -> Skip (s, Four c0 c1 c2)
-                Stop -> inputUnderflow st
+                    | otherwise -> Skip $ YieldAndContinue (chr4 c0 c1 c2 c3) (FreshPoint s)
+                Skip s -> Skip $ Four c0 c1 c2 s
+                Stop -> inputUnderflow
 
     -- This way so that we only need one Yield.
-    step' _ (s, YieldAndStop c) = return $ Yield c (s, Done)
-    step' _ (s, YieldAndContinue c) = return $ Yield c (s, FreshPoint)
-    step' _ (_, Done) = return Stop
-
-{-# INLINE decodeUtf8 #-}
-decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8 = decodeUtf8With ErrorOnCodingFailure
+    --step' _ (YieldAndStop c) = return $ Yield c Done
+    step' _ (YieldAndContinue c s) = return $ Yield c s
+    step' _ Done = return Stop
 
 {-# INLINE decodeUtf8Lenient #-}
 decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
 
-data YieldMany x = None
-                 | YieldMany !x
-
 {-# INLINE_NORMAL encodeUtf8 #-}
 encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8 (Stream step state) = Stream step' (state, None)
+encodeUtf8 (Stream step state) = Stream step' (state, [])
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, None) = do
+    step' gst (st, []) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield c s ->
                     case ord c of
-                        x   | x <= 0x7F -> Skip (s, YieldMany [fromIntegral x])
-                            | x <= 0x7FF -> Skip (s, YieldMany (ord2 c))
+                        x   | x <= 0x7F -> Skip (s, [fromIntegral x])
+                            | x <= 0x7FF -> Skip (s, (ord2 c))
                             | x <= 0xFFFF ->
                                 if isSurrogate c
                                     then error "Encountered a surrogate"
-                                    else Skip (s, YieldMany (ord3 c))
-                            | otherwise -> Skip (s, YieldMany (ord4 c))
-                Skip s -> Skip (s, None)
+                                    else Skip (s, (ord3 c))
+                            | otherwise -> Skip (s, (ord4 c))
+                Skip s -> Skip (s, [])
                 Stop -> Stop
-    step' _ (s, YieldMany []) = return $ Skip (s, None)
-    step' _ (s, YieldMany (x:xs)) = return $ Yield x (s, YieldMany xs)
+    step' _ (s, (x:xs)) = return $ Yield x (s, xs)
+
+type CodePoint = Word32
+type DecoderState = Word32
+
+utf8d :: UArray Word32 Word32
+utf8d = listArray (0,363) [
+   -- The first part of the table maps bytes to character classes that
+   -- to reduce the size of the transition table and create bitmasks.
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+   1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,  9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,9,
+   7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,  7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
+   8,8,2,2,2,2,2,2,2,2,2,2,2,2,2,2,  2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,
+  10,3,3,3,3,3,3,3,3,3,3,3,3,4,3,3, 11,6,6,6,5,8,8,8,8,8,8,8,8,8,8,8,
+
+   -- The second part is a transition table that maps a combination
+   -- of a state of the automaton and a character class to a state.
+   0,12,24,36,60,96,84,12,12,12,48,72, 12,12,12,12,12,12,12,12,12,12,12,12,
+  12, 0,12,12,12,12,12, 0,12, 0,12,12, 12,24,12,12,12,12,12,24,12,24,12,12,
+  12,12,12,12,12,12,12,24,12,12,12,12, 12,24,12,12,12,12,12,12,12,24,12,12,
+  12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
+  12,36,12,12,12,12,12,12,12,12,12,12
+  ]
+
+{-# INLINE decode #-}
+decode :: (DecoderState, CodePoint) -> Word32 -> (DecoderState, CodePoint)
+decode (state, codep) byte =
+    let t = utf8d ! byte
+        codep' =
+            if state /= 0
+                then (byte .&. 0x3f) .|. (codep `shiftL` 6)
+                else (0xff `shiftR` (fromIntegral t)) .&. byte
+        state' = utf8d ! (256 + state + t)
+     in (state', codep')
+
+-- XXX Add proper error messages
+{-# INLINE_NORMAL decodeUtf8 #-}
+decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8 (Stream step state) = Stream step' (0, 0, state)
+  where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (codepointPtr, statePtr, st) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                let (sv, cp) = decode (statePtr, codepointPtr) (fromIntegral x)
+                return $
+                    case sv of
+                        12 -> error "UTF8: REJECT"
+                        0  ->
+                            Yield (unsafeChr (fromIntegral cp)) (cp, sv, s)
+                        _ -> Skip (cp, sv, s)
+            Skip s -> return $ Skip (codepointPtr, statePtr, s)
+            Stop -> return Stop -- XXX check whether statePtr is in Accept state or not.
+
+data FlattenState s a
+    = OuterLoop !CodePoint !DecoderState s
+    | InnerLoop !CodePoint !DecoderState s (ForeignPtr a) (Ptr a) (Ptr a)
+
+-- The normal decodeUtf8 above should fuse with flattenArrays
+-- to create this exact code but it doesn't for some reason, as of now this
+-- remains the fastest way I could figure out to decodeUtf8.
+--
+-- XXX Add Proper error messages
+{-# INLINE_NORMAL decodeUtf8Arrays #-}
+decodeUtf8Arrays :: MonadIO m => Stream m (A.Array Word8) -> Stream m Char
+decodeUtf8Arrays (Stream step state) = Stream step' (OuterLoop 0 0 state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (OuterLoop cp ds st) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield A.Array {..} s ->
+                    let p = unsafeForeignPtrToPtr aStart
+                     in Skip (InnerLoop cp ds s aStart p aEnd)
+                Skip s -> Skip (OuterLoop cp ds s)
+                Stop -> Stop
+    step' _ (InnerLoop cp ds st _ p end)
+        | p == end = return $ Skip $ OuterLoop cp ds st
+    step' _ (InnerLoop codepointPtr statePtr st startf p end) = do
+        x <-
+            liftIO $ do
+                r <- peek p
+                touchForeignPtr startf
+                return r
+        let (sv, cp) = decode (statePtr, codepointPtr) (fromIntegral x)
+        return $
+            case sv of
+                12 -> error "UTF8: REJECT"
+                0 ->
+                    Yield
+                        (unsafeChr (fromIntegral cp))
+                        (InnerLoop
+                             cp
+                             sv
+                             st
+                             startf
+                             (p `plusPtr` 1)
+                             end)
+                _ ->
+                    Skip
+                        (InnerLoop
+                             cp
+                             sv
+                             st
+                             startf
+                             (p `plusPtr` 1)
+                             end)
