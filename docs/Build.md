@@ -4,6 +4,19 @@ Recommended GHC options are:
 
   `-O2 -fspec-constr-recursive=10 -fmax-worker-args=16`
 
+`-fspec-constr-recursive` is needed for better stream fusion by enabling
+the `SpecConstr` optimization in more cases.
+
+`-fmax-worker-args` is needed for better stream fusion by enabling the
+`SpecConstr` optimization in some important cases.
+
+In some cases, you may need to use `-funfolding-use-threshold` to make sure
+that the combinators fuse. The default value of this option is `60`. Increasing
+this default value can be detrimental in general, therefore, increase only if
+you suspect an issue. As an example, a value of `75` is necessary and
+sufficient to fuse `S.chunksOf n (A.writeN n)`. Hopefully GHC will fix this so
+that it is not needed in future.
+
 At the very least `-O` compilation option is required. In some cases, the
 program may exhibit memory hog with default optimization options.  For example,
 the following program, if compiled without an optimization option, is known to
@@ -12,9 +25,6 @@ hog memory:
 ```
 main = S.drain $ S.concatMap S.fromList $ S.repeat []
 ```
-
-The `-fspec-constr-recursive=10` option may not be necessary in most cases but
-may help boost performance in some cases.
 
 # Multi-core Parallelism
 
