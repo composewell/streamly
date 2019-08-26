@@ -237,7 +237,7 @@ readInChunksOf chunkSize h = A.concat $ readArraysOf chunkSize h
 -- Generate a stream of elements of the given type from a file 'Handle'.
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
--- > read = 'readByChunks' A.defaultChunkSize
+-- > read = 'readInChunksOf' A.defaultChunkSize
 -- | Generate a byte stream from a file 'Handle'.
 --
 -- @since 0.7.0

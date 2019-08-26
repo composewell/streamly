@@ -67,9 +67,9 @@ import qualified Streamly.Streams.Prelude as P
 -- @since 0.7.0
 {-# INLINE concat #-}
 concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
-concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
+-- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
--- concat m = D.fromStreamD $ D.concatMapU A.readU (D.toStreamD m)
+concat m = D.fromStreamD $ D.concatMapU A.readU (D.toStreamD m)
 
 -- XXX should we have a reverseArrays API to reverse the stream of arrays
 -- instead?

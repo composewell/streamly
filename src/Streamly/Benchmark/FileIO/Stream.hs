@@ -62,6 +62,7 @@ last = S.last . FH.read
 hinspect $ hasNoTypeClasses 'last
 hinspect $ 'last `hasNoType` ''Step
 hinspect $ 'last `hasNoType` ''AT.FlattenState
+hinspect $ 'last `hasNoType` ''D.ConcatMapUState
 
 -- assert that flattenArrays constructors are not present
 -- | Count the number of bytes in a file.
@@ -72,6 +73,7 @@ countBytes = S.length . FH.read
 hinspect $ hasNoTypeClasses 'countBytes
 hinspect $ 'countBytes `hasNoType` ''Step
 hinspect $ 'countBytes `hasNoType` ''AT.FlattenState
+hinspect $ 'countBytes `hasNoType` ''D.ConcatMapUState
 
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
@@ -85,6 +87,7 @@ countLines =
 hinspect $ hasNoTypeClasses 'countLines
 hinspect $ 'countLines `hasNoType` ''Step
 hinspect $ 'countLines `hasNoType` ''AT.FlattenState
+hinspect $ 'countLines `hasNoType` ''D.ConcatMapUState
 
 -- | Count the number of lines in a file.
 {-# INLINE countLinesU #-}
@@ -97,7 +100,7 @@ countLinesU inh =
 
 hinspect $ hasNoTypeClasses 'countLinesU
 hinspect $ 'countLinesU `hasNoType` ''Step
-hinspect $ 'countLinesU `hasNoType` ''Either
+hinspect $ 'countLinesU `hasNoType` ''D.ConcatMapUState
 
 -- | Sum the bytes in a file.
 {-# INLINE sumBytes #-}
@@ -107,6 +110,7 @@ sumBytes = S.sum . FH.read
 hinspect $ hasNoTypeClasses 'sumBytes
 hinspect $ 'sumBytes `hasNoType` ''Step
 hinspect $ 'sumBytes `hasNoType` ''AT.FlattenState
+hinspect $ 'sumBytes `hasNoType` ''D.ConcatMapUState
 
 -- | Send the file contents to /dev/null
 {-# INLINE cat #-}
@@ -116,6 +120,7 @@ cat devNull inh = S.runFold (FH.write devNull) $ FH.read inh
 hinspect $ hasNoTypeClasses 'cat
 hinspect $ 'cat `hasNoType` ''Step
 hinspect $ 'cat `hasNoType` ''AT.FlattenState
+hinspect $ 'cat `hasNoType` ''D.ConcatMapUState
 
 -- | Send the file contents to /dev/null
 {-# INLINE catStreamWrite #-}
@@ -125,6 +130,7 @@ catStreamWrite devNull inh = Internal.writeS devNull $ FH.read inh
 hinspect $ hasNoTypeClasses 'catStreamWrite
 hinspect $ 'catStreamWrite `hasNoType` ''Step
 hinspect $ 'catStreamWrite `hasNoType` ''AT.FlattenState
+hinspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
 
 -- | Copy file
 {-# INLINE copy #-}
@@ -134,6 +140,7 @@ copy inh outh = S.runFold (FH.write outh) (FH.read inh)
 hinspect $ hasNoTypeClasses 'copy
 hinspect $ 'copy `hasNoType` ''Step
 hinspect $ 'copy `hasNoType` ''AT.FlattenState
+hinspect $ 'copy `hasNoType` ''D.ConcatMapUState
 
 -- | Copy file
 {-# INLINE copyCodecChar8 #-}
@@ -147,6 +154,7 @@ copyCodecChar8 inh outh =
 hinspect $ hasNoTypeClasses 'copyCodecChar8
 hinspect $ 'copyCodecChar8 `hasNoType` ''Step
 hinspect $ 'copyCodecChar8 `hasNoType` ''AT.FlattenState
+hinspect $ 'copyCodecChar8 `hasNoType` ''D.ConcatMapUState
 
 -- | Copy file
 {-# INLINE copyCodecUtf8 #-}
@@ -160,6 +168,7 @@ copyCodecUtf8 inh outh =
 hinspect $ hasNoTypeClasses 'copyCodecUtf8
 -- hinspect $ 'copyCodecUtf8 `hasNoType` ''Step
 -- hinspect $ 'copyCodecUtf8 `hasNoType` ''AT.FlattenState
+-- hinspect $ 'copyCodecUtf8 `hasNoType` ''D.ConcatMapUState
 
 -- | Slice in chunks of size n and get the count of chunks.
 {-# INLINE chunksOf #-}
@@ -171,6 +180,7 @@ chunksOf n inh =
 hinspect $ hasNoTypeClasses 'chunksOf
 hinspect $ 'chunksOf `hasNoType` ''Step
 hinspect $ 'chunksOf `hasNoType` ''AT.FlattenState
+hinspect $ 'chunksOf `hasNoType` ''D.ConcatMapUState
 hinspect $ 'chunksOf `hasNoType` ''GroupState
 
 -- This is to make sure that the concatMap in FH.read, groupsOf and foldlM'
@@ -188,6 +198,7 @@ hinspect $ hasNoTypeClasses 'chunksOf
 hinspect $ 'chunksOf `hasNoType` ''Step
 hinspect $ 'chunksOfD `hasNoType` ''GroupState
 hinspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
+hinspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 
 -- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
@@ -203,6 +214,7 @@ linesUnlinesCopy inh outh =
 -- hinspect $ hasNoTypeClasses 'linesUnlinesCopy
 -- hinspect $ 'linesUnlinesCopy `hasNoType` ''Step
 -- hinspect $ 'linesUnlinesCopy `hasNoType` ''AT.FlattenState
+-- hinspect $ 'linesUnlinesCopy `hasNoType` ''D.ConcatMapUState
 
 -- | Word, unwords and copy
 {-# INLINE wordsUnwordsCopy #-}
@@ -218,6 +230,7 @@ wordsUnwordsCopy inh outh =
 -- hinspect $ hasNoTypeClasses 'wordsUnwordsCopy
 -- hinspect $ 'wordsUnwordsCopy `hasNoType` ''Step
 -- hinspect $ 'wordsUnwordsCopy `hasNoType` ''AT.FlattenState
+-- hinspect $ 'wordsUnwordsCopy `hasNoType` ''D.ConcatMapUState
 
 lf :: Word8
 lf = fromIntegral (ord '\n')
@@ -256,6 +269,7 @@ splitOn inh =
 hinspect $ hasNoTypeClasses 'splitOn
 hinspect $ 'splitOn `hasNoType` ''Step
 hinspect $ 'splitOn `hasNoType` ''AT.FlattenState
+hinspect $ 'splitOn `hasNoType` ''D.ConcatMapUState
 
 -- | Split suffix on line feed.
 {-# INLINE splitOnSuffix #-}
@@ -267,6 +281,7 @@ splitOnSuffix inh =
 hinspect $ hasNoTypeClasses 'splitOnSuffix
 hinspect $ 'splitOnSuffix `hasNoType` ''Step
 hinspect $ 'splitOnSuffix `hasNoType` ''AT.FlattenState
+hinspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
 
 -- | Words by space
 {-# INLINE wordsBy #-}
@@ -278,6 +293,7 @@ wordsBy inh =
 hinspect $ hasNoTypeClasses 'wordsBy
 hinspect $ 'wordsBy `hasNoType` ''Step
 hinspect $ 'wordsBy `hasNoType` ''AT.FlattenState
+hinspect $ 'wordsBy `hasNoType` ''D.ConcatMapUState
 
 -- | Split on a character sequence.
 {-# INLINE splitOnSeq #-}
@@ -289,6 +305,7 @@ splitOnSeq str inh =
 hinspect $ hasNoTypeClasses 'splitOnSeq
 -- hinspect $ 'splitOnSeq `hasNoType` ''Step
 -- hinspect $ 'splitOnSeq `hasNoType` ''AT.FlattenState
+-- hinspect $ 'splitOnSeq `hasNoType` ''D.ConcatMapUState
 
 -- | Split on suffix sequence.
 {-# INLINE splitOnSuffixSeq #-}
@@ -300,3 +317,4 @@ splitOnSuffixSeq str inh =
 hinspect $ hasNoTypeClasses 'splitOnSuffixSeq
 -- hinspect $ 'splitOnSuffixSeq `hasNoType` ''Step
 -- hinspect $ 'splitOnSuffixSeq `hasNoType` ''AT.FlattenState
+-- hinspect $ 'splitOnSuffixSeq `hasNoType` ''D.ConcatMapUState

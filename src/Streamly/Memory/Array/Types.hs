@@ -89,7 +89,7 @@ import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr, nullPtr)
 import Foreign.Storable (Storable(..))
@@ -98,7 +98,8 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
 import GHC.Exts (IsList, IsString(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes, newForeignPtr_)
+import GHC.ForeignPtr
+       (ForeignPtr(..), mallocPlainForeignPtrAlignedBytes, newForeignPtr_)
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
@@ -392,18 +393,21 @@ byteCapacity Array{..} =
         len = aBound `minusPtr` p
     in assert (len >= 0) len
 
+data ReadUState a = ReadUState
+    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
+    {-# UNPACK #-} !(Ptr a)         -- current pointer
+
 {-# INLINE_NORMAL readU #-}
 readU :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
 readU = Unfold step inject
     where
 
-    -- Note we have repurposed the Array type here
-    inject Array{..} =
-        return $ Array aStart (unsafeForeignPtrToPtr aStart) aEnd
+    inject (Array (ForeignPtr start contents) (Ptr end) _) =
+        return $ ReadUState (ForeignPtr end contents) (Ptr start)
 
     {-# INLINE_LATE step #-}
-    step (Array _ p end) | p == end = return D.Stop
-    step (Array start p end) = do
+    step (ReadUState (ForeignPtr end _) p) | p == (Ptr end) = return D.Stop
+    step (ReadUState fp p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
             -- accumulating the list and fusing better with the pure consumers.
@@ -412,10 +416,10 @@ readU = Unfold step inject
             -- evaluated/written to before we peek at them.
             let !x = unsafeInlineIO $ do
                         r <- peek p
-                        touchForeignPtr start
+                        touchForeignPtr fp
                         return r
             return $ D.Yield x
-                (Array start (p `plusPtr` (sizeOf (undefined :: a))) end)
+                (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a

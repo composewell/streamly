@@ -135,6 +135,7 @@ module Streamly.Streams.StreamD
     -- ** Flattening nested streams
     , concatMapM
     , concatMap
+    , ConcatMapUState (..)
     , concatMapU
 
     -- ** Grouping
@@ -1697,6 +1698,11 @@ mapM_ m = drain . mapM m
 -- Stream transformations using Unfolds
 -------------------------------------------------------------------------------
 
+-- Define a unique structure to use in inspection testing
+data ConcatMapUState o i =
+      ConcatMapUOuter o
+    | ConcatMapUInner o i
+
 -- | @concatMapU unfold stream@ uses @unfold@ to map the input stream elements
 -- to streams and then flattens the generated streams into a single output
 -- stream.
@@ -1708,24 +1714,25 @@ mapM_ m = drain . mapM m
 
 {-# INLINE_NORMAL concatMapU #-}
 concatMapU :: Monad m => Unfold m a b -> Stream m a -> Stream m b
-concatMapU (Unfold istep inject) (Stream ostep u) = Stream step (Left u)
+concatMapU (Unfold istep inject) (Stream ostep ost) =
+    Stream step (ConcatMapUOuter ost)
   where
     {-# INLINE_LATE step #-}
-    step gst (Left t) = do
-        r <- ostep (adaptState gst) t
+    step gst (ConcatMapUOuter o) = do
+        r <- ostep (adaptState gst) o
         case r of
-            Yield a t' -> do
-                s <- inject a
-                s `seq` return (Skip (Right (s, t')))
-            Skip t' -> return $ Skip (Left t')
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (ConcatMapUInner o' i))
+            Skip o' -> return $ Skip (ConcatMapUOuter o')
             Stop -> return $ Stop
 
-    step _ (Right (s, t)) = do
-        r <- istep s
+    step _ (ConcatMapUInner o i) = do
+        r <- istep i
         return $ case r of
-            Yield x s' -> Yield x (Right (s', t))
-            Skip s'    -> Skip (Right (s', t))
-            Stop       -> Skip (Left t)
+            Yield x i' -> Yield x (ConcatMapUInner o i')
+            Skip i'    -> Skip (ConcatMapUInner o i')
+            Stop       -> Skip (ConcatMapUOuter o)
 
 ------------------------------------------------------------------------------
 -- Exceptions
