@@ -74,22 +74,15 @@ module Streamly.Internal
 
     -- * Streamly.Memory.Array
     , readU
-    , A.arraysOf
-    , writeNUnsafe
-
-    -- * Streamly.FileSystem.Handle
-    , writeS
     )
 where
 
 import Prelude hiding (break, span, splitAt)
 
-import Streamly.FileSystem.Handle.Internal (writeS)
-import Streamly.Memory.Array.Types (readU, writeNUnsafe)
+import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync)
 import Streamly.Unfold.Types (Unfold(..))
 
-import qualified Streamly.Memory.ArrayStream as A
 import Streamly.Prelude.Internal
 import Streamly.Fold.Types

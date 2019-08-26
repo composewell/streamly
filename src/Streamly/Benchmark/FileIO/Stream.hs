@@ -45,6 +45,7 @@ import Streamly.Benchmark.Inspection (hinspect)
 import qualified Streamly.Memory.Array.Types as AT
 
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.FileSystem.Handle.Internal as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude.Internal as S
 import qualified Streamly.Fold as FL
@@ -125,7 +126,7 @@ hinspect $ 'cat `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE catStreamWrite #-}
 catStreamWrite :: Handle -> Handle -> IO ()
-catStreamWrite devNull inh = Internal.writeS devNull $ FH.read inh
+catStreamWrite devNull inh = FH.writeS devNull $ FH.read inh
 
 hinspect $ hasNoTypeClasses 'catStreamWrite
 hinspect $ 'catStreamWrite `hasNoType` ''Step
