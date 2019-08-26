@@ -41,6 +41,7 @@ module Streamly.Internal
     , break -- breakBefore
     , spanBy
     , spanByRolling
+    , arraysOf
     , splitOnSeq
     , splitOnSuffixSeq
     , splitBySeq
