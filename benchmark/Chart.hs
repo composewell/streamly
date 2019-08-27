@@ -295,14 +295,16 @@ showStreamK Options{..} cfg inp out =
 -- text reports
 ------------------------------------------------------------------------------
 
-selectBench :: (SortColumn -> Either String [(String, Double)]) -> [String]
+selectBench
+    :: (SortColumn -> Maybe GroupStyle -> Either String [(String, Double)])
+    -> [String]
 selectBench f =
     reverse
     $ fmap fst
     $ either
-      (const $ either error (sortOn snd) $ f $ ColumnIndex 0)
+      (const $ either error (sortOn snd) $ f (ColumnIndex 0) (Just PercentDiff))
       (sortOn snd)
-      $ f $ ColumnIndex 1
+      $ f (ColumnIndex 1) (Just PercentDiff)
 
 benchShow Options{..} cfg func inp out =
     if genGraphs

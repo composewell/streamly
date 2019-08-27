@@ -12,6 +12,7 @@ import Streamly.SVar (MonadAsync)
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Fold as FL
+import qualified Streamly.Internal as Internal
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamK as K
 
@@ -110,7 +111,7 @@ main = do
 
     inText <- openFile "benchmark/text-processing/gutenberg-500.txt" ReadMode
     defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
-                (S.length $ FL.splitOn (A.fromList $ map (fromIntegral . ord)
+                (S.length $ Internal.splitOnSeq (A.fromList $ map (fromIntegral . ord)
                     "abcdefghijklmnopqrstuvwxyz") FL.drain
                         $ FH.read inText) >>= print
                 ]
