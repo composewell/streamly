@@ -137,6 +137,11 @@ flag benchmark
   manual: True
   default: False
 
+flag inspection
+  description: Enable inspection testing
+  manual: True
+  default: False
+
 flag dev
   description: Development build
   manual: True
@@ -186,6 +191,9 @@ common compile-options
 
     if flag(dev)
       cpp-options:    -DDEVBUILD
+
+    if flag(inspection)
+      cpp-options:    -DINSPECTION
 
     ghc-options:      -Wall
 
@@ -326,8 +334,7 @@ library
 
     if flag(benchmark)
        exposed-modules:
-                       Streamly.Benchmark.Inspection
-                     , Streamly.Benchmark.FileIO.Array
+                       Streamly.Benchmark.FileIO.Array
                      , Streamly.Benchmark.FileIO.Stream
                      , Streamly.Benchmark.Prelude
 
@@ -348,9 +355,9 @@ library
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
 
-  if flag(benchmark)
-    build-depends:     inspection-testing >= 0.4   && < 0.5
-                     , template-haskell   >= 2.14  && < 2.16
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
 
   if !impl(ghcjs)
     build-depends:
@@ -621,7 +628,6 @@ benchmark fileio
         streamly
       , base                >= 4.8   && < 5
       , gauge               >= 0.2.4 && < 0.3
-      , inspection-testing  >= 0.4   && < 0.5
       , typed-process       >= 0.2.3 && < 0.3
       , deepseq             >= 1.4.1 && < 1.5
   else

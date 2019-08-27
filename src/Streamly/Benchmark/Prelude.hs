@@ -10,9 +10,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TemplateHaskell #-}
 
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
 
 module Streamly.Benchmark.Prelude where
 
@@ -31,10 +33,10 @@ import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
 
-import Test.Inspection
-
+#ifdef INSPECTION
 import Streamly.Streams.StreamD.Type (Step(..))
-import Streamly.Benchmark.Inspection (hinspect)
+import Test.Inspection
+#endif
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
@@ -514,8 +516,10 @@ zipM' src      =  do
 zipM :: Int -> IO ()
 zipM n = zipM' $ source n
 
-hinspect $ hasNoTypeClasses 'zipM
--- hinspect $ 'zipM `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zipM
+-- inspect $ 'zipM `hasNoType` ''Step
+#endif
 
 {-# INLINE mergeBy' #-}
 mergeBy' :: Monad m => Stream m Int -> m ()
@@ -528,8 +532,11 @@ mergeBy' src     =  do
 mergeBy :: Int -> IO ()
 mergeBy n = mergeBy' $ source n
 
-hinspect $ hasNoTypeClasses 'mergeBy
--- hinspect $ 'mergeBy `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'mergeBy
+-- inspect $ 'mergeBy `hasNoType` ''Step
+#endif
+
 
 {-# INLINE isPrefixOf #-}
 {-# INLINE isSubsequenceOf #-}
@@ -573,15 +580,21 @@ eqBy' src = S.eqBy (==) src src
 eqBy :: Int -> IO Bool
 eqBy n = eqBy' (source n)
 
-hinspect $ hasNoTypeClasses 'eqBy
-hinspect $ 'eqBy `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqBy
+inspect $ 'eqBy `hasNoType` ''Step
+#endif
+
 
 {-# INLINE eqByPure #-}
 eqByPure :: Int -> Identity Bool
 eqByPure n = eqBy' (sourceUnfoldr n)
 
-hinspect $ hasNoTypeClasses 'eqByPure
-hinspect $ 'eqByPure `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'eqByPure
+inspect $ 'eqByPure `hasNoType` ''Step
+#endif
+
 
 {-# INLINE cmpBy' #-}
 cmpBy' :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
@@ -591,15 +604,20 @@ cmpBy' src = S.cmpBy P.compare src src
 cmpBy :: Int -> IO P.Ordering
 cmpBy n = cmpBy' (source n)
 
-hinspect $ hasNoTypeClasses 'cmpBy
-hinspect $ 'cmpBy `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'cmpBy
+inspect $ 'cmpBy `hasNoType` ''Step
+#endif
+
 
 {-# INLINE cmpByPure #-}
 cmpByPure :: Int -> Identity P.Ordering
 cmpByPure n = cmpBy' (sourceUnfoldr n)
 
-hinspect $ hasNoTypeClasses 'cmpByPure
-hinspect $ 'cmpByPure `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'cmpByPure
+inspect $ 'cmpByPure `hasNoType` ''Step
+#endif
 
 -- The worst case for concatMap, concat a 1 element stream n times.
 {-# INLINE concatMap #-}

@@ -7,9 +7,12 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
 
 module Streamly.Benchmark.FileIO.Array
     (
@@ -28,15 +31,15 @@ import Data.Word (Word8)
 import System.IO (Handle)
 import Prelude hiding (last)
 
-import Streamly.Benchmark.Inspection (hinspect)
-import Streamly.Streams.StreamD.Type (Step(..))
-
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal as Internal
 
+#ifdef INSPECTION
+import Streamly.Streams.StreamD.Type (Step(..))
 import Test.Inspection
+#endif
 
 -- | Get the last byte from a file bytestream.
 {-# INLINE last #-}
@@ -48,8 +51,10 @@ last inh = do
         Nothing -> Nothing
         Just arr -> A.readIndex arr (A.length arr - 1)
 
-hinspect $ hasNoTypeClasses 'last
-hinspect $ 'last `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'last
+inspect $ 'last `hasNoType` ''Step
+#endif
 
 -- | Count the number of bytes in a file.
 {-# INLINE countBytes #-}
@@ -58,16 +63,20 @@ countBytes inh =
     let s = FH.readArrays inh
     in S.sum (S.map A.length s)
 
-hinspect $ hasNoTypeClasses 'countBytes
-hinspect $ 'countBytes `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'countBytes
+inspect $ 'countBytes `hasNoType` ''Step
+#endif
 
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
 countLines :: Handle -> IO Int
 countLines = S.length . A.splitOn 10 . FH.readArrays
 
-hinspect $ hasNoTypeClasses 'countLines
-hinspect $ 'countLines `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'countLines
+inspect $ 'countLines `hasNoType` ''Step
+#endif
 
 -- | Sum the bytes in a file.
 {-# INLINE sumBytes #-}
@@ -77,8 +86,10 @@ sumBytes inh = do
     let s = FH.readArrays inh
     S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
-hinspect $ hasNoTypeClasses 'sumBytes
-hinspect $ 'sumBytes `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'sumBytes
+inspect $ 'sumBytes `hasNoType` ''Step
+#endif
 
 -- | Send the file contents to /dev/null
 {-# INLINE cat #-}
@@ -86,8 +97,10 @@ cat :: Handle -> Handle -> IO ()
 cat devNull inh =
     S.runFold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
 
-hinspect $ hasNoTypeClasses 'cat
-hinspect $ 'cat `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'cat
+inspect $ 'cat `hasNoType` ''Step
+#endif
 
 -- | Copy file
 {-# INLINE copy #-}
@@ -96,8 +109,10 @@ copy inh outh =
     let s = FH.readArrays inh
     in S.runFold (FH.writeArrays outh) s
 
-hinspect $ hasNoTypeClasses 'copy
-hinspect $ 'copy `hasNoType` ''Step
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'copy
+inspect $ 'copy `hasNoType` ''Step
+#endif
 
 -- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
@@ -108,5 +123,7 @@ linesUnlinesCopy inh outh =
         $ A.splitOn 10
         $ FH.readArraysOf (1024*1024) inh
 
--- hinspect $ hasNoTypeClasses 'linesUnlinesCopy
--- hinspect $ 'linesUnlinesCopy `hasNoType` ''Step
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'linesUnlinesCopy
+-- inspect $ 'linesUnlinesCopy `hasNoType` ''Step
+#endif
