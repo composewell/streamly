@@ -595,7 +595,6 @@ inspect $ hasNoTypeClasses 'eqByPure
 inspect $ 'eqByPure `hasNoType` ''Step
 #endif
 
-
 {-# INLINE cmpBy' #-}
 cmpBy' :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
 cmpBy' src = S.cmpBy P.compare src src
@@ -609,7 +608,6 @@ inspect $ hasNoTypeClasses 'cmpBy
 inspect $ 'cmpBy `hasNoType` ''Step
 #endif
 
-
 {-# INLINE cmpByPure #-}
 cmpByPure :: Int -> Identity P.Ordering
 cmpByPure n = cmpBy' (sourceUnfoldr n)
@@ -621,27 +619,43 @@ inspect $ 'cmpByPure `hasNoType` ''Step
 
 -- The worst case for concatMap, concat a 1 element stream n times.
 {-# INLINE concatMap #-}
-concatMap :: S.MonadAsync m => Int -> Stream m Int
-concatMap n = S.concatMap (\_ -> sourceUnfoldrMN 1 n)
+concatMap :: Int -> IO ()
+concatMap n = S.drain $ S.concatMap (\_ -> sourceUnfoldrMN 1 n)
                           (sourceUnfoldrMN value n)
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMap
+#endif
+
 {-# INLINE concatMapPure1xN #-}
-concatMapPure1xN :: S.MonadAsync m => Int -> Stream m Int
-concatMapPure1xN n = S.concatMap (\_ -> sourceUnfoldrN 1 n)
+concatMapPure1xN :: Int -> IO ()
+concatMapPure1xN n = S.drain $ S.concatMap (\_ -> sourceUnfoldrN 1 n)
                           (sourceUnfoldrN value n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapPure1xN
+#endif
 
 -- We use a (sqrt n) element stream as source and then generate and concat a
 -- (sqrt n) element stream for each element of the source to produce an n
 -- element stream.
 {-# INLINE concatMapNxN #-}
-concatMapNxN :: S.MonadAsync m => Int -> Stream m Int
-concatMapNxN n = S.concatMap (\_ -> sourceUnfoldrMN value2 n)
+concatMapNxN :: Int -> IO ()
+concatMapNxN n = S.drain $ S.concatMap (\_ -> sourceUnfoldrMN value2 n)
                           (sourceUnfoldrMN value2 n)
 
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapNxN
+#endif
+
 {-# INLINE concatMapRepl4xN #-}
-concatMapRepl4xN :: S.MonadAsync m => Int -> Stream m Int
-concatMapRepl4xN n = S.concatMap (S.replicate 4)
+concatMapRepl4xN :: Int -> IO ()
+concatMapRepl4xN n = S.drain $ S.concatMap (S.replicate 4)
                           (sourceUnfoldrMN (value `div` 4) n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapRepl4xN
+#endif
 
 -------------------------------------------------------------------------------
 -- Mixed Composition

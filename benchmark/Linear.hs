@@ -69,6 +69,10 @@ benchIOSrc
 benchIOSrc t name f =
     bench name $ nfIO $ randomRIO (1,1) >>= Ops.toNull t . f
 
+{-# INLINE benchIOSrc1 #-}
+benchIOSrc1 :: String -> (Int -> IO ()) -> Benchmark
+benchIOSrc1 name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
 {-# INLINE benchPure #-}
 benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
 benchPure name src f = bench name $ nfIO $ randomRIO (1,1) >>= return . f . src
@@ -350,10 +354,10 @@ main =
         , benchIOSink "isPrefixOf" Ops.isPrefixOf
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
         , benchIOSink "stripPrefix" Ops.stripPrefix
-        , benchIOSrc serially "concatMap1xN" Ops.concatMap
-        , benchIOSrc serially "concatMapPure1xN" Ops.concatMapPure1xN
-        , benchIOSrc serially "concatMapNxN" Ops.concatMapNxN
-        , benchIOSrc serially "concatMapRepl4xN" Ops.concatMapRepl4xN
+        , benchIOSrc1 "concatMap1xN" Ops.concatMap
+        , benchIOSrc1 "concatMapPure1xN" Ops.concatMapPure1xN
+        , benchIOSrc1 "concatMapNxN" Ops.concatMapNxN
+        , benchIOSrc1 "concatMapRepl4xN" Ops.concatMapRepl4xN
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not
