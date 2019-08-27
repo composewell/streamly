@@ -3,80 +3,70 @@ name:               streamly
 version:            0.6.1
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
-  Streamly, short for streaming concurrently, provides monadic streams, with a
-  simple API, almost identical to standard lists, and an in-built support for
-  concurrency.  Streams can be generated, merged, chained, mapped, zipped, and
-  consumed concurrently – providing a generalized high level programming
-  framework unifying streaming and concurrency. Controlled concurrency allows
-  even infinite streams to be evaluated concurrently.  Concurrency is auto
-  scaled based on feedback from the stream consumer.  Programmer does not
-  have to be aware of threads, locking or synchronization to write scalable
-  concurrent programs.
+  Streamly is a framework for writing programs in a high level, declarative
+  data flow programming paradigm. It provides a simple API, very close to
+  standard Haskell lists.  A program is expressed as a composition of data
+  processing pipes, generally known as streams.  Streams can be generated,
+  merged, chained, mapped, zipped, and consumed concurrently – enabling a high
+  level, declarative yet concurrent composition of programs.  Programs can be
+  concurrent or non-concurrent without any significant change.  Concurrency is
+  auto scaled based on consumption rate.  Programmers do not have to be aware
+  of threads, locking or synchronization to write scalable concurrent programs.
+  Streamly provides C like performance, orders of magnitude better compared to
+  existing streaming libraries.
   .
-  In addition to the basic streaming functionality provided by
-  streaming libraries like
+  Streamly is designed to express the full spectrum of programs with highest
+  performance. Do not think that if you are writing a small and simple program
+  it may not be for you. It expresses a small "hello world" program with the
+  same efficiency, simplicity and elegance as a large scale concurrent
+  application. It unifies many different aspects of special purpose libraries
+  into a single yet simple framework. 
+  .
+  Streamly covers the functionality provided by Haskell lists as well as the
+  functionality provided by streaming libraries like
   <https://hackage.haskell.org/package/streaming streaming>,
   <https://hackage.haskell.org/package/pipes pipes>, and
-  <https://hackage.haskell.org/package/conduit conduit> streamly provides
+  <https://hackage.haskell.org/package/conduit conduit> with a simpler API and
+  better performance. Streamly provides
   advanced stream composition including various ways of appending, merging,
   zipping, splitting, grouping, distributing, partitioning and unzipping of
   streams with true streaming and with concurrency. Streamly subsumes the
   functionality of list transformer libraries like @pipes@ or
   <https://hackage.haskell.org/package/list-t list-t> and also the logic
-  programming library <https://hackage.haskell.org/package/logict logict>. On
-  the concurrency side, it subsumes the basic concurrency functionality
-  provided by the <https://hackage.haskell.org/package/async async> package and
-  provides much more powerful high level concurrent streaming composition.
-  Because it supports streaming with concurrency we can write FRP applications
-  similar in concept to <https://hackage.haskell.org/package/Yampa Yampa> or
-  <https://hackage.haskell.org/package/reflex reflex>.
+  programming library <https://hackage.haskell.org/package/logict logict>.
+  The grouping, splitting and windowing combinators in streamly can be compared
+  to the window operators in <https://flink.apache.org/ Apache Flink>.
+  However, compared to Flink streamly has a pure functional, succinct and
+  expressive API.
   .
-  The grouping, splitting and windowing combinators in streamly can substitute
-  the window operators in <https://flink.apache.org/ Apache Flink>.  However,
-  compared to Flink streamly has a pure functional, succinct and expressive API
-  that is applicable to full spectrum of applications, from a "hello world"
-  application to large scale concurrent applications, with equal efficiency.
-  For those familiar with <http://reactivex.io/ Reactive Extensions>, streamly
-  has similarities with the RxJs API. For most RxJs combinators you
-  can find corresponding combinators in streamly.
+  The concurrency capabilities of streamly are much more advanced and powerful
+  compared to the basic concurrency functionality provided by the
+  <https://hackage.haskell.org/package/async async> package.  Streamly is a
+  first class reactive programming library.  If you are familiar with
+  <http://reactivex.io/ Reactive Extensions> you will find that it is very
+  similar.  For most RxJs combinators you can find or write corresponding ones
+  in streamly. Streamly can be used as an alternative to
+  <https://hackage.haskell.org/package/Yampa Yampa> or
+  <https://hackage.haskell.org/package/reflex reflex> as well.
   .
   Streamly focuses on practical engineering with high performance. From well
   written streamly programs one can expect performance competitive to C.  High
   performance streaming eliminates the need for string and text libraries like
   <https://hackage.haskell.org/package/bytestring bytestring>,
   <https://hackage.haskell.org/package/text text> and their lazy and strict
-  flavors. All the confusion and cognitive overhead arising from different
-  string types is eliminated. The only basic types are arrays for storage and
-  streams for processing. Strings and text are simply streams of 'Char' as they
-  should be. Even Haskell lists can be replaced by pure streams. Arrays
-  provided by streamly have performance at par with the vector library.
-  .
-  Streamly interoperates with popular Haskell streaming libraries, see
-  the interoperation section in "Streamly.Tutorial".
-  .
-  Why use streamly?
-  .
-  * /Simplicity/: Simple list like streaming API, if you know how to use lists
-    then you know how to use streamly. This library is built with simplicity
-    and ease of use as a primary design goal.
-  * /Concurrency/: Simple, powerful, and scalable concurrency.  Concurrency is
-    built-in, and not intrusive, concurrent programs are written exactly the
-    same way as non-concurrent ones.
-  * /Generality/: Unifies functionality provided by several disparate packages
-    (streaming, concurrency, list transformer, logic programming, reactive
-    programming) in a concise API.
-  * /Performance/: Streamly is designed for high performance.
-    It employs stream fusion optimizations for best possible performance.
-    Serial peformance is equivalent to the venerable `vector` library in most
-    cases and even better in some cases. Concurrent performance is unbeatable.
-    See
-    <https://github.com/composewell/streaming-benchmarks streaming-benchmarks>
-    for a comparison of popular streaming libraries on micro-benchmarks.
+  flavors. The confusion and cognitive overhead arising from different
+  string types is eliminated. The two fundamental types in streamly are arrays
+  for storage and streams for processing. Strings and text are simply streams
+  or arrays of 'Char' as they should be. Arrays in streamly have performance
+  at par with the vector library.
   .
   Where to find more information:
   .
   * /Quick Overview/: <src/README.md README file> in the package
+  * /Building/: <src/docs/Build.md Build guide> for optimal performance
   * /Detailed Tutorial/: "Streamly.Tutorial" module in the haddock documentation
+  * /Interoperation/: "Streamly.Tutorial" module for interop with other
+    streaming libraries
   * /Reference Documentation/: Haddock documentation for the respective modules
   * /Examples/: <src/examples examples directory> in the package
   * /Guides/: <src/docs docs directory> in the package, for documentation on
