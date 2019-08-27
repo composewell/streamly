@@ -126,11 +126,16 @@ import Data.Concurrent.Queue.MichaelScott (LinkedQueue, pushL)
 import Data.Functor (void)
 import Data.Heap (Heap, Entry(..))
 import Data.Int (Int64)
+#if __GLASGOW_HASKELL__ >= 800
+import Data.Kind (Type)
+#endif
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import Data.List ((\\))
 import Data.Maybe (fromJust)
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
+#endif
 import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
@@ -169,11 +174,15 @@ data ChildEvent a =
       ChildYield a
     | ChildStop ThreadId (Maybe SomeException)
 
+#if __GLASGOW_HASKELL__ < 800
+#define Type *
+#endif
 -- | Sorting out-of-turn outputs in a heap for Ahead style streams
-data AheadHeapEntry (t :: (* -> *) -> * -> *) m a =
+data AheadHeapEntry (t :: (Type -> Type) -> Type -> Type) m a =
       AheadEntryNull
     | AheadEntryPure a
     | AheadEntryStream (t m a)
+#undef Type
 
 ------------------------------------------------------------------------------
 -- State threaded around the monad for thread management

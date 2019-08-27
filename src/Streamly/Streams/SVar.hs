@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE FlexibleContexts          #-}
 
 -- |
@@ -23,7 +24,9 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
+#endif
 import System.IO (hPutStrLn, stderr)
 import Streamly.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)

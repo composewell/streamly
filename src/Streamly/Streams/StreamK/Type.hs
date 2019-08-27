@@ -83,7 +83,12 @@ where
 import Control.Monad (void, ap, (>=>))
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+#if __GLASGOW_HASKELL__ >= 800
+import Data.Kind (Type)
+#endif
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
+#endif
 import Prelude hiding (map, mapM, concatMap, foldr)
 
 import Streamly.SVar
@@ -765,11 +770,15 @@ instance Monoid (Stream m a) where
 -- Functor
 -------------------------------------------------------------------------------
 
+#if __GLASGOW_HASKELL__ < 800
+#define Type *
+#endif
 -- Note eta expanded
 {-# INLINE_LATE mapFB #-}
-mapFB :: forall (t :: (* -> *) -> * -> *) b m a.
+mapFB :: forall (t :: (Type -> Type) -> Type -> Type) b m a.
     (b -> t m b -> t m b) -> (a -> b) -> a -> t m b -> t m b
 mapFB c f = \x ys -> c (f x) ys
+#undef Type
 
 {-# RULES
 "mapFB/mapFB" forall c f g. mapFB (mapFB c f) g = mapFB c (f . g)

@@ -84,15 +84,18 @@ matrix:
   #- env: BUILD=cabal-v2 GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
+  - env: BUILD=cabal-v2 GHCVER=8.8.1 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag benchmark --allow-newer=base,ghc"
+    addons: {apt: {packages: [cabal-install-head,ghc-8.8.1], sources: [hvr-ghc]}}
+
   - env: BUILD=cabal-v2 GHCVER=8.6.5 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags streamk"
-    addons: {apt: {packages: [cabal-install-head,ghc-8.6.5], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.5], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS=""
-    addons: {apt: {packages: [cabal-install-head,ghc-8.4.4], sources: [hvr-ghc]}}
+    addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
 
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
-  - env: BUILD=cabal-v2 GHCVER=8.2.2 GHC_OPTIONS="" DISABLE_BENCH=y
-    addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
+  #- env: BUILD=cabal-v2 GHCVER=8.2.2 GHC_OPTIONS="" DISABLE_BENCH=y
+  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}

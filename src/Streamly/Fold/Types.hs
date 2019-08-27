@@ -39,7 +39,9 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (control)
 import Data.Maybe (isJust, fromJust)
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
+#endif
 import Streamly.Strict (Tuple'(..), Tuple3'(..), Either'(..))
 import Streamly.SVar (MonadAsync)
 

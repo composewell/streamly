@@ -59,7 +59,9 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.Foldable (fold)
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
+#endif
 import GHC.Exts (IsList(..), IsString(..))
 import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)

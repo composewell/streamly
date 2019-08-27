@@ -78,7 +78,9 @@ import Control.DeepSeq (NFData(..))
 import Control.DeepSeq (NFData1(..))
 #endif
 import Data.Functor.Identity (Identity, runIdentity)
+#if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
+#endif
 import GHC.Exts (IsList(..), IsString(..))
 
 import Streamly.Streams.Serial (SerialT)
