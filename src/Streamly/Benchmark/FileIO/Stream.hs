@@ -8,9 +8,13 @@
 -- Portability : GHC
 
 {-# LANGUAGE CPP #-}
+
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
 #ifdef INSPECTION
 {-# LANGUAGE TemplateHaskell #-}
-
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
