@@ -50,6 +50,7 @@ module Streamly.Streams.StreamK.Type
     , foldrM
     , foldrS
     , foldrSM
+    , build
     , buildS
     , buildM
     , buildSM
@@ -549,6 +550,30 @@ foldrSMShared = foldrSMWith foldStreamShared
 -------------------------------------------------------------------------------
 -- build
 -------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL build #-}
+build :: IsStream t => forall a. (forall b. (a -> b -> b) -> b -> b) -> t m a
+build g = g cons nil
+
+{-# RULES "foldrM/build"
+    forall k z (g :: forall b. (a -> b -> b) -> b -> b).
+    foldrM k z (build g) = g k z #-}
+
+{-# RULES "foldrS/build"
+      forall k z (g :: forall b. (a -> b -> b) -> b -> b).
+      foldrS k z (build g) = g k z #-}
+
+{-# RULES "foldrS/cons/build"
+      forall k z x (g :: forall b. (a -> b -> b) -> b -> b).
+      foldrS k z (x `cons` build g) = k x (g k z) #-}
+
+{-# RULES "foldrSShared/build"
+      forall k z (g :: forall b. (a -> b -> b) -> b -> b).
+      foldrSShared k z (build g) = g k z #-}
+
+{-# RULES "foldrSShared/cons/build"
+      forall k z x (g :: forall b. (a -> b -> b) -> b -> b).
+      foldrSShared k z (x `cons` build g) = k x (g k z) #-}
 
 -- build a stream by applying cons and nil to a build function
 {-# INLINE_NORMAL buildS #-}

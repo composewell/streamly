@@ -215,12 +215,12 @@ uncons m =
 
 {-# INLINE unfoldr #-}
 unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
-unfoldr step = go
-    where
-    go s = buildS $ \yld stp ->
-                case step s of
-                    Just (a, b) -> yld a (go b)
-                    Nothing -> stp
+unfoldr next s0 = build $ \yld stp ->
+    let go s =
+            case next s of
+                Just (a, b) -> yld a (go b)
+                Nothing -> stp
+    in go s0
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
