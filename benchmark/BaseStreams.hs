@@ -14,6 +14,8 @@ import System.Random (randomRIO)
 import Gauge
 import qualified StreamDOps as D
 import qualified StreamKOps as K
+import qualified StreamDKOps as DK
+import qualified Data.List as List
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -195,7 +197,10 @@ main =
         ]
       ]
     , bgroup "list"
-      [ bgroup "nested"
+      [ bgroup "elimination"
+        [ benchPure "last" (\xs -> [List.last xs]) (K.sourceUnfoldrList K.value)
+        ]
+      , bgroup "nested"
         [ benchPure "toNullAp" K.toNullApNestedList (K.sourceUnfoldrList K.value2)
         , benchPure "toNull"   K.toNullNestedList (K.sourceUnfoldrList K.value2)
         , benchPure "toNull3"  K.toNullNestedList3 (K.sourceUnfoldrList K.value3)
@@ -333,6 +338,16 @@ main =
         , benchK "dropOne"              K.iterateDropOne
         , benchK "dropWhileFalse(1/10)" K.iterateDropWhileFalse
         , benchK "dropWhileTrue"        K.iterateDropWhileTrue
+        ]
+      ]
+    , bgroup "streamDK"
+      [ bgroup "generation"
+        [ benchIO "unfoldr"       DK.toNull DK.sourceUnfoldr
+        , benchIO "unfoldrM"      DK.toNull DK.sourceUnfoldrM
+        ]
+      , bgroup "elimination"
+        [ benchIO "toNull"   DK.toNull   DK.sourceUnfoldrM
+        , benchIO "uncons"   DK.uncons   DK.sourceUnfoldrM
         ]
       ]
     ]

@@ -274,6 +274,8 @@ library
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
                      , Streamly.Streams.StreamK
+                     , Streamly.Streams.StreamDK.Type
+                     , Streamly.Streams.StreamDK
                      , Streamly.Streams.StreamD.Type
                      , Streamly.Streams.StreamD
                      , Streamly.Streams.Prelude
@@ -653,6 +655,8 @@ benchmark base
                    , Streamly.Time.Units
                    , Streamly.Time.Clock
                    , Streamly.SVar
+                   , Streamly.Streams.StreamDK.Type
+                   , Streamly.Streams.StreamDK
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.Streams.StreamD.Type
@@ -662,6 +666,7 @@ benchmark base
 
                    , StreamDOps
                    , StreamKOps
+                   , StreamDKOps
 
   if flag(dev)
     buildable: True
