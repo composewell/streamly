@@ -600,14 +600,18 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- AsyncT
 ------------------------------------------------------------------------------
 
--- | Deep async composition or async composition with depth first traversal. In
--- a left to right 'Semigroup' composition it tries to yield elements from the
--- left stream as long as it can, but it can run the right stream in parallel
--- if it needs to, based on demand. The right stream can be run if the left
--- stream blocks on IO or cannot produce elements fast enough for the consumer.
+-- | The 'Semigroup' operation for 'AsyncT' appends two streams. The combined
+-- stream behaves like a single stream with the actions from the second stream
+-- appended to the first stream. The combined stream is evaluated in the
+-- asynchronous style.  This operation can be used to fold an infinite lazy
+-- container of streams.
 --
 -- @
--- main = ('toList' . 'asyncly' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- import "Streamly"
+-- import qualified "Streamly.Prelude" as S
+-- import Control.Concurrent
+--
+-- main = (S.toList . 'asyncly' $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,2,3,4]
@@ -626,10 +630,6 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- consumer.
 --
 -- @
--- import "Streamly"
--- import qualified "Streamly.Prelude" as S
--- import Control.Concurrent
---
 -- main = 'drain' . 'asyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
@@ -641,12 +641,6 @@ consMAsync m r = fromStream $ K.yieldM m `async` (toStream r)
 -- ThreadId 39: Delay 2
 -- ThreadId 38: Delay 3
 -- @
---
--- All iterations may run in the same thread if they do not block.
---
--- Note that async composition with depth first traversal can be used to
--- combine infinite number of streams as it explores only a bounded number of
--- streams at a time.
 --
 -- @since 0.1.0
 newtype AsyncT m a = AsyncT {getAsyncT :: Stream m a}
@@ -743,13 +737,26 @@ consMWAsync m r = fromStream $ K.yieldM m `wAsync` (toStream r)
 wAsync :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 wAsync = joinStreamVarAsync WAsyncVar
 
--- | Wide async composition or async composition with breadth first traversal.
--- The Semigroup instance of 'WAsyncT' concurrently /traverses/ the composed
--- streams using a depth first travesal or in a round robin fashion, yielding
--- elements from both streams alternately.
+-- | The 'Semigroup' operation for 'WAsyncT' interleaves the elements from the
+-- two streams.  Therefore, when @a <> b@ is evaluated, one action is picked
+-- from stream @a@ for evaluation and then the next action is picked from
+-- stream @b@ and then the next action is again picked from stream @a@, going
+-- around in a round-robin fashion. Many such actions are executed concurrently
+-- depending on 'maxThreads' and 'maxBuffer' limits. Results are served to the
+-- consumer in the order completion of the actions.
+--
+-- Note that when multiple actions are combined like @a <> b <> c ... <> z@ we
+-- go in a round-robin fasion across all of them picking one action from each
+-- up to @z@ and then come back to @a@.  Note that this operation cannot be
+-- used to fold a container of infinite streams as the state that it needs to
+-- maintain is proportional to the number of streams.
 --
 -- @
--- main = ('toList' . 'wAsyncly' $ (fromFoldable [1,2]) \<> (fromFoldable [3,4])) >>= print
+-- import "Streamly"
+-- import qualified "Streamly.Prelude" as S
+-- import Control.Concurrent
+--
+-- main = (S.toList . 'wAsyncly' $ (S.fromList [1,2]) \<> (S.fromList [3,4])) >>= print
 -- @
 -- @
 -- [1,3,2,4]
@@ -766,10 +773,6 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- concurrently using a round robin scheduling.
 --
 -- @
--- import "Streamly"
--- import qualified "Streamly.Prelude" as S
--- import Control.Concurrent
---
 -- main = 'drain' . 'wAsyncly' $ do
 --     n <- return 3 \<\> return 2 \<\> return 1
 --     S.yieldM $ do
@@ -781,13 +784,6 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- ThreadId 39: Delay 2
 -- ThreadId 38: Delay 3
 -- @
---
--- Unlike 'AsyncT' all iterations are guaranteed to run fairly
--- concurrently, unconditionally.
---
--- Note that async composition with breadth first traversal can only combine a
--- finite number of streams as it needs to retain state for each unfinished
--- stream.
 --
 -- @since 0.2.0
 newtype WAsyncT m a = WAsyncT {getWAsyncT :: Stream m a}
