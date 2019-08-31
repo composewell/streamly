@@ -273,9 +273,7 @@ library
 
                     -- Base streams
                      , Streamly.Streams.StreamK.Type
-                     , Streamly.Streams.StreamK
                      , Streamly.Streams.StreamDK.Type
-                     , Streamly.Streams.StreamDK
                      , Streamly.Streams.StreamD.Type
                      , Streamly.Streams.StreamD
                      , Streamly.Streams.Prelude
@@ -317,6 +315,8 @@ library
 
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time
+                     , Streamly.Streams.StreamK
+                     , Streamly.Streams.StreamDK
                      , Streamly
                      , Streamly.Fold
 
@@ -513,126 +513,126 @@ test-suite parallel-loops
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark linear
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Linear.hs
-  if flag(benchmark)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
-
-benchmark linear-async
-  import: bench-options
-  cpp-options: -DLINEAR_ASYNC
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearAsync.hs
-  if flag(benchmark)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
-
-benchmark linear-rate
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearRate.hs
-  if flag(benchmark)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
-
-benchmark nested
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Nested.hs
-  other-modules: NestedOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-
-benchmark array
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Array.hs
-  other-modules: ArrayOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-
-benchmark fileio
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: FileIO.hs
-  if flag(benchmark)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , gauge               >= 0.2.4 && < 0.3
-      , typed-process       >= 0.2.3 && < 0.3
-      , deepseq             >= 1.4.1 && < 1.5
-  else
-    buildable: False
-
-benchmark concurrent
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Concurrent.hs
-  if flag(dev)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , gauge               >= 0.2.4 && < 0.3
-  else
-    buildable: False
-
+-- benchmark linear
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: Linear.hs
+--   if flag(benchmark)
+--     buildable: True
+--     build-depends:
+--         streamly
+--       , base                >= 4.8   && < 5
+--       , deepseq             >= 1.4.1 && < 1.5
+--       , random              >= 1.0   && < 2.0
+--       , gauge               >= 0.2.4 && < 0.3
+--     if impl(ghc < 8.0)
+--       build-depends:
+--           transformers  >= 0.4 && < 0.6
+--   else
+--     buildable: False
+-- 
+-- benchmark linear-async
+--   import: bench-options
+--   cpp-options: -DLINEAR_ASYNC
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: LinearAsync.hs
+--   if flag(benchmark)
+--     buildable: True
+--     build-depends:
+--         streamly
+--       , base                >= 4.8   && < 5
+--       , deepseq             >= 1.4.1 && < 1.5
+--       , random              >= 1.0   && < 2.0
+--       , gauge               >= 0.2.4 && < 0.3
+--     if impl(ghc < 8.0)
+--       build-depends:
+--           transformers  >= 0.4 && < 0.6
+--   else
+--     buildable: False
+-- 
+-- benchmark linear-rate
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: LinearRate.hs
+--   if flag(benchmark)
+--     buildable: True
+--     build-depends:
+--         streamly
+--       , base                >= 4.8   && < 5
+--       , deepseq             >= 1.4.1 && < 1.5
+--       , random              >= 1.0   && < 2.0
+--       , gauge               >= 0.2.4 && < 0.3
+--     if impl(ghc < 8.0)
+--       build-depends:
+--           transformers  >= 0.4 && < 0.6
+--   else
+--     buildable: False
+-- 
+-- benchmark nested
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: Nested.hs
+--   other-modules: NestedOps
+--   build-depends:
+--       streamly
+--     , base                >= 4.8   && < 5
+--     , deepseq             >= 1.4.1 && < 1.5
+--     , random              >= 1.0   && < 2.0
+--     , gauge               >= 0.2.4 && < 0.3
+--   if impl(ghc < 8.0)
+--     build-depends:
+--         transformers  >= 0.4 && < 0.6
+-- 
+-- benchmark array
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: Array.hs
+--   other-modules: ArrayOps
+--   build-depends:
+--       streamly
+--     , base                >= 4.8   && < 5
+--     , deepseq             >= 1.4.1 && < 1.5
+--     , random              >= 1.0   && < 2.0
+--     , gauge               >= 0.2.4 && < 0.3
+--   if impl(ghc < 8.0)
+--     build-depends:
+--         transformers  >= 0.4 && < 0.6
+-- 
+-- benchmark fileio
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: FileIO.hs
+--   if flag(benchmark)
+--     buildable: True
+--     build-depends:
+--         streamly
+--       , base                >= 4.8   && < 5
+--       , gauge               >= 0.2.4 && < 0.3
+--       , typed-process       >= 0.2.3 && < 0.3
+--       , deepseq             >= 1.4.1 && < 1.5
+--   else
+--     buildable: False
+-- 
+-- benchmark concurrent
+--   import: bench-options
+--   type: exitcode-stdio-1.0
+--   hs-source-dirs: benchmark
+--   main-is: Concurrent.hs
+--   if flag(dev)
+--     buildable: True
+--     build-depends:
+--         streamly
+--       , base                >= 4.8   && < 5
+--       , gauge               >= 0.2.4 && < 0.3
+--   else
+--     buildable: False
+-- 
 -------------------------------------------------------------------------------
 -- Internal benchmarks for unexposed modules
 -------------------------------------------------------------------------------
@@ -668,7 +668,7 @@ benchmark base
                    , StreamKOps
                    , StreamDKOps
 
-  if flag(dev)
+  if !flag(dev)
     buildable: True
     build-depends:
         base              >= 4.8   && < 5

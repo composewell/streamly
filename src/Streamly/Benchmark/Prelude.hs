@@ -24,6 +24,7 @@ module Streamly.Benchmark.Prelude where
 
 import Control.DeepSeq (NFData)
 import Control.Monad (when)
+import Control.Monad.Trans.Class
 import Control.Monad.IO.Class (MonadIO)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
@@ -67,7 +68,7 @@ value2 = P.round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
 type Stream m a = S.SerialT m a
 
 {-# INLINE source #-}
-source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+source :: (S.MonadAsync m, S.IsStream t, Monad (t m), MonadTrans t) => Int -> t m Int
 source n = sourceUnfoldrM n
 
 {-# INLINE sourceIntFromTo #-}
@@ -151,7 +152,7 @@ sourceUnfoldrN upto start = S.unfoldr step start
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m, Monad (t m), MonadTrans t) => Int -> t m Int
 sourceUnfoldrM n = S.unfoldrM step n
     where
     step cnt =
@@ -160,7 +161,7 @@ sourceUnfoldrM n = S.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m, Monad (t m), MonadTrans t) => Int -> Int -> t m Int
 sourceUnfoldrMN upto start = S.unfoldrM step start
     where
     step cnt =

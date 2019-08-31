@@ -26,6 +26,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.Sink   as Sink
 import Gauge
+import Control.Monad.trans.Class
 
 -------------------------------------------------------------------------------
 --
@@ -41,7 +42,7 @@ instance NFData Ordering where rnf = (`seq` ())
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIOSink #-}
 benchIOSink
-    :: (IsStream t, NFData b)
+    :: (IsStream t, NFData b, Monad (t IO), MonadTrans t)
     => String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 

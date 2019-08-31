@@ -196,6 +196,7 @@ import qualified Prelude
 
 import Streamly.SVar
 import Streamly.Streams.StreamK.Type
+import Control.Monad.Trans.Identity (IdentityT(..))
 
 -------------------------------------------------------------------------------
 -- Deconstruction
@@ -214,13 +215,17 @@ uncons m =
 -------------------------------------------------------------------------------
 
 {-# INLINE unfoldr #-}
-unfoldr :: IsStream t => (b -> Maybe (a, b)) -> b -> t m a
+unfoldr :: (IsStream t, MonadAsync m, Monad (t m), MonadTrans t)
+    => (b -> Maybe (a, b)) -> b -> t m a
+{-
 unfoldr next s0 = build $ \yld stp ->
     let go s =
             case next s of
                 Just (a, b) -> yld a (go b)
                 Nothing -> stp
     in go s0
+    -}
+unfoldr next = unfoldrM (\x -> return $ next x)
 
 {-# INLINE unfoldrM #-}
 unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
@@ -231,6 +236,19 @@ unfoldrM step = go
                 case r of
                     Just (a, b) -> yld a (go b)
                     Nothing -> stp
+
+{-
+{-# INLINE unfoldrM #-}
+unfoldrM :: (IsStream t, MonadAsync m, Monad (t m), MonadTrans t)
+    => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM next s0 = buildT $ \yld stp ->
+    let go s = do
+            r <- lift $ next s
+            case r of
+                Just (a, b) -> yld a (go b)
+                Nothing -> stp
+    in go s0
+    -}
 
 {-
 -- Generalization of concurrent streams/SVar via unfoldr.
@@ -333,7 +351,7 @@ foldr :: (IsStream t, Monad m) => (a -> b -> b) -> b -> t m a -> m b
 foldr step acc = foldrM (\x xs -> xs >>= \b -> return (step x b)) (return acc)
 
 -- | Right associative fold to an arbitrary transformer monad.
-{-# INLINE foldrT #-}
+{-# INLINE_LATE foldrT #-}
 foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
 foldrT step final m = go m
@@ -343,6 +361,20 @@ foldrT step final m = go m
         case res of
             Just (h, t) -> step h (go t)
             Nothing -> final
+
+{-# INLINE_NORMAL buildT #-}
+buildT :: (IsStream t1, MonadTrans t1, Monad (t1 m))
+    => (forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r)
+    -> t1 m a
+buildT g = g cons nil
+
+{-
+{-# RULES
+"foldrT/buildT"  forall k z (g :: forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r).
+                foldrT k z (buildT g) = g k z #-}
+                -}
 
 {-# INLINE foldr1 #-}
 foldr1 :: (IsStream t, Monad m) => (a -> a -> a) -> t m a -> m (Maybe a)
@@ -448,12 +480,14 @@ foldlT step begin m = go begin m
 -- an optimization opportunity that we can exploit.
 -- drain = foldrM (\_ xs -> return () >> xs) (return ())
 
+
 -- |
 -- > drain = foldl' (\_ _ -> ()) ()
 -- > drain = mapM_ (\_ -> return ())
 {-# INLINE drain #-}
 drain :: (Monad m, IsStream t) => t m a -> m ()
-drain = foldrM (\_ xs -> xs) (return ())
+-- drain = foldrM (\_ xs -> xs) (return ())
+drain = runIdentityT . foldrT (\_ xs -> xs) (return ())
 {-
 drain = go
     where

@@ -43,6 +43,9 @@ module Streamly.Streams.StreamDK
 where
 
 import Streamly.Streams.StreamDK.Type (Stream(..), Step(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Trans.Identity (IdentityT(..))
+-- import Data.Functor.Identity
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -105,7 +108,7 @@ uncons (Stream step) = do
         Stop -> Nothing
 
 -- | Lazy right associative fold to a stream.
-{-# INLINE_NORMAL foldrS #-}
+{-# INLINE_LATE foldrS #-}
 foldrS :: Monad m
        => (a -> Stream m b -> Stream m b)
        -> Stream m b
@@ -118,6 +121,20 @@ foldrS f streamb = go
         case r of
             Yield x xs -> let Stream step = f x (go xs) in step
             Stop -> let Stream step = streamb in step
+
+{-# INLINE_LATE foldrT #-}
+foldrT :: (MonadTrans t, Monad m, Monad (t m))
+       => (a -> t m b -> t m b)
+       -> t m b
+       -> Stream m a
+       -> t m b
+foldrT f acc = go
+  where
+    go (Stream stepa) = do
+      r <- lift stepa
+      case r of
+          Yield x xs -> f x (go xs)
+          Stop -> acc
 
 {-# INLINE_LATE foldrM #-}
 foldrM :: Monad m => (a -> m b -> m b) -> m b -> Stream m a -> m b
@@ -138,6 +155,32 @@ build g = g cons nil
 "foldrM/build"  forall k z (g :: forall b. (a -> b -> b) -> b -> b).
                 foldrM k z (build g) = g k z #-}
 
+{-# INLINE_NORMAL buildT #-}
+buildT ::
+       Monad m
+    => (forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r)
+    -> Stream m a
+buildT g = g cons nil
+
+{-# INLINE_LATE buildS #-}
+buildS ::
+       Monad m
+    => (forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r)
+    -> Stream m a
+buildS g = g cons nil
+
+{-# RULES
+"foldrS/buildS"  forall (k :: a -> Stream m b -> Stream m b) (z :: Stream m b) (g :: forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r).
+                foldrS k z (buildS g) = g k z #-}
+
+{-# RULES
+"foldrT/buildT"  forall k z (g :: forall r t. (MonadTrans t, Monad (t m)) =>
+                      (a -> t m r -> t m r) -> t m r -> t m r).
+                foldrT k z (buildT g) = g k z #-}
+
 {-
 -- To fuse foldrM with unfoldrM we need the type m1 to be polymorphic such that
 -- it is either Monad m or Stream m.  So that we can use cons/nil as well as
@@ -147,6 +190,20 @@ build g = g cons nil
 buildM :: Monad m
     => forall a. (forall b. (a -> m1 b -> m1 b) -> m1 b -> m1 b) -> Stream m a
 buildM g = g cons nil
+
+{-# INLINE unfoldrM #-}
+unfoldrM ::
+       (Monad m)
+    => (s -> m (Maybe (a, s)))
+    -> s
+    -> Stream m a
+unfoldrM next s0 = buildS $ \yld stp ->
+    let go s = do
+            r <- lift $ next s
+            case r of
+                Just (a, b) -> yld a (go b)
+                Nothing -> stp
+    in go s0
 -}
 
 -------------------------------------------------------------------------------
@@ -155,9 +212,15 @@ buildM g = g cons nil
 
 {-# INLINE drain #-}
 drain :: Monad m => Stream m a -> m ()
+-- drain = drainX . foldrS cons nil
+-- drain = foldrM (\_ xs -> xs) (return ()) -- . foldrS cons nil
+-- drain = runIdentityT . foldrT (\_ xs -> xs) (return ())
 drain = foldrM (\_ xs -> xs) (return ())
+
 {-
-drain (Stream step) = do
+{-# INLINE drainX #-}
+drainX :: Monad m => Stream m a -> m ()
+drainX (Stream step) = do
     r <- step
     case r of
         Yield _ next -> drain next

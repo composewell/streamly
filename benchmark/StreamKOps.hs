@@ -57,7 +57,7 @@ last :: Monad m => Stream m Int -> m (Maybe Int)
 type Stream m a = S.Stream m a
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: Int -> Stream m Int
+sourceUnfoldr :: S.MonadAsync m => Int -> Stream m Int
 sourceUnfoldr n = S.unfoldr step n
     where
     step cnt =
@@ -66,7 +66,7 @@ sourceUnfoldr n = S.unfoldr step n
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrN #-}
-sourceUnfoldrN :: Int -> Int -> Stream m Int
+sourceUnfoldrN :: S.MonadAsync m => Int -> Int -> Stream m Int
 sourceUnfoldrN m n = S.unfoldr step n
     where
     step cnt =

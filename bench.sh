@@ -302,7 +302,7 @@ set_benchmarks
 if echo "$BENCHMARKS" | grep -q base
 then
   STACK_BUILD_FLAGS="--flag streamly:dev"
-  CABAL_BUILD_FLAGS="--flags dev"
+  #CABAL_BUILD_FLAGS="--flags dev"
 fi
 
 #-----------------------------------------------------------------------------

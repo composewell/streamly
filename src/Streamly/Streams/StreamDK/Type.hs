@@ -71,7 +71,21 @@ module Streamly.Streams.StreamDK.Type
     )
 where
 
+import Control.Monad.Trans.Class (MonadTrans(..))
+
 -- XXX Use Cons and Nil instead of Yield and Stop?
 data Step m a = Yield a (Stream m a) | Stop
 
 data Stream m a = Stream (m (Step m a))
+
+instance Functor (Stream m) where
+    fmap = undefined
+
+instance Applicative (Stream m) where
+    pure = undefined
+
+instance Monad (Stream m) where
+    (>>=) = undefined
+
+instance MonadTrans (Stream ) where
+    lift = undefined

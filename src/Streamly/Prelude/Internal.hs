@@ -468,8 +468,8 @@ uncons m = K.uncons (K.adapt m)
 {-# INLINE_EARLY unfoldr #-}
 unfoldr :: (Monad m, IsStream t) => (b -> Maybe (a, b)) -> b -> t m a
 unfoldr step seed = fromStreamS (S.unfoldr step seed)
-{-# RULES "unfoldr fallback to StreamK" [1]
-    forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
+-- {-# RULES "unfoldr fallback to StreamK" [1]
+    -- forall a b. S.toStreamK (S.unfoldr a b) = K.unfoldr a b #-}
 
 -- | Build a stream by unfolding a /monadic/ step function starting from a
 -- seed.  The step function returns the next element in the stream and the next
@@ -503,7 +503,7 @@ unfoldr step seed = fromStreamS (S.unfoldr step seed)
 --
 -- /Since: 0.1.0/
 {-# INLINE_EARLY unfoldrM #-}
-unfoldrM :: (IsStream t, MonadAsync m) => (b -> m (Maybe (a, b))) -> b -> t m a
+unfoldrM :: (IsStream t, MonadAsync m, Monad (t m), MonadTrans t) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM = K.unfoldrM
 
 {-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
