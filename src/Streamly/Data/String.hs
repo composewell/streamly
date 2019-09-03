@@ -53,6 +53,7 @@ module Streamly.Data.String
     , decodeUtf8
     , decodeUtf8Lenient
     , decodeUtf8Arrays
+    , decodeUtf8ArraysLenient
 
     -- * Elimination (Encoding)
     , encodeChar8
@@ -155,6 +156,12 @@ decodeUtf8Arrays = D.fromStreamD . D.decodeUtf8Arrays . D.toStreamD
 {-# INLINE decodeUtf8Lenient #-}
 decodeUtf8Lenient :: (Monad m, IsStream t) => t m Word8 -> t m Char
 decodeUtf8Lenient = D.fromStreamD . D.decodeUtf8Lenient . D.toStreamD
+
+{-# INLINE decodeUtf8ArraysLenient #-}
+decodeUtf8ArraysLenient ::
+       (MonadIO m, IsStream t) => t m (Array Word8) -> t m Char
+decodeUtf8ArraysLenient =
+    D.fromStreamD . D.decodeUtf8ArraysLenient . D.toStreamD
 
 -- | Encode a stream of Unicode characters to a UTF-8 encoded bytestream.
 {-# INLINE encodeUtf8 #-}

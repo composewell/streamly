@@ -266,6 +266,7 @@ module Streamly.Streams.StreamD
     , encodeUtf8
     , decodeUtf8Lenient
     , decodeUtf8Arrays
+    , decodeUtf8ArraysLenient
     )
 where
 
@@ -282,8 +283,7 @@ import Data.Maybe (fromJust, isJust)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
-import GHC.Base (assert, Char(..), unsafeChr, (-#), (+#), uncheckedIShiftL#,
-                word2Int#, chr#, ord)
+import GHC.Base (assert, Char(..), unsafeChr, ord)
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Types (SPEC(..))
 import GHC.Word (Word8(..))
@@ -301,6 +301,7 @@ import Streamly.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Unfold.Types (Unfold(..))
+import Streamly.Strict (Tuple'(..))
 
 import Streamly.Streams.StreamD.Type
 
@@ -312,7 +313,6 @@ import qualified Streamly.Streams.StreamK as K
 import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
-import Data.Array.Unboxed (UArray, listArray, (!))
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -2973,16 +2973,16 @@ the (Stream step state) = go state
 -- UTF-8 primitives, Lifted from GHC.IO.Encoding.UTF8.
 
 {-# INLINE ord2 #-}
-ord2 :: Char -> [Word8]
-ord2 c = assert (n >= 0x80 && n <= 0x07ff) [x1, x2]
+ord2 :: Char -> WList
+ord2 c = assert (n >= 0x80 && n <= 0x07ff) (WCons x1 (WCons x2 WNil))
   where
     n = ord c
     x1 = fromIntegral $ (n `shiftR` 6) + 0xC0
     x2 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE ord3 #-}
-ord3 :: Char -> [Word8]
-ord3 c = assert (n >= 0x0800 && n <= 0xffff) [x1, x2, x3]
+ord3 :: Char -> WList
+ord3 c = assert (n >= 0x0800 && n <= 0xffff) (WCons x1 (WCons x2 (WCons x3 WNil)))
   where
     n = ord c
     x1 = fromIntegral $ (n `shiftR` 12) + 0xE0
@@ -2990,8 +2990,8 @@ ord3 c = assert (n >= 0x0800 && n <= 0xffff) [x1, x2, x3]
     x3 = fromIntegral $ (n .&. 0x3F) + 0x80
 
 {-# INLINE ord4 #-}
-ord4 :: Char -> [Word8]
-ord4 c = assert (n >= 0x10000) [x1, x2, x3, x4]
+ord4 :: Char -> WList
+ord4 c = assert (n >= 0x10000)  (WCons x1 (WCons x2 (WCons x3 (WCons x4 WNil))))
   where
     n = ord c
     x1 = fromIntegral $ (n `shiftR` 18) + 0xF0
@@ -2999,245 +2999,20 @@ ord4 c = assert (n >= 0x10000) [x1, x2, x3, x4]
     x3 = fromIntegral $ ((n `shiftR` 6) .&. 0x3F) + 0x80
     x4 = fromIntegral $ (n .&. 0x3F) + 0x80
 
-{-# INLINE chr2 #-}
-chr2 :: Word8 -> Word8 -> Char
-chr2 (W8# x1#) (W8# x2#) = C# (chr# (z1# +# z2#))
-  where
-    !y1# = word2Int# x1#
-    !y2# = word2Int# x2#
-    !z1# = uncheckedIShiftL# (y1# -# 192#) 6#
-    !z2# = y2# -# 128#
-
-{-# INLINE chr3 #-}
-chr3 :: Word8 -> Word8 -> Word8 -> Char
-chr3 (W8# x1#) (W8# x2#) (W8# x3#) = C# (chr# (z1# +# z2# +# z3#))
-  where
-    !y1# = word2Int# x1#
-    !y2# = word2Int# x2#
-    !y3# = word2Int# x3#
-    !z1# = uncheckedIShiftL# (y1# -# 224#) 12#
-    !z2# = uncheckedIShiftL# (y2# -# 128#) 6#
-    !z3# = y3# -# 128#
-
-{-# INLINE chr4 #-}
-chr4 :: Word8 -> Word8 -> Word8 -> Word8 -> Char
-chr4 (W8# x1#) (W8# x2#) (W8# x3#) (W8# x4#) =
-    C# (chr# (z1# +# z2# +# z3# +# z4#))
-  where
-    !y1# = word2Int# x1#
-    !y2# = word2Int# x2#
-    !y3# = word2Int# x3#
-    !y4# = word2Int# x4#
-    !z1# = uncheckedIShiftL# (y1# -# 240#) 18#
-    !z2# = uncheckedIShiftL# (y2# -# 128#) 12#
-    !z3# = uncheckedIShiftL# (y3# -# 128#) 6#
-    !z4# = y4# -# 128#
-
-{-# INLINE between #-}
-between ::
-       Word8 -- ^ byte to check
-    -> Word8 -- ^ lower bound
-    -> Word8 -- ^ upper bound
-    -> Bool
-between x y z = x >= y && x <= z
-
-{-# INLINE validate3 #-}
-validate3 :: Word8 -> Word8 -> Word8 -> Bool
-validate3 x1 x2 x3 = validate3_1 ||
-                     validate3_2 ||
-                     validate3_3 ||
-                     validate3_4
-  where
-    validate3_1 = (x1 == 0xE0) &&
-                  between x2 0xA0 0xBF &&
-                  between x3 0x80 0xBF
-    validate3_2 = between x1 0xE1 0xEC &&
-                  between x2 0x80 0xBF &&
-                  between x3 0x80 0xBF
-    validate3_3 = x1 == 0xED &&
-                  between x2 0x80 0x9F &&
-                  between x3 0x80 0xBF
-    validate3_4 = between x1 0xEE 0xEF &&
-                  between x2 0x80 0xBF &&
-                  between x3 0x80 0xBF
-
-{-# INLINE validate4 #-}
-validate4 :: Word8 -> Word8 -> Word8 -> Word8 -> Bool
-validate4 x1 x2 x3 x4 = validate4_1 ||
-                        validate4_2 ||
-                        validate4_3
-  where
-    validate4_1 = x1 == 0xF0 &&
-                  between x2 0x90 0xBF &&
-                  between x3 0x80 0xBF &&
-                  between x4 0x80 0xBF
-    validate4_2 = between x1 0xF1 0xF3 &&
-                  between x2 0x80 0xBF &&
-                  between x3 0x80 0xBF &&
-                  between x4 0x80 0xBF
-    validate4_3 = x1 == 0xF4 &&
-                  between x2 0x80 0x8F &&
-                  between x3 0x80 0xBF &&
-                  between x4 0x80 0xBF
-
-data CPoint s
-    = FreshPoint s
-    | Two !Word8 s
-    | GoThree !Word8 s
-    | Three !Word8 !Word8 s
-    | GoFour !Word8 s
-    | Four1 !Word8 !Word8 s
-    | Four !Word8 !Word8 !Word8 s
-    | YieldAndContinue !Char (CPoint s)
-    | Done
-
 data CodingFailureMode
     = TransliterateCodingFailure
     | ErrorOnCodingFailure
     deriving (Show)
 
-{-# INLINE_NORMAL decodeUtf8With #-}
-decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
-decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint state)
-  where
-    {-# INLINE transliterateOrError #-}
-    transliterateOrError e s =
-        case cfm of
-            ErrorOnCodingFailure -> error e
-            TransliterateCodingFailure -> Skip $ YieldAndContinue '\xFFFD' (FreshPoint s)
-    {-# INLINE inputUnderflow #-}
-    inputUnderflow = case cfm of
-       ErrorOnCodingFailure -> error "Input Underflow"
-       TransliterateCodingFailure -> Skip $ YieldAndContinue '\xFFFD' Done
-
-    {-# INLINE_LATE step' #-}
-    step' gst (FreshPoint st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c0 s
-                    | c0 <= 0x7f ->
-                        Skip $ YieldAndContinue (unsafeChr (fromIntegral c0)) (FreshPoint s)
-                    | c0 >= 0xc0 && c0 <= 0xc1 ->
-                        transliterateOrError "Invalid Overlong forms" s
-                    | c0 >= 0xc2 && c0 <= 0xdf -> Skip (Two c0 s)
-                    | c0 >= 0xe0 && c0 <= 0xef -> Skip (GoThree c0 s)
-                    | c0 >= 0xf0 -> Skip (GoFour c0 s)
-                    | otherwise -> transliterateOrError "Invalid Sequence" s
-                Skip s -> Skip (FreshPoint s)
-                Stop -> Stop
-
-    -- Decoding of a UTF8 character that spans two bytes with one byte (c0)
-    -- known.
-    step' gst (Two c0 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c1 s
-                    | c1 < 0x80 || c1 >= 0xc0 ->
-                        transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip $ YieldAndContinue (chr2 c0 c1) (FreshPoint s)
-                Skip s -> Skip $ Two c0 s
-                Stop -> inputUnderflow
-
-    -- Decoding of a UTF8 character that spans three bytes with first byte (c0)
-    -- known.
-    step' gst (GoThree c0 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c1 s
-                    | not (validate3 c0 c1 0x80) ->
-                        transliterateOrError "Invalid Sequence" s
-                                                    -- See #3341@ghc
-                    | otherwise -> Skip $ Three c0 c1 s
-                Skip s -> Skip $ GoThree c0 s
-                Stop -> inputUnderflow
-
-    -- Two bytes known of a 3 byte UTF8 encoded unicode character.
-    step' gst (Three c0 c1 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c2 s
-                    | not (validate3 c0 c1 c2) ->
-                        transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip $ YieldAndContinue (chr3 c0 c1 c2) (FreshPoint s)
-                Skip s -> Skip $ Three c0 c1 s
-                Stop -> inputUnderflow
-
-    -- One byte known of a four byte UTF8 unicode character.
-    step' gst (GoFour c0 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c1 s
-                    | not (validate4 c0 c1 0x80 0x80) ->
-                        transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip $ Four1 c0 c1 s
-                Skip s -> Skip $ GoFour c0 s
-                Stop -> inputUnderflow
-
-    -- Two bytes known of a four byte UTF8 unicode character.
-    step' gst (Four1 c0 c1 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c2 s
-                    | not (validate4 c0 c1 c2 0x80) ->
-                        transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip $ Four c0 c1 c2 s
-                Skip s -> Skip $ Four1 c0 c1 s
-                Stop -> inputUnderflow
-
-    -- Three bytes known of a three byte UTF8 unicode character.
-    step' gst (Four c0 c1 c2 st) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c3 s
-                    | not (validate4 c0 c1 c2 c3) ->
-                        transliterateOrError "Invalid Sequence" s
-                    | otherwise -> Skip $ YieldAndContinue (chr4 c0 c1 c2 c3) (FreshPoint s)
-                Skip s -> Skip $ Four c0 c1 c2 s
-                Stop -> inputUnderflow
-
-    -- This way so that we only need one Yield.
-    --step' _ (YieldAndStop c) = return $ Yield c Done
-    step' _ (YieldAndContinue c s) = return $ Yield c s
-    step' _ Done = return Stop
-
-{-# INLINE decodeUtf8Lenient #-}
-decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
-
-{-# INLINE_NORMAL encodeUtf8 #-}
-encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
-encodeUtf8 (Stream step state) = Stream step' (state, [])
-  where
-    {-# INLINE_LATE step' #-}
-    step' gst (st, []) = do
-        r <- step (adaptState gst) st
-        return $
-            case r of
-                Yield c s ->
-                    case ord c of
-                        x   | x <= 0x7F -> Skip (s, [fromIntegral x])
-                            | x <= 0x7FF -> Skip (s, (ord2 c))
-                            | x <= 0xFFFF ->
-                                if isSurrogate c
-                                    then error "Encountered a surrogate"
-                                    else Skip (s, (ord3 c))
-                            | otherwise -> Skip (s, (ord4 c))
-                Skip s -> Skip (s, [])
-                Stop -> Stop
-    step' _ (s, (x:xs)) = return $ Yield x (s, xs)
+{-# INLINE replacementChar #-}
+replacementChar :: Char
+replacementChar = '\xFFFD'
 
 type CodePoint = Word32
 type DecoderState = Word32
 
-utf8d :: UArray Word32 Word32
-utf8d = listArray (0,363) [
+utf8d :: A.Array Word32
+utf8d = A.fromList [
    -- The first part of the table maps bytes to character classes that
    -- to reduce the size of the transition table and create bitmasks.
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -3259,50 +3034,109 @@ utf8d = listArray (0,363) [
   ]
 
 {-# INLINE decode #-}
-decode :: (DecoderState, CodePoint) -> Word32 -> (DecoderState, CodePoint)
-decode (state, codep) byte =
-    let t = utf8d ! byte
+decode :: DecoderState -> CodePoint -> Word32 -> Tuple' DecoderState CodePoint
+decode state codep byte =
+    let t = utf8d `A.unsafeIndex` (fromIntegral byte)
         codep' =
             if state /= 0
                 then (byte .&. 0x3f) .|. (codep `shiftL` 6)
                 else (0xff `shiftR` (fromIntegral t)) .&. byte
-        state' = utf8d ! (256 + state + t)
-     in (state', codep')
+        state' = utf8d `A.unsafeIndex` (fromIntegral $ 256 + state + t)
+     in (Tuple' state' codep')
+
+data FreshPoint s
+    = FreshPoint !CodePoint !DecoderState s
+    | YieldAndContinue !Char (FreshPoint s)
+    | Done
 
 -- XXX Add proper error messages
-{-# INLINE_NORMAL decodeUtf8 #-}
-decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
-decodeUtf8 (Stream step state) = Stream step' (0, 0, state)
+{-# INLINE_NORMAL decodeUtf8With #-}
+decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
+decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
   where
-
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e s =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> YieldAndContinue replacementChar s
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow =
+        case cfm of
+            ErrorOnCodingFailure ->
+                error "Streamly.Streams.StreamD.decodeUtf8With: Input Underflow"
+            TransliterateCodingFailure -> YieldAndContinue replacementChar Done
     {-# INLINE_LATE step' #-}
-    step' gst (codepointPtr, statePtr, st) = do
+    step' gst (FreshPoint codepointPtr statePtr st) = do
         r <- step (adaptState gst) st
-        case r of
-            Yield x s -> do
-                let (sv, cp) = decode (statePtr, codepointPtr) (fromIntegral x)
-                return $
-                    case sv of
-                        12 -> error "UTF8: REJECT"
-                        0  ->
-                            Yield (unsafeChr (fromIntegral cp)) (cp, sv, s)
-                        _ -> Skip (cp, sv, s)
-            Skip s -> return $ Skip (codepointPtr, statePtr, s)
-            Stop -> return Stop -- XXX check whether statePtr is in Accept state or not.
+        return $
+            case r of
+                Yield x s ->
+                    let (Tuple' sv cp) =
+                            decode statePtr codepointPtr (fromIntegral x)
+                     in case sv of
+                            12 ->
+                                Skip $
+                                transliterateOrError
+                                    "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
+                                    (FreshPoint 0 0 st)
+                            0 ->
+                                Skip $
+                                YieldAndContinue
+                                    (unsafeChr (fromIntegral cp))
+                                    (FreshPoint cp sv s)
+                            _ -> Skip (FreshPoint cp sv s)
+                Skip s -> Skip (FreshPoint codepointPtr statePtr s)
+                Stop ->
+                    if statePtr /= 0
+                        then Skip inputUnderflow
+                        else Skip Done
+    step' _ (YieldAndContinue c s) = return $ Yield c s
+    step' _ Done = return Stop
+
+{-# INLINE decodeUtf8 #-}
+decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8 = decodeUtf8With ErrorOnCodingFailure
+
+{-# INLINE decodeUtf8Lenient #-}
+decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
+decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
 
 data FlattenState s a
     = OuterLoop !CodePoint !DecoderState s
     | InnerLoop !CodePoint !DecoderState s (ForeignPtr a) (Ptr a) (Ptr a)
+    | YAndC !Char (FlattenState s a) -- These constructors can be
+                                     -- encoded in the FreshPoint
+                                     -- type, I prefer to keep these
+                                     -- flat even though that means
+                                     -- coming up with new names
+    | D
 
 -- The normal decodeUtf8 above should fuse with flattenArrays
 -- to create this exact code but it doesn't for some reason, as of now this
 -- remains the fastest way I could figure out to decodeUtf8.
 --
 -- XXX Add Proper error messages
-{-# INLINE_NORMAL decodeUtf8Arrays #-}
-decodeUtf8Arrays :: MonadIO m => Stream m (A.Array Word8) -> Stream m Char
-decodeUtf8Arrays (Stream step state) = Stream step' (OuterLoop 0 0 state)
+{-# INLINE_NORMAL decodeUtf8ArraysWith #-}
+decodeUtf8ArraysWith ::
+       MonadIO m
+    => CodingFailureMode
+    -> Stream m (A.Array Word8)
+    -> Stream m Char
+decodeUtf8ArraysWith cfm (Stream step state) =
+    Stream step' (OuterLoop 0 0 state)
   where
+    {-# INLINE transliterateOrError #-}
+    transliterateOrError e s =
+        case cfm of
+            ErrorOnCodingFailure -> error e
+            TransliterateCodingFailure -> YAndC replacementChar s
+    {-# INLINE inputUnderflow #-}
+    inputUnderflow =
+        case cfm of
+            ErrorOnCodingFailure ->
+                error
+                    "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Input Underflow"
+            TransliterateCodingFailure -> YAndC replacementChar D
     {-# INLINE_LATE step' #-}
     step' gst (OuterLoop cp ds st) = do
         r <- step (adaptState gst) st
@@ -3312,7 +3146,10 @@ decodeUtf8Arrays (Stream step state) = Stream step' (OuterLoop 0 0 state)
                     let p = unsafeForeignPtrToPtr aStart
                      in Skip (InnerLoop cp ds s aStart p aEnd)
                 Skip s -> Skip (OuterLoop cp ds s)
-                Stop -> Stop
+                Stop ->
+                    if ds /= 0
+                        then Skip inputUnderflow
+                        else Skip D
     step' _ (InnerLoop cp ds st _ p end)
         | p == end = return $ Skip $ OuterLoop cp ds st
     step' _ (InnerLoop codepointPtr statePtr st startf p end) = do
@@ -3321,26 +3158,63 @@ decodeUtf8Arrays (Stream step state) = Stream step' (OuterLoop 0 0 state)
                 r <- peek p
                 touchForeignPtr startf
                 return r
-        let (sv, cp) = decode (statePtr, codepointPtr) (fromIntegral x)
+        let (Tuple' sv cp) = decode statePtr codepointPtr (fromIntegral x)
         return $
             case sv of
-                12 -> error "UTF8: REJECT"
+                12 ->
+                    Skip $
+                    transliterateOrError
+                        "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                        (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
                 0 ->
-                    Yield
+                    Skip $
+                    YAndC
                         (unsafeChr (fromIntegral cp))
-                        (InnerLoop
-                             cp
-                             sv
-                             st
-                             startf
-                             (p `plusPtr` 1)
-                             end)
-                _ ->
-                    Skip
-                        (InnerLoop
-                             cp
-                             sv
-                             st
-                             startf
-                             (p `plusPtr` 1)
-                             end)
+                        (InnerLoop cp sv st startf (p `plusPtr` 1) end)
+                _ -> Skip (InnerLoop cp sv st startf (p `plusPtr` 1) end)
+    step' _ (YAndC c s) = return $ Yield c s
+    step' _ D = return Stop
+
+{-# INLINE decodeUtf8Arrays #-}
+decodeUtf8Arrays ::
+       MonadIO m
+    => Stream m (A.Array Word8)
+    -> Stream m Char
+decodeUtf8Arrays = decodeUtf8ArraysWith ErrorOnCodingFailure
+
+{-# INLINE decodeUtf8ArraysLenient #-}
+decodeUtf8ArraysLenient ::
+       MonadIO m
+    => Stream m (A.Array Word8)
+    -> Stream m Char
+decodeUtf8ArraysLenient = decodeUtf8ArraysWith TransliterateCodingFailure
+
+data WList = WCons !Word8 !WList | WNil
+
+data EncodeState s = EncodeState s !WList
+
+{-# INLINE_NORMAL encodeUtf8 #-}
+encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
+encodeUtf8 (Stream step state) = Stream step' (EncodeState state WNil)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (EncodeState st WNil) = do
+        r <- step (adaptState gst) st
+        return $
+            case r of
+                Yield c s ->
+                    case ord c of
+                        x
+                            | x <= 0x7F ->
+                                Skip
+                                    (EncodeState s (WCons (fromIntegral x) WNil))
+                            | x <= 0x7FF -> Skip (EncodeState s (ord2 c))
+                            | x <= 0xFFFF ->
+                                if isSurrogate c
+                                    then error
+                                             "Streamly.Streams.StreamD.encodeUtf8: Encountered a surrogate"
+                                    else Skip (EncodeState s (ord3 c))
+                            | otherwise -> Skip (EncodeState s (ord4 c))
+                Skip s -> Skip (EncodeState s WNil)
+                Stop -> Stop
+    step' _ (EncodeState s (WCons x xs)) = return $ Yield x (EncodeState s xs)

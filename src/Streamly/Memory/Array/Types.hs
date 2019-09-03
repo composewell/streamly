@@ -668,7 +668,7 @@ fromStreamDArraysOf n (D.Stream step state) =
 -- a custom way to concat arrays.
 data FlattenState s a =
       OuterLoop s
-    | InnerLoop s (ForeignPtr a) (Ptr a) (Ptr a)
+    | InnerLoop s !(ForeignPtr a) !(Ptr a) !(Ptr a)
 
 {-# INLINE_NORMAL flattenArrays #-}
 flattenArrays :: forall m a. (MonadIO m, Storable a)
