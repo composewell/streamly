@@ -6,7 +6,7 @@ issues.
 
 The semantics of monads other than `ReaderT` with concurrent streams are
 not yet finalized and will change in future, therefore as of now they are not
-recommended to be used.
+recommended to be used with concurrent streams.
 
 ## Ordering of Monad Transformers
 
