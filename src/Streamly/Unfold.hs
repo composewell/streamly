@@ -17,7 +17,34 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- Streams forcing a closed control flow loop can be categorized under
+-- two types, unfolds and folds, both of these are duals of each other.
+--
+-- Unfold streams are really generators of a sequence of elements, we can also
+-- call them pull style streams. These are lazy producers of streams. On each
+-- evaluation the producer generates the next element.  A consumer can
+-- therefore pull elements from the stream whenever it wants to.  A stream
+-- consumer can multiplex pull streams by pulling elements from the chosen
+-- streams, therefore, pull streams allow merging or multiplexing.  On the
+-- other hand, with this representation we cannot split or demultiplex a
+-- stream.  So really these are stream sources that can be generated from a
+-- seed and can be merged or zipped into a single stream.
+--
+-- The dual of Unfolds are Folds. Folds can also be called as push style
+-- streams or reducers. These are strict consumers of streams. We keep pushing
+-- elements to a fold and we can extract the result at any point. A driver can
+-- choose which fold to push to and can also push the same element to multiple
+-- folds. Therefore, folds allow splitting or demultiplexing a stream. On the
+-- other hand, we cannot merge streams using this representation. So really
+-- these are stream consumers that reduce the stream to a single value, these
+-- consumers can be composed such that a stream can be split over multiple
+-- consumers.
 
+-- Open control flow style streams can also have two representations. StreamK
+-- is a producer style representation. We can also have a consumer style
+-- representation. We can use that for composable folds in StreamK
+-- representation.
+--
 module Streamly.Unfold
     (
     -- * Unfold Type
