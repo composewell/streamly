@@ -23,8 +23,8 @@ module Streamly.Streams.Parallel
     , Parallel
     , parallely
     , parallel
-    , parallelEndByFirst
-    , parallelEndByAny
+    , parallelFst
+    , parallelMin
     , tapAsync
 
     -- * Function application
@@ -151,13 +151,6 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
 consMParallel :: MonadAsync m => m a -> ParallelT m a -> ParallelT m a
 consMParallel m r = fromStream $ K.yieldM m `parallel` (toStream r)
 
--- TODO
--- Different variants of parallel differ in how the combined stream ends:
---
--- -                  - parallel  - ends when all stream end
--- parallelEndByFirst - parallel1 - ends when the first stream ends
--- parallelEndByAny   - parallel_ - ends when any stream ends
---
 -- | Polymorphic version of the 'Semigroup' operation '<>' of 'ParallelT'
 -- Merges two streams concurrently.
 --
@@ -173,9 +166,9 @@ parallel = joinStreamVarPar ParallelVar StopNone
 -- | Like `parallel` but stops the output as soon as the first stream stops.
 --
 -- @since 0.7.0
-{-# INLINE parallelEndByFirst #-}
-parallelEndByFirst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallelEndByFirst = joinStreamVarPar ParallelVar StopBy
+{-# INLINE parallelFst #-}
+parallelFst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelFst = joinStreamVarPar ParallelVar StopBy
 
 -- This is a race like combinator for streams.
 --
@@ -183,9 +176,9 @@ parallelEndByFirst = joinStreamVarPar ParallelVar StopBy
 -- stops.
 --
 -- @since 0.7.0
-{-# INLINE parallelEndByAny #-}
-parallelEndByAny :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
-parallelEndByAny = joinStreamVarPar ParallelVar StopAny
+{-# INLINE parallelMin #-}
+parallelMin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
+parallelMin = joinStreamVarPar ParallelVar StopAny
 
 ------------------------------------------------------------------------------
 -- Convert a stream to parallel

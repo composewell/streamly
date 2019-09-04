@@ -205,7 +205,7 @@ module Streamly.Prelude.Internal
     , intersperse
     , insertAfterEach
     -- , intersperseBySpan
-    , intersperseByTime
+    , interject
 
     -- ** Reordering
     , reverse
@@ -214,6 +214,15 @@ module Streamly.Prelude.Internal
     -- * Multi-Stream Operations
 
     -- ** Appending
+    , append
+
+    -- ** Interleaving
+    , interleave
+    , interleaveFst
+    , interleaveMin
+
+    -- ** Scheduling
+    , roundrobin
 
     -- ** Merging
 
@@ -232,6 +241,8 @@ module Streamly.Prelude.Internal
     -- ** Nested Streams
     , concatMapM
     , concatMapU
+    , concatUnfoldInterleave
+    , concatUnfoldRoundrobin
     , concatMap
     , concatMapWith
     -- , interposeBy
@@ -1817,16 +1828,16 @@ intersperseBySpan _n _f _xs = undefined
 -- seconds.
 --
 -- @
--- > S.drain $ S.intersperseByTime 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
+-- > S.drain $ S.interject 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
 -- "h,e,l,l,o"
 -- @
 --
 -- @since 0.7.0
-{-# INLINE intersperseByTime #-}
-intersperseByTime
+{-# INLINE interject #-}
+interject
     :: (IsStream t, MonadAsync m)
     => Double -> m a -> t m a -> t m a
-intersperseByTime n f xs = xs `Par.parallelEndByFirst` repeatM timed
+interject n f xs = xs `Par.parallelFst` repeatM timed
     where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
@@ -2092,6 +2103,73 @@ concatMapWith = K.concatMapBy
 concatMap ::(IsStream t, Monad m) => (a -> t m b) -> t m a -> t m b
 concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 
+-- | Append the outputs of two streams, yielding all the elements from the
+-- first stream and then yielding all the elements from the second stream.
+--
+-- IMPORTANT NOTE: This could be 100x faster than @serial/<>@ for appending a
+-- few (say 100) streams because it can fuse via stream fusion. However, it
+-- does not scale for a large number of streams (say 1000s) and becomes
+-- qudartically slow. Therefore use this for custom appending of a few streams
+-- but use 'concatMap' or 'concatMapWith serial' for appending @n@ streams or
+-- infinite containers of streams.
+--
+-- @since 0.7.0
+{-# INLINE append #-}
+append ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
+
+-- Same as 'wSerial'. We should perhaps rename wSerial. If named explicitly
+-- this would be interleaveMax.
+--
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream. If any of the streams finishes
+-- early the other stream continues alone until it too finishes.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- @since 0.7.0
+{-# INLINE interleave #-}
+interleave ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
+
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream. As soon as the first stream
+-- finishes the output stops discarding the second stream.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- @since 0.7.0
+{-# INLINE interleaveFst #-}
+interleaveFst ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+interleaveFst m1 m2 = fromStreamD $ D.interleaveFst (toStreamD m1) (toStreamD m2)
+
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream. The output stops as soon as any
+-- of the two streams finishes discarding the other.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- @since 0.7.0
+{-# INLINE interleaveMin #-}
+interleaveMin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2)
+
+-- | Schedule the execution of two streams in a fair round-robin manner,
+-- executing each stream once, alternately. Execution of a stream may not
+-- necessarily result in an output, a stream may chose to @Skip@ producing an
+-- element until later giving the other stream a chance to run. Therefore, this
+-- combinator fairly interleaves the execution of two streams rather than
+-- fairly interleaving the output of the two streams. This can be useful in
+-- co-operative multitasking without using explicit threads. This can be used
+-- as an alternative to `async`.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- @since 0.7.0
+{-# INLINE roundrobin #-}
+roundrobin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
+
 -- | Map a stream producing monadic function on each element of the stream
 -- and then flatten the results into a single stream. Since the stream
 -- generation function is monadic, unlike 'concatMap', it can produce an
@@ -2110,6 +2188,26 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 {-# INLINE concatMapU #-}
 concatMapU ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
 concatMapU u m = fromStreamD $ D.concatMapU u (toStreamD m)
+
+-- | Like 'concatUnfold' but interleaves the streams in the same way as
+-- 'interleave' behaves instead of appending them.
+--
+-- @since 0.7.0
+{-# INLINE concatUnfoldInterleave #-}
+concatUnfoldInterleave ::(IsStream t, Monad m)
+    => Unfold m a b -> t m a -> t m b
+concatUnfoldInterleave u m =
+    fromStreamD $ D.concatUnfoldInterleave u (toStreamD m)
+
+-- | Like 'concatUnfold' but executes the streams in the same way as
+-- 'roundrobin'.
+--
+-- @since 0.7.0
+{-# INLINE concatUnfoldRoundrobin #-}
+concatUnfoldRoundrobin ::(IsStream t, Monad m)
+    => Unfold m a b -> t m a -> t m b
+concatUnfoldRoundrobin u m =
+    fromStreamD $ D.concatUnfoldRoundrobin u (toStreamD m)
 
 {-
 -- | A generalization of insertBy to inserting sequences.
@@ -2276,7 +2374,7 @@ intervalsOf
     => Double -> Fold m a b -> t m a -> t m b
 intervalsOf n f xs =
     splitWithSuffix isNothing (FL.lcatMaybes f)
-        (intersperseByTime n (return Nothing) (Serial.map Just xs))
+        (interject n (return Nothing) (Serial.map Just xs))
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs

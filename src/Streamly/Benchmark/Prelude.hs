@@ -38,13 +38,15 @@ import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
 
 #ifdef INSPECTION
-import Streamly.Streams.StreamD.Type (Step(..))
 import Test.Inspection
+
+import qualified Streamly.Streams.StreamD as D
 #endif
 
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal as Internal
+import qualified Streamly.Unfold   as UF
 -- import qualified Streamly.Pipe  as Pipe
 
 value, maxValue, value2 :: Int
@@ -131,6 +133,12 @@ sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
 sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
     => Int -> t m Int
 sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
+
+{-# INLINE sourceConcatMapId #-}
+sourceConcatMapId :: (S.IsStream t, Monad m)
+    => Int -> t m Int
+sourceConcatMapId n =
+    S.concatMap P.id $ S.fromFoldable $ P.map (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -503,44 +511,105 @@ iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 -------------------------------------------------------------------------------
 
 {-# INLINE zip #-}
-zip :: Monad m => Stream m Int -> m ()
-zip src       = do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.zipWith (,) src src1)
+zip :: Int -> Int -> IO ()
+zip count n =
+    S.drain $ S.zipWith (,)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
 
-{-# INLINE zipM' #-}
-zipM' :: Monad m => Stream m Int -> m ()
-zipM' src      =  do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.zipWithM (curry return) src src1)
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zip
+inspect $ 'zip `hasNoType` ''D.Step
+#endif
 
 {-# INLINE zipM #-}
-zipM :: Int -> IO ()
-zipM n = zipM' $ source n
+zipM :: Int -> Int -> IO ()
+zipM count n =
+    S.drain $ S.zipWithM (curry return)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zipM
--- inspect $ 'zipM `hasNoType` ''Step
+inspect $ 'zipM `hasNoType` ''D.Step
 #endif
 
-{-# INLINE mergeBy' #-}
-mergeBy' :: Monad m => Stream m Int -> m ()
-mergeBy' src     =  do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.mergeBy P.compare src src1)
-
 {-# INLINE mergeBy #-}
-mergeBy :: Int -> IO ()
-mergeBy n = mergeBy' $ source n
+mergeBy :: Int -> Int -> IO ()
+mergeBy count n =
+    S.drain $ S.mergeBy P.compare
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'mergeBy
--- inspect $ 'mergeBy `hasNoType` ''Step
+inspect $ 'mergeBy `hasNoType` ''D.Step
 #endif
 
+{-# INLINE serial2 #-}
+serial2 :: Int -> Int -> IO ()
+serial2 count n =
+    S.drain $ S.serial
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+{-# INLINE serial4 #-}
+serial4 :: Int -> Int -> IO ()
+serial4 count n =
+    S.drain $ S.serial
+        ((S.serial (sourceUnfoldrMN count n)
+                   (sourceUnfoldrMN count (n + 1))))
+        ((S.serial (sourceUnfoldrMN count (n+2))
+                   (sourceUnfoldrMN count (n + 3))))
+
+{-# INLINE append2 #-}
+append2 :: Int -> Int -> IO ()
+append2 count n =
+    S.drain $ Internal.append
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+{-# INLINE append4 #-}
+append4 :: Int -> Int -> IO ()
+append4 count n =
+    S.drain $ Internal.append
+        ((Internal.append (sourceUnfoldrMN count n)
+                          (sourceUnfoldrMN count (n + 1))))
+        ((Internal.append (sourceUnfoldrMN count (n+2))
+                          (sourceUnfoldrMN count (n + 3))))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'append2
+inspect $ 'append2 `hasNoType` ''D.AppendState
+#endif
+
+{-# INLINE wSerial2 #-}
+wSerial2 :: Int -> IO ()
+wSerial2 n = S.drain $ S.wSerial
+    (sourceUnfoldrMN (value `div` 2) n)
+    (sourceUnfoldrMN (value `div` 2) (n + 1))
+
+{-# INLINE interleave2 #-}
+interleave2 :: Int -> IO ()
+interleave2 n = S.drain $ Internal.interleave
+    (sourceUnfoldrMN (value `div` 2) n)
+    (sourceUnfoldrMN (value `div` 2) (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'interleave2
+inspect $ 'interleave2 `hasNoType` ''D.InterleaveState
+#endif
+
+{-# INLINE roundRobin2 #-}
+roundRobin2 :: Int -> IO ()
+roundRobin2 n = S.drain $ Internal.roundrobin
+    (sourceUnfoldrMN (value `div` 2) n)
+    (sourceUnfoldrMN (value `div` 2) (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'roundRobin2
+inspect $ 'roundRobin2 `hasNoType` ''D.InterleaveState
+#endif
 
 {-# INLINE isPrefixOf #-}
 {-# INLINE isSubsequenceOf #-}
@@ -586,7 +655,7 @@ eqBy n = eqBy' (source n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqBy
-inspect $ 'eqBy `hasNoType` ''Step
+inspect $ 'eqBy `hasNoType` ''D.Step
 #endif
 
 
@@ -596,7 +665,7 @@ eqByPure n = eqBy' (sourceUnfoldr n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqByPure
-inspect $ 'eqByPure `hasNoType` ''Step
+inspect $ 'eqByPure `hasNoType` ''D.Step
 #endif
 
 {-# INLINE cmpBy' #-}
@@ -609,7 +678,7 @@ cmpBy n = cmpBy' (source n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpBy
-inspect $ 'cmpBy `hasNoType` ''Step
+inspect $ 'cmpBy `hasNoType` ''D.Step
 #endif
 
 {-# INLINE cmpByPure #-}
@@ -618,38 +687,29 @@ cmpByPure n = cmpBy' (sourceUnfoldr n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpByPure
-inspect $ 'cmpByPure `hasNoType` ''Step
+inspect $ 'cmpByPure `hasNoType` ''D.Step
 #endif
 
--- The worst case for concatMap, concat a 1 element stream n times.
 {-# INLINE concatMap #-}
-concatMap :: Int -> IO ()
-concatMap n = S.drain $ S.concatMap (\_ -> sourceUnfoldrMN 1 n)
-                          (sourceUnfoldrMN value n)
+concatMap :: Int -> Int -> Int -> IO ()
+concatMap outer inner n =
+    S.drain $ S.concatMap
+        (\_ -> sourceUnfoldrMN inner n)
+        (sourceUnfoldrMN outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
 #endif
 
-{-# INLINE concatMapPure1xN #-}
-concatMapPure1xN :: Int -> IO ()
-concatMapPure1xN n = S.drain $ S.concatMap (\_ -> sourceUnfoldrN 1 n)
-                          (sourceUnfoldrN value n)
+{-# INLINE concatMapPure #-}
+concatMapPure :: Int -> Int -> Int -> IO ()
+concatMapPure outer inner n =
+    S.drain $ S.concatMap
+        (\_ -> sourceUnfoldrN inner n)
+        (sourceUnfoldrN outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapPure1xN
-#endif
-
--- We use a (sqrt n) element stream as source and then generate and concat a
--- (sqrt n) element stream for each element of the source to produce an n
--- element stream.
-{-# INLINE concatMapNxN #-}
-concatMapNxN :: Int -> IO ()
-concatMapNxN n = S.drain $ S.concatMap (\_ -> sourceUnfoldrMN value2 n)
-                          (sourceUnfoldrMN value2 n)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapNxN
+inspect $ hasNoTypeClasses 'concatMapPure
 #endif
 
 {-# INLINE concatMapRepl4xN #-}
@@ -659,6 +719,75 @@ concatMapRepl4xN n = S.drain $ S.concatMap (S.replicate 4)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapRepl4xN
+#endif
+
+{-# INLINE concatUnfoldRepl4xN #-}
+concatUnfoldRepl4xN :: Int -> IO ()
+concatUnfoldRepl4xN n =
+    S.drain $ Internal.concatMapU
+        (UF.replicateM 4)
+        (sourceUnfoldrMN (value `div` 4) n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatUnfoldRepl4xN
+inspect $ 'concatUnfoldRepl4xN `hasNoType` ''D.ConcatMapUState
+#endif
+
+{-# INLINE concatMapWithSerial #-}
+concatMapWithSerial :: Int -> Int -> Int -> IO ()
+concatMapWithSerial outer inner n =
+    S.drain $ S.concatMapWith S.serial
+        (\_ -> sourceUnfoldrMN inner n)
+        (sourceUnfoldrMN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapWithSerial
+#endif
+
+{-# INLINE concatMapWithAppend #-}
+concatMapWithAppend :: Int -> Int -> Int -> IO ()
+concatMapWithAppend outer inner n =
+    S.drain $ S.concatMapWith Internal.append
+        (\_ -> sourceUnfoldrMN inner n)
+        (sourceUnfoldrMN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapWithAppend
+#endif
+
+{-# INLINE concatMapWithWSerial #-}
+concatMapWithWSerial :: Int -> Int -> Int -> IO ()
+concatMapWithWSerial outer inner n =
+    S.drain $ S.concatMapWith S.wSerial
+        (\_ -> sourceUnfoldrMN inner n)
+        (sourceUnfoldrMN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapWithWSerial
+#endif
+
+{-# INLINE concatUnfoldInterleaveRepl4xN #-}
+concatUnfoldInterleaveRepl4xN :: Int -> IO ()
+concatUnfoldInterleaveRepl4xN n =
+    S.drain $ Internal.concatUnfoldInterleave
+        (UF.replicateM 4)
+        (sourceUnfoldrMN (value `div` 4) n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatUnfoldInterleaveRepl4xN
+-- inspect $ 'concatUnfoldInterleaveRepl4xN `hasNoType` ''D.ConcatUnfoldInterleaveState
+#endif
+
+{-# INLINE concatUnfoldRoundrobinRepl4xN #-}
+concatUnfoldRoundrobinRepl4xN :: Int -> IO ()
+concatUnfoldRoundrobinRepl4xN n =
+    S.drain $ Internal.concatUnfoldRoundrobin
+        (UF.replicateM 4)
+        (sourceUnfoldrMN (value `div` 4) n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN
+-- inspect $ 'concatUnfoldRoundrobinRepl4xN `hasNoType` ''D.ConcatUnfoldInterleaveState
 #endif
 
 -------------------------------------------------------------------------------

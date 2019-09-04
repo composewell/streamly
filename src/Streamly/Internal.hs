@@ -33,7 +33,7 @@ module Streamly.Internal
     , toStreamRev
 
     , insertAfterEach
-    , intersperseByTime
+    , interject
     , reverse'
 
     , splitAt -- spanN
@@ -53,7 +53,19 @@ module Streamly.Internal
     , classifySessionsBy
     , classifyKeepAliveSessions
 
+    , append
+    , interleave
+    , interleaveFst
+    , interleaveMin
+    , roundrobin
+    , wSerialFst
+    , wSerialMin
+    , parallelFst
+    , parallelMin
+
     , concatMapU
+    , concatUnfoldInterleave
+    , concatUnfoldRoundrobin
 
     -- * Streamly.Fold Experimental Exports
     , Fold (..)
@@ -82,7 +94,8 @@ import Prelude hiding (break, span, splitAt)
 
 import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
-import Streamly.Streams.Parallel (tapAsync)
+import Streamly.Streams.Parallel (tapAsync, parallelFst, parallelMin)
+import Streamly.Streams.Serial (wSerialFst, wSerialMin)
 import Streamly.Unfold.Types (Unfold(..))
 
 import Streamly.Prelude.Internal

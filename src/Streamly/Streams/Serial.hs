@@ -32,8 +32,8 @@ module Streamly.Streams.Serial
     , InterleavedT      -- deprecated
     , WSerial
     , wSerial
-    , wSerialEndByFirst
-    , wSerialEndByAny
+    , wSerialFst
+    , wSerialMin
     , (<=>)            -- deprecated
     , wSerially
     , interleaving     -- deprecated
@@ -307,15 +307,6 @@ instance IsStream WSerialT where
 -- Semigroup
 ------------------------------------------------------------------------------
 
--- TODO
--- We always starts with the first stream yielding but there can be many ways
--- to end it.  In general we can have the following variants of interleaving
--- streams:
--- wSerial           - interleave  - end when both streams end
--- wSerialEndByAny   - interleave_ - end as soon as any stream ends
--- wSerialEndByFirst - interleave1 - make sure we end with first
--- -                 - interleave2 - make sure we end with second
---
 -- Additionally we can have m elements yield from the first stream and n
 -- elements yeilding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and
@@ -340,9 +331,9 @@ wSerial m1 m2 = mkStream $ \st yld sng stp -> do
 -- | Like `wSerial` but stops interleaving as soon as the first stream stops.
 --
 -- @since 0.7.0
-{-# INLINE wSerialEndByFirst #-}
-wSerialEndByFirst :: IsStream t => t m a -> t m a -> t m a
-wSerialEndByFirst m1 m2 = mkStream $ \st yld sng stp -> do
+{-# INLINE wSerialFst #-}
+wSerialFst :: IsStream t => t m a -> t m a -> t m a
+wSerialFst m1 m2 = mkStream $ \st yld sng stp -> do
     let yieldFirst a r = yld a (yieldSecond r m2)
      in foldStream st yieldFirst sng stp m1
 
@@ -358,9 +349,9 @@ wSerialEndByFirst m1 m2 = mkStream $ \st yld sng stp -> do
 -- stops.
 --
 -- @since 0.7.0
-{-# INLINE wSerialEndByAny #-}
-wSerialEndByAny :: IsStream t => t m a -> t m a -> t m a
-wSerialEndByAny m1 m2 = mkStream $ \st yld sng stp -> do
+{-# INLINE wSerialMin #-}
+wSerialMin :: IsStream t => t m a -> t m a -> t m a
+wSerialMin m1 m2 = mkStream $ \st yld sng stp -> do
     let stop       = stp
         single a   = sng a
         yieldk a r = yld a (wSerial m2 r)

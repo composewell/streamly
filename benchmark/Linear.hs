@@ -149,10 +149,6 @@ main =
         -- These are essentially cons and consM
         , benchIOSrc serially "fromFoldable" Ops.sourceFromFoldable
         , benchIOSrc serially "fromFoldableM" Ops.sourceFromFoldableM
-        -- These are essentially appends
-        , benchIOSrc serially "foldMapWith" Ops.sourceFoldMapWith
-        , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
         ]
       , bgroup "elimination"
         [ bgroup "reduce"
@@ -257,6 +253,13 @@ main =
         , benchIOSink "and" (\s -> S.runFold FL.and (S.map (<= Ops.maxValue) s))
         , benchIOSink "or" (\s -> S.runFold FL.or (S.map (> Ops.maxValue) s))
         ]
+      , bgroup "fold-multi-stream"
+        [ benchIOSink1 "eqBy" Ops.eqBy
+        , benchIOSink1 "cmpBy" Ops.cmpBy
+        , benchIOSink "isPrefixOf" Ops.isPrefixOf
+        , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
+        , benchIOSink "stripPrefix" Ops.stripPrefix
+        ]
       , bgroup "folds-transforms"
         [ benchIOSink "drain" (S.runFold FL.drain)
         , benchIOSink "lmap" (S.runFold (Internal.lmap (+1) FL.drain))
@@ -345,19 +348,48 @@ main =
         , benchIOSink "intersperse" (Ops.intersperse 4)
         , benchIOSink "insertBy" (Ops.insertBy 4)
         ]
-      , bgroup "multi-stream"
-        [ benchIOSink1 "eqBy" Ops.eqBy
-        , benchIOSink1 "cmpBy" Ops.cmpBy
-        , benchIOSink "zip" Ops.zip
-        , benchIOSink1 "zipM" Ops.zipM
-        , benchIOSink1 "mergeBy" Ops.mergeBy
-        , benchIOSink "isPrefixOf" Ops.isPrefixOf
-        , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
-        , benchIOSink "stripPrefix" Ops.stripPrefix
-        , benchIOSrc1 "concatMap1xN" Ops.concatMap
-        , benchIOSrc1 "concatMapPure1xN" Ops.concatMapPure1xN
-        , benchIOSrc1 "concatMapNxN" Ops.concatMapNxN
-        , benchIOSrc1 "concatMapRepl4xN" Ops.concatMapRepl4xN
+      , bgroup "joining"
+        [ benchIOSrc1 "zip (2x50K)" (Ops.zip 50000)
+        , benchIOSrc1 "zipM (2x50K)" (Ops.zipM 50000)
+        , benchIOSrc1 "mergeBy (2x50K)" (Ops.mergeBy 50000)
+        , benchIOSrc1 "serial (2x50K)" (Ops.serial2 50000)
+        , benchIOSrc1 "append (2x50K)" (Ops.append2 50000)
+        , benchIOSrc1 "serial (2x2x25K)" (Ops.serial4 25000)
+        , benchIOSrc1 "append (2x2x25K)" (Ops.append4 25000)
+        , benchIOSrc1 "wSerial (2x50K)" Ops.wSerial2
+        , benchIOSrc1 "interleave (2x50K)" Ops.interleave2
+        , benchIOSrc1 "roundRobin (2x50K)" Ops.roundRobin2
+        ]
+      , bgroup "concat-foldable"
+        [ benchIOSrc serially "foldMapWith (1x100K)" Ops.sourceFoldMapWith
+        , benchIOSrc serially "foldMapWithM (1x100K)" Ops.sourceFoldMapWithM
+        , benchIOSrc serially "foldMapM (1x100K)" Ops.sourceFoldMapM
+        , benchIOSrc serially "foldWithConcatMapId (1x100K)" Ops.sourceConcatMapId
+        ]
+      , bgroup "concat-serial"
+        [ benchIOSrc1 "concatMapPure (2x50K)" (Ops.concatMapPure 2 50000)
+        , benchIOSrc1 "concatMap (2x50K)" (Ops.concatMap 2 50000)
+        , benchIOSrc1 "concatMap (50Kx2)" (Ops.concatMap 50000 2)
+        , benchIOSrc1 "concatMapRepl (25Kx4)" Ops.concatMapRepl4xN
+        , benchIOSrc1 "concatUnfoldRepl (25Kx4)" Ops.concatUnfoldRepl4xN
+
+        , benchIOSrc1 "concatMapWithSerial (2x50K)"
+            (Ops.concatMapWithSerial 2 50000)
+        , benchIOSrc1 "concatMapWithSerial (50Kx2)"
+            (Ops.concatMapWithSerial 50000 2)
+
+        , benchIOSrc1 "concatMapWithAppend (2x50K)"
+            (Ops.concatMapWithAppend 2 50000)
+        ]
+      , bgroup "concat-interleave"
+        [ benchIOSrc1 "concatMapWithWSerial (2x50K)"
+            (Ops.concatMapWithWSerial 2 50000)
+        , benchIOSrc1 "concatMapWithWSerial (50Kx2)"
+            (Ops.concatMapWithWSerial 50000 2)
+        , benchIOSrc1 "concatUnfoldInterleaveRepl (25Kx4)"
+                Ops.concatUnfoldInterleaveRepl4xN
+        , benchIOSrc1 "concatUnfoldRoundrobinRepl (25Kx4)"
+                Ops.concatUnfoldRoundrobinRepl4xN
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not

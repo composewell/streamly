@@ -137,6 +137,16 @@ module Streamly.Streams.StreamD
     , concatMap
     , ConcatMapUState (..)
     , concatMapU
+    , ConcatUnfoldInterleaveState (..)
+    , concatUnfoldInterleave
+    , concatUnfoldRoundrobin
+    , AppendState(..)
+    , append
+    , InterleaveState(..)
+    , interleave
+    , interleaveMin
+    , interleaveFst
+    , roundRobin -- interleaveFair?/ParallelFair
 
     -- ** Grouping
     , groupsOf
@@ -1733,6 +1743,287 @@ concatMapU (Unfold istep inject) (Stream ostep ost) =
             Yield x i' -> Yield x (ConcatMapUInner o i')
             Skip i'    -> Skip (ConcatMapUInner o i')
             Stop       -> Skip (ConcatMapUOuter o)
+
+data ConcatUnfoldInterleaveState o i =
+      ConcatUnfoldInterleaveOuter o [i]
+    | ConcatUnfoldInterleaveInner o [i]
+    | ConcatUnfoldInterleaveInnerL [i] [i]
+    | ConcatUnfoldInterleaveInnerR [i] [i]
+
+-- XXX use arrays to store state instead of lists.
+-- XXX In general we can use different scheduling strategies e.g. how to
+-- schedule the outer vs inner loop or assigning weights to different streams
+-- or outer and inner loops.
+
+-- After a yield, switch to the next stream. Do not switch streams on Skip.
+-- Yield from outer stream switches to the inner stream.
+--
+-- There are two choices here, (1) exhaust the outer stream first and then
+-- start yielding from the inner streams, this is much simpler to implement,
+-- (2) yield at least one element from an inner stream before going back to
+-- outer stream and opening the next stream from it.
+--
+-- Ideally, we need some scheduling bias to inner streams vs outer stream.
+-- Maybe we can configure the behavior.
+--
+{-# INLINE_NORMAL concatUnfoldInterleave #-}
+concatUnfoldInterleave :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+concatUnfoldInterleave (Unfold istep inject) (Stream ostep ost) =
+    Stream step (ConcatUnfoldInterleaveOuter ost [])
+  where
+    {-# INLINE_LATE step #-}
+    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
+            Skip o' -> return $ Skip (ConcatUnfoldInterleaveOuter o' ls)
+            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step _ (ConcatUnfoldInterleaveInner _ []) = undefined
+    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInner o (s:ls))
+            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
+
+    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
+        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
+
+    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL (s:ls) rs)
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
+
+    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerR ls []) =
+        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR ls (s:rs))
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+
+-- XXX In general we can use different scheduling strategies e.g. how to
+-- schedule the outer vs inner loop or assigning weights to different streams
+-- or outer and inner loops.
+--
+-- This could be inefficient if the tasks are too small.
+--
+-- Compared to concatUnfoldInterleave this one switches streams on Skips.
+--
+{-# INLINE_NORMAL concatUnfoldRoundrobin #-}
+concatUnfoldRoundrobin :: Monad m => Unfold m a b -> Stream m a -> Stream m b
+concatUnfoldRoundrobin (Unfold istep inject) (Stream ostep ost) =
+    Stream step (ConcatUnfoldInterleaveOuter ost [])
+  where
+    {-# INLINE_LATE step #-}
+    step gst (ConcatUnfoldInterleaveOuter o ls) = do
+        r <- ostep (adaptState gst) o
+        case r of
+            Yield a o' -> do
+                i <- inject a
+                i `seq` return (Skip (ConcatUnfoldInterleaveInner o' (i : ls)))
+            Skip o' -> return $ Skip (ConcatUnfoldInterleaveInner o' ls)
+            Stop -> return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step _ (ConcatUnfoldInterleaveInner o []) =
+            return $ Skip (ConcatUnfoldInterleaveOuter o [])
+
+    step _ (ConcatUnfoldInterleaveInner o (st:ls)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveOuter o (s:ls))
+            Skip s    -> Skip (ConcatUnfoldInterleaveOuter o (s:ls))
+            Stop      -> Skip (ConcatUnfoldInterleaveOuter o ls)
+
+    step _ (ConcatUnfoldInterleaveInnerL [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerL [] rs) =
+        return $ Skip (ConcatUnfoldInterleaveInnerR [] rs)
+
+    step _ (ConcatUnfoldInterleaveInnerL (st:ls) rs) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerL ls (s:rs))
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerL ls (s:rs))
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerL ls rs)
+
+    step _ (ConcatUnfoldInterleaveInnerR [] []) = return Stop
+    step _ (ConcatUnfoldInterleaveInnerR ls []) =
+        return $ Skip (ConcatUnfoldInterleaveInnerL ls [])
+
+    step _ (ConcatUnfoldInterleaveInnerR ls (st:rs)) = do
+        r <- istep st
+        return $ case r of
+            Yield x s -> Yield x (ConcatUnfoldInterleaveInnerR (s:ls) rs)
+            Skip s    -> Skip (ConcatUnfoldInterleaveInnerR (s:ls) rs)
+            Stop      -> Skip (ConcatUnfoldInterleaveInnerR ls rs)
+
+data AppendState s1 s2 = AppendFirst s1 | AppendSecond s2
+
+-- Note that this could be much faster compared to the CPS stream. However, as
+-- the number of streams being composed increases this may become expensive.
+-- Need to see where the breaking point is between the two.
+--
+{-# INLINE_NORMAL append #-}
+append :: Monad m => Stream m a -> Stream m a -> Stream m a
+append (Stream step1 state1) (Stream step2 state2) =
+    Stream step (AppendFirst state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (AppendFirst st) = do
+        r <- step1 gst st
+        return $ case r of
+            Yield a s -> Yield a (AppendFirst s)
+            Skip s -> Skip (AppendFirst s)
+            Stop -> Skip (AppendSecond state2)
+
+    step gst (AppendSecond st) = do
+        r <- step2 gst st
+        return $ case r of
+            Yield a s -> Yield a (AppendSecond s)
+            Skip s -> Skip (AppendSecond s)
+            Stop -> Stop
+
+data InterleaveState s1 s2 = InterleaveFirst s1 s2 | InterleaveSecond s1 s2
+    | InterleaveSecondOnly s2 | InterleaveFirstOnly s1
+
+{-# INLINE_NORMAL interleave #-}
+interleave :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleave (Stream step1 state1) (Stream step2 state2) =
+    Stream step (InterleaveFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterleaveFirst st1 st2) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecond s st2)
+            Skip s -> Skip (InterleaveFirst s st2)
+            Stop -> Skip (InterleaveSecondOnly st2)
+
+    step gst (InterleaveSecond st1 st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirst st1 s)
+            Skip s -> Skip (InterleaveSecond st1 s)
+            Stop -> Skip (InterleaveFirstOnly st1)
+
+    step gst (InterleaveFirstOnly st1) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirstOnly s)
+            Skip s -> Skip (InterleaveFirstOnly s)
+            Stop -> Stop
+
+    step gst (InterleaveSecondOnly st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecondOnly s)
+            Skip s -> Skip (InterleaveSecondOnly s)
+            Stop -> Stop
+
+{-# INLINE_NORMAL interleaveMin #-}
+interleaveMin :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveMin (Stream step1 state1) (Stream step2 state2) =
+    Stream step (InterleaveFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterleaveFirst st1 st2) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecond s st2)
+            Skip s -> Skip (InterleaveFirst s st2)
+            Stop -> Stop
+
+    step gst (InterleaveSecond st1 st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirst st1 s)
+            Skip s -> Skip (InterleaveSecond st1 s)
+            Stop -> Stop
+
+    step _ (InterleaveFirstOnly _) =  undefined
+    step _ (InterleaveSecondOnly _) =  undefined
+
+{-# INLINE_NORMAL interleaveFst #-}
+interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveFst (Stream step1 state1) (Stream step2 state2) =
+    Stream step (InterleaveFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterleaveFirst st1 st2) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecond s st2)
+            Skip s -> Skip (InterleaveFirst s st2)
+            Stop -> Stop
+
+    step gst (InterleaveSecond st1 st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirst st1 s)
+            Skip s -> Skip (InterleaveSecond st1 s)
+            Stop -> Skip (InterleaveFirstOnly st1)
+
+    step gst (InterleaveFirstOnly st1) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirstOnly s)
+            Skip s -> Skip (InterleaveFirstOnly s)
+            Stop -> Stop
+
+    step _ (InterleaveSecondOnly _) =  undefined
+
+{-# INLINE_NORMAL roundRobin #-}
+roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
+roundRobin (Stream step1 state1) (Stream step2 state2) =
+    Stream step (InterleaveFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterleaveFirst st1 st2) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecond s st2)
+            Skip s -> Skip (InterleaveSecond s st2)
+            Stop -> Skip (InterleaveSecondOnly st2)
+
+    step gst (InterleaveSecond st1 st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirst st1 s)
+            Skip s -> Skip (InterleaveFirst st1 s)
+            Stop -> Skip (InterleaveFirstOnly st1)
+
+    step gst (InterleaveSecondOnly st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Yield a (InterleaveSecondOnly s)
+            Skip s -> Skip (InterleaveSecondOnly s)
+            Stop -> Stop
+
+    step gst (InterleaveFirstOnly st1) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveFirstOnly s)
+            Skip s -> Skip (InterleaveFirstOnly s)
+            Stop -> Stop
 
 ------------------------------------------------------------------------------
 -- Exceptions
