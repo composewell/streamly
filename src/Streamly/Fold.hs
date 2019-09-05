@@ -88,6 +88,7 @@ module Streamly.Fold
     -- ** Partial Folds
     -- , drainN
     -- , drainWhile
+    -- , lastN
     -- , (!!)
     -- , genericIndex
     , index

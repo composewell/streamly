@@ -69,6 +69,8 @@ module Streamly.Internal
 
     -- * Streamly.Fold Experimental Exports
     , Fold (..)
+    , rollingHash
+    , rollingHashWithSalt
     , lmap
     , lmapM
     , lfilter
@@ -98,5 +100,6 @@ import Streamly.Streams.Parallel (tapAsync, parallelFst, parallelMin)
 import Streamly.Streams.Serial (wSerialFst, wSerialMin)
 import Streamly.Unfold.Types (Unfold(..))
 
-import Streamly.Prelude.Internal
+import Streamly.Fold.Internal
 import Streamly.Fold.Types
+import Streamly.Prelude.Internal

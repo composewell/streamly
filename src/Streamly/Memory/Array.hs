@@ -80,8 +80,9 @@ module Streamly.Memory.Array
 
     -- Monadic APIs
     -- , newArray
-    , A.writeN
-    , write
+    , A.writeN      -- drop new
+    , write         -- full buffer
+    -- , writeLastN -- drop old (ring buffer)
 
     -- Stream Folds
     -- , writeNS
