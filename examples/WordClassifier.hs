@@ -23,19 +23,34 @@ instance (Enum a, Storable a) => Hashable (A.Array a) where
     hashWithSalt salt arr = runIdentity $
         Streamly.runFold (Streamly.rollingHashWithSalt salt) (A.read arr)
 
+{-# INLINE toLower #-}
+toLower :: Char -> Char
+toLower c
+  | uc >= 0x61 && uc <= 0x7a = c
+  | otherwise = Char.toLower c
+  where
+    uc = fromIntegral (Char.ord c) :: Word
+
+{-# INLINE isAlpha #-}
+isAlpha :: Char -> Bool
+isAlpha c
+  | uc >= 0x61 && uc <= 0x7a = True
+  | otherwise = Char.isAlpha c
+  where
+    uc = fromIntegral (Char.ord c) :: Word
+
 main :: IO ()
 main =
     let
         increment m str = Map.insertWith (+) str (1 :: Int) m
-        report = traverse_ print
     in do
         name <- fmap head getArgs
         src <- openFile name ReadMode
         FH.read src                  -- SerialT IO Word8
          & Streamly.decodeChar8      -- SerialT IO Char
-         & Streamly.map Char.toLower -- SerialT IO Char
+         & Streamly.map toLower      -- SerialT IO Char
          & Streamly.words            -- SerialT IO (Array Char)
-         & Streamly.filterM (Streamly.all Char.isAlpha . A.read)
+         & Streamly.filterM (Streamly.all isAlpha . A.read)
          & Streamly.foldl' increment Map.empty
          & fmap (List.take 25 . List.sortOn (Ord.Down . snd) . Map.toList)
-         >>= report                  -- IO ()
+         >>= traverse_ print
