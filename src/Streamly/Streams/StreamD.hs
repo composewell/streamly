@@ -23,6 +23,7 @@
 -- Copyright   : (c) 2018 Harendra Kumar
 -- Copyright   : (c) Roman Leshchinskiy 2008-2010
 -- Copyright   : (c) The University of Glasgow, 2009
+-- Copyright   : (c) Bjoern Hoehrmann 2008-2009
 --
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -3010,6 +3011,8 @@ replacementChar = '\xFFFD'
 
 type CodePoint = Word32
 type DecoderState = Word32
+
+-- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
 utf8d :: A.Array Word32
 utf8d = A.fromList [
