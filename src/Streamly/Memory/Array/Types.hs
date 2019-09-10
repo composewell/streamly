@@ -98,8 +98,7 @@ import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import GHC.Base (Addr#, realWorld#)
 import GHC.Exts (IsList, IsString(..))
-import GHC.ForeignPtr
-       (ForeignPtr(..), mallocPlainForeignPtrAlignedBytes, newForeignPtr_)
+import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
@@ -112,6 +111,7 @@ import Streamly.SVar (adaptState)
 import Streamly.FileSystem.FDIO (IOVec(..))
 #endif
 
+import qualified Streamly.Memory.Malloc as Malloc
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
 import qualified GHC.Exts as Exts
@@ -237,7 +237,7 @@ bytesToElemCount x n =
 newArray :: forall a. Storable a => Int -> IO (Array a)
 newArray count = do
     let size = count * sizeOf (undefined :: a)
-    fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
+    fptr <- Malloc.mallocForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
     return $ Array
         { aStart = fptr
@@ -275,7 +275,8 @@ snoc arr@Array {..} x = do
         let oldStart = unsafeForeignPtrToPtr aStart
             size = aEnd `minusPtr` oldStart
             newSize = (size + (sizeOf (undefined :: a)))
-        newPtr <- mallocPlainForeignPtrAlignedBytes newSize (alignment (undefined :: a))
+        newPtr <- Malloc.mallocForeignPtrAlignedBytes
+                    newSize (alignment (undefined :: a))
         withForeignPtr newPtr $ \pNew -> do
           memcpy (castPtr pNew) (castPtr oldStart) size
           poke (pNew `plusPtr` size) x
@@ -298,7 +299,7 @@ realloc newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
-    newPtr <- mallocPlainForeignPtrAlignedBytes
+    newPtr <- Malloc.mallocForeignPtrAlignedBytes
                 newSize (alignment (undefined :: a))
     withForeignPtr newPtr $ \pNew -> do
         memcpy (castPtr pNew) (castPtr oldStart) size

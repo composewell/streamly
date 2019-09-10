@@ -258,6 +258,7 @@ library
                      , Streamly.Enumeration
 
                     -- Memory storage
+                     , Streamly.Memory.Malloc
                      , Streamly.Memory.Array.Types
                      , Streamly.Memory.Ring
 
