@@ -1,0 +1,6 @@
+packages: .
+
+source-repository-package
+  type: git
+  location: https://github.com/harendra-kumar/unordered-containers
+  tag: 286686b216dc893e1061e45068bea65e20d541d6

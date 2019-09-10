@@ -23,6 +23,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as Streamly
 import           System.Environment (getArgs)
 import           System.IO (openFile, IOMode(..))
+import           Data.IORef
 
 instance (Enum a, Storable a) => Hashable (A.Array a) where
     hash arr = runIdentity $ Streamly.runFold Streamly.rollingHash (A.read arr)
@@ -48,7 +49,10 @@ isAlpha c
 main :: IO ()
 main =
     let
-        increment m str = Map.insertWith (+) str (1 :: Int) m
+        increment m str = Map.insertWithM insert update str (1 :: Int) m
+            where
+            insert _ v = newIORef v
+            update ref _ new = modifyIORef' ref $ (+ new)
     in do
         name <- fmap head getArgs
         src <- openFile name ReadMode
@@ -57,6 +61,8 @@ main =
          & Streamly.map toLower         -- SerialT IO Char
          & Streamly.foldWords FL.toList -- SerialT IO String
          & Streamly.filter (all isAlpha)
-         & Streamly.foldl' increment Map.empty
-         & fmap (List.take 25 . List.sortOn (Ord.Down . snd) . Map.toList)
+         & Streamly.foldlM' increment Map.empty
+         & fmap Map.toList
+         >>= mapM (\(w, ref) -> readIORef ref >>= \cnt -> return (w, cnt))
+         & fmap (List.take 25 . List.sortOn (Ord.Down . snd))
          >>= traverse_ print
