@@ -81,7 +81,7 @@ module Streamly.Memory.Array
     -- Monadic APIs
     -- , newArray
     , A.writeN      -- drop new
-    , write         -- full buffer
+    , A.write         -- full buffer
     -- , writeLastN -- drop old (ring buffer)
 
     -- Stream Folds
@@ -137,12 +137,9 @@ module Streamly.Memory.Array
     )
 where
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 -- import Data.Functor.Identity (Identity)
 import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
@@ -180,51 +177,6 @@ _writeNS n m = do
     if n < 0 then error "writeN: negative write count specified" else return ()
     A.fromStreamDN n $ D.toStreamD m
 
--- XXX The realloc based implementation needs to make one extra copy if we use
--- shrinkToFit.  On the other hand, the stream of arrays implementation may
--- buffer the array chunk pointers in memory but it does not have to shrink as
--- we know the exact size in the end. However, memory copying does not seems to
--- be as expensive as the allocations. Therefore, we need to reduce the number
--- of allocations instead. Also, the size of allocations matters, right sizing
--- an allocation even at the cost of copying sems to help.  Should be measured
--- on a big stream with heavy calls to toArray to see the effect.
---
--- XXX check if GHC's memory allocator is efficient enough. We can try the C
--- malloc to compare against.
-
-{-# INLINE_NORMAL toArrayMinChunk #-}
-toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
--- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
-toArrayMinChunk elemCount = Fold step initial extract
-
-    where
-
-    insertElem (Array start end bound) x = do
-        liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-
-    initial = do
-        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
-        liftIO $ A.newArray elemCount
-    step arr@(Array start end bound) x | end == bound = do
-        let p = unsafeForeignPtrToPtr start
-            oldSize = end `minusPtr` p
-            newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ A.realloc newSize arr
-        insertElem arr1 x
-    step arr x = insertElem arr x
-    extract = liftIO . A.shrinkToFit
-
--- | Fold the whole input to a single array.
---
--- /Caution! Do not use this on infinite streams./
---
--- @since 0.7.0
-{-# INLINE write #-}
-write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = toArrayMinChunk (A.bytesToElemCount (undefined :: a) (A.mkChunkSize 1024))
-
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice
 -- as efficient when the size is already known.
@@ -235,7 +187,7 @@ write = toArrayMinChunk (A.bytesToElemCount (undefined :: a) (A.mkChunkSize 1024
 --
 {-# INLINE _writeS #-}
 _writeS :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-_writeS = P.runFold write
+_writeS = P.runFold A.write
 -- write m = A.fromStreamD $ D.toStreamD m
 
 -------------------------------------------------------------------------------
@@ -458,7 +410,7 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 {-# INLINE _runTransform #-}
 _runTransform :: (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-_runTransform f arr = P.runFold (toArrayMinChunk (length arr)) $ f (A.read arr)
+_runTransform f arr = P.runFold (A.toArrayMinChunk (length arr)) $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --

@@ -61,8 +61,10 @@ module Streamly.Memory.Array.Types
     , toStreamK
     , toStreamKRev
     , toList
+    , toArrayMinChunk
     , writeN
     , writeNUnsafe
+    , write
     , read
     , readU
 
@@ -551,17 +553,63 @@ writeNUnsafe n = Fold step initial extract
         return $ (ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a)))
     extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
 
+-- XXX The realloc based implementation needs to make one extra copy if we use
+-- shrinkToFit.  On the other hand, the stream of arrays implementation may
+-- buffer the array chunk pointers in memory but it does not have to shrink as
+-- we know the exact size in the end. However, memory copying does not seems to
+-- be as expensive as the allocations. Therefore, we need to reduce the number
+-- of allocations instead. Also, the size of allocations matters, right sizing
+-- an allocation even at the cost of copying sems to help.  Should be measured
+-- on a big stream with heavy calls to toArray to see the effect.
+--
+-- XXX check if GHC's memory allocator is efficient enough. We can try the C
+-- malloc to compare against.
+
+{-# INLINE_NORMAL toArrayMinChunk #-}
+toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+-- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
+toArrayMinChunk elemCount = Fold step initial extract
+
+    where
+
+    insertElem (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+
+    initial = do
+        when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
+        liftIO $ newArray elemCount
+    step arr@(Array start end bound) x | end == bound = do
+        let p = unsafeForeignPtrToPtr start
+            oldSize = end `minusPtr` p
+            newSize = max (oldSize * 2) 1
+        arr1 <- liftIO $ realloc newSize arr
+        insertElem arr1 x
+    step arr x = insertElem arr x
+    extract = liftIO . shrinkToFit
+
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since 0.7.0
+{-# INLINE write #-}
+write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
+write = toArrayMinChunk (bytesToElemCount (undefined :: a)
+                        (mkChunkSize 1024))
+
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = do
     arr <- liftIO $ newArray limit
-    end <- D.foldlM' write (aEnd arr) $ D.take limit str
+    end <- D.foldlM' fwrite (aEnd arr) $ D.take limit str
     return $ arr {aEnd = end}
 
     where
 
-    write ptr x = do
+    fwrite ptr x = do
         liftIO $ poke ptr x
         return $ ptr `plusPtr` sizeOf (undefined :: a)
 
@@ -688,6 +736,11 @@ fromStreamD m = do
     buffered <- D.foldr K.cons K.nil s
     len <- K.foldl' (+) 0 (K.map length buffered)
     fromStreamDN len $ flattenArrays $ D.fromStreamK buffered
+{-
+fromStreamD m = runFold write m
+    where
+    runFold (Fold step begin done) = D.foldlMx' step begin done
+-}
 
 -- | Convert an 'Array' into a list.
 --
