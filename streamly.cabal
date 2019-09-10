@@ -287,6 +287,7 @@ library
 
                     -- IO devices
                      , Streamly.Memory.Array
+                     , Streamly.Memory.List
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
