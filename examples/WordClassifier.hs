@@ -10,7 +10,7 @@ import qualified Data.Char as Char
 import           Data.Foldable
 import           Data.Function ((&))
 import           Data.Functor.Identity (Identity(..))
-import qualified Data.HashMap.Strict as Map
+import qualified Data.Map.Strict as Map
 import           Data.Hashable
 import qualified Data.List as List
 import qualified Data.Ord as Ord
@@ -49,10 +49,10 @@ isAlpha c
 main :: IO ()
 main =
     let
-        increment m str = Map.insertWithM insert update str (1 :: Int) m
+        increment m str = Map.upsertM insert update str (1 :: Int) m
             where
-            insert _ v = newIORef v
-            update ref _ new = modifyIORef' ref $ (+ new)
+            insert v = newIORef v
+            update ref new = modifyIORef' ref $ (+ new)
     in do
         name <- fmap head getArgs
         src <- openFile name ReadMode
