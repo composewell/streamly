@@ -134,7 +134,7 @@ main = do
                BFS.copyCodecChar8 inh outh
            , mkBench "utf8" href $ do
                Handles inh outh <- readIORef href
-               BFS.copyCodecUtf8 inh outh
+               BFS.copyCodecUtf8Lenient inh outh
            ]
         , bgroup "grouping"
             [ mkBench "chunksOf (single chunk)" href $ do

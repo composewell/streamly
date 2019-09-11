@@ -35,6 +35,7 @@ module Streamly.Benchmark.FileIO.Stream
     , wordsUnwordsCopy
     , copyCodecChar8
     , copyCodecUtf8
+    , copyCodecUtf8Lenient
     , chunksOf
     , chunksOfD
     , splitOn
@@ -215,6 +216,22 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8
 -- inspect $ 'copyCodecUtf8 `hasNoType` ''Step
 -- inspect $ 'copyCodecUtf8 `hasNoType` ''AT.FlattenState
 -- inspect $ 'copyCodecUtf8 `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Copy file
+{-# INLINE copyCodecUtf8Lenient #-}
+copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
+copyCodecUtf8Lenient inh outh =
+   S.runFold (FH.write outh)
+     $ SS.encodeUtf8
+     $ SS.decodeUtf8Lenient
+     $ FH.read inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''Step
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''AT.FlattenState
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Slice in chunks of size n and get the count of chunks.
