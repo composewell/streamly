@@ -3081,7 +3081,7 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
                                 Skip $
                                 transliterateOrError
                                     "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
-                                    (FreshPoint 0 0 st)
+                                    (FreshPoint 0 0 s)
                             0 ->
                                 Skip $
                                 YieldAndContinue
