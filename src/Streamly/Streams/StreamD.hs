@@ -147,6 +147,7 @@ module Streamly.Streams.StreamD
     , interleaveMin
     , interleaveFst
     , roundRobin -- interleaveFair?/ParallelFair
+    , interleaveFstThenConcat
 
     -- ** Grouping
     , groupsOf
@@ -2024,6 +2025,89 @@ roundRobin (Stream step1 state1) (Stream step2 state2) =
             Yield a s -> Yield a (InterleaveFirstOnly s)
             Skip s -> Skip (InterleaveFirstOnly s)
             Stop -> Stop
+
+data ICUState s1 s2 i1 i2 =
+      ICUFirst s1 s2
+    | ICUSecond s1 s2
+    | ICUSecondOnly s2
+    | ICUFirstOnly s1
+    | ICUFirstInner s1 s2 i1
+    | ICUSecondInner s1 s2 i2
+    | ICUFirstOnlyInner s1 i1
+    | ICUSecondOnlyInner s2 i2
+
+-- | Interleave streams (full streams, not the elements) unfolded from two
+-- input streams and concat. Stop when the first stream stops. If the second
+-- stream ends before the first one then first stream still keeps running alone
+-- without any interleaving with the second stream.
+--
+--    [a1, a2, ... an]                   [b1, b2 ...]
+-- => [streamA1, streamA2, ... streamAn] [streamB1, streamB2, ...]
+-- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
+-- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
+--
+{-# INLINE_NORMAL interleaveFstThenConcat #-}
+interleaveFstThenConcat
+    :: Monad m
+    => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+interleaveFstThenConcat
+    (Unfold istep1 inject1) (Stream step1 state1)
+    (Unfold istep2 inject2) (Stream step2 state2) =
+    Stream step (ICUFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ICUFirst s1 s2) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (ICUFirstInner s s2 i))
+            Skip s -> return $ Skip (ICUFirst s s2)
+            Stop -> return Stop
+
+    step gst (ICUFirstOnly s1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (ICUFirstOnlyInner s i))
+            Skip s -> return $ Skip (ICUFirstOnly s)
+            Stop -> return Stop
+
+    step _ (ICUFirstInner s1 s2 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (ICUFirstInner s1 s2 i')
+            Skip i'    -> Skip (ICUFirstInner s1 s2 i')
+            Stop       -> Skip (ICUSecond s1 s2)
+
+    step _ (ICUFirstOnlyInner s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (ICUFirstOnlyInner s1 i')
+            Skip i'    -> Skip (ICUFirstOnlyInner s1 i')
+            Stop       -> Skip (ICUFirstOnly s1)
+
+    step gst (ICUSecond s1 s2) = do
+        r <- step2 (adaptState gst) s2
+        case r of
+            Yield a s -> do
+                i <- inject2 a
+                i `seq` return (Skip (ICUSecondInner s1 s i))
+            Skip s -> return $ Skip (ICUSecond s1 s)
+            Stop -> return $ Skip (ICUFirstOnly s1)
+
+    step _ (ICUSecondInner s1 s2 i2) = do
+        r <- istep2 i2
+        return $ case r of
+            Yield x i' -> Yield x (ICUSecondInner s1 s2 i')
+            Skip i'    -> Skip (ICUSecondInner s1 s2 i')
+            Stop       -> Skip (ICUFirst s1 s2)
+
+    step _ (ICUSecondOnly _s2) = undefined
+    step _ (ICUSecondOnlyInner _s2 _i2) = undefined
 
 ------------------------------------------------------------------------------
 -- Exceptions

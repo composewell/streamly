@@ -66,6 +66,7 @@ module Streamly.Internal
     , concatMapU
     , concatUnfoldInterleave
     , concatUnfoldRoundrobin
+    , intercalateSuffix
 
     -- * Streamly.Fold Experimental Exports
     , Fold (..)

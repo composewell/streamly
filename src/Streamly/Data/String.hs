@@ -70,6 +70,7 @@ module Streamly.Data.String
     , stripStart
     , foldLines
     , foldWords
+    , unfoldLines
 
     -- * Streams of Strings
     , lines
@@ -87,10 +88,13 @@ import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
 import Streamly.Fold (Fold)
 import Streamly.Memory.Array (Array)
+import Streamly.Unfold (Unfold)
 
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude.Internal as S
 import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Unfold as UF
 
 -- type String = List Char
 
@@ -242,6 +246,15 @@ lines = foldLines A.write
 words :: (MonadIO m, IsStream t) => t m Char -> t m (Array Char)
 words = foldWords A.write
 
+-- | Unfold a stream to character streams using the supplied 'Unfold'
+-- and concat the results suffixing a newline character @\\n@ to each stream.
+--
+-- > unfoldLines = S.intercalateSuffix UF.singleton '\n'
+--
+{-# INLINE unfoldLines #-}
+unfoldLines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
+unfoldLines unf = S.intercalateSuffix UF.singleton '\n' unf
+
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.
 --
@@ -250,14 +263,14 @@ words = foldWords A.write
 -- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
--- > unlines = A.concatWithSuffix '\n'
+-- > unlines = unfoldLines A.readU
 --
 -- Note that, in general
 --
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
-unlines = A.concatWithSuffix '\n'
+unlines = unfoldLines A.readU
 
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.

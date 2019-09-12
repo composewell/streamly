@@ -57,7 +57,9 @@ module Streamly.Unfold
     , unfold
 
     -- ** Unfolds
+    , singleton
     , replicateM
+    , fromList
     )
 where
 
@@ -71,6 +73,8 @@ import Streamly.Unfold.Types (Unfold(..))
 -- Running unfolds
 -------------------------------------------------------------------------------
 
+-- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
+--
 {-# INLINE_NORMAL unfold #-}
 unfold :: Monad m => a -> Unfold m a b -> Stream m b
 unfold seed (Unfold ustep inject) = Stream step Nothing
@@ -88,12 +92,39 @@ unfold seed (Unfold ustep inject) = Stream step Nothing
 -- Unfolds
 -------------------------------------------------------------------------------
 
+-- | Identity unfold. Generates a singleton stream with the seed as the only
+-- element in the stream.
+--
+-- > singleton = replicateM 1
+--
+{-# INLINE singleton #-}
+singleton :: Monad m => Unfold m a a
+singleton = Unfold step inject
+    where
+    inject x = return $ Just x
+    {-# INLINE_LATE step #-}
+    step (Just x) = return $ Yield x Nothing
+    step Nothing = return Stop
+
+-- | Generates a stream replicating the seed @n@ times.
+--
 {-# INLINE replicateM #-}
 replicateM :: Monad m => Int -> Unfold m a a
 replicateM n = Unfold step inject
     where
     inject x = return (x, n)
+    {-# INLINE_LATE step #-}
     step (x, i) = return $
         if i <= 0
         then Stop
         else Yield x (x, (i - 1))
+
+-- | Convert a list of pure values to a 'Stream'
+{-# INLINE_LATE fromList #-}
+fromList :: Monad m => Unfold m [a] a
+fromList = Unfold step inject
+  where
+    inject x = return x
+    {-# INLINE_LATE step #-}
+    step (x:xs) = return $ Yield x xs
+    step []     = return Stop

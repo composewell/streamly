@@ -26,7 +26,8 @@ module Streamly.Memory.ArrayStream
     -- * Flattening to elements
     , concat
     , concatRev
-    , concatWithSuffix
+    , interposeSuffix
+    , intercalateSuffix
 
     -- * Transformation
     , splitOn
@@ -49,8 +50,9 @@ import Streamly.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
+import qualified Streamly.Unfold as UF
 import qualified Streamly.Memory.Array.Types as A
-import qualified Streamly.Prelude as S
+import qualified Streamly.Prelude.Internal as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Prelude as P
 
@@ -82,17 +84,20 @@ concat m = D.fromStreamD $ D.concatMapU A.readU (D.toStreamD m)
 concatRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 
--- XXX use an Array instead as separator? Or use a separate unlinesArraysBySeq
--- API for that?
---
+{-# INLINE intercalateSuffix #-}
+intercalateSuffix :: (MonadIO m, IsStream t, Storable a)
+    => Array a -> t m (Array a) -> t m a
+intercalateSuffix arr = S.intercalateSuffix A.readU arr A.readU
+
 -- | Flatten a stream of arrays appending the given element after each
 -- array.
 --
 -- @since 0.7.0
-{-# INLINE concatWithSuffix #-}
-concatWithSuffix :: (MonadIO m, IsStream t, Storable a)
+{-# INLINE interposeSuffix #-}
+interposeSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
-concatWithSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
+-- interposeSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
+interposeSuffix x = S.intercalateSuffix UF.singleton x A.readU
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
