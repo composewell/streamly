@@ -1087,7 +1087,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     step (Tuple' (Just buf) r1) arr = do
             let len = byteLength buf + byteLength arr
             buf' <- if byteCapacity buf < len
-                    then liftIO $ realloc len buf
+                    then liftIO $ realloc (max n len) buf
                     else return buf
             buf'' <- spliceWith buf' arr
 

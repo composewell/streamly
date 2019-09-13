@@ -41,6 +41,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal as Internal
 
 #ifdef INSPECTION
+import Foreign.Storable (Storable)
 import Streamly.Streams.StreamD.Type (Step(..))
 import Test.Inspection
 #endif
@@ -128,6 +129,6 @@ linesUnlinesCopy inh outh =
         $ FH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'linesUnlinesCopy
+inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''Step
 #endif
