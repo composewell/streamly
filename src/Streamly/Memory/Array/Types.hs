@@ -316,11 +316,13 @@ realloc newSize Array{..} = do
 shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
 shrinkToFit arr@Array{..} = do
     assert (aEnd <= aBound) (return ())
-    if aEnd /= aBound
-    then do
-        let oldStart = unsafeForeignPtrToPtr aStart
-        let size = aEnd `minusPtr` oldStart
-        realloc size arr
+    let start = unsafeForeignPtrToPtr aStart
+    let used = aEnd `minusPtr` start
+        waste = aBound `minusPtr` aEnd
+    -- if used == waste == 0 then do not realloc
+    -- if the wastage is more than 25% of the array then realloc
+    if used < 3 * waste
+    then realloc used arr
     else return arr
 
 -- XXX when converting an array of Word8 from a literal string we can simply
