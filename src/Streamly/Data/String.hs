@@ -93,6 +93,7 @@ import Streamly.Unfold (Unfold)
 import qualified Streamly.Prelude.Internal as S
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Unfold as UF
 
@@ -288,4 +289,4 @@ unlines = unfoldLines A.readU
 -- > unwords . words /= id
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
-unwords = A.concat . (S.intersperse (A.fromList " "))
+unwords = AS.concat . (S.intersperse (A.fromList " "))

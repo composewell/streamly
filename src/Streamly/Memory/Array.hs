@@ -125,14 +125,14 @@ module Streamly.Memory.Array
     -- -- ** Creation
     -- , AS.arraysOf
 
-    -- ** Elimination
-    , AS.concat
+    -- -- ** Elimination
+    -- , AS.concat
     -- , AS.concatRev
-    , AS.toArray
+    -- , AS.toArray
 
     -- ** Transformation
     , AS.splitOn
-    , AS.compact -- compact
+    -- , AS.compact -- compact
     )
 where
 

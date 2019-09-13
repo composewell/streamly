@@ -326,7 +326,7 @@ readArrays = readArraysOfUpto defaultChunkSize
 --
 {-# INLINE readInChunksOf #-}
 readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = A.concat $ readArraysOfUpto chunkSize h
+readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
@@ -338,7 +338,7 @@ readInChunksOf chunkSize h = A.concat $ readArraysOfUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Handle -> t m Word8
-read = A.concat . readArrays
+read = AS.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -360,7 +360,7 @@ writeArrays h m = S.mapM_ (liftIO . writeArray h) m
 {-# INLINE writeArraysPackedUpto #-}
 writeArraysPackedUpto :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeArraysPackedUpto n h xs = writeArrays h $ A.compact n xs
+writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
 #if !defined(mingw32_HOST_OS)
 -- XXX this is incomplete

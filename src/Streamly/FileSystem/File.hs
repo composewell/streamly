@@ -123,7 +123,6 @@ import Streamly.SVar (MonadAsync)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 
@@ -234,7 +233,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = A.concat $ withFile file ReadMode FH.readArrays
+read file = AS.concat $ withFile file ReadMode FH.readArrays
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The

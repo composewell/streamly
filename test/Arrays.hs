@@ -85,7 +85,7 @@ testFlattenArrays =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ A.concat
+                    $ Internal.concatMapU Internal.readU
                     $ Internal.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)

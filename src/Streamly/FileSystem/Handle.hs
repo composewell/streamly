@@ -129,6 +129,7 @@ import Streamly.Fold (Fold)
 import qualified Streamly.Fold as FL
 import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------
@@ -231,7 +232,7 @@ readArrays = readArraysOf defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readInChunksOf #-}
 readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = A.concat $ readArraysOf chunkSize h
+readInChunksOf chunkSize h = AS.concat $ readArraysOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -243,7 +244,7 @@ readInChunksOf chunkSize h = A.concat $ readArraysOf chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Handle -> t m Word8
-read = A.concat . readArrays
+read = AS.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing

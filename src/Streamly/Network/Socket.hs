@@ -266,7 +266,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadIO m) => Socket -> t m Word8
-read = A.concat . readArrays
+read = AS.concat . readArrays
 
 -------------------------------------------------------------------------------
 -- Writing
