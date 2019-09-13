@@ -28,6 +28,7 @@ module Streamly.Memory.Array.Types
     , unsafeSnoc
     , snoc
     , spliceWithDoubling
+    , spliceTwo
 
     , fromList
     , fromListN
@@ -45,6 +46,7 @@ module Streamly.Memory.Array.Types
     , groupIOVecsOf
 #endif
     , splitOn
+    , breakOn
 
     -- * Elimination
     , unsafeIndexIO
@@ -942,6 +944,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
         return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` (sizeOf (undefined :: a))) end)
 
+-- Splice two immutable arrays creating a new array.
 {-# INLINE spliceTwo #-}
 spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
 spliceTwo arr1 arr2 = do
@@ -960,8 +963,8 @@ spliceTwo arr1 arr2 = do
         touchForeignPtr (aStart arr2)
     return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
--- Splice a new array into a pre-reserved array. The user must ensure that
--- there is enough space in the array.
+-- Splice an array into a pre-reserved mutable array.  The user must ensure
+-- that there is enough space in the mutable array.
 {-# INLINE spliceWith #-}
 spliceWith :: (MonadIO m) => Array a -> Array a -> m (Array a)
 spliceWith dst@(Array _ end bound) src  = liftIO $ do
@@ -975,8 +978,8 @@ spliceWith dst@(Array _ end bound) src  = liftIO $ do
                 memcpy (castPtr pdst) (castPtr psrc) srcLen
                 return $ dst { aEnd = pdst `plusPtr` srcLen }
 
--- Splice a new array into a preallocated array, doubling the space if there is
--- no space in the target array.
+-- Splice a new array into a preallocated mutable array, doubling the space if
+-- there is no space in the target array.
 {-# INLINE spliceWithDoubling #-}
 spliceWithDoubling :: (MonadIO m, Storable a)
     => Array a -> Array a -> m (Array a)

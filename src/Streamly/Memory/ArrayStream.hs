@@ -109,7 +109,9 @@ splitOn
     => Word8
     -> t m (Array Word8)
     -> t m (Array Word8)
-splitOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
+-- splitOn byte s = D.fromStreamD $ A.splitOn byte $ D.toStreamD s
+splitOn byte s =
+    D.fromStreamD $ D.splitInnerBy (A.breakOn byte) A.spliceTwo $ D.toStreamD s
 
 -- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
 -- maximum specified size in bytes.

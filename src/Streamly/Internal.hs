@@ -46,6 +46,7 @@ module Streamly.Internal
     , splitOnSuffixSeq
     , splitBySeq
     , splitWithSuffixSeq
+    , splitInnerBy
 
     , tapAsync
 

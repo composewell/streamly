@@ -300,6 +300,9 @@ module Streamly.Prelude.Internal
     -- , splitOnAnySuffixSeq
     -- , splitOnAnyPrefixSeq
 
+    -- Nested splitting
+    , splitInnerBy
+
     -- ** Grouping
     , groups
     , groupsBy
@@ -3011,6 +3014,31 @@ splitSuffixOnAny
 splitSuffixOnAny subseq f m = undefined
     -- D.fromStreamD $ D.splitPostAny f subseq (D.toStreamD m)
 -}
+
+------------------------------------------------------------------------------
+-- Nested Split
+------------------------------------------------------------------------------
+
+-- | Consider a chunked stream of container elements e.g. a stream of @Word8@
+-- chunked as a stream of arrays of @Word8@.  @splitInnerBy splitter joiner
+-- stream@ splits the inner containers @f a@ using the @splitter@ function and
+-- joins back the resulting fragments from splitting across multiple containers
+-- using the @joiner@ function such that the transformed output stream is
+-- consolidated as one container per segment of the split.
+--
+-- CAUTION! This is not a true streaming function as the container size after
+-- the split and merge may not be bounded.
+--
+-- @since 0.7.0
+{-# INLINE splitInnerBy #-}
+splitInnerBy
+    :: (IsStream t, Monad m)
+    => (f a -> m (f a, Maybe (f a)))  -- splitter
+    -> (f a -> f a -> m (f a))        -- joiner
+    -> t m (f a)
+    -> t m (f a)
+splitInnerBy splitter joiner xs =
+    D.fromStreamD $ D.splitInnerBy splitter joiner $ D.toStreamD xs
 
 ------------------------------------------------------------------------------
 -- Reorder in sequence

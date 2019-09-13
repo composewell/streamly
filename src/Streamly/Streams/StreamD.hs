@@ -163,6 +163,8 @@ module Streamly.Streams.StreamD
     , splitOn
     , splitSuffixOn
 
+    , splitInnerBy
+
     -- ** Substreams
     , isPrefixOf
     , isSubsequenceOf
@@ -1627,6 +1629,59 @@ splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
             Stop -> return Stop
 
     stepOuter _ GO_DONE = return Stop
+
+data SplitState s arr
+    = SplitInitial s
+    | SplitBuffering s arr
+    | SplitSplitting s arr
+    | SplitYielding arr (SplitState s arr)
+    | SplitFinishing
+
+-- | Performs infix separator style splitting.
+{-# INLINE_NORMAL splitInnerBy #-}
+splitInnerBy
+    :: Monad m
+    => (f a -> m (f a, Maybe (f a)))  -- splitter
+    -> (f a -> f a -> m (f a))        -- joiner
+    -> Stream m (f a)
+    -> Stream m (f a)
+splitInnerBy splitter joiner (Stream step1 state1) =
+    (Stream step (SplitInitial state1))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (SplitInitial st) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> do
+                (x1, mx2) <- splitter x
+                return $ case mx2 of
+                    Nothing -> Skip (SplitBuffering s x1)
+                    Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
+            Skip s -> return $ Skip (SplitInitial s)
+            Stop -> return $ Stop
+
+    step gst (SplitBuffering st buf) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> do
+                (x1, mx2) <- splitter x
+                buf' <- joiner buf x1
+                return $ case mx2 of
+                    Nothing -> Skip (SplitBuffering s buf')
+                    Just x2 -> Skip (SplitYielding buf' (SplitSplitting s x2))
+            Skip s -> return $ Skip (SplitBuffering s buf)
+            Stop -> return $ Skip (SplitYielding buf SplitFinishing)
+
+    step _ (SplitSplitting st buf) = do
+        (x1, mx2) <- splitter buf
+        return $ case mx2 of
+                Nothing -> Skip $ SplitBuffering st x1
+                Just x2 -> Skip $ SplitYielding x1 (SplitSplitting st x2)
+
+    step _ (SplitYielding x next) = return $ Yield x next
+    step _ SplitFinishing = return $ Stop
 
 ------------------------------------------------------------------------------
 -- Substreams
