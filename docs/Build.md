@@ -13,9 +13,11 @@ the `SpecConstr` optimization in more cases.
 In some cases, you may need to use `-funfolding-use-threshold` to make sure
 that the combinators fuse. The default value of this option is `60`. Increasing
 this default value can be detrimental in general, therefore, increase only if
-you suspect an issue. As an example, a value of `75` is necessary and
-sufficient to fuse `S.chunksOf n (A.writeN n)`. Hopefully GHC will fix this so
-that it is not needed in future.
+you suspect an issue.  Hopefully GHC will fix this so that it is not needed in
+future.  Some known examples:
+
+* use a value of `75` to fuse `S.chunksOf n (A.writeN n)`.
+* use a value of `150` to fully fuse `S.splitSuffixOn`.
 
 At the very least `-O` compilation option is required. In some cases, the
 program may exhibit memory hog with default optimization options.  For example,

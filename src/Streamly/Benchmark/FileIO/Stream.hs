@@ -59,6 +59,7 @@ import qualified Streamly.Internal as Internal
 import qualified Streamly.Streams.StreamD as D
 
 #ifdef INSPECTION
+import Foreign.Storable (Storable)
 import Streamly.Streams.StreamD.Type (Step(..), GroupState)
 import Test.Inspection
 #endif
@@ -233,6 +234,7 @@ inspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
 inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 #endif
 
+-- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
 -- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
@@ -245,7 +247,7 @@ linesUnlinesCopy inh outh =
       $ FH.read inh
 
 #ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'linesUnlinesCopy
+inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''Step
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''AT.FlattenState
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''D.ConcatMapUState

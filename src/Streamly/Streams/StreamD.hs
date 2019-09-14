@@ -1085,6 +1085,7 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
 
     step' _ _ Nothing = return Stop
 
+-- XXX requires -funfolding-use-threshold=150 in lines-unlines benchmark
 {-# INLINE_NORMAL splitSuffixBy #-}
 splitSuffixBy :: Monad m
     => (a -> Bool) -> Fold m a b -> Stream m a -> Stream m b

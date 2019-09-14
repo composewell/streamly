@@ -598,6 +598,7 @@ benchmark array
 benchmark fileio
   import: bench-options
   type: exitcode-stdio-1.0
+  ghc-options: -funfolding-use-threshold=150
   hs-source-dirs: benchmark
   main-is: FileIO.hs
   if flag(benchmark)
