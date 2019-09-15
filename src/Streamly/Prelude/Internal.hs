@@ -302,6 +302,7 @@ module Streamly.Prelude.Internal
 
     -- Nested splitting
     , splitInnerBy
+    , splitInnerBySuffix
 
     -- ** Grouping
     , groups
@@ -3039,6 +3040,20 @@ splitInnerBy
     -> t m (f a)
 splitInnerBy splitter joiner xs =
     D.fromStreamD $ D.splitInnerBy splitter joiner $ D.toStreamD xs
+
+-- | Like 'splitInnerBy' but splits assuming the separator joins the segment in
+-- a suffix style.
+--
+-- @since 0.7.0
+{-# INLINE splitInnerBySuffix #-}
+splitInnerBySuffix
+    :: (IsStream t, Monad m, Eq (f a), Monoid (f a))
+    => (f a -> m (f a, Maybe (f a)))  -- splitter
+    -> (f a -> f a -> m (f a))        -- joiner
+    -> t m (f a)
+    -> t m (f a)
+splitInnerBySuffix splitter joiner xs =
+    D.fromStreamD $ D.splitInnerBySuffix splitter joiner $ D.toStreamD xs
 
 ------------------------------------------------------------------------------
 -- Reorder in sequence

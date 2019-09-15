@@ -76,7 +76,7 @@ inspect $ 'countBytes `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
 countLines :: Handle -> IO Int
-countLines = S.length . A.splitOn 10 . FH.readArrays
+countLines = S.length . A.splitOnSuffix 10 . FH.readArrays
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLines
@@ -125,7 +125,7 @@ linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
         $ Internal.insertAfterEach (return $ A.fromList [10])
-        $ A.splitOn 10
+        $ A.splitOnSuffix 10
         $ FH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION

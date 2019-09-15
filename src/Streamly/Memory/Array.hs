@@ -132,6 +132,7 @@ module Streamly.Memory.Array
 
     -- ** Transformation
     , AS.splitOn
+    , AS.splitOnSuffix
     -- , AS.compact -- compact
     )
 where

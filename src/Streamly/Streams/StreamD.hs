@@ -164,6 +164,7 @@ module Streamly.Streams.StreamD
     , splitSuffixOn
 
     , splitInnerBy
+    , splitInnerBySuffix
 
     -- ** Substreams
     , isPrefixOf
@@ -1637,6 +1638,12 @@ data SplitState s arr
     | SplitYielding arr (SplitState s arr)
     | SplitFinishing
 
+-- XXX An alternative approach would be to use a partial fold (Fold m a b) to
+-- split using a splitBy like combinator. The Fold would consume upto the
+-- separator and return any leftover which can then be fed to the next fold.
+--
+-- We can revisit this once we have partial folds/parsers.
+--
 -- | Performs infix separator style splitting.
 {-# INLINE_NORMAL splitInnerBy #-}
 splitInnerBy
@@ -1673,6 +1680,55 @@ splitInnerBy splitter joiner (Stream step1 state1) =
                     Just x2 -> Skip (SplitYielding buf' (SplitSplitting s x2))
             Skip s -> return $ Skip (SplitBuffering s buf)
             Stop -> return $ Skip (SplitYielding buf SplitFinishing)
+
+    step _ (SplitSplitting st buf) = do
+        (x1, mx2) <- splitter buf
+        return $ case mx2 of
+                Nothing -> Skip $ SplitBuffering st x1
+                Just x2 -> Skip $ SplitYielding x1 (SplitSplitting st x2)
+
+    step _ (SplitYielding x next) = return $ Yield x next
+    step _ SplitFinishing = return $ Stop
+
+-- | Performs infix separator style splitting.
+{-# INLINE_NORMAL splitInnerBySuffix #-}
+splitInnerBySuffix
+    :: (Monad m, Eq (f a), Monoid (f a))
+    => (f a -> m (f a, Maybe (f a)))  -- splitter
+    -> (f a -> f a -> m (f a))        -- joiner
+    -> Stream m (f a)
+    -> Stream m (f a)
+splitInnerBySuffix splitter joiner (Stream step1 state1) =
+    (Stream step (SplitInitial state1))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (SplitInitial st) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> do
+                (x1, mx2) <- splitter x
+                return $ case mx2 of
+                    Nothing -> Skip (SplitBuffering s x1)
+                    Just x2 -> Skip (SplitYielding x1 (SplitSplitting s x2))
+            Skip s -> return $ Skip (SplitInitial s)
+            Stop -> return $ Stop
+
+    step gst (SplitBuffering st buf) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> do
+                (x1, mx2) <- splitter x
+                buf' <- joiner buf x1
+                return $ case mx2 of
+                    Nothing -> Skip (SplitBuffering s buf')
+                    Just x2 -> Skip (SplitYielding buf' (SplitSplitting s x2))
+            Skip s -> return $ Skip (SplitBuffering s buf)
+            Stop -> return $
+                if buf == mempty
+                then Stop
+                else Skip (SplitYielding buf SplitFinishing)
 
     step _ (SplitSplitting st buf) = do
         (x1, mx2) <- splitter buf

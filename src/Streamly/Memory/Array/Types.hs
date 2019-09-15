@@ -90,6 +90,9 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Word (Word8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
@@ -100,7 +103,7 @@ import Foreign.Storable (Storable(..))
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
-import GHC.Base (Addr#, realWorld#)
+import GHC.Base (Addr#, nullAddr#, realWorld#)
 import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
 import GHC.IO (IO(IO), unsafePerformIO)
@@ -897,6 +900,40 @@ read = D.fromStreamD . toStreamD
 -- Semigroup and Monoid
 -------------------------------------------------------------------------------
 
+-- Splice two immutable arrays creating a new array.
+{-# INLINE spliceTwo #-}
+spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
+spliceTwo arr1 arr2 = do
+    let src1 = unsafeForeignPtrToPtr (aStart arr1)
+        src2 = unsafeForeignPtrToPtr (aStart arr2)
+        len1 = aEnd arr1 `minusPtr` src1
+        len2 = aEnd arr2 `minusPtr` src2
+
+    arr <- liftIO $ newArray (len1 + len2)
+    let dst = unsafeForeignPtrToPtr (aStart arr)
+
+    -- XXX Should we use copyMutableByteArray# instead? Is there an overhead to
+    -- ccall?
+    liftIO $ do
+        memcpy (castPtr dst) (castPtr src1) len1
+        touchForeignPtr (aStart arr1)
+        memcpy (castPtr (dst `plusPtr` len1)) (castPtr src2) len2
+        touchForeignPtr (aStart arr2)
+    return arr { aEnd = dst `plusPtr` (len1 + len2) }
+
+instance Storable a => Semigroup (Array a) where
+    arr1 <> arr2 = unsafeInlineIO $ spliceTwo arr1 arr2
+
+nullForeignPtr :: ForeignPtr a
+nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
+
+nil :: Array a
+nil = Array nullForeignPtr (Ptr nullAddr#) (Ptr nullAddr#)
+
+instance Storable a => Monoid (Array a) where
+    mempty = nil
+    mappend = (<>)
+
 -------------------------------------------------------------------------------
 -- IO
 -------------------------------------------------------------------------------
@@ -943,25 +980,6 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
                     return r
         return $ D.Yield x (InnerLoop st startf
                             (p `plusPtr` (sizeOf (undefined :: a))) end)
-
--- Splice two immutable arrays creating a new array.
-{-# INLINE spliceTwo #-}
-spliceTwo :: (MonadIO m, Storable a) => Array a -> Array a -> m (Array a)
-spliceTwo arr1 arr2 = do
-    let src1 = unsafeForeignPtrToPtr (aStart arr1)
-        src2 = unsafeForeignPtrToPtr (aStart arr2)
-        len1 = aEnd arr1 `minusPtr` src1
-        len2 = aEnd arr2 `minusPtr` src2
-
-    arr <- liftIO $ newArray (len1 + len2)
-    let dst = unsafeForeignPtrToPtr (aStart arr)
-
-    liftIO $ do
-        memcpy (castPtr dst) (castPtr src1) len1
-        touchForeignPtr (aStart arr1)
-        memcpy (castPtr (dst `plusPtr` len1)) (castPtr src2) len2
-        touchForeignPtr (aStart arr2)
-    return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
 -- Splice an array into a pre-reserved mutable array.  The user must ensure
 -- that there is enough space in the mutable array.

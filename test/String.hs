@@ -57,7 +57,7 @@ testLinesArray =
         monadicIO $ do
             xs <- S.toList
                     $ S.map A.toList
-                    $ A.splitOn 10
+                    $ A.splitOnSuffix 10
                     $ S.yield (A.fromList list)
             assert (xs == map (map (fromIntegral . ord))
                               (lines (map (chr .  fromIntegral) list)))
