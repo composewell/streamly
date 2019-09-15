@@ -136,7 +136,7 @@ matrix:
   #- env: BUILD=stack RESOLVER=nightly
   #  addons: {apt: {packages: [cabal-install-1.24], sources: [hvr-ghc]}}
 
-  - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl --flag streamly:benchmark --flag streamly:inspection"
+  - env: BUILD=stack RESOLVER=lts-13 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl --flag streamly:benchmark"
     addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
 
   #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4

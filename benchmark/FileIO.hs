@@ -79,6 +79,9 @@ main = do
             , mkBench "linecount" href $ do
                 Handles inh _ <- readIORef href
                 BFA.countLines inh
+            , mkBench "wordcount" href $ do
+                Handles inh _ <- readIORef href
+                BFA.countWords inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 BFA.sumBytes inh
@@ -99,6 +102,9 @@ main = do
             , mkBench "linecountU" href $ do
                 Handles inh _ <- readIORef href
                 BFS.countLinesU inh
+            , mkBench "wordcount" href $ do
+                Handles inh _ <- readIORef href
+                BFS.countWords inh
             , mkBench "sum" href $ do
                 Handles inh _ <- readIORef href
                 BFS.sumBytes inh
@@ -155,6 +161,12 @@ main = do
             , mkBench "words-unwords" href $ do
                 Handles inh outh <- readIORef href
                 BFS.wordsUnwordsCopy inh outh
+            , mkBench "words-unwords-word8" href $ do
+                Handles inh outh <- readIORef href
+                BFS.wordsUnwordsCopyWord8 inh outh
+            , mkBench "words-unwords-arrays" href $ do
+                Handles inh outh <- readIORef href
+                BFA.wordsUnwordsCopy inh outh
             ]
 
         , bgroup "splitting"

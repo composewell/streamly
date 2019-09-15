@@ -23,10 +23,12 @@ module Streamly.Benchmark.FileIO.Array
       last
     , countBytes
     , countLines
+    , countWords
     , sumBytes
     , cat
     , copy
     , linesUnlinesCopy
+    , wordsUnwordsCopy
     )
 where
 
@@ -83,6 +85,17 @@ inspect $ hasNoTypeClasses 'countLines
 inspect $ 'countLines `hasNoType` ''Step
 #endif
 
+-- XXX use a word splitting combinator instead of splitOn and test it.
+-- | Count the number of lines in a file.
+{-# INLINE countWords #-}
+countWords :: Handle -> IO Int
+countWords = S.length . A.splitOn 32 . FH.readArrays
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'countWords
+inspect $ 'countWords `hasNoType` ''Step
+#endif
+
 -- | Sum the bytes in a file.
 {-# INLINE sumBytes #-}
 sumBytes :: Handle -> IO Word8
@@ -131,4 +144,19 @@ linesUnlinesCopy inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''Step
+#endif
+
+-- | Words and unwords
+{-# INLINE wordsUnwordsCopy #-}
+wordsUnwordsCopy :: Handle -> Handle -> IO ()
+wordsUnwordsCopy inh outh =
+    S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
+        $ S.intersperse (A.fromList [32])
+        -- XXX use a word splitting combinator
+        $ A.splitOn 32
+        $ FH.readArraysOf (1024*1024) inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClassesExcept 'wordsUnwordsCopy [''Storable]
+-- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
 #endif

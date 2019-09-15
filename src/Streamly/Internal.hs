@@ -89,6 +89,7 @@ module Streamly.Internal
 
     -- * Streamly.Unfold Experimental Exports
     , Unfold (..)
+    , fromList
 
     -- * Streamly.Memory.Array
     , readU
@@ -102,7 +103,8 @@ import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Streams.Parallel (tapAsync, parallelFst, parallelMin)
 import Streamly.Streams.Serial (wSerialFst, wSerialMin)
 import Streamly.Unfold.Types (Unfold(..))
+import Streamly.Unfold (fromList)
 
 import Streamly.Fold.Internal
 import Streamly.Fold.Types
-import Streamly.Prelude.Internal
+import Streamly.Prelude.Internal hiding (fromList)

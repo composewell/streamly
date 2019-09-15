@@ -25,11 +25,13 @@ module Streamly.Benchmark.FileIO.Stream
     , countBytes
     , countLines
     , countLinesU
+    , countWords
     , sumBytes
     , cat
     , catStreamWrite
     , copy
     , linesUnlinesCopy
+    , wordsUnwordsCopyWord8
     , wordsUnwordsCopy
     , copyCodecChar8
     , copyCodecUtf8
@@ -103,6 +105,21 @@ inspect $ hasNoTypeClasses 'countLines
 inspect $ 'countLines `hasNoType` ''Step
 inspect $ 'countLines `hasNoType` ''AT.FlattenState
 inspect $ 'countLines `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Count the number of words in a file.
+{-# INLINE countWords #-}
+countWords :: Handle -> IO Int
+countWords =
+    S.length
+        . SS.foldWords FL.drain
+        . SS.decodeChar8
+        . FH.read
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'countWords
+-- inspect $ 'countWords `hasNoType` ''Step
+-- inspect $ 'countWords `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Count the number of lines in a file.
@@ -253,30 +270,6 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 -- inspect $ 'linesUnlinesCopy `hasNoType` ''D.ConcatMapUState
 #endif
 
--- | Word, unwords and copy
-{-# INLINE wordsUnwordsCopy #-}
-wordsUnwordsCopy :: Handle -> Handle -> IO ()
-wordsUnwordsCopy inh outh =
-    S.runFold (FH.write outh)
-      $ SS.encodeChar8
-      $ SS.unwords
-      $ SS.words
-      $ SS.decodeChar8
-      $ FH.read inh
-
-#ifdef INSPECTION
--- inspect $ hasNoTypeClasses 'wordsUnwordsCopy
--- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
--- inspect $ 'wordsUnwordsCopy `hasNoType` ''AT.FlattenState
--- inspect $ 'wordsUnwordsCopy `hasNoType` ''D.ConcatMapUState
-#endif
-
-lf :: Word8
-lf = fromIntegral (ord '\n')
-
-toarr :: String -> A.Array Word8
-toarr = A.fromList . map (fromIntegral . ord)
-
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
 
@@ -295,8 +288,64 @@ isSpace c
   where
     uc = fromIntegral (ord c) :: Word
 
+{-# INLINE isSp #-}
 isSp :: Word8 -> Bool
 isSp = isSpace . chr . fromIntegral
+
+-- | Word, unwords and copy
+{-# INLINE wordsUnwordsCopyWord8 #-}
+wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
+wordsUnwordsCopyWord8 inh outh =
+    S.runFold (FH.write outh)
+        $ Internal.concatMapU Internal.fromList
+        $ S.intersperse [32]
+        $ S.wordsBy isSp FL.toList
+        $ FH.read inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
+-- inspect $ 'wordsUnwordsCopyWord8 `hasNoType` ''Step
+-- inspect $ 'wordsUnwordsCopyWord8 `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Word, unwords and copy
+{-# INLINE wordsUnwordsCopy #-}
+wordsUnwordsCopy :: Handle -> Handle -> IO ()
+wordsUnwordsCopy inh outh =
+    S.runFold (FH.write outh)
+      $ SS.encodeChar8
+      $ Internal.concatMapU Internal.fromList
+      $ S.intersperse " "
+      -- Array allocation is too expensive for such small strings. So just use
+      -- lists instead.
+      --
+      -- -- $ SS.unwords
+      -- -- $ SS.words
+      --
+      -- XXX This pipeline does not fuse with wordsBy but fuses with splitOn
+      -- with -funfolding-use-threshold=300.  With wordsBy it does not fuse
+      -- even with high limits for inlining and spec-constr ghc options. With
+      -- -funfolding-use-threshold=400 it performs pretty well and there
+      -- is no evidence in the core that a join point involving Step
+      -- constructors is not getting inlined. Not being able to fuse at all in
+      -- this case could be an unknown issue, need more investigation.
+      $ S.wordsBy isSpace FL.toList
+      -- -- $ S.splitOn isSpace FL.toList
+      $ SS.decodeChar8
+      $ FH.read inh
+
+#ifdef INSPECTION
+-- inspect $ hasNoTypeClasses 'wordsUnwordsCopy
+-- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
+-- inspect $ 'wordsUnwordsCopy `hasNoType` ''AT.FlattenState
+-- inspect $ 'wordsUnwordsCopy `hasNoType` ''D.ConcatMapUState
+#endif
+
+lf :: Word8
+lf = fromIntegral (ord '\n')
+
+toarr :: String -> A.Array Word8
+toarr = A.fromList . map (fromIntegral . ord)
 
 -- | Split on line feed.
 {-# INLINE splitOn #-}
