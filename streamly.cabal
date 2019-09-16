@@ -600,7 +600,7 @@ benchmark fileio
   type: exitcode-stdio-1.0
   -- A value of 400 works better for some benchmarks, however, it takes
   -- extraordinary amount of time to compile with that.
-  ghc-options: -funfolding-use-threshold=150
+  -- ghc-options: -funfolding-use-threshold=150
   hs-source-dirs: benchmark
   main-is: FileIO.hs
   if flag(benchmark)
