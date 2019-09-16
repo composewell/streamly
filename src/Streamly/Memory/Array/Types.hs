@@ -922,7 +922,7 @@ spliceTwo arr1 arr2 = do
     return arr { aEnd = dst `plusPtr` (len1 + len2) }
 
 instance Storable a => Semigroup (Array a) where
-    arr1 <> arr2 = unsafeInlineIO $ spliceTwo arr1 arr2
+    arr1 <> arr2 = unsafePerformIO $ spliceTwo arr1 arr2
 
 nullForeignPtr :: ForeignPtr a
 nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
