@@ -41,6 +41,24 @@ propDecodeEncodeId =
             chrs <- S.toList $ SS.decodeUtf8 wrds
             assert (chrs == list)
 
+-- XXX need to use invalid characters
+propDecodeEncodeIdLenient :: Property
+propDecodeEncodeIdLenient =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            let wrds = SS.encodeUtf8 $ S.fromList list
+            chrs <- S.toList $ SS.decodeUtf8Lenient wrds
+            assert (chrs == list)
+
+propDecodeEncodeIdArrays :: Property
+propDecodeEncodeIdArrays =
+    forAll genUnicode $ \list ->
+        monadicIO $ do
+            let wrds = SS.encodeUtf8 $ S.fromList list
+            chrs <- S.toList $ SS.decodeUtf8ArraysLenient
+                                    (S.runFold A.write wrds)
+            assert (chrs == list)
+
 testLines :: Property
 testLines =
     forAll genUnicode $ \list ->
@@ -100,6 +118,9 @@ main = hspec
     $ do
     describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
+        prop "decodeUtf8Lenient . encodeUtf8 == id" $ propDecodeEncodeIdLenient
+        prop "decodeUtf8ArraysLenient . encodeUtf8 == id"
+                $ propDecodeEncodeIdArrays
         prop "Streamly.Data.String.lines == Prelude.lines" $ testLines
         prop "Arrays Streamly.Data.String.lines == Prelude.lines" $ testLinesArray
         prop "Streamly.Data.String.words == Prelude.words" $ testWords

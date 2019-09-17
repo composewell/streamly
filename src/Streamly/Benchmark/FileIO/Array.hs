@@ -29,6 +29,8 @@ module Streamly.Benchmark.FileIO.Array
     , copy
     , linesUnlinesCopy
     , wordsUnwordsCopy
+    , decodeUtf8Lenient
+    , copyCodecUtf8Lenient
     )
 where
 
@@ -40,6 +42,7 @@ import Prelude hiding (last)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal as Internal
 
 #ifdef INSPECTION
@@ -159,4 +162,34 @@ wordsUnwordsCopy inh outh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'wordsUnwordsCopy [''Storable]
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''Step
+#endif
+
+{-# INLINE decodeUtf8Lenient #-}
+decodeUtf8Lenient :: Handle -> IO ()
+decodeUtf8Lenient inh =
+   S.drain
+     $ SS.decodeUtf8ArraysLenient
+     $ FH.readArraysOf (1024*1024) inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'decodeUtf8Lenient
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''Step
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''AT.FlattenState
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Copy file
+{-# INLINE copyCodecUtf8Lenient #-}
+copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
+copyCodecUtf8Lenient inh outh =
+   S.runFold (FH.write outh)
+     $ SS.encodeUtf8
+     $ SS.decodeUtf8ArraysLenient
+     $ FH.readArraysOf (1024*1024) inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''Step
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''AT.FlattenState
+-- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''D.ConcatMapUState
 #endif

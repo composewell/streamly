@@ -88,6 +88,9 @@ main = do
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
                 BFA.cat devNull inh
+           , mkBench "read-utf8" href $ do
+               Handles inh _ <- readIORef href
+               BFA.decodeUtf8Lenient inh
             ]
         , bgroup "readStream"
             [ mkBench "last" href $ do
@@ -114,6 +117,15 @@ main = do
             , mkBench "catStream" href $ do
                 Handles inh _ <- readIORef href
                 BFS.catStreamWrite devNull inh
+           , mkBench "read-word8" href $ do
+               Handles inh _ <- readIORef href
+               BFS.readWord8 inh
+           , mkBench "read-char8" href $ do
+               Handles inh _ <- readIORef href
+               BFS.decodeChar8 inh
+           , mkBench "read-utf8" href $ do
+               Handles inh _ <- readIORef href
+               BFS.decodeUtf8Lenient inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
@@ -132,6 +144,9 @@ main = do
            [ mkBench "char8" href $ do
                Handles inh outh <- readIORef href
                BFS.copyCodecChar8 inh outh
+           , mkBench "utf8-arrays" href $ do
+               Handles inh outh <- readIORef href
+               BFA.copyCodecUtf8Lenient inh outh
            , mkBench "utf8" href $ do
                Handles inh outh <- readIORef href
                BFS.copyCodecUtf8Lenient inh outh
@@ -215,6 +230,9 @@ main = do
                 , mkBench "splitOnSeq abcdefgh" href $ do
                     Handles inh _ <- readIORef href
                     BFS.splitOnSeq "abcdefgh" inh
+                , mkBench "splitOnSeqUtf8 abcdefgh" href $ do
+                    Handles inh _ <- readIORef href
+                    BFS.splitOnSeqUtf8 "abcdefgh" inh
                 ]
             , bgroup "long-pattern"
                 [ mkBench "splitOnSeq abcdefghi" href $ do
@@ -229,6 +247,9 @@ main = do
                 , mkBench "splitOnSuffixSeq abc...xyz" href $ do
                     Handles inh _ <- readIORef href
                     BFS.splitOnSuffixSeq "abcdefghijklmnopqrstuvwxyz" inh
+                , mkBench "splitOnSeqUtf8 abc...xyz" href $ do
+                    Handles inh _ <- readIORef href
+                    BFS.splitOnSeqUtf8 "abcdefghijklmnopqrstuvwxyz" inh
                 ]
             ]
 #endif

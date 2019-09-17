@@ -33,8 +33,11 @@ module Streamly.Benchmark.FileIO.Stream
     , linesUnlinesCopy
     , wordsUnwordsCopyWord8
     , wordsUnwordsCopy
+    , readWord8
+    , decodeChar8
     , copyCodecChar8
     , copyCodecUtf8
+    , decodeUtf8Lenient
     , copyCodecUtf8Lenient
     , chunksOf
     , chunksOfD
@@ -42,6 +45,7 @@ module Streamly.Benchmark.FileIO.Stream
     , splitOnSuffix
     , wordsBy
     , splitOnSeq
+    , splitOnSeqUtf8
     , splitOnSuffixSeq
     )
 where
@@ -186,6 +190,17 @@ inspect $ 'copy `hasNoType` ''AT.FlattenState
 inspect $ 'copy `hasNoType` ''D.ConcatMapUState
 #endif
 
+{-# INLINE readWord8 #-}
+readWord8 :: Handle -> IO ()
+readWord8 inh = S.drain $ FH.read inh
+
+{-# INLINE decodeChar8 #-}
+decodeChar8 :: Handle -> IO ()
+decodeChar8 inh =
+   S.drain
+     $ SS.decodeChar8
+     $ FH.read inh
+
 -- | Copy file
 {-# INLINE copyCodecChar8 #-}
 copyCodecChar8 :: Handle -> Handle -> IO ()
@@ -200,6 +215,20 @@ inspect $ hasNoTypeClasses 'copyCodecChar8
 inspect $ 'copyCodecChar8 `hasNoType` ''Step
 inspect $ 'copyCodecChar8 `hasNoType` ''AT.FlattenState
 inspect $ 'copyCodecChar8 `hasNoType` ''D.ConcatMapUState
+#endif
+
+{-# INLINE decodeUtf8Lenient #-}
+decodeUtf8Lenient :: Handle -> IO ()
+decodeUtf8Lenient inh =
+   S.drain
+     $ SS.decodeUtf8Lenient
+     $ FH.read inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'decodeUtf8Lenient
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''Step
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''AT.FlattenState
+-- inspect $ 'decodeUtf8Lenient `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Copy file
@@ -406,7 +435,7 @@ inspect $ 'wordsBy `hasNoType` ''AT.FlattenState
 inspect $ 'wordsBy `hasNoType` ''D.ConcatMapUState
 #endif
 
--- | Split on a character sequence.
+-- | Split on a word8 sequence.
 {-# INLINE splitOnSeq #-}
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
@@ -419,6 +448,14 @@ inspect $ hasNoTypeClasses 'splitOnSeq
 -- inspect $ 'splitOnSeq `hasNoType` ''AT.FlattenState
 -- inspect $ 'splitOnSeq `hasNoType` ''D.ConcatMapUState
 #endif
+
+-- | Split on a character sequence.
+{-# INLINE splitOnSeqUtf8 #-}
+splitOnSeqUtf8 :: String -> Handle -> IO Int
+splitOnSeqUtf8 str inh =
+    (S.length $ Internal.splitOnSeq (A.fromList str) FL.drain
+        $ SS.decodeUtf8ArraysLenient
+        $ FH.readArrays inh) -- >>= print
 
 -- | Split on suffix sequence.
 {-# INLINE splitOnSuffixSeq #-}
