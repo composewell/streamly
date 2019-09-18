@@ -3036,15 +3036,26 @@ utf8d = A.fromList [
   12,36,12,12,12,12,12,12,12,12,12,12
   ]
 
+-- | Return element at the specified index without checking the bounds.
+-- and without touching the foreign ptr.
+{-# INLINE_NORMAL unsafePeekElemOff #-}
+unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
+unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
+
 {-# INLINE decode #-}
-decode :: DecoderState -> CodePoint -> Word8 -> Tuple' DecoderState CodePoint
-decode state codep byte =
-    let t = utf8d `A.unsafeIndex` fromIntegral byte
+decode
+    :: Ptr Word8
+    -> DecoderState
+    -> CodePoint
+    -> Word8
+    -> Tuple' DecoderState CodePoint
+decode table state codep byte =
+    let !t = table `unsafePeekElemOff` fromIntegral byte
         codep' =
             if state /= 0
                 then (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
                 else (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
-        state' = utf8d `A.unsafeIndex`
+        state' = table `unsafePeekElemOff`
                     (256 + fromIntegral state + fromIntegral t)
      in (Tuple' state' codep')
 
@@ -3056,7 +3067,10 @@ data FreshPoint s
 -- XXX Add proper error messages
 {-# INLINE_NORMAL decodeUtf8With #-}
 decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
-decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
+decodeUtf8With cfm (Stream step state) =
+    let Array p _ _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+    in Stream (step' ptr) (FreshPoint 0 0 state)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -3070,7 +3084,7 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
                 error "Streamly.Streams.StreamD.decodeUtf8With: Input Underflow"
             TransliterateCodingFailure -> YieldAndContinue replacementChar Done
     {-# INLINE_LATE step' #-}
-    step' gst (FreshPoint codepointPtr statePtr st) = do
+    step' table gst (FreshPoint codepointPtr statePtr st) = do
         r <- step (adaptState gst) st
         return $
             case r of
@@ -3083,7 +3097,7 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
                             (FreshPoint 0 0 s)
                     else
                         let (Tuple' sv cp) =
-                                decode statePtr codepointPtr x
+                                decode table statePtr codepointPtr x
                          in case sv of
                                 12 ->
                                     Skip $
@@ -3101,8 +3115,8 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
                     if statePtr /= 0
                         then Skip inputUnderflow
                         else Skip Done
-    step' _ (YieldAndContinue c s) = return $ Yield c s
-    step' _ Done = return Stop
+    step' _ _ (YieldAndContinue c s) = return $ Yield c s
+    step' _ _ Done = return Stop
 
 {-# INLINE decodeUtf8 #-}
 decodeUtf8 :: Monad m => Stream m Word8 -> Stream m Char
@@ -3134,7 +3148,9 @@ decodeUtf8ArraysWith ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWith cfm (Stream step state) =
-    Stream step' (OuterLoop 0 0 state)
+    let Array p _ _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+    in Stream (step' ptr) (OuterLoop 0 0 state)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -3149,7 +3165,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                     "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Input Underflow"
             TransliterateCodingFailure -> YAndC replacementChar D
     {-# INLINE_LATE step' #-}
-    step' gst (OuterLoop cp ds st) = do
+    step' _ gst (OuterLoop cp ds st) = do
         r <- step (adaptState gst) st
         return $
             case r of
@@ -3161,9 +3177,9 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                     if ds /= 0
                         then Skip inputUnderflow
                         else Skip D
-    step' _ (InnerLoop cp ds st _ p end)
+    step' _ _ (InnerLoop cp ds st _ p end)
         | p == end = return $ Skip $ OuterLoop cp ds st
-    step' _ (InnerLoop codepointPtr statePtr st startf p end) = do
+    step' table _ (InnerLoop codepointPtr statePtr st startf p end) = do
         x <-
             liftIO $ do
                 r <- peek p
@@ -3175,7 +3191,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                 (unsafeChr (fromIntegral x))
                 (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
         else do
-            let (Tuple' sv cp) = decode statePtr codepointPtr x
+            let (Tuple' sv cp) = decode table statePtr codepointPtr x
             return $
                 case sv of
                     12 ->
@@ -3189,8 +3205,8 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                             (unsafeChr (fromIntegral cp))
                             (InnerLoop cp sv st startf (p `plusPtr` 1) end)
                     _ -> Skip (InnerLoop cp sv st startf (p `plusPtr` 1) end)
-    step' _ (YAndC c s) = return $ Yield c s
-    step' _ D = return Stop
+    step' _ _ (YAndC c s) = return $ Yield c s
+    step' _ _ D = return Stop
 
 {-# INLINE decodeUtf8Arrays #-}
 decodeUtf8Arrays ::
