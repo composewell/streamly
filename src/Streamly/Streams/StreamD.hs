@@ -288,6 +288,7 @@ import GHC.Base (assert, Char(..), unsafeChr, ord)
 import GHC.IO.Encoding.Failure (isSurrogate)
 import GHC.Types (SPEC(..))
 import GHC.Word (Word8(..))
+import System.IO.Unsafe (unsafePerformIO)
 import Prelude
        hiding (map, mapM, mapM_, repeat, foldr, last, take, filter,
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
@@ -3015,8 +3016,13 @@ type DecoderState = Word8
 
 -- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
+{-# INLINE runFold #-}
+runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
+runFold (Fold step begin done) = foldlMx' step begin done
+
+-- Aligning to cacheline makes a barely noticeable difference
 utf8d :: A.Array Word8
-utf8d = A.fromList [
+utf8d = unsafePerformIO $ runFold (A.writeAligned 64) $ fromList [
    -- The first part of the table maps bytes to character classes that
    -- to reduce the size of the transition table and create bitmasks.
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
