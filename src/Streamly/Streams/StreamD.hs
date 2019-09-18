@@ -3010,11 +3010,11 @@ replacementChar :: Char
 replacementChar = '\xFFFD'
 
 type CodePoint = Word32
-type DecoderState = Word32
+type DecoderState = Word8
 
 -- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
-utf8d :: A.Array Word32
+utf8d :: A.Array Word8
 utf8d = A.fromList [
    -- The first part of the table maps bytes to character classes that
    -- to reduce the size of the transition table and create bitmasks.
@@ -3037,14 +3037,15 @@ utf8d = A.fromList [
   ]
 
 {-# INLINE decode #-}
-decode :: DecoderState -> CodePoint -> Word32 -> Tuple' DecoderState CodePoint
+decode :: DecoderState -> CodePoint -> Word8 -> Tuple' DecoderState CodePoint
 decode state codep byte =
-    let t = utf8d `A.unsafeIndex` (fromIntegral byte)
+    let t = utf8d `A.unsafeIndex` fromIntegral byte
         codep' =
             if state /= 0
-                then (byte .&. 0x3f) .|. (codep `shiftL` 6)
-                else (0xff `shiftR` (fromIntegral t)) .&. byte
-        state' = utf8d `A.unsafeIndex` (fromIntegral $ 256 + state + t)
+                then (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
+                else (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
+        state' = utf8d `A.unsafeIndex`
+                    (256 + fromIntegral state + fromIntegral t)
      in (Tuple' state' codep')
 
 data FreshPoint s
@@ -3075,7 +3076,7 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
             case r of
                 Yield x s ->
                     let (Tuple' sv cp) =
-                            decode statePtr codepointPtr (fromIntegral x)
+                            decode statePtr codepointPtr x
                      in case sv of
                             12 ->
                                 Skip $
@@ -3161,7 +3162,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                 r <- peek p
                 touchForeignPtr startf
                 return r
-        let (Tuple' sv cp) = decode statePtr codepointPtr (fromIntegral x)
+        let (Tuple' sv cp) = decode statePtr codepointPtr x
         return $
             case sv of
                 12 ->
