@@ -131,7 +131,6 @@ import Data.Kind (Type)
 #endif
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
-import Data.List ((\\))
 import Data.Maybe (fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
@@ -618,14 +617,14 @@ cleanupSVar :: SVar t m a -> IO ()
 cleanupSVar sv = do
     workers <- readIORef (workerThreads sv)
     Prelude.mapM_ (`throwTo` ThreadAbort)
-          (S.toList workers)
+          workers
 
 cleanupSVarFromWorker :: SVar t m a -> IO ()
 cleanupSVarFromWorker sv = do
     workers <- readIORef (workerThreads sv)
     self <- myThreadId
-    mapM_ (`throwTo` ThreadAbort)
-          (S.toList workers \\ [self])
+    Prelude.mapM_ (`throwTo` ThreadAbort)
+          (Prelude.filter (/= self) $ S.toList workers)
 
 -------------------------------------------------------------------------------
 -- Worker latency data collection
