@@ -408,9 +408,11 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 --
 -- @since 0.7.0
 {-# INLINE _runTransform #-}
-_runTransform :: (MonadIO m, Storable a, Storable b)
+_runTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-_runTransform f arr = P.runFold (A.toArrayMinChunk (length arr)) $ f (A.read arr)
+_runTransform f arr =
+    P.runFold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
+        $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --

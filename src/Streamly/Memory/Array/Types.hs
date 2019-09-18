@@ -67,6 +67,7 @@ module Streamly.Memory.Array.Types
     , writeN
     , writeNUnsafe
     , write
+    , writeAligned
     , read
     , readU
 
@@ -300,14 +301,13 @@ snoc arr@Array {..} x = do
 
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
-{-# NOINLINE realloc #-}
-realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
-realloc newSize Array{..} = do
+{-# NOINLINE reallocAligned #-}
+reallocAligned :: Int -> Int -> Array a -> IO (Array a)
+reallocAligned alignSize newSize Array{..} = do
     assert (aEnd <= aBound) (return ())
     let oldStart = unsafeForeignPtrToPtr aStart
     let size = aEnd `minusPtr` oldStart
-    newPtr <- Malloc.mallocForeignPtrAlignedBytes
-                newSize (alignment (undefined :: a))
+    newPtr <- Malloc.mallocForeignPtrAlignedBytes newSize alignSize
     withForeignPtr newPtr $ \pNew -> do
         memcpy (castPtr pNew) (castPtr oldStart) size
         touchForeignPtr aStart
@@ -316,6 +316,10 @@ realloc newSize Array{..} = do
             , aEnd   = pNew `plusPtr` size
             , aBound = pNew `plusPtr` newSize
             }
+
+{-# INLINABLE realloc #-}
+realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
+realloc = reallocAligned (alignment (undefined :: a))
 
 -- | Remove the free space from an Array.
 shrinkToFit :: forall a. Storable a => Array a -> IO (Array a)
@@ -574,9 +578,9 @@ writeNUnsafe n = Fold step initial extract
 
 {-# INLINE_NORMAL toArrayMinChunk #-}
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
-    => Int -> Fold m a (Array a)
+    => Int -> Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
-toArrayMinChunk elemCount = Fold step initial extract
+toArrayMinChunk alignSize elemCount = Fold step initial extract
 
     where
 
@@ -591,7 +595,7 @@ toArrayMinChunk elemCount = Fold step initial extract
         let p = unsafeForeignPtrToPtr start
             oldSize = end `minusPtr` p
             newSize = max (oldSize * 2) 1
-        arr1 <- liftIO $ realloc newSize arr
+        arr1 <- liftIO $ reallocAligned alignSize newSize arr
         insertElem arr1 x
     step arr x = insertElem arr x
     extract = liftIO . shrinkToFit
@@ -603,8 +607,24 @@ toArrayMinChunk elemCount = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (Array a)
-write = toArrayMinChunk (bytesToElemCount (undefined :: a)
+write = toArrayMinChunk (alignment (undefined :: a))
+                        (bytesToElemCount (undefined :: a)
                         (mkChunkSize 1024))
+
+-- | Like 'write' but the array memory is aligned according to the specified
+-- alignment size. This could be useful when we have specific alignment, for
+-- example, cache aligned arrays for lookup table etc.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since 0.7.0
+{-# INLINE writeAligned #-}
+writeAligned :: forall m a. (MonadIO m, Storable a)
+    => Int -> Fold m a (Array a)
+writeAligned alignSize =
+    toArrayMinChunk alignSize
+                    (bytesToElemCount (undefined :: a)
+                    (mkChunkSize 1024))
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
