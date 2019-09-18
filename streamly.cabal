@@ -463,7 +463,7 @@ test-suite maxrate
     build-Depends:
           streamly
         , base   >= 4.8   && < 5
-        , clock  >= 0.7.1 && < 0.8
+        , clock  >= 0.7.1 && < 0.9
         , hspec  >= 2.0   && < 3
         , random >= 1.0.0 && < 2
   else
