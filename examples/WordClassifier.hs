@@ -12,6 +12,7 @@ import           Data.Function ((&))
 import           Data.Functor.Identity (Identity(..))
 import qualified Data.HashMap.Strict as Map
 import           Data.Hashable
+import           Data.IORef
 import qualified Data.List as List
 import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
@@ -48,7 +49,8 @@ isAlpha c
 main :: IO ()
 main =
     let
-        increment m str = Map.insertWith (+) str (1 :: Int) m
+        alter Nothing    = fmap Just $ newIORef (1 :: Int)
+        alter (Just ref) = modifyIORef' ref (+ 1) >> return (Just ref)
     in do
         name <- fmap head getArgs
         src <- openFile name ReadMode
@@ -57,6 +59,8 @@ main =
          & Streamly.map toLower         -- SerialT IO Char
          & Streamly.foldWords FL.toList -- SerialT IO String
          & Streamly.filter (all isAlpha)
-         & Streamly.foldl' increment Map.empty
-         & fmap (List.take 25 . List.sortOn (Ord.Down . snd) . Map.toList)
+         & Streamly.foldlM' (flip (Map.alterF alter)) Map.empty
+         & fmap Map.toList
+         >>= mapM (\(w, ref) -> readIORef ref >>= \cnt -> return (w, cnt))
+         & fmap (List.take 25 . List.sortOn (Ord.Down . snd))
          >>= traverse_ print
