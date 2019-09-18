@@ -3009,7 +3009,8 @@ data CodingFailureMode
 replacementChar :: Char
 replacementChar = '\xFFFD'
 
-type CodePoint = Word32
+-- Int helps in cheaper conversion from Int to Char
+type CodePoint = Int
 type DecoderState = Word8
 
 -- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
@@ -3050,12 +3051,14 @@ decode
     -> Word8
     -> Tuple' DecoderState CodePoint
 decode table state codep byte =
+    -- Remember codep is Int type!
+    -- Can it be unsafe to convert the resulting to Char?
     let !t = table `unsafePeekElemOff` fromIntegral byte
-        codep' =
+        !codep' =
             if state /= 0
                 then (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
                 else (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
-        state' = table `unsafePeekElemOff`
+        !state' = table `unsafePeekElemOff`
                     (256 + fromIntegral state + fromIntegral t)
      in (Tuple' state' codep')
 
@@ -3107,7 +3110,7 @@ decodeUtf8With cfm (Stream step state) =
                                 0 ->
                                     Skip $
                                     YieldAndContinue
-                                        (unsafeChr (fromIntegral cp))
+                                        (unsafeChr cp)
                                         (FreshPoint cp sv s)
                                 _ -> Skip (FreshPoint cp sv s)
                 Skip s -> Skip (FreshPoint codepointPtr statePtr s)
@@ -3127,8 +3130,8 @@ decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
 
 data FlattenState s a
-    = OuterLoop !CodePoint !DecoderState s
-    | InnerLoop !CodePoint !DecoderState s (ForeignPtr a) (Ptr a) (Ptr a)
+    = OuterLoop s !CodePoint !DecoderState
+    | InnerLoop s (ForeignPtr a) !CodePoint !DecoderState !(Ptr a) !(Ptr a)
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the FreshPoint
                                      -- type, I prefer to keep these
@@ -3150,7 +3153,7 @@ decodeUtf8ArraysWith ::
 decodeUtf8ArraysWith cfm (Stream step state) =
     let Array p _ _ = utf8d
         !ptr = (unsafeForeignPtrToPtr p)
-    in Stream (step' ptr) (OuterLoop 0 0 state)
+    in Stream (step' ptr) (OuterLoop state 0 0)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -3165,31 +3168,29 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                     "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Input Underflow"
             TransliterateCodingFailure -> YAndC replacementChar D
     {-# INLINE_LATE step' #-}
-    step' _ gst (OuterLoop cp ds st) = do
+    step' _ gst (OuterLoop st cp ds) = do
         r <- step (adaptState gst) st
         return $
             case r of
                 Yield A.Array {..} s ->
                     let p = unsafeForeignPtrToPtr aStart
-                     in Skip (InnerLoop cp ds s aStart p aEnd)
-                Skip s -> Skip (OuterLoop cp ds s)
+                     in Skip (InnerLoop s aStart cp ds p aEnd)
+                Skip s -> Skip (OuterLoop s cp ds)
                 Stop ->
                     if ds /= 0
                         then Skip inputUnderflow
                         else Skip D
-    step' _ _ (InnerLoop cp ds st _ p end)
-        | p == end = return $ Skip $ OuterLoop cp ds st
-    step' table _ (InnerLoop codepointPtr statePtr st startf p end) = do
-        x <-
-            liftIO $ do
-                r <- peek p
-                touchForeignPtr startf
-                return r
+    step' _ _ (InnerLoop st startf cp ds p end)
+        | p == end = do
+            liftIO $ touchForeignPtr startf
+            return $ Skip $ OuterLoop st cp ds
+    step' table _ (InnerLoop st startf codepointPtr statePtr p end) = do
+        x <- liftIO $ peek p
         if statePtr == 0 && x <= 0x7f
         then
             return $ Skip $ YAndC
                 (unsafeChr (fromIntegral x))
-                (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
+                (InnerLoop st startf 0 0 (p `plusPtr` 1) end)
         else do
             let (Tuple' sv cp) = decode table statePtr codepointPtr x
             return $
@@ -3198,13 +3199,13 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                         Skip $
                         transliterateOrError
                             "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
-                            (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
+                            (InnerLoop st startf 0 0 (p `plusPtr` 1) end)
                     0 ->
                         Skip $
                         YAndC
-                            (unsafeChr (fromIntegral cp))
-                            (InnerLoop cp sv st startf (p `plusPtr` 1) end)
-                    _ -> Skip (InnerLoop cp sv st startf (p `plusPtr` 1) end)
+                            (unsafeChr cp)
+                            (InnerLoop st startf 0 0 (p `plusPtr` 1) end)
+                    _ -> Skip (InnerLoop st startf cp sv (p `plusPtr` 1) end)
     step' _ _ (YAndC c s) = return $ Yield c s
     step' _ _ D = return Stop
 
