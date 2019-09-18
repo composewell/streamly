@@ -3075,20 +3075,27 @@ decodeUtf8With cfm (Stream step state) = Stream step' (FreshPoint 0 0 state)
         return $
             case r of
                 Yield x s ->
-                    let (Tuple' sv cp) =
-                            decode statePtr codepointPtr x
-                     in case sv of
-                            12 ->
-                                Skip $
-                                transliterateOrError
-                                    "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
-                                    (FreshPoint 0 0 s)
-                            0 ->
-                                Skip $
-                                YieldAndContinue
-                                    (unsafeChr (fromIntegral cp))
-                                    (FreshPoint cp sv s)
-                            _ -> Skip (FreshPoint cp sv s)
+                    if statePtr == 0 && x <= 0x7f
+                    then
+                        Skip $
+                        YieldAndContinue
+                            (unsafeChr (fromIntegral x))
+                            (FreshPoint 0 0 s)
+                    else
+                        let (Tuple' sv cp) =
+                                decode statePtr codepointPtr x
+                         in case sv of
+                                12 ->
+                                    Skip $
+                                    transliterateOrError
+                                        "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
+                                        (FreshPoint 0 0 s)
+                                0 ->
+                                    Skip $
+                                    YieldAndContinue
+                                        (unsafeChr (fromIntegral cp))
+                                        (FreshPoint cp sv s)
+                                _ -> Skip (FreshPoint cp sv s)
                 Skip s -> Skip (FreshPoint codepointPtr statePtr s)
                 Stop ->
                     if statePtr /= 0
@@ -3162,20 +3169,26 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                 r <- peek p
                 touchForeignPtr startf
                 return r
-        let (Tuple' sv cp) = decode statePtr codepointPtr x
-        return $
-            case sv of
-                12 ->
-                    Skip $
-                    transliterateOrError
-                        "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
-                        (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
-                0 ->
-                    Skip $
-                    YAndC
-                        (unsafeChr (fromIntegral cp))
-                        (InnerLoop cp sv st startf (p `plusPtr` 1) end)
-                _ -> Skip (InnerLoop cp sv st startf (p `plusPtr` 1) end)
+        if statePtr == 0 && x <= 0x7f
+        then
+            return $ Skip $ YAndC
+                (unsafeChr (fromIntegral x))
+                (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
+        else do
+            let (Tuple' sv cp) = decode statePtr codepointPtr x
+            return $
+                case sv of
+                    12 ->
+                        Skip $
+                        transliterateOrError
+                            "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                            (InnerLoop 0 0 st startf (p `plusPtr` 1) end)
+                    0 ->
+                        Skip $
+                        YAndC
+                            (unsafeChr (fromIntegral cp))
+                            (InnerLoop cp sv st startf (p `plusPtr` 1) end)
+                    _ -> Skip (InnerLoop cp sv st startf (p `plusPtr` 1) end)
     step' _ (YAndC c s) = return $ Yield c s
     step' _ D = return Stop
 
