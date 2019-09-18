@@ -925,24 +925,24 @@ partition = partitionBy id
 -- @since 0.7.0
 {-# INLINE demuxWith #-}
 demuxWith :: (Monad m, Ord k)
-    => (a -> k) -> Map k (Fold m a b) -> Fold m a (Map k b)
+    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a (Map k b)
 demuxWith f kv = Fold step initial extract
 
     where
 
     initial = return kv
-    step mp a =
+    step mp a = case f a of
+      (k, a') -> Map.alterF twiddle k mp
         -- XXX should we raise an exception in Nothing case?
         -- Ideally we should enforce that it is a total map over k so that look
         -- up never fails
         -- XXX we could use a monadic update function for a single lookup and
         -- update in the map.
-        let k = f a
-        in case Map.lookup k mp of
-            Nothing -> return mp
-            Just (Fold step' acc extract') -> do
-                !r <- acc >>= \x -> step' x a
-                return $ Map.insert k (Fold step' (return r) extract') mp
+        where
+          twiddle Nothing = pure Nothing
+          twiddle (Just (Fold step' acc extract')) = do
+            !r <- acc >>= \x -> step' x a'
+            pure . Just $ Fold step' (return r) extract'
     extract = Prelude.mapM (\(Fold _ acc e) -> acc >>= e)
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
@@ -961,7 +961,7 @@ demuxWith f kv = Fold step initial extract
 {-# INLINE demux #-}
 demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
-demux fs = demuxWith fst (Map.map (lmap snd) fs)
+demux = demuxWith id
 
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold without collecting the results. Useful for cases like protocol
@@ -984,7 +984,7 @@ demux fs = demuxWith fst (Map.map (lmap snd) fs)
 -- large.
 {-# INLINE demuxWith_ #-}
 demuxWith_ :: (Monad m, Ord k)
-    => (a -> k) -> Map k (Fold m a b) -> Fold m a ()
+    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m a ()
 demuxWith_ f kv = Fold step initial extract
 
     where
@@ -992,16 +992,17 @@ demuxWith_ f kv = Fold step initial extract
     initial = do
         Prelude.mapM (\(Fold s i e) ->
             i >>= \r -> return (Fold s (return r) e)) kv
-    step mp a =
+    step mp a
         -- XXX should we raise an exception in Nothing case?
         -- Ideally we should enforce that it is a total map over k so that look
         -- up never fails
-        case Map.lookup (f a) mp of
+      | (k, a') <- f a
+      = case Map.lookup k mp of
             Nothing -> return mp
             Just (Fold step' acc _) -> do
-                _ <- acc >>= \x -> step' x a
+                _ <- acc >>= \x -> step' x a'
                 return mp
-    extract mp = Prelude.mapM (\(Fold _ acc e) -> acc >>= e) mp >> return ()
+    extract mp = Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e) mp
 
 -- | Given a stream of key value pairs and a map from keys to folds, fold the
 -- values for each key using the corresponding folds, discarding the outputs.
@@ -1018,7 +1019,7 @@ demuxWith_ f kv = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE demux_ #-}
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
-demux_ fs = demuxWith_ fst (Map.map (lmap snd) fs)
+demux_ = demuxWith_ id
 
 -- TODO If the data is large we may need a map/hashmap in pinned memory instead
 -- of a regular Map. That may require a serializable constraint though. We can

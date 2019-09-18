@@ -335,7 +335,7 @@ library
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6
                      , deepseq           >= 1.4.1 && < 1.5
-                     , containers        >= 0.5   && < 0.7
+                     , containers        >= 0.5.8.2   && < 0.7
                      , heaps             >= 0.3   && < 0.4
 
                     -- concurrency
@@ -374,7 +374,7 @@ test-suite test
       streamly
     , base              >= 4.8   && < 5
     , hspec             >= 2.0   && < 3
-    , containers        >= 0.5   && < 0.7
+    , containers        >= 0.5.8.2   && < 0.7
     , transformers      >= 0.4   && < 0.6
     , mtl               >= 2.2   && < 3
     , exceptions        >= 0.8   && < 0.11
@@ -672,7 +672,7 @@ benchmark base
       , gauge             >= 0.2.4 && < 0.3
 
       , ghc-prim          >= 0.2   && < 0.6
-      , containers        >= 0.5   && < 0.7
+      , containers        >= 0.5.8.2   && < 0.7
       , heaps             >= 0.3   && < 0.4
 
       -- concurrency
@@ -716,7 +716,7 @@ executable nano-bench
          base              >= 4.8   && < 5
        , gauge             >= 0.2.4 && < 0.3
        , ghc-prim          >= 0.2   && < 0.6
-       , containers        >= 0.5   && < 0.7
+       , containers        >= 0.5.8.2   && < 0.7
        , deepseq           >= 1.4.1 && < 1.5
        , heaps             >= 0.3   && < 0.4
        , random            >= 1.0   && < 2.0
