@@ -420,7 +420,9 @@ readU = Unfold step inject
         return $ ReadUState (ForeignPtr end contents) (Ptr start)
 
     {-# INLINE_LATE step #-}
-    step (ReadUState (ForeignPtr end _) p) | p == (Ptr end) = return D.Stop
+    step (ReadUState fp@(ForeignPtr end _) p) | p == (Ptr end) =
+        let x = unsafeInlineIO $ touchForeignPtr fp
+        in x `seq` return D.Stop
     step (ReadUState fp p) = do
             -- unsafeInlineIO allows us to run this in Identity monad for pure
             -- toList/foldr case which makes them much faster due to not
@@ -428,10 +430,7 @@ readU = Unfold step inject
             --
             -- This should be safe as the array contents are guaranteed to be
             -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ do
-                        r <- peek p
-                        touchForeignPtr fp
-                        return r
+            let !x = unsafeInlineIO $ peek p
             return $ D.Yield x
                 (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
 
