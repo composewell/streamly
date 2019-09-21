@@ -693,7 +693,7 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, repeat, replicate, concatMap, span)
 
-import Streamly.Prelude.Internal
+import Streamly.Internal.Prelude
 
 -- $rightfolds
 --

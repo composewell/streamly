@@ -9,7 +9,7 @@
 #include "../Streams/inline.hs"
 
 -- |
--- Module      : Streamly.Prelude.Internal
+-- Module      : Streamly.Internal.Prelude
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Portability : GHC
 --
 
-module Streamly.Prelude.Internal
+module Streamly.Internal.Prelude
     (
     -- * Construction
     -- ** Primitives

@@ -46,7 +46,7 @@ import Streamly.Memory.Array.Types (defaultChunkSize)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Prelude.Internal as S
+import qualified Streamly.Internal.Prelude as S
 
 -------------------------------------------------------------------------------
 -- Array IO (output)

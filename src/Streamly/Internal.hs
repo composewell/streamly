@@ -107,4 +107,4 @@ import Streamly.Unfold (fromList)
 
 import Streamly.Fold.Internal
 import Streamly.Fold.Types
-import Streamly.Prelude.Internal hiding (fromList)
+import Streamly.Internal.Prelude hiding (fromList)

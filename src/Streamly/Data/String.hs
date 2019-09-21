@@ -93,7 +93,7 @@ import Streamly.Fold (Fold)
 import Streamly.Memory.Array (Array)
 import Streamly.Unfold (Unfold)
 
-import qualified Streamly.Prelude.Internal as S
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS

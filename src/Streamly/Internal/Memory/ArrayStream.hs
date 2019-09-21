@@ -53,7 +53,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Unfold as UF
 import qualified Streamly.Memory.Array.Types as A
-import qualified Streamly.Prelude.Internal as S
+import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Prelude as P
 
