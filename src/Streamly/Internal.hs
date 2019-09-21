@@ -22,53 +22,13 @@ module Streamly.Internal
       inspectMode
 
     -- * Streamly.Prelude Experimental Exports
-    , foldrS
-    , foldrT
-    , prescanl'
-    , prescanlM'
-
-    , toListRev
     , toListRevF
-    , toStream
-    , toStreamRev
-
-    , insertAfterEach
-    , interject
-    , reverse'
-
-    , splitAt -- spanN
-    , span  -- spanWhile
-    , break -- breakBefore
-    , spanBy
-    , spanByRolling
-    , arraysOf
-    , splitOnSeq
-    , splitOnSuffixSeq
-    , splitBySeq
-    , splitWithSuffixSeq
-    , splitInnerBy
-    , splitInnerBySuffix
-
     , tapAsync
 
-    , classifySessionsOf
-    , classifySessionsBy
-    , classifyKeepAliveSessions
-
-    , append
-    , interleave
-    , interleaveFst
-    , interleaveMin
-    , roundrobin
     , wSerialFst
     , wSerialMin
     , parallelFst
     , parallelMin
-
-    , concatMapU
-    , concatUnfoldInterleave
-    , concatUnfoldRoundrobin
-    , intercalateSuffix
 
     -- * Streamly.Fold Experimental Exports
     , Fold (..)
@@ -107,4 +67,3 @@ import Streamly.Unfold (fromList)
 
 import Streamly.Fold.Internal
 import Streamly.Fold.Types
-import Streamly.Internal.Prelude hiding (fromList)
