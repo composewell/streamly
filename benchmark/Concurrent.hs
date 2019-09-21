@@ -39,7 +39,7 @@ concated buflen threads d elems t =
         $ adapt
         $ maxThreads (-1)
         $ maxBuffer buflen
-        $ S.concatMapBy t work
+        $ S.concatMapWith t work
         $ S.replicate threads elems
 
 appendGroup :: Int -> Int -> Int -> [Benchmark]

@@ -946,7 +946,11 @@ instance Storable a => Semigroup (Array a) where
 nullForeignPtr :: ForeignPtr a
 nullForeignPtr = ForeignPtr nullAddr# (error "nullForeignPtr")
 
-nil :: Array a
+nil ::
+#ifdef DEVBUILD
+    Storable a =>
+#endif
+    Array a
 nil = Array nullForeignPtr (Ptr nullAddr#) (Ptr nullAddr#)
 
 instance Storable a => Monoid (Array a) where
