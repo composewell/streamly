@@ -221,8 +221,15 @@ module Streamly.Internal.Prelude
     , interleaveFst
     , interleaveMin
 
+    , Serial.wSerialFst
+    , Serial.wSerialMin
+
     -- ** Scheduling
     , roundrobin
+
+    -- ** Parallel
+    , Par.parallelFst
+    , Par.parallelMin
 
     -- ** Merging
 
@@ -312,6 +319,7 @@ module Streamly.Internal.Prelude
     -- ** Distributing
     , trace
     , tap
+    , Par.tapAsync
 
     -- * Windowed Classification
 

@@ -21,6 +21,7 @@ import qualified Streamly.Benchmark.Prelude as Ops
 import Streamly
 import qualified Streamly.Fold as FL
 import qualified Streamly.Internal as Internal
+import qualified Streamly.Internal.Prelude as IP
 --import qualified Streamly.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
@@ -235,8 +236,8 @@ main =
 
         , benchIOSink "toList" (S.runFold FL.toList)
         , benchIOSink "toListRevF" (S.runFold Internal.toListRevF)
-        , benchIOSink "toStream" (S.runFold Internal.toStream)
-        , benchIOSink "toStreamRev" (S.runFold Internal.toStreamRev)
+        , benchIOSink "toStream" (S.runFold IP.toStream)
+        , benchIOSink "toStreamRev" (S.runFold IP.toStreamRev)
         , benchIOSink "writeN" (S.runFold (A.writeN Ops.value))
 
         , benchIOSink "index" (S.runFold (FL.index Ops.maxValue))

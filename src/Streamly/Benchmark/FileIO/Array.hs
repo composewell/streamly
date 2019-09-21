@@ -43,7 +43,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
-import qualified Streamly.Internal as Internal
+import qualified Streamly.Internal.Prelude as Internal
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)

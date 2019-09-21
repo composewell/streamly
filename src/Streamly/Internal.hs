@@ -21,17 +21,9 @@ module Streamly.Internal
     -- * Diagnostics
       inspectMode
 
-    -- * Streamly.Prelude Experimental Exports
-    , toListRevF
-    , tapAsync
-
-    , wSerialFst
-    , wSerialMin
-    , parallelFst
-    , parallelMin
-
     -- * Streamly.Fold Experimental Exports
     , Fold (..)
+    , toListRevF
     , rollingHash
     , rollingHashWithSalt
     , lmap
@@ -60,8 +52,6 @@ import Prelude hiding (break, span, splitAt)
 
 import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
-import Streamly.Streams.Parallel (tapAsync, parallelFst, parallelMin)
-import Streamly.Streams.Serial (wSerialFst, wSerialMin)
 import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Unfold (fromList)
 

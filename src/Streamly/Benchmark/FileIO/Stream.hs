@@ -63,6 +63,7 @@ import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Fold as FL
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal as Internal
+import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D
 
 #ifdef INSPECTION
@@ -134,7 +135,7 @@ countLinesU inh =
     S.length
         $ SS.foldLines FL.drain
         $ SS.decodeChar8
-        $ Internal.concatMapU Internal.readU (FH.readArrays inh)
+        $ IP.concatMapU Internal.readU (FH.readArrays inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLinesU
@@ -343,7 +344,7 @@ isSp = isSpace . chr . fromIntegral
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     S.runFold (FH.write outh)
-        $ Internal.concatMapU Internal.fromList
+        $ IP.concatMapU Internal.fromList
         $ S.intersperse [32]
         $ S.wordsBy isSp FL.toList
         $ FH.read inh
@@ -360,7 +361,7 @@ wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.runFold (FH.write outh)
       $ SS.encodeChar8
-      $ Internal.concatMapU Internal.fromList
+      $ IP.concatMapU Internal.fromList
       $ S.intersperse " "
       -- Array allocation is too expensive for such small strings. So just use
       -- lists instead.
@@ -439,7 +440,7 @@ inspect $ 'wordsBy `hasNoType` ''D.ConcatMapUState
 {-# INLINE splitOnSeq #-}
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
-    (S.length $ Internal.splitOnSeq (toarr str) FL.drain
+    (S.length $ IP.splitOnSeq (toarr str) FL.drain
         $ FH.read inh) -- >>= print
 
 #ifdef INSPECTION
@@ -453,7 +454,7 @@ inspect $ hasNoTypeClasses 'splitOnSeq
 {-# INLINE splitOnSeqUtf8 #-}
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
-    (S.length $ Internal.splitOnSeq (A.fromList str) FL.drain
+    (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
         $ SS.decodeUtf8ArraysLenient
         $ FH.readArrays inh) -- >>= print
 
@@ -461,7 +462,7 @@ splitOnSeqUtf8 str inh =
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
-    (S.length $ Internal.splitOnSuffixSeq (toarr str) FL.drain
+    (S.length $ IP.splitOnSuffixSeq (toarr str) FL.drain
         $ FH.read inh) -- >>= print
 
 #ifdef INSPECTION
