@@ -283,10 +283,6 @@ library
                     -- Pure streams
                      , Streamly.List
 
-                    -- Unfolds
-                     , Streamly.Unfold.Types
-                     , Streamly.Unfold
-
                     -- Folds
                      , Streamly.Sink.Types
                      , Streamly.Sink
@@ -318,8 +314,11 @@ library
                      -- Internal modules
                      , Streamly.Internal
                      , Streamly.Internal.Memory.ArrayStream
-                     , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Fold.Types
+                     , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Unfold.Types
+                     , Streamly.Internal.Data.Unfold
+
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:

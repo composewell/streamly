@@ -404,7 +404,7 @@ import qualified System.IO as IO
 
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
-import Streamly.Unfold.Types (Unfold)
+import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.SVar (MonadAsync, defState)

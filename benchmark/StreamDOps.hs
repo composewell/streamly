@@ -19,7 +19,7 @@ import Prelude
 import qualified Prelude as P
 
 import qualified Streamly.Streams.StreamD as S
-import qualified Streamly.Unfold as UF
+import qualified Streamly.Internal.Data.Unfold as UF
 
 -- We try to keep the total number of iterations same irrespective of nesting
 -- of the loops so that the overhead is easy to compare.

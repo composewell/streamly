@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Unfold
+-- Module      : Streamly.Internal.Data.Unfold
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -45,7 +45,7 @@
 -- representation. We can use that for composable folds in StreamK
 -- representation.
 --
-module Streamly.Unfold
+module Streamly.Internal.Data.Unfold
     (
     -- * Unfold Type
     -- |
@@ -67,7 +67,7 @@ import Streamly.Streams.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
 import Streamly.Streams.StreamD.Type (pattern Stream)
 #endif
-import Streamly.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 
 -------------------------------------------------------------------------------
 -- Running unfolds

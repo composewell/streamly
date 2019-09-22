@@ -46,7 +46,7 @@ import qualified Streamly.Streams.StreamD as D
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
-import qualified Streamly.Unfold   as UF
+import qualified Streamly.Internal.Data.Unfold   as UF
 -- import qualified Streamly.Pipe  as Pipe
 
 value, maxValue, value2 :: Int

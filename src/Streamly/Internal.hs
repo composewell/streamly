@@ -21,10 +21,6 @@ module Streamly.Internal
     -- * Diagnostics
       inspectMode
 
-    -- * Streamly.Unfold Experimental Exports
-    , Unfold (..)
-    , fromList
-
     -- * Streamly.Memory.Array
     , readU
     )
@@ -34,5 +30,3 @@ import Prelude hiding (break, span, splitAt)
 
 import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
-import Streamly.Unfold.Types (Unfold(..))
-import Streamly.Unfold (fromList)

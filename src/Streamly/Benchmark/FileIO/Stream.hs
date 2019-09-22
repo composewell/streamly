@@ -63,6 +63,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal as Internal
+import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D
 
@@ -344,7 +345,7 @@ isSp = isSpace . chr . fromIntegral
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     S.runFold (FH.write outh)
-        $ IP.concatMapU Internal.fromList
+        $ IP.concatMapU IUF.fromList
         $ S.intersperse [32]
         $ S.wordsBy isSp FL.toList
         $ FH.read inh
@@ -361,7 +362,7 @@ wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.runFold (FH.write outh)
       $ SS.encodeChar8
-      $ IP.concatMapU Internal.fromList
+      $ IP.concatMapU IUF.fromList
       $ S.intersperse " "
       -- Array allocation is too expensive for such small strings. So just use
       -- lists instead.
