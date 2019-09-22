@@ -21,24 +21,6 @@ module Streamly.Internal
     -- * Diagnostics
       inspectMode
 
-    -- * Streamly.Internal.Data.Fold Experimental Exports
-    , Fold (..)
-    , toListRevF
-    , rollingHash
-    , rollingHashWithSalt
-    , lmap
-    , lmapM
-    , lfilter
-    , lfilterM
-    , lcatMaybes
-    , ltake
-    , ltakeWhile
-    , lsessionsOf
-    , lchunksOf
-    , duplicate
-    , initialize
-    , runStep
-
     -- * Streamly.Unfold Experimental Exports
     , Unfold (..)
     , fromList
@@ -54,6 +36,3 @@ import Streamly.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Unfold (fromList)
-
-import Streamly.Internal.Data.Fold
-import Streamly.Internal.Data.Fold.Types

@@ -19,16 +19,16 @@ import           Foreign.Storable (Storable(..))
 import qualified Streamly.Data.String as Streamly
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal as Streamly
+import qualified Streamly.Internal.Data.Fold as Internal
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as Streamly
 import           System.Environment (getArgs)
 import           System.IO (openFile, IOMode(..))
 
 instance (Enum a, Storable a) => Hashable (A.Array a) where
-    hash arr = runIdentity $ Streamly.runFold Streamly.rollingHash (A.read arr)
+    hash arr = runIdentity $ Streamly.runFold Internal.rollingHash (A.read arr)
     hashWithSalt salt arr = runIdentity $
-        Streamly.runFold (Streamly.rollingHashWithSalt salt) (A.read arr)
+        Streamly.runFold (Internal.rollingHashWithSalt salt) (A.read arr)
 
 {-# INLINE toLower #-}
 toLower :: Char -> Char

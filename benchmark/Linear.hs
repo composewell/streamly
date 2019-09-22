@@ -20,7 +20,7 @@ import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal as Internal
+import qualified Streamly.Internal.Data.Fold.Types as IFL
 import qualified Streamly.Internal.Prelude as IP
 --import qualified Streamly.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
@@ -235,7 +235,7 @@ main =
         , benchIOSink "foldMap" (S.runFold (FL.foldMap (Last . Just)))
 
         , benchIOSink "toList" (S.runFold FL.toList)
-        , benchIOSink "toListRevF" (S.runFold Internal.toListRevF)
+        , benchIOSink "toListRevF" (S.runFold IFL.toListRevF)
         , benchIOSink "toStream" (S.runFold IP.toStream)
         , benchIOSink "toStreamRev" (S.runFold IP.toStreamRev)
         , benchIOSink "writeN" (S.runFold (A.writeN Ops.value))
@@ -263,7 +263,7 @@ main =
         ]
       , bgroup "folds-transforms"
         [ benchIOSink "drain" (S.runFold FL.drain)
-        , benchIOSink "lmap" (S.runFold (Internal.lmap (+1) FL.drain))
+        , benchIOSink "lmap" (S.runFold (IFL.lmap (+1) FL.drain))
         {-, benchIOSink "pipe-mapM"
              (S.runFold (FL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))-}
         ]

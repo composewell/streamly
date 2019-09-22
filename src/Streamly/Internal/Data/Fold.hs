@@ -30,7 +30,7 @@ module Streamly.Internal.Data.Fold
     -- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
     -- 5050
 
-      Fold -- (..)
+      Fold (..)
 
     -- , tail
     -- , init
@@ -66,6 +66,7 @@ module Streamly.Internal.Data.Fold
     -- detrimental to performance if the input is large.
 
     , toList
+    , toListRevF  -- experimental
 
     -- ** Partial Folds
     -- , drainN
@@ -113,15 +114,15 @@ module Streamly.Internal.Data.Fold
 
     -- ** Mapping
     --, transform
-    -- , lmap
+    , lmap
     --, lsequence
-    -- , lmapM
-
-    -- -- ** Filtering
-    -- , lfilter
-    -- , lfilterM
+    , lmapM
+    -- ** Filtering
+    , lfilter
+    , lfilterM
     -- , ldeleteBy
     -- , luniq
+    , lcatMaybes
 
     {-
     -- ** Mapping Filters
@@ -142,17 +143,20 @@ module Streamly.Internal.Data.Fold
     , lreverse
     -}
 
-    {-
     -- * Parsing
     -- ** Trimming
     , ltake
     -- , lrunFor -- time
     , ltakeWhile
+    {-
     , ltakeWhileM
     , ldrop
     , ldropWhile
     , ldropWhileM
     -}
+
+    , lsessionsOf
+    , lchunksOf
 
     -- * Distributing
     -- |
@@ -219,10 +223,14 @@ module Streamly.Internal.Data.Fold
     -- , unzipWith
     -- , unzipWithM
 
-    -- -- * Nested Folds
+    -- * Running Folds
+    , initialize
+    , runStep
+
+    -- * Nested Folds
     -- , concatMap
     -- , chunksOf
-    -- , duplicate  -- experimental
+    , duplicate  -- experimental
     )
 where
 
@@ -240,8 +248,8 @@ import Prelude
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.Internal.Data.Fold.Types (Fold(..), lmap)
 import Streamly.Pipe.Types (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Fold.Types
 import Streamly.Strict
 
 import qualified Streamly.Pipe.Types as Pipe
