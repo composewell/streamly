@@ -7,42 +7,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Fold
+-- Module      : Streamly.Internal.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
---
--- A left fold consumes a stream and reduces it to a single value.  The fold
--- operations in "Streamly.Prelude" cannot be combined such that multiple of
--- them can run on the same stream.  This module provides a 'Fold' type that
--- represents a left fold. Multiple such folds can be combined using
--- combinators; a stream can then be supplied to the combined fold and it would
--- distribute the input to constituent folds according to the composition.
--- For example, an applicative composition distributes the same input to
--- the constituent folds and then combines the fold outputs.  Similarly, a
--- partitioning combinator can divide the input among constituent folds.
--- All the combinators in this module are of true streaming nature, stream
--- elements are not unnecessarily buffered in memory, guaranteeing a constant
--- memory consumption.
---
--- Consider this module as the consumer side dual of the "Streamly.Prelude"
--- module.  "Streamly.Prelude" provides combinators that can combine stream
--- sources in interesting ways whereas this module provides combinators that
--- combine stream consumers in interesting ways. In other words,
--- "Streamly.Prelude" provides stream merging capabilities while
--- "Streamly.Fold" provides stream splitting capabilities.
---
--- > import qualified Streamly.Fold as FL
 
 -- Also see the "Streamly.Sink" module that provides specialized left folds
 -- that discard the outputs.
 --
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 
-module Streamly.Fold
+module Streamly.Internal.Data.Fold
     (
     -- * Fold Type
     -- |
@@ -258,7 +236,7 @@ import Prelude
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.Fold.Types (Fold(..), lmap)
+import Streamly.Internal.Data.Fold.Types (Fold(..), lmap)
 import Streamly.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Strict
 

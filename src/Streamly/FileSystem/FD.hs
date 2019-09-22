@@ -146,7 +146,7 @@ import Streamly.Streams.StreamD (toStreamD)
 import Streamly.Streams.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 #endif
--- import Streamly.Fold (Fold)
+-- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Memory.Array as A

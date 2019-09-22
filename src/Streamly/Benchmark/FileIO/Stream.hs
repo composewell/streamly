@@ -59,8 +59,8 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.FileSystem.Handle.Internal as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Memory.Array.Types as AT
-import qualified Streamly.Internal.Prelude as S
-import qualified Streamly.Fold as FL
+import qualified Streamly.Prelude as S
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal as Internal
 import qualified Streamly.Internal.Prelude as IP

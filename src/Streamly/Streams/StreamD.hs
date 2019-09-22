@@ -299,7 +299,7 @@ import Prelude
 import qualified Control.Monad.Catch as MC
 
 import Streamly.Memory.Array.Types (Array(..))
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.SVar (MonadAsync, defState, adaptState)
 import Streamly.Unfold.Types (Unfold(..))

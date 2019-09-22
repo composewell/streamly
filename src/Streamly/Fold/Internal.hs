@@ -24,7 +24,7 @@ module Streamly.Fold.Internal
     )
 where
 
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 -- | Compute an 'Int' sized polynomial rolling hash
 --

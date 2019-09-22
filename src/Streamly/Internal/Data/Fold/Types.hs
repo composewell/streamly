@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts                   #-}
 
 -- |
--- Module      : Streamly.Fold.Types
+-- Module      : Streamly.Internal.Data.Fold.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Fold.Types
+module Streamly.Internal.Data.Fold.Types
     ( Fold (..)
     , toListRevF  -- experimental
     , lmap

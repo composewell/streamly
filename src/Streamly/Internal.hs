@@ -21,7 +21,7 @@ module Streamly.Internal
     -- * Diagnostics
       inspectMode
 
-    -- * Streamly.Fold Experimental Exports
+    -- * Streamly.Internal.Data.Fold Experimental Exports
     , Fold (..)
     , toListRevF
     , rollingHash
@@ -56,4 +56,4 @@ import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Unfold (fromList)
 
 import Streamly.Fold.Internal
-import Streamly.Fold.Types
+import Streamly.Internal.Data.Fold.Types

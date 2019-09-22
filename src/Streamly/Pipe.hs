@@ -15,7 +15,7 @@
 -- Portability : GHC
 --
 -- There are three fundamental types in streamly. They are streams
--- ("Streamly.Prelude"), pipes ("Streamly.Pipe") and folds ("Streamly.Fold").
+-- ("Streamly.Prelude"), pipes ("Streamly.Pipe") and folds ("Streamly.Data.Fold").
 -- Streams are sources or producers of values, multiple sources can be merged
 -- into a single source but a source cannot be split into multiple stream
 -- sources.  Folds are sinks or consumers, a stream can be split and
@@ -251,7 +251,7 @@ import Prelude
 -- import qualified Prelude
 
 -- import Streamly (MonadAsync, parallel)
--- import Streamly.Fold.Types (Fold(..))
+-- import Streamly.Data.Fold.Types (Fold(..))
 import Streamly.Pipe.Types
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
 -- import Streamly.Memory.Array.Types (Array)

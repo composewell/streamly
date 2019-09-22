@@ -884,7 +884,7 @@ import Streamly.Internal.Prelude
 
 -- $runningfolds
 --
--- "Streamly.Fold" module defines composable left folds which can be combined
+-- "Streamly.Data.Fold" module defines composable left folds which can be combined
 -- together in many interesting ways. Those folds can be run using 'runFold'.
 -- The following two ways of folding are equivalent in functionality and
 -- performance,

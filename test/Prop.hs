@@ -32,7 +32,7 @@ import Test.Hspec as H
 import Streamly
 import Streamly.Prelude ((.:), nil)
 import qualified Streamly.Prelude as S
-import qualified Streamly.Fold as FL
+import qualified Streamly.Data.Fold as FL
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int

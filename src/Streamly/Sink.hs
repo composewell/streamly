@@ -66,7 +66,7 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Sink.Types (Sink(..))
 
 import qualified Data.Map.Strict as Map

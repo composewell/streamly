@@ -110,7 +110,7 @@ import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
 import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Strict (Tuple'(..))
 import Streamly.SVar (adaptState)

@@ -119,7 +119,7 @@ import Streamly.Memory.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.SVar (MonadAsync)
--- import Streamly.Fold (Fold)
+-- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.FileSystem.Handle as FH

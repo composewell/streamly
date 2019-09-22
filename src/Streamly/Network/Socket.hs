@@ -89,11 +89,11 @@ import qualified Network.Socket as Net
 import Streamly.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Fold (Fold)
+import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Fold as FL
-import qualified Streamly.Fold.Types as FL
+import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Memory.Array.Types as A

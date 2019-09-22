@@ -403,7 +403,7 @@ import qualified Prelude
 import qualified System.IO as IO
 
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
-import Streamly.Fold.Types (Fold (..))
+import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Unfold.Types (Unfold)
 import Streamly.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -423,8 +423,8 @@ import Streamly.Time.Units
 import Streamly.Strict
 
 import qualified Streamly.Memory.Array.Types as A
-import qualified Streamly.Fold as FL
-import qualified Streamly.Fold.Types as FL
+import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D

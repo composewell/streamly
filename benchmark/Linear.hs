@@ -19,7 +19,7 @@ import qualified GHC.Exts as GHC
 import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
-import qualified Streamly.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal as Internal
 import qualified Streamly.Internal.Prelude as IP
 --import qualified Streamly.Pipe as Pipe

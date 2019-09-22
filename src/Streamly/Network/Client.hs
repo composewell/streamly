@@ -66,13 +66,13 @@ import Prelude hiding (read)
 import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
-import Streamly.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 -- import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
-import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 

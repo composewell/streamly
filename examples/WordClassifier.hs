@@ -18,7 +18,7 @@ import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
 import qualified Streamly.Data.String as Streamly
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal as Streamly
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as Streamly

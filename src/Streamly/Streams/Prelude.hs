@@ -67,7 +67,7 @@ import Control.Monad.Trans (MonadTrans(..))
 import Prelude hiding (foldr)
 import qualified Prelude
 
-import Streamly.Fold.Types (Fold (..))
+import Streamly.Internal.Data.Fold.Types (Fold (..))
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S

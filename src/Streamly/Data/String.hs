@@ -89,7 +89,7 @@ import Data.Word (Word8)
 import GHC.Base (unsafeChr)
 import Streamly (IsStream, MonadAsync)
 import Prelude hiding (String, lines, words, unlines, unwords)
-import Streamly.Fold (Fold)
+import Streamly.Data.Fold (Fold)
 import Streamly.Memory.Array (Array)
 import Streamly.Unfold (Unfold)
 

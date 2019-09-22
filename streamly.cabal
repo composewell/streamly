@@ -288,7 +288,6 @@ library
                      , Streamly.Unfold
 
                     -- Folds
-                     , Streamly.Fold.Types
                      , Streamly.Fold.Internal
                      , Streamly.Sink.Types
                      , Streamly.Sink
@@ -308,8 +307,7 @@ library
     exposed-modules:   Streamly.Prelude
                      , Streamly.Time
                      , Streamly
-                     , Streamly.Fold
-
+                     , Streamly.Data.Fold
                      , Streamly.Data.String
 
                     -- IO devices
@@ -321,6 +319,8 @@ library
                      -- Internal modules
                      , Streamly.Internal
                      , Streamly.Internal.Memory.ArrayStream
+                     , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:
