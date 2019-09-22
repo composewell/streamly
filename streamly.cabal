@@ -288,7 +288,6 @@ library
                      , Streamly.Unfold
 
                     -- Folds
-                     , Streamly.Fold.Internal
                      , Streamly.Sink.Types
                      , Streamly.Sink
                      , Streamly.Pipe.Types

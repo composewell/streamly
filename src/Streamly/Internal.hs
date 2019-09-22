@@ -55,5 +55,5 @@ import Streamly.Streams.Combinators (inspectMode)
 import Streamly.Unfold.Types (Unfold(..))
 import Streamly.Unfold (fromList)
 
-import Streamly.Fold.Internal
+import Streamly.Internal.Data.Fold
 import Streamly.Internal.Data.Fold.Types

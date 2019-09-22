@@ -244,4 +244,3 @@ import Prelude
                span, splitAt, break, mapM)
 
 import Streamly.Internal.Data.Fold
-import Streamly.Internal.Data.Fold.Types
