@@ -4,14 +4,14 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Pipe.Types
+-- Module      : Streamly.Internal.Data.Pipe.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Pipe.Types
+module Streamly.Internal.Data.Pipe.Types
     ( Step (..)
     , Pipe (..)
     , PipeState (..)

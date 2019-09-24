@@ -415,7 +415,7 @@ import Streamly.Streams.Prelude
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
 import Streamly.Streams.StreamK (IsStream((|:), consM))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Pipe.Types (Pipe (..))
+import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
        toAbsTime)

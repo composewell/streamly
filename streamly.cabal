@@ -282,8 +282,6 @@ library
                     -- Folds
                      , Streamly.Sink.Types
                      , Streamly.Sink
-                     , Streamly.Pipe.Types
-                     , Streamly.Pipe
 
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
@@ -313,6 +311,8 @@ library
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
+                     , Streamly.Internal.Data.Pipe.Types
+                     , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.List
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File

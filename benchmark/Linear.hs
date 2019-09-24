@@ -22,7 +22,7 @@ import Streamly
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as IFL
 import qualified Streamly.Internal.Prelude as IP
---import qualified Streamly.Pipe as Pipe
+--import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.Sink   as Sink

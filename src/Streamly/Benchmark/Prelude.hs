@@ -47,7 +47,7 @@ import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Data.Unfold   as UF
--- import qualified Streamly.Pipe  as Pipe
+-- import qualified Streamly.Internal.Data.Pipe  as Pipe
 
 value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC

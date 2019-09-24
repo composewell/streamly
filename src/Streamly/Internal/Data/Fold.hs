@@ -248,11 +248,11 @@ import Prelude
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.Pipe.Types (Pipe (..), PipeState(..))
+import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
 import Streamly.Strict
 
-import qualified Streamly.Pipe.Types as Pipe
+import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs

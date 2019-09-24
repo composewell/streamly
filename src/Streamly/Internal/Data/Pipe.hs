@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Pipe
+-- Module      : Streamly.Internal.Data.Pipe
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -15,7 +15,7 @@
 -- Portability : GHC
 --
 -- There are three fundamental types in streamly. They are streams
--- ("Streamly.Prelude"), pipes ("Streamly.Pipe") and folds ("Streamly.Data.Fold").
+-- ("Streamly.Prelude"), pipes ("Streamly.Internal.Data.Pipe") and folds ("Streamly.Data.Fold").
 -- Streams are sources or producers of values, multiple sources can be merged
 -- into a single source but a source cannot be split into multiple stream
 -- sources.  Folds are sinks or consumers, a stream can be split and
@@ -27,9 +27,9 @@
 -- fold to produce a fold, or multiple pipes can be merged or zipped into a
 -- single pipe.
 --
--- > import qualified Streamly.Pipe as P
+-- > import qualified Streamly.Internal.Data.Pipe as P
 
-module Streamly.Pipe
+module Streamly.Internal.Data.Pipe
     (
     -- * Pipe Type
       Pipe
@@ -252,7 +252,7 @@ import Prelude
 
 -- import Streamly (MonadAsync, parallel)
 -- import Streamly.Data.Fold.Types (Fold(..))
-import Streamly.Pipe.Types
+import Streamly.Internal.Data.Pipe.Types
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
 -- import Streamly.Internal.Memory.Array.Types (Array)
 -- import Streamly.Memory.Ring (Ring)
