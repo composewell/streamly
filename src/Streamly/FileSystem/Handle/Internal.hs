@@ -40,9 +40,9 @@ import Foreign.Storable (Storable(..))
 import System.IO (Handle, hPutBuf)
 import Prelude hiding (read)
 
-import Streamly.Memory.Array.Types (Array(..))
+import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Memory.Array.Types (defaultChunkSize)
+import Streamly.Internal.Memory.Array.Types (defaultChunkSize)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS

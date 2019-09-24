@@ -95,7 +95,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as UF

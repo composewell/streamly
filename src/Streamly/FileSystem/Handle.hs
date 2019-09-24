@@ -119,9 +119,9 @@ import System.IO (Handle, hGetBufSome)
 import Prelude hiding (read)
 
 import Streamly.FileSystem.Handle.Internal (writeArray)
-import Streamly.Memory.Array.Types (Array(..), writeNUnsafe)
+import Streamly.Internal.Memory.Array.Types (Array(..), writeNUnsafe)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
-import Streamly.Memory.Array.Types
+import Streamly.Internal.Memory.Array.Types
        (defaultChunkSize, shrinkToFit, lpackArraysChunksOf)
 import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)

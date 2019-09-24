@@ -259,7 +259,6 @@ library
 
                     -- Memory storage
                      , Streamly.Memory.Malloc
-                     , Streamly.Memory.Array.Types
                      , Streamly.Memory.Ring
 
                     -- Base streams
@@ -310,6 +309,7 @@ library
 
                      -- Internal modules
                      , Streamly.Internal
+                     , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold

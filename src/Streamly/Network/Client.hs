@@ -67,7 +67,7 @@ import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
+import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 -- import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 

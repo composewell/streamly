@@ -40,7 +40,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, concat)
 
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the

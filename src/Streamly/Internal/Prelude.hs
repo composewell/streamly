@@ -405,7 +405,7 @@ import qualified System.IO as IO
 import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Memory.Array.Types (Array, writeNUnsafe)
+import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
@@ -422,7 +422,7 @@ import Streamly.Time.Units
 
 import Streamly.Strict
 
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P

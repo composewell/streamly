@@ -136,12 +136,12 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
+import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Memory.Array.Types (groupIOVecsOf)
+import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
 import Streamly.Streams.StreamD (toStreamD)
 import Streamly.Streams.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)

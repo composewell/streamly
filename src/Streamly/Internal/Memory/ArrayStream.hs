@@ -47,12 +47,12 @@ import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Memory.Array.Types (Array(..), length)
+import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Streams.Prelude as P

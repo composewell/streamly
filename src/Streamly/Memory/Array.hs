@@ -143,12 +143,12 @@ import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Memory.Array.Types (Array(..), length)
+import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial

@@ -115,7 +115,7 @@ import Prelude hiding (read)
 
 import qualified System.IO as SIO
 
-import Streamly.Memory.Array.Types (Array(..), defaultChunkSize)
+import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.SVar (MonadAsync)

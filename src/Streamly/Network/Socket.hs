@@ -86,7 +86,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
-import Streamly.Memory.Array.Types (Array(..))
+import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -96,7 +96,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
 
 -- | @'withSocket' socket act@ runs the monadic computation @act@ passing the

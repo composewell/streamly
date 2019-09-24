@@ -11,7 +11,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.Array.Types
+-- Module      : Streamly.Memory.Malloc
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3

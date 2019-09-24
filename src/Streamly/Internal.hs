@@ -28,5 +28,5 @@ where
 
 import Prelude hiding (break, span, splitAt)
 
-import Streamly.Memory.Array.Types (readU)
+import Streamly.Internal.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)
