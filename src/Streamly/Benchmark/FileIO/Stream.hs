@@ -62,7 +62,6 @@ import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Data.String as SS
-import qualified Streamly.Internal as Internal
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D
@@ -136,7 +135,7 @@ countLinesU inh =
     S.length
         $ SS.foldLines FL.drain
         $ SS.decodeChar8
-        $ IP.concatMapU Internal.readU (FH.readArrays inh)
+        $ IP.concatMapU AT.readU (FH.readArrays inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLinesU

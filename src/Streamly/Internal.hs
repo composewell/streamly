@@ -20,13 +20,7 @@ module Streamly.Internal
     (
     -- * Diagnostics
       inspectMode
-
-    -- * Streamly.Memory.Array
-    , readU
     )
 where
 
-import Prelude hiding (break, span, splitAt)
-
-import Streamly.Internal.Memory.Array.Types (readU)
 import Streamly.Streams.Combinators (inspectMode)

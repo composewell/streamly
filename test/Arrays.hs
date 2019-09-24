@@ -12,8 +12,8 @@ import Test.QuickCheck.Monadic (monadicIO, assert)
 import Test.Hspec as H
 
 import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal as Internal
 import qualified Streamly.Internal.Prelude as IP
 
 -- Coverage build takes too long with default number of tests
@@ -86,7 +86,7 @@ testFlattenArrays =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ IP.concatMapU Internal.readU
+                    $ IP.concatMapU AT.readU
                     $ IP.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
