@@ -17,7 +17,7 @@ import Streamly
 
 #ifdef USE_STREAMLY_LIST
 import Data.Functor.Identity
-import Streamly.List (List(..), pattern Cons, pattern Nil, ZipList(..),
+import Streamly.Internal.Data.List (List(..), pattern Cons, pattern Nil, ZipList(..),
                      fromZipList, toZipList)
 import qualified Streamly.Prelude as S
 #else

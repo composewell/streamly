@@ -40,7 +40,7 @@
 -- character array cannot be directly compared. A normalized comparison may be
 -- needed to check string equivalence correctly.
 
--- See "Streamly.List", <src/docs/streamly-vs-lists.md> for more details and
+-- See "Streamly.Internal.Data.List", <src/docs/streamly-vs-lists.md> for more details and
 -- <src/test/PureStreams.hs> for comprehensive usage examples.
 
 -- TBD write a note on performance comparison with text, bytestrings, lists and

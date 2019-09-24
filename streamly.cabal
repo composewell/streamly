@@ -280,9 +280,6 @@ library
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
 
-                    -- Pure streams
-                     , Streamly.List
-
                     -- Folds
                      , Streamly.Sink.Types
                      , Streamly.Sink
@@ -318,7 +315,7 @@ library
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
-
+                     , Streamly.Internal.Data.List
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:

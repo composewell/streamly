@@ -7,7 +7,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 
 -- |
--- Module      : Streamly.List
+-- Module      : Streamly.Internal.Data.List
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -55,7 +55,7 @@
 -- See <src/docs/streamly-vs-lists.md> for more details and
 -- <src/test/PureStreams.hs> for comprehensive usage examples.
 --
-module Streamly.List
+module Streamly.Internal.Data.List
     (
 #if __GLASGOW_HASKELL__ >= 800
     List (.., Nil, Cons)
