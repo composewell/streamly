@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.FileSystem.File
+-- Module      : Streamly.Internal.FileSystem.File
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -24,10 +24,10 @@
 -- the handle based APIs as there is no possiblity of a file descriptor
 -- leakage.
 --
--- > import qualified Streamly.FileSystem.File as File
+-- > import qualified Streamly.Internal.FileSystem.File as File
 --
 
-module Streamly.FileSystem.File
+module Streamly.Internal.FileSystem.File
     (
     -- * Streaming IO
     -- | Stream data to or from a file or device sequentially.  When reading,

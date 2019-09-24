@@ -18,7 +18,7 @@
 --
 -- Read and write streams and arrays to and from network sockets. Socket IO
 -- APIs are quite similar to "Streamly.Memory.Array" read write APIs and almost
--- identical to the sequential streaming APIs in "Streamly.FileSystem.File".
+-- identical to the sequential streaming APIs in "Streamly.Internal.FileSystem.File".
 --
 -- Read IO requests to the socket are performed in chunks of 32KiB, this is
 -- referred to as @defaultChunkSize@ in the documentation. One IO request may
