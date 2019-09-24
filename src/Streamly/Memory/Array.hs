@@ -149,7 +149,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Fold.Types (Fold(..))
 
 import qualified Streamly.Memory.Array.Types as A
-import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D

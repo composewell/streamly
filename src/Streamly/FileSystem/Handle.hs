@@ -129,7 +129,7 @@ import Streamly.Fold (Fold)
 import qualified Streamly.Fold as FL
 import qualified Streamly.Fold.Types as FL
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD.Type as D
 
 -------------------------------------------------------------------------------

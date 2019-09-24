@@ -150,7 +150,7 @@ import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 

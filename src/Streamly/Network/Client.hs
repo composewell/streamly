@@ -72,7 +72,7 @@ import Streamly.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Fold.Types as FL
-import qualified Streamly.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
 

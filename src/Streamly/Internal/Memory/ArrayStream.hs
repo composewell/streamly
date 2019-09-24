@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.ArrayStream
+-- Module      : Streamly.Internal.Memory.ArrayStream
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 --
 -- Combinators to efficiently manipulate streams of arrays.
 --
-module Streamly.Memory.ArrayStream
+module Streamly.Internal.Memory.ArrayStream
     (
     -- * Creation
       arraysOf

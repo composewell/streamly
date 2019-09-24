@@ -295,7 +295,6 @@ library
                      , Streamly.Pipe.Types
                      , Streamly.Pipe
 
-                     , Streamly.Memory.ArrayStream
                      , Streamly.Prelude.Internal
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
@@ -319,7 +318,10 @@ library
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
+
+                     -- Internal modules
                      , Streamly.Internal
+                     , Streamly.Internal.Memory.ArrayStream
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
