@@ -289,7 +289,6 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
                      , Streamly.FileSystem.File
-                     , Streamly.FileSystem.Handle.Internal
 
                     -- Time
                      , Streamly.Time.Units
@@ -316,6 +315,7 @@ library
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.List
+                     , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:

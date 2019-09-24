@@ -56,7 +56,7 @@ import System.IO (Handle)
 import Prelude hiding (last, length)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.FileSystem.Handle.Internal as FH
+import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S

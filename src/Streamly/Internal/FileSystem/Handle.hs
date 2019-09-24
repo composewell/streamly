@@ -7,7 +7,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.FileSystem.Handle.Internal
+-- Module      : Streamly.Internal.FileSystem.Handle
 -- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
@@ -17,7 +17,7 @@
 --
 -- Streaming based IO write rotuines based on file handles.
 
-module Streamly.FileSystem.Handle.Internal
+module Streamly.Internal.FileSystem.Handle
     (
     writeArray
 
