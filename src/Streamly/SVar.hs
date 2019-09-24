@@ -119,7 +119,7 @@ import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl, control, StM)
-import Streamly.Atomics
+import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
         storeLoadBarrier)
 import Data.Concurrent.Queue.MichaelScott (LinkedQueue, pushL)

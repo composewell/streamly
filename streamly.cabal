@@ -252,8 +252,7 @@ library
     if os(darwin)
       c-sources:     src/Streamly/Time/Darwin.c
     hs-source-dirs:    src
-    other-modules:     Streamly.Atomics
-                     , Streamly.SVar
+    other-modules:     Streamly.SVar
                      , Streamly.Strict
                      , Streamly.Enumeration
 
@@ -305,6 +304,7 @@ library
 
                      -- Internal modules
                      , Streamly.Internal
+                     , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
@@ -643,7 +643,7 @@ benchmark base
     c-sources:     src/Streamly/Time/Darwin.c
   hs-source-dirs: benchmark, src
   main-is: BaseStreams.hs
-  other-modules:     Streamly.Atomics
+  other-modules:     Streamly.Internal.Data.Atomics
                    , Streamly.Time.Units
                    , Streamly.Time.Clock
                    , Streamly.SVar
@@ -698,7 +698,7 @@ executable nano-bench
   if os(darwin)
     c-sources:     src/Streamly/Time/Darwin.c
   main-is: NanoBenchmarks.hs
-  other-modules:     Streamly.Atomics
+  other-modules:     Streamly.Internal.Data.Atomics
                    , Streamly.Time.Units
                    , Streamly.Time.Clock
                    , Streamly.SVar

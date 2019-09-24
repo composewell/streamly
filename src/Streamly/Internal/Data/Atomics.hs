@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP    #-}
 
 -- |
--- Module      : Streamly.Atomics
+-- Module      : Streamly.Internal.Data.Atomics
 -- Copyright   : (c) 2018-2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -9,7 +9,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Atomics
+module Streamly.Internal.Data.Atomics
     (
       atomicModifyIORefCAS
     , atomicModifyIORefCAS_

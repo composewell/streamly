@@ -56,7 +56,7 @@ import Data.Semigroup (Semigroup(..))
 import Prelude hiding (map)
 import qualified Data.Set as S
 
-import Streamly.Atomics (atomicModifyIORefCAS)
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.SVar
