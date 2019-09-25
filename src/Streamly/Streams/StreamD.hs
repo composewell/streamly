@@ -301,7 +301,7 @@ import qualified Control.Monad.Catch as MC
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
-import Streamly.SVar (MonadAsync, defState, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync, defState, adaptState)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Strict (Tuple'(..))
 

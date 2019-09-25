@@ -59,7 +59,7 @@ import qualified Data.Set as S
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK
        (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared,
         foldStreamSVar)

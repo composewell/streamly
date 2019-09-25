@@ -113,7 +113,7 @@ import GHC.Ptr (Ptr(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Strict (Tuple'(..))
-import Streamly.SVar (adaptState)
+import Streamly.Internal.Data.SVar (adaptState)
 
 #if !defined(mingw32_HOST_OS)
 import Streamly.FileSystem.FDIO (IOVec(..))

@@ -29,7 +29,7 @@ where
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.Int (Int64)
 
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK
 import Streamly.Streams.Serial (SerialT)
 

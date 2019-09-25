@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 import Streamly (SerialT)
-import Streamly.SVar (MonadAsync)
+import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.FileSystem.Handle as FH

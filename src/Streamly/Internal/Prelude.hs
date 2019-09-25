@@ -407,7 +407,7 @@ import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.SVar (MonadAsync, defState)
+import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (maxYields)
 import Streamly.Streams.Prelude

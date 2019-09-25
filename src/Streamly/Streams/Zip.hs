@@ -56,7 +56,7 @@ import Prelude hiding (map, repeat, zipWith)
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Serial (map)
-import Streamly.SVar (MonadAsync, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync, adaptState)
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K

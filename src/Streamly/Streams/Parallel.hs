@@ -58,7 +58,7 @@ import qualified Data.Set as Set
 
 import Streamly.Streams.SVar (fromSVar, fromStreamVar)
 import Streamly.Streams.Serial (map)
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
                                  foldStreamShared, adapt)
 import qualified Streamly.Streams.StreamK as K

@@ -71,7 +71,7 @@ import Control.Monad.Trans (lift, MonadTrans)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
 
-import Streamly.SVar (State(..), adaptState, defState)
+import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import qualified Streamly.Streams.StreamK as K

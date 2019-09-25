@@ -118,7 +118,7 @@ import qualified System.IO as SIO
 import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.SVar (MonadAsync)
+import Streamly.Internal.Data.SVar (MonadAsync)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 

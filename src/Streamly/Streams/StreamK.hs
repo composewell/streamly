@@ -194,7 +194,7 @@ import Prelude
                foldr1, (!!), replicate, reverse, concatMap)
 import qualified Prelude
 
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK.Type
 
 -------------------------------------------------------------------------------

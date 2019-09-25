@@ -92,7 +92,7 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import Prelude hiding (map, mapM, concatMap, foldr)
 
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 
 ------------------------------------------------------------------------------
 -- Basic stream type

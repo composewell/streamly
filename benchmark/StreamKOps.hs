@@ -21,7 +21,7 @@ import qualified Data.List as List
 
 import qualified Streamly.Streams.StreamK as S
 import qualified Streamly.Streams.Prelude as SP
-import qualified Streamly.SVar as S
+import qualified Streamly.Internal.Data.SVar as S
 
 value, value2, value3, value16, maxValue :: Int
 value = 100000

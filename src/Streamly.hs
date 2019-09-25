@@ -211,7 +211,7 @@ module Streamly
 where
 
 import Data.Semigroup (Semigroup(..))
-import Streamly.SVar (MonadAsync, Rate(..))
+import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
 import Streamly.Streams.Ahead
 import Streamly.Streams.Async
 import Streamly.Streams.Combinators

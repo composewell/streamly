@@ -43,7 +43,7 @@ import Data.Maybe (isJust, fromJust)
 import Data.Semigroup (Semigroup(..))
 #endif
 import Streamly.Strict (Tuple'(..), Tuple3'(..), Either'(..))
-import Streamly.SVar (MonadAsync)
+import Streamly.Internal.Data.SVar (MonadAsync)
 
 ------------------------------------------------------------------------------
 -- Monadic left folds

@@ -31,7 +31,7 @@ import System.IO (hPutStrLn, stderr)
 import Streamly.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
-import Streamly.SVar
+import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK hiding (reverse)
 
 printSVar :: SVar t m a -> String -> IO ()

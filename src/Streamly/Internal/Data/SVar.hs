@@ -13,7 +13,7 @@
 {-# LANGUAGE UnboxedTuples              #-}
 
 -- |
--- Module      : Streamly.SVar
+-- Module      : Streamly.Internal.Data.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -21,7 +21,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.SVar
+module Streamly.Internal.Data.SVar
     (
       MonadAsync
     , SVarStyle (..)
