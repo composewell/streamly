@@ -250,7 +250,7 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
-import Streamly.Strict
+import Streamly.Internal.Data.Strict
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 

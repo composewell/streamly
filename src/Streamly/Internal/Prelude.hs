@@ -420,7 +420,7 @@ import Streamly.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
        toAbsTime)
 
-import Streamly.Strict
+import Streamly.Internal.Data.Strict
 
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Data.Fold as FL

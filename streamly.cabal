@@ -252,8 +252,7 @@ library
     if os(darwin)
       c-sources:     src/Streamly/Time/Darwin.c
     hs-source-dirs:    src
-    other-modules:     Streamly.Strict
-                     , Streamly.Enumeration
+    other-modules:     Streamly.Enumeration
 
                     -- Memory storage
                      , Streamly.Memory.Malloc
@@ -303,6 +302,7 @@ library
 
                      -- Internal modules
                      , Streamly.Internal
+                     , Streamly.Internal.Data.Strict
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Memory.Array.Types

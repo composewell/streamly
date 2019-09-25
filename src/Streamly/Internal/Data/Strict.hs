@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Strict
+-- Module      : Streamly.Internal.Data.Strict
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
@@ -17,7 +17,7 @@
 -- scans is that it helps the compiler optimize the code much better by
 -- unboxing. In a big tight loop the difference could be huge.
 --
-module Streamly.Strict
+module Streamly.Internal.Data.Strict
     (
       Tuple' (..)
     , Tuple3' (..)
