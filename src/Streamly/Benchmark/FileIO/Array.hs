@@ -44,6 +44,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Memory.ArrayStream as AS
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
@@ -81,7 +82,7 @@ inspect $ 'countBytes `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
 countLines :: Handle -> IO Int
-countLines = S.length . A.splitOnSuffix 10 . FH.readArrays
+countLines = S.length . AS.splitOnSuffix 10 . FH.readArrays
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLines
@@ -92,7 +93,7 @@ inspect $ 'countLines `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countWords #-}
 countWords :: Handle -> IO Int
-countWords = S.length . A.splitOn 32 . FH.readArrays
+countWords = S.length . AS.splitOn 32 . FH.readArrays
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countWords
@@ -141,7 +142,7 @@ linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
         $ Internal.insertAfterEach (return $ A.fromList [10])
-        $ A.splitOnSuffix 10
+        $ AS.splitOnSuffix 10
         $ FH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
@@ -156,7 +157,7 @@ wordsUnwordsCopy inh outh =
     S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
         $ S.intersperse (A.fromList [32])
         -- XXX use a word splitting combinator
-        $ A.splitOn 32
+        $ AS.splitOn 32
         $ FH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION

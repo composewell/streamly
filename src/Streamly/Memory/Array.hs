@@ -120,20 +120,6 @@ module Streamly.Memory.Array
     -- , runStreamFold
     , runFold
     -}
-
-    -- * Streams of Arrays
-    -- -- ** Creation
-    -- , AS.arraysOf
-
-    -- -- ** Elimination
-    -- , AS.concat
-    -- , AS.concatRev
-    -- , AS.toArray
-
-    -- ** Transformation
-    , AS.splitOn
-    , AS.splitOnSuffix
-    -- , AS.compact -- compact
     )
 where
 
@@ -149,7 +135,6 @@ import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import qualified Streamly.Internal.Memory.Array.Types as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D
