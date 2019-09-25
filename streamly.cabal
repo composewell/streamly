@@ -292,7 +292,6 @@ library
                      , Streamly.Tutorial
 
                      -- Internal modules
-                     , Streamly.Internal
                      , Streamly.Internal.Data.Strict
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.Time

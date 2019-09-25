@@ -365,6 +365,9 @@ module Streamly.Internal.Prelude
     , finally
     , handle
 
+    -- * Diagnostics
+    , inspectMode
+
     -- * Deprecated
     , K.once
     , each
@@ -409,7 +412,7 @@ import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Streams.Async (mkAsync')
-import Streamly.Streams.Combinators (maxYields)
+import Streamly.Streams.Combinators (inspectMode, maxYields)
 import Streamly.Streams.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Streams.StreamD (fromStreamD, toStreamD)
