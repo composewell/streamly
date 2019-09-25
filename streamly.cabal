@@ -110,13 +110,13 @@ extra-source-files:
     src/Streamly/Streams/inline.hs
     configure.ac
     configure
-    src/Streamly/Time/config.h.in
+    src/Streamly/Internal/Data/Time/config.h.in
 
 extra-tmp-files:
     config.log
     config.status
     autom4te.cache
-    src/Streamly/Time/config.h
+    src/Streamly/Internal/Data/Time/config.h
 
 source-repository head
     type: git
@@ -245,12 +245,12 @@ common bench-options
 library
     import: lib-options
     js-sources: jsbits/clock.js
-    include-dirs:     src/Streamly/Time
+    include-dirs:     src/Streamly/Internal/Data/Time
                     , src/Streamly/Streams
     if os(windows)
-      c-sources:     src/Streamly/Time/Windows.c
+      c-sources:     src/Streamly/Internal/Data/Time/Windows.c
     if os(darwin)
-      c-sources:     src/Streamly/Time/Darwin.c
+      c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:     Streamly.Enumeration
 
@@ -284,12 +284,7 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
 
-                    -- Time
-                     , Streamly.Time.Units
-                     , Streamly.Time.Clock
-
     exposed-modules:   Streamly.Prelude
-                     , Streamly.Time
                      , Streamly
                      , Streamly.Data.Fold
                      , Streamly.Data.String
@@ -304,6 +299,9 @@ library
                      , Streamly.Internal
                      , Streamly.Internal.Data.Strict
                      , Streamly.Internal.Data.Atomics
+                     , Streamly.Internal.Data.Time
+                     , Streamly.Internal.Data.Time.Units
+                     , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.ArrayStream
@@ -635,18 +633,18 @@ benchmark concurrent
 benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
-  include-dirs:     src/Streamly/Time
+  include-dirs:     src/Streamly/Internal/Data/Time
                   , src/Streamly/Streams
   if os(windows)
-    c-sources:     src/Streamly/Time/Windows.c
+    c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)
-    c-sources:     src/Streamly/Time/Darwin.c
+    c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
   hs-source-dirs: benchmark, src
   main-is: BaseStreams.hs
   other-modules:     Streamly.Internal.Data.Atomics
                    , Streamly.Internal.Data.SVar
-                   , Streamly.Time.Units
-                   , Streamly.Time.Clock
+                   , Streamly.Internal.Data.Time.Units
+                   , Streamly.Internal.Data.Time.Clock
                    , Streamly.Streams.StreamDK.Type
                    , Streamly.Streams.StreamDK
                    , Streamly.Streams.StreamK.Type
@@ -691,17 +689,17 @@ benchmark base
 executable nano-bench
   import: bench-options
   hs-source-dirs: benchmark, src
-  include-dirs:     src/Streamly/Time
+  include-dirs:     src/Streamly/Internal/Data/Time
                   , src/Streamly/Streams
   if os(windows)
-    c-sources:     src/Streamly/Time/Windows.c
+    c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)
-    c-sources:     src/Streamly/Time/Darwin.c
+    c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
   main-is: NanoBenchmarks.hs
   other-modules:     Streamly.Internal.Data.Atomics
                    , Streamly.Internal.Data.SVar
-                   , Streamly.Time.Units
-                   , Streamly.Time.Clock
+                   , Streamly.Internal.Data.Time.Units
+                   , Streamly.Internal.Data.Time.Clock
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.Streams.StreamD.Type

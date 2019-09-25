@@ -14,7 +14,7 @@
 #endif
 
 -- |
--- Module      : Streamly.Time.Clock
+-- Module      : Streamly.Internal.Data.Time.Clock
 -- Copyright   : (c) 2019 Harendra Kumar
 --               (c) 2009-2012, Cetin Sert
 --               (c) 2010, Eugene Kirpichov
@@ -37,7 +37,7 @@
 #error "Time/Clock functionality not implemented for this system"
 #endif
 
-module Streamly.Time.Clock
+module Streamly.Internal.Data.Time.Clock
     (
     -- * get time from the system clock
       Clock(..)
@@ -54,7 +54,7 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..), peek)
 import GHC.Generics (Generic)
 
-import Streamly.Time.Units (TimeSpec(..), AbsTime(..))
+import Streamly.Internal.Data.Time.Units (TimeSpec(..), AbsTime(..))
 
 -------------------------------------------------------------------------------
 -- Clock Types

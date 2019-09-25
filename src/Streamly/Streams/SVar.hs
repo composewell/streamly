@@ -28,7 +28,7 @@ import Data.Maybe (isNothing)
 import Data.Semigroup ((<>))
 #endif
 import System.IO (hPutStrLn, stderr)
-import Streamly.Time.Clock (Clock(Monotonic), getTime)
+import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import Streamly.Internal.Data.SVar

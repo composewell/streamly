@@ -258,7 +258,7 @@ import Streamly.Internal.Data.Pipe.Types
 -- import Streamly.Memory.Ring (Ring)
 -- import Streamly.Streams.Serial (SerialT)
 -- import Streamly.Streams.StreamK (IsStream())
--- import Streamly.Time.Units
+-- import Streamly.Internal.Data.Time.Units
 -- (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
 -- toAbsTime)
 

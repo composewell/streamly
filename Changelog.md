@@ -37,6 +37,8 @@
     * `foldWith`, `foldMapWith`, `forEachWith` have been moved to
       `Streamly.Prelude` module.
 
+* Remove deprecated module `Streamly.Time` (moved to Streamly.Internal)
+
 ### Bug Fixes
 
 * Fix a bug that caused `uniq` function to yield the same element twice.

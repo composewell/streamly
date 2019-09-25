@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Time
+-- Module      : Streamly.Internal.Data.Time
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -9,7 +9,7 @@
 --
 -- Time utilities for reactive programming.
 
-module Streamly.Time
+module Streamly.Internal.Data.Time
 {-# DEPRECATED
    "Please use the \"rate\" combinator instead of the functions in this module"
   #-}

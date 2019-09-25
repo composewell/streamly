@@ -3310,7 +3310,7 @@ done
 
 
 # Output
-ac_config_headers="$ac_config_headers src/Streamly/Time/config.h"
+ac_config_headers="$ac_config_headers src/Streamly/Internal/Data/Time/config.h"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -3984,7 +3984,7 @@ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
 for ac_config_target in $ac_config_targets
 do
   case $ac_config_target in
-    "src/Streamly/Time/config.h") CONFIG_HEADERS="$CONFIG_HEADERS src/Streamly/Time/config.h" ;;
+    "src/Streamly/Internal/Data/Time/config.h") CONFIG_HEADERS="$CONFIG_HEADERS src/Streamly/Internal/Data/Time/config.h" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

@@ -139,8 +139,8 @@ import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
-import Streamly.Time.Clock (Clock(..), getTime)
-import Streamly.Time.Units
+import Streamly.Internal.Data.Time.Clock (Clock(..), getTime)
+import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
 import System.IO (hPutStrLn, stderr)

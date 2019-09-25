@@ -13,5 +13,5 @@ AC_CHECK_HEADERS([time.h])
 AC_CHECK_FUNCS([clock_gettime])
 
 # Output
-AC_CONFIG_HEADERS([src/Streamly/Time/config.h])
+AC_CONFIG_HEADERS([src/Streamly/Internal/Data/Time/config.h])
 AC_OUTPUT

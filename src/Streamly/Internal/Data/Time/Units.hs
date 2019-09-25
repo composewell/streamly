@@ -5,7 +5,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Time.Units
+-- Module      : Streamly.Internal.Data.Time.Units
 -- Copyright   : (c) 2019 Harendra Kumar
 --
 -- License     : BSD3
@@ -13,7 +13,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Time.Units
+module Streamly.Internal.Data.Time.Units
     (
     -- * Time Unit Conversions
       TimeUnit()
