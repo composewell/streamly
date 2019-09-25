@@ -1,7 +1,8 @@
 import qualified Streamly.Prelude as S
-import qualified Streamly.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.FileSystem.File as File
+import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.FileSystem.File as File
 
 import Data.Char (ord)
 import System.Environment (getArgs)
@@ -20,25 +21,25 @@ ord' = (fromIntegral . ord)
 
 wcl :: FilePath -> IO ()
 wcl src = print =<< (S.length
-    $ FL.splitSuffixBy (== ord' '\n') FL.drain
+    $ S.splitOnSuffix (== ord' '\n') FL.drain
     $ File.read src)
 
 grepc :: String -> FilePath -> IO ()
 grepc pat src = print . (subtract 1) =<< (S.length
-    $ FL.splitOn (A.fromList (map ord' pat)) FL.drain
+    $ IP.splitOnSeq (A.fromList (map ord' pat)) FL.drain
     $ File.read src)
 
 avgll :: FilePath -> IO ()
-avgll src = print =<< (FL.foldl' avg
-    $ FL.splitSuffixBy (== ord' '\n') FL.length
+avgll src = print =<< (S.runFold avg
+    $ S.splitOnSuffix (== ord' '\n') FL.length
     $ File.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
 llhisto :: FilePath -> IO ()
-llhisto src = print =<< (FL.foldl' (FL.classify FL.length)
+llhisto src = print =<< (S.runFold (FL.classify FL.length)
     $ S.map bucket
-    $ FL.splitSuffixBy (== ord' '\n') FL.length
+    $ S.splitOnSuffix (== ord' '\n') FL.length
     $ File.read src)
     where
     bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)

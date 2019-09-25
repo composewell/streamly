@@ -866,7 +866,7 @@ executable FileIOExamples
   main-is: FileIOExamples.hs
   hs-source-dirs:  examples
   if flag(examples) || flag(examples-sdl)
-    buildable: False
+    buildable: True
     build-Depends:
         streamly
       , base              >= 4.8   && < 5
