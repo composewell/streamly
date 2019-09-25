@@ -1,12 +1,12 @@
 -- |
--- Module      : Streamly.Sink.Types
+-- Module      : Streamly.Internal.Data.Sink.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Sink.Types
+module Streamly.Internal.Data.Sink.Types
     (
       Sink (..)
     )

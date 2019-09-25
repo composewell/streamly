@@ -28,7 +28,7 @@
 --
 -- > import qualified Streamly.Internal.Data.Fold as FL
 
--- Also see the "Streamly.Sink" module that provides specialized left folds
+-- Also see the "Streamly.Internal.Data.Sink" module that provides specialized left folds
 -- that discard the outputs.
 --
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude

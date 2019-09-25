@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Sink
+-- Module      : Streamly.Internal.Data.Sink
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
@@ -13,7 +13,7 @@
 -- be used for both pure and monadic computations. Sinks are not applicable to
 -- pure computations.
 
-module Streamly.Sink
+module Streamly.Internal.Data.Sink
     (
       Sink (..)
 
@@ -67,7 +67,7 @@ import Prelude
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Sink.Types (Sink(..))
+import Streamly.Internal.Data.Sink.Types (Sink(..))
 
 import qualified Data.Map.Strict as Map
 

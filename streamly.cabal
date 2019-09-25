@@ -276,10 +276,6 @@ library
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
 
-                    -- Folds
-                     , Streamly.Sink.Types
-                     , Streamly.Sink
-
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
@@ -307,6 +303,8 @@ library
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Sink.Types
+                     , Streamly.Internal.Data.Sink
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Pipe.Types

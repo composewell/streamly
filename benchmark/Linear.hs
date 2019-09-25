@@ -25,7 +25,7 @@ import qualified Streamly.Internal.Prelude as IP
 --import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
--- import qualified Streamly.Sink   as Sink
+-- import qualified Streamly.Internal.Data.Sink   as Sink
 import Gauge
 
 -------------------------------------------------------------------------------
