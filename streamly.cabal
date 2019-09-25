@@ -252,10 +252,9 @@ library
     if os(darwin)
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
-    other-modules:     Streamly.Enumeration
-
+    other-modules:
                     -- Memory storage
-                     , Streamly.Memory.Malloc
+                       Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
 
                     -- Base streams
@@ -265,6 +264,7 @@ library
                      , Streamly.Streams.StreamDK
                      , Streamly.Streams.StreamD.Type
                      , Streamly.Streams.StreamD
+                     , Streamly.Streams.Enumeration
                      , Streamly.Streams.Prelude
 
                     -- Higher level streams

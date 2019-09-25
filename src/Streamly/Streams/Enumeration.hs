@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP                       #-}
 
 -- |
--- Module      : Streamly.Enumeration
+-- Module      : Streamly.Streams.Enumeration
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3
@@ -22,7 +22,7 @@
 -- in this module can be used to define them. Alternatively, these functions
 -- can be used directly.
 
-module Streamly.Enumeration
+module Streamly.Streams.Enumeration
     (
       Enumerable (..)
 
@@ -320,7 +320,7 @@ enumerateFromThenSmallBounded from next =
 -- | Types that can be enumerated as a stream. The operations in this type
 -- class are equivalent to those in the 'Enum' type class, except that these
 -- generate a stream instead of a list. Use the functions in
--- "Streamly.Enumeration" module to define new instances.
+-- "Streamly.Streams.Enumeration" module to define new instances.
 --
 -- @since 0.6.0
 class Enum a => Enumerable a where

@@ -402,7 +402,7 @@ import qualified Data.Map.Strict as Map
 import qualified Prelude
 import qualified System.IO as IO
 
-import Streamly.Enumeration (Enumerable(..), enumerate, enumerateTo)
+import Streamly.Streams.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
