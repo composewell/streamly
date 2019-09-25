@@ -20,12 +20,14 @@ import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Types as IFL
-import qualified Streamly.Internal.Prelude as IP
---import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
--- import qualified Streamly.Internal.Data.Sink   as Sink
+import qualified Streamly.Internal.Data.Sink as Sink
+
+import qualified Streamly.Internal.Data.Fold as IFL
+import qualified Streamly.Internal.Prelude as IP
+import qualified Streamly.Internal.Data.Pipe as Pipe
+
 import Gauge
 
 -------------------------------------------------------------------------------
@@ -218,7 +220,7 @@ main =
         ]
       , bgroup "folds"
         [ benchIOSink "drain" (S.runFold FL.drain)
-        -- , benchIOSink "sink" (Sink.sink Sink.drain)
+        , benchIOSink "sink" (S.runFold $ Sink.toFold Sink.drain)
         , benchIOSink "last" (S.runFold FL.last)
         , benchIOSink "length" (S.runFold FL.length)
         , benchIOSink "sum" (S.runFold FL.sum)
@@ -264,15 +266,15 @@ main =
       , bgroup "folds-transforms"
         [ benchIOSink "drain" (S.runFold FL.drain)
         , benchIOSink "lmap" (S.runFold (IFL.lmap (+1) FL.drain))
-        {-, benchIOSink "pipe-mapM"
-             (S.runFold (FL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))-}
+        , benchIOSink "pipe-mapM"
+             (S.runFold (IFL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))
         ]
       , bgroup "folds-compositions" -- Applicative
         [
           benchIOSink "all,any"    (S.runFold ((,) <$> FL.all (<= Ops.maxValue)
                                                   <*> FL.any (> Ops.maxValue)))
         , benchIOSink "sum,length" (S.runFold ((,) <$> FL.sum <*> FL.length))
-        ] {-
+        ]
       , bgroup "pipes"
         [ benchIOSink "mapM" (Ops.transformMapM serially 1)
         , benchIOSink "compose" (Ops.transformComposeMapM serially 1)
@@ -284,7 +286,7 @@ main =
         , benchIOSink "compose" (Ops.transformComposeMapM serially 4)
         , benchIOSink "tee" (Ops.transformTeeMapM serially 4)
         , benchIOSink "zip" (Ops.transformZipMapM serially 4)
-        ] -}
+        ]
       , bgroup "transformation"
         [ benchIOSink "scanl" (Ops.scan 1)
         , benchIOSink "scanl1'" (Ops.scanl1' 1)

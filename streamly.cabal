@@ -383,17 +383,17 @@ test-suite pure-streams-base
     , hspec             >= 2.0   && < 3
   default-language: Haskell2010
 
--- test-suite pure-streams-streamly
---   type: exitcode-stdio-1.0
---  import: test-options
---   main-is: PureStreams.hs
---   hs-source-dirs: test
---   cpp-options:  -DUSE_STREAMLY_LIST
---   build-depends:
---       streamly
---     , base              >= 4.8   && < 5
---     , hspec             >= 2.0   && < 3
---   default-language: Haskell2010
+test-suite pure-streams-streamly
+  import: test-options
+  type: exitcode-stdio-1.0
+  main-is: PureStreams.hs
+  hs-source-dirs: test
+  cpp-options:  -DUSE_STREAMLY_LIST
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , hspec             >= 2.0   && < 3
+  default-language: Haskell2010
 
 test-suite properties
   import: test-options

@@ -113,7 +113,7 @@ module Streamly.Internal.Data.Fold
     , mapM
 
     -- ** Mapping
-    --, transform
+    , transform
     , lmap
     --, lsequence
     , lmapM
@@ -285,9 +285,9 @@ mapM f = sequence . fmap f
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
 --
 -- @since 0.7.0
-{-# INLINE _transform #-}
-_transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
-_transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
+{-# INLINE transform #-}
+transform :: Monad m => Pipe m a b -> Fold m b c -> Fold m a c
+transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
     Fold step initial extract
 
     where

@@ -46,8 +46,8 @@ import qualified Streamly.Streams.StreamD as D
 import qualified Streamly          as S hiding (foldMapWith, runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
-import qualified Streamly.Internal.Data.Unfold   as UF
--- import qualified Streamly.Internal.Data.Pipe  as Pipe
+import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Data.Pipe as Pipe
 
 value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC
@@ -411,9 +411,6 @@ map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
 
--- Temporarily commented these ops as they depend on the hidden
--- Pipe module.
-{-
 {-# INLINE transformMapM #-}
 {-# INLINE transformComposeMapM #-}
 {-# INLINE transformTeeMapM #-}
@@ -423,17 +420,16 @@ transformMapM, transformComposeMapM, transformTeeMapM,
     transformZipMapM :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
 
-transformMapM t n = composeN' n $ t . S.transform (Pipe.mapM return)
-transformComposeMapM t n = composeN' n $ t . S.transform
+transformMapM t n = composeN' n $ t . Internal.transform (Pipe.mapM return)
+transformComposeMapM t n = composeN' n $ t . Internal.transform
     (Pipe.mapM (\x -> return (x + 1))
         `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
-transformTeeMapM t n = composeN' n $ t . S.transform
+transformTeeMapM t n = composeN' n $ t . Internal.transform
     (Pipe.mapM (\x -> return (x + 1))
         `Pipe.tee` Pipe.mapM (\x -> return (x + 2)))
-transformZipMapM t n = composeN' n $ t . S.transform
+transformZipMapM t n = composeN' n $ t . Internal.transform
     (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
         (Pipe.mapM (\x -> return (x + 2))))
--}
 
 mapMaybe      n = composeN n $ S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just x)
