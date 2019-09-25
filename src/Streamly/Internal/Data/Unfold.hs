@@ -55,6 +55,7 @@ module Streamly.Internal.Data.Unfold
 
       Unfold
     , unfold
+    , fold
 
     -- ** Unfolds
     , singleton
@@ -63,16 +64,21 @@ module Streamly.Internal.Data.Unfold
     )
 where
 
+import GHC.Types (SPEC(..))
 import Streamly.Streams.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
 import Streamly.Streams.StreamD.Type (pattern Stream)
 #endif
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 -------------------------------------------------------------------------------
 -- Running unfolds
 -------------------------------------------------------------------------------
 
+-- XXX flip the first two arguments to make it similar to unfold i.e. returning
+-- a -> Stream m b?
+--
 -- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
 --
 {-# INLINE_NORMAL unfold #-}
@@ -87,6 +93,28 @@ unfold seed (Unfold ustep inject) = Stream step Nothing
             Yield x s -> Yield x (Just s)
             Skip s    -> Skip (Just s)
             Stop      -> Stop
+
+-- | Compose an 'Unfold' and a 'Fold'. Given an @Unfold m a b@ and a
+-- @Fold m b c@, returns a monadic action @a -> m c@ representing the
+-- application of the fold on the unfolded stream.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL fold #-}
+fold :: Monad m => Unfold m a b -> Fold m b c -> a -> m c
+fold (Unfold ustep inject) (Fold fstep initial extract) a =
+    initial >>= \x -> inject a >>= go SPEC x
+  where
+    -- XXX !acc?
+    {-# INLINE_LATE go #-}
+    go !_ acc st = acc `seq` do
+        r <- ustep st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                go SPEC acc' s
+            Skip s -> go SPEC acc s
+            Stop   -> extract acc
 
 -------------------------------------------------------------------------------
 -- Unfolds
