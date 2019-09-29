@@ -41,8 +41,8 @@ module Streamly.Internal.FileSystem.Handle
     , writeInChunksOf
 
     -- Byte stream write (Streams)
-    , writeS
-    , writeSInChunksOf
+    , fromStream
+    , fromStreamInChunksOf
 
     -- -- * Array Write
     , writeArray
@@ -50,8 +50,8 @@ module Streamly.Internal.FileSystem.Handle
     , writeArraysInChunksOf
 
     -- -- * Array stream Write
-    , writeSArrays
-    , writeSArraysInChunksOf
+    , fromStreamArrays
+    , fromStreamArraysInChunksOf
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -244,31 +244,31 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
-{-# INLINE writeSArrays #-}
-writeSArrays :: (MonadIO m, Storable a)
+{-# INLINE fromStreamArrays #-}
+fromStreamArrays :: (MonadIO m, Storable a)
     => Handle -> SerialT m (Array a) -> m ()
-writeSArrays h m = S.mapM_ (liftIO . writeArray h) m
+fromStreamArrays h m = S.mapM_ (liftIO . writeArray h) m
 
--- | @writeArraysPackedUpto chunkSize handle stream@ writes a stream of arrays
+-- | @fromStreamArraysInChunksOf chunkSize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @chunkSize@.
 -- The chunk size is only a maximum and the actual writes could be smaller as
 -- we do not split the arrays to fit exactly to the specified size.
 --
 -- @since 0.7.0
-{-# INLINE writeSArraysInChunksOf #-}
-writeSArraysInChunksOf :: (MonadIO m, Storable a)
+{-# INLINE fromStreamArraysInChunksOf #-}
+fromStreamArraysInChunksOf :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
-writeSArraysInChunksOf n h xs = writeSArrays h $ AS.compact n xs
+fromStreamArraysInChunksOf n h xs = fromStreamArrays h $ AS.compact n xs
 
--- | @writeSInChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
+-- | @fromStreamInChunksOf chunkSize handle stream@ writes @stream@ to @handle@ in
 -- chunks of @chunkSize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
 -- @since 0.7.0
-{-# INLINE writeSInChunksOf #-}
-writeSInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-writeSInChunksOf n h m = writeSArrays h $ S.arraysOf n m
--- writeSInChunksOf n h m = writeSArrays h $ AS.arraysOf n m
+{-# INLINE fromStreamInChunksOf #-}
+fromStreamInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+fromStreamInChunksOf n h m = fromStreamArrays h $ S.arraysOf n m
+-- fromStreamInChunksOf n h m = fromStreamArrays h $ AS.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
 --
@@ -279,9 +279,9 @@ writeSInChunksOf n h m = writeSArrays h $ S.arraysOf n m
 -- need some extra perf boost.
 --
 -- @since 0.7.0
-{-# INLINE writeS #-}
-writeS :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-writeS = writeSInChunksOf defaultChunkSize
+{-# INLINE fromStream #-}
+fromStream :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+fromStream = fromStreamInChunksOf defaultChunkSize
 
 -- | Write a stream of arrays to a handle.
 --

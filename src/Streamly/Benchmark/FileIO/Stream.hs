@@ -56,7 +56,7 @@ import System.IO (Handle)
 import Prelude hiding (last, length)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Internal.FileSystem.Handle as FH
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
@@ -135,7 +135,7 @@ countLinesU inh =
     S.length
         $ SS.foldLines FL.drain
         $ SS.decodeChar8
-        $ S.concatUnfold A.read (FH.readArrays inh)
+        $ S.concatUnfold A.read (IFH.readArrays inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLinesU
@@ -170,7 +170,7 @@ inspect $ 'cat `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE catStreamWrite #-}
 catStreamWrite :: Handle -> Handle -> IO ()
-catStreamWrite devNull inh = FH.writeS devNull $ FH.read inh
+catStreamWrite devNull inh = IFH.fromStream devNull $ FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catStreamWrite
@@ -456,7 +456,7 @@ splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
         $ SS.decodeUtf8ArraysLenient
-        $ FH.readArrays inh) -- >>= print
+        $ IFH.readArrays inh) -- >>= print
 
 -- | Split on suffix sequence.
 {-# INLINE splitOnSuffixSeq #-}
