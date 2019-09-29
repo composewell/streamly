@@ -11,6 +11,7 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Prelude as S
@@ -113,7 +114,7 @@ main = do
     defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
                 (S.length $ Internal.splitOnSeq (A.fromList $ map (fromIntegral . ord)
                     "abcdefghijklmnopqrstuvwxyz") FL.drain
-                        $ FH.read inText) >>= print
+                        $ IFH.toStream inText) >>= print
                 ]
     where
 

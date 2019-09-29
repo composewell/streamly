@@ -75,7 +75,7 @@ import Test.Inspection
 -- | Get the last byte from a file bytestream.
 {-# INLINE last #-}
 last :: Handle -> IO (Maybe Word8)
-last = S.last . FH.read
+last = S.last . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'last
@@ -88,7 +88,7 @@ inspect $ 'last `hasNoType` ''D.ConcatMapUState
 -- | Count the number of bytes in a file.
 {-# INLINE countBytes #-}
 countBytes :: Handle -> IO Int
-countBytes = S.length . FH.read
+countBytes = S.length . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countBytes
@@ -104,7 +104,7 @@ countLines =
     S.length
         . SS.foldLines FL.drain
         . SS.decodeChar8
-        . FH.read
+        . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLines
@@ -120,7 +120,7 @@ countWords =
     S.length
         . SS.foldWords FL.drain
         . SS.decodeChar8
-        . FH.read
+        . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countWords
@@ -146,7 +146,7 @@ inspect $ 'countLinesU `hasNoType` ''D.ConcatMapUState
 -- | Sum the bytes in a file.
 {-# INLINE sumBytes #-}
 sumBytes :: Handle -> IO Word8
-sumBytes = S.sum . FH.read
+sumBytes = S.sum . S.unfold FH.read
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'sumBytes
@@ -158,7 +158,7 @@ inspect $ 'sumBytes `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE cat #-}
 cat :: Handle -> Handle -> IO ()
-cat devNull inh = S.fold (FH.write devNull) $ FH.read inh
+cat devNull inh = S.fold (FH.write devNull) $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
@@ -170,7 +170,7 @@ inspect $ 'cat `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE catStreamWrite #-}
 catStreamWrite :: Handle -> Handle -> IO ()
-catStreamWrite devNull inh = IFH.fromStream devNull $ FH.read inh
+catStreamWrite devNull inh = IFH.fromStream devNull $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catStreamWrite
@@ -182,7 +182,7 @@ inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
 -- | Copy file
 {-# INLINE copy #-}
 copy :: Handle -> Handle -> IO ()
-copy inh outh = S.fold (FH.write outh) (FH.read inh)
+copy inh outh = S.fold (FH.write outh) (S.unfold FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copy
@@ -193,14 +193,14 @@ inspect $ 'copy `hasNoType` ''D.ConcatMapUState
 
 {-# INLINE readWord8 #-}
 readWord8 :: Handle -> IO ()
-readWord8 inh = S.drain $ FH.read inh
+readWord8 inh = S.drain $ S.unfold FH.read inh
 
 {-# INLINE decodeChar8 #-}
 decodeChar8 :: Handle -> IO ()
 decodeChar8 inh =
    S.drain
      $ SS.decodeChar8
-     $ FH.read inh
+     $ S.unfold FH.read inh
 
 -- | Copy file
 {-# INLINE copyCodecChar8 #-}
@@ -209,7 +209,7 @@ copyCodecChar8 inh outh =
    S.fold (FH.write outh)
      $ SS.encodeChar8
      $ SS.decodeChar8
-     $ FH.read inh
+     $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecChar8
@@ -223,7 +223,7 @@ decodeUtf8Lenient :: Handle -> IO ()
 decodeUtf8Lenient inh =
    S.drain
      $ SS.decodeUtf8Lenient
-     $ FH.read inh
+     $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'decodeUtf8Lenient
@@ -239,7 +239,7 @@ copyCodecUtf8 inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8
-     $ FH.read inh
+     $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8
@@ -255,7 +255,7 @@ copyCodecUtf8Lenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8Lenient
-     $ FH.read inh
+     $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient
@@ -269,7 +269,7 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient
 chunksOf :: Int -> Handle -> IO Int
 chunksOf n inh =
     -- writeNUnsafe gives 2.5x boost here over writeN.
-    S.length $ S.chunksOf n (AT.writeNUnsafe n) (FH.read inh)
+    S.length $ S.chunksOf n (AT.writeNUnsafe n) (S.unfold FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
@@ -288,7 +288,7 @@ chunksOfD :: Int -> Handle -> IO Int
 chunksOfD n inh =
     D.foldlM' (\i _ -> return $ i + 1) 0
         $ D.groupsOf n (AT.writeNUnsafe n)
-        $ D.fromStreamK (FH.read inh)
+        $ D.fromStreamK (S.unfold FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'chunksOf
@@ -308,7 +308,7 @@ linesUnlinesCopy inh outh =
       $ SS.unlines
       $ SS.lines
       $ SS.decodeChar8
-      $ FH.read inh
+      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
@@ -347,7 +347,7 @@ wordsUnwordsCopyWord8 inh outh =
         $ S.concatUnfold IUF.fromList
         $ S.intersperse [32]
         $ S.wordsBy isSp FL.toList
-        $ FH.read inh
+        $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
@@ -379,7 +379,7 @@ wordsUnwordsCopy inh outh =
       $ S.wordsBy isSpace FL.toList
       -- -- $ S.splitOn isSpace FL.toList
       $ SS.decodeChar8
-      $ FH.read inh
+      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 -- inspect $ hasNoTypeClasses 'wordsUnwordsCopy
@@ -399,7 +399,7 @@ toarr = A.fromList . map (fromIntegral . ord)
 splitOn :: Handle -> IO Int
 splitOn inh =
     (S.length $ S.splitOn (== lf) FL.drain
-        $ FH.read inh) -- >>= print
+        $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOn
@@ -413,7 +413,7 @@ inspect $ 'splitOn `hasNoType` ''D.ConcatMapUState
 splitOnSuffix :: Handle -> IO Int
 splitOnSuffix inh =
     (S.length $ S.splitOnSuffix (== lf) FL.drain
-        $ FH.read inh) -- >>= print
+        $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSuffix
@@ -427,7 +427,7 @@ inspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
 wordsBy :: Handle -> IO Int
 wordsBy inh =
     (S.length $ S.wordsBy isSp FL.drain
-        $ FH.read inh) -- >>= print
+        $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'wordsBy
@@ -441,7 +441,7 @@ inspect $ 'wordsBy `hasNoType` ''D.ConcatMapUState
 splitOnSeq :: String -> Handle -> IO Int
 splitOnSeq str inh =
     (S.length $ IP.splitOnSeq (toarr str) FL.drain
-        $ FH.read inh) -- >>= print
+        $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSeq
@@ -463,7 +463,7 @@ splitOnSeqUtf8 str inh =
 splitOnSuffixSeq :: String -> Handle -> IO Int
 splitOnSuffixSeq str inh =
     (S.length $ IP.splitOnSuffixSeq (toarr str) FL.drain
-        $ FH.read inh) -- >>= print
+        $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'splitOnSuffixSeq

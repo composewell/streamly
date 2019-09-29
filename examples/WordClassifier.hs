@@ -55,7 +55,7 @@ main =
     in do
         name <- fmap head getArgs
         src <- openFile name ReadMode
-        FH.read src                     -- SerialT IO Word8
+        Streamly.unfold FH.read src     -- SerialT IO Word8
          & Streamly.decodeChar8         -- SerialT IO Char
          & Streamly.map toLower         -- SerialT IO Char
          & Streamly.foldWords FL.toList -- SerialT IO String

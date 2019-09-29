@@ -24,6 +24,9 @@ module Streamly.Internal.FileSystem.Handle
     -- , readFrames
     , readInChunksOf
 
+    , toStream
+    , toStreamInChunksOf
+
     -- -- * Array Read
     -- , readArrayUpto
     -- , readArrayOf
@@ -84,6 +87,7 @@ import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
 import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types
        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
         lpackArraysChunksOf)
@@ -93,6 +97,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
@@ -170,6 +175,18 @@ toStreamArraysOf size h = D.fromStreamD (D.Stream step ())
                 0 -> D.Stop
                 _ -> D.Yield arr ()
 
+{-# INLINE_NORMAL readArraysOf #-}
+readArraysOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
+readArraysOf = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step (size, h) = do
+        arr <- liftIO $ readArrayUpto size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr (size, h)
+
 -- XXX read 'Array a' instead of Word8
 --
 -- | @toStreamArrays handle@ reads a stream of arrays from the specified file
@@ -192,25 +209,40 @@ toStreamArrays = toStreamArraysOf defaultChunkSize
 -- read requests at the same time. For serial case we can use async IO. We can
 -- also control the read throughput in mbps or IOPS.
 
--- | @readInChunksOf chunkSize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @chunkSize@.
+-- | @readInChunksOf@ unfolds @(chunksize, handle)@ into a byte stream, reads
+-- are performed in chunks of up to @chunkSize@.
 --
 -- @since 0.7.0
 {-# INLINE readInChunksOf #-}
-readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = AS.concat $ toStreamArraysOf chunkSize h
+readInChunksOf :: MonadIO m => Unfold m (Int, Handle) Word8
+readInChunksOf = UF.concat readArraysOf A.read
+
+-- | @toStreamInChunksOf chunkSize handle@ reads a byte stream from a file
+-- handle, reads are performed in chunks of up to @chunkSize@.
+--
+-- /Internal/
+{-# INLINE toStreamInChunksOf #-}
+toStreamInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+toStreamInChunksOf chunkSize h = AS.concat $ toStreamArraysOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
 -- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
 --
 -- > read = 'readInChunksOf' A.defaultChunkSize
--- | Generate a byte stream from a file 'Handle'.
+-- | Unfolds a file handle into a byte stream.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (IsStream t, MonadIO m) => Handle -> t m Word8
-read = AS.concat . toStreamArrays
+read :: MonadIO m => Unfold m Handle Word8
+read = UF.first readInChunksOf defaultChunkSize
+
+-- | Generate a byte stream from a file 'Handle'.
+--
+-- /Internal/
+{-# INLINE toStream #-}
+toStream :: (IsStream t, MonadIO m) => Handle -> t m Word8
+toStream = AS.concat . toStreamArrays
 
 -------------------------------------------------------------------------------
 -- Writing
