@@ -135,7 +135,7 @@ countLinesU inh =
     S.length
         $ SS.foldLines FL.drain
         $ SS.decodeChar8
-        $ S.concatUnfold A.read (IFH.readArrays inh)
+        $ S.concatUnfold A.read (IFH.toStreamArrays inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLinesU
@@ -456,7 +456,7 @@ splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
         $ SS.decodeUtf8ArraysLenient
-        $ IFH.readArrays inh) -- >>= print
+        $ IFH.toStreamArrays inh) -- >>= print
 
 -- | Split on suffix sequence.
 {-# INLINE splitOnSuffixSeq #-}

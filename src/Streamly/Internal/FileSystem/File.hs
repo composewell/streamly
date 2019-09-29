@@ -63,9 +63,9 @@ module Streamly.Internal.FileSystem.File
     -- -- * Array Read
     -- , readArrayOf
 
-    , readArraysOf
-    -- , readArraysOf
-    , readArrays
+    , toStreamArraysOf
+    -- , toStreamArraysOf
+    , toStreamArrays
 
     -- ** Write To File
     , write
@@ -182,27 +182,27 @@ appendArray file arr = SIO.withFile file AppendMode (\h -> FH.writeArray h arr)
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
--- | @readArraysOf size file@ reads a stream of arrays from file @file@.
+-- | @toStreamArraysOf size file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is specified by @size@. The actual size
 -- read may be less than or equal to @size@.
-{-# INLINABLE readArraysOf #-}
-readArraysOf :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINABLE toStreamArraysOf #-}
+toStreamArraysOf :: (IsStream t, MonadCatch m, MonadIO m)
     => Int -> FilePath -> t m (Array Word8)
-readArraysOf size file = withFile file ReadMode (FH.readArraysOf size)
+toStreamArraysOf size file = withFile file ReadMode (FH.toStreamArraysOf size)
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @readArrays file@ reads a stream of arrays from file @file@.
+-- | @toStreamArrays file@ reads a stream of arrays from file @file@.
 -- The maximum size of a single array is limited to @defaultChunkSize@. The
 -- actual size read may be less than @defaultChunkSize@.
 --
--- > readArrays = readArraysOf defaultChunkSize
+-- > toStreamArrays = toStreamArraysOf defaultChunkSize
 --
 -- @since 0.7.0
-{-# INLINE readArrays #-}
-readArrays :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINE toStreamArrays #-}
+toStreamArrays :: (IsStream t, MonadCatch m, MonadIO m)
     => FilePath -> t m (Array Word8)
-readArrays = readArraysOf defaultChunkSize
+toStreamArrays = toStreamArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -219,7 +219,7 @@ readArrays = readArraysOf defaultChunkSize
 --
 {-# INLINE readInChunksOf #-}
 readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
+readInChunksOf chunkSize h = A.flattenArrays $ toStreamArraysOf chunkSize h
 -}
 
 -- TODO
@@ -233,7 +233,7 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysOf chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m) => FilePath -> t m Word8
-read file = AS.concat $ withFile file ReadMode FH.readArrays
+read file = AS.concat $ withFile file ReadMode FH.toStreamArrays
 
 {-
 -- | Generate a stream of elements of the given type from a file 'Handle'. The

@@ -13,12 +13,12 @@ import System.Environment (getArgs)
 import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
-cat src = S.fold (IFH.writeArrays FH.stdout) $ IFH.readArraysOf (256*1024) src
+cat src = S.fold (IFH.writeArrays FH.stdout) $ IFH.toStreamArraysOf (256*1024) src
 -- byte stream version
 -- cat src = S.fold (FH.write FH.stdout) $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
-cp src dst = S.fold (IFH.writeArrays dst) $ IFH.readArraysOf (256*1024) src
+cp src dst = S.fold (IFH.writeArrays dst) $ IFH.toStreamArraysOf (256*1024) src
 -- byte stream version
 -- cp src dst = S.fold (FH.write dst) $ FH.read src
 
@@ -28,7 +28,7 @@ ord' = (fromIntegral . ord)
 wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
     $ AS.splitOn 10
-    $ IFH.readArrays src)
+    $ IFH.toStreamArrays src)
 {-
 -- Char stream version
 wcl src = print =<< (S.length

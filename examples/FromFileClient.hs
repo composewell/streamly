@@ -17,5 +17,5 @@ main =
     let sendFile file =
             withFile file ReadMode $ \src ->
                   S.fold (Client.writeArrays (127, 0, 0, 1) 8090)
-                $ IFH.readArrays src
+                $ IFH.toStreamArrays src
      in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList
