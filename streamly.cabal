@@ -299,6 +299,7 @@ library
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Memory.Array.Types
+                     , Streamly.Internal.Memory.Array
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
