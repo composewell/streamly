@@ -8,10 +8,10 @@
 
 -- |
 -- Module      : Streamly.FileSystem.Handle
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
@@ -57,19 +57,13 @@ module Streamly.FileSystem.Handle
     -- position of the file handle. The stream ends as soon as EOF is
     -- encountered.
 
+    -- XXX once we have APIs to read any type 'a' the array stream
+    -- reading/writing APIs can be expressed in terms of the polymorphic API.
       read
     -- , readUtf8
     -- , readLines
     -- , readFrames
     , readInChunksOf
-
-    -- -- * Array Read
-    -- , readArrayUpto
-    -- , readArrayOf
-
-    , readArraysOf
-    -- , readArraysOf
-    , readArrays
 
     -- ** Write to Handle
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
@@ -83,11 +77,6 @@ module Streamly.FileSystem.Handle
     -- , writeByFrames
     , writeInChunksOf
 
-    -- -- * Array Write
-    , writeArray
-    , writeArrays
-    , writeArraysInChunksOf
-
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
     -- files that have random access or seek capability.  This type of devices
@@ -95,6 +84,8 @@ module Streamly.FileSystem.Handle
     -- sockets and fifos.
     --
     -- , readIndex
+    --  XXX we can make the names consistent with the enumerate APIs. For
+    --  example, readFromTo, readFromToUp, readFromToDn, readFrom etc.
     -- , readSlice
     -- , readSliceRev
     -- , readAt -- read from a given position to th end of file

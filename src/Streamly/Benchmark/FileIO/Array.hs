@@ -43,6 +43,8 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
+
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
@@ -57,7 +59,7 @@ import Test.Inspection
 {-# INLINE last #-}
 last :: Handle -> IO (Maybe Word8)
 last inh = do
-    let s = FH.readArrays inh
+    let s = IFH.readArrays inh
     larr <- S.last s
     return $ case larr of
         Nothing -> Nothing
@@ -72,7 +74,7 @@ inspect $ 'last `hasNoType` ''Step
 {-# INLINE countBytes #-}
 countBytes :: Handle -> IO Int
 countBytes inh =
-    let s = FH.readArrays inh
+    let s = IFH.readArrays inh
     in S.sum (S.map A.length s)
 
 #ifdef INSPECTION
@@ -83,7 +85,7 @@ inspect $ 'countBytes `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
 countLines :: Handle -> IO Int
-countLines = S.length . AS.splitOnSuffix 10 . FH.readArrays
+countLines = S.length . AS.splitOnSuffix 10 . IFH.readArrays
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLines
@@ -94,7 +96,7 @@ inspect $ 'countLines `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countWords #-}
 countWords :: Handle -> IO Int
-countWords = S.length . AS.splitOn 32 . FH.readArrays
+countWords = S.length . AS.splitOn 32 . IFH.readArrays
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countWords
@@ -106,7 +108,7 @@ inspect $ 'countWords `hasNoType` ''Step
 sumBytes :: Handle -> IO Word8
 sumBytes inh = do
     let foldlArr' f z = runIdentity . S.foldl' f z . IA.toStream
-    let s = FH.readArrays inh
+    let s = IFH.readArrays inh
     S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
 #ifdef INSPECTION
@@ -118,7 +120,7 @@ inspect $ 'sumBytes `hasNoType` ''Step
 {-# INLINE cat #-}
 cat :: Handle -> Handle -> IO ()
 cat devNull inh =
-    S.fold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
+    S.fold (IFH.writeArrays devNull) $ IFH.readArraysOf (256*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
@@ -129,8 +131,8 @@ inspect $ 'cat `hasNoType` ''Step
 {-# INLINE copy #-}
 copy :: Handle -> Handle -> IO ()
 copy inh outh =
-    let s = FH.readArrays inh
-    in S.fold (FH.writeArrays outh) s
+    let s = IFH.readArrays inh
+    in S.fold (IFH.writeArrays outh) s
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copy
@@ -141,10 +143,10 @@ inspect $ 'copy `hasNoType` ''Step
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
-    S.fold (FH.writeArraysInChunksOf (1024*1024) outh)
+    S.fold (IFH.writeArraysInChunksOf (1024*1024) outh)
         $ Internal.insertAfterEach (return $ A.fromList [10])
         $ AS.splitOnSuffix 10
-        $ FH.readArraysOf (1024*1024) inh
+        $ IFH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
@@ -155,11 +157,11 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 {-# INLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
-    S.fold (FH.writeArraysInChunksOf (1024*1024) outh)
+    S.fold (IFH.writeArraysInChunksOf (1024*1024) outh)
         $ S.intersperse (A.fromList [32])
         -- XXX use a word splitting combinator
         $ AS.splitOn 32
-        $ FH.readArraysOf (1024*1024) inh
+        $ IFH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'wordsUnwordsCopy [''Storable]
@@ -171,7 +173,7 @@ decodeUtf8Lenient :: Handle -> IO ()
 decodeUtf8Lenient inh =
    S.drain
      $ SS.decodeUtf8ArraysLenient
-     $ FH.readArraysOf (1024*1024) inh
+     $ IFH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'decodeUtf8Lenient
@@ -187,7 +189,7 @@ copyCodecUtf8Lenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8ArraysLenient
-     $ FH.readArraysOf (1024*1024) inh
+     $ IFH.readArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient

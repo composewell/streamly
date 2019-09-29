@@ -2,6 +2,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
@@ -12,12 +13,12 @@ import System.Environment (getArgs)
 import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
-cat src = S.fold (FH.writeArrays FH.stdout) $ FH.readArraysOf (256*1024) src
+cat src = S.fold (IFH.writeArrays FH.stdout) $ IFH.readArraysOf (256*1024) src
 -- byte stream version
 -- cat src = S.fold (FH.write FH.stdout) $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
-cp src dst = S.fold (FH.writeArrays dst) $ FH.readArraysOf (256*1024) src
+cp src dst = S.fold (IFH.writeArrays dst) $ IFH.readArraysOf (256*1024) src
 -- byte stream version
 -- cp src dst = S.fold (FH.write dst) $ FH.read src
 
@@ -27,7 +28,7 @@ ord' = (fromIntegral . ord)
 wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
     $ AS.splitOn 10
-    $ FH.readArrays src)
+    $ IFH.readArrays src)
 {-
 -- Char stream version
 wcl src = print =<< (S.length
