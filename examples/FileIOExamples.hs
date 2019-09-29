@@ -30,14 +30,14 @@ grepc pat src = print . (subtract 1) =<< (S.length
     $ File.read src)
 
 avgll :: FilePath -> IO ()
-avgll src = print =<< (S.runFold avg
+avgll src = print =<< (S.fold avg
     $ S.splitOnSuffix (== ord' '\n') FL.length
     $ File.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
 llhisto :: FilePath -> IO ()
-llhisto src = print =<< (S.runFold (FL.classify FL.length)
+llhisto src = print =<< (S.fold (FL.classify FL.length)
     $ S.map bucket
     $ S.splitOnSuffix (== ord' '\n') FL.length
     $ File.read src)

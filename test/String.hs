@@ -57,7 +57,7 @@ propDecodeEncodeIdArrays =
         monadicIO $ do
             let wrds = SS.encodeUtf8 $ S.fromList list
             chrs <- S.toList $ SS.decodeUtf8ArraysLenient
-                                    (S.runFold A.write wrds)
+                                    (S.fold A.write wrds)
             assert (chrs == list)
 
 testLines :: Property

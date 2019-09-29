@@ -186,7 +186,7 @@ module Streamly.Prelude
     -- ** Composable Left Folds
     -- $runningfolds
 
-    , runFold
+    , fold
 
     -- ** Full Folds
     -- | Folds that are guaranteed to evaluate the whole stream.
@@ -885,11 +885,11 @@ import Streamly.Internal.Prelude
 -- $runningfolds
 --
 -- "Streamly.Data.Fold" module defines composable left folds which can be combined
--- together in many interesting ways. Those folds can be run using 'runFold'.
+-- together in many interesting ways. Those folds can be run using 'fold'.
 -- The following two ways of folding are equivalent in functionality and
 -- performance,
 --
--- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
+-- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
 -- 5050
 -- >>> S.sum (S.enumerateFromTo 1 100)
 -- 5050
@@ -905,7 +905,7 @@ import Streamly.Internal.Prelude
 --
 -- >>> S.head (1 `S.cons` undefined)
 -- Just 1
--- >>> S.runFold FL.head (1 `S.cons` undefined)
+-- >>> S.fold FL.head (1 `S.cons` undefined)
 -- *** Exception: Prelude.undefined
 --
 -- However, we can wrap the fold in a scan to convert it into a lazy stream of

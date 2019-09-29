@@ -9,4 +9,4 @@ main :: IO ()
 main = S.drain
     $ parallely $ S.mapM (flip withSocket echo)
     $ serially $ connectionsOnAllAddrs 8090
-    where echo sk = S.runFold (writeArrays sk) $ readArrays sk
+    where echo sk = S.fold (writeArrays sk) $ readArrays sk

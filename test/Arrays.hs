@@ -43,7 +43,7 @@ testLength =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <-  S.runFold (A.writeN len)
+                arr <-  S.fold (A.writeN len)
                       $ S.fromList list
                 assert (A.length arr == len)
 
@@ -52,7 +52,7 @@ testFromToStreamN =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- S.runFold (A.writeN len)
+                arr <- S.fold (A.writeN len)
                      $ S.fromList list
                 xs <- S.toList
                     $ A.read arr
@@ -63,7 +63,7 @@ testToStreamRev =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- S.runFold (A.writeN len)
+                arr <- S.fold (A.writeN len)
                      $ S.fromList list
                 xs <- S.toList
                     $ A.readRev arr
@@ -96,7 +96,7 @@ testFromToStream =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- S.runFold A.write $ S.fromList list
+                arr <- S.fold A.write $ S.fromList list
                 xs <- S.toList
                     $ A.read arr
                 assert (xs == list)

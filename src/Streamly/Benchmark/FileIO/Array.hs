@@ -117,7 +117,7 @@ inspect $ 'sumBytes `hasNoType` ''Step
 {-# INLINE cat #-}
 cat :: Handle -> Handle -> IO ()
 cat devNull inh =
-    S.runFold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
+    S.fold (FH.writeArrays devNull) $ FH.readArraysOf (256*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
@@ -129,7 +129,7 @@ inspect $ 'cat `hasNoType` ''Step
 copy :: Handle -> Handle -> IO ()
 copy inh outh =
     let s = FH.readArrays inh
-    in S.runFold (FH.writeArrays outh) s
+    in S.fold (FH.writeArrays outh) s
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copy
@@ -140,7 +140,7 @@ inspect $ 'copy `hasNoType` ''Step
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
-    S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
+    S.fold (FH.writeArraysInChunksOf (1024*1024) outh)
         $ Internal.insertAfterEach (return $ A.fromList [10])
         $ AS.splitOnSuffix 10
         $ FH.readArraysOf (1024*1024) inh
@@ -154,7 +154,7 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 {-# INLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
-    S.runFold (FH.writeArraysInChunksOf (1024*1024) outh)
+    S.fold (FH.writeArraysInChunksOf (1024*1024) outh)
         $ S.intersperse (A.fromList [32])
         -- XXX use a word splitting combinator
         $ AS.splitOn 32
@@ -183,7 +183,7 @@ inspect $ hasNoTypeClasses 'decodeUtf8Lenient
 {-# INLINE copyCodecUtf8Lenient #-}
 copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
 copyCodecUtf8Lenient inh outh =
-   S.runFold (FH.write outh)
+   S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8ArraysLenient
      $ FH.readArraysOf (1024*1024) inh

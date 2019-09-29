@@ -26,9 +26,9 @@ import           System.Environment (getArgs)
 import           System.IO (openFile, IOMode(..))
 
 instance (Enum a, Storable a) => Hashable (A.Array a) where
-    hash arr = runIdentity $ Streamly.runFold Internal.rollingHash (A.read arr)
+    hash arr = runIdentity $ Streamly.fold Internal.rollingHash (A.read arr)
     hashWithSalt salt arr = runIdentity $
-        Streamly.runFold (Internal.rollingHashWithSalt salt) (A.read arr)
+        Streamly.fold (Internal.rollingHashWithSalt salt) (A.read arr)
 
 {-# INLINE toLower #-}
 toLower :: Char -> Char

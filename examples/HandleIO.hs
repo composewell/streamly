@@ -12,14 +12,14 @@ import System.Environment (getArgs)
 import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
-cat src = S.runFold (FH.writeArrays FH.stdout) $ FH.readArraysOf (256*1024) src
+cat src = S.fold (FH.writeArrays FH.stdout) $ FH.readArraysOf (256*1024) src
 -- byte stream version
--- cat src = S.runFold (FH.write FH.stdout) $ FH.read src
+-- cat src = S.fold (FH.write FH.stdout) $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
-cp src dst = S.runFold (FH.writeArrays dst) $ FH.readArraysOf (256*1024) src
+cp src dst = S.fold (FH.writeArrays dst) $ FH.readArraysOf (256*1024) src
 -- byte stream version
--- cp src dst = S.runFold (FH.write dst) $ FH.read src
+-- cp src dst = S.fold (FH.write dst) $ FH.read src
 
 ord' :: Num a => Char -> a
 ord' = (fromIntegral . ord)
@@ -44,14 +44,14 @@ grepc pat src = print . (subtract 1) =<< (S.length
 -}
 
 avgll :: FH.Handle -> IO ()
-avgll src = print =<< (S.runFold avg
+avgll src = print =<< (S.fold avg
     $ S.splitWithSuffix (== ord' '\n') FL.length
     $ FH.read src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
 llhisto :: FH.Handle -> IO ()
-llhisto src = print =<< (S.runFold (FL.classify FL.length)
+llhisto src = print =<< (S.fold (FL.classify FL.length)
     $ S.map bucket
     $ S.splitWithSuffix (== ord' '\n') FL.length
     $ FH.read src)

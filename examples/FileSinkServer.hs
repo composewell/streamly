@@ -21,7 +21,7 @@ main :: IO ()
 main = do
     file <- fmap head getArgs
     withFile file AppendMode
-        (\src -> S.runFold (FH.write src)
+        (\src -> S.fold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatMap A.read
         $ S.concatMapWith parallel (flip NS.withSocketS recv)

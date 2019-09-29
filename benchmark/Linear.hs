@@ -219,42 +219,42 @@ main =
         , benchIOSink "toListRev" Ops.toListRev
         ]
       , bgroup "folds"
-        [ benchIOSink "drain" (S.runFold FL.drain)
-        , benchIOSink "sink" (S.runFold $ Sink.toFold Sink.drain)
-        , benchIOSink "last" (S.runFold FL.last)
-        , benchIOSink "length" (S.runFold FL.length)
-        , benchIOSink "sum" (S.runFold FL.sum)
-        , benchIOSink "product" (S.runFold FL.product)
-        , benchIOSink "maximumBy" (S.runFold (FL.maximumBy compare))
-        , benchIOSink "maximum" (S.runFold FL.maximum)
-        , benchIOSink "minimumBy" (S.runFold (FL.minimumBy compare))
-        , benchIOSink "minimum" (S.runFold FL.minimum)
-        , benchIOSink "mean" (\s -> S.runFold FL.mean (S.map (fromIntegral :: Int -> Double) s))
-        , benchIOSink "variance" (\s -> S.runFold FL.variance (S.map (fromIntegral :: Int -> Double) s))
-        , benchIOSink "stdDev" (\s -> S.runFold FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
+        [ benchIOSink "drain" (S.fold FL.drain)
+        , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
+        , benchIOSink "last" (S.fold FL.last)
+        , benchIOSink "length" (S.fold FL.length)
+        , benchIOSink "sum" (S.fold FL.sum)
+        , benchIOSink "product" (S.fold FL.product)
+        , benchIOSink "maximumBy" (S.fold (FL.maximumBy compare))
+        , benchIOSink "maximum" (S.fold FL.maximum)
+        , benchIOSink "minimumBy" (S.fold (FL.minimumBy compare))
+        , benchIOSink "minimum" (S.fold FL.minimum)
+        , benchIOSink "mean" (\s -> S.fold FL.mean (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "variance" (\s -> S.fold FL.variance (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink "stdDev" (\s -> S.fold FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
 
-        , benchIOSink "mconcat" (S.runFold FL.mconcat . (S.map (Last . Just)))
-        , benchIOSink "foldMap" (S.runFold (FL.foldMap (Last . Just)))
+        , benchIOSink "mconcat" (S.fold FL.mconcat . (S.map (Last . Just)))
+        , benchIOSink "foldMap" (S.fold (FL.foldMap (Last . Just)))
 
-        , benchIOSink "toList" (S.runFold FL.toList)
-        , benchIOSink "toListRevF" (S.runFold IFL.toListRevF)
-        , benchIOSink "toStream" (S.runFold IP.toStream)
-        , benchIOSink "toStreamRev" (S.runFold IP.toStreamRev)
-        , benchIOSink "writeN" (S.runFold (A.writeN Ops.value))
+        , benchIOSink "toList" (S.fold FL.toList)
+        , benchIOSink "toListRevF" (S.fold IFL.toListRevF)
+        , benchIOSink "toStream" (S.fold IP.toStream)
+        , benchIOSink "toStreamRev" (S.fold IP.toStreamRev)
+        , benchIOSink "writeN" (S.fold (A.writeN Ops.value))
 
-        , benchIOSink "index" (S.runFold (FL.index Ops.maxValue))
-        , benchIOSink "head" (S.runFold FL.head)
-        , benchIOSink "find" (S.runFold (FL.find (== Ops.maxValue)))
-        , benchIOSink "findIndex" (S.runFold (FL.findIndex (== Ops.maxValue)))
-        , benchIOSink "elemIndex" (S.runFold (FL.elemIndex Ops.maxValue))
+        , benchIOSink "index" (S.fold (FL.index Ops.maxValue))
+        , benchIOSink "head" (S.fold FL.head)
+        , benchIOSink "find" (S.fold (FL.find (== Ops.maxValue)))
+        , benchIOSink "findIndex" (S.fold (FL.findIndex (== Ops.maxValue)))
+        , benchIOSink "elemIndex" (S.fold (FL.elemIndex Ops.maxValue))
 
-        , benchIOSink "null" (S.runFold FL.null)
-        , benchIOSink "elem" (S.runFold (FL.elem Ops.maxValue))
-        , benchIOSink "notElem" (S.runFold (FL.notElem Ops.maxValue))
-        , benchIOSink "all" (S.runFold (FL.all (<= Ops.maxValue)))
-        , benchIOSink "any" (S.runFold (FL.any (> Ops.maxValue)))
-        , benchIOSink "and" (\s -> S.runFold FL.and (S.map (<= Ops.maxValue) s))
-        , benchIOSink "or" (\s -> S.runFold FL.or (S.map (> Ops.maxValue) s))
+        , benchIOSink "null" (S.fold FL.null)
+        , benchIOSink "elem" (S.fold (FL.elem Ops.maxValue))
+        , benchIOSink "notElem" (S.fold (FL.notElem Ops.maxValue))
+        , benchIOSink "all" (S.fold (FL.all (<= Ops.maxValue)))
+        , benchIOSink "any" (S.fold (FL.any (> Ops.maxValue)))
+        , benchIOSink "and" (\s -> S.fold FL.and (S.map (<= Ops.maxValue) s))
+        , benchIOSink "or" (\s -> S.fold FL.or (S.map (> Ops.maxValue) s))
         ]
       , bgroup "fold-multi-stream"
         [ benchIOSink1 "eqBy" Ops.eqBy
@@ -264,16 +264,16 @@ main =
         , benchIOSink "stripPrefix" Ops.stripPrefix
         ]
       , bgroup "folds-transforms"
-        [ benchIOSink "drain" (S.runFold FL.drain)
-        , benchIOSink "lmap" (S.runFold (IFL.lmap (+1) FL.drain))
+        [ benchIOSink "drain" (S.fold FL.drain)
+        , benchIOSink "lmap" (S.fold (IFL.lmap (+1) FL.drain))
         , benchIOSink "pipe-mapM"
-             (S.runFold (IFL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))
+             (S.fold (IFL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))
         ]
       , bgroup "folds-compositions" -- Applicative
         [
-          benchIOSink "all,any"    (S.runFold ((,) <$> FL.all (<= Ops.maxValue)
+          benchIOSink "all,any"    (S.fold ((,) <$> FL.all (<= Ops.maxValue)
                                                   <*> FL.any (> Ops.maxValue)))
-        , benchIOSink "sum,length" (S.runFold ((,) <$> FL.sum <*> FL.length))
+        , benchIOSink "sum,length" (S.fold ((,) <$> FL.sum <*> FL.length))
         ]
       , bgroup "pipes"
         [ benchIOSink "mapM" (Ops.transformMapM serially 1)

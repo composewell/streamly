@@ -77,7 +77,7 @@ module Streamly.Internal.Prelude
     , foldlM'
 
     -- ** Composable Left Folds
-    , runFold
+    , fold
 
     -- ** Full Folds
 
@@ -968,13 +968,13 @@ foldlM' step begin m = S.foldlM' step begin $ toStreamS m
 
 -- | Fold a stream using the supplied left fold.
 --
--- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
+-- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
 -- 5050
 --
 -- @since 0.7.0
-{-# INLINE runFold #-}
-runFold :: Monad m => Fold m a b -> SerialT m a -> m b
-runFold = P.runFold
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> SerialT m a -> m b
+fold = P.runFold
 
 ------------------------------------------------------------------------------
 -- Running a sink
@@ -984,7 +984,7 @@ runFold = P.runFold
 -- | Drain a stream to a 'Sink'.
 {-# INLINE runSink #-}
 runSink :: Monad m => Sink m a -> SerialT m a -> m ()
-runSink = runFold . toFold
+runSink = fold . toFold
 -}
 
 ------------------------------------------------------------------------------
@@ -2275,7 +2275,7 @@ intercalateSuffix suffix seed unf str =
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
 -- is consumed by fold @f2@.
 --
--- > let splitAt_ n xs = S.runFold (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
+-- > let splitAt_ n xs = S.fold (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> splitAt_ 6 "Hello World!"
 -- > ("Hello ","World!")
@@ -2452,7 +2452,7 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
 -- input.
 --
--- > let span_ p xs = S.runFold (S.span p FL.toList FL.toList) $ S.fromList xs
+-- > let span_ p xs = S.fold (S.span p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> span_ (< 1) [1,2,3]
 -- > ([],[1,2,3])
@@ -2497,7 +2497,7 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 --
 -- This is the binary version of 'splitBy'.
 --
--- > let break_ p xs = S.runFold (S.break p FL.toList FL.toList) $ S.fromList xs
+-- > let break_ p xs = S.fold (S.break p FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> break_ (< 1) [3,2,1]
 -- > ([3,2,1],[])
@@ -2611,7 +2611,7 @@ groups = groupsBy (==)
 -- stream before the sequence and the second part consisting of the sequence
 -- and the rest of the stream.
 --
--- > let breakOn_ pat xs = S.runFold (S.breakOn pat FL.toList FL.toList) $ S.fromList xs
+-- > let breakOn_ pat xs = S.fold (S.breakOn pat FL.toList FL.toList) $ S.fromList xs
 --
 -- >>> breakOn_ "dear" "Hello dear world!"
 -- > ("Hello ","dear world!")
@@ -2988,7 +2988,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitBySeq patt f m = intersperseM (runFold f (A.read patt)) $ splitOnSeq patt f m
+splitBySeq patt f m = intersperseM (fold f (A.read patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --

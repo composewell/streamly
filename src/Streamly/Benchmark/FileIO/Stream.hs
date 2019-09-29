@@ -158,7 +158,7 @@ inspect $ 'sumBytes `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE cat #-}
 cat :: Handle -> Handle -> IO ()
-cat devNull inh = S.runFold (FH.write devNull) $ FH.read inh
+cat devNull inh = S.fold (FH.write devNull) $ FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
@@ -182,7 +182,7 @@ inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
 -- | Copy file
 {-# INLINE copy #-}
 copy :: Handle -> Handle -> IO ()
-copy inh outh = S.runFold (FH.write outh) (FH.read inh)
+copy inh outh = S.fold (FH.write outh) (FH.read inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copy
@@ -206,7 +206,7 @@ decodeChar8 inh =
 {-# INLINE copyCodecChar8 #-}
 copyCodecChar8 :: Handle -> Handle -> IO ()
 copyCodecChar8 inh outh =
-   S.runFold (FH.write outh)
+   S.fold (FH.write outh)
      $ SS.encodeChar8
      $ SS.decodeChar8
      $ FH.read inh
@@ -236,7 +236,7 @@ inspect $ hasNoTypeClasses 'decodeUtf8Lenient
 {-# INLINE copyCodecUtf8 #-}
 copyCodecUtf8 :: Handle -> Handle -> IO ()
 copyCodecUtf8 inh outh =
-   S.runFold (FH.write outh)
+   S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8
      $ FH.read inh
@@ -252,7 +252,7 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8
 {-# INLINE copyCodecUtf8Lenient #-}
 copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
 copyCodecUtf8Lenient inh outh =
-   S.runFold (FH.write outh)
+   S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ SS.decodeUtf8Lenient
      $ FH.read inh
@@ -303,7 +303,7 @@ inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
-    S.runFold (FH.write outh)
+    S.fold (FH.write outh)
       $ SS.encodeChar8
       $ SS.unlines
       $ SS.lines
@@ -343,7 +343,7 @@ isSp = isSpace . chr . fromIntegral
 {-# INLINE wordsUnwordsCopyWord8 #-}
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
-    S.runFold (FH.write outh)
+    S.fold (FH.write outh)
         $ IP.concatMapU IUF.fromList
         $ S.intersperse [32]
         $ S.wordsBy isSp FL.toList
@@ -359,7 +359,7 @@ inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
 {-# INLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
-    S.runFold (FH.write outh)
+    S.fold (FH.write outh)
       $ SS.encodeChar8
       $ IP.concatMapU IUF.fromList
       $ S.intersperse " "
