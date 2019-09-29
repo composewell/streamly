@@ -95,7 +95,6 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
 import qualified Streamly.Internal.Data.Unfold as UF
@@ -284,14 +283,14 @@ unfoldLines unf = S.intercalateSuffix UF.singleton '\n' unf
 -- >>> S.toList $ unlines $ S.fromList ["lines", "this", "string"]
 -- "lines\nthis\nstring\n"
 --
--- > unlines = unfoldLines A.readU
+-- > unlines = unfoldLines A.read
 --
 -- Note that, in general
 --
 -- > unlines . lines /= id
 {-# INLINE unlines #-}
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
-unlines = unfoldLines A.readU
+unlines = unfoldLines A.read
 
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.

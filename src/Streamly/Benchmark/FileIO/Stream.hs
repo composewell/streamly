@@ -135,7 +135,7 @@ countLinesU inh =
     S.length
         $ SS.foldLines FL.drain
         $ SS.decodeChar8
-        $ IP.concatMapU AT.readU (FH.readArrays inh)
+        $ S.concatUnfold A.read (FH.readArrays inh)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLinesU
@@ -344,7 +344,7 @@ isSp = isSpace . chr . fromIntegral
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     S.fold (FH.write outh)
-        $ IP.concatMapU IUF.fromList
+        $ S.concatUnfold IUF.fromList
         $ S.intersperse [32]
         $ S.wordsBy isSp FL.toList
         $ FH.read inh
@@ -361,7 +361,7 @@ wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeChar8
-      $ IP.concatMapU IUF.fromList
+      $ S.concatUnfold IUF.fromList
       $ S.intersperse " "
       -- Array allocation is too expensive for such small strings. So just use
       -- lists instead.

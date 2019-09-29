@@ -68,8 +68,6 @@ module Streamly.Internal.Memory.Array.Types
     , writeNUnsafe
     , write
     , writeAligned
-    , read
-    , readU
 
     -- * Utilities
     , defaultChunkSize
@@ -111,7 +109,6 @@ import GHC.IO (IO(IO), unsafePerformIO)
 import GHC.Ptr (Ptr(..))
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Strict (Tuple'(..))
 import Streamly.Internal.Data.SVar (adaptState)
 
@@ -406,33 +403,6 @@ byteCapacity Array{..} =
     let p = unsafeForeignPtrToPtr aStart
         len = aBound `minusPtr` p
     in assert (len >= 0) len
-
-data ReadUState a = ReadUState
-    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
-    {-# UNPACK #-} !(Ptr a)         -- current pointer
-
-{-# INLINE_NORMAL readU #-}
-readU :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
-readU = Unfold step inject
-    where
-
-    inject (Array (ForeignPtr start contents) (Ptr end) _) =
-        return $ ReadUState (ForeignPtr end contents) (Ptr start)
-
-    {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p) | p == (Ptr end) =
-        let x = unsafeInlineIO $ touchForeignPtr fp
-        in x `seq` return D.Stop
-    step (ReadUState fp p) = do
-            -- unsafeInlineIO allows us to run this in Identity monad for pure
-            -- toList/foldr case which makes them much faster due to not
-            -- accumulating the list and fusing better with the pure consumers.
-            --
-            -- This should be safe as the array contents are guaranteed to be
-            -- evaluated/written to before we peek at them.
-            let !x = unsafeInlineIO $ peek p
-            return $ D.Yield x
-                (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
@@ -904,16 +874,6 @@ _foldr f z arr@Array {..} =
 instance Foldable Array where
   foldr = _foldr
 #endif
-
--- | Convert an 'Array' into a stream.
---
--- @since 0.7.0
-{-# INLINE_EARLY read #-}
-read :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
-read = D.fromStreamD . toStreamD
--- XXX add fallback to StreamK rule
--- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
---     forall a. S.readK (read a) = K.fromArray a #-}
 
 -------------------------------------------------------------------------------
 -- Semigroup and Monoid

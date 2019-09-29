@@ -13,6 +13,7 @@ import System.Random (randomRIO)
 import qualified GHC.Exts as GHC
 
 import qualified ArrayOps as Ops
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 
@@ -87,8 +88,8 @@ main =
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSink "IsList.toList" GHC.toList
         , benchIOSink "foldl'" Ops.pureFoldl'
-        , benchIOSink "read" (S.drain . A.read)
-        , benchIOSink "readRev" (S.drain . A.readRev)
+        , benchIOSink "read" (S.drain . S.unfold A.read)
+        , benchIOSink "toStreamRev" (S.drain . IA.toStreamRev)
 #ifdef DEVBUILD
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum

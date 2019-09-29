@@ -52,6 +52,7 @@ import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Streams.StreamD as D
@@ -72,7 +73,7 @@ import qualified Streamly.Streams.Prelude as P
 concat :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 -- concat m = D.fromStreamD $ A.flattenArrays (D.toStreamD m)
 -- concat m = D.fromStreamD $ D.concatMap A.toStreamD (D.toStreamD m)
-concat m = D.fromStreamD $ D.concatMapU A.readU (D.toStreamD m)
+concat m = D.fromStreamD $ D.concatMapU A.read (D.toStreamD m)
 
 -- XXX should we have a reverseArrays API to reverse the stream of arrays
 -- instead?
@@ -88,7 +89,7 @@ concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (MonadIO m, IsStream t, Storable a)
     => Array a -> t m (Array a) -> t m a
-intercalateSuffix arr = S.intercalateSuffix A.readU arr A.readU
+intercalateSuffix arr = S.intercalateSuffix A.read arr A.read
 
 -- | Flatten a stream of arrays appending the given element after each
 -- array.
@@ -98,7 +99,7 @@ intercalateSuffix arr = S.intercalateSuffix A.readU arr A.readU
 interposeSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
 -- interposeSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
-interposeSuffix x = S.intercalateSuffix UF.singleton x A.readU
+interposeSuffix x = S.intercalateSuffix UF.singleton x A.read
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.

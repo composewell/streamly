@@ -23,7 +23,7 @@ main = do
     withFile file AppendMode
         (\src -> S.fold (FH.write src)
         $ encodeChar8Unchecked
-        $ S.concatMap A.read
+        $ S.concatUnfold A.read
         $ S.concatMapWith parallel (flip NS.withSocketS recv)
         $ NS.connectionsOnAllAddrs 8090)
 

@@ -280,7 +280,7 @@ onArray
     :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray f arr = S.fold (A.writeN value) $ f $ A.read arr
+onArray f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
 
 scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
 scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
@@ -511,7 +511,7 @@ readInstance str =
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
-pureFoldl' = S.foldl' (+) 0 . A.read
+pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
 #ifdef DEVBUILD
 {-# INLINE foldableFoldl' #-}

@@ -30,7 +30,8 @@
       add newlines to a stream, `Streamly.Data.String.encodeUtf8` for encoding and
       `Streamly.FileSystem.Handle.write` for writing to a file handle.
     * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
-    * Remove deprecated APIs `scan`, `foldl`, `foldlM`
+    * Remove deprecated APIs `foldl`, `foldlM`
+    * Replace deprecated API `scan` with a new signature, to scan using Fold.
 
 * In `Streamly` module:
     * `runStream` has been deprecated, please use `Streamly.Prelude.drain`
@@ -87,11 +88,10 @@ example, concat streams concurrently using this.
     character streams and other character stream operations.
   * _Arrays_: `Streamly.Memory.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.
-  * `Streamly.Memory.ArrayStream` module provide combinators to work on streams
-    of arrays.
 
 * Add the following to `Streamly.Prelude`:
-    * `runFold`, `runScan` and `runPostscan`
+    * `unfold`, `fold`, `scan` and `postscan`
+    * `concatUnfold` to concat a stream after unfolding each element
     * `intervalsOf` and `chunksOf`
     * `splitOn`, `splitOnSuffix`, `splitWithSuffix`, and `wordsBy`
     * `groups`, `groupsBy` and `groupsByRolling`

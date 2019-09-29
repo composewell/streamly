@@ -11,8 +11,8 @@ import Test.QuickCheck.Monadic (monadicIO, assert)
 
 import Test.Hspec as H
 
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Prelude as IP
 
@@ -55,7 +55,7 @@ testFromToStreamN =
                 arr <- S.fold (A.writeN len)
                      $ S.fromList list
                 xs <- S.toList
-                    $ A.read arr
+                    $ S.unfold A.read arr
                 assert (xs == list)
 
 testToStreamRev :: Property
@@ -66,7 +66,7 @@ testToStreamRev =
                 arr <- S.fold (A.writeN len)
                      $ S.fromList list
                 xs <- S.toList
-                    $ A.readRev arr
+                    $ IA.toStreamRev arr
                 assert (xs == reverse list)
 
 testArraysOf :: Property
@@ -75,7 +75,7 @@ testArraysOf =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ S.concatMap A.read
+                    $ S.concatUnfold A.read
                     $ IP.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
@@ -86,7 +86,7 @@ testFlattenArrays =
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
                 xs <- S.toList
-                    $ IP.concatMapU AT.readU
+                    $ S.concatUnfold A.read
                     $ IP.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
@@ -98,7 +98,7 @@ testFromToStream =
             monadicIO $ do
                 arr <- S.fold A.write $ S.fromList list
                 xs <- S.toList
-                    $ A.read arr
+                    $ S.unfold A.read arr
                 assert (xs == list)
 
 main :: IO ()
@@ -109,7 +109,7 @@ main = hspec
     describe "Construction" $ do
         prop "length . writeN n === n" $ testLength
         prop "read . writeN n === id" $ testFromToStreamN
-        prop "readRev . write === reverse" $ testToStreamRev
+        prop "toStreamRev . write === reverse" $ testToStreamRev
         prop "arraysOf concats to original" $ testArraysOf
         prop "concats to original" $ testFlattenArrays
         prop "read . write === id" $ testFromToStream

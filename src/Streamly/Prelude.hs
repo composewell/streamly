@@ -92,6 +92,7 @@ module Streamly.Prelude
     -- | Generate a monadic stream from a seed value and a generator function.
     , unfoldr
     , unfoldrM
+    , unfold
     , iterate
     , iterateM
     , fromIndices
@@ -662,6 +663,7 @@ module Streamly.Prelude
     --, bindWith
     , concatMap
     , concatMapM
+    , concatUnfold
 
     -- * Exceptions
     , before

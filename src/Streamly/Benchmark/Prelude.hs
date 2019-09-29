@@ -720,7 +720,7 @@ inspect $ hasNoTypeClasses 'concatMapRepl4xN
 {-# INLINE concatUnfoldRepl4xN #-}
 concatUnfoldRepl4xN :: Int -> IO ()
 concatUnfoldRepl4xN n =
-    S.drain $ Internal.concatMapU
+    S.drain $ S.concatUnfold
         (UF.replicateM 4)
         (sourceUnfoldrMN (value `div` 4) n)
 

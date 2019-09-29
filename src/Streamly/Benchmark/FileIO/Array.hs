@@ -44,6 +44,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 
 #ifdef INSPECTION
@@ -104,7 +105,7 @@ inspect $ 'countWords `hasNoType` ''Step
 {-# INLINE sumBytes #-}
 sumBytes :: Handle -> IO Word8
 sumBytes inh = do
-    let foldlArr' f z = runIdentity . S.foldl' f z . A.read
+    let foldlArr' f z = runIdentity . S.foldl' f z . IA.toStream
     let s = FH.readArrays inh
     S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 

@@ -248,7 +248,7 @@ module Streamly.Internal.Prelude
 
     -- ** Nested Streams
     , concatMapM
-    , concatMapU
+    , concatUnfold
     , concatUnfoldInterleave
     , concatUnfoldRoundrobin
     , concatMap
@@ -426,7 +426,7 @@ import Streamly.Internal.Data.Time.Units
 
 import Streamly.Internal.Data.Strict
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
@@ -542,7 +542,7 @@ unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
 --
 -- >>> unfold UF.replicateM 10 (putStrLn "hello")
 --
--- /Internal/
+-- /Since: 0.7.0/
 {-# INLINE unfold #-}
 unfold :: (IsStream t, Monad m) => Unfold m a b -> a -> t m b
 unfold unf x = fromStreamD $ D.unfold unf x
@@ -2210,9 +2210,9 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- therefore provide many times better performance.
 --
 -- @since 0.7.0
-{-# INLINE concatMapU #-}
-concatMapU ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
-concatMapU u m = fromStreamD $ D.concatMapU u (toStreamD m)
+{-# INLINE concatUnfold #-}
+concatUnfold ::(IsStream t, Monad m) => Unfold m a b -> t m a -> t m b
+concatUnfold u m = fromStreamD $ D.concatMapU u (toStreamD m)
 
 -- | Like 'concatUnfold' but interleaves the streams in the same way as
 -- 'interleave' behaves instead of appending them.
@@ -2988,7 +2988,8 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
-splitBySeq patt f m = intersperseM (fold f (A.read patt)) $ splitOnSeq patt f m
+splitBySeq patt f m =
+    intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m
 
 -- | Like 'splitSuffixOn' but keeps the suffix intact in the splits.
 --

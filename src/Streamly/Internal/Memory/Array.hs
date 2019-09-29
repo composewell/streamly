@@ -64,8 +64,9 @@ module Streamly.Internal.Memory.Array
     -- list.
 
     , A.toList
-    , A.read
-    , readRev
+    , toStream
+    , toStreamRev
+    , read
 
     -- * Random Access
     , length
@@ -96,19 +97,25 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 -- import Data.Functor.Identity (Identity)
-import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
+import Foreign.Ptr (plusPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
+import GHC.ForeignPtr (ForeignPtr(..))
+import GHC.Ptr (Ptr(..))
+
+import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Streams.StreamK as K
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -151,15 +158,55 @@ fromStream = P.runFold A.write
 -- Elimination
 -------------------------------------------------------------------------------
 
+-- | Convert an 'Array' into a stream.
+--
+-- /Internal/
+{-# INLINE_EARLY toStream #-}
+toStream :: (Monad m, K.IsStream t, Storable a) => Array a -> t m a
+toStream = D.fromStreamD . A.toStreamD
+-- XXX add fallback to StreamK rule
+-- {-# RULES "Streamly.Array.read fallback to StreamK" [1]
+--     forall a. S.readK (read a) = K.fromArray a #-}
+
 -- | Convert an 'Array' into a stream in reverse order.
 --
--- @since 0.7.0
-{-# INLINE_EARLY readRev #-}
-readRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
-readRev = D.fromStreamD . A.toStreamDRev
+-- /Internal/
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, IsStream t, Storable a) => Array a -> t m a
+toStreamRev = D.fromStreamD . A.toStreamDRev
 -- XXX add fallback to StreamK rule
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
+
+data ReadUState a = ReadUState
+    {-# UNPACK #-} !(ForeignPtr a)  -- foreign ptr with end of array pointer
+    {-# UNPACK #-} !(Ptr a)         -- current pointer
+
+-- | Unfold an array into a stream.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL read #-}
+read :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+read = Unfold step inject
+    where
+
+    inject (Array (ForeignPtr start contents) (Ptr end) _) =
+        return $ ReadUState (ForeignPtr end contents) (Ptr start)
+
+    {-# INLINE_LATE step #-}
+    step (ReadUState fp@(ForeignPtr end _) p) | p == (Ptr end) =
+        let x = A.unsafeInlineIO $ touchForeignPtr fp
+        in x `seq` return D.Stop
+    step (ReadUState fp p) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = A.unsafeInlineIO $ peek p
+            return $ D.Yield x
+                (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
 
 -- | > null arr = length arr == 0
 --
@@ -375,18 +422,18 @@ streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
 streamTransform f arr =
     P.runFold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
-        $ f (A.read arr)
+        $ f (toStream arr)
 
 -- | Fold an array using a 'Fold'.
 --
 -- /Internal/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-fold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
+fold f arr = P.runFold f $ (toStream arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
 -- /Internal/
 {-# INLINE streamFold #-}
 streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-streamFold f arr = f (A.read arr)
+streamFold f arr = f (toStream arr)

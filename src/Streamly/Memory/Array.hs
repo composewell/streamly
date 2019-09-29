@@ -90,7 +90,6 @@ module Streamly.Memory.Array
 
     , A.toList
     , A.read
-    , readRev
 
     -- ** Random Access
     , A.length
