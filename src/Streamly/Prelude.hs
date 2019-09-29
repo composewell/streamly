@@ -348,8 +348,8 @@ module Streamly.Prelude
     , scanl1M'
 
     -- ** Scan Using Fold
-    , runScan
-    , runPostscan
+    , scan
+    , postscan
 
     -- , lscanl'
     -- , lscanlM'
@@ -911,7 +911,7 @@ import Streamly.Internal.Prelude
 -- However, we can wrap the fold in a scan to convert it into a lazy stream of
 -- fold steps. We can then terminate the stream whenever we want.  For example,
 --
--- >>> S.toList $ S.take 1 $ S.runScan FL.head (1 `S.cons` undefined)
+-- >>> S.toList $ S.take 1 $ S.scan FL.head (1 `S.cons` undefined)
 -- [Nothing]
 --
 -- The following example extracts the input stream up to a point where the
@@ -921,7 +921,7 @@ import Streamly.Internal.Prelude
 -- > S.toList
 --   $ S.map (fromJust . fst)
 --   $ S.takeWhile (\\(_,x) -> x <= 10)
---   $ S.runPostscan ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
+--   $ S.postscan ((,) \<$> FL.last \<*> avg) (S.enumerateFromTo 1.0 100.0)
 -- @
 -- @
 --  [1.0,2.0,3.0,4.0,5.0,6.0,7.0,8.0,9.0,10.0,11.0,12.0,13.0,14.0,15.0,16.0,17.0,18.0,19.0]

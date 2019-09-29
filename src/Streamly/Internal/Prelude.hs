@@ -149,8 +149,8 @@ module Streamly.Internal.Prelude
     , scanl1M'
 
     -- ** Scan Using Fold
-    , runScan
-    , runPostscan
+    , scan
+    , postscan
 
     -- , lscanl'
     -- , lscanlM'
@@ -1568,16 +1568,16 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- | Scan a stream using the given monadic fold.
 --
 -- @since 0.7.0
-{-# INLINE runScan #-}
-runScan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
-runScan (Fold step begin done) = P.scanlMx' step begin done
+{-# INLINE scan #-}
+scan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+scan (Fold step begin done) = P.scanlMx' step begin done
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
-{-# INLINE runPostscan #-}
-runPostscan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
-runPostscan (Fold step begin done) = P.postscanlMx' step begin done
+{-# INLINE postscan #-}
+postscan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+postscan (Fold step begin done) = P.postscanlMx' step begin done
 
 -- XXX runPrescan
 
