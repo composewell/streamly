@@ -43,18 +43,15 @@ module Streamly.Internal.Memory.Array
 
     -- , defaultChunkSize
 
-    -- * Arrays
-    -- ** Construction
-    -- | When performance matters, the fastest way to generate an array is
-    -- 'writeN'. For regular use, 'IsList' and 'IsString' instances can be
-    -- used to conveniently construct arrays from literal values.
-    -- 'OverloadedLists' extension or 'fromList' can be used to construct an
-    -- array from a list literal.  Similarly, 'OverloadedStrings' extension or
-    -- 'fromList' can be used to construct an array from a string literal.
+    -- * Construction
 
     -- Pure List APIs
     , A.fromListN
     , A.fromList
+
+    -- Stream Folds
+    , fromStreamN
+    , fromStream
 
     -- Monadic APIs
     -- , newArray
@@ -62,11 +59,7 @@ module Streamly.Internal.Memory.Array
     , A.write         -- full buffer
     -- , writeLastN -- drop old (ring buffer)
 
-    -- Stream Folds
-    -- , writeNS
-    -- , writeS
-
-    -- ** Elimination
+    -- * Elimination
     -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
     -- list.
 
@@ -74,30 +67,30 @@ module Streamly.Internal.Memory.Array
     , A.read
     , readRev
 
-    -- ** Random Access
+    -- * Random Access
     , length
+    , null
     -- , (!!)
 
     , readIndex
+    , last
     {-
     , readSlice
     , readSliceRev
     -}
 
-    -- , writeIndex
+    , writeIndex
     {-
     , writeSlice
     , writeSliceRev
     -}
 
-    {-
     -- * Immutable Transformations
-    , runTransform
+    , streamTransform
 
     -- * Folding Arrays
-    -- , runStreamFold
-    , runFold
-    -}
+    , streamFold
+    , fold
     )
 where
 
@@ -133,10 +126,10 @@ newArray len = undefined
 -- allocated to size N, if the stream terminates before N elements then the
 -- array may hold less than N elements.
 --
--- @since 0.7.0
-{-# INLINE _writeNS #-}
-_writeNS :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-_writeNS n m = do
+-- /Internal/
+{-# INLINE fromStreamN #-}
+fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
+fromStreamN n m = do
     if n < 0 then error "writeN: negative write count specified" else return ()
     A.fromStreamDN n $ D.toStreamD m
 
@@ -148,9 +141,10 @@ _writeNS n m = do
 -- may fail.  When the stream size is not known, `arraysOf` followed by
 -- processing of indvidual arrays in the resulting stream should be preferred.
 --
-{-# INLINE _writeS #-}
-_writeS :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
-_writeS = P.runFold A.write
+-- /Internal/
+{-# INLINE fromStream #-}
+fromStream :: (MonadIO m, Storable a) => SerialT m a -> m (Array a)
+fromStream = P.runFold A.write
 -- write m = A.fromStreamD $ D.toStreamD m
 
 -------------------------------------------------------------------------------
@@ -167,13 +161,19 @@ readRev = D.fromStreamD . A.toStreamDRev
 -- {-# RULES "Streamly.Array.readRev fallback to StreamK" [1]
 --     forall a. S.toStreamK (readRev a) = K.revFromArray a #-}
 
-{-# INLINE _null #-}
-_null :: Storable a => Array a -> Bool
-_null arr = length arr == 0
+-- | > null arr = length arr == 0
+--
+-- /Internal/
+{-# INLINE null #-}
+null :: Storable a => Array a -> Bool
+null arr = length arr == 0
 
-{-# INLINE _last #-}
-_last :: Storable a => Array a -> Maybe a
-_last arr = readIndex arr (length arr - 1)
+-- | > last arr = readIndex arr (length arr - 1)
+--
+-- /Internal/
+{-# INLINE last #-}
+last :: Storable a => Array a -> Maybe a
+last arr = readIndex arr (length arr - 1)
 
 -------------------------------------------------------------------------------
 -- Random Access
@@ -311,10 +311,10 @@ readSliceRev arr i len = undefined
 -- | /O(1)/ Write the given element at the given index in the array.
 -- Performs in-place mutation of the array.
 --
--- @since 0.7.0
-{-# INLINE _writeIndex #-}
-_writeIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
-_writeIndex arr i a = do
+-- /Internal/
+{-# INLINE writeIndex #-}
+writeIndex :: (MonadIO m, Storable a) => Array a -> Int -> a -> m ()
+writeIndex arr i a = do
     let maxIndex = length arr - 1
     if i < 0
     then error "writeIndex: negative array index"
@@ -369,24 +369,24 @@ runPipe f arr = P.runPipe (toArrayMinChunk (length arr)) $ f (A.read arr)
 -- | Transform an array into another array using a stream transformation
 -- operation.
 --
--- @since 0.7.0
-{-# INLINE _runTransform #-}
-_runTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
+-- /Internal/
+{-# INLINE streamTransform #-}
+streamTransform :: forall m a b. (MonadIO m, Storable a, Storable b)
     => (SerialT m a -> SerialT m b) -> Array a -> m (Array b)
-_runTransform f arr =
+streamTransform f arr =
     P.runFold (A.toArrayMinChunk (alignment (undefined :: a)) (length arr))
         $ f (A.read arr)
 
 -- | Fold an array using a 'Fold'.
 --
--- @since 0.7.0
-{-# INLINE _runFold #-}
-_runFold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-_runFold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
+-- /Internal/
+{-# INLINE fold #-}
+fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
+fold f arr = P.runFold f $ (A.read arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --
--- @since 0.7.0
-{-# INLINE _runStreamFold #-}
-_runStreamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
-_runStreamFold f arr = f (A.read arr)
+-- /Internal/
+{-# INLINE streamFold #-}
+streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
+streamFold f arr = f (A.read arr)
