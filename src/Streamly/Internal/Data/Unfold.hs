@@ -56,13 +56,7 @@
 module Streamly.Internal.Data.Unfold
     (
     -- * Unfold Type
-    -- |
-    -- A 'Fold' can be run over a seed using the 'unfold' combinator.
-    --
-    -- >>> unfold UF.replicateM (putStrLn "hello") 10
-
       Unfold
-    , unfold
 
     -- * Operations on Input
     , close
@@ -112,28 +106,6 @@ import Streamly.Streams.StreamD.Type (pattern Stream)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (defState)
-
--------------------------------------------------------------------------------
--- Running unfolds
--------------------------------------------------------------------------------
-
--- XXX flip the first two arguments to make it similar to unfold i.e. returning
--- a -> Stream m b?
---
--- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
---
-{-# INLINE_NORMAL unfold #-}
-unfold :: Monad m => a -> Unfold m a b -> Stream m b
-unfold seed (Unfold ustep inject) = Stream step Nothing
-  where
-    {-# INLINE_LATE step #-}
-    step _ Nothing = inject seed >>= return . Skip . Just
-    step _ (Just st) = do
-        r <- ustep st
-        return $ case r of
-            Yield x s -> Yield x (Just s)
-            Skip s    -> Skip (Just s)
-            Stop      -> Stop
 
 -------------------------------------------------------------------------------
 -- Input operations

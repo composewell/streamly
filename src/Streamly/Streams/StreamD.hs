@@ -59,6 +59,7 @@ module Streamly.Streams.StreamD
     -- ** Unfolds
     , unfoldr
     , unfoldrM
+    , unfold
 
     -- ** Specialized Generation
     -- | Generate a monadic stream from a seed.
@@ -391,6 +392,21 @@ unfoldrM next state = Stream step state
 {-# INLINE_LATE unfoldr #-}
 unfoldr :: Monad m => (s -> Maybe (a, s)) -> s -> Stream m a
 unfoldr f = unfoldrM (return . f)
+
+-- | Convert an 'Unfold' into a 'Stream' by supplying it a seed.
+--
+{-# INLINE_NORMAL unfold #-}
+unfold :: Monad m => Unfold m a b -> a -> Stream m b
+unfold (Unfold ustep inject) seed = Stream step Nothing
+  where
+    {-# INLINE_LATE step #-}
+    step _ Nothing = inject seed >>= return . Skip . Just
+    step _ (Just st) = do
+        r <- ustep st
+        return $ case r of
+            Yield x s -> Yield x (Just s)
+            Skip s    -> Skip (Just s)
+            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Specialized Generation

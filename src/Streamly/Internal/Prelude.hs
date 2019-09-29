@@ -45,6 +45,7 @@ module Streamly.Internal.Prelude
     -- ** From Generators
     , unfoldr
     , unfoldrM
+    , unfold
     , iterate
     , iterateM
     , fromIndices
@@ -536,6 +537,15 @@ unfoldrM = K.unfoldrM
 {-# INLINE_EARLY unfoldrMSerial #-}
 unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
 unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
+
+-- | Convert an 'Unfold' into a stream by supplying it an input seed.
+--
+-- >>> unfold UF.replicateM 10 (putStrLn "hello")
+--
+-- /Internal/
+{-# INLINE unfold #-}
+unfold :: (IsStream t, Monad m) => Unfold m a b -> a -> t m b
+unfold unf x = fromStreamD $ D.unfold unf x
 
 ------------------------------------------------------------------------------
 -- Specialized Generation
