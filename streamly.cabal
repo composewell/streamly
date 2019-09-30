@@ -319,6 +319,7 @@ library
                      , Streamly.Network.Server
                      , Streamly.Network.Client
 
+                     , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Server
 
     if flag(benchmark)
