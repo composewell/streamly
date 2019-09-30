@@ -8,5 +8,5 @@ import qualified Streamly.Prelude as S
 main :: IO ()
 main = S.drain
     $ parallely $ S.mapM (flip withSocket echo)
-    $ serially $ connectionsOnAllAddrs 8090
+    $ serially $ S.unfold listenOnPort 8090
     where echo sk = S.fold (writeArrays sk) $ readArrays sk

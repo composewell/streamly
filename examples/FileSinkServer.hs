@@ -25,7 +25,7 @@ main = do
         $ encodeChar8Unchecked
         $ S.concatUnfold A.read
         $ S.concatMapWith parallel (flip NS.withSocketS recv)
-        $ NS.connectionsOnAllAddrs 8090)
+        $ S.unfold NS.listenOnPort 8090)
 
     where
 

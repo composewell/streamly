@@ -319,6 +319,8 @@ library
                      , Streamly.Network.Server
                      , Streamly.Network.Client
 
+                     , Streamly.Internal.Network.Server
+
     if flag(benchmark)
        exposed-modules:
                        Streamly.Benchmark.FileIO.Array
