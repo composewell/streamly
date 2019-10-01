@@ -39,13 +39,13 @@ module Streamly.Pipe
     , map
     , mapM
 
-    {-
     -- ** Filtering
     , lfilter
     , lfilterM
     -- , ldeleteBy
     -- , luniq
 
+    {-
     {-
     -- ** Mapping Filters
     , lmapMaybe
@@ -64,7 +64,6 @@ module Streamly.Pipe
     -- ** Reordering
     , lreverse
     -}
-
     -- * Parsing
     -- ** Trimming
     , ltake
@@ -284,50 +283,69 @@ mapM f = Pipe consume undefined ()
     consume _ a = do
         r <- f a
         return $ Yield r (Consume ())
-{-
 ------------------------------------------------------------------------------
 -- Filtering
 ------------------------------------------------------------------------------
 
--- | Include only those elements that pass a predicate.
---
--- >>> FL.foldl (lfilter (> 5) FL.sum) [1..10]
--- 40
+-- TODO: Add an example.
+-- | Produce only those elements that pass a predicate.
 --
 -- @since 0.7.0
 {-# INLINABLE lfilter #-}
-lfilter :: Monad m => (a -> Bool) -> Fold m a r -> Fold m a r
-lfilter f (Fold step begin done) = Fold step' begin done
+lfilter :: Monad m => (b -> Bool) -> Pipe m a b -> Pipe m a b
+lfilter f (Pipe consume produce state) = Pipe consume' produce' state
   where
-    step' x a = if f a then step x a else return x
+    consume' s a = filter' <$> consume s a
+    produce' s = filter' <$> produce s
+    filter' stp = case stp of
+      Yield r s' -> if f r then Yield r s' else Continue s'
+      Continue s' -> Continue s'
+
 
 -- | Like 'lfilter' but with a monadic predicate.
 --
 -- @since 0.7.0
 {-# INLINABLE lfilterM #-}
-lfilterM :: Monad m => (a -> m Bool) -> Fold m a r -> Fold m a r
-lfilterM f (Fold step begin done) = Fold step' begin done
+lfilterM :: Monad m => (b -> m Bool) -> Pipe m a b -> Pipe m a b
+lfilterM f (Pipe consume produce state) = Pipe consume' produce' state
   where
-    step' x a = do
-      use <- f a
-      if use then step x a else return x
+    consume' s a = filter' =<< consume s a
+    produce' s = filter' =<< produce s
+    filter' stp = case stp of
+      Yield r s' -> do
+        use <- f r
+        return $ if use then Yield r s' else Continue s'
+      Continue s' -> return $ Continue s'
 
 -- | Take first 'n' elements from the stream and discard the rest.
 --
 -- @since 0.7.0
-{-# INLINABLE ltake #-}
-ltake :: Monad m => Int -> Fold m a b -> Fold m a b
-ltake n (Fold step initial done) = Fold step' initial' done'
-    where
-    initial' = fmap (Tuple' 0) initial
-    step' (Tuple' i r) a = do
-        if i < n
-        then do
-            res <- step r a
-            return $ Tuple' (i + 1) res
-        else return $ Tuple' i r
-    done' (Tuple' _ r) = done r
 
+  {-
+{-# INLINABLE ltake #-}
+ltake :: Monad m => Int -> Pipe m a b -> Pipe m a b
+ltake n (Pipe consume produce state) = Pipe consume' produce' state'
+  where
+    state' = newStateI state n
+    -- ??????
+    consume' (Consume (s, i)) a = take' i =<< consume s a
+    consume' (Produce (s, i)) a = take' i =<< consume s a
+    produce' (Consume (s, i)) = take' i =<< produce s
+    produce' (Produce (s, i)) = take' i =<< produce s
+    -- ??????
+    take' i mstp = do
+      stp <- mstp
+      if i > 0 then case stp of
+        Yield a' s' ->return . Yield a' $ newStateI s' (i - 1)
+        Continue s' ->return . Continue $ newStateI s' i
+      else case stp of
+        Yield _ s' -> return . Continue $ newStateI s' i
+        Continue s' -> return . Continue $ newStateI s' i
+    newStateI (Consume s) i = Consume (s, i)
+    newStateI (Produce s) i = Produce (s, i)
+-}
+
+{-
 -- | Takes elements from the input as long as the predicate succeeds.
 --
 -- @since 0.7.0
