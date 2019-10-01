@@ -75,6 +75,7 @@ import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
+import qualified Streamly.Internal.Network.Socket as ISK
 
 -------------------------------------------------------------------------------
 -- Connect
@@ -110,7 +111,7 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-read addr port = AS.concat $ withConnection addr port SK.readArrays
+read addr port = AS.concat $ withConnection addr port ISK.toStreamArrays
 
 -------------------------------------------------------------------------------
 -- Writing

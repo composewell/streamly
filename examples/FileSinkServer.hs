@@ -24,7 +24,7 @@ main = do
         (\src -> S.fold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatUnfold A.read
-        $ S.concatMapWith parallel (flip NS.withSocketS recv)
+        $ S.concatMapWith parallel (flip NS.withSocket recv)
         $ S.unfold NS.listenOnPort 8090)
 
     where
@@ -32,4 +32,4 @@ main = do
     recv =
           S.splitWithSuffix (== '\n') A.write
         . decodeChar8
-        . NS.read
+        . S.unfold NS.read

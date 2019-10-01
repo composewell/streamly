@@ -19,8 +19,8 @@
 module Streamly.Internal.Network.Socket
     (
     -- * Use a socket
-      withSocket
-    , withSocketS
+      withSocketM
+    , withSocket
 
     -- * Read from connection
     , read
@@ -28,14 +28,18 @@ module Streamly.Internal.Network.Socket
     -- , readLines
     -- , readFrames
     -- , readByChunks
+    , toStream
 
     -- -- * Array Read
     -- , readArrayUpto
     -- , readArrayOf
 
     -- , readArraysUpto
-    -- , readArraysOf
+    , readArraysOf
     , readArrays
+
+    , toStreamArraysOf
+    , toStreamArrays
 
     -- * Write to connection
     , write
@@ -72,6 +76,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream, mkStream)
@@ -80,21 +85,23 @@ import Streamly.Data.Fold (Fold)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
+import qualified Streamly.Streams.StreamD.Type as D
 
--- | @'withSocket' socket act@ runs the monadic computation @act@ passing the
--- socket handle to it.  The handle will be closed on exit from 'withSocket',
+-- | @'withSocketM' socket act@ runs the monadic computation @act@ passing the
+-- socket handle to it.  The handle will be closed on exit from 'withSocketM',
 -- whether by normal termination or by raising an exception.  If closing the
 -- handle raises an exception, then this exception will be raised by
--- 'withSocket' rather than any exception raised by 'act'.
+-- 'withSocketM' rather than any exception raised by 'act'.
 --
 -- @since 0.7.0
-{-# INLINE withSocket #-}
-withSocket :: (MonadCatch m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
-withSocket sk f = do
+{-# INLINE withSocketM #-}
+withSocketM :: (MonadCatch m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
+withSocketM sk f = do
     f sk `onException` liftIO (Net.close sk)
     liftIO (Net.close sk)
 
@@ -105,14 +112,14 @@ withSocket sk f = do
 -- withSocketS sk = A.flattenArrays $
 --     S.finally (liftIO (Net.close sk)) (readArrays sk)
 
--- | Like 'withSocket' but runs a streaming computation instead of a monadic
+-- | Like 'withSocketM' but runs a streaming computation instead of a monadic
 -- computation.
 --
 -- @since 0.7.0
-{-# INLINE withSocketS #-}
-withSocketS :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINE withSocket #-}
+withSocket :: (IsStream t, MonadCatch m, MonadIO m)
     => Socket -> (Socket -> t m a) -> t m a
-withSocketS sk = S.bracket (return sk) (liftIO . Net.close)
+withSocket sk = S.bracket (return sk) (liftIO . Net.close)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
@@ -205,24 +212,49 @@ readArraysUptoWith f size h = go
         then stp
         else yld arr go
 
--- | @readArraysOf size h@ reads a stream of arrays from file handle @h@.
+-- | @toStreamArraysOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is limited to @size@.
 -- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
-{-# INLINABLE readArraysOf #-}
-readArraysOf :: (IsStream t, MonadIO m)
+{-# INLINABLE toStreamArraysOf #-}
+toStreamArraysOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
-readArraysOf = readArraysUptoWith readArrayOf
+toStreamArraysOf = readArraysUptoWith readArrayOf
 
 -- XXX read 'Array a' instead of Word8
 --
--- | @readArrays h@ reads a stream of arrays from socket handle @h@.
+-- | @toStreamArrays h@ reads a stream of arrays from socket handle @h@.
 -- The maximum size of a single array is limited to @defaultChunkSize@.
 --
 -- @since 0.7.0
+{-# INLINE toStreamArrays #-}
+toStreamArrays :: (IsStream t, MonadIO m) => Socket -> t m (Array Word8)
+toStreamArrays = toStreamArraysOf A.defaultChunkSize
+
+-- | Unfold the tuple @(size, socket)@ into a stream of 'Word8' arrays. The
+-- stream consists of arrays representing chunks of data read from the socket.
+-- The maximum size of a single array is limited to @size@.
+--
+-- @since 0.7.0
+{-# INLINE_NORMAL readArraysOf #-}
+readArraysOf :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
+readArraysOf = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step (size, h) = do
+        arr <- liftIO $ readArrayOf size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr (size, h)
+
+-- | Unfolds a socket into a stream of 'Word8' arrays.  The maximum size of a
+-- single array is limited to @defaultChunkSize@.
+--
+-- @since 0.7.0
 {-# INLINE readArrays #-}
-readArrays :: (IsStream t, MonadIO m) => Socket -> t m (Array Word8)
-readArrays = readArraysOf A.defaultChunkSize
+readArrays :: MonadIO m => Unfold m Socket (Array Word8)
+readArrays = UF.first readArraysOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -250,9 +282,24 @@ readInChunksOf chunkSize h = A.flattenArrays $ readArraysUpto chunkSize h
 -- stream ends when EOF is encountered.
 --
 -- @since 0.7.0
+{-# INLINE toStream #-}
+toStream :: (IsStream t, MonadIO m) => Socket -> t m Word8
+toStream = AS.concat . toStreamArrays
+
+-- | @readInChunksOf@ unfolds @(bufsize, socket)@ into a byte stream, reads
+-- are performed in buffers of up to @bufsize@.
+--
+-- @since 0.7.0
+{-# INLINE readInChunksOf #-}
+readInChunksOf :: MonadIO m => Unfold m (Int, Socket) Word8
+readInChunksOf = UF.concat readArraysOf A.read
+
+-- | Unfolds a 'Socket' into a byte stream.
+--
+-- @since 0.7.0
 {-# INLINE read #-}
-read :: (IsStream t, MonadIO m) => Socket -> t m Word8
-read = AS.concat . readArrays
+read :: MonadIO m => Unfold m Socket Word8
+read = UF.first readInChunksOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Writing

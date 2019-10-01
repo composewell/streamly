@@ -24,8 +24,8 @@
 module Streamly.Network.Socket
     (
     -- * Use a socket
-      withSocket
-    , withSocketS
+      withSocketM
+    , withSocket
 
     -- * Read from connection
     , read
@@ -39,18 +39,18 @@ module Streamly.Network.Socket
     -- , readArrayOf
 
     -- , readArraysUpto
-    -- , readArraysOf
-    , readArrays
+    , readArraysOf
+    -- , readArrays
 
     -- * Write to connection
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeInChunksOf
+    -- , writeInChunksOf
 
     -- -- * Array Write
-    , writeArray
+    -- , writeArray
     , writeArrays
 
     -- reading/writing datagrams
