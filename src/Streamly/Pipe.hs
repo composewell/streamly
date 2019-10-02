@@ -64,11 +64,13 @@ module Streamly.Pipe
     -- ** Reordering
     , lreverse
     -}
+    -}
     -- * Parsing
     -- ** Trimming
     , ltake
     -- , lrunFor -- time
     , ltakeWhile
+    {-
     {-
     , ltakeWhileM
     , ldrop
@@ -321,47 +323,47 @@ lfilterM f (Pipe consume produce state) = Pipe consume' produce' state
 --
 -- @since 0.7.0
 
-  {-
 {-# INLINABLE ltake #-}
 ltake :: Monad m => Int -> Pipe m a b -> Pipe m a b
-ltake n (Pipe consume produce state) = Pipe consume' produce' state'
+ltake n (Pipe consume produce state) = Pipe consume' produce' (state, n)
   where
-    state' = newStateI state n
-    -- ??????
-    consume' (Consume (s, i)) a = take' i =<< consume s a
-    consume' (Produce (s, i)) a = take' i =<< consume s a
-    produce' (Consume (s, i)) = take' i =<< produce s
-    produce' (Produce (s, i)) = take' i =<< produce s
-    -- ??????
-    take' i mstp = do
-      stp <- mstp
-      if i > 0 then case stp of
-        Yield a' s' ->return . Yield a' $ newStateI s' (i - 1)
-        Continue s' ->return . Continue $ newStateI s' i
-      else case stp of
-        Yield _ s' -> return . Continue $ newStateI s' i
-        Continue s' -> return . Continue $ newStateI s' i
-    newStateI (Consume s) i = Consume (s, i)
-    newStateI (Produce s) i = Produce (s, i)
--}
+    consume' (s, i) a = take' i =<< consume s a
+    produce' (s, i) = take' i =<< produce s
+    take' i stp = return $ case stp of
+      Yield a' (Consume s') -> 
+        if i > 0
+          then Yield a' (Consume (s', i - 1))
+          else Continue (Consume (s', i))
+      Yield a' (Produce s') ->
+        if i > 0
+          then Yield a' (Produce (s', i - 1))
+          else Continue (Produce (s', i))
+      Continue (Consume s') -> Continue $ Consume (s', i)
+      Continue (Produce s') -> Continue $ Produce (s', i)
 
-{-
+
 -- | Takes elements from the input as long as the predicate succeeds.
 --
 -- @since 0.7.0
 {-# INLINABLE ltakeWhile #-}
-ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
-ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
-    where
-    initial' = fmap Left' initial
-    step' (Left' r) a = do
-        if predicate a
-        then fmap Left' $ step r a
-        else return (Right' r)
-    step' r _ = return r
-    done' (Left' r) = done r
-    done' (Right' r) = done r
+ltakeWhile :: Monad m => (b -> Bool) -> Pipe m a b -> Pipe m a b
+ltakeWhile predicate (Pipe consume produce state) = Pipe consume' produce' (state, True)
+  where
+    consume' (s, b) a = bool' b =<< consume s a
+    produce' (s, b) = bool' b =<< produce s
+    bool' b stp = return $ case stp of
+      Yield a (Consume s') ->
+        if b && predicate a
+          then Yield a (Consume (s', True))
+          else Continue (Consume (s', False))
+      Yield a (Produce s') ->
+        if b && predicate a
+          then Yield a (Produce (s', True))
+          else Continue (Produce (s', False))
+      Continue (Consume s') -> Continue (Consume (s', b))
+      Continue (Produce s') -> Continue (Produce (s', b))
 
+{-
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
 ------------------------------------------------------------------------------
