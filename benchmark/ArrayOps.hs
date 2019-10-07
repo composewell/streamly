@@ -276,6 +276,7 @@ sequence :: (S.IsStream t, S.MonadAsync m)
     => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
     -}
 
+{-# INLINE onArray #-}
 onArray
     :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
