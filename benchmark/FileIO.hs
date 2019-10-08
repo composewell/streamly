@@ -88,6 +88,15 @@ main = do
             , mkBench "cat" href $ do
                 Handles inh _ <- readIORef href
                 BFA.cat devNull inh
+           , mkBench "catBracket" href $ do
+               Handles inh _ <- readIORef href
+               BFA.catBracket devNull inh
+           , mkBench "catBracketStream" href $ do
+               Handles inh _ <- readIORef href
+               BFA.catBracketStream devNull inh
+           , mkBench "catOnException" href $ do
+               Handles inh _ <- readIORef href
+               BFA.catOnException devNull inh
            , mkBench "read-utf8" href $ do
                Handles inh _ <- readIORef href
                BFA.decodeUtf8Lenient inh
@@ -117,6 +126,23 @@ main = do
             , mkBench "catStream" href $ do
                 Handles inh _ <- readIORef href
                 BFS.catStreamWrite devNull inh
+#ifdef DEVBUILD
+           , mkBench "catOnException" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catOnException devNull inh
+           , mkBench "catHandle" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catHandle devNull inh
+           , mkBench "catFinally" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catFinally devNull inh
+           , mkBench "catBracketStream" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catBracketStream devNull inh
+           , mkBench "catBracket" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catBracket devNull inh
+#endif
            , mkBench "read-word8" href $ do
                Handles inh _ <- readIORef href
                BFS.readWord8 inh

@@ -8,6 +8,7 @@
 -- Portability : GHC
 
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -29,6 +30,11 @@ module Streamly.Benchmark.FileIO.Stream
     , sumBytes
     , cat
     , catStreamWrite
+    , catBracket
+    , catBracketStream
+    , catOnException
+    , catHandle
+    , catFinally
     , copy
     , linesUnlinesCopy
     , wordsUnwordsCopyWord8
@@ -50,9 +56,10 @@ module Streamly.Benchmark.FileIO.Stream
     )
 where
 
+import Control.Exception (SomeException)
 import Data.Char (ord, chr)
 import Data.Word (Word8)
-import System.IO (Handle)
+import System.IO (Handle, hClose)
 import Prelude hiding (last, length)
 
 import qualified Streamly.FileSystem.Handle as FH
@@ -177,6 +184,76 @@ inspect $ hasNoTypeClasses 'catStreamWrite
 inspect $ 'catStreamWrite `hasNoType` ''Step
 inspect $ 'catStreamWrite `hasNoType` ''AT.FlattenState
 inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catBracket #-}
+catBracket :: Handle -> Handle -> IO ()
+catBracket devNull inh =
+    let readEx = IUF.bracket (return ()) (\_ -> hClose inh) (\_ -> FH.read)
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catBracket
+-- inspect $ 'catBracket `hasNoType` ''Step
+-- inspect $ 'catBracket `hasNoType` ''AT.FlattenState
+-- inspect $ 'catBracket `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catBracketStream #-}
+catBracketStream :: Handle -> Handle -> IO ()
+catBracketStream devNull inh =
+    let readEx = S.bracket (return ()) (\_ -> hClose inh)
+                    (\_ -> IFH.toStream inh)
+    in IFH.fromStream devNull $ readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catBracketStream
+-- inspect $ 'catBracketStream `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catOnException #-}
+catOnException :: Handle -> Handle -> IO ()
+catOnException devNull inh =
+    let readEx = IUF.onException (hClose inh) FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catOnException
+-- inspect $ 'catOnException `hasNoType` ''Step
+-- inspect $ 'catOnException `hasNoType` ''AT.FlattenState
+-- inspect $ 'catOnException `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catFinally #-}
+catFinally :: Handle -> Handle -> IO ()
+catFinally devNull inh =
+    let readEx = IUF.finally (hClose inh) FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catFinally
+-- inspect $ 'catFinally `hasNoType` ''Step
+-- inspect $ 'catFinally `hasNoType` ''AT.FlattenState
+-- inspect $ 'catFinally `hasNoType` ''D.ConcatMapUState
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catHandle #-}
+catHandle :: Handle -> Handle -> IO ()
+catHandle devNull inh =
+    let readEx = IUF.handle (\(_e :: SomeException) -> hClose inh >> return 10)
+                            FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catHandle
+-- inspect $ 'catHandle `hasNoType` ''Step
+-- inspect $ 'catHandle `hasNoType` ''AT.FlattenState
+-- inspect $ 'catHandle `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Copy file

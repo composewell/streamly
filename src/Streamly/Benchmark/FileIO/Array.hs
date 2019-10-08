@@ -26,6 +26,9 @@ module Streamly.Benchmark.FileIO.Array
     , countWords
     , sumBytes
     , cat
+    , catOnException
+    , catBracket
+    , catBracketStream
     , copy
     , linesUnlinesCopy
     , wordsUnwordsCopy
@@ -36,7 +39,7 @@ where
 
 import Data.Functor.Identity (runIdentity)
 import Data.Word (Word8)
-import System.IO (Handle)
+import System.IO (Handle, hClose)
 import Prelude hiding (last)
 
 import qualified Streamly.FileSystem.Handle as FH
@@ -48,6 +51,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Unfold as IUF
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
@@ -125,6 +129,45 @@ cat devNull inh =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
 inspect $ 'cat `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catBracket #-}
+catBracket :: Handle -> Handle -> IO ()
+catBracket devNull inh =
+    let readEx = IUF.bracket (return ()) (\_ -> hClose inh)
+                    (\_ -> IUF.first FH.readArraysOf (256*1024))
+    in IUF.fold readEx (IFH.writeArrays devNull) inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catBracket
+-- inspect $ 'catBracket `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catBracketStream #-}
+catBracketStream :: Handle -> Handle -> IO ()
+catBracketStream devNull inh =
+    let readEx = S.bracket (return ()) (\_ -> hClose inh)
+                    (\_ -> IFH.toStreamArraysOf (256*1024) inh)
+    in S.fold (IFH.writeArrays devNull) $ readEx
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catBracketStream
+-- inspect $ 'catBracketStream `hasNoType` ''Step
+#endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catOnException #-}
+catOnException :: Handle -> Handle -> IO ()
+catOnException devNull inh =
+    let readEx = IUF.onException (hClose inh)
+                    (IUF.first FH.readArraysOf (256*1024))
+    in IUF.fold readEx (IFH.writeArrays devNull) inh
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'catOnException
+-- inspect $ 'catOnException `hasNoType` ''Step
 #endif
 
 -- | Copy file
