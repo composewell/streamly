@@ -57,7 +57,7 @@ module Streamly.Internal.Network.Socket
 where
 
 import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
-import Control.Monad.Catch (MonadCatch, onException)
+import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
 import Data.Word (Word8)
@@ -100,10 +100,11 @@ import qualified Streamly.Streams.StreamD.Type as D
 --
 -- @since 0.7.0
 {-# INLINE withSocketM #-}
-withSocketM :: (MonadCatch m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
+withSocketM :: (MonadMask m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
 withSocketM sk f = do
-    f sk `onException` liftIO (Net.close sk)
-    liftIO (Net.close sk)
+--    f sk `onException` liftIO (Net.close sk)
+--    liftIO (Net.close sk)
+     finally (liftIO (Net.close sk)) (f sk)
 
 -- XXX bracket performs 2x better than 'finally'.  That's perhaps because of
 -- better fusion of "A.flattenArrays .  readArrays"?
