@@ -64,6 +64,7 @@ module Streamly.FileSystem.Handle
     -- , readLines
     -- , readFrames
     , readInChunksOf
+    , readArraysOf
 
     -- ** Write to Handle
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
@@ -76,6 +77,7 @@ module Streamly.FileSystem.Handle
     -- , writeUtf8ByLines
     -- , writeByFrames
     , writeInChunksOf
+    , writeArrays
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or

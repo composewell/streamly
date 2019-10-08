@@ -30,6 +30,8 @@ module Streamly.Internal.FileSystem.Handle
     -- -- * Array Read
     -- , readArrayUpto
     -- , readArrayOf
+    , readArraysOf
+    , readArrays
 
     , toStreamArraysOf
     , toStreamArrays
@@ -175,6 +177,11 @@ toStreamArraysOf size h = D.fromStreamD (D.Stream step ())
                 0 -> D.Stop
                 _ -> D.Yield arr ()
 
+-- | Unfold the tuple @(size, handle)@ into a stream of 'Word8' arrays. The
+-- stream consists of arrays representing chunks of data read from the handle.
+-- The maximum size of a single array is limited to @size@.
+--
+-- @since 0.7.0
 {-# INLINE_NORMAL readArraysOf #-}
 readArraysOf :: MonadIO m => Unfold m (Int, Handle) (Array Word8)
 readArraysOf = Unfold step return
@@ -200,6 +207,14 @@ readArraysOf = Unfold step return
 {-# INLINE toStreamArrays #-}
 toStreamArrays :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
 toStreamArrays = toStreamArraysOf defaultChunkSize
+
+-- | Unfolds a handle into a stream of 'Word8' arrays.  The maximum size of a
+-- single array is limited to @defaultChunkSize@.
+--
+-- @since 0.7.0
+{-# INLINE readArrays #-}
+readArrays :: MonadIO m => Unfold m Handle (Array Word8)
+readArrays = UF.first readArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
