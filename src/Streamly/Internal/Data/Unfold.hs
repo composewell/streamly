@@ -92,9 +92,18 @@ module Streamly.Internal.Data.Unfold
     , concat
     , concatMapM
     , outerProduct
+
+    -- * Exceptions
+    , before
+    , after
+    , onException
+    , finally
+    , bracket
+    , handle
     )
 where
 
+import Control.Exception (Exception)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude hiding (concat, map, takeWhile, take, filter)
@@ -106,6 +115,9 @@ import Streamly.Streams.StreamD.Type (pattern Stream)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (defState)
+import Control.Monad.Catch (MonadCatch)
+
+import qualified Control.Monad.Catch as MC
 
 -------------------------------------------------------------------------------
 -- Input operations
@@ -396,3 +408,134 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
             Yield x s -> Yield x (ConcatMapInner ost (Stream istep s))
             Skip s    -> Skip (ConcatMapInner ost (Stream istep s))
             Stop      -> Skip (ConcatMapOuter ost)
+
+------------------------------------------------------------------------------
+-- Exceptions
+------------------------------------------------------------------------------
+
+-- | Run a side effect before the unfold yields its first element.
+--
+-- /Internal/
+{-# INLINE_NORMAL before #-}
+before :: Monad m => m c -> Unfold m a b -> Unfold m a b
+before action (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = do
+        _ <- action
+        st <- inject1 x
+        return st
+
+    {-# INLINE_LATE step #-}
+    step st = do
+        res <- step1 st
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> return Stop
+
+-- | Run a side effect whenever the unfold stops normally.
+--
+-- /Internal/
+{-# INLINE_NORMAL after #-}
+after :: Monad m => m c -> Unfold m a b -> Unfold m a b
+after action (Unfold step1 inject1) = Unfold step inject1
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step st = do
+        res <- step1 st
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- | Run a side effect whenever the unfold aborts due to an exception.
+--
+-- /Internal/
+{-# INLINE_NORMAL onException #-}
+onException :: MonadCatch m => m c -> Unfold m a b -> Unfold m a b
+onException action (Unfold step1 inject1) = Unfold step inject1
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step st = do
+        res <- step1 st `MC.onException` action
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> return Stop
+
+-- | Run a side effect whenever the unfold stops normally or aborts due to an
+-- exception.
+--
+-- /Internal/
+{-# INLINE_NORMAL finally #-}
+finally :: MonadCatch m => m c -> Unfold m a b -> Unfold m a b
+finally action (Unfold step1 inject1) = Unfold step inject1
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step st = do
+        res <- step1 st `MC.onException` action
+        case res of
+            Yield x s -> return $ Yield x s
+            Skip s    -> return $ Skip s
+            Stop      -> action >> return Stop
+
+-- | @bracket before after between@ runs the @before@ action and then runs the
+-- @between@ function using the output of @before@ as its argument. When the
+-- @between@ unfold is done or if an exception occurs while running @between@
+-- the @after@ action is run with the output of @before@ as argument.
+--
+-- /Internal/
+{-# INLINE_NORMAL bracket #-}
+bracket :: MonadCatch m
+    => m c -> (c -> m d) -> (c -> Unfold m a b) -> Unfold m a b
+bracket bef aft bet = Unfold step inject
+
+    where
+
+    inject x = do
+        r <- bef
+        go (bet r) r
+        where
+        go (Unfold step2 inject2) r = do
+            st <- inject2 x
+            return (Stream (\_ -> step2) st, r)
+
+    {-# INLINE_LATE step #-}
+    step (Stream step2 state, v) = do
+        res <- step2 defState state `MC.onException` aft v
+        case res of
+            Yield x s -> return $ Yield x (Stream step2 s, v)
+            Skip s    -> return $ Skip (Stream step2 s, v)
+            Stop      -> aft v >> return Stop
+
+-- | When unfolding an unfold if an exception occurs, unfold aborts
+-- and the specified exception handler is run with the exception as argument.
+--
+-- /Internal/
+{-# INLINE_NORMAL handle #-}
+handle :: (MonadCatch m, Exception e)
+    => (e -> m b) -> Unfold m a b -> Unfold m a b
+handle f (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = inject1 x >>= return . Just
+
+    {-# INLINE_LATE step #-}
+    step (Just st) = do
+        res <- MC.try $ step1 st
+        case res of
+            Left e -> f e >>= \x -> return (Yield x Nothing)
+            Right r -> case r of
+                Yield x s -> return $ Yield x (Just s)
+                Skip s    -> return $ Skip (Just s)
+                Stop      -> return Stop
+    step Nothing = return Stop
