@@ -509,7 +509,7 @@ bracket bef aft bet = Unfold step inject
             return (Stream (\_ -> step2) st, r)
 
     {-# INLINE_LATE step #-}
-    step (Stream step2 state, v) = do
+    step (UnStream step2 state, v) = do
         res <- step2 defState state `MC.onException` aft v
         case res of
             Yield x s -> return $ Yield x (Stream step2 s, v)
