@@ -2292,7 +2292,7 @@ after action (Stream step state) = Stream step' state
 -- Error constructor in step.
 --
 -- | Run a side effect whenever the stream aborts due to an exception. The
--- exception is not caught simply rethrown.
+-- exception is not caught, simply rethrown.
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action (Stream step state) = Stream step' state
@@ -2311,14 +2311,15 @@ onException action (Stream step state) = Stream step' state
 -- exception.
 {-# INLINE finally #-}
 finally :: MonadCatch m => m b -> Stream m a -> Stream m a
-finally action xs = after action $ onException action xs
+-- finally action xs = after action $ onException action xs
+finally action xs = bracket (return ()) (\_ -> action) (const xs)
 
 -- XXX bracket is like concatMap, it generates a stream and then flattens it.
 -- Like concatMap it has 10x worse performance compared to linear fused
 -- compositions.
 --
 -- | Run the first action before the stream starts and remember its output,
--- generate a stream using the output, run the second action using the
+-- generate a stream using the output, run the second action providing the
 -- remembered value as an argument whenever the stream ends normally or due to
 -- an exception.
 {-# INLINE_NORMAL bracket #-}
