@@ -321,6 +321,7 @@ library
 
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Server
+                     , Streamly.Internal.Network.Client
 
     if flag(benchmark)
        exposed-modules:
