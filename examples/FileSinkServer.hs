@@ -9,6 +9,7 @@ import System.Environment (getArgs)
 
 import Streamly
 import Streamly.Data.String
+import Streamly.Internal.Network.Socket (useSocket)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Network.Socket as NS
@@ -24,7 +25,7 @@ main = do
         (\src -> S.fold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatUnfold A.read
-        $ S.concatMapWith parallel (flip NS.withSocket recv)
+        $ S.concatMapWith parallel (flip useSocket recv)
         $ S.unfold NS.listenOnPort 8090)
 
     where

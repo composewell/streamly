@@ -19,8 +19,8 @@
 module Streamly.Internal.Network.Socket
     (
     -- * Use a socket
-      withSocketM
-    , withSocket
+      useSocketM
+    , useSocket
 
     -- * Read from connection
     , read
@@ -92,35 +92,25 @@ import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Streams.StreamD.Type as D
 
--- | @'withSocketM' socket act@ runs the monadic computation @act@ passing the
--- socket handle to it.  The handle will be closed on exit from 'withSocketM',
+-- | @'useSocketM' socket act@ runs the monadic computation @act@ passing the
+-- socket handle to it.  The handle will be closed on exit from 'useSocketM',
 -- whether by normal termination or by raising an exception.  If closing the
 -- handle raises an exception, then this exception will be raised by
--- 'withSocketM' rather than any exception raised by 'act'.
+-- 'useSocketM' rather than any exception raised by 'act'.
 --
 -- @since 0.7.0
-{-# INLINE withSocketM #-}
-withSocketM :: (MonadMask m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
-withSocketM sk f = do
---    f sk `onException` liftIO (Net.close sk)
---    liftIO (Net.close sk)
-     finally (liftIO (Net.close sk)) (f sk)
+{-# INLINE useSocketM #-}
+useSocketM :: (MonadMask m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
+useSocketM sk f = finally (liftIO (Net.close sk)) (f sk)
 
--- XXX bracket performs 2x better than 'finally'.  That's perhaps because of
--- better fusion of "A.flattenArrays .  readArrays"?
---
--- withSocketS :: (IsStream t, MonadCatch m, MonadIO m) => Socket -> t m Word8
--- withSocketS sk = A.flattenArrays $
---     S.finally (liftIO (Net.close sk)) (readArrays sk)
-
--- | Like 'withSocketM' but runs a streaming computation instead of a monadic
+-- | Like 'useSocketM' but runs a streaming computation instead of a monadic
 -- computation.
 --
 -- @since 0.7.0
-{-# INLINE withSocket #-}
-withSocket :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINE useSocket #-}
+useSocket :: (IsStream t, MonadCatch m, MonadIO m)
     => Socket -> (Socket -> t m a) -> t m a
-withSocket sk = S.bracket (return sk) (liftIO . Net.close)
+useSocket sk = S.bracket (return sk) (liftIO . Net.close)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)

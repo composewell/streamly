@@ -23,12 +23,8 @@
 
 module Streamly.Network.Socket
     (
-    -- * Use a socket
-      withSocketM
-    , withSocket
-
     -- * Read from connection
-    , read
+      read
     -- , readUtf8
     -- , readLines
     -- , readFrames
