@@ -71,6 +71,9 @@ module Streamly.Internal.Data.Unfold
     -- pipe
 
     -- * Unfolds
+    , fromStream
+    , fromStream1
+    , fromStream2
     , singleton
     , replicateM
     , fromList
@@ -118,6 +121,8 @@ import Streamly.Internal.Data.SVar (defState)
 import Control.Monad.Catch (MonadCatch)
 
 import qualified Control.Monad.Catch as MC
+import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Streams.StreamD as D
 
 -------------------------------------------------------------------------------
 -- Input operations
@@ -194,6 +199,43 @@ map f (Unfold ustep uinject) = Unfold step uinject
             Yield x s -> Yield (f x) s
             Skip s    -> Skip s
             Stop      -> Stop
+
+-------------------------------------------------------------------------------
+-- Convert streams into unfolds
+-------------------------------------------------------------------------------
+
+{-# INLINE_LATE streamStep #-}
+streamStep :: Monad m => Stream m a -> m (Step (Stream m a) a)
+streamStep (Stream step1 state) = do
+    r <- step1 defState state
+    return $ case r of
+        Yield x s -> Yield x (Stream step1 s)
+        Skip s    -> Skip (Stream step1 s)
+        Stop      -> Stop
+
+-- | Convert a stream into an 'Unfold'. Note that a stream converted to an
+-- 'Unfold' may not be as efficient as an 'Unfold' in some situations.
+--
+-- /Internal/
+fromStream :: (K.IsStream t, Monad m) => t m b -> Unfold m Void b
+fromStream str = Unfold streamStep (\_ -> return $ D.toStreamD str)
+
+-- | Convert a single argument stream generator function into an
+-- 'Unfold'. Note that a stream converted to an 'Unfold' may not be as
+-- efficient as an 'Unfold' in some situations.
+--
+-- /Internal/
+fromStream1 :: (K.IsStream t, Monad m) => (a -> t m b) -> Unfold m a b
+fromStream1 f = Unfold streamStep (return . D.toStreamD . f)
+
+-- | Convert a two argument stream generator function into an 'Unfold'. Note
+-- that a stream converted to an 'Unfold' may not be as efficient as an
+-- 'Unfold' in some situations.
+--
+-- /Internal/
+fromStream2 :: (K.IsStream t, Monad m)
+    => (a -> b -> t m c) -> Unfold m (a, b) c
+fromStream2 f = Unfold streamStep (\(a, b) -> return $ D.toStreamD $ f a b)
 
 -------------------------------------------------------------------------------
 -- Unfolds
