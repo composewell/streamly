@@ -190,7 +190,7 @@ inspect $ 'catStreamWrite `hasNoType` ''D.ConcatMapUState
 {-# INLINE catBracket #-}
 catBracket :: Handle -> Handle -> IO ()
 catBracket devNull inh =
-    let readEx = IUF.bracket (return ()) (\_ -> hClose inh) (\_ -> FH.read)
+    let readEx = IUF.bracket return (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -217,7 +217,7 @@ inspect $ hasNoTypeClasses 'catBracketStream
 {-# INLINE catOnException #-}
 catOnException :: Handle -> Handle -> IO ()
 catOnException devNull inh =
-    let readEx = IUF.onException (hClose inh) FH.read
+    let readEx = IUF.onException (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
@@ -231,7 +231,7 @@ inspect $ hasNoTypeClasses 'catOnException
 {-# INLINE catFinally #-}
 catFinally :: Handle -> Handle -> IO ()
 catFinally devNull inh =
-    let readEx = IUF.finally (hClose inh) FH.read
+    let readEx = IUF.finally (\_ -> hClose inh) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
