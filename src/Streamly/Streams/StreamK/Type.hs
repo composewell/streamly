@@ -67,6 +67,7 @@ module Streamly.Streams.StreamK.Type
     , yield
 
     , nil
+    , nilM
     , conjoin
     , serial
     , map
@@ -323,6 +324,19 @@ infixr 5 .:
 {-# INLINE_NORMAL nil #-}
 nil :: IsStream t => t m a
 nil = mkStream $ \_ _ _ stp -> stp
+
+-- | An empty stream producing a side effect.
+--
+-- @
+-- > toList (nilM (print "nil"))
+-- "nil"
+-- []
+-- @
+--
+-- /Internal/
+{-# INLINE_NORMAL nilM #-}
+nilM :: (IsStream t, Monad m) => m b -> t m a
+nilM m = mkStream $ \_ _ _ stp -> m >> stp
 
 {-# INLINE_NORMAL yield #-}
 yield :: IsStream t => a -> t m a

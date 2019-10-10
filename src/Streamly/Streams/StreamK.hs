@@ -40,6 +40,7 @@ module Streamly.Streams.StreamK
     -- * Construction Primitives
     , mkStream
     , nil
+    , nilM
     , cons
     , (.:)
 

@@ -23,6 +23,7 @@ module Streamly.Internal.Prelude
     -- * Construction
     -- ** Primitives
       K.nil
+    , K.nilM
     , K.cons
     , (K..:)
 

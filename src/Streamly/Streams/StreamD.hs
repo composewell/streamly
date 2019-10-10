@@ -50,6 +50,7 @@ module Streamly.Streams.StreamD
 
     -- * Construction
     , nil
+    , nilM
     , cons
 
     -- * Deconstruction
@@ -325,6 +326,11 @@ import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 {-# INLINE_NORMAL nil #-}
 nil :: Monad m => Stream m a
 nil = Stream (\_ _ -> return Stop) ()
+
+-- | An empty 'Stream' with a side effect.
+{-# INLINE_NORMAL nilM #-}
+nilM :: Monad m => m b -> Stream m a
+nilM m = Stream (\_ _ -> m >> return Stop) ()
 
 {-# INLINE_NORMAL consM #-}
 consM :: Monad m => m a -> Stream m a -> Stream m a
