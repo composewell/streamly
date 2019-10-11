@@ -33,8 +33,11 @@ module Streamly.Benchmark.FileIO.Stream
     , catBracket
     , catBracketStream
     , catOnException
+    , catOnExceptionStream
     , catHandle
+    , catHandleStream
     , catFinally
+    , catFinallyStream
     , copy
     , linesUnlinesCopy
     , wordsUnwordsCopyWord8
@@ -228,6 +231,13 @@ inspect $ hasNoTypeClasses 'catOnException
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
+{-# INLINE catOnExceptionStream #-}
+catOnExceptionStream :: Handle -> Handle -> IO ()
+catOnExceptionStream devNull inh =
+    let readEx = S.onException (hClose inh) (S.unfold FH.read inh)
+    in S.fold (FH.write devNull) $ readEx
+
+-- | Send the file contents to /dev/null with exception handling
 {-# INLINE catFinally #-}
 catFinally :: Handle -> Handle -> IO ()
 catFinally devNull inh =
@@ -242,10 +252,17 @@ inspect $ hasNoTypeClasses 'catFinally
 #endif
 
 -- | Send the file contents to /dev/null with exception handling
+{-# INLINE catFinallyStream #-}
+catFinallyStream :: Handle -> Handle -> IO ()
+catFinallyStream devNull inh =
+    let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
+    in S.fold (FH.write devNull) readEx
+
+-- | Send the file contents to /dev/null with exception handling
 {-# INLINE catHandle #-}
 catHandle :: Handle -> Handle -> IO ()
 catHandle devNull inh =
-    let handler = \(_e :: SomeException) -> hClose inh >> return 10
+    let handler (_e :: SomeException) = hClose inh >> return 10
         readEx = IUF.handle (IUF.singleton handler) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
@@ -255,6 +272,14 @@ inspect $ hasNoTypeClasses 'catHandle
 -- inspect $ 'catHandle `hasNoType` ''AT.FlattenState
 -- inspect $ 'catHandle `hasNoType` ''D.ConcatMapUState
 #endif
+
+-- | Send the file contents to /dev/null with exception handling
+{-# INLINE catHandleStream #-}
+catHandleStream :: Handle -> Handle -> IO ()
+catHandleStream devNull inh =
+    let handler (_e :: SomeException) = S.yieldM (hClose inh >> return 10)
+        readEx = S.handle handler (S.unfold FH.read inh)
+    in S.fold (FH.write devNull) $ readEx
 
 -- | Copy file
 {-# INLINE copy #-}

@@ -130,12 +130,21 @@ main = do
            , mkBench "catOnException" href $ do
                Handles inh _ <- readIORef href
                BFS.catOnException devNull inh
+           , mkBench "catOnExceptionStream" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catOnExceptionStream devNull inh
            , mkBench "catHandle" href $ do
                Handles inh _ <- readIORef href
                BFS.catHandle devNull inh
+           , mkBench "catHandleStream" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catHandleStream devNull inh
            , mkBench "catFinally" href $ do
                Handles inh _ <- readIORef href
                BFS.catFinally devNull inh
+           , mkBench "catFinallyStream" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catFinallyStream devNull inh
            , mkBench "catBracketStream" href $ do
                Handles inh _ <- readIORef href
                BFS.catBracketStream devNull inh

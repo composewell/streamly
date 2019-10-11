@@ -3504,5 +3504,6 @@ bracket bef aft bet = D.fromStreamD $
 -- @since 0.7.0
 {-# INLINE handle #-}
 handle :: (IsStream t, MonadCatch m, Exception e)
-    => (e -> m a) -> t m a -> t m a
-handle handler xs = D.fromStreamD $ D.handle handler $ D.toStreamD xs
+    => (e -> t m a) -> t m a -> t m a
+handle handler xs =
+    D.fromStreamD $ D.handle (\e -> D.toStreamD $ handler e) $ D.toStreamD xs

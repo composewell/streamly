@@ -106,6 +106,7 @@ module Streamly.Internal.Data.Unfold
     , outerProduct
 
     -- * Exceptions
+    , gbracket
     , before
     , after
     , onException
@@ -553,16 +554,20 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 -- Exceptions
 ------------------------------------------------------------------------------
 
--- MBD: If we add an (Unfold m e b) argument to it we can encompass "handle" as
--- well under this.
+-- | The most general bracketing and exception combinator. All other
+-- combinators can be expressed in terms of this combinator. This can also be
+-- used for cases which are not covered by the standard combinators.
+--
+-- /Internal/
+--
 {-# INLINE_NORMAL gbracket #-}
 gbracket
     :: Monad m
-    => (a -> m c)
-    -> (forall s. m s -> m (Either e s))
-    -> (c -> m d)
-    -> Unfold m (c, e) b
-    -> Unfold m c b
+    => (a -> m c)                           -- ^ before
+    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
+    -> (c -> m d)                           -- ^ after, on normal stop
+    -> Unfold m (c, e) b                    -- ^ on exception
+    -> Unfold m c b                         -- ^ unfold to run
     -> Unfold m a b
 gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     Unfold step inject

@@ -257,6 +257,7 @@ module Streamly.Streams.StreamD
     , the
 
     -- * Exceptions
+    , gbracket
     , before
     , after
     , bracket
@@ -273,7 +274,7 @@ module Streamly.Streams.StreamD
     )
 where
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, SomeException)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -2256,6 +2257,52 @@ interleaveFstThenConcat
 -- Exceptions
 ------------------------------------------------------------------------------
 
+data GbracketState s1 s2 v
+    = GBracketInit
+    | GBracketNormal s1 v
+    | GBracketException s2
+
+-- | The most general bracketing and exception combinator. All other
+-- combinators can be expressed in terms of this combinator. This can also be
+-- used for cases which are not covered by the standard combinators.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL gbracket #-}
+gbracket
+    :: Monad m
+    => m c                                  -- ^ before
+    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
+    -> (c -> m d)                           -- ^ after, on normal stop
+    -> (c -> e -> Stream m b)               -- ^ on exception
+    -> (c -> Stream m b)                    -- ^ stream generator
+    -> Stream m b
+gbracket bef exc aft fexc fnormal =
+    Stream step GBracketInit
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ GBracketInit = do
+        r <- bef
+        return $ Skip $ GBracketNormal (fnormal r) r
+
+    step gst (GBracketNormal (UnStream step1 st) v) = do
+        res <- exc $ step1 gst st
+        case res of
+            Right r -> case r of
+                Yield x s ->
+                    return $ Yield x (GBracketNormal (Stream step1 s) v)
+                Skip s -> return $ Skip (GBracketNormal (Stream step1 s) v)
+                Stop -> aft v >> return Stop
+            Left e -> return $ Skip (GBracketException (fexc v e))
+    step gst (GBracketException (UnStream step1 st)) = do
+        res <- step1 gst st
+        case res of
+            Yield x s -> return $ Yield x (GBracketException (Stream step1 s))
+            Skip s    -> return $ Skip (GBracketException (Stream step1 s))
+            Stop      -> return Stop
+
 -- | Run a side effect before the stream yields its first element.
 {-# INLINE_NORMAL before #-}
 before :: Monad m => m b -> Stream m a -> Stream m a
@@ -2301,7 +2348,14 @@ after action (Stream step state) = Stream step' state
 -- exception is not caught, simply rethrown.
 {-# INLINE_NORMAL onException #-}
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
-onException action (Stream step state) = Stream step' state
+onException action str =
+    gbracket (return ()) MC.try return
+        (\_ (_ :: MC.SomeException) -> nilM $ action)
+        (\_ -> str)
+
+{-# INLINE_NORMAL _onException #-}
+_onException :: MonadCatch m => m b -> Stream m a -> Stream m a
+_onException action (Stream step state) = Stream step' state
 
     where
 
@@ -2313,13 +2367,6 @@ onException action (Stream step state) = Stream step' state
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
--- | Run a side effect whenever the stream stops normally or aborts due to an
--- exception.
-{-# INLINE finally #-}
-finally :: MonadCatch m => m b -> Stream m a -> Stream m a
--- finally action xs = after action $ onException action xs
-finally action xs = bracket (return ()) (\_ -> action) (const xs)
-
 -- XXX bracket is like concatMap, it generates a stream and then flattens it.
 -- Like concatMap it has 10x worse performance compared to linear fused
 -- compositions.
@@ -2330,41 +2377,70 @@ finally action xs = bracket (return ()) (\_ -> action) (const xs)
 -- an exception.
 {-# INLINE_NORMAL bracket #-}
 bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
-bracket bef aft bet = Stream step' Nothing
+bracket bef aft bet =
+    gbracket bef MC.try aft (\a (_ :: SomeException) -> nilM $ aft a) bet
+
+data BracketState s v = BracketInit | BracketRun s v
+
+{-# INLINE_NORMAL _bracket #-}
+_bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
+_bracket bef aft bet = Stream step' BracketInit
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ Nothing = bef >>= \x -> return (Skip (Just (bet x, x)))
+    step' _ BracketInit = bef >>= \x -> return (Skip (BracketRun (bet x) x))
 
     -- NOTE: It is important to use UnStream instead of the Stream pattern
     -- here, otherwise we get huge perf degradation, see note in concatMap.
-    step' gst (Just (UnStream step state, v)) = do
-        res <- step gst state `MC.onException` aft v
+    step' gst (BracketRun (UnStream step state) v) = do
+        -- res <- step gst state `MC.onException` aft v
+        res <- MC.try $ step gst state
         case res of
-            Yield x s -> return $ Yield x (Just (Stream step s, v))
-            Skip s    -> return $ Skip (Just (Stream step s, v))
-            Stop      -> aft v >> return Stop
+            Left (_ :: SomeException) -> aft v >> return Stop
+            Right r -> case r of
+                Yield x s -> return $ Yield x (BracketRun (Stream step s) v)
+                Skip s    -> return $ Skip (BracketRun (Stream step s) v)
+                Stop      -> aft v >> return Stop
+
+-- | Run a side effect whenever the stream stops normally or aborts due to an
+-- exception.
+{-# INLINE finally #-}
+finally :: MonadCatch m => m b -> Stream m a -> Stream m a
+-- finally action xs = after action $ onException action xs
+finally action xs = bracket (return ()) (\_ -> action) (const xs)
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
 {-# INLINE_NORMAL handle #-}
-handle :: (MonadCatch m, Exception e) => (e -> m a) -> Stream m a -> Stream m a
-handle f (Stream step state) = Stream step' (Just state)
+handle :: (MonadCatch m, Exception e)
+    => (e -> Stream m a) -> Stream m a -> Stream m a
+handle f str =
+    gbracket (return ()) MC.try return (\_ e -> f e) (\_ -> str)
+
+{-# INLINE_NORMAL _handle #-}
+_handle :: (MonadCatch m, Exception e)
+    => (e -> Stream m a) -> Stream m a -> Stream m a
+_handle f (Stream step state) = Stream step' (Left state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' gst (Just st) = do
+    step' gst (Left st) = do
         res <- MC.try $ step gst st
         case res of
-            Left e -> f e >>= \x -> return (Yield x Nothing)
+            Left e -> return $ Skip $ Right (f e)
             Right r -> case r of
-                Yield x s -> return $ Yield x (Just s)
-                Skip s    -> return $ Skip (Just s)
+                Yield x s -> return $ Yield x (Left s)
+                Skip s    -> return $ Skip (Left s)
                 Stop      -> return Stop
 
-    step' _ Nothing = return Stop
+    step' gst (Right (UnStream step1 st)) = do
+        res <- step1 gst st
+        case res of
+            Yield x s -> return $ Yield x (Right (Stream step1 s))
+            Skip s    -> return $ Skip (Right (Stream step1 s))
+            Stop      -> return Stop
 
 -------------------------------------------------------------------------------
 -- General transformation
