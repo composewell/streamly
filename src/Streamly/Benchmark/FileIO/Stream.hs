@@ -245,8 +245,8 @@ inspect $ hasNoTypeClasses 'catFinally
 {-# INLINE catHandle #-}
 catHandle :: Handle -> Handle -> IO ()
 catHandle devNull inh =
-    let readEx = IUF.handle (\(_e :: SomeException) -> hClose inh >> return 10)
-                            FH.read
+    let handler = \(_e :: SomeException) -> hClose inh >> return 10
+        readEx = IUF.handle (IUF.singleton handler) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION

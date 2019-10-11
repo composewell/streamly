@@ -269,11 +269,11 @@ words = foldWords A.write
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.
 --
--- > unfoldLines = S.intercalateSuffix UF.singleton '\n'
+-- > unfoldLines = S.intercalateSuffix UF.identity '\n'
 --
 {-# INLINE unfoldLines #-}
 unfoldLines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
-unfoldLines unf = S.intercalateSuffix UF.singleton '\n' unf
+unfoldLines unf = S.intercalateSuffix UF.identity '\n' unf
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.

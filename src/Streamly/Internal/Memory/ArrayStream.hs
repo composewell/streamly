@@ -99,7 +99,7 @@ intercalateSuffix arr = S.intercalateSuffix A.read arr A.read
 interposeSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
 -- interposeSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
-interposeSuffix x = S.intercalateSuffix UF.singleton x A.read
+interposeSuffix x = S.intercalateSuffix UF.identity x A.read
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.

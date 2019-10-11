@@ -6,6 +6,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 
 #include "inline.hs"
 
@@ -59,10 +60,13 @@ module Streamly.Internal.Data.Unfold
       Unfold
 
     -- * Operations on Input
+    , lmap
     , close
     , first
     , second
-    , lmap
+    , discardFirst
+    , discardSecond
+    , swap
     -- coapply
     -- comonad
 
@@ -74,9 +78,14 @@ module Streamly.Internal.Data.Unfold
     , fromStream
     , fromStream1
     , fromStream2
+    , nilM
+    , consM
+    , effect
     , singleton
+    , identity
     , replicateM
     , fromList
+    , fromListM
     , enumerateFromStepIntegral
     , enumerateFromToIntegral
     , enumerateFromIntegral
@@ -121,6 +130,7 @@ import Streamly.Internal.Data.SVar (defState)
 import Control.Monad.Catch (MonadCatch)
 
 import qualified Control.Monad.Catch as MC
+import qualified Data.Tuple as Tuple
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
 
@@ -128,13 +138,17 @@ import qualified Streamly.Streams.StreamD as D
 -- Input operations
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL lmap #-}
+lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
+lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
+
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
 -- /Internal/
 --
 {-# INLINE_NORMAL close #-}
 close :: Unfold m a b -> a -> Unfold m Void b
-close (Unfold ustep uinject) a = Unfold ustep (const $ uinject a)
+close unf a = lmap (const a) unf
 
 -- XXX rename to closeFst/closeSnd
 --
@@ -146,7 +160,7 @@ close (Unfold ustep uinject) a = Unfold ustep (const $ uinject a)
 --
 {-# INLINE_NORMAL first #-}
 first :: Unfold m (a, b) c -> a -> Unfold m b c
-first (Unfold ustep uinject) a = Unfold ustep (\b -> uinject (a, b))
+first unf a = lmap (a, ) unf
 
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
@@ -156,11 +170,19 @@ first (Unfold ustep uinject) a = Unfold ustep (\b -> uinject (a, b))
 --
 {-# INLINE_NORMAL second #-}
 second :: Unfold m (a, b) c -> b -> Unfold m a c
-second (Unfold ustep uinject) b = Unfold ustep (\a -> uinject (a, b))
+second unf b = lmap (, b) unf
 
-{-# INLINE_NORMAL lmap #-}
-lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
-lmap f (Unfold ustep uinject) = Unfold ustep (\x -> uinject $ f x)
+{-# INLINE_NORMAL discardFirst #-}
+discardFirst :: Unfold m a b -> Unfold m (c, a) b
+discardFirst = lmap snd
+
+{-# INLINE_NORMAL discardSecond #-}
+discardSecond :: Unfold m a b -> Unfold m (a, c) b
+discardSecond = lmap fst
+
+{-# INLINE_NORMAL swap #-}
+swap :: Unfold m (a, c) b -> Unfold m (c, a) b
+swap = lmap Tuple.swap
 
 -------------------------------------------------------------------------------
 -- Output operations
@@ -241,19 +263,67 @@ fromStream2 f = Unfold streamStep (\(a, b) -> return $ D.toStreamD $ f a b)
 -- Unfolds
 -------------------------------------------------------------------------------
 
--- | Identity unfold. Generates a singleton stream with the seed as the only
--- element in the stream.
+-- | Lift a monadic function into an unfold generating a nil stream with a side
+-- effect.
 --
--- > singleton = replicateM 1
+{-# INLINE nilM #-}
+nilM :: Monad m => (a -> m c) -> Unfold m a b
+nilM f = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step x = f x >> return Stop
+
+-- | Prepend a monadic single element generator function to an 'Unfold'.
+--
+-- /Internal/
+{-# INLINE_NORMAL consM #-}
+consM :: Monad m => (a -> m b) -> Unfold m a b -> Unfold m a b
+consM action unf = Unfold step inject
+
+    where
+
+    inject = return . Left
+
+    {-# INLINE_LATE step #-}
+    step (Left a) = do
+        action a >>= \r -> return $ Yield r (Right (D.unfold unf a))
+    step (Right (UnStream step1 st)) = do
+        res <- step1 defState st
+        case res of
+            Yield x s -> return $ Yield x (Right (Stream step1 s))
+            Skip s -> return $ Skip (Right (Stream step1 s))
+            Stop -> return Stop
+
+-- | Lift a monadic effect into an unfold generating a singleton stream.
+--
+{-# INLINE effect #-}
+effect :: Monad m => m b -> Unfold m Void b
+effect eff = Unfold step inject
+    where
+    inject _ = return True
+    {-# INLINE_LATE step #-}
+    step True = eff >>= \r -> return $ Yield r False
+    step False = return Stop
+
+-- | Lift a monadic function into an unfold generating a singleton stream.
 --
 {-# INLINE singleton #-}
-singleton :: Monad m => Unfold m a a
-singleton = Unfold step inject
+singleton :: Monad m => (a -> m b) -> Unfold m a b
+singleton f = Unfold step inject
     where
     inject x = return $ Just x
     {-# INLINE_LATE step #-}
-    step (Just x) = return $ Yield x Nothing
+    step (Just x) = f x >>= \r -> return $ Yield r Nothing
     step Nothing = return Stop
+
+-- | Identity unfold. Generates a singleton stream with the seed as the only
+-- element in the stream.
+--
+-- > identity = singleton return
+--
+{-# INLINE identity #-}
+identity :: Monad m => Unfold m a a
+identity = singleton return
 
 -- | Generates a stream replicating the seed @n@ times.
 --
@@ -276,6 +346,16 @@ fromList = Unfold step inject
     inject x = return x
     {-# INLINE_LATE step #-}
     step (x:xs) = return $ Yield x xs
+    step []     = return Stop
+
+-- | Convert a list of monadic values to a 'Stream'
+{-# INLINE_LATE fromListM #-}
+fromListM :: Monad m => Unfold m [m a] a
+fromListM = Unfold step inject
+  where
+    inject x = return x
+    {-# INLINE_LATE step #-}
+    step (x:xs) = x >>= \r -> return $ Yield r xs
     step []     = return Stop
 
 -------------------------------------------------------------------------------
@@ -444,7 +524,7 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (ConcatMapOuter s)
             Stop      -> return Stop
 
-    step (ConcatMapInner ost (Stream istep ist)) = do
+    step (ConcatMapInner ost (UnStream istep ist)) = do
         r <- istep defState ist
         return $ case r of
             Yield x s -> Yield x (ConcatMapInner ost (Stream istep s))
@@ -454,6 +534,54 @@ concatMapM f (Unfold step1 inject1) = Unfold step inject
 ------------------------------------------------------------------------------
 -- Exceptions
 ------------------------------------------------------------------------------
+
+-- MBD: If we add an (Unfold m e b) argument to it we can encompass "handle" as
+-- well under this.
+{-# INLINE_NORMAL gbracket #-}
+gbracket
+    :: Monad m
+    => (a -> m c)
+    -> (forall s. m s -> m (Either e s))
+    -> (c -> m d)
+    -> Unfold m (c, e) b
+    -> Unfold m c b
+    -> Unfold m a b
+gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
+    Unfold step inject
+
+    where
+
+    inject x = do
+        r <- bef x
+        s <- inject1 r
+        return $ Right (s, r)
+
+    {-# INLINE_LATE step #-}
+    step (Right (st, v)) = do
+        res <- exc $ step1 st
+        case res of
+            Right r -> case r of
+                Yield x s -> return $ Yield x (Right (s, v))
+                Skip s    -> return $ Skip (Right (s, v))
+                Stop      -> aft v >> return Stop
+            Left e -> do
+                r <- einject (v, e)
+                return $ Skip (Left r)
+    step (Left st) = do
+        res <- estep st
+        case res of
+            Yield x s -> return $ Yield x (Left s)
+            Skip s    -> return $ Skip (Left s)
+            Stop      -> return Stop
+
+-- The custom implementation of "before" is slightly faster (5-7%) than
+-- "_before".  This is just to document and make sure that we can always use
+-- gbracket to implement before. The same applies to other combinators as well.
+--
+{-# INLINE_NORMAL _before #-}
+_before :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
+_before action unf = gbracket (\x -> action x >> return x) (fmap Right)
+                             (\_ -> return ()) undefined unf
 
 -- | Run a side effect before the unfold yields its first element.
 --
@@ -477,6 +605,10 @@ before action (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip s
             Stop      -> return Stop
 
+{-# INLINE_NORMAL _after #-}
+_after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
+_after aft = gbracket return (fmap Right) aft undefined
+
 -- | Run a side effect whenever the unfold stops normally.
 --
 -- /Internal/
@@ -497,6 +629,13 @@ after action (Unfold step1 inject1) = Unfold step inject
             Yield x s -> return $ Yield x (s, v)
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
+
+{-# INLINE_NORMAL _onException #-}
+_onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
+_onException action unf =
+    gbracket return MC.try
+        (\_ -> return ())
+        (nilM (\(a, (_ :: MC.SomeException)) -> action a)) unf
 
 -- | Run a side effect whenever the unfold aborts due to an exception.
 --
@@ -519,6 +658,12 @@ onException action (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> return Stop
 
+{-# INLINE_NORMAL _finally #-}
+_finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
+_finally action unf =
+    gbracket return MC.try action
+        (nilM (\(a, (_ :: MC.SomeException)) -> action a)) unf
+
 -- | Run a side effect whenever the unfold stops normally or aborts due to an
 -- exception.
 --
@@ -540,6 +685,12 @@ finally action (Unfold step1 inject1) = Unfold step inject
             Yield x s -> return $ Yield x (s, v)
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
+
+{-# INLINE_NORMAL _bracket #-}
+_bracket :: MonadCatch m
+    => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
+_bracket bef aft unf =
+    gbracket bef MC.try aft (nilM (\(a, (_ :: MC.SomeException)) -> aft a)) unf
 
 -- | @bracket before after between@ runs the @before@ action and then unfolds
 -- its output using the @between@ unfold. When the @between@ unfold is done or
@@ -567,26 +718,12 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> aft v >> return Stop
 
--- | When unfolding an unfold if an exception occurs, unfold aborts
--- and the specified exception handler is run with the exception as argument.
+-- | When unfolding if an exception occurs, unfold the exception using the
+-- exception unfold.
 --
 -- /Internal/
 {-# INLINE_NORMAL handle #-}
 handle :: (MonadCatch m, Exception e)
-    => (e -> m b) -> Unfold m a b -> Unfold m a b
-handle f (Unfold step1 inject1) = Unfold step inject
-
-    where
-
-    inject x = inject1 x >>= return . Just
-
-    {-# INLINE_LATE step #-}
-    step (Just st) = do
-        res <- MC.try $ step1 st
-        case res of
-            Left e -> f e >>= \x -> return (Yield x Nothing)
-            Right r -> case r of
-                Yield x s -> return $ Yield x (Just s)
-                Skip s    -> return $ Skip (Just s)
-                Stop      -> return Stop
-    step Nothing = return Stop
+    => Unfold m e b -> Unfold m a b -> Unfold m a b
+handle exc unf =
+    gbracket return MC.try (\_ -> return ()) (discardFirst exc) unf
