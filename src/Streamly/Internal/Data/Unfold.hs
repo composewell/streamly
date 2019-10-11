@@ -61,9 +61,9 @@ module Streamly.Internal.Data.Unfold
 
     -- * Operations on Input
     , lmap
-    , close
-    , first
-    , second
+    , supply
+    , supplyFirst
+    , supplySecond
     , discardFirst
     , discardSecond
     , swap
@@ -138,6 +138,9 @@ import qualified Streamly.Streams.StreamD as D
 -- Input operations
 -------------------------------------------------------------------------------
 
+-- | Map a function on the input argument of the 'Unfold'.
+--
+-- /Internal/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
@@ -146,21 +149,19 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL close #-}
-close :: Unfold m a b -> a -> Unfold m Void b
-close unf a = lmap (const a) unf
+{-# INLINE_NORMAL supply #-}
+supply :: Unfold m a b -> a -> Unfold m Void b
+supply unf a = lmap (const a) unf
 
--- XXX rename to closeFst/closeSnd
---
 -- | Supply the first component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the second component of the tuple
 -- as a seed.
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL first #-}
-first :: Unfold m (a, b) c -> a -> Unfold m b c
-first unf a = lmap (a, ) unf
+{-# INLINE_NORMAL supplyFirst #-}
+supplyFirst :: Unfold m (a, b) c -> a -> Unfold m b c
+supplyFirst unf a = lmap (a, ) unf
 
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
@@ -168,18 +169,35 @@ first unf a = lmap (a, ) unf
 --
 -- /Internal/
 --
-{-# INLINE_NORMAL second #-}
-second :: Unfold m (a, b) c -> b -> Unfold m a c
-second unf b = lmap (, b) unf
+{-# INLINE_NORMAL supplySecond #-}
+supplySecond :: Unfold m (a, b) c -> b -> Unfold m a c
+supplySecond unf b = lmap (, b) unf
 
+-- | Convert an 'Unfold' into an unfold accepting a tuple as an argument,
+-- using the argument of the original fold as the second element of tuple and
+-- discarding the first element of the tuple.
+--
+-- /Internal/
+--
 {-# INLINE_NORMAL discardFirst #-}
 discardFirst :: Unfold m a b -> Unfold m (c, a) b
 discardFirst = lmap snd
 
+-- | Convert an 'Unfold' into an unfold accepting a tuple as an argument,
+-- using the argument of the original fold as the first element of tuple and
+-- discarding the second element of the tuple.
+--
+-- /Internal/
+--
 {-# INLINE_NORMAL discardSecond #-}
 discardSecond :: Unfold m a b -> Unfold m (a, c) b
 discardSecond = lmap fst
 
+-- | Convert an 'Unfold' that accepts a tuple as an argument into an unfold
+-- that accepts a tuple with elements swapped.
+--
+-- /Internal/
+--
 {-# INLINE_NORMAL swap #-}
 swap :: Unfold m (a, c) b -> Unfold m (c, a) b
 swap = lmap Tuple.swap
@@ -433,7 +451,7 @@ enumerateFromStepIntegral = Unfold step inject
 {-# INLINE enumerateFromToIntegral #-}
 enumerateFromToIntegral :: (Monad m, Integral a) => a -> Unfold m a a
 enumerateFromToIntegral to =
-    takeWhile (<= to) $ second enumerateFromStepIntegral 1
+    takeWhile (<= to) $ supplySecond enumerateFromStepIntegral 1
 
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => Unfold m a a
@@ -719,7 +737,7 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
             Stop      -> aft v >> return Stop
 
 -- | When unfolding if an exception occurs, unfold the exception using the
--- exception unfold.
+-- exception unfold supplied as the first argument to 'handle'.
 --
 -- /Internal/
 {-# INLINE_NORMAL handle #-}

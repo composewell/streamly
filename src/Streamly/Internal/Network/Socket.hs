@@ -245,7 +245,7 @@ readArraysOf = Unfold step return
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: MonadIO m => Unfold m Socket (Array Word8)
-readArrays = UF.first readArraysOf A.defaultChunkSize
+readArrays = UF.supplyFirst readArraysOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -290,7 +290,7 @@ readInChunksOf = UF.concat readArraysOf A.read
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Socket Word8
-read = UF.first readInChunksOf A.defaultChunkSize
+read = UF.supplyFirst readInChunksOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Writing

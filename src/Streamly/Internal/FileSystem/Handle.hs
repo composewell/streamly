@@ -214,7 +214,7 @@ toStreamArrays = toStreamArraysOf defaultChunkSize
 -- @since 0.7.0
 {-# INLINE readArrays #-}
 readArrays :: MonadIO m => Unfold m Handle (Array Word8)
-readArrays = UF.first readArraysOf defaultChunkSize
+readArrays = UF.supplyFirst readArraysOf defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -250,7 +250,7 @@ toStreamInChunksOf chunkSize h = AS.concat $ toStreamArraysOf chunkSize h
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Handle Word8
-read = UF.first readInChunksOf defaultChunkSize
+read = UF.supplyFirst readInChunksOf defaultChunkSize
 
 -- | Generate a byte stream from a file 'Handle'.
 --

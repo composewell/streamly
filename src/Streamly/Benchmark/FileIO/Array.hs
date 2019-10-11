@@ -136,7 +136,7 @@ inspect $ 'cat `hasNoType` ''Step
 catBracket :: Handle -> Handle -> IO ()
 catBracket devNull inh =
     let readEx = IUF.bracket return (\_ -> hClose inh)
-                    (IUF.first FH.readArraysOf (256*1024))
+                    (IUF.supplyFirst FH.readArraysOf (256*1024))
     in IUF.fold readEx (IFH.writeArrays devNull) inh
 
 #ifdef INSPECTION
@@ -162,7 +162,7 @@ inspect $ hasNoTypeClasses 'catBracketStream
 catOnException :: Handle -> Handle -> IO ()
 catOnException devNull inh =
     let readEx = IUF.onException (\_ -> hClose inh)
-                    (IUF.first FH.readArraysOf (256*1024))
+                    (IUF.supplyFirst FH.readArraysOf (256*1024))
     in IUF.fold readEx (IFH.writeArrays devNull) inh
 
 #ifdef INSPECTION

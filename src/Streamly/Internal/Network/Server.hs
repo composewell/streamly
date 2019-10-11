@@ -153,23 +153,23 @@ listenOnAddr = UF.map fst listenTuplesOnAddr
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > listenOnPort = UF.first listenOnAddr (0,0,0,0)
+-- > listenOnPort = UF.supplyFirst listenOnAddr (0,0,0,0)
 --
 -- @since 0.7.0
 {-# INLINE listenOnPort #-}
 listenOnPort :: MonadIO m => Unfold m PortNumber Socket
-listenOnPort = UF.first listenOnAddr (0,0,0,0)
+listenOnPort = UF.supplyFirst listenOnAddr (0,0,0,0)
 
 -- | Like 'listenOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > listenOnPortLocal = UF.first listenOnAddr (127,0,0,1)
+-- > listenOnPortLocal = UF.supplyFirst listenOnAddr (127,0,0,1)
 --
 -- @since 0.7.0
 {-# INLINE listenOnPortLocal #-}
 listenOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
-listenOnPortLocal = UF.first listenOnAddr (127,0,0,1)
+listenOnPortLocal = UF.supplyFirst listenOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
 -- Listen
