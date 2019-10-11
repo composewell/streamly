@@ -2,3 +2,6 @@
 /.stack-work/
 /dist/
 /dist-newstyle/
+.log
+*.swp
+*.swo
