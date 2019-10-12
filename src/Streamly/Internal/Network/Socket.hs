@@ -110,7 +110,7 @@ useSocketM sk f = finally (liftIO (Net.close sk)) (f sk)
 {-# INLINE useSocket #-}
 useSocket :: (IsStream t, MonadCatch m, MonadIO m)
     => Socket -> (Socket -> t m a) -> t m a
-useSocket sk = S.bracket (return sk) (liftIO . Net.close)
+useSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
