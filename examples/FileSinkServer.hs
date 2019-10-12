@@ -5,11 +5,12 @@
 -- * lines from concurrent connections are merged into a single srteam
 -- * writes the line stream to an output file
 
+import Control.Monad.IO.Class (liftIO)
+import Network.Socket (close)
 import System.Environment (getArgs)
 
 import Streamly
 import Streamly.Data.String
-import Streamly.Internal.Network.Socket (useSocket)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Network.Socket as NS
@@ -25,11 +26,12 @@ main = do
         (\src -> S.fold (FH.write src)
         $ encodeChar8Unchecked
         $ S.concatUnfold A.read
-        $ S.concatMapWith parallel (flip useSocket recv)
+        $ S.concatMapWith parallel use
         $ S.unfold NS.listenOnPort 8090)
 
     where
 
+    use sk = S.finally (liftIO $ close sk) (recv sk)
     recv =
           S.splitWithSuffix (== '\n') A.write
         . decodeChar8

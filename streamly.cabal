@@ -915,6 +915,7 @@ executable FileSinkServer
     build-Depends:
         streamly
       , base              >= 4.8   && < 5
+      , network           >= 2.6   && < 4
   else
     buildable: False
 
