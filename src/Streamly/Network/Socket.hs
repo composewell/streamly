@@ -7,20 +7,28 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Read and write streams and arrays to and from network sockets. Socket IO
--- APIs are quite similar to "Streamly.Memory.Array" read write APIs and almost
--- identical to the sequential streaming APIs in "Streamly.Internal.FileSystem.File".
+-- A socket is a handle to a protocol endpoint.
 --
--- Read IO requests to the socket are performed in chunks of 32KiB, this is
--- referred to as @defaultChunkSize@ in the documentation. One IO request may
--- or may not read the full chunk.  Unless specified otherwise in the API,
--- writes are collected into chunks of @defaultChunkSize@ before they are
--- written to the socket. APIs are provided to control the chunking and
--- framing behavior.
+-- This module provides APIs to read and write streams and arrays to and from
+-- network sockets. Sockets may be connected or unconnected. Connected sockets
+-- can only send or recv data to/from the connected endpoint, therefore, APIs
+-- for connected sockets do not need to explicitly specify the remote endpoint.
+-- APIs for unconnected sockets need to explicitly specify the remote endpoint.
+--
+-- Read IO requests to connected stream sockets are performed in chunks of
+-- 32KiB, this is referred to as @defaultChunkSize@ in the documentation. One
+-- IO request may or may not read the full chunk.  Unless specified otherwise
+-- in the API, writes are collected into chunks of @defaultChunkSize@ before
+-- they are written to the socket. APIs are provided to control the chunking
+-- and framing behavior.
 --
 -- > import qualified Streamly.Network.Socket as SK
 --
 
+-- By design, connected socket IO APIs are similar to
+-- "Streamly.Memory.Array" read write APIs. They are almost identical to the
+-- sequential streaming APIs in "Streamly.Internal.FileSystem.File".
+--
 module Streamly.Network.Socket
     (
     -- * Read from connection
