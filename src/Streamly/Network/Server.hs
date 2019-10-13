@@ -14,13 +14,8 @@
 
 module Streamly.Network.Server
     (
-    -- * Server Configuration
-       Server(..)
-
-    -- * TCP Servers
-    -- ** Connected sockets
-    , listen
-    , listenOnAddr
+    -- * Accept Connections
+      listenOnAddr
     , listenOnPort
     , listenOnPortLocal
 

@@ -31,8 +31,14 @@
 --
 module Streamly.Network.Socket
     (
+    -- * Socket Specification
+      SockSpec(..)
+
+    -- * Accept Connections
+    , listen
+
     -- * Read from connection
-      read
+    , read
     -- , readUtf8
     -- , readLines
     -- , readFrames

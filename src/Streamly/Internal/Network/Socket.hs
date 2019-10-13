@@ -18,9 +18,14 @@
 --
 module Streamly.Internal.Network.Socket
     (
+    SockSpec (..)
     -- * Use a socket
-      useSocketM
+    , useSocketM
     , useSocket
+
+    -- * Listen for incoming connections
+    , listen
+    , connections
 
     -- * Read from connection
     , read
@@ -66,7 +71,12 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import Network.Socket (Socket, sendBuf, recvBuf)
+import Network.Socket (sendBuf, recvBuf)
+import Network.Socket
+       (Socket, PortNumber, SocketOption(..), Family(..), SockAddr(..),
+       ProtocolNumber,
+        withSocketsDo, SocketType(..), socket, accept, bind,
+        defaultProtocol, setSocketOption, maxListenQueue, tupleToHostAddress)
 #if MIN_VERSION_network(3,1,0)
 import Network.Socket (withFdSocket)
 #else
@@ -76,6 +86,7 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
+import Streamly (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Streams.Serial (SerialT)
@@ -111,6 +122,87 @@ useSocketM sk f = finally (liftIO (Net.close sk)) (f sk)
 useSocket :: (IsStream t, MonadCatch m, MonadIO m)
     => Socket -> (Socket -> t m a) -> t m a
 useSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
+
+-------------------------------------------------------------------------------
+-- Listen (Unfolds)
+-------------------------------------------------------------------------------
+
+-- XXX Protocol specific socket options should be separated from socket level
+-- options.
+--
+-- | Specify the socket protocol details.
+data SockSpec = SockSpec
+    {
+      sockFamily :: !Family
+    , sockType   :: !SocketType
+    , sockProto  :: !ProtocolNumber
+    , sockOpts   :: ![(SocketOption, Int)]
+    }
+
+initListener :: Int -> SockSpec -> SockAddr -> IO Socket
+initListener listenQLen SockSpec{..} addr =
+  withSocketsDo $ do
+    sock <- socket sockFamily sockType sockProto
+    mapM_ (\(opt, val) -> setSocketOption sock opt val) sockOpts
+    bind sock addr
+    Net.listen sock listenQLen
+    return sock
+
+{-# INLINE listenTuples #-}
+listenTuples :: MonadIO m
+    => Unfold m (Int, SockSpec, SockAddr) (Socket, SockAddr)
+listenTuples = Unfold step inject
+    where
+    inject (listenQLen, spec, addr) = do
+        listener <- liftIO $ initListener listenQLen spec addr
+        return listener
+
+    step listener = do
+        r <- liftIO $ accept listener
+        -- XXX error handling
+        return $ D.Yield r listener
+
+-- | Unfold a three tuple @(listenQLen, spec, addr)@ into a stream of connected
+-- protocol sockets. @listenQLen@ is the maximum number of pending connections
+-- in the backlog. @spec@ is the socket protocol and options specification and
+-- @addr@ is the protocol address where the server listens for incoming
+-- connections.
+--
+-- @since 0.7.0
+{-# INLINE listen #-}
+listen :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+listen = UF.map fst listenTuples
+
+-------------------------------------------------------------------------------
+-- Listen (Streams)
+-------------------------------------------------------------------------------
+
+{-# INLINE recvConnectionTuplesWith #-}
+recvConnectionTuplesWith :: MonadAsync m
+    => Int -> SockSpec -> SockAddr -> SerialT m (Socket, SockAddr)
+recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
+    where
+    step Nothing = do
+        listener <- liftIO $ initListener tcpListenQ spec addr
+        r <- liftIO $ accept listener
+        -- XXX error handling
+        return $ Just (r, Just listener)
+
+    step (Just listener) = do
+        r <- liftIO $ accept listener
+        -- XXX error handling
+        return $ Just (r, Just listener)
+
+-- | Start a TCP stream server that listens for connections on the supplied
+-- server address specification (address family, local interface IP address and
+-- port). The server generates a stream of connected sockets.  The first
+-- argument is the maximum number of pending connections in the backlog.
+--
+-- /Internal/
+{-# INLINE connections #-}
+connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> SerialT m Socket
+connections tcpListenQ spec addr = fmap fst $
+    recvConnectionTuplesWith tcpListenQ spec addr
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
