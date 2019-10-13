@@ -316,7 +316,7 @@ library
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
-                     , Streamly.Network.Server
+                     , Streamly.Network.Socket.Inet.TCP
                      , Streamly.Network.Client
 
                      , Streamly.Internal.Network.Socket
@@ -903,6 +903,7 @@ executable EchoServer
     build-Depends:
         streamly
       , base              >= 4.8   && < 5
+      , network           >= 2.6   && < 4
   else
     buildable: False
 
