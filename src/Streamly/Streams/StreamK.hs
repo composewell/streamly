@@ -62,6 +62,7 @@ module Streamly.Streams.StreamK
 
     -- ** Specialized Generation
     , repeat
+    , repeatM
     , replicate
     , replicateM
     , fromIndices
@@ -268,9 +269,16 @@ once = yieldM
 -- repeatM = cycle1 . yield
 -- @
 --
+-- Generate an infinite stream by repeating a monadic value.
+--
+-- /Internal/
+repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
+repeatM = go
+    where go m = m |: go m
+
 -- Generate an infinite stream by repeating a pure value.
 --
--- @since 0.4.0
+-- /Internal/
 {-# INLINE repeat #-}
 repeat :: IsStream t => a -> t m a
 repeat a = let x = cons a x in x

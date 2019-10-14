@@ -33,7 +33,7 @@ module Streamly.Internal.Prelude
     -- ** From Values
     , yield
     , yieldM
-    , K.repeat
+    , repeat
     , repeatM
     , replicate
     , replicateM
@@ -205,9 +205,9 @@ module Streamly.Internal.Prelude
     , insertBy
     , intersperseM
     , intersperse
-    , insertAfterEach
+    , intersperseSuffix
     -- , intersperseBySpan
-    , interject
+    , interjectSuffix
 
     -- ** Reordering
     , reverse
@@ -220,8 +220,9 @@ module Streamly.Internal.Prelude
 
     -- ** Interleaving
     , interleave
-    , interleaveFst
     , interleaveMin
+    , interleaveSuffix
+    , interleaveInfix
 
     , Serial.wSerialFst
     , Serial.wSerialMin
@@ -254,8 +255,12 @@ module Streamly.Internal.Prelude
     , concatUnfoldRoundrobin
     , concatMap
     , concatMapWith
-    -- , intercalate
+    , gintercalate
+    , gintercalateSuffix
+    , intercalate
     , intercalateSuffix
+    , interpose
+    , interposeSuffix
 
     -- -- ** Breaking
 
@@ -400,7 +405,8 @@ import Prelude
                foldl, map, mapM, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
-               scanl, scanl1, replicate, concatMap, span, splitAt, break)
+               scanl, scanl1, replicate, concatMap, span, splitAt, break,
+               repeat)
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
@@ -672,6 +678,14 @@ replicate :: (IsStream t, Monad m) => Int -> a -> t m a
 replicate n = fromStreamS . S.replicate n
 
 -- |
+-- Generate an infinite stream by repeating a pure value.
+--
+-- @since 0.4.0
+{-# INLINE_NORMAL repeat #-}
+repeat :: (IsStream t, Monad m) => a -> t m a
+repeat = fromStreamS . S.repeat
+
+-- |
 -- @
 -- repeatM = fix . consM
 -- repeatM = cycle1 . yieldM
@@ -687,9 +701,14 @@ replicate n = fromStreamS . S.replicate n
 -- /Concurrent, infinite (do not use with 'parallely')/
 --
 -- @since 0.2.0
+{-# INLINE_EARLY repeatM #-}
 repeatM :: (IsStream t, MonadAsync m) => m a -> t m a
-repeatM = go
-    where go m = m |: go m
+repeatM = K.repeatM
+
+{-# RULES "repeatM serial" repeatM = repeatMSerial #-}
+{-# INLINE repeatMSerial #-}
+repeatMSerial :: MonadAsync m => m a -> SerialT m a
+repeatMSerial = fromStreamS . S.repeatM
 
 -- |
 -- @
@@ -1831,9 +1850,9 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 -- | Insert a monadic action after each element in the stream.
 --
 -- @since 0.7.0
-{-# INLINE insertAfterEach #-}
-insertAfterEach :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
-insertAfterEach m = fromStreamD . D.insertAfterEach m . toStreamD
+{-# INLINE intersperseSuffix #-}
+intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
+intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@
@@ -1854,16 +1873,16 @@ intersperseBySpan _n _f _xs = undefined
 -- seconds.
 --
 -- @
--- > S.drain $ S.interject 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
+-- > S.drain $ S.interjectSuffix 1 (putChar ',') $ S.mapM (\\x -> threadDelay 1000000 >> putChar x) $ S.fromList "hello"
 -- "h,e,l,l,o"
 -- @
 --
 -- @since 0.7.0
-{-# INLINE interject #-}
-interject
+{-# INLINE interjectSuffix #-}
+interjectSuffix
     :: (IsStream t, MonadAsync m)
     => Double -> m a -> t m a -> t m a
-interject n f xs = xs `Par.parallelFst` repeatM timed
+interjectSuffix n f xs = xs `Par.parallelFst` repeatM timed
     where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
 
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
@@ -2144,12 +2163,25 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 append ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 
--- Same as 'wSerial'. We should perhaps rename wSerial. If named explicitly
--- this would be interleaveMax.
+-- XXX Same as 'wSerial'. We should perhaps rename wSerial to interleave.
+-- XXX Document the interleaving behavior of side effects in all the
+-- interleaving combinators.
+-- XXX Write time-domain equivalents of these. In the time domain we can
+-- interleave two streams such that the value of second stream is always taken
+-- from its last value even if no new value is being yielded, like
+-- zipWithLatest. It would be something like interleaveWithLatest.
 --
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream. If any of the streams finishes
 -- early the other stream continues alone until it too finishes.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> interleave "ab" ",,,," :: SerialT Identity Char
+-- fromList "a,b,,,"
+-- >>> interleave "abcd" ",," :: SerialT Identity Char
+-- fromList "a,b,cd"
+--
+-- 'interleave' is dual to 'interleaveMin', it can be called @interleaveMax@.
 --
 -- Do not use at scale in concatMapWith.
 --
@@ -2160,18 +2192,63 @@ interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream. As soon as the first stream
--- finishes the output stops discarding the second stream.
+-- finishes, the output stops, discarding the remaining part of the second
+-- stream. In this case, the last element in the resulting stream would be from
+-- the second stream. If the second stream finishes early then the first stream
+-- still continues to yield elements until it finishes.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> interleaveSuffix "abc" ",,,," :: SerialT Identity Char
+-- fromList "a,b,c,"
+-- >>> interleaveSuffix "abc" "," :: SerialT Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveSuffix' is a dual of 'interleaveInfix'.
 --
 -- Do not use at scale in concatMapWith.
 --
 -- @since 0.7.0
-{-# INLINE interleaveFst #-}
-interleaveFst ::(IsStream t, Monad m) => t m b -> t m b -> t m b
-interleaveFst m1 m2 = fromStreamD $ D.interleaveFst (toStreamD m1) (toStreamD m2)
+{-# INLINE interleaveSuffix #-}
+interleaveSuffix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+interleaveSuffix m1 m2 =
+    fromStreamD $ D.interleaveSuffix (toStreamD m1) (toStreamD m2)
+
+-- | Interleaves the outputs of two streams, yielding elements from each stream
+-- alternately, starting from the first stream and ending at the first stream.
+-- If the second stream is longer than the first, elements from the second
+-- stream are infixed with elements from the first stream. If the first stream
+-- is longer then it continues yielding elements even after the second stream
+-- has finished.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> interleaveInfix "abc" ",,,," :: SerialT Identity Char
+-- fromList "a,b,c"
+-- >>> interleaveInfix "abc" "," :: SerialT Identity Char
+-- fromList "a,bc"
+--
+-- 'interleaveInfix' is a dual of 'interleaveSuffix'.
+--
+-- Do not use at scale in concatMapWith.
+--
+-- @since 0.7.0
+{-# INLINE interleaveInfix #-}
+interleaveInfix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
+interleaveInfix m1 m2 =
+    fromStreamD $ D.interleaveInfix (toStreamD m1) (toStreamD m2)
 
 -- | Interleaves the outputs of two streams, yielding elements from each stream
 -- alternately, starting from the first stream. The output stops as soon as any
--- of the two streams finishes discarding the other.
+-- of the two streams finishes, discarding the remaining part of the other
+-- stream. The last element of the resulting stream would be from the longer
+-- stream.
+--
+-- >>> :set -XOverloadedStrings
+-- >>> interleaveMin "ab" ",,,," :: SerialT Identity Char
+-- fromList "a,b,"
+-- >>> interleaveMin "abcd" ",," :: SerialT Identity Char
+-- fromList "a,b,c"
+--
+-- 'interleaveMin' is dual to 'interleave'.
 --
 -- Do not use at scale in concatMapWith.
 --
@@ -2235,29 +2312,103 @@ concatUnfoldRoundrobin ::(IsStream t, Monad m)
 concatUnfoldRoundrobin u m =
     fromStreamD $ D.concatUnfoldRoundrobin u (toStreamD m)
 
-{-
--- | Insert a stream between segements of streams and flatten.
-intercalate :: (IsStream t, MonadAsync m)
-    => SerialT Identity b -> (a -> t m b) -> t m a -> t m b
-intercalate = undefined
--}
+-- XXX we can swap the order of arguments to gintercalate so that the
+-- definition of concatUnfold becomes simpler? The first stream should be
+-- infixed inside the second one. However, if we change the order in
+-- "interleave" as well similarly, then that will make it a bit unintuitive.
+--
+-- > concatUnfold unf str =
+-- >     gintercalate unf str (UF.nilM (\_ -> return ())) (repeat ())
+--
+-- | 'interleaveInfix' followed by unfold and concat.
+--
+-- /Internal/
+{-# INLINE gintercalate #-}
+gintercalate
+    :: (IsStream t, Monad m)
+    => Unfold m a c -> t m a -> Unfold m b c -> t m b -> t m c
+gintercalate unf1 str1 unf2 str2 =
+    D.fromStreamD $ D.gintercalate
+        unf1 (D.toStreamD str1)
+        unf2 (D.toStreamD str2)
 
--- | @intercalateSuffix genSuffix seed gen stream@ generates streams from seeds
--- in the input @stream@ using the generator @gen@ and concatenates them
--- after suffixing the stream generated by @genSuffix@ using @seed@.
+-- XXX The order of arguments in "intercalate" is consistent with the list
+-- intercalate but inconsistent with gintercalate and other stream interleaving
+-- combinators. We can change the order of the arguments in other combinators
+-- but then 'interleave' combinator may become a bit unintuitive because we
+-- will be starting with the second stream.
+
+-- > intercalate seed unf str = gintercalate unf str unf (repeatM seed)
+-- > intercalate a unf str = concatUnfold unf $ intersperse a str
 --
--- For example to insert CRLF in a stream of character strings:
+-- | 'intersperse' followed by unfold and concat.
 --
--- > unlines = intercalateSuffix UF.fromList "\r\n" UF.fromList
+-- > unwords = intercalate " " UF.fromList
+--
+-- >>> intercalate " " UF.fromList ["abc", "def", "ghi"]
+-- > "abc def ghi"
+--
+{-# INLINE intercalate #-}
+intercalate :: (IsStream t, Monad m)
+    => b -> Unfold m b c -> t m b -> t m c
+intercalate seed unf str = D.fromStreamD $
+    D.concatMapU unf $ D.intersperse seed (toStreamD str)
+
+-- > interpose x unf str = gintercalate unf str UF.identity (repeat x)
+--
+-- | Unfold the elements of a stream, intersperse the given element between the
+-- unfolded streams and then concat them into a single stream.
+--
+-- > unwords = S.interpose ' '
+--
+-- /Internal/
+{-# INLINE interpose #-}
+interpose :: (IsStream t, Monad m)
+    => c -> Unfold m b c -> t m b -> t m c
+interpose x unf str =
+    D.fromStreamD $ D.interpose (return x) unf (D.toStreamD str)
+
+-- | 'interleaveSuffix' followed by unfold and concat.
+--
+-- /Internal/
+{-# INLINE gintercalateSuffix #-}
+gintercalateSuffix
+    :: (IsStream t, Monad m)
+    => Unfold m a c -> t m a -> Unfold m b c -> t m b -> t m c
+gintercalateSuffix unf1 str1 unf2 str2 =
+    D.fromStreamD $ D.gintercalateSuffix
+        unf1 (D.toStreamD str1)
+        unf2 (D.toStreamD str2)
+
+-- > intercalateSuffix seed unf str = gintercalateSuffix unf str unf (repeatM seed)
+-- > intercalateSuffix a unf str = concatUnfold unf $ intersperseSuffix a str
+--
+-- | 'intersperseSuffix' followed by unfold and concat.
+--
+-- > unlines = intercalateSuffix "\n" UF.fromList
+--
+-- >>> intercalate "\n" UF.fromList ["abc", "def", "ghi"]
+-- > "abc\ndef\nghi\n"
 --
 {-# INLINE intercalateSuffix #-}
-intercalateSuffix
-    :: (IsStream t, Monad m)
-    => Unfold m a c -> a -> Unfold m b c -> t m b -> t m c
-intercalateSuffix suffix seed unf str =
-    D.fromStreamD $ D.interleaveFstThenConcat
-        unf (D.toStreamD str)
-        suffix (D.repeat seed)
+intercalateSuffix :: (IsStream t, Monad m)
+    => b -> Unfold m b c -> t m b -> t m c
+intercalateSuffix seed unf str = fromStreamD $ D.concatMapU unf
+    $ D.intersperseSuffix (return seed) (D.toStreamD str)
+
+-- interposeSuffix x unf str = gintercalateSuffix unf str UF.identity (repeat x)
+--
+-- | Unfold the elements of a stream, append the given element after each
+-- unfolded stream and then concat them into a single stream.
+--
+-- > unlines = S.interposeSuffix '\n'
+--
+-- /Internal/
+{-# INLINE interposeSuffix #-}
+interposeSuffix :: (IsStream t, Monad m)
+    => c -> Unfold m b c -> t m b -> t m c
+interposeSuffix x unf str =
+    D.fromStreamD $ D.interposeSuffix (return x) unf (D.toStreamD str)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
@@ -2407,7 +2558,7 @@ intervalsOf
     => Double -> Fold m a b -> t m a -> t m b
 intervalsOf n f xs =
     splitWithSuffix isNothing (FL.lcatMaybes f)
-        (interject n (return Nothing) (Serial.map Just xs))
+        (interjectSuffix n (return Nothing) (Serial.map Just xs))
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs

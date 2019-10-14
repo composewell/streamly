@@ -40,8 +40,12 @@ module Streamly.Benchmark.FileIO.Stream
     , catFinallyStream
     , copy
     , linesUnlinesCopy
+    , linesUnlinesArrayWord8Copy
+    , linesUnlinesArrayCharCopy
+    -- , linesUnlinesArrayUtf8Copy
     , wordsUnwordsCopyWord8
     , wordsUnwordsCopy
+    , wordsUnwordsCharArrayCopy
     , readWord8
     , decodeChar8
     , copyCodecChar8
@@ -68,9 +72,11 @@ import Prelude hiding (last, length)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Memory.Array as A
+-- import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
+-- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Data.String as SS
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
@@ -400,11 +406,29 @@ inspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
 inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 #endif
 
--- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
--- | Lines and unlines
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
+    S.fold (FH.write outh)
+      $ SS.encodeChar8
+      $ SS.unfoldLines IUF.fromList
+      $ S.splitOnSuffix (== '\n') FL.toList
+      $ SS.decodeChar8
+      $ S.unfold FH.read inh
+
+{-# INLINE linesUnlinesArrayWord8Copy #-}
+linesUnlinesArrayWord8Copy :: Handle -> Handle -> IO ()
+linesUnlinesArrayWord8Copy inh outh =
+    S.fold (FH.write outh)
+      $ IP.interposeSuffix 10 A.read
+      $ S.splitOnSuffix (== 10) A.write
+      $ S.unfold FH.read inh
+
+-- XXX splitSuffixOn requires -funfolding-use-threshold=150 for better fusion
+-- | Lines and unlines
+{-# INLINE linesUnlinesArrayCharCopy #-}
+linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
+linesUnlinesArrayCharCopy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeChar8
       $ SS.unlines
@@ -413,11 +437,25 @@ linesUnlinesCopy inh outh =
       $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
--- inspect $ 'linesUnlinesCopy `hasNoType` ''Step
--- inspect $ 'linesUnlinesCopy `hasNoType` ''AT.FlattenState
--- inspect $ 'linesUnlinesCopy `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Storable]
+-- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''Step
+-- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''AT.FlattenState
+-- inspect $ 'linesUnlinesArrayCharCopy `hasNoType` ''D.ConcatMapUState
 #endif
+
+-- XXX to write this we need to be able to map decodeUtf8 on the A.read fold.
+-- For that we have to write decodeUtf8 as a Pipe.
+{-
+{-# INLINE linesUnlinesArrayUtf8Copy #-}
+linesUnlinesArrayUtf8Copy :: Handle -> Handle -> IO ()
+linesUnlinesArrayUtf8Copy inh outh =
+    S.fold (FH.write outh)
+      $ SS.encodeChar8
+      $ IP.intercalate (A.fromList [10]) (pipe SS.decodeUtf8P A.read)
+      $ S.splitOnSuffix (== '\n') (IFL.lmap SS.encodeUtf8 A.write)
+      $ SS.decodeChar8
+      $ S.unfold FH.read inh
+-}
 
 foreign import ccall unsafe "u_iswspace"
   iswspace :: Int -> Int
@@ -446,8 +484,7 @@ isSp = isSpace . chr . fromIntegral
 wordsUnwordsCopyWord8 :: Handle -> Handle -> IO ()
 wordsUnwordsCopyWord8 inh outh =
     S.fold (FH.write outh)
-        $ S.concatUnfold IUF.fromList
-        $ S.intersperse [32]
+        $ IP.interposeSuffix 32 IUF.fromList
         $ S.wordsBy isSp FL.toList
         $ S.unfold FH.read inh
 
@@ -463,14 +500,7 @@ wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeChar8
-      $ S.concatUnfold IUF.fromList
-      $ S.intersperse " "
-      -- Array allocation is too expensive for such small strings. So just use
-      -- lists instead.
-      --
-      -- -- $ SS.unwords
-      -- -- $ SS.words
-      --
+      $ SS.unfoldWords IUF.fromList
       -- XXX This pipeline does not fuse with wordsBy but fuses with splitOn
       -- with -funfolding-use-threshold=300.  With wordsBy it does not fuse
       -- even with high limits for inlining and spec-constr ghc options. With
@@ -489,6 +519,16 @@ wordsUnwordsCopy inh outh =
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''AT.FlattenState
 -- inspect $ 'wordsUnwordsCopy `hasNoType` ''D.ConcatMapUState
 #endif
+
+{-# INLINE wordsUnwordsCharArrayCopy #-}
+wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
+wordsUnwordsCharArrayCopy inh outh =
+    S.fold (FH.write outh)
+      $ SS.encodeChar8
+      $ SS.unwords
+      $ SS.words
+      $ SS.decodeChar8
+      $ S.unfold FH.read inh
 
 lf :: Word8
 lf = fromIntegral (ord '\n')

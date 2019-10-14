@@ -48,7 +48,6 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.String as SS
 
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Unfold as IUF
@@ -186,8 +185,8 @@ inspect $ 'copy `hasNoType` ''Step
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
-    S.fold (IFH.writeArraysInChunksOf (1024*1024) outh)
-        $ Internal.insertAfterEach (return $ A.fromList [10])
+    S.fold (IFH.writeInChunksOf (1024*1024) outh)
+        $ AS.interposeSuffix 10
         $ AS.splitOnSuffix 10
         $ IFH.toStreamArraysOf (1024*1024) inh
 
@@ -200,9 +199,9 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 {-# INLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
-    S.fold (IFH.writeArraysInChunksOf (1024*1024) outh)
-        $ S.intersperse (A.fromList [32])
-        -- XXX use a word splitting combinator
+    S.fold (IFH.writeInChunksOf (1024*1024) outh)
+        $ AS.interpose 32
+        -- XXX this is not correct word splitting combinator
         $ AS.splitOn 32
         $ IFH.toStreamArraysOf (1024*1024) inh
 

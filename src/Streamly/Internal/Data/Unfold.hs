@@ -83,6 +83,7 @@ module Streamly.Internal.Data.Unfold
     , effect
     , singleton
     , identity
+    , const
     , replicateM
     , fromList
     , fromListM
@@ -119,7 +120,7 @@ where
 import Control.Exception (Exception)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
-import Prelude hiding (concat, map, takeWhile, take, filter)
+import Prelude hiding (concat, map, takeWhile, take, filter, const)
 
 import Streamly.Streams.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
@@ -130,6 +131,7 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (defState)
 import Control.Monad.Catch (MonadCatch)
 
+import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Streams.StreamK as K
@@ -152,7 +154,7 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 --
 {-# INLINE_NORMAL supply #-}
 supply :: Unfold m a b -> a -> Unfold m Void b
-supply unf a = lmap (const a) unf
+supply unf a = lmap (Prelude.const a) unf
 
 -- | Supply the first component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the second component of the tuple
@@ -343,6 +345,12 @@ singleton f = Unfold step inject
 {-# INLINE identity #-}
 identity :: Monad m => Unfold m a a
 identity = singleton return
+
+const :: Monad m => m b -> Unfold m a b
+const m = Unfold step inject
+    where
+    inject _ = return ()
+    step () = m >>= \r -> return $ Yield r ()
 
 -- | Generates a stream replicating the seed @n@ times.
 --

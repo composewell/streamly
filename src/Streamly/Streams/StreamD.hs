@@ -65,6 +65,7 @@ module Streamly.Streams.StreamD
     -- ** Specialized Generation
     -- | Generate a monadic stream from a seed.
     , repeat
+    , repeatM
     , replicate
     , replicateM
     , fromIndices
@@ -148,9 +149,13 @@ module Streamly.Streams.StreamD
     , InterleaveState(..)
     , interleave
     , interleaveMin
-    , interleaveFst
+    , interleaveSuffix
+    , interleaveInfix
     , roundRobin -- interleaveFair?/ParallelFair
-    , interleaveFstThenConcat
+    , gintercalateSuffix
+    , interposeSuffix
+    , gintercalate
+    , interpose
 
     -- ** Grouping
     , groupsOf
@@ -229,7 +234,7 @@ module Streamly.Streams.StreamD
     -- * Inserting
     , intersperseM
     , intersperse
-    , insertAfterEach
+    , intersperseSuffix
     , insertBy
 
     -- * Deleting
@@ -418,6 +423,9 @@ unfold (Unfold ustep inject) seed = Stream step Nothing
 ------------------------------------------------------------------------------
 -- Specialized Generation
 ------------------------------------------------------------------------------
+
+repeatM :: Monad m => m a -> Stream m a
+repeatM x = Stream (\_ _ -> x >>= \r -> return $ Yield r ()) ()
 
 repeat :: Monad m => a -> Stream m a
 repeat x = Stream (\_ _ -> return $ Yield x ()) ()
@@ -2103,9 +2111,9 @@ interleaveMin (Stream step1 state1) (Stream step2 state2) =
     step _ (InterleaveFirstOnly _) =  undefined
     step _ (InterleaveSecondOnly _) =  undefined
 
-{-# INLINE_NORMAL interleaveFst #-}
-interleaveFst :: Monad m => Stream m a -> Stream m a -> Stream m a
-interleaveFst (Stream step1 state1) (Stream step2 state2) =
+{-# INLINE_NORMAL interleaveSuffix #-}
+interleaveSuffix :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveSuffix (Stream step1 state1) (Stream step2 state2) =
     Stream step (InterleaveFirst state1 state2)
 
     where
@@ -2133,6 +2141,52 @@ interleaveFst (Stream step1 state1) (Stream step2 state2) =
             Stop -> Stop
 
     step _ (InterleaveSecondOnly _) =  undefined
+
+data InterleaveInfixState s1 s2 a
+    = InterleaveInfixFirst s1 s2
+    | InterleaveInfixSecondBuf s1 s2
+    | InterleaveInfixSecondYield s1 s2 a
+    | InterleaveInfixFirstYield s1 s2 a
+    | InterleaveInfixFirstOnly s1
+
+{-# INLINE_NORMAL interleaveInfix #-}
+interleaveInfix :: Monad m => Stream m a -> Stream m a -> Stream m a
+interleaveInfix (Stream step1 state1) (Stream step2 state2) =
+    Stream step (InterleaveInfixFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterleaveInfixFirst st1 st2) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveInfixSecondBuf s st2)
+            Skip s -> Skip (InterleaveInfixFirst s st2)
+            Stop -> Stop
+
+    step gst (InterleaveInfixSecondBuf st1 st2) = do
+        r <- step2 gst st2
+        return $ case r of
+            Yield a s -> Skip (InterleaveInfixSecondYield st1 s a)
+            Skip s -> Skip (InterleaveInfixSecondBuf st1 s)
+            Stop -> Skip (InterleaveInfixFirstOnly st1)
+
+    step gst (InterleaveInfixSecondYield st1 st2 x) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield x (InterleaveInfixFirstYield s st2 a)
+            Skip s -> Skip (InterleaveInfixSecondYield s st2 x)
+            Stop -> Stop
+
+    step _ (InterleaveInfixFirstYield st1 st2 x) = do
+        return $ Yield x (InterleaveInfixSecondBuf st1 st2)
+
+    step gst (InterleaveInfixFirstOnly st1) = do
+        r <- step1 gst st1
+        return $ case r of
+            Yield a s -> Yield a (InterleaveInfixFirstOnly s)
+            Skip s -> Skip (InterleaveInfixFirstOnly s)
+            Stop -> Stop
 
 {-# INLINE_NORMAL roundRobin #-}
 roundRobin :: Monad m => Stream m a -> Stream m a -> Stream m a
@@ -2190,11 +2244,11 @@ data ICUState s1 s2 i1 i2 =
 -- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
 -- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
 --
-{-# INLINE_NORMAL interleaveFstThenConcat #-}
-interleaveFstThenConcat
+{-# INLINE_NORMAL gintercalateSuffix #-}
+gintercalateSuffix
     :: Monad m
     => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
-interleaveFstThenConcat
+gintercalateSuffix
     (Unfold istep1 inject1) (Stream step1 state1)
     (Unfold istep2 inject2) (Stream step2 state2) =
     Stream step (ICUFirst state1 state2)
@@ -2252,6 +2306,269 @@ interleaveFstThenConcat
 
     step _ (ICUSecondOnly _s2) = undefined
     step _ (ICUSecondOnlyInner _s2 _i2) = undefined
+
+data InterposeSuffixState s1 i1 =
+      InterposeSuffixFirst s1
+    -- | InterposeSuffixFirstYield s1 i1
+    | InterposeSuffixFirstInner s1 i1
+    | InterposeSuffixSecond s1
+
+-- Note that if an unfolded layer turns out to be nil we still emit the
+-- separator effect. An alternate behavior could be to emit the separator
+-- effect only if at least one element has been yielded by the unfolding.
+-- However, that becomes a bit complicated, so we have chosen the former
+-- behvaior for now.
+{-# INLINE_NORMAL interposeSuffix #-}
+interposeSuffix
+    :: Monad m
+    => m c -> Unfold m b c -> Stream m b -> Stream m c
+interposeSuffix
+    action
+    (Unfold istep1 inject1) (Stream step1 state1) =
+    Stream step (InterposeSuffixFirst state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterposeSuffixFirst s1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (InterposeSuffixFirstInner s i))
+                -- i `seq` return (Skip (InterposeSuffixFirstYield s i))
+            Skip s -> return $ Skip (InterposeSuffixFirst s)
+            Stop -> return Stop
+
+    {-
+    step _ (InterposeSuffixFirstYield s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (InterposeSuffixFirstInner s1 i')
+            Skip i'    -> Skip (InterposeSuffixFirstYield s1 i')
+            Stop       -> Skip (InterposeSuffixFirst s1)
+    -}
+
+    step _ (InterposeSuffixFirstInner s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (InterposeSuffixFirstInner s1 i')
+            Skip i'    -> Skip (InterposeSuffixFirstInner s1 i')
+            Stop       -> Skip (InterposeSuffixSecond s1)
+
+    step _ (InterposeSuffixSecond s1) = do
+        r <- action
+        return $ Yield r (InterposeSuffixFirst s1)
+
+data ICALState s1 s2 i1 i2 a =
+      ICALFirst s1 s2
+    -- | ICALFirstYield s1 s2 i1
+    | ICALFirstInner s1 s2 i1
+    | ICALFirstOnly s1
+    | ICALFirstOnlyInner s1 i1
+    | ICALSecondInject s1 s2
+    | ICALFirstInject s1 s2 i2
+    -- | ICALFirstBuf s1 s2 i1 i2
+    | ICALSecondInner s1 s2 i1 i2
+    -- -- | ICALSecondInner s1 s2 i1 i2 a
+    -- -- | ICALFirstResume s1 s2 i1 i2 a
+
+-- | Interleave streams (full streams, not the elements) unfolded from two
+-- input streams and concat. Stop when the first stream stops. If the second
+-- stream ends before the first one then first stream still keeps running alone
+-- without any interleaving with the second stream.
+--
+--    [a1, a2, ... an]                   [b1, b2 ...]
+-- => [streamA1, streamA2, ... streamAn] [streamB1, streamB2, ...]
+-- => [streamA1, streamB1, streamA2...StreamAn, streamBn]
+-- => [a11, a12, ...a1j, b11, b12, ...b1k, a21, a22, ...]
+--
+{-# INLINE_NORMAL gintercalate #-}
+gintercalate
+    :: Monad m
+    => Unfold m a c -> Stream m a -> Unfold m b c -> Stream m b -> Stream m c
+gintercalate
+    (Unfold istep1 inject1) (Stream step1 state1)
+    (Unfold istep2 inject2) (Stream step2 state2) =
+    Stream step (ICALFirst state1 state2)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (ICALFirst s1 s2) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (ICALFirstInner s s2 i))
+                -- i `seq` return (Skip (ICALFirstYield s s2 i))
+            Skip s -> return $ Skip (ICALFirst s s2)
+            Stop -> return Stop
+
+    {-
+    step _ (ICALFirstYield s1 s2 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (ICALFirstInner s1 s2 i')
+            Skip i'    -> Skip (ICALFirstYield s1 s2 i')
+            Stop       -> Skip (ICALFirst s1 s2)
+    -}
+
+    step _ (ICALFirstInner s1 s2 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (ICALFirstInner s1 s2 i')
+            Skip i'    -> Skip (ICALFirstInner s1 s2 i')
+            Stop       -> Skip (ICALSecondInject s1 s2)
+
+    step gst (ICALFirstOnly s1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (ICALFirstOnlyInner s i))
+            Skip s -> return $ Skip (ICALFirstOnly s)
+            Stop -> return Stop
+
+    step _ (ICALFirstOnlyInner s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (ICALFirstOnlyInner s1 i')
+            Skip i'    -> Skip (ICALFirstOnlyInner s1 i')
+            Stop       -> Skip (ICALFirstOnly s1)
+
+    -- We inject the second stream even before checking if the first stream
+    -- would yield any more elements. There is no clear choice whether we
+    -- should do this before or after that. Doing it after may make the state
+    -- machine a bit simpler though.
+    step gst (ICALSecondInject s1 s2) = do
+        r <- step2 (adaptState gst) s2
+        case r of
+            Yield a s -> do
+                i <- inject2 a
+                i `seq` return (Skip (ICALFirstInject s1 s i))
+            Skip s -> return $ Skip (ICALSecondInject s1 s)
+            Stop -> return $ Skip (ICALFirstOnly s1)
+
+    step gst (ICALFirstInject s1 s2 i2) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (ICALSecondInner s s2 i i2))
+                -- i `seq` return (Skip (ICALFirstBuf s s2 i i2))
+            Skip s -> return $ Skip (ICALFirstInject s s2 i2)
+            Stop -> return Stop
+
+    {-
+    step _ (ICALFirstBuf s1 s2 i1 i2) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Skip (ICALSecondInner s1 s2 i' i2 x)
+            Skip i'    -> Skip (ICALFirstBuf s1 s2 i' i2)
+            Stop       -> Stop
+
+    step _ (ICALSecondInner s1 s2 i1 i2 v) = do
+        r <- istep2 i2
+        return $ case r of
+            Yield x i' -> Yield x (ICALSecondInner s1 s2 i1 i' v)
+            Skip i'    -> Skip (ICALSecondInner s1 s2 i1 i' v)
+            Stop       -> Skip (ICALFirstResume s1 s2 i1 i2 v)
+    -}
+
+    step _ (ICALSecondInner s1 s2 i1 i2) = do
+        r <- istep2 i2
+        return $ case r of
+            Yield x i' -> Yield x (ICALSecondInner s1 s2 i1 i')
+            Skip i'    -> Skip (ICALSecondInner s1 s2 i1 i')
+            Stop       -> Skip (ICALFirstInner s1 s2 i1)
+            -- Stop       -> Skip (ICALFirstResume s1 s2 i1 i2)
+
+    {-
+    step _ (ICALFirstResume s1 s2 i1 i2 x) = do
+        return $ Yield x (ICALFirstInner s1 s2 i1 i2)
+    -}
+
+data InterposeState s1 i1 a =
+      InterposeFirst s1
+    -- | InterposeFirstYield s1 i1
+    | InterposeFirstInner s1 i1
+    | InterposeFirstInject s1
+    -- | InterposeFirstBuf s1 i1
+    | InterposeSecondYield s1 i1
+    -- -- | InterposeSecondYield s1 i1 a
+    -- -- | InterposeFirstResume s1 i1 a
+
+-- Note that this only interposes the pure values, we may run many effects to
+-- generate those values as some effects may not generate anything (Skip).
+{-# INLINE_NORMAL interpose #-}
+interpose :: Monad m => m c -> Unfold m b c -> Stream m b -> Stream m c
+interpose
+    action
+    (Unfold istep1 inject1) (Stream step1 state1) =
+    Stream step (InterposeFirst state1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (InterposeFirst s1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                i `seq` return (Skip (InterposeFirstInner s i))
+                -- i `seq` return (Skip (InterposeFirstYield s i))
+            Skip s -> return $ Skip (InterposeFirst s)
+            Stop -> return Stop
+
+    {-
+    step _ (InterposeFirstYield s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (InterposeFirstInner s1 i')
+            Skip i'    -> Skip (InterposeFirstYield s1 i')
+            Stop       -> Skip (InterposeFirst s1)
+    -}
+
+    step _ (InterposeFirstInner s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Yield x (InterposeFirstInner s1 i')
+            Skip i'    -> Skip (InterposeFirstInner s1 i')
+            Stop       -> Skip (InterposeFirstInject s1)
+
+    step gst (InterposeFirstInject s1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield a s -> do
+                i <- inject1 a
+                -- i `seq` return (Skip (InterposeFirstBuf s i))
+                i `seq` return (Skip (InterposeSecondYield s i))
+            Skip s -> return $ Skip (InterposeFirstInject s)
+            Stop -> return Stop
+
+    {-
+    step _ (InterposeFirstBuf s1 i1) = do
+        r <- istep1 i1
+        return $ case r of
+            Yield x i' -> Skip (InterposeSecondYield s1 i' x)
+            Skip i'    -> Skip (InterposeFirstBuf s1 i')
+            Stop       -> Stop
+    -}
+
+    {-
+    step _ (InterposeSecondYield s1 i1 v) = do
+        r <- action
+        return $ Yield r (InterposeFirstResume s1 i1 v)
+    -}
+    step _ (InterposeSecondYield s1 i1) = do
+        r <- action
+        return $ Yield r (InterposeFirstInner s1 i1)
+
+    {-
+    step _ (InterposeFirstResume s1 i1 v) = do
+        return $ Yield v (InterposeFirstInner s1 i1)
+    -}
 
 ------------------------------------------------------------------------------
 -- Exceptions
@@ -2853,9 +3170,9 @@ data SuffixState s a
     | SuffixSuffix s
     | SuffixYield a (SuffixState s a)
 
-{-# INLINE_NORMAL insertAfterEach #-}
-insertAfterEach :: forall m a. Monad m => m a -> Stream m a -> Stream m a
-insertAfterEach action (Stream step state) = Stream step' (SuffixElem state)
+{-# INLINE_NORMAL intersperseSuffix #-}
+intersperseSuffix :: forall m a. Monad m => m a -> Stream m a -> Stream m a
+intersperseSuffix action (Stream step state) = Stream step' (SuffixElem state)
     where
     {-# INLINE_LATE step' #-}
     step' gst (SuffixElem st) = do

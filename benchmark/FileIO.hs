@@ -201,20 +201,32 @@ main = do
                 Handles inh _ <- readIORef href
                 BFS.chunksOf 1000 inh
             ]
-        , bgroup "group-ungroup"
-            [ mkBench "lines-unlines" href $ do
+        , bgroup "group-ungroup-stream"
+            [ mkBench "lines-unlines-[Char]" href $ do
                 Handles inh outh <- readIORef href
                 BFS.linesUnlinesCopy inh outh
-            , mkBench "lines-unlines-arrays" href $ do
+            , mkBench "lines-unlines-Word8Array" href $ do
                 Handles inh outh <- readIORef href
-                BFA.linesUnlinesCopy inh outh
-            , mkBench "words-unwords" href $ do
+                BFS.linesUnlinesArrayWord8Copy inh outh
+            , mkBench "lines-unlines-CharArray" href $ do
                 Handles inh outh <- readIORef href
-                BFS.wordsUnwordsCopy inh outh
-            , mkBench "words-unwords-word8" href $ do
+                BFS.linesUnlinesArrayCharCopy inh outh
+            , mkBench "words-unwords-[Word8]" href $ do
                 Handles inh outh <- readIORef href
                 BFS.wordsUnwordsCopyWord8 inh outh
-            , mkBench "words-unwords-arrays" href $ do
+            , mkBench "words-unwords-[Char]" href $ do
+                Handles inh outh <- readIORef href
+                BFS.wordsUnwordsCopy inh outh
+            , mkBench "words-unwords-CharArray" href $ do
+                Handles inh outh <- readIORef href
+                BFS.wordsUnwordsCharArrayCopy inh outh
+            ]
+
+        , bgroup "group-ungroup-array-stream"
+            [ mkBench "lines-unlines-Word8Array" href $ do
+                Handles inh outh <- readIORef href
+                BFA.linesUnlinesCopy inh outh
+            , mkBench "words-unwords-Word8Array" href $ do
                 Handles inh outh <- readIORef href
                 BFA.wordsUnwordsCopy inh outh
             ]

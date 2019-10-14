@@ -26,6 +26,7 @@ module Streamly.Internal.Memory.ArrayStream
     -- * Flattening to elements
     , concat
     , concatRev
+    , interpose
     , interposeSuffix
     , intercalateSuffix
 
@@ -51,7 +52,6 @@ import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
-import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
@@ -86,10 +86,18 @@ concat m = D.fromStreamD $ D.concatMapU A.read (D.toStreamD m)
 concatRev :: (IsStream t, MonadIO m, Storable a) => t m (Array a) -> t m a
 concatRev m = D.fromStreamD $ A.flattenArraysRev (D.toStreamD m)
 
+-- | Flatten a stream of arrays after inserting the given element between
+-- arrays.
+--
+-- /Internal/
+{-# INLINE interpose #-}
+interpose :: (MonadIO m, IsStream t, Storable a) => a -> t m (Array a) -> t m a
+interpose x = S.interpose x A.read
+
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (MonadIO m, IsStream t, Storable a)
     => Array a -> t m (Array a) -> t m a
-intercalateSuffix arr = S.intercalateSuffix A.read arr A.read
+intercalateSuffix arr = S.intercalateSuffix arr A.read
 
 -- | Flatten a stream of arrays appending the given element after each
 -- array.
@@ -99,7 +107,7 @@ intercalateSuffix arr = S.intercalateSuffix A.read arr A.read
 interposeSuffix :: (MonadIO m, IsStream t, Storable a)
     => a -> t m (Array a) -> t m a
 -- interposeSuffix x = D.fromStreamD . A.unlines x . D.toStreamD
-interposeSuffix x = S.intercalateSuffix UF.identity x A.read
+interposeSuffix x = S.interposeSuffix x A.read
 
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.

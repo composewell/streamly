@@ -74,6 +74,7 @@ module Streamly.Data.String
     , foldLines
     , foldWords
     , unfoldLines
+    , unfoldWords
 
     -- * Streams of Strings
     , lines
@@ -95,9 +96,7 @@ import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Streams.StreamD as D
-import qualified Streamly.Internal.Data.Unfold as UF
 
 -- type String = List Char
 
@@ -269,11 +268,9 @@ words = foldWords A.write
 -- | Unfold a stream to character streams using the supplied 'Unfold'
 -- and concat the results suffixing a newline character @\\n@ to each stream.
 --
--- > unfoldLines = S.intercalateSuffix UF.identity '\n'
---
 {-# INLINE unfoldLines #-}
 unfoldLines :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
-unfoldLines unf = S.intercalateSuffix UF.identity '\n' unf
+unfoldLines = S.interposeSuffix '\n'
 
 -- | Flattens the stream of @Array Char@, after appending a terminating
 -- newline to each string.
@@ -292,6 +289,14 @@ unfoldLines unf = S.intercalateSuffix UF.identity '\n' unf
 unlines :: (MonadIO m, IsStream t) => t m (Array Char) -> t m Char
 unlines = unfoldLines A.read
 
+-- | Unfold the elements of a stream to character streams using the supplied
+-- 'Unfold' and concat the results with a whitespace character infixed between
+-- the streams.
+--
+{-# INLINE unfoldWords #-}
+unfoldWords :: (MonadIO m, IsStream t) => Unfold m a Char -> t m a -> t m Char
+unfoldWords = S.interpose ' '
+
 -- | Flattens the stream of @Array Char@, after appending a separating
 -- space to each string.
 --
@@ -300,12 +305,11 @@ unlines = unfoldLines A.read
 -- >>> S.toList $ unwords $ S.fromList ["unwords", "this", "string"]
 -- "unwords this string"
 --
---
--- > unwords = A.concat . (S.intersperse (A.fromList " "))
+-- > unwords = unfoldWords A.read
 --
 -- Note that, in general
 --
 -- > unwords . words /= id
 {-# INLINE unwords #-}
 unwords :: (MonadAsync m, IsStream t) => t m (Array Char) -> t m Char
-unwords = AS.concat . (S.intersperse (A.fromList " "))
+unwords = unfoldWords A.read
