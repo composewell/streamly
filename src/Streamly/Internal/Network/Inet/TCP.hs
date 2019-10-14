@@ -27,9 +27,8 @@ module Streamly.Internal.Network.Inet.TCP
     , acceptOnPortLocal
 
     -- ** Streams
-    , connections
     , connectionsOnAddr
-    , connectionsOnAllAddrs
+    , connectionsOnPort
     , connectionsOnLocalHost
 
     -- * TCP clients
@@ -185,12 +184,12 @@ connectionsOnAddr addr port =
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > connectionsOnAllAddrs = connectionsOnAddr (0,0,0,0)
+-- > connectionsOnPort = connectionsOnAddr (0,0,0,0)
 --
 -- /Internal/
-{-# INLINE connectionsOnAllAddrs #-}
-connectionsOnAllAddrs :: MonadAsync m => PortNumber -> SerialT m Socket
-connectionsOnAllAddrs = connectionsOnAddr (0,0,0,0)
+{-# INLINE connectionsOnPort #-}
+connectionsOnPort :: MonadAsync m => PortNumber -> SerialT m Socket
+connectionsOnPort = connectionsOnAddr (0,0,0,0)
 
 -- | Like 'connections' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
