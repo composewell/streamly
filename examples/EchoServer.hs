@@ -5,7 +5,7 @@ import Control.Monad.IO.Class (liftIO)
 import Streamly
 import Streamly.Network.Socket
 import qualified Network.Socket as Net
-import qualified Streamly.Network.Socket.Inet.TCP as TCP
+import qualified Streamly.Network.Inet.TCP as TCP
 import qualified Streamly.Prelude as S
 
 main :: IO ()

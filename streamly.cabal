@@ -316,12 +316,10 @@ library
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
-                     , Streamly.Network.Socket.Inet.TCP
-                     , Streamly.Network.Client
+                     , Streamly.Network.Inet.TCP
 
                      , Streamly.Internal.Network.Socket
-                     , Streamly.Internal.Network.Server
-                     , Streamly.Internal.Network.Client
+                     , Streamly.Internal.Network.Inet.TCP
 
     if flag(benchmark)
        exposed-modules:

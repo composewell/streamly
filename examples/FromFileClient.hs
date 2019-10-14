@@ -8,7 +8,7 @@ import System.Environment (getArgs)
 import Streamly
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Network.Client as Client
+import qualified Streamly.Internal.Network.Inet.TCP as TCP
 
 import System.IO (withFile, IOMode(..))
 
@@ -16,6 +16,6 @@ main :: IO ()
 main =
     let sendFile file =
             withFile file ReadMode $ \src ->
-                  S.fold (Client.writeArrays (127, 0, 0, 1) 8090)
+                  S.fold (TCP.writeArrays (127, 0, 0, 1) 8090)
                 $ IFH.toStreamArrays src
      in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList

@@ -7,12 +7,12 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Combinators to build TCP servers.
+-- Combinators to build Inet/TCP clients and servers.
 --
--- > import qualified Streamly.Network.Server as Server
+-- > import qualified Streamly.Network.Inet.TCP as TCP
 --
 
-module Streamly.Network.Socket.Inet.TCP
+module Streamly.Network.Inet.TCP
     (
     -- * Accept Connections
       listenOnAddr
@@ -43,4 +43,4 @@ module Streamly.Network.Socket.Inet.TCP
     )
 where
 
-import Streamly.Internal.Network.Server
+import Streamly.Internal.Network.Inet.TCP
