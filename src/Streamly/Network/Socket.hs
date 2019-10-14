@@ -35,7 +35,7 @@ module Streamly.Network.Socket
       SockSpec(..)
 
     -- * Accept Connections
-    , listen
+    , accept
 
     -- * Read from connection
     , read

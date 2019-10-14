@@ -103,7 +103,7 @@ import Prelude hiding (read)
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Network.Socket (SockSpec(..), listen, connections)
+import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Streams.StreamK.Type (IsStream)
@@ -130,7 +130,7 @@ import qualified Streamly.Internal.Network.Socket as ISK
 acceptOnAddr
     :: MonadIO m
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-acceptOnAddr = UF.lmap f listen
+acceptOnAddr = UF.lmap f accept
     where
     f (addr, port) =
         (maxListenQueue

@@ -23,8 +23,8 @@ module Streamly.Internal.Network.Socket
     , useSocketM
     , useSocket
 
-    -- * Listen for incoming connections
-    , listen
+    -- * Accept connections
+    , accept
     , connections
 
     -- * Read from connection
@@ -73,10 +73,9 @@ import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import Network.Socket (sendBuf, recvBuf)
 import Network.Socket
-       (Socket, PortNumber, SocketOption(..), Family(..), SockAddr(..),
-       ProtocolNumber,
-        withSocketsDo, SocketType(..), socket, accept, bind,
-        defaultProtocol, setSocketOption, maxListenQueue, tupleToHostAddress)
+       (Socket, SocketOption(..), Family(..), SockAddr(..),
+        ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
+        setSocketOption)
 #if MIN_VERSION_network(3,1,0)
 import Network.Socket (withFdSocket)
 #else
@@ -124,7 +123,7 @@ useSocket :: (IsStream t, MonadCatch m, MonadIO m)
 useSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
--- Listen (Unfolds)
+-- Accept (Unfolds)
 -------------------------------------------------------------------------------
 
 -- XXX Protocol specific socket options should be separated from socket level
@@ -158,20 +157,20 @@ listenTuples = Unfold step inject
         return listener
 
     step listener = do
-        r <- liftIO $ accept listener
+        r <- liftIO $ Net.accept listener
         -- XXX error handling
         return $ D.Yield r listener
 
 -- | Unfold a three tuple @(listenQLen, spec, addr)@ into a stream of connected
--- protocol sockets. @listenQLen@ is the maximum number of pending connections
--- in the backlog. @spec@ is the socket protocol and options specification and
--- @addr@ is the protocol address where the server listens for incoming
--- connections.
+-- protocol sockets corresponding to incoming connections. @listenQLen@ is the
+-- maximum number of pending connections in the backlog. @spec@ is the socket
+-- protocol and options specification and @addr@ is the protocol address where
+-- the server listens for incoming connections.
 --
 -- @since 0.7.0
-{-# INLINE listen #-}
-listen :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
-listen = UF.map fst listenTuples
+{-# INLINE accept #-}
+accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
+accept = UF.map fst listenTuples
 
 -------------------------------------------------------------------------------
 -- Listen (Streams)
@@ -184,12 +183,12 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
     where
     step Nothing = do
         listener <- liftIO $ initListener tcpListenQ spec addr
-        r <- liftIO $ accept listener
+        r <- liftIO $ Net.accept listener
         -- XXX error handling
         return $ Just (r, Just listener)
 
     step (Just listener) = do
-        r <- liftIO $ accept listener
+        r <- liftIO $ Net.accept listener
         -- XXX error handling
         return $ Just (r, Just listener)
 
