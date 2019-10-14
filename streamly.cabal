@@ -902,6 +902,9 @@ executable EchoServer
         streamly
       , base              >= 4.8   && < 5
       , network           >= 2.6   && < 4
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
   else
     buildable: False
 
@@ -915,6 +918,9 @@ executable FileSinkServer
         streamly
       , base              >= 4.8   && < 5
       , network           >= 2.6   && < 4
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
   else
     buildable: False
 
