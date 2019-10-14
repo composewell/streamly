@@ -27,7 +27,7 @@ main = do
         $ encodeChar8Unchecked
         $ S.concatUnfold A.read
         $ S.concatMapWith parallel use
-        $ S.unfold TCP.listenOnPort 8090)
+        $ S.unfold TCP.acceptOnPort 8090)
 
     where
 

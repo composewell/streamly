@@ -21,13 +21,12 @@
 module Streamly.Internal.Network.Inet.TCP
     (
     -- * TCP Servers
-    -- ** Connected sockets
-    -- *** Unfolds
-      listenOnAddr
-    , listenOnPort
-    , listenOnPortLocal
+    -- ** Unfolds
+      acceptOnAddr
+    , acceptOnPort
+    , acceptOnPortLocal
 
-    -- *** Streams
+    -- ** Streams
     , connections
     , connectionsOnAddr
     , connectionsOnAllAddrs
@@ -120,11 +119,11 @@ import qualified Streamly.Internal.Network.Socket as ISK
 -- connections are accepted.
 --
 -- @since 0.7.0
-{-# INLINE listenOnAddr #-}
-listenOnAddr
+{-# INLINE acceptOnAddr #-}
+acceptOnAddr
     :: MonadIO m
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-listenOnAddr = UF.lmap f listen
+acceptOnAddr = UF.lmap f listen
     where
     f (addr, port) =
         (maxListenQueue
@@ -137,27 +136,27 @@ listenOnAddr = UF.lmap f listen
         , SockAddrInet port (tupleToHostAddress addr)
         )
 
--- | Like 'listenOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
+-- | Like 'acceptOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
 -- the specified port.
 --
--- > listenOnPort = UF.supplyFirst listenOnAddr (0,0,0,0)
+-- > acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
 --
 -- @since 0.7.0
-{-# INLINE listenOnPort #-}
-listenOnPort :: MonadIO m => Unfold m PortNumber Socket
-listenOnPort = UF.supplyFirst listenOnAddr (0,0,0,0)
+{-# INLINE acceptOnPort #-}
+acceptOnPort :: MonadIO m => Unfold m PortNumber Socket
+acceptOnPort = UF.supplyFirst acceptOnAddr (0,0,0,0)
 
--- | Like 'listenOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
+-- | Like 'acceptOnAddr' but binds on the localhost IPv4 address @127.0.0.1@.
 -- The server can only be accessed from the local host, it cannot be accessed
 -- from other hosts on the network.
 --
--- > listenOnPortLocal = UF.supplyFirst listenOnAddr (127,0,0,1)
+-- > acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
 --
 -- @since 0.7.0
-{-# INLINE listenOnPortLocal #-}
-listenOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
-listenOnPortLocal = UF.supplyFirst listenOnAddr (127,0,0,1)
+{-# INLINE acceptOnPortLocal #-}
+acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
+acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
 -- Listen

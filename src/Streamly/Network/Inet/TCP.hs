@@ -15,9 +15,9 @@
 module Streamly.Network.Inet.TCP
     (
     -- * Accept Connections
-      listenOnAddr
-    , listenOnPort
-    , listenOnPortLocal
+      acceptOnAddr
+    , acceptOnPort
+    , acceptOnPortLocal
 
     {-
     -- ** Sink Servers
