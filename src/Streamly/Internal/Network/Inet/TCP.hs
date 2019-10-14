@@ -38,11 +38,12 @@ module Streamly.Internal.Network.Inet.TCP
 
     -- ** Unfolds
     , withServerAddr
+    , read
 
     -- ** Streams
     , withConnection
     -- *** Source
-    , read
+    , toStream
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -109,6 +110,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Network.Socket as Net
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
@@ -279,9 +281,17 @@ withConnection addr port =
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (IsStream t, MonadCatch m, MonadIO m)
+read :: (MonadCatch m, MonadIO m)
+    => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
+read = UF.concat (withServerAddr ISK.readArrays) A.read
+
+-- | Read a stream from the supplied IPv4 host address and port number.
+--
+-- @since 0.7.0
+{-# INLINE toStream #-}
+toStream :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-read addr port = AS.concat $ withConnection addr port ISK.toStreamArrays
+toStream addr port = AS.concat $ withConnection addr port ISK.toStreamArrays
 
 -------------------------------------------------------------------------------
 -- Writing
