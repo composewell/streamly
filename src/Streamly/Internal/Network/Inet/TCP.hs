@@ -32,10 +32,16 @@ module Streamly.Internal.Network.Inet.TCP
     , connectionsOnLocalHost
 
     -- * TCP clients
-    -- | Socket based reads and writes.
-    , withConnection
+    -- | IP Address based operations.
+    , connect
+    , withServerAddrM
 
-    -- ** Source
+    -- ** Unfolds
+    , withServerAddr
+
+    -- ** Streams
+    , withConnection
+    -- *** Source
     , read
     -- , readUtf8
     -- , readLines
@@ -50,7 +56,7 @@ module Streamly.Internal.Network.Inet.TCP
     -- , readArraysOf
     -- , readArrays
 
-    -- ** Sink
+    -- *** Sink
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines
@@ -84,13 +90,13 @@ module Streamly.Internal.Network.Inet.TCP
     )
 where
 
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadMask, bracket)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
 import Network.Socket
        (Socket, PortNumber, SocketOption(..), Family(..), SockAddr(..),
         SocketType(..), defaultProtocol, maxListenQueue, tupleToHostAddress,
-        socket, connect)
+        socket)
 import Prelude hiding (read)
 
 import Streamly (MonadAsync)
@@ -110,7 +116,7 @@ import qualified Streamly.Network.Socket as SK
 import qualified Streamly.Internal.Network.Socket as ISK
 
 -------------------------------------------------------------------------------
--- TCP Servers
+-- Accept (unfolds)
 -------------------------------------------------------------------------------
 
 -- | Unfold a tuple @(ipAddr, port)@ into a stream of connected TCP sockets.
@@ -158,7 +164,7 @@ acceptOnPortLocal :: MonadIO m => Unfold m PortNumber Socket
 acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
 
 -------------------------------------------------------------------------------
--- Listen
+-- Accept (streams)
 -------------------------------------------------------------------------------
 
 -- | Like 'connections' but binds on the specified IPv4 address of the machine
@@ -206,15 +212,50 @@ connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 -- TCP Clients
 -------------------------------------------------------------------------------
 
+-- | Connect to the specified IP address and port number.
+--
+-- /Internal/
+connect :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
+connect addr port = do
+    sock <- socket AF_INET Stream defaultProtocol
+    Net.connect sock $ SockAddrInet port (Net.tupleToHostAddress addr)
+    return sock
+
+-- | Connect to a remote host using IP address and port and run the supplied
+-- action on the resulting socket.  'withServerAddrM' makes sure that the
+-- socket is closed on normal termination or in case of an exception.  If
+-- closing the socket raises an exception, then this exception will be raised
+-- by 'withServerAddrM'.
+--
+-- @since 0.7.0
+{-# INLINABLE withServerAddrM #-}
+withServerAddrM :: (MonadMask m, MonadIO m)
+    => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> m ()) -> m ()
+withServerAddrM addr port =
+    bracket (liftIO $ connect addr port) (liftIO . Net.close)
+
 -------------------------------------------------------------------------------
--- Connect
+-- Connect (unfolds)
 -------------------------------------------------------------------------------
 
-openConnection :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
-openConnection addr port = do
-    sock <- socket AF_INET Stream defaultProtocol
-    connect sock $ SockAddrInet port (Net.tupleToHostAddress addr)
-    return sock
+-- | Transform an 'Unfold' from a 'Socket' to an unfold from a remote IP
+-- address and port. The resulting unfold opens a socket, uses it using the
+-- supplied unfold and then makes sure that the socket is closed on normal
+-- termination or in case of an exception.  If closing the socket raises an
+-- exception, then this exception will be raised by 'withServerAddr'.
+--
+-- @since 0.7.0
+{-# INLINABLE withServerAddr #-}
+withServerAddr :: (MonadCatch m, MonadIO m)
+    => Unfold m Socket a
+    -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) a
+withServerAddr =
+    UF.bracket (\(addr, port) -> liftIO $ connect addr port)
+               (liftIO . Net.close)
+
+-------------------------------------------------------------------------------
+-- Connect (streams)
+-------------------------------------------------------------------------------
 
 -- | @'withConnection' addr port act@ opens a connection to the specified IPv4
 -- host address and port and passes the resulting socket handle to the
@@ -228,7 +269,7 @@ openConnection addr port = do
 withConnection :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
 withConnection addr port =
-    S.bracket (liftIO $ openConnection addr port) (liftIO . Net.close)
+    S.bracket (liftIO $ connect addr port) (liftIO . Net.close)
 
 -------------------------------------------------------------------------------
 -- Read Addr to Stream
@@ -275,7 +316,7 @@ writeArrays
 writeArrays addr port = Fold step initial extract
     where
     initial = do
-        skt <- liftIO (openConnection addr port)
+        skt <- liftIO (connect addr port)
         FL.initialize (SK.writeArrays skt)
     step = FL.runStep
     extract (Fold _ initial1 extract1) = initial1 >>= extract1
