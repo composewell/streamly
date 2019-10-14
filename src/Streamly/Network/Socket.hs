@@ -37,7 +37,7 @@ module Streamly.Network.Socket
     -- * Accept Connections
     , accept
 
-    -- * Read from connection
+    -- * Read
     , read
     -- , readUtf8
     -- , readLines
@@ -52,7 +52,7 @@ module Streamly.Network.Socket
     , readArraysOf
     -- , readArrays
 
-    -- * Write to connection
+    -- * Write
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines

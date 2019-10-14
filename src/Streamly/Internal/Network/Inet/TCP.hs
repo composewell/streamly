@@ -216,7 +216,7 @@ connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 
 -- | Connect to the specified IP address and port number.
 --
--- /Internal/
+-- @since 0.7.0
 connect :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
 connect addr port = do
     sock <- socket AF_INET Stream defaultProtocol
@@ -229,7 +229,7 @@ connect addr port = do
 -- closing the socket raises an exception, then this exception will be raised
 -- by 'withServerAddrM'.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINABLE withServerAddrM #-}
 withServerAddrM :: (MonadMask m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> m ()) -> m ()
@@ -246,7 +246,7 @@ withServerAddrM addr port =
 -- termination or in case of an exception.  If closing the socket raises an
 -- exception, then this exception will be raised by 'withServerAddr'.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINABLE withServerAddr #-}
 withServerAddr :: (MonadCatch m, MonadIO m)
     => Unfold m Socket a
@@ -266,7 +266,7 @@ withServerAddr =
 -- handle raises an exception, then this exception will be raised by
 -- 'withConnection' rather than any exception raised by 'act'.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINABLE withConnection #-}
 withConnection :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> t m a) -> t m a
