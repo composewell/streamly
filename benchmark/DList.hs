@@ -6,7 +6,7 @@
 -- License     : BSD3
 -- Maintainer  : harendra.kumar@gmail.com
 
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData(..), deepseq)
 import Foreign.Storable (Storable(..))
 import System.Random (randomRIO)
 
@@ -57,10 +57,8 @@ benchIO' name src f = bench name $ nfIO $
 benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
 benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
 
-  {-
 mkString :: String
 mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
--}
 
 main :: IO ()
 main =
@@ -74,7 +72,7 @@ main =
         , benchIOSrc "writeN . fromList" Ops.sourceFromList
         , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
         , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
-      --  , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
+        , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
         , benchPureSink "show" Ops.showInstance
         ]
       , bgroup "elimination"

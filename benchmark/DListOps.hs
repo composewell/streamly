@@ -503,7 +503,7 @@ ordInstanceMin src = P.min src src
 {-# INLINE showInstance #-}
 showInstance :: Stream Int -> P.String
 showInstance src = P.show src
-  {--
+
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -511,7 +511,6 @@ readInstance str =
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
---}
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int

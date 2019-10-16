@@ -5,3 +5,4 @@
 .log
 *.swp
 *.swo
+cabal.project.local

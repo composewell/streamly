@@ -31,6 +31,7 @@ import GHC.IO (IO(IO), unsafePerformIO)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 unsafeInlineIO :: IO a -> a
 unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
@@ -115,6 +116,12 @@ instance (Storable a, Ord a) => Ord (DList a) where
 
 instance (Storable a, NFData a) => NFData (DList a) where
     rnf = foldl' (\_ x -> rnf x) ()
+
+instance (Storable a, Read a, Show a) => Read (DList a) where
+    readPrec = do
+          xs <- readPrec
+          return (Streamly.Memory.DList.fromList xs)
+    readListPrec = readListPrecDefault
 
 data Node a = Node
   { nodeValue :: a
