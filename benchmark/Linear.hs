@@ -124,7 +124,8 @@ main =
         , benchPureSink "<" Ops.ordInstance
         , benchPureSink "min" Ops.ordInstanceMin
         , benchPureSrc "IsList.fromList" Ops.sourceIsList
-        , benchPureSink "IsList.toList" GHC.toList
+        -- length is used to check for foldr/build fusion
+        , benchPureSink "length . IsList.toList" (length . GHC.toList)
         , benchPureSrc "IsString.fromString" Ops.sourceIsString
         , mkString `deepseq` (bench "readsPrec pure streams" $
                                 nf Ops.readInstance mkString)

@@ -86,7 +86,8 @@ main =
         -}
         , benchPureSink "<" Ops.ordInstance
         , benchPureSink "min" Ops.ordInstanceMin
-        , benchPureSink "IsList.toList" GHC.toList
+        -- length is used to check for foldr/build fusion
+        , benchPureSink "length . IsList.toList" (length . GHC.toList)
         , benchIOSink "foldl'" Ops.pureFoldl'
         , benchIOSink "read" (S.drain . S.unfold A.read)
         , benchIOSink "toStreamRev" (S.drain . IA.toStreamRev)

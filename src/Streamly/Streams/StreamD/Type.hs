@@ -68,6 +68,8 @@ where
 import Control.Applicative (liftA2)
 import Control.Monad (ap, when)
 import Control.Monad.Trans (lift, MonadTrans)
+import Data.Functor.Identity (Identity(..))
+import GHC.Base (build)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
 
@@ -344,9 +346,25 @@ foldrT f final (Stream step state) = go SPEC state
             Skip s    -> go SPEC s
             Stop      -> final
 
-{-# INLINE toList #-}
+{-# INLINE_NORMAL toList #-}
 toList :: Monad m => Stream m a -> m [a]
 toList = foldr (:) []
+
+-- Use foldr/build fusion to fuse with list consumers
+-- This can be useful when using the IsList instance
+{-# INLINE_LATE toListFB #-}
+toListFB :: (a -> b -> b) -> b -> Stream Identity a -> b
+toListFB c n (Stream step state) = go state
+  where
+    go st = case runIdentity (step defState st) of
+             Yield x s -> x `c` go s
+             Skip s    -> go s
+             Stop      -> n
+
+{-# RULES "toList Identity" toList = toListId #-}
+{-# INLINE_EARLY toListId #-}
+toListId :: Stream Identity a -> Identity [a]
+toListId s = Identity $ build (\c n -> toListFB c n s)
 
 -- XXX run begin action only if the stream is not empty.
 {-# INLINE_NORMAL foldlMx' #-}

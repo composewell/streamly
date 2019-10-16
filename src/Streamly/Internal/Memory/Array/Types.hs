@@ -102,7 +102,7 @@ import Foreign.Storable (Storable(..))
 import Prelude hiding (length, foldr, read, unlines, splitAt)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
-import GHC.Base (Addr#, nullAddr#, realWorld#)
+import GHC.Base (Addr#, nullAddr#, realWorld#, build)
 import GHC.Exts (IsList, IsString(..))
 import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
 import GHC.IO (IO(IO), unsafePerformIO)
@@ -738,12 +738,33 @@ fromStreamD m = runFold write m
     runFold (Fold step begin done) = D.foldlMx' step begin done
 -}
 
+-- Use foldr/build fusion to fuse with list consumers
+-- This can be useful when using the IsList instance
+{-# INLINE_LATE toListFB #-}
+toListFB :: forall a b. Storable a => (a -> b -> b) -> b -> Array a -> b
+toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
+    where
+
+    go p | p == aEnd = n
+    go p =
+        -- unsafeInlineIO allows us to run this in Identity monad for pure
+        -- toList/foldr case which makes them much faster due to not
+        -- accumulating the list and fusing better with the pure consumers.
+        --
+        -- This should be safe as the array contents are guaranteed to be
+        -- evaluated/written to before we peek at them.
+        let !x = unsafeInlineIO $ do
+                    r <- peek p
+                    touchForeignPtr aStart
+                    return r
+        in c x (go (p `plusPtr` (sizeOf (undefined :: a))))
+
 -- | Convert an 'Array' into a list.
 --
 -- @since 0.7.0
-{-# INLINABLE toList #-}
+{-# INLINE toList #-}
 toList :: Storable a => Array a -> [a]
-toList = foldr (:) []
+toList s = build (\c n -> toListFB c n s)
 
 instance (Show a, Storable a) => Show (Array a) where
     {-# INLINE showsPrec #-}
