@@ -30,6 +30,7 @@ data BenchType
     | Base
     | FileIO
     | Array
+    | Concurrent
     deriving Show
 
 data Options = Options
@@ -71,6 +72,7 @@ parseBench = do
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array" -> setBenchType Array
+        Just "concurrent" -> setBenchType Concurrent
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -245,6 +247,10 @@ makeArrayGraphs :: Config -> String -> IO ()
 makeArrayGraphs cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile "array" cfg
 
+makeConcurrentGraphs :: Config -> String -> IO ()
+makeConcurrentGraphs cfg@Config{..} inputFile =
+    ignoringErr $ graph inputFile "concurrent" cfg
+
 ------------------------------------------------------------------------------
 -- Reports/Charts for base streams
 ------------------------------------------------------------------------------
@@ -353,6 +359,11 @@ main = do
                             makeArrayGraphs
                             "charts/array/results.csv"
                             "charts/array"
+                Concurrent -> benchShow opts cfg
+                            { title = Just "Concurrent Ops" }
+                            makeConcurrentGraphs
+                            "charts/concurrent/results.csv"
+                            "charts/concurrent"
                 Base -> do
                     let cfg' = cfg { title = Just "100,000 elems" }
                     if groupDiff

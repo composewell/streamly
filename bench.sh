@@ -2,7 +2,7 @@
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|fileio|array|base>]"
+  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|concurrent|fileio|array|base>]"
   echo "       [--group-diff]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
@@ -231,7 +231,7 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
-ALL_BENCHMARKS="linear linear-async linear-rate nested fileio array base"
+ALL_BENCHMARKS="linear linear-async linear-rate nested concurrrent fileio array base"
 GROUP_DIFF=0
 
 COMPARE=0
@@ -253,21 +253,6 @@ GHC_VERSION=$(ghc --numeric-version)
 cabal_which() {
   find dist-newstyle -type f -path "*${GHC_VERSION}*/$1"
 }
-
-if test "$USE_STACK" = "1"
-then
-  WHICH_COMMAND="stack exec which"
-  BUILD_CHART_EXE="stack build --flag streamly:dev"
-  GET_BENCH_PROG=stack_bench_prog
-  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --flags "streamly:benchmark" --bench --no-run-benchmarks"
-else
-  # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
-  #WHICH_COMMAND="cabal v2-exec which"
-  WHICH_COMMAND=cabal_which
-  BUILD_CHART_EXE="cabal v2-build --flags dev chart"
-  GET_BENCH_PROG=cabal_bench_prog
-  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --flag benchmark --enable-benchmarks"
-fi
 
 #-----------------------------------------------------------------------------
 # Read command line
@@ -305,6 +290,27 @@ then
   CABAL_BUILD_FLAGS="--flags dev"
 fi
 
+if echo "$BENCHMARKS" | grep -q concurrent
+then
+  STACK_BUILD_FLAGS="--flag streamly:dev"
+  CABAL_BUILD_FLAGS="--flags dev"
+fi
+
+if test "$USE_STACK" = "1"
+then
+  WHICH_COMMAND="stack exec which"
+  BUILD_CHART_EXE="stack build --flag streamly:dev"
+  GET_BENCH_PROG=stack_bench_prog
+  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --flags "streamly:benchmark" --bench --no-run-benchmarks"
+else
+  # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
+  #WHICH_COMMAND="cabal v2-exec which"
+  WHICH_COMMAND=cabal_which
+  BUILD_CHART_EXE="cabal v2-build --flags dev chart"
+  GET_BENCH_PROG=cabal_bench_prog
+  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --flag benchmark --enable-benchmarks"
+fi
+
 #-----------------------------------------------------------------------------
 # Build stuff
 #-----------------------------------------------------------------------------
@@ -319,6 +325,7 @@ build_report_progs "$BENCHMARKS"
 
 if test "$MEASURE" = "1"
 then
+  echo $BUILD_BENCH
   $BUILD_BENCH || die "build failed"
   run_measurements "$BENCHMARKS"
 fi
