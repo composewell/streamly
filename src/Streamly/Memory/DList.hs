@@ -2,6 +2,9 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 
 -- |
 -- Module      : Streamly.Memory.List
@@ -11,6 +14,9 @@
 -- Portability : GHC
 module Streamly.Memory.DList where
 
+import Data.String (IsString(..))
+import Data.Functor.Identity (runIdentity)
+import Control.DeepSeq (NFData(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Concurrent (newForeignPtr)
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
@@ -18,12 +24,16 @@ import Foreign.Marshal.Alloc (malloc, free)
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (nullAddr#)
-import GHC.Exts (IsList(..))
+import GHC.Generics (Generic)
+import GHC.Exts (IsList(..), realWorld#)
 import GHC.ForeignPtr (ForeignPtr(..), newForeignPtr_)
-import GHC.IO (unsafePerformIO)
+import GHC.IO (IO(IO), unsafePerformIO)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import qualified Streamly.Streams.StreamD.Type as D
 import qualified Streamly.Streams.StreamK as K
+
+unsafeInlineIO :: IO a -> a
+unsafeInlineIO (IO m) = case m realWorld# of (# _, r #) -> r
 
 write :: forall m a. (MonadIO m, Storable a) => Fold m a (DList a)
 write = Fold step initial extract
@@ -32,8 +42,44 @@ write = Fold step initial extract
     initial = return empty 
     extract = liftIO . return 
     
--- read :: (Monad m, K.IsStream t, Storable a) => DList a -> t m a
--- read = D.fromStreamD . toStreamD
+writeN :: forall m a. (MonadIO m, Storable a) => a -> Int -> Fold m a (DList a)
+writeN a n = Fold step initial extract
+  where
+    step l x = liftIO $ consIO x l  
+    initial = liftIO . fromListIO . replicate n $ a
+    extract = return 
+
+foldl' :: Storable a => (b -> a -> b) -> b -> DList a -> b
+foldl' f z a = runIdentity $ D.foldl' f z $ toStreamD a
+
+read :: (Monad m, K.IsStream t, Storable a) => DList a -> t m a
+read = D.fromStreamD . toStreamD
+
+readRev :: (Monad m, K.IsStream t, Storable a) => DList a -> t m a
+readRev = D.fromStreamD . toStreamDRev
+
+toStreamK :: (K.IsStream t, Storable a) => DList a -> t m a
+toStreamK = unsafeInlineIO . foldrIO K.cons K.nil
+
+toStreamD :: (Monad m, Storable a) => DList a -> D.Stream m a
+toStreamD dl =
+    let p = unsafeInlineIO $ withForeignPtr (listHead dl) peek 
+    in D.Stream step p
+    where
+    step _ p | p == nullPtr = return D.Stop
+    step _ p =
+        let !x = unsafePerformIO $ peek p
+          in return $ D.Yield (nodeValue x) (nextNode x)
+
+toStreamDRev :: (Monad m, Storable a) => DList a -> D.Stream m a
+toStreamDRev dl =
+    let p = unsafeInlineIO $ withForeignPtr (listLast dl) peek 
+    in D.Stream step p
+    where
+    step _ p | p == nullPtr = return D.Stop
+    step _ p =
+        let !x = unsafePerformIO $ peek p
+          in return $ D.Yield (nodeValue x) (prevNode x)
 
 -- Is it OK to use unsafePerformIO?
 -- TODO: Make D.fromList
@@ -55,15 +101,32 @@ data DList a = DList
   , lengthDL :: {-# UNPACK #-}!Int -- ~ Int#
   } deriving (Show)
 
+instance (Storable a, Eq a) => Eq (DList a) where
+  x == y = unsafeInlineIO $ do
+    xl <- toListIO x
+    yl <- toListIO y
+    return $ xl == yl
+
+instance (Storable a, Ord a) => Ord (DList a) where
+  compare x y = unsafeInlineIO $ do
+    xl <- toListIO x
+    yl <- toListIO y
+    return $ compare xl yl
+
+instance (Storable a, NFData a) => NFData (DList a) where
+    rnf = foldl' (\_ x -> rnf x) ()
+
 data Node a = Node
   { nodeValue :: a
   , prevNode :: {-# UNPACK #-}!(Ptr (Node a))
   , nextNode :: {-# UNPACK #-}!(Ptr (Node a))
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 
 instance Eq a => Eq (Node a) where
   x == y = nodeValue x == nodeValue y
 
+instance Ord a => Ord (Node a) where
+  compare x y = compare (nodeValue x) (nodeValue y)
 
 instance Storable a => Storable (Node a) where
   sizeOf _ = sizeOf (undefined :: a) + 2 * sizeOf (undefined :: Ptr (Node a))
@@ -161,9 +224,15 @@ fromListIO (x:xs) = consIO x =<< ioxs
 
 instance Storable a => IsList (DList a) where
     type (Item (DList a)) = a
-    fromList = unsafePerformIO . fromListIO
+    fromList = Streamly.Memory.DList.fromList
     toList = unsafePerformIO . toListIO
     -- TODO: Make efficiently fromListN
+
+fromList :: Storable a => [a] -> DList a
+fromList = unsafePerformIO . fromListIO
+
+instance (a ~ Char) => IsString (DList a) where
+    fromString = Streamly.Memory.DList.fromList
 
 freeDLP :: Storable a => Ptr (Ptr (Node a)) -> IO ()
 freeDLP dlp

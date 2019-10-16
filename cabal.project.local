@@ -1,0 +1,2 @@
+with-compiler: /opt/ghc/8.2.2/bin/ghc
+benchmarks: True

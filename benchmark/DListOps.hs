@@ -26,7 +26,7 @@ import qualified GHC.Exts as GHC
 -- import GHC.Generics (Generic)
 
 import qualified Streamly           as S hiding (foldMapWith, runStream)
-import qualified Streamly.Memory.DList as D
+import qualified Streamly.Memory.DList as A
 import qualified Streamly.Prelude   as S
 
 value, maxValue :: Int
@@ -37,6 +37,9 @@ value = 100000
 #endif
 maxValue = value + 1
 
+dummyElm :: Int
+dummyElm = 0
+
 -------------------------------------------------------------------------------
 -- Benchmark ops
 -------------------------------------------------------------------------------
@@ -45,11 +48,11 @@ maxValue = value + 1
 -- Stream generation and elimination
 -------------------------------------------------------------------------------
 
-type Stream = D.DList
+type Stream = A.DList
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: MonadIO m => Int -> m (Stream Int)
-sourceUnfoldr n = S.runFold (D.write value) $ S.unfoldr step n
+sourceUnfoldr n = S.runFold (A.writeN dummyElm value) $ S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -58,18 +61,18 @@ sourceUnfoldr n = S.runFold (D.write value) $ S.unfoldr step n
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromTo n = S.runFold (D.write value) $ S.enumerateFromTo n (n + value)
+sourceIntFromTo n = S.runFold (A.writeN dummyElm value) $ S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromToFromStream #-}
 sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromStream n = S.runFold D.write $ S.enumerateFromTo n (n + value)
+sourceIntFromToFromStream n = S.runFold A.write $ S.enumerateFromTo n (n + value)
 
 sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromList n = P.return $ D.fromList $ [n..n + value]
+sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: MonadIO m => Int -> m (Stream Int)
-sourceFromList n = S.runFold (D.write value) $ S.fromList [n..n+value]
+sourceFromList n = S.runFold (A.writeN dummyElm value) $ S.fromList [n..n+value]
 
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Stream Int
@@ -280,7 +283,7 @@ onArray
     :: MonadIO m => (S.SerialT m Int -> S.SerialT m Int)
     -> Stream Int
     -> m (Stream Int)
-onArray f arr = S.runFold (A.writeN value) $ f $ A.read arr
+onArray f arr = S.runFold (A.writeN dummyElm value) $ f $ A.read arr
 
 scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
 scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
@@ -500,7 +503,7 @@ ordInstanceMin src = P.min src src
 {-# INLINE showInstance #-}
 showInstance :: Stream Int -> P.String
 showInstance src = P.show src
-
+  {--
 {-# INLINE readInstance #-}
 readInstance :: P.String -> Stream Int
 readInstance str =
@@ -508,6 +511,7 @@ readInstance str =
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
+--}
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
