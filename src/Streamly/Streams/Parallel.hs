@@ -291,6 +291,20 @@ sendStopRev sv = do
     tid <- myThreadId
     void $ sendRev sv (ChildStop tid Nothing)
 
+-- NOTE: In regular pull style streams, the consumer stream is pulling elements
+-- from the SVar and we have several workers producing elements and pushing to
+-- SVar. In case of folds, we, the parent stream driving the fold, are the
+-- stream producing worker, we start an SVar and start pushing to the SVar, the
+-- fold on the other side of the SVar is the consumer stream.
+--
+-- In the pull stream case exceptions are propagated from the producing workers
+-- to the consumer stream, the exceptions are propagated on the same channel as
+-- the produced stream elements. However, in case of push style folds the
+-- current stream itself is the worker and the fold is the consumer, in this
+-- case we have to propagate the exceptions from the consumer to the producer.
+-- This is reverse of the pull case and we need a reverse direction channel
+-- to propagate the exception.
+--
 -- | Redirect a copy of the stream to a supplied fold and run it concurrently
 -- in an independent thread. The fold may buffer some elements. The buffer size
 -- is determined by the prevailing 'maxBuffer' setting.
