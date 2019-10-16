@@ -62,7 +62,7 @@ toStreamD dl =
     where
     step _ p | p == nullPtr = return D.Stop
     step _ p =
-        let !x = unsafePerformIO $ peek p
+        let x = unsafePerformIO $ peek p
           in return $ D.Yield (nodeValue x) (nextNode x)
 
 toStreamDRev :: (Monad m, Storable a) => DList a -> D.Stream m a
@@ -72,7 +72,7 @@ toStreamDRev dl =
     where
     step _ p | p == nullPtr = return D.Stop
     step _ p =
-        let !x = unsafePerformIO $ peek p
+        let x = unsafePerformIO $ peek p
           in return $ D.Yield (nodeValue x) (prevNode x)
 
 nullForeignPtr :: ForeignPtr a
