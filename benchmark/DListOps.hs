@@ -1,15 +1,6 @@
--- |
--- Module      : ArrayOps
--- Copyright   : (c) 2018 Harendra Kumar
---
--- License     : MIT
--- Maintainer  : harendra.kumar@gmail.com
-
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module DListOps where
 
@@ -68,7 +59,7 @@ sourceIntFromToFromStream :: MonadIO m => Int -> m (Stream Int)
 sourceIntFromToFromStream n = S.runFold A.write $ S.enumerateFromTo n (n + value)
 
 sourceIntFromToFromList :: MonadIO m => Int -> m (Stream Int)
-sourceIntFromToFromList n = P.return $ A.fromList $ [n..n + value]
+sourceIntFromToFromList n = P.return (GHC.fromList [n..n + value] :: A.DList Int)
 
 {-# INLINE sourceFromList #-}
 sourceFromList :: MonadIO m => Int -> m (Stream Int)

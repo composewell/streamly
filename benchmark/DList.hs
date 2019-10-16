@@ -1,10 +1,4 @@
 {-# LANGUAGE CPP #-}
--- |
--- Module      : Main
--- Copyright   : (c) 2018 Harendra Kumar
---
--- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
 
 import Control.DeepSeq (NFData(..), deepseq)
 import Foreign.Storable (Storable(..))

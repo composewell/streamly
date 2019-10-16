@@ -6,3 +6,4 @@
 *.swp
 *.swo
 cabal.project.local
+/.local/

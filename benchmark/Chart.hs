@@ -11,6 +11,7 @@ import Data.Function (on, (&))
 import Data.List
 import Data.List.Split
 import Data.Maybe (mapMaybe)
+import Data.Monoid ((<>))
 import Data.Ord (comparing)
 import System.Environment (getArgs)
 import Control.Monad.IO.Class (liftIO)
@@ -31,6 +32,7 @@ data BenchType
     | FileIO
     | Array
     | Concurrent
+    | DList
     deriving Show
 
 data Options = Options
@@ -73,6 +75,7 @@ parseBench = do
         Just "fileio" -> setBenchType FileIO
         Just "array" -> setBenchType Array
         Just "concurrent" -> setBenchType Concurrent
+        Just "dlist" -> setBenchType DList
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -251,6 +254,9 @@ makeConcurrentGraphs :: Config -> String -> IO ()
 makeConcurrentGraphs cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile "concurrent" cfg
 
+makeDListGraphs :: Config -> String -> IO () 
+makeDListGraphs = error "Make this function"
+
 ------------------------------------------------------------------------------
 -- Reports/Charts for base streams
 ------------------------------------------------------------------------------
@@ -364,6 +370,11 @@ main = do
                             makeConcurrentGraphs
                             "charts/concurrent/results.csv"
                             "charts/concurrent"
+                DList -> benchShow opts cfg
+                            { title = Just "DList" }
+                            makeDListGraphs
+                            "charts/dlist/results.csv"
+                            "charts/dlist"
                 Base -> do
                     let cfg' = cfg { title = Just "100,000 elems" }
                     if groupDiff
