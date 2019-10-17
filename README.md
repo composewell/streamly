@@ -382,7 +382,7 @@ converting them to and from streams.
 
 ## Folds
 
-`Streamly.Fold` module provides composable left folds. A `Fold` is a consumer
+`Streamly.Data.Fold` module provides composable left folds. A `Fold` is a consumer
 of a stream. Folds can be used to fold a stream. Folds can be composed in many
 ways, a stream can be distributed to multiple folds, or it can be partitioned
 across multiple folds, or demultiplexed over multiple folds, or unzipped to two
@@ -396,9 +396,10 @@ powerful ways of composing and applying them.
 ## File IO
 
 The following code snippets implement some common Unix command line utilities
-using streamly.  You can compile these with `ghc -O2
--fspec-constr-recursive=10` and compare the performance with regular GNU
-coreutils available on your system.  Source file
+using streamly.  You can compile these with `ghc -O2 -fspec-constr-recursive=10
+-fmax-worker-args=16` and compare the performance with regular GNU coreutils
+available on your system.  Though many of these are not most optimal solutions
+to keep them short and elegant. Source file
 [HandleIO.hs](https://github.com/composewell/streamly/tree/master/examples/HandleIO.hs)
 in the examples directory includes these examples.
 
@@ -406,9 +407,8 @@ in the examples directory includes these examples.
 module Main where
 
 import qualified Streamly.Prelude as S
-import qualified Streamly.Fold as FL
+import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Memory.ArrayStream as AS
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 
@@ -431,31 +431,31 @@ withArg2 f = do
 ### cat
 
 ``` haskell
-cat = S.runFold (FH.writeArrays stdout) . FH.readArrays
+cat = S.fold (FH.writeArrays stdout) . S.unfold FH.readArrays
 main = withArg cat
 ```
 
 ### cp
 
 ``` haskell
-cp src dst = S.runFold (FH.writeArrays dst) $ FH.readArrays src
+cp src dst = S.fold (FH.writeArrays dst) $ S.unfold FH.readArrays src
 main = withArg2 cp
 ```
 
 ### wc -l
 
 ``` haskell
-wcl = S.length . AS.splitOn 10 . FH.readArrays
+wcl = S.length . S.splitOn (== 10) FL.drain . S.unfold FH.read
 main = withArg wcl >>= print
 ```
 
 ### Average Line Length
 
 ``` haskell
-avgll = 
-      S.runFold avg
-    . S.splitWithSuffix (== 10) FL.length
-    . FH.read
+avgll =
+      S.fold avg
+    . S.splitOn (== 10) FL.length
+    . S.unfold FH.read
 
     where avg      = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
@@ -467,10 +467,10 @@ main = withArg avgll >>= print
 
 ``` haskell
 llhisto =
-      S.runFold (FL.classify FL.length)
+      S.fold (FL.classify FL.length)
     . S.map bucket
-    . S.splitWithSuffix (== 10) FL.length
-    . FH.read
+    . S.splitOn (== 10) FL.length
+    . S.unfold FH.read
 
     where
     bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)

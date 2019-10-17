@@ -65,6 +65,7 @@ module Streamly.FileSystem.Handle
     -- , readFrames
     , readInChunksOf
     , readArraysOf
+    , readArrays
 
     -- ** Write to Handle
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
