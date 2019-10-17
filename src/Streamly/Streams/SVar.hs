@@ -149,6 +149,7 @@ fromStreamVarRev sv = mkStream $ \st yld sng stp -> do
         done <- postProcess sv
         if done
         then allDone stp
+        -- XXX: Please confirm the following statement
         else foldStream st yld sng stp $ fromStreamVar sv
 
     processEvents (ev : es) = mkStream $ \st yld sng stp -> do
