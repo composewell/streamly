@@ -32,16 +32,16 @@ where
 -- Tuples
 -------------------------------------------------------------------------------
 --
-data Tuple' a b = Tuple' !a !b
-data Tuple3' a b c = Tuple3' !a !b !c
-data Tuple4' a b c d = Tuple4' !a !b !c !d
+data Tuple' a b = Tuple' !a !b deriving Show
+data Tuple3' a b c = Tuple3' !a !b !c deriving Show
+data Tuple4' a b c d = Tuple4' !a !b !c !d deriving Show
 
 -------------------------------------------------------------------------------
 -- Maybe
 -------------------------------------------------------------------------------
 --
 -- | A strict 'Maybe'
-data Maybe' a = Just' !a | Nothing'
+data Maybe' a = Just' !a | Nothing' deriving Show
 
 -- XXX perhaps we can use a type class having fromStrict/toStrict operations.
 --
@@ -56,4 +56,4 @@ fromStrictMaybe (Just' a) = return $ Just a
 -------------------------------------------------------------------------------
 --
 -- | A strict 'Either'
-data Either' a b = Left' !a | Right' !b
+data Either' a b = Left' !a | Right' !b deriving Show
