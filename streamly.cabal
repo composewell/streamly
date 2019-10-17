@@ -253,9 +253,6 @@ library
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:
-                    -- Remove this later
-                       ReplTesting,
-
                     -- Memory storage
                        Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
