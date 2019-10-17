@@ -1,3 +1,4 @@
+-- ghc -O2  -fspec-constr-recursive=10 -fmax-worker-args=16
 -- Convert the input file to camel case and write to stdout
 
 import Data.Maybe (fromJust, isJust)
