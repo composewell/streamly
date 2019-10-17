@@ -37,8 +37,9 @@ module Streamly.Streams.Parallel
 where
 
 import Control.Concurrent (myThreadId)
+import Control.Concurrent.MVar (takeMVar)
 import Control.Exception (SomeException(..), throwIO)
-import Control.Monad (ap)
+import Control.Monad (ap, when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
@@ -56,11 +57,11 @@ import Prelude hiding (map)
 
 import qualified Data.Set as Set
 
-import Streamly.Streams.SVar (fromSVar, fromStreamVar)
+import Streamly.Streams.SVar (fromSVar, fromStreamVar, fromStreamVarRev)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
-                                 foldStreamShared, adapt)
+                                 foldStreamShared, adapt, yieldM)
 import qualified Streamly.Streams.StreamK as K
 
 #include "Instances.hs"
@@ -218,21 +219,27 @@ foldParallel f m = do
 
 -- push values to a fold worker via an SVar. Returns whether the fold is done.
 {-# INLINE pushToFold #-}
-pushToFold :: SVar Stream m a -> a -> IO Bool
+pushToFold :: MonadAsync m => SVar Stream m a -> a -> m Bool
 pushToFold sv a = do
     -- Check for exceptions before decrement so that we do not
     -- block forever if the child already exited with an exception.
     let qref = outputQueueRev sv
     done <- do
-        (_, n) <- readIORef qref
+        (_, n) <- liftIO $ readIORef qref
         if (n > 0)
-        then fromStreamVarRev sv
+        -- XXX This would consume the Q if postProcess == False?
+        -- defState would not allow consumption of Qed elements?
+        then foldStream defState
+               (\_ _ -> return False)
+               (\_ -> return False)
+               (return True)
+               (fromStreamVarRev sv)
         else return False
     if done
     then return True
     else do
-        decrementBufferLimit sv
-        void $ send sv (ChildYield a)
+        liftIO $ decrementBufferLimit sv
+        liftIO $ void $ send sv (ChildYield a)
         return False
 
 {-# INLINE teeToSVar #-}
@@ -247,22 +254,26 @@ teeToSVar svr m = mkStream $ \st yld sng stp -> do
                 -- In general, a Stop event would come equipped with the result
                 -- of the fold. It is not used here but it would be useful in
                 -- applicative and distribute.
-                done <- fromStreamVarRev sv
-                when (not done) $
+                done <- foldStream defState
+                          (\_ _ -> return False)
+                          (\_ -> return False)
+                          (return True)
+                          (fromStreamVarRev sv)
+                when (not done) $ do
                     liftIO $ withDiagMVar sv "teeToSVar: waiting to drain"
-                                     $ takeMVar (outputDoorBellRev sv)
+                           $ takeMVar (outputDoorBellRev sv)
                     goDrain
 
-            stopFold = liftIO $ do
-                sendStop sv Nothing
+            stopFold = do
+                liftIO $ sendStop sv Nothing
                 goDrain
 
             stop = stopFold >> stp
             single a = do
-                r <- pushToFold a
+                r <- pushToFold sv a
                 when (not r) $ stopFold
                 sng a
-            yieldk a r = pushToFold a >>= \done -> yld a (go sv done r)
+            yieldk a r = pushToFold sv a >>= \done -> yld a (go sv done r)
          in foldStreamShared st yieldk single stop m0
 
     go sv True m0 = m0
@@ -342,9 +353,10 @@ tapAsync f m = mkStream $ \st yld sng stp -> do
     -- A wrapper to send a Stop event when the fold receives a stop from the
     -- pusher.
     let pullForFold = mkStream $ \s yd sg sp -> do
-            let stop = sendStopRev sv >> sp
-                single a = yd a (yieldM stop)
-            foldStreamShared s yd single stop (fromStreamVar sv)
+            let stop = liftIO (sendStopRev sv) >> sp
+                -- XXX Why modify sg?
+                -- XXX single a = yd a (yieldM stop)
+            foldStreamShared s yd sg stop (fromStreamVar sv)
 
     void $ doFork (void $ f $ fromStream $ pullForFold)
                   (svarMrun sv)

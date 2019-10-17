@@ -105,6 +105,10 @@ module Streamly.Internal.Data.SVar
     , toStreamVar
     , SVarStats (..)
     , dumpSVar
+
+    -- XXX Shift this to proper position
+    , withDiagMVar
+    , sendRev
     )
 where
 
