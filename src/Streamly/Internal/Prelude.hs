@@ -92,6 +92,7 @@ module Streamly.Internal.Prelude
 
     -- ** Composable Left Folds
     , fold
+    , parse
 
     -- ** Concurrent Folds
     , foldAsync
@@ -264,6 +265,9 @@ module Streamly.Internal.Prelude
     -- ** Reordering
     , reverse
     , reverse'
+
+    -- ** Parsing
+    , parseChunks
 
     -- ** Trimming
     , take
@@ -535,6 +539,7 @@ import qualified System.IO as IO
 
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
+import Streamly.Internal.Data.Parse.Types (Parse (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -1187,6 +1192,18 @@ fold = P.runFold
 runSink :: Monad m => Sink m a -> SerialT m a -> m ()
 runSink = fold . toFold
 -}
+
+------------------------------------------------------------------------------
+-- Running a Parse
+------------------------------------------------------------------------------
+
+-- | Parse a stream using the supplied 'Parse'.
+--
+-- /Internal/
+--
+{-# INLINE parse #-}
+parse :: Monad m => Parse m a b -> SerialT m a -> m (Either String b)
+parse (Parse step initial extract) = P.parselMx' step initial extract
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -3091,6 +3108,31 @@ concatMapTreeYieldLeavesWith
     -> t m a
     -> t m b
 concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
+
+------------------------------------------------------------------------------
+-- Parsing
+------------------------------------------------------------------------------
+
+-- Splitting operations that take a predicate and a Fold can be
+-- expressed using parseChunks. Operations like chunksOf, intervalsOf, split*,
+-- can be expressed using parseChunks when used with an appropriate Parse.
+--
+-- | Apply a 'Parse' repeatedly on a stream and emit the parsed values in the
+-- output stream.
+--
+-- >>> S.toList $ S.parseChunks (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
+-- > [3,7,11,15,19]
+--
+-- >>> S.toList $ S.parseChunks (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- > ["hello\n","world"]
+--
+{-# INLINE parseChunks #-}
+parseChunks
+    :: (IsStream t, Monad m)
+    => Parse m a b
+    -> t m a
+    -> t m b
+parseChunks f m = D.fromStreamD $ D.parseChunks f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

@@ -129,6 +129,7 @@ module Streamly.Internal.Data.Fold
 
     -- * Parsing
     -- ** Trimming
+    , take
     , ltake
     -- , lrunFor -- time
     , ltakeWhile
@@ -193,14 +194,14 @@ module Streamly.Internal.Data.Fold
     -- , unzipWith
     -- , unzipWithM
 
+    -- * Nested Folds
+    -- , concatMap
+    , foldChunks
+    , duplicate
+
     -- * Running Folds
     , initialize
     , runStep
-
-    -- * Nested Folds
-    -- , concatMap
-    -- , chunksOf
-    , duplicate  -- experimental
 
     -- * Folding to SVar
     , toParallelSVar
@@ -227,6 +228,7 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
+import Streamly.Internal.Data.Parse.Types
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
@@ -827,10 +829,41 @@ or = Fold (\x a -> return $ x || a) (return False) return
 -- Grouping without looking at elements
 ------------------------------------------------------------------------------
 --
+-- XXX Once we have terminating folds, this Parse should get replaced by Fold.
+-- Alternatively, we can name it "chunkOf" and the corresponding time domain
+-- combinator as "intervalOf" or even "chunk" and "interval".
+--
+-- | Take at most @n@ input elements and fold them using the supplied fold.
+--
+-- Stops after @n@ elements.
+-- Never fails.
+--
+-- /Internal/
+--
+{-# INLINE take #-}
+take :: Monad m => Int -> Fold m a b -> Parse m a b
+take n (Fold fstep finitial fextract) = Parse step initial extract
+
+    where
+
+    initial = (Tuple' 0) <$> finitial
+
+    step (Tuple' i r) a = do
+        res <- fstep r a
+        let i1 = i + 1
+            s1 = Tuple' i1 res
+        if i1 < n
+        then return $ Keep 0 s1
+        else return $ Halt s1
+
+    extract (Tuple' _ r) = fmap f (fextract r)
+        where f x = Right (0, x)
+
 ------------------------------------------------------------------------------
 -- Binary APIs
 ------------------------------------------------------------------------------
 --
+-- XXX These would just be applicative compositions of terminating folds.
 
 -- | @splitAt n f1 f2@ composes folds @f1@ and @f2@ such that first @n@
 -- elements of its input are consumed by fold @f1@ and the rest of the stream
@@ -1494,7 +1527,7 @@ unzip = unzipWith id
 ------------------------------------------------------------------------------
 -- Nesting
 ------------------------------------------------------------------------------
---
+
 {-
 -- All the stream flattening transformations can also be applied to a fold
 -- input stream.
@@ -1507,9 +1540,24 @@ lconcatMap s f1 f2 = undefined
 -}
 
 -- All the grouping transformation that we apply to a stream can also be
--- applied to a fold input stream.
+-- applied to a fold input stream. groupBy et al can be written as terminating
+-- folds and then we can apply foldChunks to use those repeatedly on a stream.
+
+-- | Apply a terminating fold repeatedly to the input of another fold.
+--
+-- Compare with: Streamly.Prelude.concatMap, Streamly.Prelude.foldChunks
+--
+-- /Unimplemented/
+--
+{-# INLINABLE foldChunks #-}
+foldChunks ::
+    -- Monad m =>
+    Fold m a b -> Fold m b c -> Fold m a c
+foldChunks = undefined
 
 {-
+-- XXX this would be an application of foldChunks using a terminating fold.
+--
 -- | Group the input stream into groups of elements between @low@ and @high@.
 -- Collection starts in chunks of @low@ and then keeps doubling until we reach
 -- @high@. Each chunk is folded using the provided fold function.
