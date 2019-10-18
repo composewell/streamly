@@ -38,6 +38,7 @@ main = do
             , o_1_space_serial_foldMultiStream value
             , o_1_space_serial_foldsTransforms value
             , o_1_space_serial_foldsCompositions value
+            , o_1_space_serial_parse value
             , o_1_space_serial_pipes value
             , o_1_space_serial_pipesX4 value
             , o_1_space_serial_transformer value

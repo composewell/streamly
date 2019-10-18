@@ -38,6 +38,7 @@ module Streamly.Internal.Data.Stream.Prelude
     , foldlMx'
     , foldl'
     , runFold
+    , parselMx'
 
     -- Lazy left folds are useful only for reversing the stream
     , foldlS
@@ -72,6 +73,7 @@ import Prelude hiding (foldr, minimum, maximum)
 import qualified Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold (..))
+import Streamly.Internal.Data.Parse.Types (Step)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
@@ -156,6 +158,17 @@ foldr f z = foldrM (\a b -> b >>= return . f a) (return z)
 foldlMx' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> m b
 foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
+
+{-# INLINE parselMx' #-}
+parselMx'
+    :: (IsStream t, Monad m)
+    => (s -> a -> m (Step s))
+    -> m s
+    -> (s -> m (Either String (Int, b)))
+    -> t m a
+    -> m (Either String b)
+parselMx' step initial extract m =
+    D.parselMx' step initial extract $ D.toStreamD m
 
 -- | Strict left fold with an extraction function. Like the standard strict
 -- left fold, but applies a user supplied extraction function (the third

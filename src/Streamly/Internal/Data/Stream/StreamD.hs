@@ -128,6 +128,9 @@ module Streamly.Internal.Data.Stream.StreamD
     , foldlMx'
     , runFold
 
+    , parselMx'
+    , parseChunks
+
     -- ** Specialized Folds
     , tap
     , tapOffsetEvery
@@ -320,7 +323,7 @@ where
 
 import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
 import Control.Exception
-       (Exception, SomeException, AsyncException, fromException)
+       (assert, Exception, SomeException, AsyncException, fromException)
 import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -343,13 +346,14 @@ import Prelude
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
-               reverse, iterate)
+               reverse, iterate, splitAt)
 
 import qualified Control.Monad.Catch as MC
 import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
@@ -358,6 +362,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Parse.Types (Parse(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -374,6 +379,7 @@ import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Parse.Types as PR
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -941,6 +947,184 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
             Yield x s -> Yield x (Right (Stream stp s))
             Skip s -> Skip (Right (Stream stp s))
             Stop   -> Stop
+
+------------------------------------------------------------------------------
+-- Parses
+------------------------------------------------------------------------------
+
+-- Inlined definition. Without the inline "serially/parser/take" benchmark
+-- degrades and parseChunks does not fuse. Even using "inline" at the callsite
+-- does not help.
+{-# INLINE splitAt #-}
+splitAt :: Int -> [a] -> ([a],[a])
+splitAt n ls
+  | n <= 0 = ([], ls)
+  | otherwise          = splitAt' n ls
+    where
+        splitAt' :: Int -> [a] -> ([a], [a])
+        splitAt' _  []     = ([], [])
+        splitAt' 1  (x:xs) = ([x], xs)
+        splitAt' m  (x:xs) = (x:xs', xs'')
+          where
+            (xs', xs'') = splitAt' (m - 1) xs
+
+-- | Run a 'Parse' over a stream.
+{-# INLINE_NORMAL parselMx' #-}
+parselMx'
+    :: Monad m
+    => (s -> a -> m (PR.Step s))
+    -> m s
+    -> (s -> m (Either String (Int, b)))
+    -> Stream m a
+    -> m (Either String b)
+parselMx' pstep initial extract (Stream step state) = do
+    initial >>= go SPEC state []
+
+    where
+
+    -- XXX currently we are using a dumb list based approach for backtracking
+    -- buffer. This can be replaced by a sliding/ring buffer using Data.Array.
+    -- That will allow us more efficient random back and forth movement.
+    {-# INLINE go #-}
+    go !_ st buf !pst = do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    -- PR.Keep 0 pst1 -> go SPEC s [] pst1
+                    PR.Keep n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        go SPEC s (Prelude.take n (x:buf)) pst1
+                    PR.Back n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:buf)
+                            src  = Prelude.reverse src0
+                        gobuf SPEC s buf1 src pst1
+                    PR.Hold pst1 -> go SPEC s (x:buf) pst1
+                    PR.Halt pst1 -> fmap (fmap snd) (extract pst1)
+            Skip s -> go SPEC s buf pst
+            Stop   -> fmap (fmap snd) (extract pst)
+
+    gobuf !_ s buf [] !pst = go SPEC s buf pst
+    gobuf !_ s buf (x:xs) !pst = do
+        pRes <- pstep pst x
+        case pRes of
+            -- PR.Keep 0 pst1 -> go SPEC s [] pst1
+            PR.Keep n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                gobuf SPEC s (Prelude.take n (x:buf)) xs pst1
+            PR.Back n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let (src0, buf1) = splitAt n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                gobuf SPEC s buf1 src pst1
+            PR.Hold pst1 -> gobuf SPEC s (x:buf) xs pst1
+            PR.Halt pst1 -> fmap (fmap snd) (extract pst1)
+
+------------------------------------------------------------------------------
+-- Repeated parsing
+------------------------------------------------------------------------------
+
+{-# ANN type ParseChunksState Fuse #-}
+data ParseChunksState x inpBuf st pst =
+      ParseChunksInit inpBuf st
+    | ParseChunksInitLeftOver inpBuf
+    | ParseChunksStream st inpBuf pst
+    | ParseChunksBuf inpBuf st inpBuf pst
+    | ParseChunksYield x (ParseChunksState x inpBuf st pst)
+
+{-# INLINE_NORMAL parseChunks #-}
+parseChunks
+    :: Monad m
+    => Parse m a b
+    -> Stream m a
+    -> Stream m b
+parseChunks (Parse pstep initial extract) (Stream step state) =
+    Stream stepOuter (ParseChunksInit [] state)
+
+    where
+
+    {-# INLINE_LATE stepOuter #-}
+    -- Buffer is empty, go to stream processing loop
+    stepOuter _ (ParseChunksInit [] st) = do
+        initial >>= return . Skip . ParseChunksStream st []
+
+    -- Buffer is not empty, go to buffered processing loop
+    stepOuter _ (ParseChunksInit src st) = do
+        initial >>= return . Skip . ParseChunksBuf src st []
+
+    -- XXX we just discard any leftover input at the end
+    stepOuter _ (ParseChunksInitLeftOver _) = return Stop
+
+    -- Buffer is empty process elements from the stream
+    stepOuter gst (ParseChunksStream st buf pst) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                pRes <- pstep pst x
+                case pRes of
+                    -- PR.Keep 0 pst1 -> go SPEC s [] pst1
+                    PR.Keep n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let buf1 = Prelude.take n (x:buf)
+                        return $ Skip $ ParseChunksStream s buf1 pst1
+                    PR.Back n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let (src0, buf1) = splitAt n (x:buf)
+                            src  = Prelude.reverse src0
+                        return $ Skip $ ParseChunksBuf src s buf1 pst1
+                    PR.Hold pst1 ->
+                        return $ Skip $ ParseChunksStream s (x:buf) pst1
+                    PR.Halt pst1 -> do
+                        res <- extract pst1
+                        case res of
+                            Left err -> error err
+                            -- XXX (0,a) common case
+                            Right (n, a) -> do
+                                assert (n <= length (x:buf)) (return ())
+                                let src = Prelude.reverse (Prelude.take n (x:buf))
+                                return $ Skip $ ParseChunksYield a (ParseChunksInit src s)
+            Skip s -> return $ Skip $ ParseChunksStream s buf pst
+            Stop   -> do
+                res <- extract pst
+                case res of
+                    Left err -> error err
+                    Right (n, a) -> do
+                        let src = Prelude.reverse (Prelude.take n (buf))
+                        return $ Skip $ ParseChunksYield a (ParseChunksInitLeftOver src)
+
+    -- go back to stream processing mode
+    stepOuter _ (ParseChunksBuf [] s buf pst) =
+        return $ Skip $ ParseChunksStream s buf pst
+
+    -- buffered processing loop
+    stepOuter _ (ParseChunksBuf (x:xs) s buf pst) = do
+        pRes <- pstep pst x
+        case pRes of
+            -- PR.Keep 0 pst1 ->
+            PR.Keep n pst1 ->  do
+                assert (n <= length (x:buf)) (return ())
+                let buf1 = Prelude.take n (x:buf)
+                return $ Skip $ ParseChunksBuf xs s buf1 pst1
+            PR.Back n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let (src0, buf1) = splitAt n (x:buf)
+                    src  = Prelude.reverse src0 ++ xs
+                return $ Skip $ ParseChunksBuf src s buf1 pst1
+            PR.Hold pst1 ->
+                return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
+            PR.Halt pst1 -> do
+                res <- extract pst1
+                case res of
+                    Left err -> error err
+                    -- XXX have (0,a) case
+                    Right (n, a) -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
+                        return $ Skip $ ParseChunksYield a (ParseChunksInit src s)
+
+    stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 
 ------------------------------------------------------------------------------
 -- Specialized Folds

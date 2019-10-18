@@ -57,10 +57,12 @@ module Streamly.Benchmark.FileIO.Stream
     , decodeUtf8Lax
     , copyCodecUtf8Lenient
     , chunksOfSum
+    , parseChunksOfSum
     , chunksOf
     , chunksOfD
     , splitOn
     , splitOnSuffix
+    , parseChunksSplitOn
     , wordsBy
     , splitOnSeq
     , splitOnSeqUtf8
@@ -81,11 +83,12 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
--- import qualified Streamly.Internal.Data.Fold as IFL
+import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.Memory.Unicode.Array as IUA
 import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Parse as PR
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -442,6 +445,11 @@ inspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
 inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 #endif
 
+{-# INLINE parseChunksOfSum #-}
+parseChunksOfSum :: Int -> Handle -> IO Int
+parseChunksOfSum n inh =
+    S.length $ IP.parseChunks (IFL.take n FL.sum) (S.unfold FH.read inh)
+
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
@@ -599,6 +607,13 @@ inspect $ 'splitOnSuffix `hasNoType` ''Step
 inspect $ 'splitOnSuffix `hasNoType` ''AT.FlattenState
 inspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
 #endif
+
+-- | Split on line feed.
+{-# INLINE parseChunksSplitOn #-}
+parseChunksSplitOn :: Handle -> IO Int
+parseChunksSplitOn inh =
+    (S.length $ IP.parseChunks (PR.endOn (== lf) FL.drain)
+                               (S.unfold FH.read inh)) -- >>= print
 
 -- | Words by space
 {-# INLINE wordsBy #-}

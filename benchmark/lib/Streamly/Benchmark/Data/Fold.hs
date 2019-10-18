@@ -12,6 +12,7 @@ module Streamly.Benchmark.Data.Fold
   , o_1_space_serial_foldsTransforms
   , o_1_space_serial_foldsCompositions
   , o_n_heap_serial_folds
+  , o_1_space_serial_parse
   ) where
 
 import Control.DeepSeq (NFData(..))
@@ -25,6 +26,7 @@ import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Parse as PR
 import qualified Streamly.Internal.Data.Pipe as Pipe
 
 import qualified Streamly.Internal.Data.Sink as Sink
@@ -206,5 +208,20 @@ o_n_heap_serial_folds value =
                 , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
                 , benchIOSink value "writeN" (S.fold (A.writeN value))
                 ]
+          ]
+    ]
+
+o_1_space_serial_parse :: Int -> [Benchmark]
+o_1_space_serial_parse value =
+    [ bgroup
+          "serially"
+          [ bgroup "parser"
+              [
+                benchIOSink value "any" $ IP.parse (PR.any (> value))
+              , benchIOSink value "all" $ IP.parse (PR.all (<= value))
+              , benchIOSink value "(all,any)" $
+                    IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
+              , benchIOSink value "take" (IP.parse (FL.take value FL.drain))
+              ]
           ]
     ]
