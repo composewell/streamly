@@ -2203,6 +2203,8 @@ getAheadSVar st f mrun = do
     -- before we can start clearing the heap.
     outH    <- newIORef (H.empty, Just 0)
     outQMv  <- newEmptyMVar
+    outQR   <- newIORef ([], 0)
+    outQRMv <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
@@ -2219,36 +2221,38 @@ getAheadSVar st f mrun = do
     tid <- myThreadId
 
     let getSVar sv readOutput postProc = SVar
-            { outputQueue      = outQ
-            , remainingWork  = yl
-            , maxBufferLimit   = getMaxBuffer st
-            , pushBufferSpace = undefined
-            , pushBufferPolicy = undefined
-            , pushBufferMVar   = undefined
-            , maxWorkerLimit   = min (getMaxThreads st) (getMaxBuffer st)
-            , yieldRateInfo    = rateInfo
-            , outputDoorBell   = outQMv
-            , readOutputQ      = readOutput sv
-            , postProcess      = postProc sv
-            , workerThreads    = running
-            , workLoop         = f q outH st{streamVar = Just sv} sv
-            , enqueue          = enqueueAhead sv q
-            , isWorkDone       = isWorkDoneAhead sv q outH
-            , isQueueDone      = isQueueDoneAhead sv q
-            , needDoorBell     = wfw
-            , svarStyle        = AheadVar
-            , svarStopStyle    = StopNone
-            , svarStopBy       = undefined
-            , svarMrun         = mrun
-            , workerCount      = active
-            , accountThread    = delThread sv
-            , workerStopMVar   = stopMVar
-            , svarRef          = Nothing
-            , svarInspectMode  = getInspectMode st
-            , svarCreator      = tid
-            , aheadWorkQueue   = q
-            , outputHeap       = outH
-            , svarStats        = stats
+            { outputQueue       = outQ
+            , outputQueueRev    = outQR
+            , remainingWork     = yl
+            , maxBufferLimit    = getMaxBuffer st
+            , pushBufferSpace   = undefined
+            , pushBufferPolicy  = undefined
+            , pushBufferMVar    = undefined
+            , maxWorkerLimit    = min (getMaxThreads st) (getMaxBuffer st)
+            , yieldRateInfo     = rateInfo
+            , outputDoorBell    = outQMv
+            , outputDoorBellRev = outQRMv
+            , readOutputQ       = readOutput sv
+            , postProcess       = postProc sv
+            , workerThreads     = running
+            , workLoop          = f q outH st{streamVar = Just sv} sv
+            , enqueue           = enqueueAhead sv q
+            , isWorkDone        = isWorkDoneAhead sv q outH
+            , isQueueDone       = isQueueDoneAhead sv q
+            , needDoorBell      = wfw
+            , svarStyle         = AheadVar
+            , svarStopStyle     = StopNone
+            , svarStopBy        = undefined
+            , svarMrun          = mrun
+            , workerCount       = active
+            , accountThread     = delThread sv
+            , workerStopMVar    = stopMVar
+            , svarRef           = Nothing
+            , svarInspectMode   = getInspectMode st
+            , svarCreator       = tid
+            , aheadWorkQueue    = q
+            , outputHeap        = outH
+            , svarStats         = stats
             }
 
     let sv =
@@ -2290,6 +2294,8 @@ getParallelSVar :: MonadIO m
 getParallelSVar ss st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
+    outQR   <- newIORef ([], 0)
+    outQRMv <- newEmptyMVar
     active  <- newIORef 0
     running <- newIORef S.empty
     yl <- case getYieldLimit st of
@@ -2312,37 +2318,39 @@ getParallelSVar ss st mrun = do
             _ -> return undefined
 
     let sv =
-            SVar { outputQueue      = outQ
-                 , remainingWork    = yl
-                 , maxBufferLimit   = getMaxBuffer st
-                 , pushBufferSpace  = remBuf
-                 , pushBufferPolicy = PushBufferBlock
-                 , pushBufferMVar   = pbMVar
-                 , maxWorkerLimit   = Unlimited
+            SVar { outputQueue       = outQ
+                 , outputQueueRev    = outQR
+                 , remainingWork     = yl
+                 , maxBufferLimit    = getMaxBuffer st
+                 , pushBufferSpace   = remBuf
+                 , pushBufferPolicy  = PushBufferBlock
+                 , pushBufferMVar    = pbMVar
+                 , maxWorkerLimit    = Unlimited
                  -- Used only for diagnostics
-                 , yieldRateInfo    = rateInfo
-                 , outputDoorBell   = outQMv
-                 , readOutputQ      = readOutputQPar sv
-                 , postProcess      = allThreadsDone sv
-                 , workerThreads    = running
-                 , workLoop         = undefined
-                 , enqueue          = undefined
-                 , isWorkDone       = undefined
-                 , isQueueDone      = undefined
-                 , needDoorBell     = undefined
-                 , svarStyle        = ParallelVar
-                 , svarStopStyle    = ss
-                 , svarStopBy       = stopBy
-                 , svarMrun         = mrun
-                 , workerCount      = active
-                 , accountThread    = modifyThread sv
-                 , workerStopMVar   = undefined
-                 , svarRef          = Nothing
-                 , svarInspectMode  = getInspectMode st
-                 , svarCreator      = tid
-                 , aheadWorkQueue   = undefined
-                 , outputHeap       = undefined
-                 , svarStats        = stats
+                 , yieldRateInfo     = rateInfo
+                 , outputDoorBell    = outQMv
+                 , outputDoorBellRev = outQRMv
+                 , readOutputQ       = readOutputQPar sv
+                 , postProcess       = allThreadsDone sv
+                 , workerThreads     = running
+                 , workLoop          = undefined
+                 , enqueue           = undefined
+                 , isWorkDone        = undefined
+                 , isQueueDone       = undefined
+                 , needDoorBell      = undefined
+                 , svarStyle         = ParallelVar
+                 , svarStopStyle     = ss
+                 , svarStopBy        = stopBy
+                 , svarMrun          = mrun
+                 , workerCount       = active
+                 , accountThread     = modifyThread sv
+                 , workerStopMVar    = undefined
+                 , svarRef           = Nothing
+                 , svarInspectMode   = getInspectMode st
+                 , svarCreator       = tid
+                 , aheadWorkQueue    = undefined
+                 , outputHeap        = undefined
+                 , svarStats         = stats
                  }
      in return sv
 

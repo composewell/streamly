@@ -258,6 +258,8 @@ getLifoSVar :: forall m a. MonadAsync m
 getLifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
+    outQR   <- newIORef ([], 0)
+    outQRMv <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
@@ -293,36 +295,38 @@ getLifoSVar st mrun = do
                 -> m())
             -> SVar Stream m a
         getSVar sv readOutput postProc workDone wloop = SVar
-            { outputQueue      = outQ
-            , remainingWork    = yl
-            , maxBufferLimit   = getMaxBuffer st
-            , pushBufferSpace  = undefined
-            , pushBufferPolicy = undefined
-            , pushBufferMVar   = undefined
-            , maxWorkerLimit   = min (getMaxThreads st) (getMaxBuffer st)
-            , yieldRateInfo    = rateInfo
-            , outputDoorBell   = outQMv
-            , readOutputQ      = readOutput sv
-            , postProcess      = postProc sv
-            , workerThreads    = running
-            , workLoop         = wloop q st{streamVar = Just sv} sv
-            , enqueue          = enqueueLIFO sv q
-            , isWorkDone       = workDone sv
-            , isQueueDone      = workDone sv
-            , needDoorBell     = wfw
-            , svarStyle        = AsyncVar
-            , svarStopStyle    = StopNone
-            , svarStopBy       = undefined
-            , svarMrun         = mrun
-            , workerCount      = active
-            , accountThread    = delThread sv
-            , workerStopMVar   = undefined
-            , svarRef          = Nothing
-            , svarInspectMode  = getInspectMode st
-            , svarCreator      = tid
-            , aheadWorkQueue   = undefined
-            , outputHeap       = undefined
-            , svarStats        = stats
+            { outputQueue       = outQ
+            , outputQueueRev    = outQR
+            , remainingWork     = yl
+            , maxBufferLimit    = getMaxBuffer st
+            , pushBufferSpace   = undefined
+            , pushBufferPolicy  = undefined
+            , pushBufferMVar    = undefined
+            , maxWorkerLimit    = min (getMaxThreads st) (getMaxBuffer st)
+            , yieldRateInfo     = rateInfo
+            , outputDoorBell    = outQMv
+            , outputDoorBellRev = outQRMv
+            , readOutputQ       = readOutput sv
+            , postProcess       = postProc sv
+            , workerThreads     = running
+            , workLoop          = wloop q st{streamVar = Just sv} sv
+            , enqueue           = enqueueLIFO sv q
+            , isWorkDone        = workDone sv
+            , isQueueDone       = workDone sv
+            , needDoorBell      = wfw
+            , svarStyle         = AsyncVar
+            , svarStopStyle     = StopNone
+            , svarStopBy        = undefined
+            , svarMrun          = mrun
+            , workerCount       = active
+            , accountThread     = delThread sv
+            , workerStopMVar    = undefined
+            , svarRef           = Nothing
+            , svarInspectMode   = getInspectMode st
+            , svarCreator       = tid
+            , aheadWorkQueue    = undefined
+            , outputHeap        = undefined
+            , svarStats         = stats
             }
 
     let sv =
@@ -354,6 +358,8 @@ getFifoSVar :: forall m a. MonadAsync m
 getFifoSVar st mrun = do
     outQ    <- newIORef ([], 0)
     outQMv  <- newEmptyMVar
+    outQR   <- newIORef ([], 0)
+    outQRMv <- newEmptyMVar
     active  <- newIORef 0
     wfw     <- newIORef False
     running <- newIORef S.empty
@@ -388,36 +394,38 @@ getFifoSVar st mrun = do
                 -> m())
             -> SVar Stream m a
         getSVar sv readOutput postProc workDone wloop = SVar
-            { outputQueue      = outQ
-            , remainingWork    = yl
-            , maxBufferLimit   = getMaxBuffer st
-            , pushBufferSpace  = undefined
-            , pushBufferPolicy = undefined
-            , pushBufferMVar   = undefined
-            , maxWorkerLimit   = min (getMaxThreads st) (getMaxBuffer st)
-            , yieldRateInfo    = rateInfo
-            , outputDoorBell   = outQMv
-            , readOutputQ      = readOutput sv
-            , postProcess      = postProc sv
-            , workerThreads    = running
-            , workLoop         = wloop q st{streamVar = Just sv} sv
-            , enqueue          = enqueueFIFO sv q
-            , isWorkDone       = workDone sv
-            , isQueueDone      = workDone sv
-            , needDoorBell     = wfw
-            , svarStyle        = WAsyncVar
-            , svarStopStyle    = StopNone
-            , svarStopBy       = undefined
-            , svarMrun         = mrun
-            , workerCount      = active
-            , accountThread    = delThread sv
-            , workerStopMVar   = undefined
-            , svarRef          = Nothing
-            , svarInspectMode  = getInspectMode st
-            , svarCreator      = tid
-            , aheadWorkQueue   = undefined
-            , outputHeap       = undefined
-            , svarStats        = stats
+            { outputQueue       = outQ
+            , outputQueueRev    = outQR
+            , remainingWork     = yl
+            , maxBufferLimit    = getMaxBuffer st
+            , pushBufferSpace   = undefined
+            , pushBufferPolicy  = undefined
+            , pushBufferMVar    = undefined
+            , maxWorkerLimit    = min (getMaxThreads st) (getMaxBuffer st)
+            , yieldRateInfo     = rateInfo
+            , outputDoorBell    = outQMv
+            , outputDoorBellRev = outQRMv
+            , readOutputQ       = readOutput sv
+            , postProcess       = postProc sv
+            , workerThreads     = running
+            , workLoop          = wloop q st{streamVar = Just sv} sv
+            , enqueue           = enqueueFIFO sv q
+            , isWorkDone        = workDone sv
+            , isQueueDone       = workDone sv
+            , needDoorBell      = wfw
+            , svarStyle         = WAsyncVar
+            , svarStopStyle     = StopNone
+            , svarStopBy        = undefined
+            , svarMrun          = mrun
+            , workerCount       = active
+            , accountThread     = delThread sv
+            , workerStopMVar    = undefined
+            , svarRef           = Nothing
+            , svarInspectMode   = getInspectMode st
+            , svarCreator       = tid
+            , aheadWorkQueue    = undefined
+            , outputHeap        = undefined
+            , svarStats         = stats
             }
 
     let sv =
