@@ -277,6 +277,12 @@ lfilterM f (Fold step begin done) = Fold step' begin done
 lcatMaybes :: Monad m => Fold m a b -> Fold m (Maybe a) b
 lcatMaybes = lfilter isJust . lmap fromJust
 
+------------------------------------------------------------------------------
+-- Parsing
+------------------------------------------------------------------------------
+
+-- XXX These should become terminating folds.
+--
 -- | Take first 'n' elements from the stream and discard the rest.
 --
 -- @since 0.7.0
@@ -347,6 +353,13 @@ runStep (Fold step initial extract) a = do
     i <- initial
     r <- step i a
     return $ (Fold step (return r) extract)
+
+------------------------------------------------------------------------------
+-- Parsing
+------------------------------------------------------------------------------
+
+-- XXX These can be expressed using foldChunks repeatedly on the input of a
+-- fold.
 
 -- | For every n input items, apply the first fold and supply the result to the
 -- next fold.
