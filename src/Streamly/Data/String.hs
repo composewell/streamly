@@ -52,6 +52,11 @@ module Streamly.Data.String
       decodeChar8
     , decodeUtf8
     , decodeUtf8Lenient
+    , D.DecodeError(..)
+    , D.DecodeState
+    , D.CodePoint
+    , decodeUtf8Either
+    , resumeDecodeUtf8Either
     , decodeUtf8Arrays
     , decodeUtf8ArraysLenient
 
@@ -154,6 +159,21 @@ decodeUtf8Arrays = D.fromStreamD . D.decodeUtf8Arrays . D.toStreamD
 {-# INLINE decodeUtf8Lenient #-}
 decodeUtf8Lenient :: (Monad m, IsStream t) => t m Word8 -> t m Char
 decodeUtf8Lenient = D.fromStreamD . D.decodeUtf8Lenient . D.toStreamD
+
+{-# INLINE decodeUtf8Either #-}
+decodeUtf8Either :: (Monad m, IsStream t)
+    => t m Word8 -> t m (Either D.DecodeError Char)
+decodeUtf8Either = D.fromStreamD . D.decodeUtf8Either . D.toStreamD
+
+{-# INLINE resumeDecodeUtf8Either #-}
+resumeDecodeUtf8Either
+    :: (Monad m, IsStream t)
+    => D.DecodeState
+    -> D.CodePoint
+    -> t m Word8
+    -> t m (Either D.DecodeError Char)
+resumeDecodeUtf8Either st cp =
+    D.fromStreamD . D.resumeDecodeUtf8Either st cp . D.toStreamD
 
 {-# INLINE decodeUtf8ArraysLenient #-}
 decodeUtf8ArraysLenient ::

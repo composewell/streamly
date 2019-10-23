@@ -949,3 +949,28 @@ executable WordClassifier
       , unordered-containers >= 0.2   && < 0.3
   else
     buildable: False
+
+executable WordCount
+  import: exe-options
+  main-is: WordCount.hs
+  hs-source-dirs:  examples
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
+    buildable: True
+    build-Depends:
+        streamly
+      , base                 >= 4.8   && < 5
+      , vector               >= 0.12  && < 0.13
+  else
+    buildable: False
+
+executable CamelCase
+  import: exe-options
+  main-is: CamelCase.hs
+  hs-source-dirs:  examples
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
+    buildable: True
+    build-Depends:
+        streamly
+      , base                 >= 4.8   && < 5
+  else
+    buildable: False

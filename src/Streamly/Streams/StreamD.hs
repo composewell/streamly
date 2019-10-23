@@ -271,9 +271,14 @@ module Streamly.Streams.StreamD
     , handle
 
     -- * UTF8 Encoding / Decoding transformations.
+    , DecodeError(..)
+    , DecodeState
+    , CodePoint
     , decodeUtf8
     , encodeUtf8
     , decodeUtf8Lenient
+    , decodeUtf8Either
+    , resumeDecodeUtf8Either
     , decodeUtf8Arrays
     , decodeUtf8ArraysLenient
     )
@@ -3428,13 +3433,15 @@ replacementChar = '\xFFFD'
 
 -- Int helps in cheaper conversion from Int to Char
 type CodePoint = Int
-type DecoderState = Word8
+type DecodeState = Word8
 
 -- See http://bjoern.hoehrmann.de/utf-8/decoder/dfa/ for details.
 
 {-# INLINE runFold #-}
 runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
 runFold (Fold step begin done) = foldlMx' step begin done
+
+-- XXX Use names decodeSuccess = 0, decodeFailure = 12
 
 -- Aligning to cacheline makes a barely noticeable difference
 utf8d :: A.Array Word8
@@ -3471,7 +3478,7 @@ unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
 --
 -- When the state is 0
 {-# INLINE decode0 #-}
-decode0 :: Ptr Word8 -> Word8 -> Tuple' DecoderState CodePoint
+decode0 :: Ptr Word8 -> Word8 -> Tuple' DecodeState CodePoint
 decode0 table byte =
     let !t = table `unsafePeekElemOff` fromIntegral byte
         !codep' = (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
@@ -3482,10 +3489,10 @@ decode0 table byte =
 {-# INLINE decode1 #-}
 decode1
     :: Ptr Word8
-    -> DecoderState
+    -> DecodeState
     -> CodePoint
     -> Word8
-    -> Tuple' DecoderState CodePoint
+    -> Tuple' DecodeState CodePoint
 decode1 table state codep byte =
     -- Remember codep is Int type!
     -- Can it be unsafe to convert the resulting to Char?
@@ -3495,15 +3502,23 @@ decode1 table state codep byte =
                     (256 + fromIntegral state + fromIntegral t)
      in (Tuple' state' codep')
 
+-- We can divide the errors in three general categories:
+-- * A non-starter was encountered in a begin state
+-- * A starter was encountered without completing a codepoint
+-- * The last codepoint was not complete (input underflow)
+--
+data DecodeError = DecodeError !DecodeState !CodePoint deriving Show
 
-data FreshPoint s
+data FreshPoint s a
     = FreshPointDecodeInit s
+    | FreshPointDecodeInit1 s Word8
     | FreshPointDecodeFirst s Word8
-    | FreshPointDecoding s !DecoderState !CodePoint
-    | YieldAndContinue !Char (FreshPoint s)
+    | FreshPointDecoding s !DecodeState !CodePoint
+    | YieldAndContinue a (FreshPoint s a)
     | Done
 
 -- XXX Add proper error messages
+-- XXX Implement this in terms of decodeUtf8Either
 {-# INLINE_NORMAL decodeUtf8With #-}
 decodeUtf8With :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8With cfm (Stream step state) =
@@ -3525,25 +3540,28 @@ decodeUtf8With cfm (Stream step state) =
     {-# INLINE_LATE step' #-}
     step' _ gst (FreshPointDecodeInit st) = do
         r <- step (adaptState gst) st
-        case r of
-            Yield x s ->
-                -- Note: It is important to use a ">" instead of a "<=" test
-                -- here for GHC to generate code layout for default branch
-                -- prediction for the common case. This is fragile and might
-                -- change with the compiler versions, we need a more reliable
-                -- "likely" primitive to control branch predication.
-                case x > 0x7f of
-                    False ->
-                        return $ Skip $ YieldAndContinue
-                            (unsafeChr (fromIntegral x))
-                            (FreshPointDecodeInit s)
-                    -- Using a separate state here generates a jump to a
-                    -- separate code block in the core which seems to perform
-                    -- slightly better for the non-ascii case.
-                    True -> return $ Skip $ FreshPointDecodeFirst s x
-            Skip s -> return $ Skip (FreshPointDecodeInit s)
-            Stop   -> return $ Skip Done
+        return $ case r of
+            Yield x s -> Skip (FreshPointDecodeInit1 s x)
+            Skip s -> Skip (FreshPointDecodeInit s)
+            Stop   -> Skip Done
 
+    step' _ _ (FreshPointDecodeInit1 st x) = do
+        -- Note: It is important to use a ">" instead of a "<=" test
+        -- here for GHC to generate code layout for default branch
+        -- prediction for the common case. This is fragile and might
+        -- change with the compiler versions, we need a more reliable
+        -- "likely" primitive to control branch predication.
+        case x > 0x7f of
+            False ->
+                return $ Skip $ YieldAndContinue
+                    (unsafeChr (fromIntegral x))
+                    (FreshPointDecodeInit st)
+            -- Using a separate state here generates a jump to a
+            -- separate code block in the core which seems to perform
+            -- slightly better for the non-ascii case.
+            True -> return $ Skip $ FreshPointDecodeFirst st x
+
+    -- XXX should we merge it with FreshPointDecodeInit1?
     step' table _ (FreshPointDecodeFirst st x) = do
         let (Tuple' sv cp) = decode0 table x
         return $
@@ -3556,6 +3574,8 @@ decodeUtf8With cfm (Stream step state) =
                 0 -> error "unreachable state"
                 _ -> Skip (FreshPointDecoding st sv cp)
 
+    -- We recover by trying the new byte x a starter of a new codepoint.
+    -- XXX need to use the same recovery in array decoding routine as well
     step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
         r <- step (adaptState gst) st
         case r of
@@ -3569,7 +3589,7 @@ decodeUtf8With cfm (Stream step state) =
                             Skip $
                             transliterateOrError
                                 "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
-                                (FreshPointDecodeInit s)
+                                (FreshPointDecodeInit1 s x)
                         _ -> Skip (FreshPointDecoding s sv cp)
             Skip s -> return $ Skip (FreshPointDecoding s statePtr codepointPtr)
             Stop -> return $ Skip inputUnderflow
@@ -3585,12 +3605,89 @@ decodeUtf8 = decodeUtf8With ErrorOnCodingFailure
 decodeUtf8Lenient :: Monad m => Stream m Word8 -> Stream m Char
 decodeUtf8Lenient = decodeUtf8With TransliterateCodingFailure
 
+{-# INLINE_NORMAL resumeDecodeUtf8Either #-}
+resumeDecodeUtf8Either
+    :: Monad m
+    => DecodeState
+    -> CodePoint
+    -> Stream m Word8
+    -> Stream m (Either DecodeError Char)
+resumeDecodeUtf8Either dst codep (Stream step state) =
+    let Array p _ _ = utf8d
+        !ptr = (unsafeForeignPtrToPtr p)
+        stt =
+            if dst == 0
+            then FreshPointDecodeInit state
+            else FreshPointDecoding state dst codep
+    in Stream (step' ptr) stt
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ gst (FreshPointDecodeInit st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip (FreshPointDecodeInit1 s x)
+            Skip s -> Skip (FreshPointDecodeInit s)
+            Stop   -> Skip Done
+
+    step' _ _ (FreshPointDecodeInit1 st x) = do
+        -- Note: It is important to use a ">" instead of a "<=" test
+        -- here for GHC to generate code layout for default branch
+        -- prediction for the common case. This is fragile and might
+        -- change with the compiler versions, we need a more reliable
+        -- "likely" primitive to control branch predication.
+        case x > 0x7f of
+            False ->
+                return $ Skip $ YieldAndContinue
+                    (Right $ unsafeChr (fromIntegral x))
+                    (FreshPointDecodeInit st)
+            -- Using a separate state here generates a jump to a
+            -- separate code block in the core which seems to perform
+            -- slightly better for the non-ascii case.
+            True -> return $ Skip $ FreshPointDecodeFirst st x
+
+    -- XXX should we merge it with FreshPointDecodeInit1?
+    step' table _ (FreshPointDecodeFirst st x) = do
+        let (Tuple' sv cp) = decode0 table x
+        return $
+            case sv of
+                12 ->
+                    Skip $ YieldAndContinue (Left $ DecodeError 0 (fromIntegral x))
+                                            (FreshPointDecodeInit st)
+                0 -> error "unreachable state"
+                _ -> Skip (FreshPointDecoding st sv cp)
+
+    -- We recover by trying the new byte x a starter of a new codepoint.
+    -- XXX need to use the same recovery in array decoding routine as well
+    step' table gst (FreshPointDecoding st statePtr codepointPtr) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+                return $
+                    case sv of
+                        0 -> Skip $ YieldAndContinue (Right $ unsafeChr cp)
+                                        (FreshPointDecodeInit s)
+                        12 ->
+                            Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr)
+                                        (FreshPointDecodeInit1 s x)
+                        _ -> Skip (FreshPointDecoding s sv cp)
+            Skip s -> return $ Skip (FreshPointDecoding s statePtr codepointPtr)
+            Stop -> return $ Skip $ YieldAndContinue (Left $ DecodeError statePtr codepointPtr) Done
+
+    step' _ _ (YieldAndContinue c s) = return $ Yield c s
+    step' _ _ Done = return Stop
+
+{-# INLINE_NORMAL decodeUtf8Either #-}
+decodeUtf8Either :: Monad m
+    => Stream m Word8 -> Stream m (Either DecodeError Char)
+decodeUtf8Either = resumeDecodeUtf8Either 0 0
+
 data FlattenState s a
-    = OuterLoop s !(Maybe (DecoderState, CodePoint))
+    = OuterLoop s !(Maybe (DecodeState, CodePoint))
     | InnerLoopDecodeInit s (ForeignPtr a) !(Ptr a) !(Ptr a)
     | InnerLoopDecodeFirst s (ForeignPtr a) !(Ptr a) !(Ptr a) Word8
     | InnerLoopDecoding s (ForeignPtr a) !(Ptr a) !(Ptr a)
-        !DecoderState !CodePoint
+        !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the FreshPoint
                                      -- type, I prefer to keep these
