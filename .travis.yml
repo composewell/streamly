@@ -176,7 +176,9 @@ matrix:
   # Lint e.g. HLINT_COMMANDS="hlint lint src; hlint lint test"
   # --------------------------------------------------------------------------
 
-  - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
+  - stage: "lint"
+    env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="`gem env home`/wrappers/danger"
+    before_install: gem install danger-hlint 'danger:~> 5.0'
 
   # --------------------------------------------------------------------------
   # Build and send coverage report to coveralls.io using hpc-coveralls.  Add
@@ -199,7 +201,6 @@ matrix:
   allow_failures:
   - env: BUILD=cabal-v2 GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
-  - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
   - env: BUILD=cabal-v2 ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_SDIST_BUILD=y
 
 # ------------------------------------------------------------------------
