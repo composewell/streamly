@@ -194,6 +194,7 @@ main =
         , benchD "dropOne"              D.iterateDropOne
         , benchD "dropWhileFalse(1/10)" D.iterateDropWhileFalse
         , benchD "dropWhileTrue"        D.iterateDropWhileTrue
+        , benchD "iterateM"             D.iterateM
         ]
       ]
     , bgroup "list"
