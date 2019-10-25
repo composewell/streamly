@@ -181,6 +181,23 @@ matrix:
     before_install: gem install danger-hlint 'danger:~> 5.0'
 
   # --------------------------------------------------------------------------
+  # Deploy docs
+  # --------------------------------------------------------------------------
+
+  - stage: "deploy docs"
+    env: BUILD=cabal-v2 GHCVER=8.8.1 CABAL_BUILD_OPTIONS="--enable-documentation" DISABLE_TEST=y DISABLE_BENCH=y DISABLE_DOCS=y DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
+    addons: {apt: {packages: [cabal-install-head,ghc-8.8.1], sources: [hvr-ghc]}}
+    before_install: chmod +x ./scripts/haddock.sh
+    after-script: cabal v2-haddock --haddock-html-location='https://hackage.haskell.org/package/$pkg-$version/docs' --haddock-quickjump --haddock-hyperlink-source --with-haddock=$TRAVIS_BUILD_DIR/scripts/haddock.sh
+    deploy:
+      provider: pages
+      skip_cleanup: true
+      repo: cwellBot/cwellBot.github.io
+      github_token: $DANGER_GITHUB_API_TOKEN
+      local_dir: ./html/
+      name: cwellBot
+
+  # --------------------------------------------------------------------------
   # Build and send coverage report to coveralls.io using hpc-coveralls.  Add
   # your project to coveralls.io first, for available options see hpc-coveralls
   # docs. CAVEATS:
