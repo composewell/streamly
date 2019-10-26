@@ -70,8 +70,8 @@ module Streamly.Internal.Data.Fold
     , toListRevF  -- experimental
 
     -- ** Partial Folds
-    -- , drainN
-    -- , drainWhile
+    , drainN
+    , drainWhile
     -- , lastN
     -- , (!!)
     -- , genericIndex
@@ -628,6 +628,14 @@ toList = Fold (\f x -> return $ f . (x :))
 ------------------------------------------------------------------------------
 -- Partial Folds
 ------------------------------------------------------------------------------
+
+-- XXX Add proper Inline
+drainN :: Monad m => Int -> Fold m a () 
+drainN n = ltake n drain
+
+-- XXX Add proper Inline
+drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
+drainWhile p = ltakeWhile p drain
 
 ------------------------------------------------------------------------------
 -- To Elements
