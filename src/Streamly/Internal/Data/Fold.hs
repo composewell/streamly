@@ -72,7 +72,7 @@ module Streamly.Internal.Data.Fold
     -- ** Partial Folds
     , drainN
     , drainWhile
-    -- , lastN
+    , lastN
     -- , (!!)
     -- , genericIndex
     , index
@@ -196,7 +196,7 @@ import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
+               iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break, mapM)
 
@@ -205,10 +205,15 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
+import Streamly.Streams.StreamD.Type (foldlMx', fromList)
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+import qualified Streamly.Memory.Ring as RB
+
+import Control.Monad.IO.Class (MonadIO(..))
+import Foreign.Storable (Storable)
 
 ------------------------------------------------------------------------------
 -- Smart constructors
@@ -629,13 +634,31 @@ toList = Fold (\f x -> return $ f . (x :))
 -- Partial Folds
 ------------------------------------------------------------------------------
 
--- XXX Add proper Inline
+{-# INLINABLE drainN #-}
 drainN :: Monad m => Int -> Fold m a () 
 drainN n = ltake n drain
 
--- XXX Add proper Inline
+{-# INLINABLE drainWhile #-}
 drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
 drainWhile p = ltakeWhile p drain
+
+-- XXX Add tests and benchmarks
+-- | Take last 'n' elements from the stream and discard the rest.
+{-# INLINABLE lastN #-}
+lastN :: (Storable a, MonadIO m) => Int -> Fold m a b -> Fold m a b
+lastN n f = Fold step' initial' done'
+  where
+    step' (rb, rh) a = do
+      rh1 <- liftIO $ RB.unsafeInsert rb rh a
+      return (rb, rh1)
+    initial' = liftIO $ RB.new n 
+    done' (rb, rh) = runFold f
+                 =<< fromList . reverse
+                 <$> RB.unsafeFoldRingFullM rh cons' [] rb
+    runFold (Fold step begin done) = foldlMx' step begin done
+    cons' b a = return $ a:b 
+
+
 
 ------------------------------------------------------------------------------
 -- To Elements
