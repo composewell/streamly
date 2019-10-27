@@ -183,6 +183,8 @@ module Streamly.Streams.StreamD
 
     -- ** Substreams
     , isPrefixOf
+    , isSuffixOf
+    -- , isInfixOf
     , isSubsequenceOf
     , stripPrefix
 
@@ -2005,6 +2007,61 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
                     else return False
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return False
+
+-- XXX Add tests and benchmarks
+-- XXX Change to strict data structures accordingly
+-- XXX Could potantially be made faster
+{-# INLINE_NORMAL isSuffixOf #-}
+isSuffixOf :: (Eq a, MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
+isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
+  where
+    go1 (stp, st, i1, b) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
+        Skip st' -> go1 (stp, st', i1, b)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, b, stpb, sb, 0, rb, rh)
+
+    go2 (i1, b, stp, st, i2, rb, rh) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> do
+          rh1 <- liftIO $ RB.unsafeInsert rb rh x
+          go2 (i1, b, stp, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+        Stop -> go3 (i1, b, i2, rb, rh) 
+
+    go3 (i1, b, i2, rb, rh)
+      | i1 > i2 = return False
+      | otherwise = do
+          lst <- RB.unsafeFoldRingFullM rh cons' [] rb 
+          return (lst == b)
+
+    cons' b a = return $ a:b 
+
+{-
+-- XXX Add tests and benchmarks
+-- XXX Change to strict data structures accordingly
+-- XXX Could potantially be made faster
+{-# INLINE_NORMAL isInfixOf #-}
+isInfixOf :: (Eq a, MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
+isInfixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
+  where
+    go1 (stp, st, i1, b) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
+        Skip st' -> go1 (stp, st', i1, b)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, b, stpb, sb, 0, rb, rh)
+    go2 (i1, b, stp, st, i2, rb, rh) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> do
+          rh1 <- liftIO $ RB.unsafeInsert rb rh x
+          go2 (i1, b, stp, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+        Stop -> go3 (i1, b, i2, rb, rh) 
+-}
 
 {-# INLINE_NORMAL isSubsequenceOf #-}
 isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
