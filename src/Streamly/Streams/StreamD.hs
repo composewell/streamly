@@ -2012,7 +2012,7 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
 -- XXX Change to strict data structures accordingly
 -- XXX Could potantially be made faster
 {-# INLINE_NORMAL isSuffixOf #-}
-isSuffixOf :: (Eq a, MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
+isSuffixOf :: (MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
 isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
   where
     go1 (stp, st, i1, b) = do
@@ -2020,7 +2020,7 @@ isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
       case r of
         Yield x st' -> go1 (stp, st', i1 + 1, x:b)
         Skip st' -> go1 (stp, st', i1, b)
-        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, b, stpb, sb, 0, rb, rh)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, stpb, sb, 0, rb, rh)
 
     go2 (i1, b, stp, st, i2, rb, rh) = do
       r <- stp defState st
@@ -2033,11 +2033,7 @@ isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
 
     go3 (i1, b, i2, rb, rh)
       | i1 > i2 = return False
-      | otherwise = do
-          lst <- RB.unsafeFoldRingFullM rh cons' [] rb 
-          return (lst == b)
-
-    cons' b a = return $ a:b 
+      | otherwise = return $ RB.unsafeEqArray rb rh b
 
 -- XXX Add tests and benchmarks
 -- XXX Change to strict data structures accordingly
