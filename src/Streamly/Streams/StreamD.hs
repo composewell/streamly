@@ -187,6 +187,7 @@ module Streamly.Streams.StreamD
     , isInfixOf
     , isSubsequenceOf
     , stripPrefix
+    , stripSuffix
 
     -- ** Map and Fold
     , mapM_
@@ -2111,6 +2112,36 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
                     else return Nothing
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return Nothing
+
+-- XXX Add tests and benchmarks
+-- XXX Change to strict data structures accordingly
+-- XXX Could potantially be made faster
+{-# INLINE_NORMAL stripSuffix #-}
+stripSuffix
+    :: (MonadIO m, Storable a)
+    => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripSuffix (Stream stpa sa) strm@(Stream stpb sb) = go1 (stpa, sa, 0, [])
+  where
+    go1 (stp, st, i1, b) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
+        Skip st' -> go1 (stp, st', i1, b)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, stpb, sb, 0, rb, rh)
+
+    go2 (i1, b, stp, st, i2, rb, rh) = do
+      r <- stp defState st
+      case r of
+        Yield x st' -> do
+          rh1 <- liftIO $ RB.unsafeInsert rb rh x
+          go2 (i1, b, stp, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+        Stop -> go3 (i1, b, i2, rb, rh) 
+
+    go3 (i1, b, i2, rb, rh)
+      | i1 > i2 = return Nothing
+      | RB.unsafeEqArray rb rh b = return $ Just $ take (i2 - i1) strm 
+      | otherwise = return Nothing 
 
 ------------------------------------------------------------------------------
 -- Map and Fold
