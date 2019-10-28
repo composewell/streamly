@@ -188,6 +188,7 @@ module Streamly.Streams.StreamD
     , isSubsequenceOf
     , stripPrefix
     , stripSuffix
+    , stripInfix
 
     -- ** Map and Fold
     , mapM_
@@ -2142,6 +2143,50 @@ stripSuffix (Stream stpa sa) strm@(Stream stpb sb) = go1 (sa, 0, [])
       | i1 > i2 = return Nothing
       | RB.unsafeEqArray rb rh b = return $ Just $ take (i2 - i1) strm 
       | otherwise = return Nothing 
+
+-- XXX Add tests and benchmarks
+-- XXX Change to strict data structures accordingly
+-- XXX Could potantially be made faster
+{-# INLINE_NORMAL stripInfix #-}
+stripInfix
+  :: (MonadIO m, Storable a)
+  => Stream m a -> Stream m a -> m (Maybe (Stream m a))
+stripInfix (Stream stpa ta) (Stream stpb tb) = go1 (ta, 0, [])
+  where
+    go1 (st, i1, b) = do
+      r <- stpa defState st
+      case r of
+        Yield x st' -> go1 (st', i1 + 1, x:b)
+        Skip st' -> go1 (st', i1, b)
+        Stop -> do
+          (rb, rh) <- liftIO (RB.new i1)
+          eitherToMaybe <$> stripInfix' (i1, A.fromList b, rb, rh) tb
+
+    eitherToMaybe (Left _) = Nothing
+    eitherToMaybe (Right x) = Just x
+
+    stripInfix' (i1, b, rb, rh0) sb = go2 (sb, 0, rh0)
+      where 
+        go2 (st, i2, rh) = do
+          r <- stpb defState st
+          case r of
+            Yield x st' -> do
+              rh1 <- liftIO $ RB.unsafeInsert rb rh x
+              if i2 + 1 >= i1 then go3 (st', i2 + 1, rh1)
+                              else go2 (st', i2 + 1, rh1)
+            Skip st' -> go2 (st', i2, rh)
+            Stop -> return $ Left (Stream stpb st)
+    
+        go3 arg@(st, i2, rh)
+          | RB.unsafeEqArray rb rh b = do
+              ns <- stripInfix' (i1, b, rb, rh0) st
+              return $ append1 (Right (take (i2 - i1) (Stream stpb sb))) ns
+          | otherwise = go2 arg   
+
+        append1 (Right x) (Left y) = Right $ append x y
+        append1 (Right x) (Right y) = Right $ append x y
+        append1 _ _ = error "This should not occur" 
+
 
 ------------------------------------------------------------------------------
 -- Map and Fold
