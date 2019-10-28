@@ -308,6 +308,10 @@ module Streamly.Streams.StreamD
     , mkParallel
     , applyParallel
     , foldParallel
+    
+    -- XXX Shift this somewhere else?
+    -- * Reordering
+    , reassembleBy
     )
 where
 
@@ -322,6 +326,7 @@ import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Heap (Entry(..))
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
@@ -356,6 +361,7 @@ import Streamly.Internal.Data.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
 
+import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -4377,3 +4383,66 @@ foldParallel f m = do
     sv <- newParallelVar StopNone defState
     toSVarParallel defState sv (toStreamD m)
     f $ fromStreamD $ fromSVar sv
+
+------------------------------------------------------------------------------
+-- Reorder in sequence
+------------------------------------------------------------------------------
+
+-- XXX Add tests and benchmarks
+-- Buffer until the next element in sequence arrives. The function argument
+-- determines the difference in sequence numbers. This could be useful in
+-- implementing sequenced streams, for example, TCP reassembly.
+{-# INLINE reassembleBy #-}
+reassembleBy
+    :: (Bounded a, Monad m)
+    => Int
+    -> (a -> a -> Int)
+    -> Stream m a
+    -> Stream m a
+reassembleBy sz diff (Stream step state) = Stream step' state'
+  where
+    state' = (H.empty, Nothing, state)
+    step' _ (h, Nothing, s) = do
+      r <- step defState s
+      case r of 
+        Yield a s' -> case diff a minBound of
+          0 -> return $ Yield a (h, Just a, s')
+          x | x < sz -> return $ Skip (H.insert (Entry x a) h, Nothing, s')
+            | otherwise -> return $ Skip (h, Nothing, s')
+        Skip s' -> return $ Skip (h, Nothing, s')
+        Stop -> return Stop
+    step' _ (h, Just c, s) = do
+      r <- step defState s
+      case r of 
+        Yield a s' -> case diff a c of 
+          0 -> return $ Skip (h, Just c, s')
+          1 -> return $ Yield a (h, Just a, s')
+          x | x < sz ->
+            let y = diff a minBound in
+            case view of
+              Just (Entry _ payH, delH) ->
+                case diff payH c of
+                  0 -> return $ Skip (H.insert (Entry y a) delH, Just c, s')
+                  1 -> return $ Yield payH (H.insert (Entry y a) delH, Just payH, s')
+                  _ -> return $ Skip (H.insert (Entry y a) h, Just c, s')
+              _ -> return $ Skip (h, Just c, s')
+            | otherwise -> return $ Skip (h, Just c, s')
+        Skip s' -> 
+          case view of
+            Just (Entry _ payH, delH) ->
+              case diff payH c of
+                0 -> return $ Skip (delH, Just c, s')
+                1 -> return $ Yield payH (delH, Just payH, s')
+                _ -> return $ Skip (h, Just c, s')
+            _ -> return $ Skip (h, Just c, s')
+        Stop -> 
+          case view of
+            Just (Entry _ payH, delH) ->
+              case diff payH c of
+                0 -> return $ Skip (delH, Just c, s)
+                1 -> return $ Yield payH (delH, Just payH, s)
+                -- XXX Do we want to yeild the rest?
+                _ -> return Stop
+            _ -> return Stop
+      where
+        view = H.uncons h
