@@ -2014,22 +2014,22 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
 -- XXX Could potantially be made faster
 {-# INLINE_NORMAL isSuffixOf #-}
 isSuffixOf :: (MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
-isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
+isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (sa, 0, [])
   where
-    go1 (stp, st, i1, b) = do
-      r <- stp defState st
+    go1 (st, i1, b) = do
+      r <- stpa defState st
       case r of
-        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
-        Skip st' -> go1 (stp, st', i1, b)
-        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, stpb, sb, 0, rb, rh)
+        Yield x st' -> go1 (st', i1 + 1, x:b)
+        Skip st' -> go1 (st', i1, b)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, sb, 0, rb, rh)
 
-    go2 (i1, b, stp, st, i2, rb, rh) = do
-      r <- stp defState st
+    go2 (i1, b, st, i2, rb, rh) = do
+      r <- stpb defState st
       case r of
         Yield x st' -> do
           rh1 <- liftIO $ RB.unsafeInsert rb rh x
-          go2 (i1, b, stp, st', i2 + 1, rb, rh1)
-        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+          go2 (i1, b, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, st', i2, rb, rh)
         Stop -> go3 (i1, b, i2, rb, rh) 
 
     go3 (i1, b, i2, rb, rh)
@@ -2041,29 +2041,29 @@ isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
 -- XXX Could potantially be made faster
 {-# INLINE_NORMAL isInfixOf #-}
 isInfixOf :: (MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
-isInfixOf (Stream stpa sa) (Stream stpb sb) = go1 (stpa, sa, 0, [])
+isInfixOf (Stream stpa sa) (Stream stpb sb) = go1 (sa, 0, [])
   where
-    go1 (stp, st, i1, b) = do
-      r <- stp defState st
+    go1 (st, i1, b) = do
+      r <- stpa defState st
       case r of
-        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
-        Skip st' -> go1 (stp, st', i1, b)
+        Yield x st' -> go1 (st', i1 + 1, x:b)
+        Skip st' -> go1 (st', i1, b)
         Stop -> do
           (rb, rh) <- liftIO (RB.new i1)
-          go2 (i1, A.fromList b, stpb, sb, 0, rb, rh)
+          go2 (i1, A.fromList b, sb, 0, rb, rh)
 
-    go2 (i1, b, stp, st, i2, rb, rh) = do
-      r <- stp defState st
+    go2 (i1, b, st, i2, rb, rh) = do
+      r <- stpb defState st
       case r of
         Yield x st' -> do
           rh1 <- liftIO $ RB.unsafeInsert rb rh x
-          if i2 + 1 >= i1 then go3 (i1, b, stp, st', i2 + 1, rb, rh1)
-                          else go2 (i1, b, stp, st', i2 + 1, rb, rh1)
-        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+          if i2 + 1 >= i1 then go3 (i1, b, st', i2 + 1, rb, rh1)
+                          else go2 (i1, b, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, st', i2, rb, rh)
         Stop -> if i2 >= i1 then go4 (b, rb, rh)
                             else return False
 
-    go3 arg@(_, b, _, _, _, rb, rh)
+    go3 arg@(_, b, _, _, rb, rh)
       | RB.unsafeEqArray rb rh b = return True
       | otherwise = go2 arg   
 
@@ -2120,22 +2120,22 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
 stripSuffix
     :: (MonadIO m, Storable a)
     => Stream m a -> Stream m a -> m (Maybe (Stream m a))
-stripSuffix (Stream stpa sa) strm@(Stream stpb sb) = go1 (stpa, sa, 0, [])
+stripSuffix (Stream stpa sa) strm@(Stream stpb sb) = go1 (sa, 0, [])
   where
-    go1 (stp, st, i1, b) = do
-      r <- stp defState st
+    go1 (st, i1, b) = do
+      r <- stpa defState st
       case r of
-        Yield x st' -> go1 (stp, st', i1 + 1, x:b)
-        Skip st' -> go1 (stp, st', i1, b)
-        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, stpb, sb, 0, rb, rh)
+        Yield x st' -> go1 (st', i1 + 1, x:b)
+        Skip st' -> go1 (st', i1, b)
+        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, sb, 0, rb, rh)
 
-    go2 (i1, b, stp, st, i2, rb, rh) = do
-      r <- stp defState st
+    go2 (i1, b, st, i2, rb, rh) = do
+      r <- stpb defState st
       case r of
         Yield x st' -> do
           rh1 <- liftIO $ RB.unsafeInsert rb rh x
-          go2 (i1, b, stp, st', i2 + 1, rb, rh1)
-        Skip st' -> go2 (i1, b, stp, st', i2, rb, rh)
+          go2 (i1, b, st', i2 + 1, rb, rh1)
+        Skip st' -> go2 (i1, b, st', i2, rb, rh)
         Stop -> go3 (i1, b, i2, rb, rh) 
 
     go3 (i1, b, i2, rb, rh)
