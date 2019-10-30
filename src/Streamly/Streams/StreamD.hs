@@ -4417,13 +4417,16 @@ reassembleBy sz diff (Stream step state) = Stream step' state'
         Yield a s' -> case diff a c of 
           0 -> return $ Skip (h, Just c, s')
           1 -> return $ Yield a (h, Just a, s')
-          x | x < sz ->
+          x | x < 0 -> return $ Skip (h, Just c, s')
+            | x < sz ->
             let y = diff a minBound in
             case view of
               Just (Entry _ payH, delH) ->
                 case diff payH c of
                   0 -> return $ Skip (H.insert (Entry y a) delH, Just c, s')
                   1 -> return $ Yield payH (H.insert (Entry y a) delH, Just payH, s')
+                  -- XXX Condition required?
+                  x_ | x_ < 0 -> return $ Skip (H.insert (Entry y a) delH, Just c, s')
                   _ -> return $ Skip (H.insert (Entry y a) h, Just c, s')
               _ -> return $ Skip (h, Just c, s')
             | otherwise -> return $ Skip (h, Just c, s')
@@ -4433,6 +4436,8 @@ reassembleBy sz diff (Stream step state) = Stream step' state'
               case diff payH c of
                 0 -> return $ Skip (delH, Just c, s')
                 1 -> return $ Yield payH (delH, Just payH, s')
+                -- XXX Condition required?
+                x | x < 0 -> return $ Skip (delH, Just c, s')
                 _ -> return $ Skip (h, Just c, s')
             _ -> return $ Skip (h, Just c, s')
         Stop -> 
@@ -4441,6 +4446,8 @@ reassembleBy sz diff (Stream step state) = Stream step' state'
               case diff payH c of
                 0 -> return $ Skip (delH, Just c, s)
                 1 -> return $ Yield payH (delH, Just payH, s)
+                -- XXX Condition required?
+                x | x < 0 -> return $ Skip (delH, Just c, s)
                 -- XXX Do we want to yeild the rest?
                 _ -> return Stop
             _ -> return Stop
