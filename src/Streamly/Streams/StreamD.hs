@@ -3815,6 +3815,10 @@ data WList = WCons !Word8 !WList | WNil
 
 data EncodeState s = EncodeState s !WList
 
+-- More yield points improve performance, but I am not sure if they can cause
+-- too much code bloat or some trouble with fusion. So keeping only two yield
+-- points for now, one for the ascii chars (fast path) and one for all other
+-- paths (slow path).
 {-# INLINE_NORMAL encodeUtf8 #-}
 encodeUtf8 :: Monad m => Stream m Char -> Stream m Word8
 encodeUtf8 (Stream step state) = Stream step' (EncodeState state WNil)
@@ -3828,8 +3832,7 @@ encodeUtf8 (Stream step state) = Stream step' (EncodeState state WNil)
                     case ord c of
                         x
                             | x <= 0x7F ->
-                                Skip
-                                    (EncodeState s (WCons (fromIntegral x) WNil))
+                                Yield (fromIntegral x) (EncodeState s WNil)
                             | x <= 0x7FF -> Skip (EncodeState s (ord2 c))
                             | x <= 0xFFFF ->
                                 if isSurrogate c

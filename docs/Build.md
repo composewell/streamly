@@ -2,7 +2,7 @@
 
 Recommended GHC options are: 
 
-  `-O2 -fspec-constr-recursive=10 -fmax-worker-args=16`
+  `-O2 -fspec-constr-recursive=16 -fmax-worker-args=16`
 
 `-fspec-constr-recursive` is needed for better stream fusion by enabling
 the `SpecConstr` optimization in more cases.

@@ -205,7 +205,7 @@ common compile-options
 
 common optimization-options
   ghc-options: -O2
-               -fspec-constr-recursive=10
+               -fspec-constr-recursive=16
                -fmax-worker-args=16
 
 common threading-options
