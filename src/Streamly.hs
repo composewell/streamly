@@ -568,10 +568,33 @@ forEachWith = P.forEachWith
 -- $concurrency
 --
 -- These combinators can be used at any point in a stream composition to set
--- parameters to control the concurrency of the enclosed stream.  A parameter
--- set at any point remains effective for any concurrent combinators used
--- downstream until it is reset.  These control parameters have no effect on
--- non-concurrent combinators in the stream, or on non-concurrent streams.
+-- parameters to control the concurrency of the /argument stream/.  A control
+-- parameter set at any point remains effective for any concurrent combinators
+-- used in the argument stream until it is reset by using the combinator again.
+-- These control parameters have no effect on non-concurrent combinators in the
+-- stream, or on non-concurrent streams.
+--
+-- /Pitfall:/ Remember that 'maxBuffer' in the following example applies to
+-- 'mapM' and any other combinators that may follow it, and it does not apply
+-- to the combinators before it:
+--
+-- @
+--  ...
+--  $ maxBuffer 10
+--  $ S.mapM ...
+--  ...
+-- @
+--
+-- If we use '&' instead of '$' the situation will reverse, in the following
+-- example, 'maxBuffer' does not apply to 'mapM', it applies to combinators
+-- that come before it, because those are the arguments to 'maxBuffer':
+--
+-- @
+--  ...
+--  & maxBuffer 10
+--  & S.mapM ...
+--  ...
+-- @
 
 -- $adapters
 --
