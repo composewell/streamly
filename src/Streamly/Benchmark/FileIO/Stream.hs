@@ -78,6 +78,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Data.Unicode.Stream as SS
+import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D
@@ -431,8 +432,8 @@ linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
 linesUnlinesArrayCharCopy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeChar8
-      $ SS.unlines
-      $ SS.lines
+      $ IUS.unlines
+      $ IUS.lines
       $ SS.decodeChar8
       $ S.unfold FH.read inh
 
@@ -525,8 +526,8 @@ wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCharArrayCopy inh outh =
     S.fold (FH.write outh)
       $ SS.encodeChar8
-      $ SS.unwords
-      $ SS.words
+      $ IUS.unwords
+      $ IUS.words
       $ SS.decodeChar8
       $ S.unfold FH.read inh
 
@@ -597,7 +598,7 @@ inspect $ hasNoTypeClasses 'splitOnSeq
 splitOnSeqUtf8 :: String -> Handle -> IO Int
 splitOnSeqUtf8 str inh =
     (S.length $ IP.splitOnSeq (A.fromList str) FL.drain
-        $ SS.decodeUtf8ArraysLenient
+        $ IUS.decodeUtf8ArraysLenient
         $ IFH.toStreamArrays inh) -- >>= print
 
 -- | Split on suffix sequence.

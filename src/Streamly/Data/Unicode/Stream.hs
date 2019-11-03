@@ -46,40 +46,22 @@ module Streamly.Data.Unicode.Stream
       decodeChar8
     , decodeUtf8
     , decodeUtf8Lenient
-    , D.DecodeError(..)
-    , D.DecodeState
-    , D.CodePoint
-    , decodeUtf8Either
-    , resumeDecodeUtf8Either
-    , decodeUtf8Arrays
-    , decodeUtf8ArraysLenient
 
     -- * Elimination (Encoding)
     , encodeChar8
     , encodeChar8Unchecked
     , encodeUtf8
-{-
-    -- * Unicode aware operations
-    , toCaseFold
-    , toLower
-    , toUpper
-    , toTitle
-
+    {-
     -- * Operations on character strings
     , strip -- (dropAround isSpace)
-    , stripEnd-}
-    -- * Transformation
+    , stripEnd
     , stripStart
+    -}
+    -- * Transformation
     , foldLines
     , foldWords
     , unfoldLines
     , unfoldWords
-
-    -- * Streams of Strings
-    , lines
-    , words
-    , unlines
-    , unwords
     )
 where
 

@@ -46,6 +46,7 @@ import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
+import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.Array as IA
@@ -214,7 +215,7 @@ inspect $ hasNoTypeClassesExcept 'wordsUnwordsCopy [''Storable]
 decodeUtf8Lenient :: Handle -> IO ()
 decodeUtf8Lenient inh =
    S.drain
-     $ SS.decodeUtf8ArraysLenient
+     $ IUS.decodeUtf8ArraysLenient
      $ IFH.toStreamArraysOf (1024*1024) inh
 
 #ifdef INSPECTION
@@ -230,7 +231,7 @@ copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
 copyCodecUtf8Lenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
-     $ SS.decodeUtf8ArraysLenient
+     $ IUS.decodeUtf8ArraysLenient
      $ IFH.toStreamArraysOf (1024*1024) inh
 
 #ifdef INSPECTION

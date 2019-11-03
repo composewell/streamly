@@ -16,6 +16,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
+import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 
 -- Coverage build takes too long with default number of tests
 {-
@@ -56,7 +57,7 @@ propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
             let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ SS.decodeUtf8ArraysLenient
+            chrs <- S.toList $ IUS.decodeUtf8ArraysLenient
                                     (S.fold A.write wrds)
             assert (chrs == list)
 
@@ -66,7 +67,7 @@ testLines =
         monadicIO $ do
             xs <- S.toList
                 $ S.map A.toList
-                $ SS.lines
+                $ IUS.lines
                 $ S.fromList list
             assert (xs == lines list)
 
@@ -87,7 +88,7 @@ testWords =
         monadicIO $ do
             xs <- S.toList
                 $ S.map A.toList
-                $ SS.words
+                $ IUS.words
                 $ S.fromList list
             assert (xs == words list)
 
@@ -96,8 +97,8 @@ testUnlines =
   forAll genUnicode $ \list ->
       monadicIO $ do
           xs <- S.toList
-              $ SS.unlines
-              $ SS.lines
+              $ IUS.unlines
+              $ IUS.lines
               $ S.fromList list
           assert (xs == unlines (lines list))
 
@@ -107,8 +108,8 @@ testUnwords =
       monadicIO $ do
           xs <- run
               $ S.toList
-              $ SS.unwords
-              $ SS.words
+              $ IUS.unwords
+              $ IUS.words
               $ S.fromList list
           assert (xs == unwords (words list))
 

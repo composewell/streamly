@@ -36,6 +36,9 @@ import Data.Word (Word8)
 import GHC.Conc (numCapabilities)
 import System.Environment (getArgs)
 import System.IO (Handle, openFile, IOMode(..))
+import Streamly.Internal.Data.Unicode.Stream
+       (DecodeState, DecodeError(..), CodePoint, decodeUtf8Either,
+       resumeDecodeUtf8Either)
 
 import qualified Streamly as S
 import qualified Streamly.Data.Unicode.Stream as S
@@ -239,7 +242,7 @@ resetHeaderOnNewChar counts = do
 -- Manipulating the trailer
 -------------------------------------------------------------------------------
 
-setTrailer :: V.IOVector Int -> S.DecodeState -> S.CodePoint -> IO ()
+setTrailer :: V.IOVector Int -> DecodeState -> CodePoint -> IO ()
 setTrailer counts st cp = do
     writeField counts TrailerState (fromIntegral st)
     writeField counts TrailerCodePoint cp
@@ -257,7 +260,7 @@ resetTrailerOnNewChar counts = do
 -------------------------------------------------------------------------------
 
 {-# INLINE countChar #-}
-countChar :: V.IOVector Int -> Either S.DecodeError Char -> IO ()
+countChar :: V.IOVector Int -> Either DecodeError Char -> IO ()
 countChar counts inp =
     case inp of
         Right ch -> do
@@ -272,7 +275,7 @@ countChar counts inp =
                 wasSpace <- readField counts WasSpace
                 when (wasSpace /= 0) $ modifyField counts WordCount (+ 1)
                 accountChar counts False
-        Left (S.DecodeError st cp) -> do
+        Left (DecodeError st cp) -> do
             hdone <- readField counts HeaderDone
             if hdone == 0
             then do
@@ -309,7 +312,7 @@ _wc_mwl_parserial :: Handle -> IO (V.IOVector Int)
 _wc_mwl_parserial src = do
     counts <- newCounts
     S.mapM_ (countChar counts)
-        $ S.decodeUtf8Either
+        $ decodeUtf8Either
         $ S.unfold FH.read src
     return counts
 
@@ -348,7 +351,7 @@ _wc_mwl_serial src = print =<< (
 reconstructChar :: Int
                 -> V.IOVector Int
                 -> V.IOVector Int
-                -> IO (S.SerialT IO (Either S.DecodeError Char))
+                -> IO (S.SerialT IO (Either DecodeError Char))
 reconstructChar hdrCnt v1 v2 = do
     when (hdrCnt > 3 || hdrCnt < 0) $ error "reconstructChar: hdrCnt > 3"
     stream1 <-
@@ -372,7 +375,7 @@ reconstructChar hdrCnt v1 v2 = do
 
     state <- readField v1 TrailerState
     cp <- readField v1 TrailerCodePoint
-    return $ S.resumeDecodeUtf8Either (fromIntegral state) cp stream3
+    return $ resumeDecodeUtf8Either (fromIntegral state) cp stream3
 
 getHdrChar :: V.IOVector Int -> IO (Maybe Int)
 getHdrChar v = do
@@ -543,7 +546,7 @@ addCounts v1 v2 = do
                                     writeField v1 TrailerState trailerState2
                                     writeField v1 TrailerCodePoint trailerCodePoint2
                                     return v1
-                                Left (S.DecodeError st cp) -> do
+                                Left (DecodeError st cp) -> do
                                     -- if header was incomplete it may result
                                     -- in partially decoded char to be written
                                     -- as trailer. Check if the last error is
@@ -554,7 +557,7 @@ addCounts v1 v2 = do
                                                 Nothing -> (st, cp)
                                                 Just lst -> case lst of
                                                     Right _ -> error "addCounts: Bug"
-                                                    Left (S.DecodeError st1 cp1) -> (st1, cp1)
+                                                    Left (DecodeError st1 cp1) -> (st1, cp1)
                                     if hdone2 == 0 && st' /= 12
                                     then do
                                         -- all elements before the last one must be errors
@@ -593,7 +596,7 @@ countArray :: A.Array Word8 -> IO (V.IOVector Int)
 countArray src = do
     counts <- newCounts
     S.mapM_ (countChar counts)
-        $ S.decodeUtf8Either
+        $ decodeUtf8Either
         $ S.unfold A.read src
     return counts
 
