@@ -77,7 +77,7 @@ import qualified Streamly.Internal.Memory.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold as IFL
-import qualified Streamly.Data.String as SS
+import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D

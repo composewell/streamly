@@ -45,7 +45,7 @@ import Prelude hiding (last)
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
-import qualified Streamly.Data.String as SS
+import qualified Streamly.Data.Unicode.Stream as SS
 
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.Array as IA

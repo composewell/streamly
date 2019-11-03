@@ -10,7 +10,7 @@ import Network.Socket (close)
 import System.Environment (getArgs)
 
 import Streamly
-import Streamly.Data.String
+import Streamly.Data.Unicode.Stream
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Network.Socket as NS

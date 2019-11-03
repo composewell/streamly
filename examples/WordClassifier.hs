@@ -16,7 +16,7 @@ import           Data.IORef
 import qualified Data.List as List
 import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
-import qualified Streamly.Data.String as Streamly
+import qualified Streamly.Data.Unicode.Stream as Streamly
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as IFL

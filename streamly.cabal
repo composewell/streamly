@@ -283,7 +283,7 @@ library
     exposed-modules:   Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Fold
-                     , Streamly.Data.String
+                     , Streamly.Data.Unicode.Stream
 
                     -- IO devices
                      , Streamly.Memory.Array
@@ -312,6 +312,7 @@ library
                      , Streamly.Internal.Data.List
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
+                     , Streamly.Internal.Data.Unicode.Stream
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:

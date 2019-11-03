@@ -38,7 +38,7 @@ import System.Environment (getArgs)
 import System.IO (Handle, openFile, IOMode(..))
 
 import qualified Streamly as S
-import qualified Streamly.Data.String as S
+import qualified Streamly.Data.Unicode.Stream as S
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
