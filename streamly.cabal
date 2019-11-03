@@ -313,6 +313,8 @@ library
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.File
                      , Streamly.Internal.Data.Unicode.Stream
+                     , Streamly.Internal.Data.Unicode.Char
+                     , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
     if !impl(ghcjs)
        exposed-modules:

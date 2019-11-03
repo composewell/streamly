@@ -24,7 +24,7 @@ main = do
     file <- fmap head getArgs
     withFile file AppendMode
         (\src -> S.fold (FH.write src)
-        $ encodeChar8Unchecked
+        $ encodeLatin1Lax
         $ S.concatUnfold A.read
         $ S.concatMapWith parallel use
         $ S.unfold TCP.acceptOnPort 8090)
@@ -34,5 +34,5 @@ main = do
     use sk = S.finally (liftIO $ close sk) (recv sk)
     recv =
           S.splitWithSuffix (== '\n') A.write
-        . decodeChar8
+        . decodeLatin1
         . S.unfold NS.read

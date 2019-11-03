@@ -155,12 +155,12 @@ main = do
            , mkBench "read-word8" href $ do
                Handles inh _ <- readIORef href
                BFS.readWord8 inh
-           , mkBench "read-char8" href $ do
+           , mkBench "read-latin1" href $ do
                Handles inh _ <- readIORef href
-               BFS.decodeChar8 inh
+               BFS.decodeLatin1 inh
            , mkBench "read-utf8" href $ do
                Handles inh _ <- readIORef href
-               BFS.decodeUtf8Lenient inh
+               BFS.decodeUtf8Lax inh
             ]
         , bgroup "copyArray"
             [ mkBench "copy" href $ do
@@ -176,7 +176,7 @@ main = do
             ]
         -- This needs an ascii file, as decode just errors out.
         , bgroup "decode-encode"
-           [ mkBench "char8" href $ do
+           [ mkBench "latin1" href $ do
                Handles inh outh <- readIORef href
                BFS.copyCodecChar8 inh outh
            , mkBench "utf8-arrays" href $ do

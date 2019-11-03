@@ -17,6 +17,7 @@ import qualified Data.List as List
 import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
 import qualified Streamly.Data.Unicode.Stream as Streamly
+import qualified Streamly.Internal.Data.Unicode.Stream as Streamly
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as IFL
@@ -56,9 +57,9 @@ main =
         name <- fmap head getArgs
         src <- openFile name ReadMode
         Streamly.unfold FH.read src     -- SerialT IO Word8
-         & Streamly.decodeChar8         -- SerialT IO Char
+         & Streamly.decodeLatin1         -- SerialT IO Char
          & Streamly.map toLower         -- SerialT IO Char
-         & Streamly.foldWords FL.toList -- SerialT IO String
+         & Streamly.words FL.toList -- SerialT IO String
          & Streamly.filter (all isAlpha)
          & Streamly.foldlM' (flip (Map.alterF alter)) Map.empty
          & fmap Map.toList

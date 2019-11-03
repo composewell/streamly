@@ -8,25 +8,21 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A unicode string can be represented either as a stream of 'Char' e.g.
--- 'SerialT' 'Identity' 'Char' or as 'Array' 'Char'.  Unicode text processing
--- can be done efficiently by applying stream operations and folds on the
--- stream of 'Char'. When using 'Array' 'Char' direct array operations can be
--- applied where available or the array can be read into a stream and then
--- processed using stream operations. Use 'Array' 'Char' when you need to store
--- or buffer strings temporarily in memory.  Streams in 'Identity' monad and
--- 'Array' 'Char' are instances of 'IsString' and 'IsList', therefore,
+-- A byte stream of Unicode text can be decoded into a stream of 'Char' and
+-- processed efficiently using regular stream processing operations. A stream
+-- of 'Char' can be encoded into a byte stream using UTF formats and written to
+-- IO devices.
+--
+-- If you have to store a unicode string in memory you can either write it as a
+-- pure stream "SerialT Identity Char" or write the 'Char' stream as "Array
+-- Char". If space efficiency is a concern you can UTF8 encode the 'Char'
+-- stream and then write it as "Array Word8".  "SerialT Identity Char" and
+-- "Array Char" are instances of 'IsString' and 'IsList', therefore,
 -- 'OverloadedStrings' and 'OverloadedLists' extensions can be used for
 -- convenience.
 --
--- 'Array' 'Char' is usually perfectly fine to buffer short to medium or even
--- large amounts of text in memory. Also, it is computationally efficient as
--- there is no encoding/decoding involved.  We recommend using true streaming
--- operations to avoid buffering large amounts of data as long as possible e.g.
--- use `foldLines` instead of `lines`. However, if for some reason you are
--- buffering very large amounts of text in memory and are worried about space
--- efficiency you can use 'encodeUtf8' on the stream to convert it to a utf8
--- encoded 'Array' 'Word8'.
+-- Some experimental APIs to conveniently process text using "Array Char"
+-- represenation can be found in "Streamly.Internal.Unicode.Array".
 --
 -- Please note the following:
 --
@@ -43,13 +39,13 @@
 module Streamly.Data.Unicode.Stream
     (
     -- * Construction (Decoding)
-      decodeChar8
+      decodeLatin1
     , decodeUtf8
-    , decodeUtf8Lenient
+    , decodeUtf8Lax
 
     -- * Elimination (Encoding)
-    , encodeChar8
-    , encodeChar8Unchecked
+    , encodeLatin1
+    , encodeLatin1Lax
     , encodeUtf8
     {-
     -- * Operations on character strings
@@ -57,14 +53,15 @@ module Streamly.Data.Unicode.Stream
     , stripEnd
     , stripStart
     -}
-    -- * Transformation
-    , foldLines
-    , foldWords
-    , unfoldLines
-    , unfoldWords
+    -- Not exposing these yet as we have consider these with respect to Unicode
+    -- segmentation routines which are yet to be implemented.
+    -- -- * Transformation
+    -- , lines
+    -- , words
+    -- , unlines
+    -- , unwords
     )
 where
 
 import Streamly.Internal.Data.Unicode.Stream
 import Prelude hiding (lines, words, unlines, unwords)
-import qualified Streamly.Streams.StreamD as D

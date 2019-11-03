@@ -336,7 +336,7 @@ countCharSerial (Counts l w c wasSpace) ch =
 _wc_mwl_serial :: Handle -> IO ()
 _wc_mwl_serial src = print =<< (
       S.foldl' countCharSerial (Counts 0 0 0 True)
-    $ S.decodeUtf8Lenient
+    $ S.decodeUtf8Lax
     $ S.unfold FH.read src)
 
 -------------------------------------------------------------------------------

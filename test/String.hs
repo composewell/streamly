@@ -17,6 +17,7 @@ import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
+import qualified Streamly.Internal.Memory.Unicode.Array as IUA
 
 -- Coverage build takes too long with default number of tests
 {-
@@ -49,7 +50,7 @@ propDecodeEncodeIdLenient =
     forAll genUnicode $ \list ->
         monadicIO $ do
             let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ SS.decodeUtf8Lenient wrds
+            chrs <- S.toList $ SS.decodeUtf8Lax wrds
             assert (chrs == list)
 
 propDecodeEncodeIdArrays :: Property
@@ -67,7 +68,7 @@ testLines =
         monadicIO $ do
             xs <- S.toList
                 $ S.map A.toList
-                $ IUS.lines
+                $ IUA.lines
                 $ S.fromList list
             assert (xs == lines list)
 
@@ -88,7 +89,7 @@ testWords =
         monadicIO $ do
             xs <- S.toList
                 $ S.map A.toList
-                $ IUS.words
+                $ IUA.words
                 $ S.fromList list
             assert (xs == words list)
 
@@ -97,8 +98,8 @@ testUnlines =
   forAll genUnicode $ \list ->
       monadicIO $ do
           xs <- S.toList
-              $ IUS.unlines
-              $ IUS.lines
+              $ IUA.unlines
+              $ IUA.lines
               $ S.fromList list
           assert (xs == unlines (lines list))
 
@@ -108,8 +109,8 @@ testUnwords =
       monadicIO $ do
           xs <- run
               $ S.toList
-              $ IUS.unwords
-              $ IUS.words
+              $ IUA.unwords
+              $ IUA.words
               $ S.fromList list
           assert (xs == unwords (words list))
 
@@ -120,7 +121,7 @@ main = hspec
     $ do
     describe "UTF8 - Encoding / Decoding" $ do
         prop "decodeUtf8 . encodeUtf8 == id" $ propDecodeEncodeId
-        prop "decodeUtf8Lenient . encodeUtf8 == id" $ propDecodeEncodeIdLenient
+        prop "decodeUtf8Lax . encodeUtf8 == id" $ propDecodeEncodeIdLenient
         prop "decodeUtf8ArraysLenient . encodeUtf8 == id"
                 $ propDecodeEncodeIdArrays
         prop "Streamly.Data.String.lines == Prelude.lines" $ testLines

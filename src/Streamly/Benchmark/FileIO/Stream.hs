@@ -47,10 +47,10 @@ module Streamly.Benchmark.FileIO.Stream
     , wordsUnwordsCopy
     , wordsUnwordsCharArrayCopy
     , readWord8
-    , decodeChar8
+    , decodeLatin1
     , copyCodecChar8
     , copyCodecUtf8
-    , decodeUtf8Lenient
+    , decodeUtf8Lax
     , copyCodecUtf8Lenient
     , chunksOf
     , chunksOfD
@@ -79,6 +79,7 @@ import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
+import qualified Streamly.Internal.Memory.Unicode.Array as IUA
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamD as D
@@ -119,8 +120,8 @@ inspect $ 'countBytes `hasNoType` ''D.ConcatMapUState
 countLines :: Handle -> IO Int
 countLines =
     S.length
-        . SS.foldLines FL.drain
-        . SS.decodeChar8
+        . IUS.lines FL.drain
+        . SS.decodeLatin1
         . S.unfold FH.read
 
 #ifdef INSPECTION
@@ -135,8 +136,8 @@ inspect $ 'countLines `hasNoType` ''D.ConcatMapUState
 countWords :: Handle -> IO Int
 countWords =
     S.length
-        . SS.foldWords FL.drain
-        . SS.decodeChar8
+        . IUS.words FL.drain
+        . SS.decodeLatin1
         . S.unfold FH.read
 
 #ifdef INSPECTION
@@ -150,8 +151,8 @@ inspect $ hasNoTypeClasses 'countWords
 countLinesU :: Handle -> IO Int
 countLinesU inh =
     S.length
-        $ SS.foldLines FL.drain
-        $ SS.decodeChar8
+        $ IUS.lines FL.drain
+        $ SS.decodeLatin1
         $ S.concatUnfold A.read (IFH.toStreamArrays inh)
 
 #ifdef INSPECTION
@@ -304,11 +305,11 @@ inspect $ 'copy `hasNoType` ''D.ConcatMapUState
 readWord8 :: Handle -> IO ()
 readWord8 inh = S.drain $ S.unfold FH.read inh
 
-{-# INLINE decodeChar8 #-}
-decodeChar8 :: Handle -> IO ()
-decodeChar8 inh =
+{-# INLINE decodeLatin1 #-}
+decodeLatin1 :: Handle -> IO ()
+decodeLatin1 inh =
    S.drain
-     $ SS.decodeChar8
+     $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
 -- | Copy file
@@ -316,8 +317,8 @@ decodeChar8 inh =
 copyCodecChar8 :: Handle -> Handle -> IO ()
 copyCodecChar8 inh outh =
    S.fold (FH.write outh)
-     $ SS.encodeChar8
-     $ SS.decodeChar8
+     $ SS.encodeLatin1
+     $ SS.decodeLatin1
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
@@ -327,18 +328,18 @@ inspect $ 'copyCodecChar8 `hasNoType` ''AT.FlattenState
 inspect $ 'copyCodecChar8 `hasNoType` ''D.ConcatMapUState
 #endif
 
-{-# INLINE decodeUtf8Lenient #-}
-decodeUtf8Lenient :: Handle -> IO ()
-decodeUtf8Lenient inh =
+{-# INLINE decodeUtf8Lax #-}
+decodeUtf8Lax :: Handle -> IO ()
+decodeUtf8Lax inh =
    S.drain
-     $ SS.decodeUtf8Lenient
+     $ SS.decodeUtf8Lax
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'decodeUtf8Lenient
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''Step
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''AT.FlattenState
--- inspect $ 'decodeUtf8Lenient `hasNoType` ''D.ConcatMapUState
+inspect $ hasNoTypeClasses 'decodeUtf8Lax
+-- inspect $ 'decodeUtf8Lax `hasNoType` ''Step
+-- inspect $ 'decodeUtf8Lax `hasNoType` ''AT.FlattenState
+-- inspect $ 'decodeUtf8Lax `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Copy file
@@ -363,7 +364,7 @@ copyCodecUtf8Lenient :: Handle -> Handle -> IO ()
 copyCodecUtf8Lenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
-     $ SS.decodeUtf8Lenient
+     $ SS.decodeUtf8Lax
      $ S.unfold FH.read inh
 
 #ifdef INSPECTION
@@ -411,10 +412,10 @@ inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeChar8
-      $ SS.unfoldLines IUF.fromList
+      $ SS.encodeLatin1
+      $ IUS.unlines IUF.fromList
       $ S.splitOnSuffix (== '\n') FL.toList
-      $ SS.decodeChar8
+      $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
 {-# INLINE linesUnlinesArrayWord8Copy #-}
@@ -431,10 +432,10 @@ linesUnlinesArrayWord8Copy inh outh =
 linesUnlinesArrayCharCopy :: Handle -> Handle -> IO ()
 linesUnlinesArrayCharCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeChar8
-      $ IUS.unlines
-      $ IUS.lines
-      $ SS.decodeChar8
+      $ SS.encodeLatin1
+      $ IUA.unlines
+      $ IUA.lines
+      $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
 #ifdef INSPECTION
@@ -451,10 +452,10 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesArrayCharCopy [''Storable]
 linesUnlinesArrayUtf8Copy :: Handle -> Handle -> IO ()
 linesUnlinesArrayUtf8Copy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeChar8
+      $ SS.encodeLatin1
       $ IP.intercalate (A.fromList [10]) (pipe SS.decodeUtf8P A.read)
       $ S.splitOnSuffix (== '\n') (IFL.lmap SS.encodeUtf8 A.write)
-      $ SS.decodeChar8
+      $ SS.decodeLatin1
       $ S.unfold FH.read inh
 -}
 
@@ -500,8 +501,8 @@ inspect $ hasNoTypeClasses 'wordsUnwordsCopyWord8
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeChar8
-      $ SS.unfoldWords IUF.fromList
+      $ SS.encodeLatin1
+      $ IUS.unwords IUF.fromList
       -- XXX This pipeline does not fuse with wordsBy but fuses with splitOn
       -- with -funfolding-use-threshold=300.  With wordsBy it does not fuse
       -- even with high limits for inlining and spec-constr ghc options. With
@@ -511,7 +512,7 @@ wordsUnwordsCopy inh outh =
       -- this case could be an unknown issue, need more investigation.
       $ S.wordsBy isSpace FL.toList
       -- -- $ S.splitOn isSpace FL.toList
-      $ SS.decodeChar8
+      $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
 #ifdef INSPECTION
@@ -525,10 +526,10 @@ wordsUnwordsCopy inh outh =
 wordsUnwordsCharArrayCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCharArrayCopy inh outh =
     S.fold (FH.write outh)
-      $ SS.encodeChar8
-      $ IUS.unwords
-      $ IUS.words
-      $ SS.decodeChar8
+      $ SS.encodeLatin1
+      $ IUA.unwords
+      $ IUA.words
+      $ SS.decodeLatin1
       $ S.unfold FH.read inh
 
 lf :: Word8
