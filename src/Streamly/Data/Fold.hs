@@ -2,45 +2,58 @@
 -- Module      : Streamly.Data.Fold
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
--- Maintainer  : harendra@composewell.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
--- A left fold consumes a stream and reduces it to a single value.  The fold
--- operations in "Streamly.Prelude" cannot be combined such that multiple of
--- them can run on the same stream.  This module provides a 'Fold' type that
--- represents a left fold. Multiple such folds can be combined using
+-- 'Fold' type represents an effectful action that consumes a value from an
+-- input stream and combines it with a single final value often called an
+-- accumulator, returning the resulting output accumulator.  Values from a
+-- stream can be /pushed/ to the fold and consumed one at a time. It can also
+-- be called a consumer of stream or a sink.  It is a data representation of
+-- the standard 'Streamly.Prelude.foldl'' function.  A 'Fold' can be turned
+-- into an effect (@m b@) using 'Streamly.Prelude.fold' by supplying it the
+-- input stream.
+--
+-- Using this representation multiple folds can be combined efficiently using
 -- combinators; a stream can then be supplied to the combined fold and it would
--- distribute the input to constituent folds according to the composition.
--- For example, an applicative composition distributes the same input to
--- the constituent folds and then combines the fold outputs.  Similarly, a
--- partitioning combinator can divide the input among constituent folds.
--- All the combinators in this module are of true streaming nature, stream
--- elements are not unnecessarily buffered in memory, guaranteeing a constant
--- memory consumption.
+-- distribute the input to constituent folds according to the composition.  For
+-- example, an applicative composition distributes the same input to the
+-- constituent folds and then combines the resulting fold outputs.  Similarly,
+-- a partitioning combinator divides the input among constituent folds.
 --
--- Consider this module as the consumer side dual of the "Streamly.Prelude"
--- module.  "Streamly.Prelude" provides combinators that can combine stream
--- sources in interesting ways whereas this module provides combinators that
--- combine stream consumers in interesting ways. In other words,
--- "Streamly.Prelude" provides stream merging capabilities while
--- "Streamly.Internal.Data.Fold" provides stream splitting capabilities.
+-- = Performance Notes
 --
--- > import qualified Streamly.Internal.Data.Fold as FL
+-- 'Fold' representation is more efficient than using streams when splitting
+-- streams.  @Fold m a b@ can be considered roughly equivalent to a fold action
+-- @m b -> t m a -> m b@ (where @t@ is a stream type and @m@ is a 'Monad').
+-- Instead of using a 'Fold' type one could just use a fold action of the shape
+-- @m b -> t m a -> m b@ for folding streams. However, multiple such actions
+-- cannot be composed into a single fold function in an efficient manner.
+-- Using the 'Fold' type we can efficiently split the stream across mutliple
+-- folds because it allows the compiler to perform stream fusion optimizations.
+--
+-- On the other hand, transformation operations (e.g. 'Streamly.Prelude.map')
+-- on stream types can be as efficient as transformations on 'Fold' (e.g.
+-- 'Streamly.Internal.Data.Fold.lmap').
+--
+-- = Programmer Notes
+--
+-- > import qualified Streamly.Data.Fold as FL
+--
+-- More, not yet exposed, fold combinators can be found in
+-- "Streamly.Internal.Data.Fold".
 
--- Also see the "Streamly.Internal.Data.Sink" module that provides specialized left folds
--- that discard the outputs.
---
 -- IMPORTANT: keep the signatures consistent with the folds in Streamly.Prelude
 
 module Streamly.Data.Fold
     (
     -- * Fold Type
     -- |
-    -- A 'Fold' can be run over a stream using the 'runFold' combinator in
-    -- "Streamly.Prelude":
+    -- A 'Fold' can be run over a stream using the 'Streamly.Prelude.fold'
+    -- combinator:
     --
-    -- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
+    -- >>> S.fold FL.sum (S.enumerateFromTo 1 100)
     -- 5050
 
       Fold -- (..)
@@ -105,7 +118,7 @@ module Streamly.Data.Fold
     -- Transformations can be applied either on the input side or on the output
     -- side. The 'Functor' instance of a fold maps on the output of the fold:
     --
-    -- >>> S.runFold (fmap show FL.sum) (S.enumerateFromTo 1 100)
+    -- >>> S.fold (fmap show FL.sum) (S.enumerateFromTo 1 100)
     -- "5050"
     --
     -- However, the input side or contravariant transformations are more
@@ -181,7 +194,7 @@ module Streamly.Data.Fold
     -- stream twice:
     --
     -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
-    -- >>> S.runFold avg (S.enumerateFromTo 1.0 100.0)
+    -- >>> S.fold avg (S.enumerateFromTo 1.0 100.0)
     -- 50.5
     --
     -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
@@ -189,7 +202,7 @@ module Streamly.Data.Fold
     -- Semigroup instances of the output types:
     --
     -- >>> import Data.Monoid (Sum)
-    -- >>> S.runFold (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
+    -- >>> S.fold (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
     -- Just (Sum {getSum = 101.0})
     --
     -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.

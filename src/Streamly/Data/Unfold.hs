@@ -19,16 +19,18 @@
 -- Portability : GHC
 --
 -- 'Unfold' type represents an effectful action that generates a stream of
--- values from a single starting value often called a seed value. It can also
--- be called a producer or a source of stream.  It is a data representation of
--- the standard 'S.unfoldr' function.  An 'Unfold' can be converted into a
--- stream using 'S.unfold' by supplying the seed.
+-- values from a single starting value often called a seed value. Values can be
+-- generated and /pulled/ from the 'Unfold' one at a time. It can also be
+-- called a producer or a source of stream.  It is a data representation of the
+-- standard 'S.unfoldr' function.  An 'Unfold' can be converted into a stream
+-- type using 'S.unfold' by supplying the seed.
 --
 -- = Performance Notes
 --
--- 'Unfold' type allows multiple unfold actions to be composed into a single
--- unfold function in an efficient manner by enabling the compiler to perform
--- stream fusion optimization.
+-- 'Unfold' representation is more efficient than using streams when combining
+-- streams.  'Unfold' type allows multiple unfold actions to be composed into a
+-- single unfold function in an efficient manner by enabling the compiler to
+-- perform stream fusion optimization.
 -- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
 -- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
 -- use a function of the shape @a -> t m b@. However, working with stream types
@@ -68,6 +70,3 @@ where
 
 import Prelude hiding (concat, map, takeWhile, take, filter, const)
 import Streamly.Internal.Data.Unfold
-
--- imported for documentation links
-import qualified Streamly.Prelude as S
