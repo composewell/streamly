@@ -283,6 +283,7 @@ library
     exposed-modules:   Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Fold
+                     , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream
 
                     -- IO devices

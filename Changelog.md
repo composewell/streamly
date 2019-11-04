@@ -65,6 +65,11 @@ multiple folds without breaking the stream. Combinators are provided for
 temporal and spatial window based fold operations, for example, to support
 folding and aggregating data for timeout or inactivity based sessions.
 
+#### Composable Unfolds
+
+`Streamly.Unfold` module provides composable stream generators. Unfolds allow
+high performance merging/flattening/combining of stream generators.
+
 #### Streaming File IO
 
 `Streamly.FileSystem.Handle` provides handle based streaming file IO
