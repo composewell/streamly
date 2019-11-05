@@ -63,7 +63,7 @@ import Test.Inspection
 {-# INLINE last #-}
 last :: Handle -> IO (Maybe Word8)
 last inh = do
-    let s = IFH.toStreamArrays inh
+    let s = IFH.toChunks inh
     larr <- S.last s
     return $ case larr of
         Nothing -> Nothing
@@ -78,7 +78,7 @@ inspect $ 'last `hasNoType` ''Step
 {-# INLINE countBytes #-}
 countBytes :: Handle -> IO Int
 countBytes inh =
-    let s = IFH.toStreamArrays inh
+    let s = IFH.toChunks inh
     in S.sum (S.map A.length s)
 
 #ifdef INSPECTION
@@ -89,7 +89,7 @@ inspect $ 'countBytes `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countLines #-}
 countLines :: Handle -> IO Int
-countLines = S.length . AS.splitOnSuffix 10 . IFH.toStreamArrays
+countLines = S.length . AS.splitOnSuffix 10 . IFH.toChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countLines
@@ -100,7 +100,7 @@ inspect $ 'countLines `hasNoType` ''Step
 -- | Count the number of lines in a file.
 {-# INLINE countWords #-}
 countWords :: Handle -> IO Int
-countWords = S.length . AS.splitOn 32 . IFH.toStreamArrays
+countWords = S.length . AS.splitOn 32 . IFH.toChunks
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'countWords
@@ -112,7 +112,7 @@ inspect $ 'countWords `hasNoType` ''Step
 sumBytes :: Handle -> IO Word8
 sumBytes inh = do
     let foldlArr' f z = runIdentity . S.foldl' f z . IA.toStream
-    let s = IFH.toStreamArrays inh
+    let s = IFH.toChunks inh
     S.foldl' (\acc arr -> acc + foldlArr' (+) 0 arr) 0 s
 
 #ifdef INSPECTION
@@ -124,7 +124,7 @@ inspect $ 'sumBytes `hasNoType` ''Step
 {-# INLINE cat #-}
 cat :: Handle -> Handle -> IO ()
 cat devNull inh =
-    S.fold (IFH.writeArrays devNull) $ IFH.toStreamArraysOf (256*1024) inh
+    S.fold (IFH.writeChunks devNull) $ IFH.toChunksRequestsOf (256*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cat
@@ -136,8 +136,8 @@ inspect $ 'cat `hasNoType` ''Step
 catBracket :: Handle -> Handle -> IO ()
 catBracket devNull inh =
     let readEx = IUF.bracket return (\_ -> hClose inh)
-                    (IUF.supplyFirst FH.readArraysOf (256*1024))
-    in IUF.fold readEx (IFH.writeArrays devNull) inh
+                    (IUF.supplyFirst FH.readChunksRequestsOf (256*1024))
+    in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catBracket
@@ -149,8 +149,8 @@ inspect $ hasNoTypeClasses 'catBracket
 catBracketStream :: Handle -> Handle -> IO ()
 catBracketStream devNull inh =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toStreamArraysOf (256*1024) inh)
-    in S.fold (IFH.writeArrays devNull) $ readEx
+                    (\_ -> IFH.toChunksRequestsOf (256*1024) inh)
+    in S.fold (IFH.writeChunks devNull) $ readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catBracketStream
@@ -162,8 +162,8 @@ inspect $ hasNoTypeClasses 'catBracketStream
 catOnException :: Handle -> Handle -> IO ()
 catOnException devNull inh =
     let readEx = IUF.onException (\_ -> hClose inh)
-                    (IUF.supplyFirst FH.readArraysOf (256*1024))
-    in IUF.fold readEx (IFH.writeArrays devNull) inh
+                    (IUF.supplyFirst FH.readChunksRequestsOf (256*1024))
+    in IUF.fold readEx (IFH.writeChunks devNull) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catOnException
@@ -174,8 +174,8 @@ inspect $ hasNoTypeClasses 'catOnException
 {-# INLINE copy #-}
 copy :: Handle -> Handle -> IO ()
 copy inh outh =
-    let s = IFH.toStreamArrays inh
-    in S.fold (IFH.writeArrays outh) s
+    let s = IFH.toChunks inh
+    in S.fold (IFH.writeChunks outh) s
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copy
@@ -186,10 +186,10 @@ inspect $ 'copy `hasNoType` ''Step
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
 linesUnlinesCopy inh outh =
-    S.fold (IFH.writeInChunksOf (1024*1024) outh)
+    S.fold (IFH.writeRequestsOf (1024*1024) outh)
         $ AS.interposeSuffix 10
         $ AS.splitOnSuffix 10
-        $ IFH.toStreamArraysOf (1024*1024) inh
+        $ IFH.toChunksRequestsOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
@@ -200,11 +200,11 @@ inspect $ hasNoTypeClassesExcept 'linesUnlinesCopy [''Storable]
 {-# INLINE wordsUnwordsCopy #-}
 wordsUnwordsCopy :: Handle -> Handle -> IO ()
 wordsUnwordsCopy inh outh =
-    S.fold (IFH.writeInChunksOf (1024*1024) outh)
+    S.fold (IFH.writeRequestsOf (1024*1024) outh)
         $ AS.interpose 32
         -- XXX this is not correct word splitting combinator
         $ AS.splitOn 32
-        $ IFH.toStreamArraysOf (1024*1024) inh
+        $ IFH.toChunksRequestsOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClassesExcept 'wordsUnwordsCopy [''Storable]
@@ -216,7 +216,7 @@ decodeUtf8Lenient :: Handle -> IO ()
 decodeUtf8Lenient inh =
    S.drain
      $ IUS.decodeUtf8ArraysLenient
-     $ IFH.toStreamArraysOf (1024*1024) inh
+     $ IFH.toChunksRequestsOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'decodeUtf8Lenient
@@ -232,7 +232,7 @@ copyCodecUtf8Lenient inh outh =
    S.fold (FH.write outh)
      $ SS.encodeUtf8
      $ IUS.decodeUtf8ArraysLenient
-     $ IFH.toStreamArraysOf (1024*1024) inh
+     $ IFH.toChunksRequestsOf (1024*1024) inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient

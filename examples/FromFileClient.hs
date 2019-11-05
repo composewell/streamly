@@ -16,6 +16,6 @@ main :: IO ()
 main =
     let sendFile file =
             withFile file ReadMode $ \src ->
-                  S.fold (TCP.writeArrays (127, 0, 0, 1) 8090)
-                $ IFH.toStreamArrays src
+                  S.fold (TCP.writeChunks (127, 0, 0, 1) 8090)
+                $ IFH.toChunks src
      in getArgs >>= S.drain . parallely . S.mapM sendFile . S.fromList

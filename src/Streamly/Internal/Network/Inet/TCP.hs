@@ -53,20 +53,20 @@ module Streamly.Internal.Network.Inet.TCP
     -- , readArrayUpto
     -- , readArrayOf
 
-    -- , readArraysUpto
-    -- , readArraysOf
-    -- , readArrays
+    -- , readChunksUpto
+    -- , readChunksOf
+    -- , readChunks
 
     -- *** Sink
     , write
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    -- , writeInChunksOf
+    -- , writeRequestsOf
 
     -- -- * Array Write
     -- , writeArray
-    , writeArrays
+    , writeChunks
     {-
     -- ** Sink Servers
 
@@ -283,7 +283,7 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadIO m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
-read = UF.concat (withServerAddr ISK.readArrays) A.read
+read = UF.concat (withServerAddr ISK.readChunks) A.read
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
@@ -291,7 +291,7 @@ read = UF.concat (withServerAddr ISK.readArrays) A.read
 {-# INLINE toStream #-}
 toStream :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-toStream addr port = AS.concat $ withConnection addr port ISK.toStreamArrays
+toStream addr port = AS.concat $ withConnection addr port ISK.toChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -302,32 +302,32 @@ toStream addr port = AS.concat $ withConnection addr port ISK.toStreamArrays
 -- number.
 --
 -- @since 0.7.0
-{-# INLINE writeArrays #-}
-writeArrays
+{-# INLINE writeChunks #-}
+writeChunks
     :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m (Array Word8)
     -> m ()
-writeArrays addr port xs =
-    S.drain $ withConnection addr port (\sk -> S.yieldM $ SK.writeArrays sk xs)
+writeChunks addr port xs =
+    S.drain $ withConnection addr port (\sk -> S.yieldM $ SK.writeChunks sk xs)
 -}
 
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
 --
 -- @since 0.7.0
-{-# INLINE writeArrays #-}
-writeArrays
+{-# INLINE writeChunks #-}
+writeChunks
     :: (MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m (Array Word8) ()
-writeArrays addr port = Fold step initial extract
+writeChunks addr port = Fold step initial extract
     where
     initial = do
         skt <- liftIO (connect addr port)
-        FL.initialize (SK.writeArrays skt)
+        FL.initialize (SK.writeChunks skt)
     step = FL.runStep
     extract (Fold _ initial1 extract1) = initial1 >>= extract1
 
@@ -337,15 +337,15 @@ writeArrays addr port = Fold step initial extract
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeInChunksOf #-}
-writeInChunksOf
+{-# INLINE writeRequestsOf #-}
+writeRequestsOf
     :: (MonadCatch m, MonadAsync m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-writeInChunksOf n addr port m = writeArrays addr port $ AS.arraysOf n m
+writeRequestsOf n addr port m = writeChunks addr port $ AS.arraysOf n m
 -}
 
 -- | Like 'write' but provides control over the write buffer. Output will
@@ -353,15 +353,15 @@ writeInChunksOf n addr port m = writeArrays addr port $ AS.arraysOf n m
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeInChunksOf #-}
-writeInChunksOf
+{-# INLINE writeRequestsOf #-}
+writeRequestsOf
     :: (MonadAsync m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m Word8 ()
-writeInChunksOf n addr port =
-    FL.lchunksOf n (writeNUnsafe n) (writeArrays addr port)
+writeRequestsOf n addr port =
+    FL.lchunksOf n (writeNUnsafe n) (writeChunks addr port)
 
 {-
 -- | Write a stream to the supplied IPv4 host address and port number.
@@ -370,7 +370,7 @@ writeInChunksOf n addr port =
 {-# INLINE write #-}
 write :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
-write = writeInChunksOf defaultChunkSize
+write = writeRequestsOf defaultChunkSize
 -}
 
 -- | Write a stream to the supplied IPv4 host address and port number.
@@ -379,4 +379,4 @@ write = writeInChunksOf defaultChunkSize
 {-# INLINE write #-}
 write :: MonadAsync m
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
-write = writeInChunksOf defaultChunkSize
+write = writeRequestsOf defaultChunkSize

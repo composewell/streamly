@@ -16,48 +16,30 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- This module provides immutable arrays suitable for storage and random
--- access. Once created an array cannot be mutated without copying.  Arrays in
--- this module are chunks of memory that hold a sequence of 'Storable' values
--- of a given type. They are designed to store serializable data, they cannot
--- store non-serializable data like functions, this is reflected by the
--- 'Storable' constraint. For efficient buffering of data, arrays use pinned
--- memory and therefore can hold arbitrary number of elements with a single
--- movable pointer visible to GC, therefore, adding no pressure to GC.
--- Moreover, pinned memory allows communication with foreign consumers and
--- producers (e.g. file or network IO) without copying the data.
+-- This module provides immutable arrays in pinned memory (non GC memory)
+-- suitable for long lived data storage, random access and for interfacing with
+-- the operating system.
 --
--- By design, there are no array transformation operations provided in this
--- module, only conversion to and from stream is provided.  Arrays can be
--- operated upon /efficiently/ by converting them into a stream, applying the
--- desired stream transformations from "Streamly.Prelude" and then converting
--- it back to an array.
+-- Arrays in this module are chunks of pinned memory that hold a sequence of
+-- 'Storable' values of a given type, they cannot store non-serializable data
+-- like functions.  Once created an array cannot be modified.  Pinned memory
+-- allows efficient buffering of long lived data without adding any impact to
+-- GC. One array is just one pointer visible to GC and it does not have to
+-- copied across generations.  Moreover, pinned memory allows communication
+-- with foreign consumers and producers (e.g. file or network IO) without
+-- copying the data.
+--
+-- = Programmer Notes
+--
+-- To apply a transformation to an array use 'read' to unfold the array into a
+-- stream, apply a transformation on the stream and then use 'write' to fold it
+-- back to an array.
 --
 -- This module is designed to be imported qualified:
 --
 -- > import qualified Streamly.Array as A
-
--- To summarize:
 --
---  Arrays are finite and fixed in size
---  provide /O(1)/ access to elements
---  store only data and not functions
---  provide efficient IO interfacing
---
--- 'Foldable' instance is not provided because the implementation would be much
--- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
--- instances are deliberately not provided to avoid misuse; concatenating
--- arrays using binary operations can be highly inefficient.  Instead, use
--- 'Streamly.Memory.Array.Stream.toArray' to concatenate N arrays at once.
---
--- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
--- single byte) are only as good as holding those elements in a Haskell list.
--- However, small arrays can be compacted into large ones to reduce the
--- overhead. To hold 32GB memory in 32k sized buffers we need 1 million arrays
--- if we use one array for each chunk. This is still significant to add
--- pressure to GC.  However, we can create arrays of arrays (trees) to scale to
--- arbitrarily large amounts of memory but still using small chunks of
--- contiguous memory.
+-- For experimental APIs see "Streamly.Internal.Memory.Array".
 
 module Streamly.Memory.Array
     (
@@ -68,7 +50,7 @@ module Streamly.Memory.Array
     -- * Arrays
     -- ** Construction
     -- | When performance matters, the fastest way to generate an array is
-    -- 'writeN'. For regular use, 'IsList' and 'IsString' instances can be
+    -- 'writeN'. 'IsList' and 'IsString' instances can be
     -- used to conveniently construct arrays from literal values.
     -- 'OverloadedLists' extension or 'fromList' can be used to construct an
     -- array from a list literal.  Similarly, 'OverloadedStrings' extension or

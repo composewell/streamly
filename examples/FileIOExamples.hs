@@ -8,13 +8,19 @@ import Data.Char (ord)
 import System.Environment (getArgs)
 
 cat :: FilePath -> IO ()
-cat src = File.writeArrays "/dev/stdout" $ File.toStreamArraysOf (256*1024) src
+cat src =
+      File.writeChunks "/dev/stdout"
+    $ File.toChunksRequestsOf (256*1024) src
 
 cp :: FilePath -> FilePath -> IO ()
-cp src dst = File.writeArrays dst $ File.toStreamArraysOf (256*1024) src
+cp src dst =
+      File.writeChunks dst
+    $ File.toChunksRequestsOf (256*1024) src
 
 append :: FilePath -> FilePath -> IO ()
-append src dst = File.appendArrays dst $ File.toStreamArraysOf (256*1024) src
+append src dst =
+      File.appendChunks dst
+    $ File.toChunksRequestsOf (256*1024) src
 
 ord' :: Num a => Char -> a
 ord' = (fromIntegral . ord)

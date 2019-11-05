@@ -6,19 +6,23 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
--- import qualified Streamly.String as SS
+-- import qualified Streamly.Data.Unicode.Stream as US
 
 import Data.Char (ord)
 import System.Environment (getArgs)
 import System.IO (IOMode(..), hSeek, SeekMode(..))
 
 cat :: FH.Handle -> IO ()
-cat src = S.fold (IFH.writeArrays FH.stdout) $ IFH.toStreamArraysOf (256*1024) src
+cat src =
+      S.fold (FH.writeChunks FH.stdout)
+    $ IFH.toChunksRequestsOf (256*1024) src
 -- byte stream version
 -- cat src = S.fold (FH.write FH.stdout) $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
-cp src dst = S.fold (IFH.writeArrays dst) $ IFH.toStreamArraysOf (256*1024) src
+cp src dst =
+      S.fold (FH.writeChunks dst)
+    $ IFH.toChunksRequestsOf (256*1024) src
 -- byte stream version
 -- cp src dst = S.fold (FH.write dst) $ FH.read src
 
@@ -28,12 +32,12 @@ ord' = (fromIntegral . ord)
 wcl :: FH.Handle -> IO ()
 wcl src = print =<< (S.length
     $ AS.splitOn 10
-    $ IFH.toStreamArrays src)
+    $ IFH.toChunks src)
 {-
 -- Char stream version
 wcl src = print =<< (S.length
-    $ flip SS.foldLines FL.drain
-    $ SS.decodeChar8
+    $ flip US.lines FL.drain
+    $ US.decodeLatin1
     $ FH.read src)
 -}
 
