@@ -361,42 +361,49 @@ documentation.
 
 ## Arrays
 
-The `Streamly.Memory.Array` module provides mutable arrays.  Arrays are the
-computing duals of streams. Streams are good at sequential access, immutable
-transformations of in-transit data whereas arrays are good at random access,
+The `Streamly.Memory.Array` module provides immutable arrays.  Arrays are the
+computing duals of streams. Streams are good at sequential access and immutable
+transformations of in-transit data whereas arrays are good at random access and
 in-place transformations of buffered data. Unlike streams which are potentially
 infinite, arrays are necessarily finite. Arrays can be used as an efficient
 interface between streams and external storage systems like memory, files and
 network. Streams and arrays complete each other to provide a general purpose
 computing system. The design of streamly as a general purpose computing
 framework is centered around these two fundamental aspects of computing and
-storage. 
+storage.
 
-Arrays in streamly use pinned memory outside GC and therefore avoid any GC
-overhead for the storage in arrays. `ByteString` data type from the
-`bytestring` package and the `Text` data type from the `text` package are just
-special cases of arrays. `ByteString` is equivalent to `Array Word8` and `Text`
-is equivalent to a `utf16` encoded `Array Word8`. All the bytestring and text
-operations can be performed on arrays with equivalent or better performance by
-converting them to and from streams.
+`Streamly.Memory.Array` uses pinned memory outside GC and therefore avoid any
+GC overhead for the storage in arrays. Streamly allows efficient
+transformations over arrays using streams. It uses arrays to transfer data to
+and from the operating system and to store data in memory.
 
 ## Folds
 
-`Streamly.Data.Fold` module provides composable left folds. A `Fold` is a consumer
-of a stream. Folds can be used to fold a stream. Folds can be composed in many
-ways, a stream can be distributed to multiple folds, or it can be partitioned
-across multiple folds, or demultiplexed over multiple folds, or unzipped to two
-folds. We can also use folds to fold segments of stream generating a stream of
-the folded results.
+Folds are consumers of streams.  `Streamly.Data.Fold` module provides a `Fold`
+type that represents a `foldl'`.  Such folds can be efficiently composed
+allowing the compiler to perform stream fusion and therefore implement high
+performance combinators for consuming streams. A stream can be distributed to
+multiple folds, or it can be partitioned across multiple folds, or
+demultiplexed over multiple folds, or unzipped to two folds. We can also use
+folds to fold segments of stream generating a stream of the folded results.
 
 If you are familiar with the `foldl` library, these are the same composable
 left folds but simpler and better integrated with streamly, and with many more
 powerful ways of composing and applying them.
 
+## Unfolds
+
+Unfolds are duals of folds. Folds help us compose consumers of streams
+efficiently and unfolds help us compose producers of streams efficiently.
+`Streamly.Data.Unfold` provides an `Unfold` type that represents an `unfoldr`
+or a stream generator. Such generators can be combined together efficiently
+allowing the compiler to perform stream fusion and implement high performance
+stream merging combinators.
+
 ## File IO
 
 The following code snippets implement some common Unix command line utilities
-using streamly.  You can compile these with `ghc -O2 -fspec-constr-recursive=10
+using streamly.  You can compile these with `ghc -O2 -fspec-constr-recursive=16
 -fmax-worker-args=16` and compare the performance with regular GNU coreutils
 available on your system.  Though many of these are not most optimal solutions
 to keep them short and elegant. Source file
@@ -431,14 +438,14 @@ withArg2 f = do
 ### cat
 
 ``` haskell
-cat = S.fold (FH.writeArrays stdout) . S.unfold FH.readArrays
+cat = S.fold (FH.writeChunks stdout) . S.unfold FH.readChunks
 main = withArg cat
 ```
 
 ### cp
 
 ``` haskell
-cp src dst = S.fold (FH.writeArrays dst) $ S.unfold FH.readArrays src
+cp src dst = S.fold (FH.writeChunks dst) $ S.unfold FH.readChunks src
 main = withArg2 cp
 ```
 
