@@ -12,7 +12,7 @@
 -- Copyright   : (c) 1994-2008 The University of Glasgow
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --

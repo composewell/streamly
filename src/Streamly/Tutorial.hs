@@ -4,7 +4,7 @@
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 --
 -- Streamly is a general computing framework based on concurrent data flow
 -- programming. The IO monad and pure lists are a special case of streamly. On

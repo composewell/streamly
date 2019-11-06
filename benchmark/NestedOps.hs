@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : MIT
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}

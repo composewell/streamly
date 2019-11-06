@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 
 -- Rate benchmarks are kept separate because they need more running time to
 -- provide stable results.

@@ -610,4 +610,4 @@ The code is available under BSD-3 license
 [on github](https://github.com/composewell/streamly). Join the [gitter
 chat](https://gitter.im/composewell/streamly) channel for discussions.  Please
 ask any questions on the gitter channel or [contact the maintainer
-directly](mailto:harendra.kumar@gmail.com). All contributions are welcome!
+directly](mailto:streamly@composewell.com). All contributions are welcome!

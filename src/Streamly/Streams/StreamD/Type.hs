@@ -17,7 +17,7 @@
 -- Copyright   : (c) Roman Leshchinskiy 2008-2010
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 

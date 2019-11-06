@@ -5,7 +5,7 @@ give proper credits for it. Below, we have listed the copyright attributions
 and contributions to this library.  We do due diligence in giving credit where
 its due, if something got missed please do point out by [raising an issue on
 github](https://github.com/composewell/streamly/issues) or [sending an email to
-the maintainers](mailto:harendra.kumar@gmail.com).
+the maintainers](mailto:streamly@composewell.com).
 
 ## Attributions
 
