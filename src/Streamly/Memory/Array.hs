@@ -45,8 +45,6 @@ module Streamly.Memory.Array
     (
       A.Array
 
-    -- , defaultChunkSize
-
     -- * Arrays
     -- ** Construction
     -- | When performance matters, the fastest way to generate an array is
@@ -61,9 +59,8 @@ module Streamly.Memory.Array
     , A.fromList
 
     -- Monadic APIs
-    -- , newArray
     , A.writeN      -- drop new
-    , A.write         -- full buffer
+    , A.write       -- full buffer
     -- , writeLastN -- drop old (ring buffer)
 
     -- ** Elimination
@@ -76,8 +73,7 @@ module Streamly.Memory.Array
     -- ** Random Access
     , A.length
     -- , (!!)
-
-    , A.readIndex
+    -- , A.readIndex
     )
 where
 

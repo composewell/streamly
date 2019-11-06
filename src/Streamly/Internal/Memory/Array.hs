@@ -56,35 +56,63 @@ module Streamly.Internal.Memory.Array
     -- Monadic APIs
     -- , newArray
     , A.writeN      -- drop new
-    , A.write         -- full buffer
+    , A.write       -- full buffer
     -- , writeLastN -- drop old (ring buffer)
 
     -- * Elimination
-    -- 'GHC.Exts.toList' from "GHC.Exts" can be used to convert an array to a
-    -- list.
 
     , A.toList
     , toStream
     , toStreamRev
     , read
+    -- , readChunksOf
 
     -- * Random Access
     , length
     , null
-    -- , (!!)
-
-    , readIndex
     , last
-    {-
-    , readSlice
-    , readSliceRev
-    -}
+    -- , (!!)
+    , readIndex
+    -- , readIndices
+    -- , readRanges
+
+    -- , readFrom    -- read from a given position to the end of file
+    -- , readFromRev -- read from a given position to the beginning of file
+    -- , readTo      -- read from beginning up to the given position
+    -- , readToRev   -- read from end to the given position in file
+    -- , readFromTo
+    -- , readFromThenTo
+
+    -- , readChunksOfFrom
+    -- , ...
+
+    -- , writeIndex
+    -- , writeFrom -- start writing at the given position
+    -- , writeFromRev
+    -- , writeTo   -- write from beginning up to the given position
+    -- , writeToRev
+    -- , writeFromTo
+    -- , writeFromThenTo
+    --
+    -- , writeChunksOfFrom
+    -- , ...
 
     , writeIndex
-    {-
-    , writeSlice
-    , writeSliceRev
-    -}
+    --, writeIndices
+    --, writeRanges
+
+    -- -- * Search
+    -- , bsearch
+    -- , bsearchIndex
+    -- , find
+    -- , findIndex
+    -- , findIndices
+
+    -- -- * In-pace mutation (for Mutable Array type)
+    -- , partitionBy
+    -- , shuffleBy
+    -- , foldtWith
+    -- , foldbWith
 
     -- * Immutable Transformations
     , streamTransform
@@ -324,7 +352,7 @@ foldbWith level f = undefined
 
 -- | /O(1)/ Lookup the element at the given index, starting from 0.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE readIndex #-}
 readIndex :: Storable a => Array a -> Int -> Maybe a
 readIndex arr i =

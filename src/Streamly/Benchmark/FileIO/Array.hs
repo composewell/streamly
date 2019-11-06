@@ -67,7 +67,7 @@ last inh = do
     larr <- S.last s
     return $ case larr of
         Nothing -> Nothing
-        Just arr -> A.readIndex arr (A.length arr - 1)
+        Just arr -> IA.readIndex arr (A.length arr - 1)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'last
