@@ -1589,17 +1589,15 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 --
 -- @since 0.7.0
 {-# INLINE scan #-}
-scan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
 scan (Fold step begin done) = P.scanlMx' step begin done
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
-postscan :: Monad m => Fold m a b -> SerialT m a -> SerialT m b
+postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
 postscan (Fold step begin done) = P.postscanlMx' step begin done
-
--- XXX runPrescan
 
 ------------------------------------------------------------------------------
 -- Transformation by Filtering
