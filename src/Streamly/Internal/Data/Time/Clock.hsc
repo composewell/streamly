@@ -19,7 +19,7 @@
 --               (c) 2009-2012, Cetin Sert
 --               (c) 2010, Eugene Kirpichov
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 

@@ -85,7 +85,7 @@ tested-with:         GHC==7.10.3
                    , GHC==8.6.5
                    , GHC==8.8.1
 author:              Harendra Kumar
-maintainer:          harendra.kumar@gmail.com
+maintainer:          streamly@composewell.com
 copyright:           2017 Harendra Kumar
 category:            Control, Concurrency, Streaming, Reactivity
 stability:           Experimental

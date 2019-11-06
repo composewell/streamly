@@ -3,7 +3,7 @@
 -- Copyright   : (c) 2019 Composewell Technologies
 --               (c) 2013 Gabriel Gonzalez
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --

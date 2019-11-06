@@ -4,7 +4,7 @@
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 
 import Control.Concurrent
 import Control.Monad (when)

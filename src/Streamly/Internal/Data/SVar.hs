@@ -17,7 +17,7 @@
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 

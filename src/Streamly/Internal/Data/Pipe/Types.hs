@@ -7,7 +7,7 @@
 -- Module      : Streamly.Internal.Data.Pipe.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 

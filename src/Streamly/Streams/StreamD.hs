@@ -26,7 +26,7 @@
 -- Copyright   : (c) Bjoern Hoehrmann 2008-2009
 --
 -- License     : BSD3
--- Maintainer  : harendra.kumar@gmail.com
+-- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
 --
