@@ -42,13 +42,13 @@ module Streamly.Network.Socket
 
     -- * Read
     , read
-    , readRequestsOf
+    , readWithBufferOf
     , readChunks
-    , readChunksRequestsOf
+    , readChunksWithBufferOf
 
     -- * Write
     , write
-    , writeRequestsOf
+    , writeWithBufferOf
     , writeChunks
     )
 where

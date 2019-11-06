@@ -15,14 +15,14 @@ import System.IO (IOMode(..), hSeek, SeekMode(..))
 cat :: FH.Handle -> IO ()
 cat src =
       S.fold (FH.writeChunks FH.stdout)
-    $ IFH.toChunksRequestsOf (256*1024) src
+    $ IFH.toChunksWithBufferOf (256*1024) src
 -- byte stream version
 -- cat src = S.fold (FH.write FH.stdout) $ FH.read src
 
 cp :: FH.Handle -> FH.Handle -> IO ()
 cp src dst =
       S.fold (FH.writeChunks dst)
-    $ IFH.toChunksRequestsOf (256*1024) src
+    $ IFH.toChunksWithBufferOf (256*1024) src
 -- byte stream version
 -- cp src dst = S.fold (FH.write dst) $ FH.read src
 

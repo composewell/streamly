@@ -608,7 +608,7 @@ wc_mwl_parallel src n = do
         $ S.aheadly
         $ S.maxThreads numCapabilities
         $ S.mapM (countArray)
-        $ S.unfold FH.readChunksRequestsOf (n, src)
+        $ S.unfold FH.readChunksWithBufferOf (n, src)
 
 -------------------------------------------------------------------------------
 -- Main

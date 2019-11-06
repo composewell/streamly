@@ -15,5 +15,5 @@ main = S.drain
     where
     echo sk =
           S.fold (writeChunks sk)
-        $ S.unfold readChunksRequestsOf (32768, sk)
+        $ S.unfold readChunksWithBufferOf (32768, sk)
     useWith f sk = finally (liftIO (Net.close sk)) (f sk)

@@ -29,7 +29,7 @@ module Streamly.Internal.Network.Socket
 
     -- * Read from connection
     , read
-    , readRequestsOf
+    , readWithBufferOf
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -41,10 +41,10 @@ module Streamly.Internal.Network.Socket
     -- , readArrayOf
 
     -- , readChunksUpto
-    , readChunksRequestsOf
+    , readChunksWithBufferOf
     , readChunks
 
-    , toChunksRequestsOf
+    , toChunksWithBufferOf
     , toChunks
 
     -- * Write to connection
@@ -52,7 +52,7 @@ module Streamly.Internal.Network.Socket
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    , writeRequestsOf
+    , writeWithBufferOf
 
     -- -- * Array Write
     , writeArray
@@ -295,14 +295,14 @@ readChunksUptoWith f size h = go
         then stp
         else yld arr go
 
--- | @toChunksRequestsOf size h@ reads a stream of arrays from file handle @h@.
+-- | @toChunksWithBufferOf size h@ reads a stream of arrays from file handle @h@.
 -- The maximum size of a single array is limited to @size@.
 -- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
-{-# INLINABLE toChunksRequestsOf #-}
-toChunksRequestsOf :: (IsStream t, MonadIO m)
+{-# INLINABLE toChunksWithBufferOf #-}
+toChunksWithBufferOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
-toChunksRequestsOf = readChunksUptoWith readArrayOf
+toChunksWithBufferOf = readChunksUptoWith readArrayOf
 
 -- XXX read 'Array a' instead of Word8
 --
@@ -312,17 +312,17 @@ toChunksRequestsOf = readChunksUptoWith readArrayOf
 -- @since 0.7.0
 {-# INLINE toChunks #-}
 toChunks :: (IsStream t, MonadIO m) => Socket -> t m (Array Word8)
-toChunks = toChunksRequestsOf A.defaultChunkSize
+toChunks = toChunksWithBufferOf A.defaultChunkSize
 
--- | Unfold the tuple @(size, socket)@ into a stream of 'Word8' arrays. The
--- stream consists of arrays representing chunks of data read from the socket.
--- The size of an array in the resulting stream is less than or equal to
--- @size@.
+-- | Unfold the tuple @(bufsize, socket)@ into a stream of 'Word8' arrays.
+-- Read requests to the socket are performed using a buffer of size @bufsize@.
+-- The size of an array in the resulting stream is always less than or equal to
+-- @bufsize@.
 --
 -- @since 0.7.0
-{-# INLINE_NORMAL readChunksRequestsOf #-}
-readChunksRequestsOf :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
-readChunksRequestsOf = Unfold step return
+{-# INLINE_NORMAL readChunksWithBufferOf #-}
+readChunksWithBufferOf :: MonadIO m => Unfold m (Int, Socket) (Array Word8)
+readChunksWithBufferOf = Unfold step return
     where
     {-# INLINE_LATE step #-}
     step (size, h) = do
@@ -341,7 +341,7 @@ readChunksRequestsOf = Unfold step return
 -- @since 0.7.0
 {-# INLINE readChunks #-}
 readChunks :: MonadIO m => Unfold m Socket (Array Word8)
-readChunks = UF.supplyFirst readChunksRequestsOf A.defaultChunkSize
+readChunks = UF.supplyFirst readChunksWithBufferOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Read File to Stream
@@ -352,13 +352,13 @@ readChunks = UF.supplyFirst readChunksRequestsOf A.defaultChunkSize
 -- also control the read throughput in mbps or IOPS.
 
 {-
--- | @readRequestsOf chunkSize handle@ reads a byte stream from a file
--- handle, reads are performed in chunks of up to @chunkSize@.  The stream ends
+-- | @readWithBufferOf bufsize handle@ reads a byte stream from a file
+-- handle, reads are performed in chunks of up to @bufsize@.  The stream ends
 -- as soon as EOF is encountered.
 --
-{-# INLINE readRequestsOf #-}
-readRequestsOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-readRequestsOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
+{-# INLINE readWithBufferOf #-}
+readWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readWithBufferOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 -}
 
 -- TODO
@@ -373,13 +373,13 @@ readRequestsOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 toStream :: (IsStream t, MonadIO m) => Socket -> t m Word8
 toStream = AS.concat . toChunks
 
--- | Unfolds the tuple @(chunksize, socket)@ into a byte stream, read requests
--- to the socket are performed using buffers of @chunkSize@.
+-- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
+-- to the socket are performed using buffers of @bufsize@.
 --
 -- @since 0.7.0
-{-# INLINE readRequestsOf #-}
-readRequestsOf :: MonadIO m => Unfold m (Int, Socket) Word8
-readRequestsOf = UF.concat readChunksRequestsOf A.read
+{-# INLINE readWithBufferOf #-}
+readWithBufferOf :: MonadIO m => Unfold m (Int, Socket) Word8
+readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
@@ -388,7 +388,7 @@ readRequestsOf = UF.concat readChunksRequestsOf A.read
 -- @since 0.7.0
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m Socket Word8
-read = UF.supplyFirst readRequestsOf A.defaultChunkSize
+read = UF.supplyFirst readWithBufferOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -423,19 +423,19 @@ writeChunks h = FL.drainBy (liftIO . writeArray h)
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeRequestsOfS #-}
-writeRequestsOfS :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
-writeRequestsOfS n h m = writeChunksS h $ AS.arraysOf n m
+{-# INLINE writeWithBufferOfS #-}
+writeWithBufferOfS :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+writeWithBufferOfS n h m = writeChunksS h $ AS.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- specified number of bytes before writing.
 --
 -- @since 0.7.0
-{-# INLINE writeRequestsOf #-}
-writeRequestsOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeRequestsOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
+{-# INLINE writeWithBufferOf #-}
+writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
+writeWithBufferOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
 
--- > write = 'writeRequestsOf' A.defaultChunkSize
+-- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Combines the bytes in chunks of size
 -- up to 'A.defaultChunkSize' before writing.  Note that the write behavior
@@ -444,19 +444,19 @@ writeRequestsOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
 -- @since 0.7.0
 {-# INLINE _writeS #-}
 _writeS :: MonadIO m => Socket -> SerialT m Word8 -> m ()
-_writeS = writeRequestsOfS A.defaultChunkSize
+_writeS = writeWithBufferOfS A.defaultChunkSize
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
 -- up to 'A.defaultChunkSize' bytes before writing.
 --
 -- @
--- write = 'writeRequestsOf' 'A.defaultChunkSize'
+-- write = 'writeWithBufferOf' 'A.defaultChunkSize'
 -- @
 --
 -- @since 0.7.0
 {-# INLINE write #-}
 write :: MonadIO m => Socket -> Fold m Word8 ()
-write = writeRequestsOf A.defaultChunkSize
+write = writeWithBufferOf A.defaultChunkSize
 
 {-
 {-# INLINE write #-}

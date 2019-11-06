@@ -72,9 +72,9 @@ module Streamly.FileSystem.Handle
     -- encountered.
 
       read
-    , readRequestsOf
+    , readWithBufferOf
     , readChunks
-    , readChunksRequestsOf
+    , readChunksWithBufferOf
 
     -- ** Write to Handle
     -- | 'TextEncoding', 'NewLineMode', and 'Buffering' options of the
@@ -83,7 +83,7 @@ module Streamly.FileSystem.Handle
     -- of the handle.
 
     , write
-    , writeRequestsOf
+    , writeWithBufferOf
     , writeChunks
     )
 where
