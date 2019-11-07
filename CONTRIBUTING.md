@@ -135,7 +135,7 @@ To build haddock documentation for all modules, including the ones not exposed
 to users of the library, use the following commands:
 
 ```
-$ cabal v2-haddock --haddock-internal
+$ cabal v2-haddock --haddock-option="--show-all"
 $ stack haddock --haddock-arguments "--show-all" --no-haddock-deps
 ```
 
