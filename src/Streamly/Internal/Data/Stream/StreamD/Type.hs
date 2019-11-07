@@ -9,10 +9,10 @@
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
-#include "../inline.hs"
+#include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamD.Type
+-- Module      : Streamly.Internal.Data.Stream.StreamD.Type
 -- Copyright   : (c) 2018 Harendra Kumar
 -- Copyright   : (c) Roman Leshchinskiy 2008-2010
 --
@@ -21,7 +21,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 
-module Streamly.Streams.StreamD.Type
+module Streamly.Internal.Data.Stream.StreamD.Type
     (
     -- * The stream type
       Step (..)
@@ -519,7 +519,7 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
         -- implications.
         when (n <= 0) $
             -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Streams.StreamD.Type.groupsOf: the size of "
+            error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
         fs <- initial

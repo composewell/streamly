@@ -102,7 +102,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
-import qualified Streamly.Streams.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -- | @'useSocketM' socket act@ runs the monadic computation @act@ passing the
 -- socket handle to it.  The handle will be closed on exit from 'useSocketM',

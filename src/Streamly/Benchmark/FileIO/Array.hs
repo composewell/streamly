@@ -55,7 +55,7 @@ import qualified Streamly.Internal.Data.Unfold as IUF
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
-import Streamly.Streams.StreamD.Type (Step(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 import Test.Inspection
 #endif
 

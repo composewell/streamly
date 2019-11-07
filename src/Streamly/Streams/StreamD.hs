@@ -330,7 +330,7 @@ import Streamly.Internal.Data.SVar (MonadAsync, defState, adaptState)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Strict (Tuple'(..))
 
-import Streamly.Streams.StreamD.Type
+import Streamly.Internal.Data.Stream.StreamD.Type
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A

@@ -16,7 +16,7 @@ module Streamly.Internal.Data.Unfold.Types
     )
 where
 
-import Streamly.Streams.StreamD.Type (Step(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..))
 
 ------------------------------------------------------------------------------
 -- Monadic Unfolds

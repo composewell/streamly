@@ -86,7 +86,7 @@ import qualified Streamly.Streams.StreamD as D
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
-import Streamly.Streams.StreamD.Type (Step(..), GroupState)
+import Streamly.Internal.Data.Stream.StreamD.Type (Step(..), GroupState)
 import Test.Inspection
 #endif
 

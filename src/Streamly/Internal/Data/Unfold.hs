@@ -123,9 +123,9 @@ import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude hiding (concat, map, takeWhile, take, filter, const)
 
-import Streamly.Streams.StreamD.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
-import Streamly.Streams.StreamD.Type (pattern Stream)
+import Streamly.Internal.Data.Stream.StreamD.Type (pattern Stream)
 #endif
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))

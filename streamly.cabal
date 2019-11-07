@@ -270,7 +270,6 @@ library
                      , Streamly.Streams.StreamK
                      , Streamly.Streams.StreamDK.Type
                      , Streamly.Streams.StreamDK
-                     , Streamly.Streams.StreamD.Type
                      , Streamly.Streams.StreamD
                      , Streamly.Streams.Enumeration
                      , Streamly.Streams.Prelude
@@ -306,6 +305,7 @@ library
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
+                     , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
@@ -670,6 +670,7 @@ benchmark base
   hs-source-dirs: benchmark, src
   main-is: BaseStreams.hs
   other-modules:     Streamly.Internal.Data.Atomics
+                   , Streamly.Internal.Data.Stream.StreamD.Type
                    , Streamly.Internal.Data.SVar
                    , Streamly.Internal.Data.Time.Units
                    , Streamly.Internal.Data.Time.Clock
@@ -677,7 +678,6 @@ benchmark base
                    , Streamly.Streams.StreamDK
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
-                   , Streamly.Streams.StreamD.Type
                    , Streamly.Streams.StreamD
                    , Streamly.Streams.Prelude
                    , Streamly.FileSystem.IOVec
@@ -725,12 +725,12 @@ executable nano-bench
     c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
   main-is: NanoBenchmarks.hs
   other-modules:     Streamly.Internal.Data.Atomics
+                   , Streamly.Internal.Data.Stream.StreamD.Type
                    , Streamly.Internal.Data.SVar
                    , Streamly.Internal.Data.Time.Units
                    , Streamly.Internal.Data.Time.Clock
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
-                   , Streamly.Streams.StreamD.Type
                    , Streamly.FileSystem.IOVec
                    , Streamly.Streams.StreamD
   if flag(dev)

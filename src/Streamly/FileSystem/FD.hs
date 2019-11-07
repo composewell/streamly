@@ -143,7 +143,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 #if !defined(mingw32_HOST_OS)
 import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
 import Streamly.Streams.StreamD (toStreamD)
-import Streamly.Streams.StreamD.Type (fromStreamD)
+import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 #endif
 -- import Streamly.Data.Fold (Fold)
@@ -152,7 +152,7 @@ import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Prelude as S
-import qualified Streamly.Streams.StreamD.Type as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- References
