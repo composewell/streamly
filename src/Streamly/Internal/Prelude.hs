@@ -1,9 +1,10 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE FlexibleContexts          #-}
+{-# OPTIONS_HADDOCK hide      #-}
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE RankNTypes       #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 #if __GLASGOW_HASKELL__ >= 800
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-orphans  #-}
 #endif
 
 #include "../Streams/inline.hs"

@@ -1,8 +1,9 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnboxedTuples #-}
+{-# OPTIONS_HADDOCK hide         #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE UnboxedTuples       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 #include "inline.hs"

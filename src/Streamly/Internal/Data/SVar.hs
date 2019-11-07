@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide                #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE ConstraintKinds            #-}

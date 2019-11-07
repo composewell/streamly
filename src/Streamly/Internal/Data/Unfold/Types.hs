@@ -1,6 +1,7 @@
+{-# OPTIONS_HADDOCK hide               #-}
 {-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ExistentialQuantification          #-}
-{-# LANGUAGE FlexibleContexts                   #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Unfold.Types

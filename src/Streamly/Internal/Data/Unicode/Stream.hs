@@ -1,4 +1,6 @@
+{-# OPTIONS_HADDOCK hide      #-}
 {-# LANGUAGE FlexibleContexts #-}
+
 -- |
 -- Module      : Streamly.Data.Internal.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies

@@ -1,3 +1,5 @@
+{-# OPTIONS_HADDOCK hide #-}
+
 -- |
 -- Module      : Streamly.Internal.Data.Time
 -- Copyright   : (c) 2017 Harendra Kumar

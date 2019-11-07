@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP    #-}
+{-# OPTIONS_HADDOCK hide #-}
+{-# LANGUAGE CPP         #-}
 
 -- |
 -- Module      : Streamly.Internal.Data.Atomics

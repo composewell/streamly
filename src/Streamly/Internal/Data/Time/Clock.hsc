@@ -1,11 +1,12 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_HADDOCK hide                 #-}
+{-# LANGUAGE CPP                         #-}
+{-# LANGUAGE DeriveGeneric               #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
+{-# LANGUAGE ScopedTypeVariables         #-}
 
 #if __GLASGOW_HASKELL__ >= 800
-{-# OPTIONS_GHC -Wno-identities #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-identities          #-}
+{-# OPTIONS_GHC -Wno-orphans             #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}
 #endif
 

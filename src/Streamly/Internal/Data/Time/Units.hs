@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP #-}
+{-# OPTIONS_HADDOCK hide                #-}
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 

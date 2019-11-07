@@ -1,4 +1,6 @@
+{-# OPTIONS_HADDOCK hide      #-}
 {-# LANGUAGE FlexibleContexts #-}
+
 -- |
 -- Module      : Streamly.Memory.Internal.Unicode.Array
 -- Copyright   : (c) 2018 Composewell Technologies
