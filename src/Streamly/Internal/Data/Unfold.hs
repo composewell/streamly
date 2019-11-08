@@ -62,6 +62,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Operations on Input
     , lmap
+    , lmapM
     , supply
     , supplyFirst
     , supplySecond
@@ -94,6 +95,7 @@ module Streamly.Internal.Data.Unfold
 
     -- * Transformations
     , map
+    , mapM
 
     -- * Filtering
     , takeWhileM
@@ -121,7 +123,7 @@ where
 import Control.Exception (Exception)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
-import Prelude hiding (concat, map, takeWhile, take, filter, const)
+import Prelude hiding (concat, map, mapM, takeWhile, take, filter, const)
 
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
@@ -148,6 +150,13 @@ import qualified Streamly.Streams.StreamD as D
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
 lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
+
+-- | Map an action on the input argument of the 'Unfold'.
+--
+-- /Internal/
+{-# INLINE_NORMAL lmapM #-}
+lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
+lmapM f (Unfold ustep uinject) = Unfold ustep (\x -> f x >>= uinject)
 
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
@@ -243,6 +252,18 @@ map f (Unfold ustep uinject) = Unfold step uinject
             Yield x s -> Yield (f x) s
             Skip s    -> Skip s
             Stop      -> Stop
+
+{-# INLINE_NORMAL mapM #-}
+mapM :: Monad m => (b -> m c) -> Unfold m a b -> Unfold m a c
+mapM f (Unfold ustep uinject) = Unfold step uinject
+    where
+    {-# INLINE_LATE step #-}
+    step st = do
+        r <- ustep st
+        case r of
+            Yield x s -> f x >>= \a -> return $ Yield a s
+            Skip s    -> return $ Skip s
+            Stop      -> return $ Stop
 
 -------------------------------------------------------------------------------
 -- Convert streams into unfolds
