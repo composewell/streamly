@@ -3483,7 +3483,14 @@ decode0 table byte =
     let !t = table `unsafePeekElemOff` fromIntegral byte
         !codep' = (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
         !state' = table `unsafePeekElemOff` (256 + fromIntegral t)
-     in (Tuple' state' codep')
+     in assert ((byte > 0x7f || error showByte)
+                && (state' /= 0 || error (showByte ++ showState state')))
+               (Tuple' state' codep')
+
+    where
+
+    showByte = "decode0: Invalid byte: " ++ show byte
+    showState st = " state: " ++ show st ++ " table: " ++ show table
 
 -- When the state is not 0
 {-# INLINE decode1 #-}

@@ -132,6 +132,11 @@ flag inspection
   manual: True
   default: False
 
+flag debug
+  description: Debug build with asserts enabled
+  manual: True
+  default: False
+
 flag dev
   description: Development build
   manual: True
@@ -193,7 +198,10 @@ common compile-options
     if flag(dev)
       ghc-options:    -Wmissed-specialisations
                       -Wall-missed-specialisations
-                      -fno-ignore-asserts
+
+    if flag(dev) || flag(debug)
+      ghc-options:    -fno-ignore-asserts
+
     if impl(ghc >= 8.0)
       ghc-options:    -Wcompat
                       -Wunrecognised-warning-flags
