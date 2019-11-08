@@ -90,7 +90,7 @@ matrix:
   - env: BUILD=cabal-v2 GHCVER=8.6.5 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags streamk"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.5], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS=""
+  - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
 
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
