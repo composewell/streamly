@@ -299,6 +299,8 @@ import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (assert, Char(..), unsafeChr, ord)
 import GHC.IO.Encoding.Failure (isSurrogate)
+import GHC.ForeignPtr (ForeignPtr (..))
+import GHC.Ptr (Ptr (..))
 import GHC.Types (SPEC(..))
 import GHC.Word (Word8(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -327,7 +329,7 @@ import qualified Streamly.Streams.StreamK as K
 
 import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
+import Foreign.ForeignPtr (touchForeignPtr)
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -3484,13 +3486,17 @@ decode0 table byte =
         !codep' = (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
         !state' = table `unsafePeekElemOff` (256 + fromIntegral t)
      in assert ((byte > 0x7f || error showByte)
-                && (state' /= 0 || error (showByte ++ showState state')))
+                && (state' /= 0 || error (showByte ++ showTable)))
                (Tuple' state' codep')
 
     where
 
-    showByte = "decode0: Invalid byte: " ++ show byte
-    showState st = " state: " ++ show st ++ " table: " ++ show table
+    utf8table =
+        let !(Ptr addr) = table
+            end = table `plusPtr` 364
+        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
+    showByte = "Streamly: decode0: byte: " ++ show byte
+    showTable = " table: " ++ show utf8table
 
 -- When the state is not 0
 {-# INLINE decode1 #-}
@@ -3502,12 +3508,25 @@ decode1
     -> Tuple' DecodeState CodePoint
 decode1 table state codep byte =
     -- Remember codep is Int type!
-    -- Can it be unsafe to convert the resulting to Char?
+    -- Can it be unsafe to convert the resulting Int to Char?
     let !t = table `unsafePeekElemOff` fromIntegral byte
         !codep' = (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
         !state' = table `unsafePeekElemOff`
                     (256 + fromIntegral state + fromIntegral t)
-     in (Tuple' state' codep')
+     in assert (codep' <= 0x10FFFF
+                    || error (showByte ++ showState state codep))
+               (Tuple' state' codep')
+    where
+
+    utf8table =
+        let !(Ptr addr) = table
+            end = table `plusPtr` 364
+        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
+    showByte = "Streamly: decode1: byte: " ++ show byte
+    showState st cp =
+        " state: " ++ show st ++
+        " codepoint: " ++ show cp ++
+        " table: " ++ show utf8table
 
 -- We can divide the errors in three general categories:
 -- * A non-starter was encountered in a begin state
