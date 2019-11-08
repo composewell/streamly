@@ -26,6 +26,9 @@ module Streamly.Internal.Data.Fold
     -- * Fold Type
       Fold (..)
 
+    , hoist
+    , generally
+
     -- , tail
     -- , init
 
@@ -180,6 +183,7 @@ module Streamly.Internal.Data.Fold
 where
 
 import Control.Monad (void)
+import Data.Functor.Identity (Identity(..))
 import Data.Map.Strict (Map)
 
 import Prelude
@@ -243,6 +247,25 @@ mkFold = Fold
 {-# INLINE mkFoldId #-}
 mkFoldId :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
 mkFoldId step initial = Fold step initial return
+
+------------------------------------------------------------------------------
+-- hoist
+------------------------------------------------------------------------------
+
+-- | Change the underlying monad of a fold
+--
+-- /Internal/
+hoist :: (forall x. m x -> n x) -> Fold m a b -> Fold n a b
+hoist f (Fold step initial extract) =
+    Fold (\x a -> f $ step x a) (f initial) (f . extract)
+
+-- | Adapt a pure fold to any monad
+--
+-- > generally = hoist (return . runIdentity)
+--
+-- /Internal/
+generally :: Monad m => Fold Identity a b -> Fold m a b
+generally = hoist (return . runIdentity)
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
