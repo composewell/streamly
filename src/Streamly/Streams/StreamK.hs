@@ -124,6 +124,7 @@ module Streamly.Streams.StreamK
     -- ** Conversions
     , toList
     , toStreamK
+    , hoist
 
     -- * Transformation
     -- ** By folding (scans)
@@ -187,7 +188,7 @@ module Streamly.Streams.StreamK
 where
 
 import Control.Monad.Trans (MonadTrans(lift))
-import Control.Monad (void)
+import Control.Monad (void, join)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
@@ -725,6 +726,18 @@ toList = foldr (:) []
 {-# INLINE toStreamK #-}
 toStreamK :: Stream m a -> Stream m a
 toStreamK = id
+
+-- Based on suggestions by David Feuer and Pranay Sashank
+{-# INLINE hoist #-}
+hoist :: (IsStream t, Monad m, Monad n)
+    => (forall x. m x -> n x) -> t m a -> t n a
+hoist f str =
+    mkStream $ \st yld sng stp ->
+            let single = return . sng
+                yieldk a s = return $ yld a (hoist f s)
+                stop = return stp
+                state = adaptState st
+             in join . f $ foldStreamShared state yieldk single stop str
 
 -------------------------------------------------------------------------------
 -- Transformation by folding (Scans)

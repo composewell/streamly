@@ -133,6 +133,8 @@ module Streamly.Internal.Prelude
 
     -- * Transformation
     , transform
+    , hoist
+    , generally
 
     -- ** Mapping
     , Serial.map
@@ -1468,6 +1470,15 @@ toPureRev = foldl' (flip K.cons) K.nil
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
 transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
+
+{-# INLINE hoist #-}
+hoist :: (Monad m, Monad n)
+    => (forall x. m x -> n x) -> SerialT m a -> SerialT n a
+hoist f xs = fromStreamS $ S.hoist f (toStreamS xs)
+
+{-# INLINE generally #-}
+generally :: (IsStream t, Monad m) => t Identity a -> t m a
+generally xs = fromStreamS $ S.hoist (return . runIdentity) (toStreamS xs)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)

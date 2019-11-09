@@ -536,7 +536,7 @@ defState = State
 -- appropriate unStream functions instead.
 --
 -- | Adapt the stream state from one type to another.
-adaptState :: State t m a -> State t m b
+adaptState :: State t m a -> State t n b
 adaptState st = st
     { streamVar = Nothing
     , _yieldLimit = Nothing

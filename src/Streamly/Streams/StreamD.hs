@@ -188,6 +188,8 @@ module Streamly.Streams.StreamD
     , toListRev
     , toStreamK
     , toStreamD
+    , hoist
+    , generally
 
     -- * Transformation
     , transform
@@ -290,9 +292,7 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
-#if __GLASGOW_HASKELL__ >= 801
-import Data.Functor.Identity (Identity)
-#endif
+import Data.Functor.Identity (Identity(..))
 import Data.Maybe (fromJust, isJust)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
@@ -634,6 +634,21 @@ fromListM = Stream step
 {-# INLINE toStreamD #-}
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
+
+{-# INLINE_NORMAL hoist #-}
+hoist :: Monad n => (forall x. m x -> n x) -> Stream m a -> Stream n a
+hoist f (Stream step state) = (Stream step' state)
+    where
+    step' gst st = do
+        r <- f $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip  s   -> Skip s
+            Stop      -> Stop
+
+{-# INLINE_NORMAL generally #-}
+generally :: Monad m => Stream Identity a -> Stream m a
+generally = hoist (return . runIdentity)
 
 ------------------------------------------------------------------------------
 -- Elimination by Folds

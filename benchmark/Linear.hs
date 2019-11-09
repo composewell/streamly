@@ -48,6 +48,13 @@ benchIOSink
     => String -> (t IO Int -> IO b) -> Benchmark
 benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
 
+{-# INLINE benchHoistSink #-}
+benchHoistSink
+    :: (IsStream t, NFData b)
+    => String -> (t Identity Int -> IO b) -> Benchmark
+benchHoistSink name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f .  Ops.sourceUnfoldr
+
 -- XXX once we convert all the functions to use this we can rename this to
 -- benchIOSink
 {-# INLINE benchIOSink1 #-}
@@ -208,6 +215,7 @@ main =
         , benchIOSink "or" Ops.or
 
         , benchIOSink "length" Ops.length
+        , benchHoistSink "length . generally" (Ops.length . IP.generally)
         , benchIOSink "sum" Ops.sum
         , benchIOSink "product" Ops.product
 
