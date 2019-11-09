@@ -24,17 +24,16 @@
 module Streamly.Internal.Data.Fold
     (
     -- * Fold Type
-    -- |
-    -- A 'Fold' can be run over a stream using the 'runFold' combinator in
-    -- "Streamly.Prelude":
-    --
-    -- >>> S.runFold FL.sum (S.enumerateFromTo 1 100)
-    -- 5050
-
       Fold (..)
 
     -- , tail
     -- , init
+
+    -- * Fold Creation Utilities
+    , mkPure
+    , mkPureId
+    , mkFold
+    , mkFoldId
 
     -- ** Full Folds
     , drain
@@ -62,9 +61,6 @@ module Streamly.Internal.Data.Fold
     , foldMapM
 
     -- ** Full Folds (To Containers)
-    -- | Avoid using these folds in scalable or performance critical
-    -- applications, they buffer all the input in GC memory which can be
-    -- detrimental to performance if the input is large.
 
     , toList
     , toListRevF  -- experimental
@@ -92,22 +88,6 @@ module Streamly.Internal.Data.Fold
     , or
 
     -- * Transformations
-    -- | Unlike stream producer types (e.g. @SerialT m a@) which have only
-    -- output side, folds have an input side as well as an output side.  In the
-    -- type @Fold m a b@, the input type is @a@ and the output type is @b@.
-    -- Transformations can be applied either on the input side or on the output
-    -- side. The 'Functor' instance of a fold maps on the output of the fold:
-    --
-    -- >>> S.runFold (fmap show FL.sum) (S.enumerateFromTo 1 100)
-    -- "5050"
-    --
-    -- However, the input side or contravariant transformations are more
-    -- interesting for folds.  The following sections describe the input
-    -- transformation operations on a fold.  The names of the operations are
-    -- consistent with their covariant counterparts in "Streamly.Prelude", the
-    -- only difference is that they are prefixed with 'l' which stands for
-    -- 'left' assuming left side is the input side, notice that in @Fold m a b@
-    -- the type variable @a@ is on the left side.
 
     -- ** Covariant Operations
     , sequence
@@ -160,51 +140,17 @@ module Streamly.Internal.Data.Fold
     , lchunksOf
 
     -- * Distributing
-    -- |
-    -- The 'Applicative' instance of a distributing 'Fold' distributes one copy
-    -- of the stream to each fold and combines the results using a function.
-    --
-    -- @
-    --
-    --                 |-------Fold m a b--------|
-    -- ---stream m a---|                         |---m (b,c,...)
-    --                 |-------Fold m a c--------|
-    --                 |                         |
-    --                            ...
-    -- @
-    --
-    -- To compute the average of numbers in a stream without going throught he
-    -- stream twice:
-    --
-    -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
-    -- >>> S.runFold avg (S.enumerateFromTo 1.0 100.0)
-    -- 50.5
-    --
-    -- The 'Semigroup' and 'Monoid' instances of a distributing fold distribute
-    -- the input to both the folds and combines the outputs using Monoid or
-    -- Semigroup instances of the output types:
-    --
-    -- >>> import Data.Monoid (Sum)
-    -- >>> S.runFold (FL.head <> FL.last) (fmap Sum $ S.enumerateFromTo 1.0 100.0)
-    -- Just (Sum {getSum = 101.0})
-    --
-    -- The 'Num', 'Floating', and 'Fractional' instances work in the same way.
 
     , tee
     , distribute
 
     -- * Partitioning
-    -- |
-    -- Direct items in the input stream to different folds using a binary
-    -- fold selector.
 
     -- , partitionByM
     -- , partitionBy
     , partition
 
     -- * Demultiplexing
-    -- | Direct values in the input stream to different folds using an n-ary
-    -- fold selector.
 
     , demux
     -- , demuxWith
@@ -212,8 +158,6 @@ module Streamly.Internal.Data.Fold
     -- , demuxWith_
 
     -- * Classifying
-    -- | In an input stream of key value pairs fold values for different keys
-    -- in individual output buckets using the given fold.
 
     , classify
     -- , classifyWith
@@ -254,6 +198,51 @@ import Streamly.Internal.Data.Fold.Types
 import Streamly.Internal.Data.Strict
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+
+------------------------------------------------------------------------------
+-- Smart constructors
+------------------------------------------------------------------------------
+
+-- | Make a fold using a pure step function, a pure initial state and
+-- a pure state extraction function.
+--
+-- /Internal/
+--
+{-# INLINE mkPure #-}
+mkPure :: Monad m => (s -> a -> s) -> s -> (s -> b) -> Fold m a b
+mkPure step initial extract =
+    Fold (\s a -> return $ step s a) (return initial) (return . extract)
+
+-- | Make a fold using a pure step function and a pure initial state. The
+-- final state extracted is identical to the intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkPureId #-}
+mkPureId :: Monad m => (b -> a -> b) -> b -> Fold m a b
+mkPureId step initial = mkPure step initial id
+
+-- | Make a fold with an effectful step function and initial state, and a state
+-- extraction function.
+--
+-- > mkFold = Fold
+--
+--  We can just use 'Fold' but it is provided for completeness.
+--
+-- /Internal/
+--
+{-# INLINE mkFold #-}
+mkFold :: (s -> a -> m s) -> m s -> (s -> m b) -> Fold m a b
+mkFold = Fold
+
+-- | Make a fold with an effectful step function and initial state.  The final
+-- state extracted is identical to the intermediate state.
+--
+-- /Internal/
+--
+{-# INLINE mkFoldId #-}
+mkFoldId :: Monad m => (b -> a -> m b) -> m b -> Fold m a b
+mkFoldId step initial = Fold step initial return
 
 ------------------------------------------------------------------------------
 -- Transformations on fold inputs
@@ -545,7 +534,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
 --
--- > S.runFold FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
+-- > S.fold FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
 --
 -- @since 0.7.0
 {-# INLINABLE mconcat #-}
@@ -558,7 +547,7 @@ mconcat = Fold (\x a -> return $ mappend x a) (return mempty) return
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > S.runFold (FL.foldMap Sum) $ S.enumerateFromTo 1 10
+-- > S.fold (FL.foldMap Sum) $ S.enumerateFromTo 1 10
 --
 -- @since 0.7.0
 {-# INLINABLE foldMap #-}
@@ -571,7 +560,7 @@ foldMap f = lmap f mconcat
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
 --
--- > S.runFold (FL.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
+-- > S.fold (FL.foldMapM (return . Sum)) $ S.enumerateFromTo 1 10
 --
 -- @since 0.7.0
 {-# INLINABLE foldMapM #-}
@@ -769,7 +758,7 @@ or = Fold (\x a -> return $ x || a) (return False) return
 -- ---stream m a---|                         |---m (b,c)
 --                 |-------Fold m a c--------|
 -- @
--- >>> S.runFold (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
+-- >>> S.fold (FL.tee FL.sum FL.length) (S.enumerateFromTo 1.0 100.0)
 -- (5050.0,100)
 --
 -- @since 0.7.0
@@ -811,7 +800,7 @@ foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 --                            ...
 -- @
 --
--- >>> S.runFold (FL.distribute [FL.sum, FL.length]) (S.enumerateFromTo 1 5)
+-- >>> S.fold (FL.distribute [FL.sum, FL.length]) (S.enumerateFromTo 1 5)
 -- [15,5]
 --
 -- This is the consumer side dual of the producer side 'sequence' operation.
@@ -840,7 +829,7 @@ distribute (x:xs) = foldCons x (distribute xs)
 --
 -- >>> import System.Random (randomIO)
 -- >>> randomly a = randomIO >>= \x -> return $ if x then Left a else Right a
--- >>> S.runFold (FL.partitionByM randomly FL.length FL.length) (S.enumerateFromTo 1 100)
+-- >>> S.fold (FL.partitionByM randomly FL.length FL.length) (S.enumerateFromTo 1 100)
 -- (59,41)
 --
 -- Send input to the two folds in a proportion of 2:1:
@@ -856,7 +845,7 @@ distribute (x:xs) = foldCons x (distribute xs)
 --
 -- main = do
 --  f <- proportionately 2 1
---  r <- S.runFold (FL.partitionByM f FL.length FL.length) (S.enumerateFromTo (1 :: Int) 100)
+--  r <- S.fold (FL.partitionByM f FL.length FL.length) (S.enumerateFromTo (1 :: Int) 100)
 --  print r
 -- @
 -- @
@@ -895,7 +884,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 -- >>> let f = FL.partitionBy (\\n -> if even n then Left n else Right n)
 --                       (fmap (("Even " ++) . show) FL.length)
 --                       (fmap (("Odd "  ++) . show) FL.length)
---   in S.runFold f (S.enumerateFromTo 1 100)
+--   in S.fold f (S.enumerateFromTo 1 100)
 -- ("Even 50","Odd 50")
 -- @
 --
@@ -982,7 +971,7 @@ demuxWith f kv = Fold step initial extract
 -- @
 -- > let table = Data.Map.fromList [(\"SUM", FL.sum), (\"PRODUCT", FL.product)]
 --       input = S.fromList [(\"SUM",1),(\"PRODUCT",2),(\"SUM",3),(\"PRODUCT",4)]
---   in S.runFold (FL.demux table) input
+--   in S.fold (FL.demux table) input
 -- One 1
 -- Two 2
 -- @
@@ -1041,7 +1030,7 @@ demuxWith_ f kv = Fold step initial extract
 -- > let prn = FL.drainBy print
 -- > let table = Data.Map.fromList [(\"ONE", prn), (\"TWO", prn)]
 --       input = S.fromList [(\"ONE",1),(\"TWO",2)]
---   in S.runFold (FL.demux_ table) input
+--   in S.fold (FL.demux_ table) input
 -- One 1
 -- Two 2
 -- @
@@ -1061,7 +1050,7 @@ demux_ = demuxWith_ id
 --
 -- @
 -- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.runFold (FL.classify FL.toList) input
+--   in S.fold (FL.classify FL.toList) input
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --
@@ -1091,7 +1080,7 @@ classifyWith f (Fold step initial extract) = Fold step' initial' extract'
 --
 -- @
 -- > let input = S.fromList [(\"ONE",1),(\"ONE",1.1),(\"TWO",2), (\"TWO",2.2)]
---   in S.runFold (FL.classify FL.toList) input
+--   in S.fold (FL.classify FL.toList) input
 -- fromList [(\"ONE",[1.1,1.0]),(\"TWO",[2.2,2.0])]
 -- @
 --

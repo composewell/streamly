@@ -53,16 +53,16 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 -- | Represents a left fold over an input stream of values of type @a@ to a
 -- single value of type @b@ in 'Monad' @m@.
 --
+-- The fold uses an intermediate state @s@ as accumulator. The @step@ function
+-- updates the state and returns the new updated state. When the fold is done
+-- the final result of the fold is extracted from the intermediate state
+-- representation using the @extract@ function.
+--
 -- @since 0.7.0
 
--- The fold uses an intermediate type @x@ as accumulator. The fold accumulator
--- is initialized by calling the @init@ function and is then driven by calling
--- the step function repeatedly. When the fold is done the @extract@ function
--- is used to map the intermediate type @x@ to the final type @b@. This allows
--- the state of the fold to be embedded in an arbitrary type @x@.
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
-  forall x. Fold (x -> a -> m x) (m x) (x -> m b)
+  forall s. Fold (s -> a -> m s) (m s) (s -> m b)
 
 -- | Maps a function on the output of the fold (the type @b@).
 instance Applicative m => Functor (Fold m a) where
@@ -219,7 +219,7 @@ toListRevF = Fold (\xs x -> return $ x:xs) (return []) return
 
 -- | @(lmap f fold)@ maps the function @f@ on the input of the fold.
 --
--- >>> S.runFold (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
+-- >>> S.fold (FL.lmap (\x -> x * x) FL.sum) (S.enumerateFromTo 1 100)
 -- 338350
 --
 -- @since 0.7.0
@@ -244,7 +244,7 @@ lmapM f (Fold step begin done) = Fold step' begin done
 
 -- | Include only those elements that pass a predicate.
 --
--- >>> S.runFold (lfilter (> 5) FL.sum) [1..10]
+-- >>> S.fold (lfilter (> 5) FL.sum) [1..10]
 -- 40
 --
 -- @since 0.7.0
@@ -313,9 +313,9 @@ ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
 -- accumulator. Thus we can resume the fold later and feed it more input.
 --
 -- >> do
--- >    more <- S.runFold (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
--- >    evenMore <- S.runFold (FL.duplicate more) (S.enumerateFromTo 11 20)
--- >    S.runFold evenMore (S.enumerateFromTo 21 30)
+-- >    more <- S.fold (FL.duplicate FL.sum) (S.enumerateFromTo 1 10)
+-- >    evenMore <- S.fold (FL.duplicate more) (S.enumerateFromTo 11 20)
+-- >    S.fold evenMore (S.enumerateFromTo 21 30)
 -- > 465
 --
 -- @since 0.7.0
