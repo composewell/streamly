@@ -25,6 +25,7 @@ module Streamly.Benchmark.Prelude where
 import Control.DeepSeq (NFData)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Maybe (fromJust)
 import GHC.Generics (Generic)
@@ -167,6 +168,19 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+{-# INLINE sourceUnfoldrState #-}
+sourceUnfoldrState :: (S.IsStream t, S.MonadAsync m)
+    => Int -> t (StateT Int m) Int
+sourceUnfoldrState n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else do
+            s <- get
+            put (s + 1)
+            return (Just (s, cnt + 1))
+
 {-# INLINE sourceUnfoldrMN #-}
 sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceUnfoldrMN upto start = S.unfoldrM step start
@@ -207,6 +221,15 @@ runStream = S.drain
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
+
+{-# INLINE evalStateT #-}
+evalStateT :: S.MonadAsync m => Int -> Stream m Int
+evalStateT n = Internal.evalStateT 0 (sourceUnfoldrState n)
+
+{-# INLINE withState #-}
+withState :: S.MonadAsync m => Int -> Stream m Int
+withState n =
+    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM n))
 
 {-# INLINE head #-}
 {-# INLINE last #-}

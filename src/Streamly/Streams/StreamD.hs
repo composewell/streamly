@@ -188,8 +188,14 @@ module Streamly.Streams.StreamD
     , toListRev
     , toStreamK
     , toStreamD
+
     , hoist
     , generally
+
+    , liftInner
+    , runReaderT
+    , evalStateT
+    , runStateT
 
     -- * Transformation
     , transform
@@ -290,6 +296,8 @@ import Control.Exception (Exception, SomeException)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader (ReaderT)
+import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
@@ -312,6 +320,8 @@ import Prelude
                reverse)
 
 import qualified Control.Monad.Catch as MC
+import qualified Control.Monad.Reader as Reader
+import qualified Control.Monad.State.Strict as State
 
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -649,6 +659,51 @@ hoist f (Stream step state) = (Stream step' state)
 {-# INLINE_NORMAL generally #-}
 generally :: Monad m => Stream Identity a -> Stream m a
 generally = hoist (return . runIdentity)
+
+{-# INLINE_NORMAL liftInner #-}
+liftInner :: (Monad m, MonadTrans t, Monad (t m))
+    => Stream m a -> Stream (t m) a
+liftInner (Stream step state) = Stream step' state
+    where
+    step' gst st = do
+        r <- lift $ step (adaptState gst) st
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip s    -> Skip s
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runReaderT #-}
+runReaderT :: Monad m => s -> Stream (ReaderT s m) a -> Stream m a
+runReaderT sval (Stream step state) = Stream step' state
+    where
+    step' gst st = do
+        r <- Reader.runReaderT (step (adaptState gst) st) sval
+        return $ case r of
+            Yield x s -> Yield x s
+            Skip  s   -> Skip s
+            Stop      -> Stop
+
+{-# INLINE_NORMAL evalStateT #-}
+evalStateT :: Monad m => s -> Stream (StateT s m) a -> Stream m a
+evalStateT sval (Stream step state) = Stream step' (state, sval)
+    where
+    step' gst (st, sv) = do
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield x (s, sv')
+            Skip  s   -> Skip (s, sv')
+            Stop      -> Stop
+
+{-# INLINE_NORMAL runStateT #-}
+runStateT :: Monad m => s -> Stream (StateT s m) a -> Stream m (s, a)
+runStateT sval (Stream step state) = Stream step' (state, sval)
+    where
+    step' gst (st, sv) = do
+        (r, sv') <- State.runStateT (step (adaptState gst) st) sv
+        return $ case r of
+            Yield x s -> Yield (sv', x) (s, sv')
+            Skip  s   -> Skip (s, sv')
+            Stop      -> Stop
 
 ------------------------------------------------------------------------------
 -- Elimination by Folds

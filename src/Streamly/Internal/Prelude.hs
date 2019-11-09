@@ -133,8 +133,6 @@ module Streamly.Internal.Prelude
 
     -- * Transformation
     , transform
-    , hoist
-    , generally
 
     -- ** Mapping
     , Serial.map
@@ -376,6 +374,17 @@ module Streamly.Internal.Prelude
     , finally
     , handle
 
+    -- * Generalize Inner Monad
+    , hoist
+    , generally
+
+    -- * Transform Inner Monad
+    , liftInner
+    , runReaderT
+    , evalStateT
+    , usingStateT
+    , runStateT
+
     -- * Diagnostics
     , inspectMode
 
@@ -399,6 +408,8 @@ import Control.Exception (Exception)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Reader (ReaderT)
+import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans (MonadTrans(..))
 import Data.Functor.Identity (Identity (..))
 import Data.Heap (Entry(..))
@@ -1470,15 +1481,6 @@ toPureRev = foldl' (flip K.cons) K.nil
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
 transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
-
-{-# INLINE hoist #-}
-hoist :: (Monad m, Monad n)
-    => (forall x. m x -> n x) -> SerialT m a -> SerialT n a
-hoist f xs = fromStreamS $ S.hoist f (toStreamS xs)
-
-{-# INLINE generally #-}
-generally :: (IsStream t, Monad m) => t Identity a -> t m a
-generally xs = fromStreamS $ S.hoist (return . runIdentity) (toStreamS xs)
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -3696,3 +3698,84 @@ handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a) -> t m a -> t m a
 handle handler xs =
     D.fromStreamD $ D.handle (\e -> D.toStreamD $ handler e) $ D.toStreamD xs
+
+------------------------------------------------------------------------------
+-- Generalize the underlying monad
+------------------------------------------------------------------------------
+
+-- | Transform the inner monad of a stream using a natural transformation.
+--
+-- / Internal/
+--
+{-# INLINE hoist #-}
+hoist :: (Monad m, Monad n)
+    => (forall x. m x -> n x) -> SerialT m a -> SerialT n a
+hoist f xs = fromStreamS $ S.hoist f (toStreamS xs)
+
+-- | Generalize the inner monad of the stream from 'Identity' to any monad.
+--
+-- / Internal/
+--
+{-# INLINE generally #-}
+generally :: (IsStream t, Monad m) => t Identity a -> t m a
+generally xs = fromStreamS $ S.hoist (return . runIdentity) (toStreamS xs)
+
+------------------------------------------------------------------------------
+-- Add and remove a monad transformer
+------------------------------------------------------------------------------
+
+-- | Lift the inner monad of a stream using a monad transformer.
+--
+-- / Internal/
+--
+{-# INLINE liftInner #-}
+liftInner :: (Monad m, IsStream t, MonadTrans tr, Monad (tr m))
+    => t m a -> t (tr m) a
+liftInner xs = fromStreamD $ D.liftInner (toStreamD xs)
+
+-- | Evaluate the inner monad of a stream as 'ReaderT'.
+--
+-- / Internal/
+--
+{-# INLINE runReaderT #-}
+runReaderT :: (IsStream t, Monad m) => s -> t (ReaderT s m) a -> t m a
+runReaderT s xs = fromStreamD $ D.runReaderT s (toStreamD xs)
+
+-- | Evaluate the inner monad of a stream as 'StateT'.
+--
+-- This is supported only for 'SerialT' as concurrent state updation may not be
+-- safe.
+--
+-- / Internal/
+--
+{-# INLINE evalStateT #-}
+evalStateT ::  Monad m => s -> SerialT (StateT s m) a -> SerialT m a
+evalStateT s xs = fromStreamD $ D.evalStateT s (toStreamD xs)
+
+-- | Run a stateful (StateT) stream transformation using a given state.
+--
+-- This is supported only for 'SerialT' as concurrent state updation may not be
+-- safe.
+--
+-- / Internal/
+--
+{-# INLINE usingStateT #-}
+usingStateT
+    :: Monad m
+    => s
+    -> (SerialT (StateT s m) a -> SerialT (StateT s m) a)
+    -> SerialT m a
+    -> SerialT m a
+usingStateT s f xs = evalStateT s $ f $ liftInner xs
+
+-- | Evaluate the inner monad of a stream as 'StateT' and emit the resulting
+-- state and value pair after each step.
+--
+-- This is supported only for 'SerialT' as concurrent state updation may not be
+-- safe.
+--
+-- / Internal/
+--
+{-# INLINE runStateT #-}
+runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
+runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)

@@ -296,6 +296,10 @@ main =
         , benchIOSink "tee" (Ops.transformTeeMapM serially 4)
         , benchIOSink "zip" (Ops.transformZipMapM serially 4)
         ]
+      , bgroup "transformer"
+        [ benchIOSrc serially "evalState" Ops.evalStateT
+        , benchIOSrc serially "withState" Ops.withState
+        ]
       , bgroup "transformation"
         [ benchIOSink "scanl" (Ops.scan 1)
         , benchIOSink "scanl1'" (Ops.scanl1' 1)
