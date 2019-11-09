@@ -78,9 +78,6 @@ module Streamly.Internal.Prelude
     , foldl1'
     , foldlM'
 
-    -- ** Composable Left Folds
-    , fold
-
     -- ** Full Folds
 
     -- -- ** To Summary (Full Folds)
@@ -97,14 +94,6 @@ module Streamly.Internal.Prelude
     , minimumBy
     , minimum
     , the
-    , toListRev -- experimental
-    , toStream
-    , toStreamRev
-
-    -- ** Lazy Folds
-
-    -- -- ** To Containers (Full Folds)
-    , toList
 
     -- ** Partial Folds
 
@@ -129,6 +118,18 @@ module Streamly.Internal.Prelude
     , any
     , and
     , or
+
+    -- ** To Containers
+    , toList
+    , toListRev
+    , toPure
+    , toPureRev
+
+    -- ** Composable Left Folds
+    , fold
+
+    , toStream    -- XXX rename to write?
+    , toStreamRev -- XXX rename to writeRev?
 
     -- * Transformation
     , transform
@@ -397,7 +398,7 @@ import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans (MonadTrans(..))
-import Data.Functor.Identity (Identity)
+import Data.Functor.Identity (Identity (..))
 import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
 import Foreign.Storable (Storable)
@@ -1380,7 +1381,7 @@ toList = P.toList
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
 -- very inefficient, consider using "Streamly.Array" instead.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE toListRev #-}
 toListRev :: Monad m => SerialT m a -> m [a]
 toListRev = D.toListRev . toStreamD
@@ -1404,12 +1405,15 @@ toHandle h m = go m
             yieldk a r = liftIO (IO.hPutStrLn h a) >> go r
         in K.foldStream defState yieldk single stop m1
 
+-- XXX rename these to write/writeRev to make the naming consistent with folds
+-- in other modules.
+--
 -- | A fold that buffers its input to a pure stream.
 --
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
 toStream = Fold (\f x -> return $ f . (x `K.cons`))
@@ -1425,12 +1429,36 @@ toStream = Fold (\f x -> return $ f . (x `K.cons`))
 -- /Warning!/ working on large streams accumulated as buffers in memory could
 -- be very inefficient, consider using "Streamly.Array" instead.
 --
--- @since 0.7.0
+-- /Internal/
 
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
 toStreamRev = Fold (\xs x -> return $ x `K.cons` xs) (return K.nil) return
+
+-- | Convert a stream to a pure stream.
+--
+-- @
+-- toPure = foldr cons nil
+-- @
+--
+-- /Internal/
+--
+{-# INLINE toPure #-}
+toPure :: Monad m => SerialT m a -> m (SerialT Identity a)
+toPure = foldr K.cons K.nil
+
+-- | Convert a stream to a pure stream in reverse order.
+--
+-- @
+-- toPureRev = foldl' (flip cons) nil
+-- @
+--
+-- /Internal/
+--
+{-# INLINE toPureRev #-}
+toPureRev :: Monad m => SerialT m a -> m (SerialT Identity a)
+toPureRev = foldl' (flip K.cons) K.nil
 
 ------------------------------------------------------------------------------
 -- General Transformation
