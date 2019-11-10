@@ -67,6 +67,8 @@ module Streamly.Internal.Memory.Array.Types
     , toArrayMinChunk
     , writeN
     , writeNUnsafe
+    , writeNAligned
+    , writeNAlignedUnmanaged
     , write
     , writeAligned
 
@@ -234,6 +236,35 @@ bytesToElemCount x n =
 -- Construction
 -------------------------------------------------------------------------------
 
+-- | allocate a new array using the provided allocator function.
+{-# INLINE newArrayAlignedAllocWith #-}
+newArrayAlignedAllocWith :: forall a. Storable a
+    => (Int -> Int -> IO (ForeignPtr a)) -> Int -> Int -> IO (Array a)
+newArrayAlignedAllocWith alloc alignSize count = do
+    let size = count * sizeOf (undefined :: a)
+    fptr <- alloc size alignSize
+    let p = unsafeForeignPtrToPtr fptr
+    return $ Array
+        { aStart = fptr
+        , aEnd   = p
+        , aBound = p `plusPtr` size
+        }
+
+-- | Allocate a new array aligned to the specified alignmend and using
+-- unmanaged pinned memory. The memory will not be automatically freed by GHC.
+-- This could be useful in allocate once global data structures. Use carefully
+-- as incorrect use can lead to memory leak.
+{-# INLINE newArrayAlignedUnmanaged #-}
+newArrayAlignedUnmanaged :: forall a. Storable a => Int -> Int -> IO (Array a)
+newArrayAlignedUnmanaged =
+    newArrayAlignedAllocWith Malloc.mallocForeignPtrAlignedUnmanagedBytes
+
+{-# INLINE newArrayAligned #-}
+newArrayAligned :: forall a. Storable a => Int -> Int -> IO (Array a)
+newArrayAligned = newArrayAlignedAllocWith Malloc.mallocForeignPtrAlignedBytes
+
+-- XXX can unaligned allocation be more efficient when alignment is not needed?
+--
 -- | Allocate an array that can hold 'count' items.  The memory of the array is
 -- uninitialized.
 --
@@ -241,15 +272,7 @@ bytesToElemCount x n =
 -- given out until the array has been written to and frozen.
 {-# INLINE newArray #-}
 newArray :: forall a. Storable a => Int -> IO (Array a)
-newArray count = do
-    let size = count * sizeOf (undefined :: a)
-    fptr <- Malloc.mallocForeignPtrAlignedBytes size (alignment (undefined :: a))
-    let p = unsafeForeignPtrToPtr fptr
-    return $ Array
-        { aStart = fptr
-        , aEnd   = p
-        , aBound = p `plusPtr` size
-        }
+newArray = newArrayAligned (alignment (undefined :: a))
 
 -- | Allocate an Array of the given size and run an IO action passing the array
 -- start pointer.
@@ -315,6 +338,7 @@ reallocAligned alignSize newSize Array{..} = do
             , aBound = pNew `plusPtr` newSize
             }
 
+-- XXX can unaligned allocation be more efficient when alignment is not needed?
 {-# INLINABLE realloc #-}
 realloc :: forall a. Storable a => Int -> Array a -> IO (Array a)
 realloc = reallocAligned (alignment (undefined :: a))
@@ -491,22 +515,52 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 -- Instances
 -------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL writeNAllocWith #-}
+writeNAllocWith :: forall m a. (MonadIO m, Storable a)
+    => (Int -> IO (Array a)) -> Int -> Fold m a (Array a)
+writeNAllocWith alloc n = Fold step initial extract
+
+    where
+
+    initial = liftIO $ alloc (max n 0)
+    step arr@(Array _ end bound) _ | end == bound = return arr
+    step (Array start end bound) x = do
+        liftIO $ poke end x
+        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+    -- XXX note that shirkToFit does not maintain alignment, in case we are
+    -- using aligned allocation.
+    extract = return -- liftIO . shrinkToFit
+
 -- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
 -- 'Array'.
 --
 -- @since 0.7.0
 {-# INLINE_NORMAL writeN #-}
 writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
-writeN n = Fold step initial extract
+writeN = writeNAllocWith newArray
 
-    where
+-- | @writeNAligned n@ folds a maximum of @n@ elements from the input
+-- stream to an 'Array' aligned to the given size.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL writeNAligned #-}
+writeNAligned :: forall m a. (MonadIO m, Storable a)
+    => Int -> Int -> Fold m a (Array a)
+writeNAligned alignSize = writeNAllocWith (newArrayAligned alignSize)
 
-    initial = liftIO $ newArray (max n 0)
-    step arr@(Array _ end bound) _ | end == bound = return arr
-    step (Array start end bound) x = do
-        liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
-    extract = return -- liftIO . shrinkToFit
+-- | @writeNAlignedUnmanaged n@ folds a maximum of @n@ elements from the input
+-- stream to an 'Array' aligned to the given size and using unmanaged memory.
+-- This could be useful to allocate memory that we need to allocate only once
+-- in the lifetime of the program.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL writeNAlignedUnmanaged #-}
+writeNAlignedUnmanaged :: forall m a. (MonadIO m, Storable a)
+    => Int -> Int -> Fold m a (Array a)
+writeNAlignedUnmanaged alignSize =
+    writeNAllocWith (newArrayAlignedUnmanaged alignSize)
 
 data ArrayUnsafe a = ArrayUnsafe
     {-# UNPACK #-} !(ForeignPtr a) -- first address
@@ -560,7 +614,7 @@ toArrayMinChunk alignSize elemCount = Fold step initial extract
 
     initial = do
         when (elemCount < 0) $ error "toArrayMinChunk: elemCount is negative"
-        liftIO $ newArray elemCount
+        liftIO $ newArrayAligned alignSize elemCount
     step arr@(Array start end bound) x | end == bound = do
         let p = unsafeForeignPtrToPtr start
             oldSize = end `minusPtr` p

@@ -3515,9 +3515,8 @@ runFold (Fold step begin done) = foldlMx' step begin done
 
 -- XXX Use names decodeSuccess = 0, decodeFailure = 12
 
--- Aligning to cacheline makes a barely noticeable difference
-utf8d :: A.Array Word8
-utf8d = unsafePerformIO $ runFold (A.writeAligned 64) $ fromList [
+decodeTable :: [Word8]
+decodeTable = [
    -- The first part of the table maps bytes to character classes that
    -- to reduce the size of the transition table and create bitmasks.
    0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -3537,6 +3536,14 @@ utf8d = unsafePerformIO $ runFold (A.writeAligned 64) $ fromList [
   12,12,12,12,12,12,12,36,12,36,12,12, 12,36,12,12,12,12,12,36,12,36,12,12,
   12,36,12,12,12,12,12,12,12,12,12,12
   ]
+
+utf8d :: A.Array Word8
+utf8d =
+      unsafePerformIO
+    -- Aligning to cacheline makes a barely noticeable difference
+    -- XXX currently alignment is not implemented for unmanaged allocation
+    $ runFold (A.writeNAlignedUnmanaged 64 (length decodeTable))
+              (fromList decodeTable)
 
 -- | Return element at the specified index without checking the bounds.
 -- and without touching the foreign ptr.
@@ -3665,7 +3672,7 @@ decodeUtf8With cfm (Stream step state) =
                 12 ->
                     Skip $
                     transliterateOrError
-                        "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                        "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
                         (FreshPointDecodeInit st)
                 0 -> error "unreachable state"
                 _ -> Skip (FreshPointDecoding st sv cp)
