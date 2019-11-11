@@ -159,6 +159,7 @@ module Streamly.Streams.StreamD
 
     -- ** Grouping
     , groupsOf
+    , groupsOf2
     , groupsBy
     , groupsRollingBy
 

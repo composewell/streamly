@@ -41,6 +41,7 @@ module Streamly.Internal.Data.Fold
     -- ** Full Folds
     , drain
     , drainBy
+    , drainBy2
     , last
     , length
     , sum
@@ -376,6 +377,10 @@ drain = Fold step begin done
 {-# INLINABLE drainBy #-}
 drainBy ::  Monad m => (a -> m b) -> Fold m a ()
 drainBy f = Fold (const (void . f)) (return ()) return
+
+{-# INLINABLE drainBy2 #-}
+drainBy2 ::  Monad m => (a -> m b) -> Fold2 m c a ()
+drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --

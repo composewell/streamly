@@ -43,6 +43,7 @@ module Streamly.Internal.FileSystem.Handle
     -- ** Write to Handle
     -- Byte stream write (Folds)
     , write
+    , write2
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
@@ -117,6 +118,7 @@ import Prelude hiding (read)
 
 import Streamly (MonadAsync)
 import Streamly.Data.Fold (Fold)
+import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types
        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
@@ -410,6 +412,10 @@ fromBytes = fromBytesWithBufferOf defaultChunkSize
 writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeArray h)
 
+{-# INLINE writeChunks2 #-}
+writeChunks2 :: (MonadIO m, Storable a) => Fold2 m Handle (Array a) ()
+writeChunks2 = Fold2 (\h arr -> liftIO $ writeArray h arr >> return h) return (\_ -> return ())
+
 -- | @writeChunksWithBufferOf bufsize handle@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
 -- We never split an array, if a single array is bigger than the specified size
@@ -439,6 +445,10 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
 writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
 
+{-# INLINE writeWithBufferOf2 #-}
+writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
+writeWithBufferOf2 n = FL.lchunksOf2 n (writeNUnsafe n) writeChunks2
+
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
@@ -449,6 +459,10 @@ writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
 {-# INLINE write #-}
 write :: MonadIO m => Handle -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
+
+{-# INLINE write2 #-}
+write2 :: MonadIO m => Fold2 m Handle Word8 ()
+write2 = writeWithBufferOf2 defaultChunkSize
 
 {-
 {-# INLINE write #-}

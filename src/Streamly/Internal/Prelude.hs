@@ -287,6 +287,7 @@ module Streamly.Internal.Prelude
 
     -- -- *** Chunks
     , chunksOf
+    , chunksOf2
     , arraysOf
     , intervalsOf
 
@@ -429,7 +430,7 @@ import qualified Prelude
 import qualified System.IO as IO
 
 import Streamly.Streams.Enumeration (Enumerable(..), enumerate, enumerateTo)
-import Streamly.Internal.Data.Fold.Types (Fold (..))
+import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -2569,6 +2570,12 @@ chunksOf
     :: (IsStream t, Monad m)
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
+
+{-# INLINE chunksOf2 #-}
+chunksOf2
+    :: (IsStream t, Monad m)
+    => Int -> m c -> Fold2 m c a b -> t m a -> t m b
+chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.

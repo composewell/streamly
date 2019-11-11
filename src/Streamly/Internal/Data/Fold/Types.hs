@@ -14,6 +14,8 @@
 
 module Streamly.Internal.Data.Fold.Types
     ( Fold (..)
+    , Fold2 (..)
+    , simplify
     , toListRevF  -- experimental
     , lmap
     , lmapM
@@ -24,6 +26,7 @@ module Streamly.Internal.Data.Fold.Types
     , ltakeWhile
     , lsessionsOf
     , lchunksOf
+    , lchunksOf2
 
     , duplicate
     , initialize
@@ -63,6 +66,19 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m s) (m s) (s -> m b)
+
+-- Experimental type to provide a side input to the fold for generating the
+-- initial state. For example, if we have to fold chunks of a stream and write
+-- each chunk to a different file, then we can generate the file name using a
+-- monadic action. This is a generalized version of 'Fold'.
+--
+data Fold2 m c a b =
+  -- | @Fold @ @ step @ @ inject @ @ extract@
+  forall s. Fold2 (s -> a -> m s) (c -> m s) (s -> m b)
+
+-- | Convert more general type 'Fold2' into a simpler type 'Fold'
+simplify :: Fold2 m c a b -> c -> Fold m a b
+simplify (Fold2 step inject extract) c = Fold step (inject c) extract
 
 -- | Maps a function on the output of the fold (the type @b@).
 instance Applicative m => Functor (Fold m a) where
@@ -353,6 +369,31 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
     where
 
     initial' = (Tuple3' 0) <$> initial1 <*> initial2
+    step' (Tuple3' i r1 r2) a = do
+        if i < n
+        then do
+            res <- step1 r1 a
+            return $ Tuple3' (i + 1) res r2
+        else do
+            res <- extract1 r1
+            acc2 <- step2 r2 res
+
+            i1 <- initial1
+            acc1 <- step1 i1 a
+            return $ Tuple3' 1 acc1 acc2
+    extract' (Tuple3' _ r1 r2) = do
+        res <- extract1 r1
+        acc2 <- step2 r2 res
+        extract2 acc2
+
+{-# INLINE lchunksOf2 #-}
+lchunksOf2 :: Monad m => Int -> Fold m a b -> Fold2 m x b c -> Fold2 m x a c
+lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
+    Fold2 step' inject' extract'
+
+    where
+
+    inject' x = (Tuple3' 0) <$> initial1 <*> inject2 x
     step' (Tuple3' i r1 r2) a = do
         if i < n
         then do

@@ -63,6 +63,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , take
     , GroupState (..) -- for inspection testing
     , groupsOf
+    , groupsOf2
     )
 where
 
@@ -76,7 +77,7 @@ import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
 
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
 import qualified Streamly.Streams.StreamK as K
 
@@ -531,6 +532,50 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
         fs <- initial
+        return $ Skip (GroupBuffer st fs 0)
+
+    step' gst (GroupBuffer st fs i) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                fs' <- fstep fs x
+                let i' = i + 1
+                return $
+                    if i' >= n
+                    then Skip (GroupYield fs' (GroupStart s))
+                    else Skip (GroupBuffer s fs' i')
+            Skip s -> return $ Skip (GroupBuffer s fs i)
+            Stop -> return $ Skip (GroupYield fs GroupFinish)
+
+    step' _ (GroupYield fs next) = do
+        r <- extract fs
+        return $ Yield r next
+
+    step' _ GroupFinish = return Stop
+
+{-# INLINE_NORMAL groupsOf2 #-}
+groupsOf2
+    :: Monad m
+    => Int
+    -> m c
+    -> Fold2 m c a b
+    -> Stream m a
+    -> Stream m b
+groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
+    n `seq` Stream step' (GroupStart state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ (GroupStart st) = do
+        -- XXX shall we use the Natural type instead? Need to check performance
+        -- implications.
+        when (n <= 0) $
+            -- XXX we can pass the module string from the higher level API
+            error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
+                 ++ "groups [" ++ show n ++ "] must be a natural number"
+        -- fs = fold state
+        fs <- input >>= inject
         return $ Skip (GroupBuffer st fs 0)
 
     step' gst (GroupBuffer st fs i) = do
