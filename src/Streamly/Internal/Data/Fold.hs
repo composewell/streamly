@@ -667,19 +667,17 @@ drainN n = ltake n drain
 drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
 drainWhile p = ltakeWhile p drain
 
--- XXX Add tests and benchmarks
--- XXX Change to strict data structures accordingly
 -- XXX Could potantially made faster
 -- | Take last 'n' elements from the stream and discard the rest.
 {-# INLINABLE lastN #-}
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a b -> Fold m a b
 lastN n f = Fold step' initial' done'
   where
-    step' (rb, rh, i) a = do
+    step' (Tuple3' rb rh i) a = do
       rh1 <- liftIO $ RB.unsafeInsert rb rh a
-      return (rb, rh1, i + 1)
-    initial' = fmap (\(a, b) -> (a, b, 0)) $ liftIO $ RB.new n 
-    done' (rb, rh, i) = do
+      return $ Tuple3' rb rh1 (i + 1)
+    initial' = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n 
+    done' (Tuple3' rb rh i) = do
       lst <- reverse <$> foldFunc i rh cons' [] rb
       runFold f (fromList lst)
     foldFunc i
