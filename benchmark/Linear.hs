@@ -232,6 +232,10 @@ main =
         , benchIOSink "drainN" (S.fold (IFL.drainN Ops.value))
         , benchIOSink "drainWhileTrue" (S.fold (IFL.drainWhile $ (<=) Ops.maxValue))
         , benchIOSink "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) Ops.maxValue))
+        -- XXX Change?
+        , benchIOSink "lastN.1" (S.fold (IFL.lastN 1 FL.length))
+        , benchIOSink "lastN.10" (S.fold (IFL.lastN 10 FL.length))
+        , benchIOSink "lastN.Max" (S.fold (IFL.lastN Ops.maxValue FL.length))
         , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
         , benchIOSink "last" (S.fold FL.last)
         , benchIOSink "length" (S.fold FL.length)
