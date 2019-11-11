@@ -570,26 +570,9 @@ rollingHash = rollingHashWithSalt defaultSalt
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
 rollingHashFirstN n = ltake n rollingHash
 
--- XXX Reduce duplication?
--- XXX Add tests and benchmarks
--- XXX Change to strict data structures accordingly
--- XXX Could potantially made faster
 {-# INLINABLE rollingHashLastN #-}
 rollingHashLastN :: (MonadIO m, Enum a, Storable a) => Int -> Fold m a Int
-rollingHashLastN n = Fold step' initial' done'
-  where
-    step' (rb, rh, i) a = do
-      rh1 <- liftIO $ RB.unsafeInsert rb rh a
-      return (rb, rh1, i + 1)
-    initial' = fmap (\(a, b) -> (a, b, 0)) $ liftIO $ RB.new n 
-    done' (rb, rh, i) = do
-      lst <- reverse <$> foldFunc i rh cons' [] rb
-      runFold rollingHash (fromList lst)
-    foldFunc i
-      | i < n = RB.unsafeFoldRingM 
-      | otherwise = RB.unsafeFoldRingFullM 
-    runFold (Fold step begin done) = foldlMx' step begin done
-    cons' b a = return $ a:b 
+rollingHashLastN n = lastN n rollingHash
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
