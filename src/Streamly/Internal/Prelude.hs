@@ -372,8 +372,8 @@ module Streamly.Internal.Prelude
     , isInfixOf
     , isSubsequenceOf
     , stripPrefix
-    -- , stripSuffix
-    -- , stripInfix
+    , stripSuffix
+    , stripInfix
 
     -- * Exceptions
     , before
@@ -1394,6 +1394,30 @@ stripPrefix
     => t m a -> t m a -> m (Maybe (t m a))
 stripPrefix m1 m2 = fmap fromStreamD <$>
     D.stripPrefix (toStreamD m1) (toStreamD m2)
+
+-- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
+-- not start with the given suffix. Returns @Just nil@ when the suffix is the
+-- same as the stream.
+--
+-- @since 0.6.0
+{-# INLINE stripSuffix #-}
+stripSuffix
+    :: (Storable a, IsStream t, MonadIO m)
+    => t m a -> t m a -> m (Maybe (t m a))
+stripSuffix m1 m2 = fmap fromStreamD <$>
+    D.stripSuffix (toStreamD m1) (toStreamD m2)
+
+-- | Drops the given infix from a stream. Returns 'Nothing' if the stream does
+-- not start with the given infix. Returns @Just nil@ when the infix is the
+-- same as the stream.
+--
+-- @since 0.6.0
+{-# INLINE stripInfix #-}
+stripInfix
+    :: (Storable a, IsStream t, MonadIO m)
+    => t m a -> t m a -> m (Maybe (t m a))
+stripInfix m1 m2 = fmap fromStreamD <$>
+    D.stripInfix (toStreamD m1) (toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Map and Fold

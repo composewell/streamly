@@ -80,6 +80,19 @@ listEquals eq stream list = do
              )
     assert (stream `eq` list)
 
+stripSuffix :: Eq a => [a] -> [a] -> Maybe [a]
+stripSuffix a b = reverse <$> stripPrefix (reverse a) (reverse b)
+
+stripInfix :: Eq a => [a] -> [a] -> Maybe [a]
+stripInfix a b = if isInfixOf a b then Just $ stripInfix' a b
+                                  else Nothing
+  where
+    stripInfix' _ [] = []
+    stripInfix' a b =
+      case stripPrefix a b of
+        Nothing -> head b : stripInfix' a (tail b)
+        Just b' -> stripInfix' a b'
+
 -------------------------------------------------------------------------------
 -- Construction operations
 -------------------------------------------------------------------------------
@@ -749,6 +762,12 @@ eliminationOps constr desc t = do
     prop (desc <> " stripPrefix 10") $ eliminateOp constr (stripPrefix [1..10]) $
         (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
         S.stripPrefix (S.fromList [(1::Int)..10]) . t
+    prop (desc <> " stripSuffix 10") $ eliminateOp constr (stripSuffix [1..10]) $
+        (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
+        S.stripSuffix (S.fromList [(1::Int)..10]) . t
+    prop (desc <> " stripInfix 10") $ eliminateOp constr (stripInfix [1..10]) $
+        (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
+        S.stripInfix (S.fromList [(1::Int)..10]) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.
