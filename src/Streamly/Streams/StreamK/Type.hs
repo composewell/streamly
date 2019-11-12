@@ -8,6 +8,9 @@
 {-# LANGUAGE PatternSynonyms           #-}
 {-# LANGUAGE KindSignatures            #-}
 {-# LANGUAGE ViewPatterns              #-}
+#if __GLASGOW_HASKELL__ >= 806
+{-# LANGUAGE QuantifiedConstraints     #-}
+#endif
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
@@ -142,7 +145,15 @@ infixr 5 |:
 -- some monad 'm'.
 --
 -- @since 0.2.0
-class IsStream t where
+class
+#if __GLASGOW_HASKELL__ >= 806
+    ( forall m a. MonadAsync m => Semigroup (t m a)
+    , forall m a. MonadAsync m => Monoid (t m a)
+    , forall m. Monad m => Functor (t m)
+    , forall m. MonadAsync m => Applicative (t m)
+    ) =>
+#endif
+      IsStream t where
     toStream :: t m a -> Stream m a
     fromStream :: Stream m a -> t m a
     -- | Constructs a stream by adding a monadic action at the head of an
