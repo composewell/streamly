@@ -14,5 +14,3 @@ cabal.project.local
 
 # Other
 .log
-*.swp
-*.swo
