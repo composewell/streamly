@@ -205,7 +205,7 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
-import Streamly.Streams.StreamD.Type (foldlMx', fromList)
+import Streamly.Internal.Data.Stream.StreamD.Type (foldlMx', fromList)
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
