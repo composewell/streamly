@@ -276,6 +276,8 @@ main =
         [ benchIOSink1 "eqBy" Ops.eqBy
         , benchIOSink1 "cmpBy" Ops.cmpBy
         , benchIOSink "isPrefixOf" Ops.isPrefixOf
+        , benchIOSink "isSuffixOf" Ops.isSuffixOf
+        , benchIOSink "isInfixOf" Ops.isInfixOf
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
         , benchIOSink "stripPrefix" Ops.stripPrefix
         ]

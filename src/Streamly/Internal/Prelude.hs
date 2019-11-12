@@ -368,8 +368,8 @@ module Streamly.Internal.Prelude
     , eqBy
     , cmpBy
     , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
+    , isSuffixOf
+    , isInfixOf
     , isSubsequenceOf
     , stripPrefix
     -- , stripSuffix
@@ -1342,6 +1342,32 @@ elemIndex a = findIndex (== a)
 {-# INLINE isPrefixOf #-}
 isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
 isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
+
+-- | Returns 'True' if the first stream is the same as or a suffix of the
+-- second. A stream is a suffix of itself.
+--
+-- @
+-- > S.isSuffixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- @since 0.6.0
+{-# INLINE isSuffixOf #-}
+isSuffixOf :: (Storable a, IsStream t, MonadIO m) => t m a -> t m a -> m Bool
+isSuffixOf m1 m2 = D.isSuffixOf (toStreamD m1) (toStreamD m2)
+
+-- | Returns 'True' if the first stream is the same as or a infix of the
+-- second. A stream is a infix of itself.
+--
+-- @
+-- > S.isInfixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- @since 0.6.0
+{-# INLINE isInfixOf #-}
+isInfixOf :: (Storable a, IsStream t, MonadIO m) => t m a -> t m a -> m Bool
+isInfixOf m1 m2 = D.isInfixOf (toStreamD m1) (toStreamD m2)
 
 -- | Returns 'True' if all the elements of the first stream occur, in order, in
 -- the second stream. The elements do not have to occur consecutively. A stream

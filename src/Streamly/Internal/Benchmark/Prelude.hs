@@ -637,6 +637,13 @@ isPrefixOf, isSubsequenceOf :: Monad m => Stream m Int -> m Bool
 isPrefixOf src = S.isPrefixOf src src
 isSubsequenceOf src = S.isSubsequenceOf src src
 
+{-# INLINE isSuffixOf #-}
+{-# INLINE isInfixOf #-}
+isSuffixOf, isInfixOf :: MonadIO m => Stream m Int -> m Bool
+
+isSuffixOf src = S.isPrefixOf src src
+isInfixOf src = S.isPrefixOf src src
+
 {-# INLINE stripPrefix #-}
 stripPrefix :: Monad m => Stream m Int -> m ()
 stripPrefix src = do

@@ -17,7 +17,7 @@ import Data.List
        (sort, foldl', scanl', findIndices, findIndex, elemIndices,
         elemIndex, find, insertBy, intersperse, foldl1', (\\),
         maximumBy, minimumBy, deleteBy, isPrefixOf, isSubsequenceOf,
-        stripPrefix, intercalate)
+        stripPrefix, intercalate, isSuffixOf, isInfixOf)
 import Data.Maybe (mapMaybe)
 import GHC.Word (Word8)
 
@@ -739,6 +739,10 @@ eliminationOps constr desc t = do
     -- XXX Write better tests for substreams.
     prop (desc <> " isPrefixOf 10") $ eliminateOp constr (isPrefixOf [1..10]) $
         S.isPrefixOf (S.fromList [(1::Int)..10]) . t
+    prop (desc <> " isSuffixOf 10") $ eliminateOp constr (isSuffixOf [1..10]) $
+        S.isSuffixOf (S.fromList [(1::Int)..10]) . t
+    prop (desc <> " isInfixOf 10") $ eliminateOp constr (isInfixOf [1..10]) $
+        S.isInfixOf (S.fromList [(1::Int)..10]) . t
     prop (desc <> " isSubsequenceOf 10") $
         eliminateOp constr (isSubsequenceOf $ filter even [1..10]) $
         S.isSubsequenceOf (S.fromList $ filter even [(1::Int)..10]) . t

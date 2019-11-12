@@ -252,8 +252,8 @@ module Streamly.Prelude
     , eqBy
     , cmpBy
     , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
+    , isSuffixOf
+    , isInfixOf
     , isSubsequenceOf
 
     -- trimming sequences
