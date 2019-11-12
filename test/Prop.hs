@@ -84,7 +84,7 @@ stripSuffix :: Eq a => [a] -> [a] -> Maybe [a]
 stripSuffix a b = reverse <$> stripPrefix (reverse a) (reverse b)
 
 stripInfix :: Eq a => [a] -> [a] -> Maybe [a]
-stripInfix a b = if isInfixOf a b then Just $ stripInfix' a b
+stripInfix x y = if isInfixOf x y then Just $ stripInfix' x y
                                   else Nothing
   where
     stripInfix' _ [] = []
