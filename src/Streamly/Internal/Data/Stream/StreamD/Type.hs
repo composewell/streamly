@@ -67,6 +67,7 @@ where
 
 import Control.Applicative (liftA2)
 import Control.Monad (ap, when)
+import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans (lift, MonadTrans)
 import Data.Functor.Identity (Identity(..))
 import GHC.Base (build)
@@ -246,6 +247,12 @@ instance Monad m => Monad (Stream m) where
     return = pure
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMap
+
+instance MonadTrans Stream where
+    lift = yieldM
+
+instance (MonadThrow m) => MonadThrow (Stream m) where
+    throwM = lift . throwM
 
 -- XXX Use of SPEC constructor in folds causes 2x performance degradation in
 -- one shot operations, but helps immensely in operations composed of multiple
