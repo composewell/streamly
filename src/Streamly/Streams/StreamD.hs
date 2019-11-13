@@ -2744,7 +2744,7 @@ after action (Stream step state) = Stream step' state
 onException :: MonadCatch m => m b -> Stream m a -> Stream m a
 onException action str =
     gbracket (return ()) MC.try return
-        (\_ (_ :: MC.SomeException) -> nilM $ action)
+        (\_ (e :: MC.SomeException) -> nilM (action >> MC.throwM e))
         (\_ -> str)
 
 {-# INLINE_NORMAL _onException #-}
@@ -2772,7 +2772,8 @@ _onException action (Stream step state) = Stream step' state
 {-# INLINE_NORMAL bracket #-}
 bracket :: MonadCatch m => m b -> (b -> m c) -> (b -> Stream m a) -> Stream m a
 bracket bef aft bet =
-    gbracket bef MC.try aft (\a (_ :: SomeException) -> nilM $ aft a) bet
+    gbracket bef MC.try aft
+        (\a (e :: SomeException) -> nilM (aft a >> MC.throwM e)) bet
 
 data BracketState s v = BracketInit | BracketRun s v
 
@@ -2791,7 +2792,7 @@ _bracket bef aft bet = Stream step' BracketInit
         -- res <- step gst state `MC.onException` aft v
         res <- MC.try $ step gst state
         case res of
-            Left (_ :: SomeException) -> aft v >> return Stop
+            Left (e :: SomeException) -> aft v >> MC.throwM e >> return Stop
             Right r -> case r of
                 Yield x s -> return $ Yield x (BracketRun (Stream step s) v)
                 Skip s    -> return $ Skip (BracketRun (Stream step s) v)
