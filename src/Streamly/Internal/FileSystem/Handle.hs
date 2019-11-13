@@ -36,6 +36,7 @@ module Streamly.Internal.FileSystem.Handle
 
     , toChunksWithBufferOf
     , toChunks
+    , getChunks
 
     -- ** Write to Handle
     -- Byte stream write (Folds)
@@ -55,8 +56,9 @@ module Streamly.Internal.FileSystem.Handle
     , writeChunksWithBufferOf
 
     -- -- * Array stream Write
-    , fromChunks
     , fromChunksWithBufferOf
+    , fromChunks
+    , putChunks
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -105,7 +107,7 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import System.IO (Handle, hGetBufSome, hPutBuf)
+import System.IO (Handle, hGetBufSome, hPutBuf, stdin, stdout)
 import Prelude hiding (read)
 
 import Streamly.Data.Fold (Fold)
@@ -229,6 +231,18 @@ readChunksWithBufferOf = Unfold step return
 toChunks :: (IsStream t, MonadIO m) => Handle -> t m (Array Word8)
 toChunks = toChunksWithBufferOf defaultChunkSize
 
+-- | Read a stream of chunks from standard input.  The maximum size of a single
+-- chunk is limited to @defaultChunkSize@. The actual size read may be less
+-- than @defaultChunkSize@.
+--
+-- > getChunks = toChunks stdin
+--
+-- /Internal/
+--
+{-# INLINE getChunks #-}
+getChunks :: (IsStream t, MonadIO m) => t m (Array Word8)
+getChunks = toChunks stdin
+
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
 -- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
@@ -319,6 +333,14 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 fromChunks :: (MonadIO m, Storable a)
     => Handle -> SerialT m (Array a) -> m ()
 fromChunks h m = S.mapM_ (liftIO . writeArray h) m
+
+-- | Write a stream of chunks to standard output.
+--
+-- /Internal/
+--
+{-# INLINE putChunks #-}
+putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
+putChunks = fromChunks stdout
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.

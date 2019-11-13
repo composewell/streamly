@@ -77,7 +77,7 @@ module Streamly.Internal.FileSystem.File
 
     -- -- * Array Write
     , writeArray
-    , writeChunks
+    , fromChunks
 
     -- ** Append To File
     , append
@@ -242,19 +242,19 @@ readTailForever = undefined
 -- Writing
 -------------------------------------------------------------------------------
 
-{-# INLINE writeChunksMode #-}
-writeChunksMode :: (MonadAsync m, MonadCatch m, Storable a)
+{-# INLINE fromChunksMode #-}
+fromChunksMode :: (MonadAsync m, MonadCatch m, Storable a)
     => IOMode -> FilePath -> SerialT m (Array a) -> m ()
-writeChunksMode mode file xs = S.drain $
+fromChunksMode mode file xs = S.drain $
     withFile file mode (\h -> S.mapM (liftIO . FH.writeArray h) xs)
 
 -- | Write a stream of arrays to a file. Overwrites the file if it exists.
 --
 -- @since 0.7.0
-{-# INLINE writeChunks #-}
-writeChunks :: (MonadAsync m, MonadCatch m, Storable a)
+{-# INLINE fromChunks #-}
+fromChunks :: (MonadAsync m, MonadCatch m, Storable a)
     => FilePath -> SerialT m (Array a) -> m ()
-writeChunks = writeChunksMode WriteMode
+fromChunks = fromChunksMode WriteMode
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -272,7 +272,7 @@ writeChunks = writeChunksMode WriteMode
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf :: (MonadAsync m, MonadCatch m)
     => Int -> FilePath -> SerialT m Word8 -> m ()
-writeWithBufferOf n file xs = writeChunks file $ AS.arraysOf n xs
+writeWithBufferOf n file xs = fromChunks file $ AS.arraysOf n xs
 
 -- > write = 'writeWithBufferOf' defaultChunkSize
 --
@@ -298,7 +298,7 @@ write = toHandleWith A.defaultChunkSize
 {-# INLINE appendChunks #-}
 appendChunks :: (MonadAsync m, MonadCatch m, Storable a)
     => FilePath -> SerialT m (Array a) -> m ()
-appendChunks = writeChunksMode AppendMode
+appendChunks = fromChunksMode AppendMode
 
 -- | Like 'append' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
