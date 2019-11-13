@@ -61,7 +61,7 @@ llhisto src = print =<< (S.fold (FL.classify FL.length)
     $ S.splitWithSuffix (== ord' '\n') FL.length
     $ S.unfold FH.read src)
     where
-    bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)
+    bucket n = let i = n `mod` 10 in if i > 9 then (9,n) else (i,n)
 
 main :: IO ()
 main = do
