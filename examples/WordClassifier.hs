@@ -16,14 +16,14 @@ import           Data.IORef
 import qualified Data.List as List
 import qualified Data.Ord as Ord
 import           Foreign.Storable (Storable(..))
-import qualified Streamly.Data.Unicode.Stream as Streamly
-import qualified Streamly.Internal.Data.Unicode.Stream as Streamly
-import qualified Streamly.FileSystem.Handle as FH
+import qualified Streamly.Data.Unicode.Stream as S
+import qualified Streamly.Internal.Data.Unicode.Stream as S
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.FileSystem.File as File
 import qualified Streamly.Memory.Array as A
-import qualified Streamly.Prelude as Streamly
+import qualified Streamly.Prelude as S
 import           System.Environment (getArgs)
 import           System.IO (openFile, IOMode(..))
 
@@ -50,20 +50,19 @@ isAlpha c
 
 main :: IO ()
 main = do
-    name <- fmap head getArgs
-    src <- openFile name ReadMode
+    inFile <- fmap head getArgs
 
     -- Write the stream to a hashmap consisting of word counts
     mp <-
         let
             alter Nothing    = fmap Just $ newIORef (1 :: Int)
             alter (Just ref) = modifyIORef' ref (+ 1) >> return (Just ref)
-        in Streamly.unfold FH.read src   -- SerialT IO Word8
-         & Streamly.decodeLatin1         -- SerialT IO Char
-         & Streamly.map toLower          -- SerialT IO Char
-         & Streamly.words FL.toList      -- SerialT IO String
-         & Streamly.filter (all isAlpha) -- SerialT IO String
-         & Streamly.foldlM' (flip (Map.alterF alter)) Map.empty -- IO (Map String (IORef Int))
+        in File.toBytes inFile    -- SerialT IO Word8
+         & S.decodeLatin1         -- SerialT IO Char
+         & S.map toLower          -- SerialT IO Char
+         & S.words FL.toList      -- SerialT IO String
+         & S.filter (all isAlpha) -- SerialT IO String
+         & S.foldlM' (flip (Map.alterF alter)) Map.empty -- IO (Map String (IORef Int))
 
     -- Print the top hashmap entries
     counts <-
