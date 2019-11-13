@@ -49,20 +49,29 @@ isAlpha c
     uc = fromIntegral (Char.ord c) :: Word
 
 main :: IO ()
-main =
-    let
-        alter Nothing    = fmap Just $ newIORef (1 :: Int)
-        alter (Just ref) = modifyIORef' ref (+ 1) >> return (Just ref)
-    in do
-        name <- fmap head getArgs
-        src <- openFile name ReadMode
-        Streamly.unfold FH.read src     -- SerialT IO Word8
+main = do
+    name <- fmap head getArgs
+    src <- openFile name ReadMode
+
+    -- Write the stream to a hashmap consisting of word counts
+    mp <-
+        let
+            alter Nothing    = fmap Just $ newIORef (1 :: Int)
+            alter (Just ref) = modifyIORef' ref (+ 1) >> return (Just ref)
+        in Streamly.unfold FH.read src   -- SerialT IO Word8
          & Streamly.decodeLatin1         -- SerialT IO Char
-         & Streamly.map toLower         -- SerialT IO Char
-         & Streamly.words FL.toList -- SerialT IO String
-         & Streamly.filter (all isAlpha)
-         & Streamly.foldlM' (flip (Map.alterF alter)) Map.empty
-         & fmap Map.toList
-         >>= mapM (\(w, ref) -> readIORef ref >>= \cnt -> return (w, cnt))
-         & fmap (List.take 25 . List.sortOn (Ord.Down . snd))
-         >>= traverse_ print
+         & Streamly.map toLower          -- SerialT IO Char
+         & Streamly.words FL.toList      -- SerialT IO String
+         & Streamly.filter (all isAlpha) -- SerialT IO String
+         & Streamly.foldlM' (flip (Map.alterF alter)) Map.empty -- IO (Map String (IORef Int))
+
+    -- Print the top hashmap entries
+    counts <-
+        let readRef (w, ref) = do
+                cnt <- readIORef ref
+                return (w, cnt)
+         in Map.toList mp
+          & mapM readRef
+
+    traverse_ print $ List.sortOn (Ord.Down . snd) counts
+                    & List.take 25
