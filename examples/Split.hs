@@ -25,6 +25,10 @@ newHandle = do
     put (Just (h, idx))
     return h
 
+-- XXX reduce the input stream to a stream of file names
+-- The fold can return the file name/handle after it is done.
+-- similarly the files can written to directories and we can generate a stream
+-- of directory names.
 splitFile :: FH.Handle -> IO ()
 splitFile inHandle =
       S.unfold FH.read inHandle
