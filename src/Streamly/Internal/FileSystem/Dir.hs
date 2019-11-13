@@ -56,7 +56,7 @@ module Streamly.Internal.FileSystem.Dir
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Either (isRight, fromRight, isLeft, fromLeft)
+import Data.Either (isRight, isLeft)
 -- import Data.Word (Word8)
 -- import Foreign.ForeignPtr (withForeignPtr)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -83,6 +83,18 @@ import qualified Streamly.Internal.Prelude as S
 -- import qualified Streamly.Memory.Array as A
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
+
+#if MIN_VERSION_base(4,10,0)
+import Data.Either (fromRight, fromLeft)
+#else
+fromLeft :: a -> Either a b -> a
+fromLeft _ (Left a) = a
+fromLeft a _        = a
+
+fromRight :: b -> Either a b -> b
+fromRight _ (Right b) = b
+fromRight b _         = b
+#endif
 
 {-
 {-# INLINABLE readArrayUpto #-}
