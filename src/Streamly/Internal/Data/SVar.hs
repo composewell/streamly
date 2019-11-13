@@ -1303,7 +1303,7 @@ enqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> t m a -> IO ()
 enqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n + 1)  -- increment sequence
-        _ -> error "not empty"
+        _ -> error "enqueueAhead: queue is not empty"
     ringDoorBell sv
 
 -- enqueue without incrementing the sequence number
@@ -1312,7 +1312,7 @@ reEnqueueAhead :: SVar t m a -> IORef ([t m a], Int) -> t m a -> IO ()
 reEnqueueAhead sv q m = do
     atomicModifyIORefCAS_ q $ \ case
         ([], n) -> ([m], n)  -- DO NOT increment sequence
-        _ -> error "not empty"
+        _ -> error "reEnqueueAhead: queue is not empty"
     ringDoorBell sv
 
 -- Normally the thread that has the token should never go away. The token gets

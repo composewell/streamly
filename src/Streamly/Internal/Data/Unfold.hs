@@ -96,6 +96,7 @@ module Streamly.Internal.Data.Unfold
     -- * Transformations
     , map
     , mapM
+    , mapMWithInput
 
     -- * Filtering
     , takeWhileM
@@ -263,6 +264,22 @@ mapM f (Unfold ustep uinject) = Unfold step uinject
         case r of
             Yield x s -> f x >>= \a -> return $ Yield a s
             Skip s    -> return $ Skip s
+            Stop      -> return $ Stop
+
+{-# INLINE_NORMAL mapMWithInput #-}
+mapMWithInput :: Monad m => (a -> b -> m c) -> Unfold m a b -> Unfold m a c
+mapMWithInput f (Unfold ustep uinject) = Unfold step inject
+    where
+    inject a = do
+        r <- uinject a
+        return (a, r)
+
+    {-# INLINE_LATE step #-}
+    step (inp, st) = do
+        r <- ustep st
+        case r of
+            Yield x s -> f inp x >>= \a -> return $ Yield a (inp, s)
+            Skip s    -> return $ Skip (inp, s)
             Stop      -> return $ Stop
 
 -------------------------------------------------------------------------------

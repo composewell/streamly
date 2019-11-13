@@ -21,10 +21,13 @@ module Streamly.Internal.FileSystem.Dir
     -- ** Read from Directory
       read
     , readFiles
-      {-
-    , readWithBufferOf
+    , readDirs
+    , readEither
+    -- , readWithBufferOf
 
     , toStream
+    , toStreamEither
+      {-
     , toStreamWithBufferOf
 
     , readChunks
@@ -53,31 +56,32 @@ module Streamly.Internal.FileSystem.Dir
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (minusPtr, plusPtr)
-import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import System.IO (Handle, hGetBufSome, hPutBuf)
+import Data.Either (isRight, fromRight, isLeft, fromLeft)
+-- import Data.Word (Word8)
+-- import Foreign.ForeignPtr (withForeignPtr)
+-- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
+-- import Foreign.Ptr (minusPtr, plusPtr)
+-- import Foreign.Storable (Storable(..))
+-- import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+-- import System.IO (Handle, hGetBufSome, hPutBuf)
 import Prelude hiding (read)
 
-import Streamly.Data.Fold (Fold)
+-- import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types
-       (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
-        lpackArraysChunksOf)
-import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream, mkStream)
+-- import Streamly.Internal.Memory.Array.Types
+--        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
+--         lpackArraysChunksOf)
+-- import Streamly.Streams.Serial (SerialT)
+import Streamly.Streams.StreamK.Type (IsStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Internal.Data.Fold.Types as FL
+-- import qualified Streamly.Data.Fold as FL
+-- import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+-- import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Streams.StreamD.Type as D
+-- import qualified Streamly.Memory.Array as A
+-- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
 
 {-
@@ -200,33 +204,71 @@ toStreamWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
 toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 -}
 
--- TODO
--- Generate a stream of elements of the given type from a file 'Handle'.
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
---
--- | Unfolds a file handle into a byte stream. IO requests to the device are
--- performed in sizes of
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
---
--- @since 0.7.0
 -- XXX exception handling
--- XXX this is not stream read
+--  | Raw read of a directory
+--
+--  /Internal/
+--
 {-# INLINE read #-}
 read :: MonadIO m => Unfold m String String
-read = UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
+read =
+    -- XXX use proper streaming read of the dir
+    UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
 
+-- XXX We can use a more general mechanism to filter the contents of a
+-- directory. We can just stat each child and pass on the stat information. We
+-- can then use that info to do a general filtering. "find" like filters can be
+-- created.
+
+-- | Read directories as Left and files as Right. Filter out "." and ".."
+-- entries.
+--
+--  /Internal/
+--
+{-# INLINE readEither #-}
+readEither :: MonadIO m => Unfold m String (Either String String)
+readEither =
+      UF.mapMWithInput classify
+    $ UF.filter (\x -> x /= "." && x /= "..")
+    -- XXX use proper streaming read of the dir
+    $ UF.lmapM (liftIO . Dir.getDirectoryContents) UF.fromList
+    where
+    classify dir x = do
+        r <- liftIO $ Dir.doesDirectoryExist (dir ++ "/" ++ x)
+        return $ if r then Left x else Right x
+
+--
+-- | Read files only.
+--
+--  /Internal/
+--
 {-# INLINE readFiles #-}
 readFiles :: MonadIO m => Unfold m String String
-readFiles = UF.filterM (fmap not . liftIO . Dir.doesDirectoryExist) read
+readFiles = UF.map (fromRight undefined) $ UF.filter isRight readEither
 
-{-
--- | Generate a byte stream from a file 'Handle'.
+-- | Read directories only. Filter out "." and ".." entries.
+--
+--  /Internal/
+--
+{-# INLINE readDirs #-}
+readDirs :: MonadIO m => Unfold m String String
+readDirs = UF.map (fromLeft undefined) $ UF.filter isLeft readEither
+
+-- | Raw read of a directory.
 --
 -- /Internal/
 {-# INLINE toStream #-}
-toStream :: (IsStream t, MonadIO m) => Handle -> t m Word8
-toStream = AS.concat . toChunks
--}
+toStream :: (IsStream t, MonadIO m) => String -> t m String
+toStream = S.unfold read
+
+-- | Read directories as Left and files as Right. Filter out "." and ".."
+-- entries.
+--
+-- /Internal/
+{-# INLINE toStreamEither #-}
+toStreamEither :: (IsStream t, MonadIO m)
+    => String -> t m (Either String String)
+toStreamEither = S.unfold readEither
 
 {-
 -------------------------------------------------------------------------------
