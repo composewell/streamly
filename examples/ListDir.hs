@@ -20,7 +20,7 @@ main = do
     -- or S.cons dir . S.concatMapWith ahead recursePath
     recursePath :: Either String String -> AheadT IO String
     recursePath (Left dir) =
-          Dir.toStreamEither dir            -- SerialT IO (Either String String)
+          Dir.toEither dir                  -- SerialT IO (Either String String)
         & S.map (prefixDir dir)             -- SerialT IO (Either String String)
         & S.consM (return dir)
         . S.concatMapWith ahead recursePath -- SerialT IO String

@@ -26,7 +26,9 @@ module Streamly.Internal.FileSystem.Dir
     -- , readWithBufferOf
 
     , toStream
-    , toStreamEither
+    , toEither
+    , toFiles
+    , toDirs
       {-
     , toStreamWithBufferOf
 
@@ -277,10 +279,26 @@ toStream = S.unfold read
 -- entries.
 --
 -- /Internal/
-{-# INLINE toStreamEither #-}
-toStreamEither :: (IsStream t, MonadIO m)
+{-# INLINE toEither #-}
+toEither :: (IsStream t, MonadIO m)
     => String -> t m (Either String String)
-toStreamEither = S.unfold readEither
+toEither = S.unfold readEither
+
+-- | Read files only.
+--
+--  /Internal/
+--
+{-# INLINE toFiles #-}
+toFiles :: (IsStream t, MonadIO m) => String -> t m String
+toFiles = S.unfold readFiles
+
+-- | Read directories only.
+--
+--  /Internal/
+--
+{-# INLINE toDirs #-}
+toDirs :: (IsStream t, MonadIO m) => String -> t m String
+toDirs = S.unfold readDirs
 
 {-
 -------------------------------------------------------------------------------
