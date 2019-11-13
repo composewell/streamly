@@ -188,7 +188,7 @@ inspect $ 'cat `hasNoType` ''D.ConcatMapUState
 -- | Send the file contents to /dev/null
 {-# INLINE catStreamWrite #-}
 catStreamWrite :: Handle -> Handle -> IO ()
-catStreamWrite devNull inh = IFH.fromStream devNull $ S.unfold FH.read inh
+catStreamWrite devNull inh = IFH.fromBytes devNull $ S.unfold FH.read inh
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catStreamWrite
@@ -216,8 +216,8 @@ inspect $ hasNoTypeClasses 'catBracket
 catBracketStream :: Handle -> Handle -> IO ()
 catBracketStream devNull inh =
     let readEx = S.bracket (return ()) (\_ -> hClose inh)
-                    (\_ -> IFH.toStream inh)
-    in IFH.fromStream devNull $ readEx
+                    (\_ -> IFH.toBytes inh)
+    in IFH.fromBytes devNull $ readEx
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'catBracketStream

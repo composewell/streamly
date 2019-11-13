@@ -9,12 +9,12 @@ import System.Environment (getArgs)
 
 cat :: FilePath -> IO ()
 cat src =
-      File.writeChunks "/dev/stdout"
+      File.fromChunks "/dev/stdout"
     $ File.toChunksWithBufferOf (256*1024) src
 
 cp :: FilePath -> FilePath -> IO ()
 cp src dst =
-      File.writeChunks dst
+      File.fromChunks dst
     $ File.toChunksWithBufferOf (256*1024) src
 
 append :: FilePath -> FilePath -> IO ()
@@ -28,17 +28,17 @@ ord' = (fromIntegral . ord)
 wcl :: FilePath -> IO ()
 wcl src = print =<< (S.length
     $ S.splitOnSuffix (== ord' '\n') FL.drain
-    $ File.read src)
+    $ File.toBytes src)
 
 grepc :: String -> FilePath -> IO ()
 grepc pat src = print . (subtract 1) =<< (S.length
     $ IP.splitOnSeq (A.fromList (map ord' pat)) FL.drain
-    $ File.read src)
+    $ File.toBytes src)
 
 avgll :: FilePath -> IO ()
 avgll src = print =<< (S.fold avg
     $ S.splitOnSuffix (== ord' '\n') FL.length
-    $ File.read src)
+    $ File.toBytes src)
     where avg = (/) <$> toDouble FL.sum <*> toDouble FL.length
           toDouble = fmap (fromIntegral :: Int -> Double)
 
@@ -46,7 +46,7 @@ llhisto :: FilePath -> IO ()
 llhisto src = print =<< (S.fold (FL.classify FL.length)
     $ S.map bucket
     $ S.splitOnSuffix (== ord' '\n') FL.length
-    $ File.read src)
+    $ File.toBytes src)
     where
     bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)
 

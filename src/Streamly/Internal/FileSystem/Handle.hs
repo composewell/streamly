@@ -25,8 +25,8 @@ module Streamly.Internal.FileSystem.Handle
     -- , readFrames
     , readWithBufferOf
 
-    , toStream
-    , toStreamWithBufferOf
+    , toBytes
+    , toBytesWithBufferOf
 
     -- -- * Array Read
     -- , readArrayUpto
@@ -47,8 +47,8 @@ module Streamly.Internal.FileSystem.Handle
     , writeWithBufferOf
 
     -- Byte stream write (Streams)
-    , fromStream
-    , fromStreamWithBufferOf
+    , fromBytes
+    , fromBytesWithBufferOf
 
     -- -- * Array Write
     , writeArray
@@ -270,13 +270,13 @@ readChunks = UF.supplyFirst readChunksWithBufferOf defaultChunkSize
 readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
 readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
--- | @toStreamWithBufferOf bufsize handle@ reads a byte stream from a file
+-- | @toBytesWithBufferOf bufsize handle@ reads a byte stream from a file
 -- handle, reads are performed in chunks of up to @bufsize@.
 --
 -- /Internal/
-{-# INLINE toStreamWithBufferOf #-}
-toStreamWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
-toStreamWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
+{-# INLINE toBytesWithBufferOf #-}
+toBytesWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- TODO
 -- Generate a stream of elements of the given type from a file 'Handle'.
@@ -294,9 +294,9 @@ read = UF.supplyFirst readWithBufferOf defaultChunkSize
 -- | Generate a byte stream from a file 'Handle'.
 --
 -- /Internal/
-{-# INLINE toStream #-}
-toStream :: (IsStream t, MonadIO m) => Handle -> t m Word8
-toStream = AS.concat . toChunks
+{-# INLINE toBytes #-}
+toBytes :: (IsStream t, MonadIO m) => Handle -> t m Word8
+toBytes = AS.concat . toChunks
 
 -------------------------------------------------------------------------------
 -- Writing
@@ -353,15 +353,15 @@ fromChunksWithBufferOf :: (MonadIO m, Storable a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 
--- | @fromStreamWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
+-- | @fromBytesWithBufferOf bufsize handle stream@ writes @stream@ to @handle@
 -- in chunks of @bufsize@.  A write is performed to the IO device as soon as we
 -- collect the required input size.
 --
 -- @since 0.7.0
-{-# INLINE fromStreamWithBufferOf #-}
-fromStreamWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
-fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
--- fromStreamWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
+{-# INLINE fromBytesWithBufferOf #-}
+fromBytesWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
+-- fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
@@ -372,9 +372,9 @@ fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- need some extra perf boost.
 --
 -- @since 0.7.0
-{-# INLINE fromStream #-}
-fromStream :: MonadIO m => Handle -> SerialT m Word8 -> m ()
-fromStream = fromStreamWithBufferOf defaultChunkSize
+{-# INLINE fromBytes #-}
+fromBytes :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+fromBytes = fromBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream of arrays to a handle. Each array in the stream is written
 -- to the device as a separate IO request.

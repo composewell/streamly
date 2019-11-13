@@ -10,12 +10,12 @@ import qualified Streamly.Internal.FileSystem.Handle as FH
 
 camelCase :: Handle -> Handle -> IO ()
 camelCase src dst =
-      FH.fromStream dst
+      FH.fromBytes dst
     $ S.map fromJust
     $ S.filter isJust
     $ S.map snd
     $ S.scanl' step (True, Nothing)
-    $ FH.toStream src
+    $ FH.toBytes src
 
     where
 

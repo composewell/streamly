@@ -35,16 +35,16 @@ module Streamly.Internal.Network.Inet.TCP
     -- * TCP clients
     -- | IP Address based operations.
     , connect
-    , withServerAddrM
+    , withConnectionM
 
     -- ** Unfolds
-    , withServerAddr
+    , usingConnection
     , read
 
     -- ** Streams
     , withConnection
     -- *** Source
-    , toStream
+    , toBytes
     -- , readUtf8
     -- , readLines
     -- , readFrames
@@ -63,11 +63,14 @@ module Streamly.Internal.Network.Inet.TCP
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
-    -- , writeRequestsOf
+    , writeWithBufferOf
+    , fromBytes
+    , fromBytesWithBufferOf
 
     -- -- * Array Write
     -- , writeArray
     , writeChunks
+    , fromChunks
     {-
     -- ** Sink Servers
 
@@ -109,7 +112,9 @@ import Streamly.Streams.Serial (SerialT)
 import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Streams.StreamK.Type (IsStream)
 
+import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
+
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.ArrayStream as AS
@@ -225,16 +230,16 @@ connect addr port = do
     return sock
 
 -- | Connect to a remote host using IP address and port and run the supplied
--- action on the resulting socket.  'withServerAddrM' makes sure that the
+-- action on the resulting socket.  'withConnectionM' makes sure that the
 -- socket is closed on normal termination or in case of an exception.  If
 -- closing the socket raises an exception, then this exception will be raised
--- by 'withServerAddrM'.
+-- by 'withConnectionM'.
 --
 -- /Internal/
-{-# INLINABLE withServerAddrM #-}
-withServerAddrM :: (MonadMask m, MonadIO m)
+{-# INLINABLE withConnectionM #-}
+withConnectionM :: (MonadMask m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> (Socket -> m ()) -> m ()
-withServerAddrM addr port =
+withConnectionM addr port =
     bracket (liftIO $ connect addr port) (liftIO . Net.close)
 
 -------------------------------------------------------------------------------
@@ -245,14 +250,14 @@ withServerAddrM addr port =
 -- address and port. The resulting unfold opens a socket, uses it using the
 -- supplied unfold and then makes sure that the socket is closed on normal
 -- termination or in case of an exception.  If closing the socket raises an
--- exception, then this exception will be raised by 'withServerAddr'.
+-- exception, then this exception will be raised by 'usingConnection'.
 --
 -- /Internal/
-{-# INLINABLE withServerAddr #-}
-withServerAddr :: (MonadCatch m, MonadIO m)
+{-# INLINABLE usingConnection #-}
+usingConnection :: (MonadCatch m, MonadIO m)
     => Unfold m Socket a
     -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) a
-withServerAddr =
+usingConnection =
     UF.bracket (\(addr, port) -> liftIO $ connect addr port)
                (liftIO . Net.close)
 
@@ -284,35 +289,33 @@ withConnection addr port =
 {-# INLINE read #-}
 read :: (MonadCatch m, MonadIO m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
-read = UF.concat (withServerAddr ISK.readChunks) A.read
+read = UF.concat (usingConnection ISK.readChunks) A.read
 
 -- | Read a stream from the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
-{-# INLINE toStream #-}
-toStream :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINE toBytes #-}
+toBytes :: (IsStream t, MonadCatch m, MonadIO m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
-toStream addr port = AS.concat $ withConnection addr port ISK.toChunks
+toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 
 -------------------------------------------------------------------------------
 -- Writing
 -------------------------------------------------------------------------------
 
-{-
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
 --
 -- @since 0.7.0
-{-# INLINE writeChunks #-}
-writeChunks
+{-# INLINE fromChunks #-}
+fromChunks
     :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m (Array Word8)
     -> m ()
-writeChunks addr port xs =
-    S.drain $ withConnection addr port (\sk -> S.yieldM $ SK.writeChunks sk xs)
--}
+fromChunks addr port xs =
+    S.drain $ withConnection addr port (\sk -> S.yieldM $ ISK.fromChunks sk xs)
 
 -- | Write a stream of arrays to the supplied IPv4 host address and port
 -- number.
@@ -320,7 +323,7 @@ writeChunks addr port xs =
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks
-    :: (MonadAsync m)
+    :: (MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m (Array Word8) ()
@@ -328,56 +331,58 @@ writeChunks addr port = Fold step initial extract
     where
     initial = do
         skt <- liftIO (connect addr port)
-        FL.initialize (SK.writeChunks skt)
-    step = FL.runStep
-    extract (Fold _ initial1 extract1) = initial1 >>= extract1
+        fld <- FL.initialize (SK.writeChunks skt)
+                `MC.onException` (liftIO $ Net.close skt)
+        return (fld, skt)
+    step (fld, skt) x = do
+        r <- FL.runStep fld x `MC.onException` (liftIO $ Net.close skt)
+        return (r, skt)
+    extract ((Fold _ initial1 extract1), skt) = do
+        liftIO $ Net.close skt
+        initial1 >>= extract1
 
-{-
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeRequestsOf #-}
-writeRequestsOf
+{-# INLINE fromBytesWithBufferOf #-}
+fromBytesWithBufferOf
     :: (MonadCatch m, MonadAsync m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
     -> m ()
-writeRequestsOf n addr port m = writeChunks addr port $ AS.arraysOf n m
--}
+fromBytesWithBufferOf n addr port m = fromChunks addr port $ AS.arraysOf n m
 
 -- | Like 'write' but provides control over the write buffer. Output will
 -- be written to the IO device as soon as we collect the specified number of
 -- input elements.
 --
 -- @since 0.7.0
-{-# INLINE writeRequestsOf #-}
-writeRequestsOf
-    :: (MonadAsync m)
+{-# INLINE writeWithBufferOf #-}
+writeWithBufferOf
+    :: (MonadAsync m, MonadCatch m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m Word8 ()
-writeRequestsOf n addr port =
+writeWithBufferOf n addr port =
     FL.lchunksOf n (writeNUnsafe n) (writeChunks addr port)
 
-{-
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
-{-# INLINE write #-}
-write :: (MonadCatch m, MonadAsync m)
+{-# INLINE fromBytes #-}
+fromBytes :: (MonadCatch m, MonadAsync m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
-write = writeRequestsOf defaultChunkSize
--}
+fromBytes = fromBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadAsync m
+write :: (MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
-write = writeRequestsOf defaultChunkSize
+write = writeWithBufferOf defaultChunkSize
