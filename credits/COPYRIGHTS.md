@@ -18,6 +18,7 @@ notices in the individual files.
 * UTF8 decoding state machine
   * Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
   * http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
+  * See bjoern-2008-2009.txt for original license
 
 ## 0.6.1
 
