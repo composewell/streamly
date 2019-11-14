@@ -62,15 +62,15 @@
 
 module Streamly
     (
-    -- * Concepts Overview
-    -- ** Streams
-    -- $streams
+    -- -- * Concepts Overview
+    -- -- ** Streams
+    -- -- $streams
 
-    -- ** Folds
-    -- $folds
+    -- -- ** Folds
+    -- -- $folds
 
-    -- ** Arrays
-    -- $arrays
+    -- -- ** Arrays
+    -- -- $arrays
 
     -- * Module Overview
     -- $streamtypes
