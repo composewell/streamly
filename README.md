@@ -472,6 +472,9 @@ main = withArg avgll >>= print
 
 ### Line Length Histogram
 
+`classify` is not released yet, and is available in
+`Streamly.Internal.Data.Fold`
+
 ``` haskell
 llhisto =
       S.fold (FL.classify FL.length)
@@ -480,7 +483,7 @@ llhisto =
     . S.unfold FH.read
 
     where
-    bucket n = let i = n `div` 10 in if i > 9 then (9,n) else (i,n)
+    bucket n = let i = n `mod` 10 in if i > 9 then (9,n) else (i,n)
 
 main = withArg llhisto >>= print
 ```
