@@ -22,12 +22,11 @@
     * `runN` has been replaced by `drainN`
     * `runWhile` has been replaced by `drainWhile`
     * `fromHandle` has been deprecated. Please use
-      `Streamly.FileSystem.Handle.read`, `Streamly.Data.String.decodeUtf8` and
-      `Streamly.Data.String.lines` to split the stream into lines. Use
-      `Streamly.Data.String.foldLine` with `Streamly.Fold.toList` if you want to
-      convert the stream to a stream of `String`.
-    * `toHandle` has been deprecated. Please use `intersperse` and `concat` to
-      add newlines to a stream, `Streamly.Data.String.encodeUtf8` for encoding and
+      `Streamly.FileSystem.Handle.read`, `Streamly.Data.Unicode.Stream.decodeUtf8` and
+      `splitOnSuffix` with `Streamly.Data.Fold.toList` to split the
+       stream to a stream of `String` separated by a newline.
+    * `toHandle` has been deprecated. Please use `intersperse` and `concatUnfold` to
+      add newlines to a stream, `Streamly.Data.Unicode.Stream.encodeUtf8` for encoding and
       `Streamly.FileSystem.Handle.write` for writing to a file handle.
     * Deprecate `scanx`, `foldx`, `foldxM`, `foldr1`
     * Remove deprecated APIs `foldl`, `foldlM`
@@ -38,7 +37,8 @@
     * `foldWith`, `foldMapWith`, `forEachWith` have been moved to
       `Streamly.Prelude` module.
 
-* Remove deprecated module `Streamly.Time` (moved to Streamly.Internal)
+* Remove deprecated module `Streamly.Time` (moved to Streamly.Internal.Data.Time)
+* Remove module `Streamly.Internal` (functionality moved to the Internal hierarchy)
 
 ### Bug Fixes
 
@@ -59,7 +59,7 @@ See `Streamly.Prelude` for new exception handling combinators like `before`,
 
 #### Composable Folds
 
-`Streamly.Fold` module provides composable folds (stream consumers). Folds
+`Streamly.Data.Fold` module provides composable folds (stream consumers). Folds
 allow splitting, grouping, partitioning, unzipping and nesting a stream onto
 multiple folds without breaking the stream. Combinators are provided for
 temporal and spatial window based fold operations, for example, to support
@@ -67,7 +67,7 @@ folding and aggregating data for timeout or inactivity based sessions.
 
 #### Composable Unfolds
 
-`Streamly.Unfold` module provides composable stream generators. Unfolds allow
+`Streamly.Data.Unfold` module provides composable stream generators. Unfolds allow
 high performance merging/flattening/combining of stream generators.
 
 #### Streaming File IO
@@ -77,20 +77,25 @@ operations.
 
 #### Streaming Network IO
 
-`Streamly.Network.Socket` provides socket based streaming network IO
+* `Streamly.Network.Socket` provides socket based streaming network IO
 operations.
+
+* `Streamly.Network.Inet.TCP` provides combinators to build Inet/TCP
+clients and servers.
 
 #### Concurrent concatMap
 
-The new `concatMapWith` combinator performs a `concatMap` using a supplied
-merge/concat strategy. This is a very powerful combinator as you can, for
-example, concat streams concurrently using this.
+The new `concatMapWith` in `Streamly.Prelude` combinator performs a
+`concatMap` using a supplied merge/concat strategy. This is a very
+powerful combinator as you can, for example, concat streams
+concurrently using this.
 
 ### Other Enhancements
 
 * Add the following new features/modules:
-  * _Unicode Strings_: `Streamly.Data.String` module provides encoding/decoding of
-    character streams and other character stream operations.
+  * _Unicode Strings_: `Streamly.Data.Unicode.Stream` module provides
+    encoding/decoding of character streams and other character stream
+    operations.
   * _Arrays_: `Streamly.Memory.Array` module provides arrays for efficient
     in-memory buffering and efficient interfacing with IO.
 
@@ -139,7 +144,7 @@ example, concat streams concurrently using this.
     * Multi-stream: `eqBy`, `cmpBy`, `mergeBy`, `mergeByM`, `mergeAsyncBy`,
       `mergeAsyncByM`, `isPrefixOf`, `isSubsequenceOf`, `stripPrefix`,
       `concatMap`, `concatMapM`, `indexed`, `indexedR`
-* Following instances were added for `SerialT m`, `WSerialT m` and 
+* Following instances were added for `SerialT m`, `WSerialT m` and
   `ZipSerialM m`:
   * When `m` ~ `Identity`: IsList, Eq, Ord, Show, Read, IsString, NFData,
     NFData1, Traversable
