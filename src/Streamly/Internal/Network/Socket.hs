@@ -117,7 +117,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 -- @since 0.7.0
 {-# INLINE useSocketM #-}
 useSocketM :: (MonadMask m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
-useSocketM sk f = finally (liftIO (Net.close sk)) (f sk)
+useSocketM sk f = finally (f sk) (liftIO (Net.close sk))
 
 -- | Like 'useSocketM' but runs a streaming computation instead of a monadic
 -- computation.

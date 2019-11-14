@@ -11,9 +11,9 @@ import qualified Streamly.Prelude as S
 main :: IO ()
 main = S.drain
     $ parallely $ S.mapM (useWith echo)
-    $ serially $ S.unfold TCP.acceptOnPort 8090
+    $ serially $ S.unfold TCP.acceptOnPort 8091
     where
     echo sk =
           S.fold (writeChunks sk)
         $ S.unfold readChunksWithBufferOf (32768, sk)
-    useWith f sk = finally (liftIO (Net.close sk)) (f sk)
+    useWith f sk = finally (f sk) (liftIO (Net.close sk))
