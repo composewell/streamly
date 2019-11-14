@@ -3,23 +3,29 @@ currently shipped with the package.  To find parts of the code where the
 original or modified code has been included please search for the copyright
 notices in the individual files.
 
-## Unreleased
+## 0.7.0
 
 * Composable folds include code from the "foldl" package.
    * Copyright (c) 2013 Gabriel Gonzalez
    * http://hackage.haskell.org/package/foldl-1.4.5
    * See foldl-1.4.5.txt for the original license.
 
+* Portions of UTF8 encoding/decoding code taken from the "base" package
+  * Copyright (c) The University of Glasgow, 2009
+  * http://hackage.haskell.org/package/base-4.12.0.0
+  * See base-4.12.0.0.txt for the original license.
+
+* UTF8 decoding state machine
+  * Copyright (c) 2008-2009 Bjoern Hoehrmann <bjoern@hoehrmann.de>
+  * http://bjoern.hoehrmann.de/utf-8/decoder/dfa/
+
+## 0.6.1
+
 * The time related code includes portions from the "clock" package.
    * Copyright (c) 2009-2012, Cetin Sert
    * Copyright (c) 2010, Eugene Kirpichov
    * http://hackage.haskell.org/package/clock-0.7.2
    * See clock-0.7.2.txt for the original license.
-
-* Portions of UTF8 encoding/decoding code taken from the "base" package
-  * Copyright (c) The University of Glasgow, 2009
-  * http://hackage.haskell.org/package/base-4.12.0.0
-  * See base-4.12.0.0.txt for the original license.
 
 ## 0.4.0
 
