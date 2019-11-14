@@ -4,9 +4,21 @@ please see https://github.com/composewell/streamly/issues.
 Use `git shortlog -sn tag1...tag2` on the git repository to get a list of
 contributors between two repository tags.
 
-## Unreleased
+## 0.7.0
 
-* TBD
+Harendra Kumar
+Pranay Sashank
+Artyom Kazak
+David Feuer
+Adithya Kumar
+Aravind Gopal
+
+## 0.6.1
+
+Harendra Kumar
+Mariusz Ryndzionek
+Luke Clifton
+Nicolas Henin
 
 ## 0.6.0
 
