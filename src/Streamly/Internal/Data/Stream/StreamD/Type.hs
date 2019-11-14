@@ -1,3 +1,4 @@
+{-# OPTIONS_HADDOCK hide     #-}
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ConstraintKinds           #-}
