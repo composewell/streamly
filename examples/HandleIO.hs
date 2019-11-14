@@ -1,12 +1,14 @@
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
 -- import qualified Streamly.FileSystem.FD as FH
 -- import qualified Streamly.Data.Unicode.Stream as US
+
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.FileSystem.Handle as IFH
 
 import Data.Char (ord)
 import System.Environment (getArgs)

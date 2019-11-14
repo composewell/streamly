@@ -133,6 +133,7 @@ module Streamly.Data.Fold
     , sequence
     , mapM
 
+    {-
     -- ** Mapping
     --, transform
     -- , lmap
@@ -145,7 +146,6 @@ module Streamly.Data.Fold
     -- , ldeleteBy
     -- , luniq
 
-    {-
     -- ** Mapping Filters
     , lmapMaybe
     , lmapMaybeM
@@ -219,6 +219,7 @@ module Streamly.Data.Fold
     -- , partitionBy
     , partition
 
+    {-
     -- * Demultiplexing
     -- | Direct values in the input stream to different folds using an n-ary
     -- fold selector.
@@ -234,6 +235,7 @@ module Streamly.Data.Fold
 
     , classify
     -- , classifyWith
+    -}
 
     -- * Unzipping
     , unzip
