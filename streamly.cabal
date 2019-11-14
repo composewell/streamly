@@ -74,6 +74,12 @@ description:
     cases.
   * <https://github.com/composewell/streaming-benchmarks Streaming Benchmarks>
   * <https://github.com/composewell/concurrency-benchmarks Concurrency Benchmarks>
+  .
+  For additional unreleased/experimental APIs, build the haddock docs using:
+  .
+  > $ cabal haddock --haddock-option="--show-all"
+  > $ stack haddock --haddock-arguments "--show-all" --no-haddock-deps
+
 
 homepage:            https://github.com/composewell/streamly
 bug-reports:         https://github.com/composewell/streamly/issues

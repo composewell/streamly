@@ -585,6 +585,13 @@ For more information, see:
   * [Streaming benchmarks](https://github.com/composewell/streaming-benchmarks)
   * [Concurrency benchmarks](https://github.com/composewell/concurrency-benchmarks)
 
+For additional unreleased/experimental APIs, build the haddock docs using:
+
+```
+$ cabal haddock --haddock-option="--show-all"
+$ stack haddock --haddock-arguments "--show-all" --no-haddock-deps
+```
+
 ## Support
 
 Please feel free to ask questions on the
