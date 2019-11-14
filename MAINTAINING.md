@@ -35,6 +35,8 @@
     * Make sure CI configs include last three major releases of GHC in CI testing.
     * Update `tested-with` field
     * Make sure all dependency bounds can use latest versions
+    * Make sure any additional files are added to `extra-source-files` in cabal
+      file
 
 * _Update changelog & Version_:
 
