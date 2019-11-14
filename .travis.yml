@@ -84,7 +84,7 @@ matrix:
   #- env: BUILD=cabal-v2 GHCVER=head
   #  addons: {apt: {packages: [cabal-install-head,ghc-head], sources: [hvr-ghc]}}
 
-  - env: BUILD=cabal-v2 GHCVER=8.8.1 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag benchmark --flag inspection --allow-newer=base,ghc"
+  - env: BUILD=cabal-v2 GHCVER=8.8.1 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--project-file=cabal.project.ci"
     addons: {apt: {packages: [cabal-install-head,ghc-8.8.1], sources: [hvr-ghc]}}
 
   - env: BUILD=cabal-v2 GHCVER=8.6.5 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags streamk"
