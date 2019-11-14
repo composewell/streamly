@@ -59,6 +59,7 @@ module Streamly.Internal.FileSystem.Handle
     , fromChunksWithBufferOf
     , fromChunks
     , putChunks
+    , putStrings
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -121,6 +122,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
+import qualified Streamly.Internal.Data.Unicode.Stream as U
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
@@ -341,6 +343,17 @@ fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 {-# INLINE putChunks #-}
 putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
+
+-- XXX this is currently buffered with 32K buffer. We need to use a timeout
+-- based scheme instead.
+--
+-- | Write a stream of strings to standard output.
+--
+-- /Internal/
+--
+{-# INLINE putStrings #-}
+putStrings :: MonadIO m => SerialT m String -> m ()
+putStrings = fromBytes stdout . U.encodeUtf8 . S.concatUnfold UF.fromList
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
