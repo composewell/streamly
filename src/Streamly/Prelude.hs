@@ -624,6 +624,7 @@ module Streamly.Prelude
     , zipAsyncWith
     , zipAsyncWithM
 
+    {-
     -- ** Folding Containers of Streams
     -- | These are variants of standard 'Foldable' fold functions that use a
     -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
@@ -633,6 +634,7 @@ module Streamly.Prelude
     , foldMapWith
     , forEachWith
     , foldWith
+    -}
 
     -- ** Folding Streams of Streams
     -- | Stream operations like map and filter represent loop processing in

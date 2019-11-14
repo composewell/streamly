@@ -180,6 +180,16 @@ module Streamly
     , ZipSerial
     , ZipAsync
 
+    -- ** Folding Containers of Streams
+    -- | These are variants of standard 'Foldable' fold functions that use a
+    -- polymorphic stream sum operation (e.g. 'async' or 'wSerial') to fold a
+    -- finite container of streams. Note that these are just special cases of
+    -- the more general 'concatMapWith' operation.
+    --
+    , IP.foldWith
+    , IP.foldMapWith
+    , IP.forEachWith
+
     -- * Re-exports
     , Semigroup (..)
 
@@ -202,11 +212,13 @@ module Streamly
     , (<=>)
     , (<|)
 
+    {-
     -- * Deprecated/Moved
     -- | These APIs have been moved to other modules
     , foldWith
     , foldMapWith
     , forEachWith
+    -}
     )
 where
 
@@ -221,6 +233,7 @@ import Streamly.Streams.StreamK hiding (serial)
 import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
+import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamK as K
 
 -- XXX provide good succinct examples of pipelining, merging, splitting ect.
@@ -412,6 +425,7 @@ runZipStream = P.drain . K.adapt
 runZipAsync :: Monad m => ZipAsyncM m a -> m ()
 runZipAsync = P.drain . K.adapt
 
+{-
 -- | Same as "Streamly.Prelude.foldWith".
 --
 {-# DEPRECATED foldWith "Please use Streamly.Prelude.foldWith instead." #-}
@@ -435,6 +449,7 @@ foldMapWith = P.foldMapWith
 forEachWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> f a -> (a -> t m b) -> t m b
 forEachWith = P.forEachWith
+-}
 
 ------------------------------------------------------------------------------
 -- Documentation

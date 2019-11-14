@@ -22,6 +22,7 @@ import Test.Hspec as H
 
 import Streamly
 import Streamly.Prelude ((.:), nil)
+import qualified Streamly as S
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Prelude as IP
 

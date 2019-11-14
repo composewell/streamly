@@ -270,6 +270,8 @@ foldbWith :: IsStream t
 foldbWith f = K.foldb f K.nil
 -}
 
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
 -- | A variant of 'Data.Foldable.fold' that allows you to fold a 'Foldable'
 -- container of streams using the specified stream sum operation.
 --
@@ -281,14 +283,14 @@ foldbWith f = K.foldb f K.nil
 -- foldWith f = S.foldMapWith f id
 -- @
 --
--- /Since: 0.7.0 ("Streamly.Prelude")/
---
 -- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE foldWith #-}
 foldWith :: (IsStream t, Foldable f)
     => (t m a -> t m a -> t m a) -> f (t m a) -> t m a
 foldWith f = Prelude.foldr f K.nil
 
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
 -- | A variant of 'foldMap' that allows you to map a monadic streaming action
 -- on a 'Foldable' container and then fold it using the specified stream merge
 -- operation.
@@ -301,14 +303,14 @@ foldWith f = Prelude.foldr f K.nil
 -- foldMapWith f g xs = S.concatMapWith f g (S.fromFoldable xs)
 -- @
 --
--- /Since: 0.7.0 ("Streamly.Prelude")/
---
 -- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE foldMapWith #-}
 foldMapWith :: (IsStream t, Foldable f)
     => (t m b -> t m b -> t m b) -> (a -> t m b) -> f a -> t m b
 foldMapWith f g = Prelude.foldr (f . g) K.nil
 
+-- /Since: 0.7.0 ("Streamly.Prelude")/
+--
 -- | Like 'foldMapWith' but with the last two arguments reversed i.e. the
 -- monadic streaming function is the last argument.
 --
@@ -317,8 +319,6 @@ foldMapWith f g = Prelude.foldr (f . g) K.nil
 -- @
 -- forEachWith = flip S.foldMapWith
 -- @
---
--- /Since: 0.7.0 ("Streamly.Prelude")/
 --
 -- /Since: 0.1.0 ("Streamly")/
 {-# INLINABLE forEachWith #-}

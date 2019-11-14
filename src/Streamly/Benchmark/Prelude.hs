@@ -44,7 +44,7 @@ import Test.Inspection
 import qualified Streamly.Streams.StreamD as D
 #endif
 
-import qualified Streamly          as S hiding (foldMapWith, runStream)
+import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Data.Unfold as UF

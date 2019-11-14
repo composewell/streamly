@@ -34,8 +34,6 @@
 
 * In `Streamly` module:
     * `runStream` has been deprecated, please use `Streamly.Prelude.drain`
-    * `foldWith`, `foldMapWith`, `forEachWith` have been moved to
-      `Streamly.Prelude` module.
 
 * Remove deprecated module `Streamly.Time` (moved to Streamly.Internal.Data.Time)
 * Remove module `Streamly.Internal` (functionality moved to the Internal hierarchy)

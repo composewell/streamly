@@ -31,6 +31,7 @@ import Test.Hspec as H
 
 import Streamly
 import Streamly.Prelude ((.:), nil)
+import Streamly as S
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 
