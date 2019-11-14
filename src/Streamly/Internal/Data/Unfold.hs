@@ -705,7 +705,7 @@ _onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _onException action unf =
     gbracket return MC.try
         (\_ -> return ())
-        (nilM (\(a, (_ :: MC.SomeException)) -> action a)) unf
+        (nilM (\(a, (e :: MC.SomeException)) -> action a >> MC.throwM e)) unf
 
 -- | Run a side effect whenever the unfold aborts due to an exception.
 --
@@ -732,7 +732,7 @@ onException action (Unfold step1 inject1) = Unfold step inject
 _finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
 _finally action unf =
     gbracket return MC.try action
-        (nilM (\(a, (_ :: MC.SomeException)) -> action a)) unf
+        (nilM (\(a, (e :: MC.SomeException)) -> action a >> MC.throwM e)) unf
 
 -- | Run a side effect whenever the unfold stops normally or aborts due to an
 -- exception.
@@ -760,7 +760,8 @@ finally action (Unfold step1 inject1) = Unfold step inject
 _bracket :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
 _bracket bef aft unf =
-    gbracket bef MC.try aft (nilM (\(a, (_ :: MC.SomeException)) -> aft a)) unf
+    gbracket bef MC.try aft (nilM (\(a, (e :: MC.SomeException)) -> aft a >>
+    MC.throwM e)) unf
 
 -- | @bracket before after between@ runs the @before@ action and then unfolds
 -- its output using the @between@ unfold. When the @between@ unfold is done or
