@@ -1,6 +1,7 @@
 {-# OPTIONS_HADDOCK hide     #-}
 {-# LANGUAGE CPP             #-}
 {-# LANGUAGE BangPatterns    #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MagicHash       #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UnboxedTuples   #-}
@@ -27,6 +28,7 @@ module Streamly.Internal.FileSystem.Handle
 
     , toBytes
     , toBytesWithBufferOf
+    , getBytes
 
     -- -- * Array Read
     -- , readArrayUpto
@@ -44,6 +46,7 @@ module Streamly.Internal.FileSystem.Handle
     -- , writeUtf8
     -- , writeUtf8ByLines
     -- , writeByFrames
+    -- , writeLines
     , writeWithBufferOf
 
     -- Byte stream write (Streams)
@@ -60,6 +63,7 @@ module Streamly.Internal.FileSystem.Handle
     , fromChunks
     , putChunks
     , putStrings
+    -- , putLines
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -111,6 +115,7 @@ import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf, stdin, stdout)
 import Prelude hiding (read)
 
+import Streamly (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types
@@ -124,6 +129,7 @@ import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unicode.Stream as U
 import qualified Streamly.Internal.Data.Unfold as UF
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Memory.Array as A
@@ -245,6 +251,16 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 getChunks :: (IsStream t, MonadIO m) => t m (Array Word8)
 getChunks = toChunks stdin
 
+-- | Read a stream of bytes from standard input.
+--
+-- > getBytes = toBytes stdin
+--
+-- /Internal/
+--
+{-# INLINE getBytes #-}
+getBytes :: (IsStream t, MonadIO m) => t m Word8
+getBytes = toBytes stdin
+
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
 -- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
@@ -344,16 +360,13 @@ fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
 
--- XXX this is currently buffered with 32K buffer. We need to use a timeout
--- based scheme instead.
---
--- | Write a stream of strings to standard output.
+-- | Write a stream of strings to standard output using Latin1 encoding.
 --
 -- /Internal/
 --
 {-# INLINE putStrings #-}
-putStrings :: MonadIO m => SerialT m String -> m ()
-putStrings = fromBytes stdout . U.encodeUtf8 . S.concatUnfold UF.fromList
+putStrings :: MonadAsync m => SerialT m String -> m ()
+putStrings = putChunks . S.mapM (IA.fromStream . U.encodeLatin1 . S.fromList)
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
