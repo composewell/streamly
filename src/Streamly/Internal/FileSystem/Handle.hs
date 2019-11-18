@@ -64,7 +64,8 @@ module Streamly.Internal.FileSystem.Handle
     , fromChunks
     , putChunks
     , putStrings
-    -- , putLines
+    , putBytes
+    , putLines
 
     -- -- * Random Access (Seek)
     -- -- | Unlike the streaming APIs listed above, these APIs apply to devices or
@@ -107,6 +108,9 @@ module Streamly.Internal.FileSystem.Handle
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -346,6 +350,7 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 -- Writing
 -------------------------------------------------------------------------------
 
+-- XXX use an unfold to fromObjects or fromUnfold so that we can put any object
 -- | Write a stream of arrays to a handle.
 --
 -- @since 0.7.0
@@ -363,12 +368,35 @@ putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
 
 -- | Write a stream of strings to standard output using Latin1 encoding.
+-- Output is flushed to the device for each string.
 --
 -- /Internal/
 --
 {-# INLINE putStrings #-}
 putStrings :: MonadAsync m => SerialT m String -> m ()
 putStrings = putChunks . S.mapM (IA.fromStream . U.encodeLatin1 . S.fromList)
+
+-- XXX use an unfold so that we can put lines from any object
+-- | Write a stream of strings as separate lines to standard output using
+-- Latin1 encoding. Output is line buffered i.e. the output is written to the
+-- device as soon as a newline is encountered.
+--
+-- /Internal/
+--
+{-# INLINE putLines #-}
+putLines :: MonadAsync m => SerialT m String -> m ()
+putLines = putChunks . S.mapM
+    (\xs -> IA.fromStream $ U.encodeLatin1 (S.fromList xs <> S.yield '\n'))
+
+-- | Write a stream of bytes from standard output.
+--
+-- > putBytes = fromBytes stdout
+--
+-- /Internal/
+--
+{-# INLINE putBytes #-}
+putBytes :: MonadIO m => SerialT m Word8 -> m ()
+putBytes = fromBytes stdout
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
 -- to @handle@ after coalescing the adjacent arrays in chunks of @bufsize@.
