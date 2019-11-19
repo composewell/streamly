@@ -345,9 +345,9 @@ library
 
     if flag(benchmark)
        exposed-modules:
-                       Streamly.Benchmark.FileIO.Array
-                     , Streamly.Benchmark.FileIO.Stream
-                     , Streamly.Benchmark.Prelude
+                       Streamly.Internal.Benchmark.FileIO.Array
+                     , Streamly.Internal.Benchmark.FileIO.Stream
+                     , Streamly.Internal.Benchmark.Prelude
 
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6

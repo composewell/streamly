@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.FileIO.Stream
+-- Module      : Streamly.Internal.Benchmark.FileIO.Stream
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -19,7 +19,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Streamly.Benchmark.FileIO.Stream
+module Streamly.Internal.Benchmark.FileIO.Stream
     (
     -- * FileIO
       last

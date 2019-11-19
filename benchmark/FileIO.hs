@@ -14,8 +14,8 @@ import System.Process.Typed (shell, runProcess_)
 import Data.IORef
 import Gauge
 
-import qualified Streamly.Benchmark.FileIO.Stream as BFS
-import qualified Streamly.Benchmark.FileIO.Array as BFA
+import qualified Streamly.Internal.Benchmark.FileIO.Stream as BFS
+import qualified Streamly.Internal.Benchmark.FileIO.Array as BFA
 
 -- Input and output file handles
 data Handles = Handles Handle Handle
