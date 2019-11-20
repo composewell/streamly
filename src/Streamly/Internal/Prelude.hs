@@ -208,6 +208,7 @@ module Streamly.Internal.Prelude
     , intersperseM
     , intersperse
     , intersperseSuffix
+    , intersperseSuffixBySpan
     -- , intersperseBySpan
     , interjectSuffix
 
@@ -1894,6 +1895,22 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 {-# INLINE intersperseSuffix #-}
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
+
+-- | Like 'intersperseSuffix' but intersperses a monadic action into the input
+-- stream after every @n@ elements and after the last element.
+--
+-- @
+-- > S.toList $ S.intersperseSuffixBySpan 2 (return ',') $ S.fromList "hello"
+-- "he,ll,o,"
+-- @
+--
+-- /Internal/
+--
+{-# INLINE intersperseSuffixBySpan #-}
+intersperseSuffixBySpan :: (IsStream t, MonadAsync m)
+    => Int -> m a -> t m a -> t m a
+intersperseSuffixBySpan n eff =
+    fromStreamD . D.intersperseSuffixBySpan n eff . toStreamD
 
 {-
 -- | Intersperse a monadic action into the input stream after every @n@

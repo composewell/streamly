@@ -244,6 +244,7 @@ module Streamly.Streams.StreamD
     , intersperseM
     , intersperse
     , intersperseSuffix
+    , intersperseSuffixBySpan
     , insertBy
 
     -- * Deleting
@@ -3265,6 +3266,39 @@ intersperseSuffix action (Stream step state) = Stream step' (SuffixElem state)
         action >>= \r -> return $ Skip (SuffixYield r (SuffixElem st))
 
     step' _ (SuffixYield x next) = return $ Yield x next
+
+data SuffixSpanState s a
+    = SuffixSpanElem s Int
+    | SuffixSpanSuffix s
+    | SuffixSpanYield a (SuffixSpanState s a)
+    | SuffixSpanLast
+    | SuffixSpanStop
+
+-- | intersperse after every n items
+{-# INLINE_NORMAL intersperseSuffixBySpan #-}
+intersperseSuffixBySpan :: forall m a. Monad m
+    => Int -> m a -> Stream m a -> Stream m a
+intersperseSuffixBySpan n action (Stream step state) =
+    Stream step' (SuffixSpanElem state n)
+    where
+    {-# INLINE_LATE step' #-}
+    step' gst (SuffixSpanElem st i) | i > 0 = do
+        r <- step gst st
+        return $ case r of
+            Yield x s -> Skip (SuffixSpanYield x (SuffixSpanElem s (i - 1)))
+            Skip s -> Skip (SuffixSpanElem s i)
+            Stop -> if i == n then Stop else Skip SuffixSpanLast
+    step' _ (SuffixSpanElem st _) = return $ Skip (SuffixSpanSuffix st)
+
+    step' _ (SuffixSpanSuffix st) = do
+        action >>= \r -> return $ Skip (SuffixSpanYield r (SuffixSpanElem st n))
+
+    step' _ (SuffixSpanLast) = do
+        action >>= \r -> return $ Skip (SuffixSpanYield r SuffixSpanStop)
+
+    step' _ (SuffixSpanYield x next) = return $ Yield x next
+
+    step' _ (SuffixSpanStop) = return Stop
 
 {-# INLINE intersperse #-}
 intersperse :: Monad m => a -> Stream m a -> Stream m a
