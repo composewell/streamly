@@ -276,10 +276,20 @@ parallelMin = joinStreamVarPar ParallelVar StopAny
 -- Convert a stream to parallel
 ------------------------------------------------------------------------------
 
-mkParallel :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
-mkParallel m = do
+_mkParallelK :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
+_mkParallelK m = do
     sv <- newParallelVar StopNone defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
+    return $ fromSVar sv
+
+-- We may have to use it in higher order functions like concatMap, so use the
+-- Normal phase for inlining.
+{-# INLINE_NORMAL mkParallel #-}
+mkParallel :: (IsStream t, MonadAsync m)
+    => State Stream m a -> t m a -> m (t m a)
+mkParallel st m = do
+    sv <- newParallelVar StopNone defState
+    pushWorkerParD st sv (D.toStreamD m)
     return $ fromSVar sv
 
 ------------------------------------------------------------------------------

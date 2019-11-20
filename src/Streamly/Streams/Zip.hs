@@ -54,7 +54,7 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream)
-import Streamly.Streams.Async (mkAsync')
+import Streamly.Streams.Parallel (mkParallel)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar (MonadAsync, adaptState)
 
@@ -153,8 +153,8 @@ TRAVERSABLE_INSTANCE(ZipSerialM)
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
 zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (adaptState st) m1
-    mb <- mkAsync' (adaptState st) m2
+    ma <- mkParallel (adaptState st) m1
+    mb <- mkParallel (adaptState st) m2
     foldStream st stp sng yld (K.zipWith f ma mb)
 
 -- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
@@ -165,8 +165,8 @@ zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
 zipAsyncWithM f m1 m2 = mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' (adaptState st) m1
-    mb <- mkAsync' (adaptState st) m2
+    ma <- mkParallel (adaptState st) m1
+    mb <- mkParallel (adaptState st) m2
     foldStream st stp sng yld (K.zipWithM f ma mb)
 
 ------------------------------------------------------------------------------
