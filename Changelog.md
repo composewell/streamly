@@ -2,8 +2,8 @@
 
 ### Bug Fixes
 
-* Fix a bug that caused `findIndices` to increment the index during
-  a Skip condition.
+* Fix a bug that caused `findIndices` to return wrong indices in some 
+pipelines
 
 ## 0.7.0
 
