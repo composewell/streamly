@@ -101,5 +101,8 @@ main =
         , benchIO "zip" Ops.zipAsync
         , benchIO "zipM" Ops.zipAsyncM
         , benchIO "zipAp" Ops.zipAsyncAp
+        -- Parallel stages in a pipeline
+        , benchIO "parAppMap" Ops.parAppMap
+        , benchIO "parAppSum" Ops.parAppSum
         ]
       ]

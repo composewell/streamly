@@ -810,6 +810,18 @@ inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN
 #endif
 
 -------------------------------------------------------------------------------
+-- Parallel application/fold
+-------------------------------------------------------------------------------
+
+{-# INLINE parAppMap #-}
+parAppMap :: S.MonadAsync m => Stream m Int -> m ()
+parAppMap src = S.drain $ S.map (+1) S.|$ src
+
+{-# INLINE parAppSum #-}
+parAppSum :: S.MonadAsync m => Stream m Int -> m ()
+parAppSum src = (S.sum S.|$. src) >>= \x -> P.seq x (return ())
+
+-------------------------------------------------------------------------------
 -- Mixed Composition
 -------------------------------------------------------------------------------
 
