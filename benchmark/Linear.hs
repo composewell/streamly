@@ -24,6 +24,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Sink as Sink
 
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -232,10 +233,9 @@ main =
         , benchIOSink "drainN" (S.fold (IFL.drainN Ops.value))
         , benchIOSink "drainWhileTrue" (S.fold (IFL.drainWhile $ (<=) Ops.maxValue))
         , benchIOSink "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) Ops.maxValue))
-        -- XXX Change?
-        , benchIOSink "lastN.1" (S.fold (IFL.lastN 1 FL.length))
-        , benchIOSink "lastN.10" (S.fold (IFL.lastN 10 FL.length))
-        , benchIOSink "lastN.Max" (S.fold (IFL.lastN Ops.maxValue FL.length))
+        , benchIOSink "lastN.1"   (S.fold (IA.lastN 1))
+        , benchIOSink "lastN.10"  (S.fold (IA.lastN 10))
+        , benchIOSink "lastN.Max" (S.fold (IA.lastN Ops.maxValue))
         , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
         , benchIOSink "last" (S.fold FL.last)
         , benchIOSink "length" (S.fold FL.length)

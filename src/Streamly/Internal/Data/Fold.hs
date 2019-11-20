@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Fold
     , rollingHash
     , rollingHashWithSalt
     , rollingHashFirstN
-    , rollingHashLastN
+    -- , rollingHashLastN
 
     -- ** Full Folds (Monoidal)
     , mconcat
@@ -72,7 +72,6 @@ module Streamly.Internal.Data.Fold
     -- ** Partial Folds
     , drainN
     , drainWhile
-    , lastN
     -- , (!!)
     -- , genericIndex
     , index
@@ -570,9 +569,11 @@ rollingHash = rollingHashWithSalt defaultSalt
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
 rollingHashFirstN n = ltake n rollingHash
 
+{-
 {-# INLINABLE rollingHashLastN #-}
 rollingHashLastN :: (MonadIO m, Enum a, Storable a) => Int -> Fold m a Int
 rollingHashLastN n = lastN n rollingHash
+-}
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
@@ -649,25 +650,6 @@ drainN n = ltake n drain
 {-# INLINABLE drainWhile #-}
 drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
 drainWhile p = ltakeWhile p drain
-
--- XXX Could potantially made faster
--- | Take last 'n' elements from the stream and discard the rest.
-{-# INLINABLE lastN #-}
-lastN :: (Storable a, MonadIO m) => Int -> Fold m a b -> Fold m a b
-lastN n f = Fold step' initial' done'
-  where
-    step' (Tuple3' rb rh i) a = do
-      rh1 <- liftIO $ RB.unsafeInsert rb rh a
-      return $ Tuple3' rb rh1 (i + 1)
-    initial' = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n 
-    done' (Tuple3' rb rh i) = do
-      lst <- reverse <$> foldFunc i rh cons' [] rb
-      runFold f (fromList lst)
-    foldFunc i
-      | i < n = RB.unsafeFoldRingM 
-      | otherwise = RB.unsafeFoldRingFullM 
-    runFold (Fold step begin done) = foldlMx' step begin done
-    cons' b a = return $ a:b 
 
 ------------------------------------------------------------------------------
 -- To Elements
