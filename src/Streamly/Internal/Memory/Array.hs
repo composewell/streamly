@@ -57,6 +57,7 @@ module Streamly.Internal.Memory.Array
     -- Monadic APIs
     -- , newArray
     , A.writeN      -- drop new
+    , A.writeNAligned
     , A.write       -- full buffer
     -- , writeLastN -- drop old (ring buffer)
 
@@ -74,6 +75,7 @@ module Streamly.Internal.Memory.Array
     , last
     -- , (!!)
     , readIndex
+    , A.unsafeIndex
     -- , readIndices
     -- , readRanges
 

@@ -539,7 +539,7 @@ writeNAllocWith alloc n = Fold step initial extract
 writeN :: forall m a. (MonadIO m, Storable a) => Int -> Fold m a (Array a)
 writeN = writeNAllocWith newArray
 
--- | @writeNAligned n@ folds a maximum of @n@ elements from the input
+-- | @writeNAligned alignment n@ folds a maximum of @n@ elements from the input
 -- stream to an 'Array' aligned to the given size.
 --
 -- /Internal/
