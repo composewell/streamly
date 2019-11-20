@@ -114,7 +114,7 @@ main = do
     defaultMain [mkBenchText "splitOn abc...xyz" inText $ do
                 (S.length $ Internal.splitOnSeq (A.fromList $ map (fromIntegral . ord)
                     "abcdefghijklmnopqrstuvwxyz") FL.drain
-                        $ IFH.toStream inText) >>= print
+                        $ IFH.toBytes inText) >>= print
                 ]
     where
 
