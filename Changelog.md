@@ -1,3 +1,10 @@
+## Unreleased
+
+### Bug Fixes
+
+* Fix a bug that caused `findIndices` to increment the index during
+  a Skip condition.
+
 ## 0.7.0
 
 ### Breaking changes

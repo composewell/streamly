@@ -620,6 +620,10 @@ transformCombineOpsOrdered constr desc eq t = do
 
     prop (desc <> " findIndices") $
         transform (findIndices odd) t (S.findIndices odd)
+    prop (desc <> " findIndices . filter") $
+        transform (findIndices odd . filter odd)
+                  t
+                  (S.findIndices odd . S.filter odd)
     prop (desc <> " elemIndices") $
         transform (elemIndices 0) t (S.elemIndices 0)
 

@@ -960,7 +960,7 @@ findIndices p (Stream step state) = Stream step' (state, 0)
       r <- step (adaptState gst) st
       return $ case r of
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
-          Skip s -> Skip (s, i+1)
+          Skip s -> Skip (s, i)
           Stop   -> Stop
 
 {-# INLINE toListRev #-}
