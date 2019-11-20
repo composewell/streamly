@@ -956,7 +956,7 @@ findIndices :: Monad m => (a -> Bool) -> Stream m a -> Stream m Int
 findIndices p (Stream step state) = Stream step' (state, 0)
   where
     {-# INLINE_LATE step' #-}
-    step' gst (st, i) = do
+    step' gst (st, i) = i `seq` do
       r <- step (adaptState gst) st
       return $ case r of
           Yield x s -> if p x then Yield i (s, i+1) else Skip (s, i+1)
