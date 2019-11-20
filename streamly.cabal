@@ -20,7 +20,7 @@ description:
   it may not be for you. It expresses a small "hello world" program with the
   same efficiency, simplicity and elegance as a large scale concurrent
   application. It unifies many different aspects of special purpose libraries
-  into a single yet simple framework. 
+  into a single yet simple framework.
   .
   Streamly covers the functionality provided by Haskell lists as well as the
   functionality provided by streaming libraries like
@@ -113,6 +113,9 @@ extra-source-files:
     docs/streamly-vs-async.md
     docs/streamly-vs-lists.md
     docs/transformers.md
+    docs/Build.md
+    design/*.md
+    design/*.png
     bench.sh
     stack.yaml
     src/Streamly/Streams/Instances.hs
