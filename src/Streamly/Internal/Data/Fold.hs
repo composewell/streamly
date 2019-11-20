@@ -180,10 +180,15 @@ module Streamly.Internal.Data.Fold
     -- , concatMap
     -- , chunksOf
     , duplicate  -- experimental
+
+    -- * Folding to SVar
+    , toParallelSVar
+    , toParallelSVarLimited
     )
 where
 
 import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Map.Strict (Map)
 
@@ -201,6 +206,7 @@ import qualified Prelude
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
 import Streamly.Internal.Data.Strict
+import Streamly.Internal.Data.SVar
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 
@@ -1207,3 +1213,45 @@ lchunksInRange :: Monad m
 lchunksInRange low high (Fold step1 initial1 extract1)
                         (Fold step2 initial2 extract2) = undefined
 -}
+
+------------------------------------------------------------------------------
+-- Fold to a Parallel SVar
+------------------------------------------------------------------------------
+
+{-# INLINE toParallelSVar #-}
+toParallelSVar :: MonadIO m => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
+toParallelSVar svar winfo = Fold step initial extract
+    where
+
+    initial = return ()
+
+    step () x = liftIO $ do
+        decrementBufferLimit svar
+        void $ send svar (ChildYield x)
+
+    extract () = liftIO $ do
+        sendStop svar winfo
+
+{-# INLINE toParallelSVarLimited #-}
+toParallelSVarLimited :: MonadIO m
+    => SVar t m a -> Maybe WorkerInfo -> Fold m a ()
+toParallelSVarLimited svar winfo = Fold step initial extract
+    where
+
+    initial = return True
+
+    step True x = liftIO $ do
+        yieldLimitOk <- decrementYieldLimit svar
+        if yieldLimitOk
+        then do
+            decrementBufferLimit svar
+            void $ send svar (ChildYield x)
+            return True
+        else do
+            cleanupSVarFromWorker svar
+            sendStop svar winfo
+            return False
+    step False _ = return False
+
+    extract True = liftIO $ sendStop svar winfo
+    extract False = return ()

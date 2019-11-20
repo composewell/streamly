@@ -114,6 +114,7 @@ module Streamly.Streams.StreamD
 
     , foldlx'
     , foldlMx'
+    , runFold
 
     -- ** Specialized Folds
     , tap

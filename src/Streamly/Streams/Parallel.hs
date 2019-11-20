@@ -7,6 +7,8 @@
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Streams.Parallel
 -- Copyright   : (c) 2017 Harendra Kumar
@@ -47,7 +49,7 @@ import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 import Data.Functor (void)
-import Data.IORef (readIORef, writeIORef)
+import Data.IORef (readIORef, writeIORef, newIORef)
 import Data.Maybe (fromJust)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
@@ -58,15 +60,26 @@ import qualified Data.Set as Set
 
 import Streamly.Streams.SVar (fromSVar, fromStreamVar)
 import Streamly.Streams.Serial (map)
-import Streamly.Internal.Data.SVar
 import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
                                  foldStreamShared, adapt)
+
+import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
+import Streamly.Internal.Data.Time.Clock (Clock(..), getTime)
+import Streamly.Internal.Data.SVar hiding (handleChildException)
+
 import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.SVar as SVar
+import qualified Streamly.Internal.Data.Fold as FL
 
 #include "Instances.hs"
 
 -------------------------------------------------------------------------------
 -- Parallel
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- StreamK based worker routines
 -------------------------------------------------------------------------------
 
 {-# NOINLINE runOne #-}
@@ -120,6 +133,81 @@ runOneLimited st m0 winfo = go m0
     single a = sendit a >> (liftIO $ sendStop sv winfo)
     yieldk a r = sendit a >> go r
 
+-------------------------------------------------------------------------------
+-- StreamD based worker routines
+-------------------------------------------------------------------------------
+
+-- Using StreamD the worker stream producing code can fuse with the code to
+-- queue output to the SVar giving some perf boost.
+--
+-- Note that StreamD can only be used in limited situations, specifically, we
+-- cannot implement joinStreamVarPar using this.
+
+{-# INLINE_NORMAL pushWorkerParD #-}
+pushWorkerParD :: MonadAsync m
+    => State t m a -> SVar t m a -> D.Stream m a -> m ()
+pushWorkerParD st sv xs =
+    if svarInspectMode sv
+    then forkWithDiag
+    else do
+        tid <-
+                case getYieldLimit st of
+                    Nothing -> doFork (work Nothing)
+                                      (svarMrun sv)
+                                      (SVar.handleChildException sv)
+                    Just _  -> doFork (workLim Nothing)
+                                      (svarMrun sv)
+                                      (SVar.handleChildException sv)
+        modifyThread sv tid
+
+    where
+
+    {-# NOINLINE work #-}
+    work info = (D.runFold (FL.toParallelSVar sv info) xs)
+
+    {-# NOINLINE workLim #-}
+    workLim info = D.runFold (FL.toParallelSVarLimited sv info) xs
+
+    {-# NOINLINE forkWithDiag #-}
+    forkWithDiag = do
+        -- We do not use workerCount in case of ParallelVar but still there is
+        -- no harm in maintaining it correctly.
+        liftIO $ atomicModifyIORefCAS_ (workerCount sv) $ \n -> n + 1
+        recordMaxWorkers sv
+        -- This allocation matters when significant number of workers are being
+        -- sent. We allocate it only when needed. The overhead increases by 4x.
+        winfo <-
+            case yieldRateInfo sv of
+                Nothing -> return Nothing
+                Just _ -> liftIO $ do
+                    cntRef <- newIORef 0
+                    t <- getTime Monotonic
+                    lat <- newIORef (0, t)
+                    return $ Just WorkerInfo
+                        { workerYieldMax = 0
+                        , workerYieldCount = cntRef
+                        , workerLatencyStart = lat
+                        }
+        tid <-
+            case getYieldLimit st of
+                Nothing -> doFork (work winfo)
+                                  (svarMrun sv)
+                                  (SVar.handleChildException sv)
+                Just _  -> doFork (workLim winfo)
+                                  (svarMrun sv)
+                                  (SVar.handleChildException sv)
+        modifyThread sv tid
+
+-------------------------------------------------------------------------------
+-- Consing and appending a stream in parallel style
+-------------------------------------------------------------------------------
+
+-- Note that consing and appending requires StreamK as it would not scale well
+-- with StreamD unless we are only consing a very small number of streams or
+-- elements in a stream. StreamK allows us to manipulate control flow in a way
+-- which StreamD cannot allow. StreamK can make a jump without having to
+-- remember the past state.
+
 {-# NOINLINE forkSVarPar #-}
 forkSVarPar :: (IsStream t, MonadAsync m)
     => SVarStopStyle -> t m a -> t m a -> t m a
@@ -143,6 +231,10 @@ joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
             pushWorkerPar sv (runOne st $ toStream m1)
             foldStreamShared st yld sng stp m2
         _ -> foldStreamShared st yld sng stp (forkSVarPar ss m1 m2)
+
+-------------------------------------------------------------------------------
+-- User facing APIs
+-------------------------------------------------------------------------------
 
 -- | XXX we can implement it more efficienty by directly implementing instead
 -- of combining streams using parallel.
@@ -194,23 +286,56 @@ mkParallel m = do
 -- Stream to stream concurrent function application
 ------------------------------------------------------------------------------
 
-{-# INLINE applyParallel #-}
-applyParallel :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
-applyParallel f m = mkStream $ \st yld sng stp -> do
+{-# INLINE _applyParallelK #-}
+_applyParallelK :: (IsStream t, MonadAsync m)
+    => (t m a -> t m b) -> t m a -> t m b
+_applyParallelK f m = mkStream $ \st yld sng stp -> do
     sv <- newParallelVar StopNone (adaptState st)
     pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
     foldStream st yld sng stp $ f $ fromSVar sv
+
+-- XXX need to implement fromSVar in direct style for fused generation from
+-- SVar.
+{-# INLINE applyParallelD #-}
+applyParallelD :: (IsStream t, MonadAsync m)
+    => (t m a -> t m b) -> t m a -> t m b
+applyParallelD f m = mkStream $ \st yld sng stp -> do
+    sv <- newParallelVar StopNone (adaptState st)
+    pushWorkerParD (adaptState st) sv (D.toStreamD m)
+    foldStream st yld sng stp $ f $ fromSVar sv
+
+{-# INLINE applyParallel #-}
+applyParallel :: (IsStream t, MonadAsync m)
+    => (t m a -> t m b) -> t m a -> t m b
+applyParallel = applyParallelD
 
 ------------------------------------------------------------------------------
 -- Stream runner concurrent function application
 ------------------------------------------------------------------------------
 
-{-# INLINE foldParallel #-}
-foldParallel :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-foldParallel f m = do
+{-# INLINE _foldParallelK #-}
+_foldParallelK :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+_foldParallelK f m = do
     sv <- newParallelVar StopNone defState
     pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
     f $ fromSVar sv
+
+-- XXX need to implement fromSVar in direct style for fused generation from
+-- SVar.
+{-# INLINE foldParallelD #-}
+foldParallelD :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+foldParallelD f m = do
+    sv <- newParallelVar StopNone defState
+    pushWorkerParD defState sv (D.toStreamD m)
+    f $ fromSVar sv
+
+{-# INLINE foldParallel #-}
+foldParallel :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+foldParallel = foldParallelD
+
+------------------------------------------------------------------------------
+-- Parallel tee
+------------------------------------------------------------------------------
 
 {-# INLINE teeToSVar #-}
 teeToSVar :: (IsStream t, MonadAsync m) => SVar Stream m a -> t m a -> t m a

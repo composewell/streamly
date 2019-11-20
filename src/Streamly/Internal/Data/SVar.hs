@@ -45,6 +45,7 @@ module Streamly.Internal.Data.SVar
     , setYieldLimit
     , getInspectMode
     , setInspectMode
+    , recordMaxWorkers
 
     , cleanupSVar
     , cleanupSVarFromWorker
@@ -68,6 +69,7 @@ module Streamly.Internal.Data.SVar
     , enqueueAhead
     , reEnqueueAhead
     , pushWorkerPar
+    , handleChildException
 
     , queueEmptyAhead
     , dequeueAhead
