@@ -87,6 +87,7 @@ module Streamly.Internal.Data.Unfold
     , identity
     , const
     , replicateM
+    , repeatM
     , fromList
     , fromListM
     , enumerateFromStepIntegral
@@ -403,6 +404,15 @@ replicateM n = Unfold step inject
         if i <= 0
         then Stop
         else Yield x (x, (i - 1))
+
+-- | Generates an infinite stream repeating the seed.
+--
+{-# INLINE repeatM #-}
+repeatM :: Monad m => Unfold m a a
+repeatM = Unfold step return
+    where
+    {-# INLINE_LATE step #-}
+    step x = return $ Yield x x
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
