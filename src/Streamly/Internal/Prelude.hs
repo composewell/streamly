@@ -131,6 +131,12 @@ module Streamly.Internal.Prelude
     , toStream    -- XXX rename to write?
     , toStreamRev -- XXX rename to writeRev?
 
+    -- * Function application
+    , (|$)
+    , (|&)
+    , (|$.)
+    , (|&.)
+
     -- * Transformation
     , transform
 
@@ -387,6 +393,9 @@ module Streamly.Internal.Prelude
     , usingStateT
     , runStateT
 
+    -- * Concurrency
+    , mkParallel
+
     -- * Diagnostics
     , inspectMode
 
@@ -435,7 +444,7 @@ import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.Internal.Data.SVar (MonadAsync, defState, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync, State, defState, adaptState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (inspectMode, maxYields)
 import Streamly.Streams.Prelude
@@ -1474,6 +1483,101 @@ toPureRev :: Monad m => SerialT m a -> m (SerialT Identity a)
 toPureRev = foldl' (flip K.cons) K.nil
 
 ------------------------------------------------------------------------------
+-- Concurrent Application
+------------------------------------------------------------------------------
+
+-- XXX mkParallel is usually used to make serial streams concurrent by
+-- evaluating the stream in another thread. Ideally, we should not be creating
+-- an SVar if the stream itself is concurrent. For example, if we are zipping
+-- two streams that are concurrently composed, we should be able to pull from
+-- the SVar of that concurrent stream instead of creating another redundant
+-- SVar on top of it.
+--
+{-# INLINE_NORMAL mkParallel #-}
+mkParallel :: (IsStream t, MonadAsync m)
+    => State K.Stream m a -> t m a -> m (t m a)
+mkParallel st m = fmap fromStreamD $ D.mkParallel st (toStreamD m)
+-- mkParallel = Par.mkParallel
+
+infixr 0 |$
+infixr 0 |$.
+
+infixl 1 |&
+infixl 1 |&.
+
+-- | Parallel function application operator for streams; just like the regular
+-- function application operator '$' except that it is concurrent. The
+-- following code prints a value every second even though each stage adds a 1
+-- second delay.
+--
+--
+-- @
+-- drain $
+--    S.mapM (\\x -> threadDelay 1000000 >> print x)
+--      |$ S.repeatM (threadDelay 1000000 >> return 1)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|$) #-}
+(|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
+f |$ x = D.fromStreamD $
+    D.applyParallel (D.toStreamD . f . D.fromStreamD) (D.toStreamD x)
+-- (|$) = Par.applyParallel
+
+-- | Parallel reverse function application operator for streams; just like the
+-- regular reverse function application operator '&' except that it is
+-- concurrent.
+--
+-- @
+-- drain $
+--       S.repeatM (threadDelay 1000000 >> return 1)
+--    |& S.mapM (\\x -> threadDelay 1000000 >> print x)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|&) #-}
+(|&) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> t m b) -> t m b
+x |& f = f |$ x
+
+-- | Parallel function application operator; applies a @run@ or @fold@ function
+-- to a stream such that the fold consumer and the stream producer run in
+-- parallel. A @run@ or @fold@ function reduces the stream to a value in the
+-- underlying monad. The @.@ at the end of the operator is a mnemonic for
+-- termination of the stream.
+--
+-- @
+--    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+--       |$. S.repeatM (threadDelay 1000000 >> return 1)
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|$.) #-}
+(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+(|$.) = D.foldParallel
+-- (|$.) = Par.foldParallel
+
+-- | Parallel reverse function application operator for applying a run or fold
+-- functions to a stream. Just like '|$.' except that the operands are reversed.
+--
+-- @
+--        S.repeatM (threadDelay 1000000 >> return 1)
+--    |&. S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
+-- @
+--
+-- /Concurrent/
+--
+-- @since 0.3.0
+{-# INLINE (|&.) #-}
+(|&.) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> m b) -> m b
+x |&. f = f |$. x
+
+------------------------------------------------------------------------------
 -- General Transformation
 ------------------------------------------------------------------------------
 
@@ -2036,6 +2140,27 @@ zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)
 -- Parallel Zipping
 ------------------------------------------------------------------------------
 
+-- The CPS version and the direct version of zipAsyncWithM below seem to have
+-- identical performane.  However, we need to use the StreamD version of
+-- mkParallel which uses a direct implementation of fromSVar. In comparison to
+-- CPS version of fromSVar the direct version gives a 2x improvement.
+
+-- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
+--
+-- @since 0.4.0
+{-# INLINE zipAsyncWithM #-}
+zipAsyncWithM :: (IsStream t, MonadAsync m)
+    => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
+    ma <- mkParallel (adaptState st) m1
+    mb <- mkParallel (adaptState st) m2
+    K.foldStream st stp sng yld $ zipWithM f ma mb
+{-
+zipAsyncWithM f m1 m2 =
+    fromStreamD $ D.zipAsyncWithM f (toStreamD m1) (toStreamD m2)
+-}
+
 -- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.
 --
@@ -2043,22 +2168,7 @@ zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)
 {-# INLINE zipAsyncWith #-}
 zipAsyncWith :: (IsStream t, MonadAsync m)
     => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- Par.mkParallel (adaptState st) m1
-    mb <- Par.mkParallel (adaptState st) m2
-    K.foldStream st stp sng yld $ zipWith f ma mb
-
--- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
--- @since 0.4.0
-{-# INLINABLE zipAsyncWithM #-}
-zipAsyncWithM :: (IsStream t, MonadAsync m)
-    => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- Par.mkParallel (adaptState st) m1
-    mb <- Par.mkParallel (adaptState st) m2
-    K.foldStream st stp sng yld $ zipWithM f ma mb
+zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Comparison

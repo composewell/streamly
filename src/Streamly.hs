@@ -128,10 +128,10 @@ module Streamly
 
     -- * Parallel Function Application
     -- $application
-    , (|$)
-    , (|&)
-    , (|$.)
-    , (|&.)
+    , (IP.|$)
+    , (IP.|&)
+    , (IP.|$.)
+    , (IP.|&.)
     , mkAsync
 
     -- * Merging Streams

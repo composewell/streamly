@@ -107,6 +107,7 @@ module Streamly.Internal.Data.SVar
     , toStreamVar
     , SVarStats (..)
     , dumpSVar
+    , printSVar
     )
 where
 
@@ -858,6 +859,11 @@ dumpSVar sv = do
         ]
         <> "---------STATS-----------\n"
         <> stats
+
+printSVar :: SVar t m a -> String -> IO ()
+printSVar sv how = do
+    svInfo <- dumpSVar sv
+    hPutStrLn stderr $ "\n" <> how <> "\n" <> svInfo
 
 -- MVar diagnostics has some overhead - around 5% on asyncly null benchmark, we
 -- can keep it on in production to debug problems quickly if and when they
