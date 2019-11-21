@@ -20,12 +20,7 @@
 --
 module Streamly.Streams.Zip
     (
-      K.zipWith
-    , K.zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
-
-    , ZipSerialM
+      ZipSerialM
     , ZipSerial
     , ZipStream         -- deprecated
     , zipSerially
@@ -53,10 +48,10 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, repeat, zipWith)
 
-import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream)
-import Streamly.Streams.Parallel (mkParallel)
+import Streamly.Streams.StreamK (IsStream(..), Stream)
 import Streamly.Streams.Serial (map)
-import Streamly.Internal.Data.SVar (MonadAsync, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync)
+import Streamly.Internal.Prelude (zipWith, zipAsyncWith)
 
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
@@ -136,38 +131,11 @@ instance Monad m => Functor (ZipSerialM m) where
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . K.repeat
-    (<*>) = K.zipWith id
+    {-# INLINE (<*>) #-}
+    (<*>) = zipWith id
 
 FOLDABLE_INSTANCE(ZipSerialM)
 TRAVERSABLE_INSTANCE(ZipSerialM)
-
-------------------------------------------------------------------------------
--- Parallel Zipping
-------------------------------------------------------------------------------
-
--- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
--- @since 0.1.0
-{-# INLINABLE zipAsyncWith #-}
-zipAsyncWith :: (IsStream t, MonadAsync m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f m1 m2 = mkStream $ \st stp sng yld -> do
-    ma <- mkParallel (adaptState st) m1
-    mb <- mkParallel (adaptState st) m2
-    foldStream st stp sng yld (K.zipWith f ma mb)
-
--- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
--- @since 0.4.0
-{-# INLINABLE zipAsyncWithM #-}
-zipAsyncWithM :: (IsStream t, MonadAsync m)
-    => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = mkStream $ \st stp sng yld -> do
-    ma <- mkParallel (adaptState st) m1
-    mb <- mkParallel (adaptState st) m2
-    foldStream st stp sng yld (K.zipWithM f ma mb)
 
 ------------------------------------------------------------------------------
 -- Parallely Zipping Streams
@@ -233,4 +201,5 @@ instance Monad m => Functor (ZipAsyncM m) where
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
     pure = ZipAsyncM . K.repeat
+    {-# INLINE (<*>) #-}
     m1 <*> m2 = zipAsyncWith id m1 m2

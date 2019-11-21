@@ -248,8 +248,8 @@ module Streamly.Internal.Prelude
     -- ** Zipping
     , zipWith
     , zipWithM
-    , Z.zipAsyncWith
-    , Z.zipAsyncWithM
+    , zipAsyncWith
+    , zipAsyncWithM
 
     -- ** Nested Streams
     , concatMapM
@@ -435,7 +435,7 @@ import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.Internal.Data.SVar (MonadAsync, defState)
+import Streamly.Internal.Data.SVar (MonadAsync, defState, adaptState)
 import Streamly.Streams.Async (mkAsync')
 import Streamly.Streams.Combinators (inspectMode, maxYields)
 import Streamly.Streams.Prelude
@@ -456,11 +456,9 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
 import qualified Streamly.Streams.StreamD as D
-import qualified Streamly.Streams.Zip as Z
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
-import qualified Streamly.Streams.Zip as S
 #else
 import qualified Streamly.Streams.StreamD as S
 #endif
@@ -2033,6 +2031,34 @@ zipWithM f m1 m2 = fromStreamS $ S.zipWithM f (toStreamS m1) (toStreamS m2)
 {-# INLINABLE zipWith #-}
 zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
 zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)
+
+------------------------------------------------------------------------------
+-- Parallel Zipping
+------------------------------------------------------------------------------
+
+-- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
+--
+-- @since 0.1.0
+{-# INLINE zipAsyncWith #-}
+zipAsyncWith :: (IsStream t, MonadAsync m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith f m1 m2 = K.mkStream $ \st stp sng yld -> do
+    ma <- Par.mkParallel (adaptState st) m1
+    mb <- Par.mkParallel (adaptState st) m2
+    K.foldStream st stp sng yld $ zipWith f ma mb
+
+-- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
+--
+-- @since 0.4.0
+{-# INLINABLE zipAsyncWithM #-}
+zipAsyncWithM :: (IsStream t, MonadAsync m)
+    => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
+    ma <- Par.mkParallel (adaptState st) m1
+    mb <- Par.mkParallel (adaptState st) m2
+    K.foldStream st stp sng yld $ zipWithM f ma mb
 
 ------------------------------------------------------------------------------
 -- Comparison
