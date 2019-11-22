@@ -131,12 +131,14 @@ fromStreamK = Stream step
 toStreamK :: Monad m => Stream m a -> K.Stream m a
 toStreamK (Stream step state) = go state
     where
-    go st = K.mkStream $ \gst yld sng stp -> do
-        r <- step gst st
-        case r of
-            Yield x s -> yld x (go s)
-            Skip  s   -> K.foldStreamShared gst yld sng stp $ go s
-            Stop      -> stp
+    go st = K.mkStream $ \gst yld _ stp ->
+      let go' ss = do
+           r <- step gst ss
+           case r of
+               Yield x s -> yld x (go s)
+               Skip  s   -> go' s
+               Stop      -> stp
+      in go' st
 
 #ifndef DISABLE_FUSION
 {-# RULES "fromStreamK/toStreamK fusion"
