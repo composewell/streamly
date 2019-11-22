@@ -155,9 +155,46 @@ joinStreamVarPar :: (IsStream t, MonadAsync m)
 joinStreamVarPar style ss m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style && svarStopStyle sv == ss -> do
+            -- Here, WE ARE IN THE WORKER/PRODUCER THREAD, we know that because
+            -- the SVar exists. We are running under runOne and the output we
+            -- produce ultimately will be sent to the SVar by runOne.
+            --
+            -- If we came here the worker/runOne is evaluating a `parallel`
+            -- combinator. In this case, we always fork a new worker for the
+            -- first component (m1) in the parallel composition and continue to
+            -- evaluate the second component (m2) in the current worker thread.
+            --
+            -- When m1 is serially composed, the worker would evaluate it
+            -- without any further forks and the resulting output is sent to
+            -- the SVar and the evaluation terminates. If m1 is a `parallel`
+            -- composition of two streams the worker would again recurses here.
+            --
+            -- Similarly, when m2 is serially composed it gets evaluated here
+            -- and the resulting output is sent to the SVar by the runOne
+            -- wrapper. When m2 is composed with `parallel` it will again
+            -- recurse here and so on until it finally terminates.
+            --
+            -- When we create a right associated expression using `parallel`,
+            -- then m1 would always terminate without further forks or
+            -- recursion into this routine, therefore, the worker returns
+            -- immediately after evaluating it. And m2 would continue to
+            -- fork/recurse, therefore, the current thread always recurses and
+            -- forks new workers one after the other.  This is a tail recursive
+            -- style execution, m2, the recursive expression always executed at
+            -- the tail.
+            --
+            -- When the expression is left associated, the worker spawned would
+            -- get the forking/recursing responsibility and then again the
+            -- worker spawned by that worker would fork, thus creating layer
+            -- over layer of workers and a chain of threads leading to a very
+            -- inefficient execution.
             pushWorkerPar sv (runOne st $ toStream m1)
             foldStreamShared st yld sng stp m2
-        _ -> foldStreamShared st yld sng stp (forkSVarPar ss m1 m2)
+        _ ->
+            -- Here WE ARE IN THE CONSUMER THREAD, we create a new SVar, fork
+            -- worker threads to execute m1 and m2 and this thread starts
+            -- pulling the stream from the SVar.
+            foldStreamShared st yld sng stp (forkSVarPar ss m1 m2)
 
 -------------------------------------------------------------------------------
 -- User facing APIs
