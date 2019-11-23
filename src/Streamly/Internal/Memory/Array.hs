@@ -512,6 +512,7 @@ fold f arr = P.runFold f $ (toStream arr :: Serial.SerialT m a)
 streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
 
+-- XXX Is there room for improvement?
 -- | Take last 'n' elements from the stream and discard the rest.
 {-# INLINABLE lastN #-}
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
