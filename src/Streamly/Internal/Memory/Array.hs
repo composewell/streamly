@@ -67,6 +67,7 @@ module Streamly.Internal.Memory.Array
     , toStream
     , toStreamRev
     , read
+    , unsafeRead
     -- , readChunksOf
 
     -- * Random Access
@@ -135,6 +136,8 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import GHC.ForeignPtr (ForeignPtr(..))
 import GHC.Ptr (Ptr(..))
+import GHC.Prim (touch#)
+import GHC.IO (IO(..))
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
@@ -238,6 +241,41 @@ read = Unfold step inject
             let !x = A.unsafeInlineIO $ peek p
             return $ D.Yield x
                 (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
+
+-- | Unfold an array into a stream, does not check the end of the array, the
+-- user is responsible for terminating the stream within the array bounds. For
+-- high performance application where the end condition can be determined by
+-- a terminating fold.
+--
+-- Written in the hope that it may be faster than "read", however, in the case
+-- for which this was written, "read" proves to be faster even though the core
+-- generated with unsafeRead looks simpler.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL unsafeRead #-}
+unsafeRead :: forall m a. (Monad m, Storable a) => Unfold m (Array a) a
+unsafeRead = Unfold step inject
+    where
+
+    inject (Array fp _ _) = return fp
+
+    {-# INLINE_LATE step #-}
+    step (ForeignPtr p contents) = do
+            -- unsafeInlineIO allows us to run this in Identity monad for pure
+            -- toList/foldr case which makes them much faster due to not
+            -- accumulating the list and fusing better with the pure consumers.
+            --
+            -- This should be safe as the array contents are guaranteed to be
+            -- evaluated/written to before we peek at them.
+            let !x = A.unsafeInlineIO $ do
+                        r <- peek (Ptr p)
+                        touch contents
+                        return r
+            let !(Ptr p1) = Ptr p `plusPtr` (sizeOf (undefined :: a))
+            return $ D.Yield x (ForeignPtr p1 contents)
+
+    touch r = IO $ \s -> case touch# r s of s' -> (# s', () #)
 
 -- | > null arr = length arr == 0
 --
