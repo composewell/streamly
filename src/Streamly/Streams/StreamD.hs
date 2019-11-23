@@ -122,6 +122,7 @@ module Streamly.Streams.StreamD
     , drain
     , null
     , head
+    , headElse
     , tail
     , last
     , elem
@@ -895,6 +896,10 @@ null m = foldrM (\_ _ -> return False) (return True) m
 {-# INLINE_NORMAL head #-}
 head :: Monad m => Stream m a -> m (Maybe a)
 head m = foldrM (\x _ -> return (Just x)) (return Nothing) m
+
+{-# INLINE_NORMAL headElse #-}
+headElse :: Monad m => a -> Stream m a -> m a
+headElse a m = foldrM (\x _ -> return x) (return a) m
 
 -- Does not fuse, has the same performance as the StreamK version.
 {-# INLINE_NORMAL tail #-}

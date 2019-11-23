@@ -104,6 +104,7 @@ module Streamly.Internal.Prelude
     -- -- | Folds that extract selected elements of a stream or their properties.
     , (!!)
     , head
+    , headElse
     , findM
     , find
     , lookup
@@ -1114,6 +1115,15 @@ null = S.null . toStreamS
 {-# INLINE head #-}
 head :: Monad m => SerialT m a -> m (Maybe a)
 head = S.head . toStreamS
+
+-- | Extract the first element of the stream, if any, otherwise use the
+-- supplied default value. It can help avoid one branch in high performance
+-- code.
+--
+-- /Internal/
+{-# INLINE headElse #-}
+headElse :: Monad m => a -> SerialT m a -> m a
+headElse x = D.headElse x . toStreamD
 
 -- |
 -- > tail = fmap (fmap snd) . uncons
