@@ -587,8 +587,8 @@ rollingHashLastN n = Fold step initial extract
         let ea = fromEnum a
         a' <- liftIO $ peek rh
         rh1 <- liftIO $ RB.unsafeInsert rb rh ea
-        -- You don't need to change i to i + 1 here
-        -- Can remove this additional operation
+        -- XXX You don't need to change i to i + 1 here
+        -- XXX Can remove this additional operation
         return (dSA, rb, rh1, i + 1, cksum * k - a' * k' + ea)
     extract (dSA, _, _, _, cksum) = return $ dSA + cksum
 
