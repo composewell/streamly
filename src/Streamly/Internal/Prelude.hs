@@ -1353,7 +1353,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 --
 -- @since 0.6.0
 {-# INLINE isSuffixOf #-}
-isSuffixOf :: (Storable a, IsStream t, MonadIO m) => t m a -> t m a -> m Bool
+isSuffixOf :: (Eq a, Storable a, IsStream t, MonadIO m) => t m a -> t m a -> m Bool
 isSuffixOf m1 m2 = D.isSuffixOf (toStreamD m1) (toStreamD m2)
 
 -- | Returns 'True' if the first stream is the same as or a infix of the

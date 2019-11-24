@@ -2022,32 +2022,12 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return False
 
--- XXX Add tests and benchmarks
--- XXX Change to strict data structures accordingly
--- XXX Could potantially be made faster
 {-# INLINE_NORMAL isSuffixOf #-}
-isSuffixOf :: (MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
-isSuffixOf (Stream stpa sa) (Stream stpb sb) = go1 (sa, 0, [])
-  where
-    go1 (st, i1, b) = do
-      r <- stpa defState st
-      case r of
-        Yield x st' -> go1 (st', i1 + 1, x:b)
-        Skip st' -> go1 (st', i1, b)
-        Stop -> liftIO (RB.new i1) >>= \(rb, rh) -> go2 (i1, A.fromList b, sb, 0, rb, rh)
-
-    go2 (i1, b, st, i2, rb, rh) = do
-      r <- stpb defState st
-      case r of
-        Yield x st' -> do
-          rh1 <- liftIO $ RB.unsafeInsert rb rh x
-          go2 (i1, b, st', i2 + 1, rb, rh1)
-        Skip st' -> go2 (i1, b, st', i2, rb, rh)
-        Stop -> go3 (i1, b, i2, rb, rh) 
-
-    go3 (i1, b, i2, rb, rh)
-      | i1 > i2 = return False
-      | otherwise = return $ RB.unsafeEqArray rb rh b
+isSuffixOf :: (MonadIO m, Storable a, Eq a) => Stream m a -> Stream m a -> m Bool
+isSuffixOf sa sb = do
+  aa <- runFold A.write sa
+  ab <- flip runFold sb $ lastN $ A.length aa
+  return $ aa == ab
 
 -- XXX Add tests and benchmarks
 -- XXX Change to strict data structures accordingly
