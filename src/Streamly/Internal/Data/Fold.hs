@@ -57,7 +57,7 @@ module Streamly.Internal.Data.Fold
     , rollingHash
     , rollingHashWithSalt
     , rollingHashFirstN
-    -- , rollingHashLastN
+    , rollingHashLastN
 
     -- ** Full Folds (Monoidal)
     , mconcat
@@ -212,7 +212,7 @@ import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Memory.Ring as RB
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.Storable (Storable)
+import Foreign.Storable (Storable(..))
 
 ------------------------------------------------------------------------------
 -- Smart constructors
@@ -569,11 +569,28 @@ rollingHash = rollingHashWithSalt defaultSalt
 rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
 rollingHashFirstN n = ltake n rollingHash
 
-{-
 {-# INLINABLE rollingHashLastN #-}
 rollingHashLastN :: (MonadIO m, Enum a, Storable a) => Int -> Fold m a Int
-rollingHashLastN n = lastN n rollingHash
--}
+rollingHashLastN n = Fold step initial extract
+  where
+    k = 2891336453
+    k' = k ^ n 
+    initial = do
+      (rb, rh) <- liftIO $ RB.new n
+      return (defaultSalt, rb, rh, 0, 0)
+    step (dSA, rb, rh, i, cksum) a
+      | i < n = do
+        let ea = fromEnum a
+        rh1 <- liftIO $ RB.unsafeInsert rb rh ea
+        return (dSA * k, rb, rh1, i + 1, cksum * k + ea)
+      | otherwise = do
+        let ea = fromEnum a
+        a' <- liftIO $ peek rh
+        rh1 <- liftIO $ RB.unsafeInsert rb rh ea
+        -- You don't need to change i to i + 1 here
+        -- Can remove this additional operation
+        return (dSA, rb, rh1, i + 1, cksum * k - a' * k' + ea)
+    extract (dSA, _, _, _, cksum) = return $ dSA + cksum
 
 ------------------------------------------------------------------------------
 -- Monoidal left folds
