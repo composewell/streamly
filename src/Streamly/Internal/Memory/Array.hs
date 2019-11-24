@@ -126,7 +126,7 @@ module Streamly.Internal.Memory.Array
     , fold
 
     -- * Folds with Array as the container
-    , lastN
+    , D.lastN
     )
 where
 
@@ -143,7 +143,6 @@ import GHC.Prim (touch#)
 import GHC.IO (IO(..))
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
@@ -511,21 +510,3 @@ fold f arr = P.runFold f $ (toStream arr :: Serial.SerialT m a)
 {-# INLINE streamFold #-}
 streamFold :: (MonadIO m, Storable a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
-
--- XXX Is there room for improvement?
--- | Take last 'n' elements from the stream and discard the rest.
-{-# INLINABLE lastN #-}
-lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
-lastN n = Fold step initial done
-  where
-    step (Tuple3' rb rh i) a = do
-      rh1 <- liftIO $ RB.unsafeInsert rb rh a
-      return $ Tuple3' rb rh1 (i + 1)
-    initial = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n 
-    done (Tuple3' rb rh i) = do
-      arr <- liftIO $ A.newArray n
-      foldFunc i rh snoc' arr rb
-    snoc' b a = liftIO $ A.unsafeSnoc b a
-    foldFunc i
-      | i < n = RB.unsafeFoldRingM 
-      | otherwise = RB.unsafeFoldRingFullM 

@@ -312,6 +312,10 @@ module Streamly.Streams.StreamD
     -- XXX Shift this somewhere else?
     -- * Reordering
     , reassembleBy
+
+    -- XXX Move this later
+    -- XXX Exported from Array again
+    , lastN
     )
 where
 
@@ -371,6 +375,8 @@ import qualified Streamly.Streams.StreamK as K
 import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr (touchForeignPtr)
+
+import Streamly.Internal.Data.Strict
 
 ------------------------------------------------------------------------------
 -- Construction
@@ -4453,3 +4459,21 @@ reassembleBy sz diff (Stream step state) = Stream step' state'
             _ -> return Stop
       where
         view = H.uncons h
+
+-- XXX Is there room for improvement?
+-- | Take last 'n' elements from the stream and discard the rest.
+{-# INLINABLE lastN #-}
+lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+lastN n = Fold step initial done
+  where
+    step (Tuple3' rb rh i) a = do
+      rh1 <- liftIO $ RB.unsafeInsert rb rh a
+      return $ Tuple3' rb rh1 (i + 1)
+    initial = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n 
+    done (Tuple3' rb rh i) = do
+      arr <- liftIO $ A.newArray n
+      foldFunc i rh snoc' arr rb
+    snoc' b a = liftIO $ A.unsafeSnoc b a
+    foldFunc i
+      | i < n = RB.unsafeFoldRingM 
+      | otherwise = RB.unsafeFoldRingFullM 
