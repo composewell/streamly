@@ -641,7 +641,7 @@ isSubsequenceOf src = S.isSubsequenceOf src src
 {-# INLINE isInfixOf #-}
 isSuffixOf, isInfixOf :: MonadIO m => Stream m Int -> m Bool
 
-isSuffixOf src = S.isPrefixOf src src
+isSuffixOf src = S.isSuffixOf src src
 isInfixOf src = S.isPrefixOf src src
 
 {-# INLINE stripPrefix #-}
