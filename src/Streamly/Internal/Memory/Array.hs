@@ -149,7 +149,6 @@ import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Memory.Array.Types as A
-import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Streams.StreamD as D
