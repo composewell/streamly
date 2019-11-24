@@ -1366,7 +1366,7 @@ isSuffixOf m1 m2 = D.isSuffixOf (toStreamD m1) (toStreamD m2)
 --
 -- @since 0.6.0
 {-# INLINE isInfixOf #-}
-isInfixOf :: (Storable a, IsStream t, MonadIO m) => t m a -> t m a -> m Bool
+isInfixOf :: (Storable a, IsStream t, MonadIO m, Enum a) => t m a -> t m a -> m Bool
 isInfixOf m1 m2 = D.isInfixOf (toStreamD m1) (toStreamD m2)
 
 -- | Returns 'True' if all the elements of the first stream occur, in order, in

@@ -378,6 +378,8 @@ import Foreign.ForeignPtr (touchForeignPtr)
 
 import Streamly.Internal.Data.Strict
 
+import qualified Streamly.Internal.Data.Fold as FL
+
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
@@ -2029,38 +2031,13 @@ isSuffixOf sa sb = do
   ab <- flip runFold sb $ lastN $ A.length aa
   return $ aa == ab
 
--- XXX Add tests and benchmarks
--- XXX Change to strict data structures accordingly
--- XXX Could potantially be made faster
 {-# INLINE_NORMAL isInfixOf #-}
-isInfixOf :: (MonadIO m, Storable a) => Stream m a -> Stream m a -> m Bool
-isInfixOf (Stream stpa sa) (Stream stpb sb) = go1 (sa, 0, [])
+isInfixOf :: (MonadIO m, Storable a, Enum a) => Stream m a -> Stream m a -> m Bool
+isInfixOf sa sb = do
+  (patHash, len) <- runFold ((,) <$> FL.rollingHash <*> FL.length) sa
+  patHash `elem` scan (FL.rollingHashLastN len) sb
   where
-    go1 (st, i1, b) = do
-      r <- stpa defState st
-      case r of
-        Yield x st' -> go1 (st', i1 + 1, x:b)
-        Skip st' -> go1 (st', i1, b)
-        Stop -> do
-          (rb, rh) <- liftIO (RB.new i1)
-          go2 (i1, A.fromList b, sb, 0, rb, rh)
-
-    go2 (i1, b, st, i2, rb, rh) = do
-      r <- stpb defState st
-      case r of
-        Yield x st' -> do
-          rh1 <- liftIO $ RB.unsafeInsert rb rh x
-          if i2 + 1 >= i1 then go3 (i1, b, st', i2 + 1, rb, rh1)
-                          else go2 (i1, b, st', i2 + 1, rb, rh1)
-        Skip st' -> go2 (i1, b, st', i2, rb, rh)
-        Stop -> if i2 >= i1 then go4 (b, rb, rh)
-                            else return False
-
-    go3 arg@(_, b, _, _, rb, rh)
-      | RB.unsafeEqArray rb rh b = return True
-      | otherwise = go2 arg   
-
-    go4 (b, rb, rh) = return $ RB.unsafeEqArray rb rh b
+    scan (Fold step initial extract) = scanlMx' step initial extract
 
 {-# INLINE_NORMAL isSubsequenceOf #-}
 isSubsequenceOf :: (Eq a, Monad m) => Stream m a -> Stream m a -> m Bool
