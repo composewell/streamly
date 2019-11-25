@@ -41,3 +41,15 @@ multi-core parallelism use the following GHC options:
 GHC 8.2.2 may hog memory and hang when building certain application using
 streamly (particularly the benchmark programs in the streamly package).
 Therefore we recommend avoiding using the GHC version 8.2.x.
+
+# Performance Optimizations
+
+If performance is below expectations:
+
+* Look for inlining functions in the fast path
+* Strictness annotations on data, specially the data used as accumulator in
+  folds and scans, can help in improving performance.
+* Strictness annotations on function arguments can help the compiler unbox
+  constructors in certain cases, improving performance.
+* Sometims using `-XStrict` extension can help improve performance, if so you
+  may be missing some strictness annotations.
