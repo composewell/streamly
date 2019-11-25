@@ -1402,7 +1402,7 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 -- @since 0.6.0
 {-# INLINE stripSuffix #-}
 stripSuffix
-    :: (Storable a, IsStream t, MonadIO m)
+    :: (Storable a, IsStream t, MonadIO m, Eq a)
     => t m a -> t m a -> m (Maybe (t m a))
 stripSuffix m1 m2 = fmap fromStreamD <$>
     D.stripSuffix (toStreamD m1) (toStreamD m2)
