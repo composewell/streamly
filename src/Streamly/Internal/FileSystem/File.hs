@@ -22,7 +22,7 @@
 -- session consisting of multiple reads and writes to the handle, these APIs
 -- are one shot read or write APIs. These APIs open the file handle, perform
 -- the requested operation and close the handle. Thease are safer compared to
--- the handle based APIs as there is no possiblity of a file descriptor
+-- the handle based APIs as there is no possibility of a file descriptor
 -- leakage.
 --
 -- > import qualified Streamly.Internal.FileSystem.File as File

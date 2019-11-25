@@ -355,7 +355,7 @@ concurrently using this.
 * Add `iterate`, `iterateM` stream operations
 
 ### Bug Fixes
-* Fixed a bug that casued unexpected behavior when `pure` was used to inject
+* Fixed a bug that caused unexpected behavior when `pure` was used to inject
   values in Applicative composition of `ZipStream` and `ZipAsync` types.
 
 ## 0.1.1

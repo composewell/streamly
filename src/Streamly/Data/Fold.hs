@@ -190,7 +190,7 @@ module Streamly.Data.Fold
     --                            ...
     -- @
     --
-    -- To compute the average of numbers in a stream without going throught he
+    -- To compute the average of numbers in a stream without going through the
     -- stream twice:
     --
     -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length

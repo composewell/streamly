@@ -1,6 +1,6 @@
 # Internal vs External
 
-We keep all modules exposed to faciliate convenient exposure of experimental
+We keep all modules exposed to facilitate convenient exposure of experimental
 APIs and constructors to users. It allows users of the library to experiment
 much more easily and carry a caveat that these APIs can change in future
 without notice.  Since everything is exposed, maintainers do not have to think

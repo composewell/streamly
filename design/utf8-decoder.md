@@ -139,7 +139,7 @@ null-terminated UTF-8 encoded string.
 
 ### Error recovery
 
-It is sometimes desireable to recover from errors when decoding strings
+It is sometimes desirable to recover from errors when decoding strings
 that are supposed to be UTF-8 encoded. Programmers should be aware that
 this can negatively affect the security properties of their application.
 A common recovery method is to replace malformed sequences with a
@@ -155,8 +155,8 @@ aswell.
 
 The following code implements one such recovery strategy. When an
 unexpected byte is encountered, the sequence up to that point will be
-replaced and, if the error occured in the middle of a sequence, will
-retry the byte as if it occured at the beginning of a string. Note that
+replaced and, if the error occurred in the middle of a sequence, will
+retry the byte as if it occurred at the beginning of a string. Note that
 the decode function detects errors as early as possible, so the sequence
 `0xED 0xA0 0x80` would result in three replacement characters.
 

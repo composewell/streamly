@@ -781,7 +781,7 @@ import Streamly.Internal.Prelude
 -- left fold reconstructs in a LIFO style, thereby reversing the order of
 -- elements..
 -- 3. A right fold has termination control and therefore can terminate early
--- without going throught the entire input, a left fold cannot terminate
+-- without going through the entire input, a left fold cannot terminate
 -- without consuming all of its input.  For example, a right fold
 -- implementation of 'or' can terminate as soon as it finds the first 'True'
 -- element, whereas a left fold would necessarily go through the entire input

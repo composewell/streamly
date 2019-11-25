@@ -21,7 +21,7 @@ print_help () {
   echo "commit is generated, in the 'charts' directory."
   echo "Use --base and --candidate to select the commits to compare."
   echo
-  echo "Any arguments after a '--' are passed directly to guage"
+  echo "Any arguments after a '--' are passed directly to gauge"
   exit
 }
 
@@ -86,7 +86,7 @@ build_report_progs() {
 
 # We run the benchmarks in isolation in a separate process so that different
 # benchmarks do not interfere with other. To enable that we need to pass the
-# benchmark exe path to guage as an argument. Unfortunately it cannot find its
+# benchmark exe path to gauge as an argument. Unfortunately it cannot find its
 # own path currently.
 
 # The path is dependent on the architecture and cabal version.

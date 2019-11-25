@@ -236,7 +236,7 @@ import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Streams.StreamK as K
 
--- XXX provide good succinct examples of pipelining, merging, splitting ect.
+-- XXX provide good succinct examples of pipelining, merging, splitting etc.
 -- below.
 --
 -- $streams

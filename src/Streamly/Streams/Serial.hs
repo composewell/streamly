@@ -308,7 +308,7 @@ instance IsStream WSerialT where
 ------------------------------------------------------------------------------
 
 -- Additionally we can have m elements yield from the first stream and n
--- elements yeilding from the second stream. We can also have time slicing
+-- elements yielding from the second stream. We can also have time slicing
 -- variants of positional interleaving, e.g. run first stream for m seconds and
 -- run the second stream for n seconds.
 --
