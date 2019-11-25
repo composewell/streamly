@@ -1674,7 +1674,7 @@ estimateWorkers workerLimit svarYields gainLossYields
     -- maxWorkerLatency.
     --
     let
-        -- How many workers do we need to acheive the required rate?
+        -- How many workers do we need to achieve the required rate?
         --
         -- When the workers are IO bound we can increase the throughput by
         -- increasing the number of workers as long as the IO device has enough
@@ -1691,7 +1691,7 @@ estimateWorkers workerLimit svarYields gainLossYields
         -- use that to determine the max rate of workers, and also take the CPU
         -- bandwidth into account. We can also discover the IO bandwidth if we
         -- know that we are not CPU bound, then how much steady state rate are
-        -- we able to acheive. Design tests for CPU bound and IO bound cases.
+        -- we able to achieve. Design tests for CPU bound and IO bound cases.
 
         -- Calculate how many yields are we ahead or behind to match the exact
         -- required rate. Based on that we increase or decrease the effective

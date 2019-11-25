@@ -141,7 +141,7 @@ module Streamly.Internal.Data.Pipe
     --                            ...
     -- @
     --
-    -- To compute the average of numbers in a stream without going throught he
+    -- To compute the average of numbers in a stream without going through the
     -- stream twice:
     --
     -- >>> let avg = (/) <$> FL.sum <*> fmap fromIntegral FL.length
@@ -1805,7 +1805,7 @@ classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -- All the input elements belonging to a session are collected using the fold
 -- @f@.  The session key and the fold result are emitted in the output stream
 -- when the session is purged either via the session close event or via the
--- session liftime timeout.
+-- session lifetime timeout.
 --
 -- @since 0.7.0
 {-# INLINABLE classifySessionsBy #-}

@@ -191,7 +191,7 @@ folds where there is no incoming state, we start with the initial state
 
 1. When we are building a concurrent stream that needs to share the same `SVar`
    we pass the incoming state as is.
-2. In all other cases we must not share the SVar and everytime we pass on the
+2. In all other cases we must not share the SVar and every time we pass on the
    state to run a stream we must use `rstState` to reset the `SVar` in the
    state.
 

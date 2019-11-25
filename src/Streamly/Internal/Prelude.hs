@@ -2077,7 +2077,7 @@ insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
 -- Deleting
 ------------------------------------------------------------------------------
 
--- | Deletes the first occurence of the element in the stream that satisfies
+-- | Deletes the first occurrence of the element in the stream that satisfies
 -- the given equality predicate.
 --
 -- @
@@ -3644,7 +3644,7 @@ classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -- All the input elements belonging to a session are collected using the fold
 -- @f@.  The session key and the fold result are emitted in the output stream
 -- when the session is purged either via the session close event or via the
--- session liftime timeout.
+-- session lifetime timeout.
 --
 -- @since 0.7.0
 {-# INLINABLE classifySessionsBy #-}

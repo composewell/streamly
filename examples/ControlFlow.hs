@@ -69,7 +69,7 @@ mainMaybeBelow = do
 -- of non-determinism below.
 --
 -- Note that this is redundant configuration as the same behavior can be
--- acheived with just streamly, using mzero.
+-- achieved with just streamly, using mzero.
 --
 getSequenceMaybeAbove :: (IsStream t, MonadIO (t m)) => MaybeT (t m) ()
 getSequenceMaybeAbove = do

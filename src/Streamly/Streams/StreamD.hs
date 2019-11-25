@@ -579,7 +579,7 @@ enumerateFromThenIntegral from next =
 -- 9007199254740992 + 2     :: Double => 9.007199254740994e15
 
 -- Instead we accumulate the increment counter and compute the increment
--- everytime before adding it to the starting number.
+-- every time before adding it to the starting number.
 --
 -- This works for Integrals as well as floating point numbers, but
 -- enumerateFromStepIntegral is faster for integrals.
