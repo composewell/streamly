@@ -259,7 +259,6 @@ module Streamly.Prelude
     -- trimming sequences
     , stripPrefix
     , stripSuffix
-    , stripInfix
 
     -- * Transformation
 
