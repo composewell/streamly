@@ -1338,7 +1338,9 @@ isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
 isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 
 -- | Returns 'True' if the first stream is the same as or a suffix of the
--- second. A stream is a suffix of itself.
+-- second. A stream is a suffix of itself.  Both the streams should be finite
+-- for the suffix check to ever terminate.  The memory used by this function
+-- would be proportional to the size of the suffix.
 --
 -- @
 -- > S.isSuffixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
@@ -1391,7 +1393,9 @@ stripPrefix m1 m2 = fmap fromStreamD <$>
 
 -- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
 -- not start with the given suffix. Returns @Just nil@ when the suffix is the
--- same as the stream.
+-- same as the stream.  Both the streams should be finite for this function to
+-- ever terminate. The memory used by this function would be proportional to the
+-- size of the suffix.
 --
 -- @since 0.6.0
 {-# INLINE stripSuffix #-}
