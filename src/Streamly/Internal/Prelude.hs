@@ -754,10 +754,8 @@ repeatMSerial = fromStreamS . S.repeatM
 -- @
 --
 -- @since 0.1.2
-iterate :: IsStream t => (a -> a) -> a -> t m a
-iterate step = K.fromStream . go
-    where
-    go s = K.cons s (go (step s))
+iterate :: (Monad m, IsStream t) => (a -> a) -> a -> t m a
+iterate step = fromStreamD . D.iterate step
 
 -- |
 -- @
@@ -786,12 +784,8 @@ iterate step = K.fromStream . go
 -- /Since: 0.7.0 (signature change)/
 --
 -- /Since: 0.1.2/
-iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
-iterateM step = go
-    where
-    go s = K.mkStream $ \st stp sng yld -> do
-        next <- s
-        K.foldStreamShared st stp sng yld (return next |: go (step next))
+iterateM :: (IsStream t, Monad m) => (a -> m a) -> m a -> t m a
+iterateM step = fromStreamD . D.iterateM step
 
 ------------------------------------------------------------------------------
 -- Conversions
