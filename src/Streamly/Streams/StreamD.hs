@@ -2094,9 +2094,8 @@ stripSuffix sa sb = do
   return $ if le == aa then Just $ take (len - al) sb
                        else Nothing
 
--- XXX Add tests and benchmarks
--- XXX Change to strict data structures accordingly
 -- XXX Could potantially be made faster
+-- XXX Use rollingHash here as well
 {-# INLINE_NORMAL stripInfix #-}
 stripInfix
   :: (MonadIO m, Storable a)
