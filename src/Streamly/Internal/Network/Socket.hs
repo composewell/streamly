@@ -21,8 +21,8 @@ module Streamly.Internal.Network.Socket
     (
     SockSpec (..)
     -- * Use a socket
-    , useSocketM
-    , useSocket
+    , handleWithM
+    , handleWith
 
     -- * Accept connections
     , accept
@@ -60,7 +60,7 @@ module Streamly.Internal.Network.Socket
     , fromBytes
 
     -- -- * Array Write
-    , writeArray
+    , writeChunk
     , writeChunks
     , writeStrings
 
@@ -101,7 +101,6 @@ import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Data.Unicode.Stream as U
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.Array as IA
@@ -111,25 +110,25 @@ import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
--- | @'useSocketM' socket act@ runs the monadic computation @act@ passing the
--- socket handle to it.  The handle will be closed on exit from 'useSocketM',
+-- | @'handleWithM' socket act@ runs the monadic computation @act@ passing the
+-- socket handle to it.  The handle will be closed on exit from 'handleWithM',
 -- whether by normal termination or by raising an exception.  If closing the
 -- handle raises an exception, then this exception will be raised by
--- 'useSocketM' rather than any exception raised by 'act'.
+-- 'handleWithM' rather than any exception raised by 'act'.
 --
 -- @since 0.7.0
-{-# INLINE useSocketM #-}
-useSocketM :: (MonadMask m, MonadIO m) => Socket -> (Socket -> m ()) -> m ()
-useSocketM sk f = finally (f sk) (liftIO (Net.close sk))
+{-# INLINE handleWithM #-}
+handleWithM :: (MonadMask m, MonadIO m) => (Socket -> m ()) -> Socket -> m ()
+handleWithM f sk = finally (f sk) (liftIO (Net.close sk))
 
--- | Like 'useSocketM' but runs a streaming computation instead of a monadic
+-- | Like 'handleWithM' but runs a streaming computation instead of a monadic
 -- computation.
 --
 -- @since 0.7.0
-{-# INLINE useSocket #-}
-useSocket :: (IsStream t, MonadCatch m, MonadIO m)
+{-# INLINE handleWith #-}
+handleWith :: (IsStream t, MonadCatch m, MonadIO m)
     => Socket -> (Socket -> t m a) -> t m a
-useSocket sk f = S.finally (liftIO $ Net.close sk) (f sk)
+handleWith sk f = S.finally (liftIO $ Net.close sk) (f sk)
 
 -------------------------------------------------------------------------------
 -- Accept (Unfolds)
@@ -282,19 +281,19 @@ writeArrayWith f h Array{..} = withForeignPtr aStart $ \p ->
 -- | Write an Array to a file handle.
 --
 -- @since 0.7.0
-{-# INLINABLE writeArray #-}
-writeArray :: Storable a => Socket -> Array a -> IO ()
-writeArray = writeArrayWith sendAll
+{-# INLINABLE writeChunk #-}
+writeChunk :: Storable a => Socket -> Array a -> IO ()
+writeChunk = writeArrayWith sendAll
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
 -------------------------------------------------------------------------------
 
-{-# INLINABLE readChunksUptoWith #-}
-readChunksUptoWith :: (IsStream t, MonadIO m)
+{-# INLINABLE _readChunksUptoWith #-}
+_readChunksUptoWith :: (IsStream t, MonadIO m)
     => (Int -> h -> IO (Array Word8))
     -> Int -> h -> t m (Array Word8)
-readChunksUptoWith f size h = go
+_readChunksUptoWith f size h = go
   where
     -- XXX use cons/nil instead
     go = mkStream $ \_ yld _ stp -> do
@@ -307,10 +306,19 @@ readChunksUptoWith f size h = go
 -- The maximum size of a single array is limited to @size@.
 -- 'fromHandleArraysUpto' ignores the prevailing 'TextEncoding' and 'NewlineMode'
 -- on the 'Handle'.
-{-# INLINABLE toChunksWithBufferOf #-}
+{-# INLINE_NORMAL toChunksWithBufferOf #-}
 toChunksWithBufferOf :: (IsStream t, MonadIO m)
     => Int -> Socket -> t m (Array Word8)
-toChunksWithBufferOf = readChunksUptoWith readArrayOf
+-- toChunksWithBufferOf = _readChunksUptoWith readArrayOf
+toChunksWithBufferOf size h = D.fromStreamD (D.Stream step ())
+    where
+    {-# INLINE_LATE step #-}
+    step _ _ = do
+        arr <- liftIO $ readArrayOf size h
+        return $
+            case A.length arr of
+                0 -> D.Stop
+                _ -> D.Yield arr ()
 
 -- XXX read 'Array a' instead of Word8
 --
@@ -408,7 +416,7 @@ read = UF.supplyFirst readWithBufferOf A.defaultChunkSize
 {-# INLINE fromChunks #-}
 fromChunks :: (MonadIO m, Storable a)
     => Socket -> SerialT m (Array a) -> m ()
-fromChunks h m = S.mapM_ (liftIO . writeArray h) m
+fromChunks h m = S.mapM_ (liftIO . writeChunk h) m
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.
@@ -416,16 +424,18 @@ fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
-writeChunks h = FL.drainBy (liftIO . writeArray h)
+writeChunks h = FL.drainBy (liftIO . writeChunk h)
 
--- | Write a stream of strings to a socket in Latin1 encoding.
+-- | Write a stream of strings to a socket in Latin1 encoding.  Output is
+-- flushed to the socket for each string.
 --
 -- /Internal/
 --
 {-# INLINE writeStrings #-}
-writeStrings :: MonadIO m => Socket -> Fold m String ()
-writeStrings h =
-    FL.lmapM (IA.fromStream . U.encodeLatin1 . S.fromList) (writeChunks h)
+writeStrings :: MonadIO m
+    => (SerialT m Char -> SerialT m Word8) -> Socket -> Fold m String ()
+writeStrings encode h =
+    FL.lmapM (IA.fromStream . encode . S.fromList) (writeChunks h)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --

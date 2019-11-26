@@ -108,9 +108,6 @@ module Streamly.Internal.FileSystem.Handle
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
-#if __GLASGOW_HASKELL__ < 808
-import Data.Semigroup (Semigroup(..))
-#endif
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
@@ -133,7 +130,6 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
-import qualified Streamly.Internal.Data.Unicode.Stream as U
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
@@ -367,26 +363,29 @@ fromChunks h m = S.mapM_ (liftIO . writeArray h) m
 putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
 
--- | Write a stream of strings to standard output using Latin1 encoding.
+-- XXX use an unfold so that we can put any type of strings.
+-- | Write a stream of strings to standard output using the supplied encoding.
 -- Output is flushed to the device for each string.
 --
 -- /Internal/
 --
 {-# INLINE putStrings #-}
-putStrings :: MonadAsync m => SerialT m String -> m ()
-putStrings = putChunks . S.mapM (IA.fromStream . U.encodeLatin1 . S.fromList)
+putStrings :: MonadAsync m
+    => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
+putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
 
 -- XXX use an unfold so that we can put lines from any object
--- | Write a stream of strings as separate lines to standard output using
--- Latin1 encoding. Output is line buffered i.e. the output is written to the
+-- | Write a stream of strings as separate lines to standard output using the
+-- supplied encoding. Output is line buffered i.e. the output is written to the
 -- device as soon as a newline is encountered.
 --
 -- /Internal/
 --
 {-# INLINE putLines #-}
-putLines :: MonadAsync m => SerialT m String -> m ()
-putLines = putChunks . S.mapM
-    (\xs -> IA.fromStream $ U.encodeLatin1 (S.fromList xs <> S.yield '\n'))
+putLines :: MonadAsync m
+    => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
+putLines encode = putChunks . S.mapM
+    (\xs -> IA.fromStream $ encode (S.fromList (xs ++ "\n")))
 
 -- | Write a stream of bytes from standard output.
 --
