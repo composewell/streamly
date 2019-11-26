@@ -2024,9 +2024,6 @@ isPrefixOf (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return False
 
--- XXX This can be made faster
--- XXX This is currently slower than stripSuffix
--- XXX Investigate the use of lastN
 {-# INLINE_NORMAL isSuffixOf #-}
 isSuffixOf :: (MonadIO m, Storable a, Eq a) => Stream m a -> Stream m a -> m Bool
 isSuffixOf sa sb = do
@@ -2086,19 +2083,16 @@ stripPrefix (Stream stepa ta) (Stream stepb tb) = go (ta, tb, Nothing)
             Skip sb' -> go (sa, sb', Just x)
             Stop     -> return Nothing
 
--- XXX Use lastN after investigating why using lastN leads to bad performance
 {-# INLINE_NORMAL stripSuffix #-}
 stripSuffix
     :: (MonadIO m, Storable a, Eq a)
     => Stream m a -> Stream m a -> m (Maybe (Stream m a))
 stripSuffix sa sb = do
   aa <- runFold A.write sa
-  let ba = A.fromStreamDArraysOf (A.length aa) sb
-  (mle, len) <- runFold ((,) <$> FL.last <*> FL.length) ba 
-  return $ case mle of
-    Nothing -> Nothing
-    Just le | le == aa -> Just $ A.flattenArrays $ take (len - 1) ba
-            | otherwise -> Nothing
+  let al = A.length aa
+  (le, len) <- runFold ((,) <$> lastN al <*> FL.length) sb
+  return $ if le == aa then Just $ take (len - al) sb
+                       else Nothing
 
 -- XXX Add tests and benchmarks
 -- XXX Change to strict data structures accordingly
@@ -4405,6 +4399,7 @@ reassembleBy sz diff (Stream step state) = Stream step' state'
         view = H.uncons h
 
 -- XXX Is there room for improvement?
+-- XXX Not fusing, look into this
 -- | Take last 'n' elements from the stream and discard the rest.
 {-# INLINABLE lastN #-}
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
