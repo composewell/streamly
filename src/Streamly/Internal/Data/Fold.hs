@@ -1226,6 +1226,8 @@ toParallelSVar svar winfo = Fold step initial extract
     initial = return ()
 
     step () x = liftIO $ do
+        -- XXX we can have a separate fold for unlimited buffer case to avoid a
+        -- branch in the step here.
         decrementBufferLimit svar
         void $ send svar (ChildYield x)
 
