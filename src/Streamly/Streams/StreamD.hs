@@ -378,8 +378,6 @@ import Foreign.ForeignPtr (touchForeignPtr)
 
 import Streamly.Internal.Data.Strict
 
-import qualified Streamly.Internal.Data.Fold as FL
-
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
@@ -2032,7 +2030,7 @@ isSuffixOf sa sb = do
   return $ aa == ab
 
 {-# INLINE_NORMAL isInfixOf #-}
-isInfixOf :: (MonadIO m, Storable a, Enum a) => Stream m a -> Stream m a -> m Bool
+isInfixOf :: (MonadIO m, Enum a) => Stream m a -> Stream m a -> m Bool
 isInfixOf sa sb = do
   (patHash, len) <- runFold ((,) <$> FL.rollingHash <*> FL.length) sa
   patHash `elem` scan (FL.rollingHashLastN len) sb

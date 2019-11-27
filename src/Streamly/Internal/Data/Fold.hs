@@ -204,14 +204,12 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
-import Streamly.Internal.Data.Stream.StreamD.Type (foldlMx', fromList)
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Memory.Ring as RB
 
-import Control.Monad.IO.Class (MonadIO(..))
 import Foreign.Storable (Storable(..))
 
 ------------------------------------------------------------------------------
@@ -570,7 +568,7 @@ rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
 rollingHashFirstN n = ltake n rollingHash
 
 {-# INLINABLE rollingHashLastN #-}
-rollingHashLastN :: (MonadIO m, Enum a, Storable a) => Int -> Fold m a Int
+rollingHashLastN :: (MonadIO m, Enum a) => Int -> Fold m a Int
 rollingHashLastN n = Fold step initial extract
   where
     k = 2891336453
