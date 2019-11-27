@@ -376,8 +376,6 @@ import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.ForeignPtr (touchForeignPtr)
 
-import Streamly.Internal.Data.Strict
-
 ------------------------------------------------------------------------------
 -- Construction
 ------------------------------------------------------------------------------
