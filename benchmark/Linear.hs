@@ -281,7 +281,7 @@ main =
         , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
         , benchIOSink "stripPrefix" Ops.stripPrefix
         , benchIOSink "stripSuffix" Ops.stripSuffix
-        , benchIOSink "stripInfix" Ops.stripInfix
+--        , benchIOSink "stripInfix" Ops.stripInfix
         ]
       , bgroup "folds-transforms"
         [ benchIOSink "drain" (S.fold FL.drain)

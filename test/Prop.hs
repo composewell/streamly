@@ -765,9 +765,9 @@ eliminationOps constr desc t = do
     prop (desc <> " stripSuffix 10") $ eliminateOp constr (stripSuffix [1..10]) $
         (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
         S.stripSuffix (S.fromList [(1::Int)..10]) . t
-    prop (desc <> " stripInfix 10") $ eliminateOp constr (stripInfix [1..10]) $
-        (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
-        S.stripInfix (S.fromList [(1::Int)..10]) . t
+--    prop (desc <> " stripInfix 10") $ eliminateOp constr (stripInfix [1..10]) $
+--        (\s -> s >>= maybe (return Nothing) (fmap Just . S.toList)) .
+--        S.stripInfix (S.fromList [(1::Int)..10]) . t
 
 -- head/tail/last may depend on the order in case of parallel streams
 -- so we test these only for serial streams.

@@ -656,11 +656,11 @@ stripSuffix src = do
     _ <- S.stripSuffix src src
     return ()
 
-{-# INLINE stripInfix #-}
-stripInfix :: MonadIO m => Stream m Int -> m ()
-stripInfix src = do
-    _ <- S.stripInfix src src
-    return ()
+-- {-# INLINE stripInfix #-}
+-- stripInfix :: MonadIO m => Stream m Int -> m ()
+-- stripInfix src = do
+--     _ <- S.stripInfix src src
+--     return ()
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
