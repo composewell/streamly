@@ -83,15 +83,15 @@ listEquals eq stream list = do
 stripSuffix :: Eq a => [a] -> [a] -> Maybe [a]
 stripSuffix a b = reverse <$> stripPrefix (reverse a) (reverse b)
 
-stripInfix :: Eq a => [a] -> [a] -> Maybe [a]
-stripInfix x y = if isInfixOf x y then Just $ stripInfix' x y
-                                  else Nothing
-  where
-    stripInfix' _ [] = []
-    stripInfix' a b =
-      case stripPrefix a b of
-        Nothing -> head b : stripInfix' a (tail b)
-        Just b' -> stripInfix' a b'
+-- stripInfix :: Eq a => [a] -> [a] -> Maybe [a]
+-- stripInfix x y = if isInfixOf x y then Just $ stripInfix' x y
+--                                   else Nothing
+--   where
+--     stripInfix' _ [] = []
+--     stripInfix' a b =
+--       case stripPrefix a b of
+--         Nothing -> head b : stripInfix' a (tail b)
+--         Just b' -> stripInfix' a b'
 
 -------------------------------------------------------------------------------
 -- Construction operations
