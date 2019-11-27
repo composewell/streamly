@@ -360,6 +360,7 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Strict (Tuple'(..), Tuple3'(..))
 
 import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
