@@ -71,6 +71,9 @@ module Streamly.Internal.Network.Inet.TCP
     -- , writeArray
     , writeChunks
     , fromChunks
+
+    -- ** Transformation
+    , transformBytesWith
     {-
     -- ** Sink Servers
 
@@ -106,6 +109,7 @@ import Prelude hiding (read)
 
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Streams.Serial (SerialT)
@@ -386,3 +390,45 @@ fromBytes = fromBytesWithBufferOf defaultChunkSize
 write :: (MonadAsync m, MonadCatch m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
+
+-------------------------------------------------------------------------------
+-- Transformations
+-------------------------------------------------------------------------------
+
+{-# INLINABLE withInputConnect #-}
+withInputConnect
+    :: (IsStream t, MonadCatch m, MonadAsync m)
+    => (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> SerialT m Word8
+    -> (Socket -> t m a)
+    -> t m a
+withInputConnect addr port input f = S.bracket pre post handler
+
+    where
+
+    pre = do
+        sk <- liftIO $ connect addr port
+        tid <- fork (ISK.fromBytes sk input)
+        return (sk, tid)
+
+    handler (sk, _) = f sk
+
+    -- XXX kill the thread immediately?
+    post (sk, _) = liftIO $ Net.close sk
+
+-- | Send an input stream to a remote host and produce the output stream from
+-- the host. The server host just acts as a transformation function on the
+-- input stream.  Both sending and receiving happen asynchronously.
+--
+-- /Internal/
+--
+{-# INLINABLE transformBytesWith #-}
+transformBytesWith
+    :: (IsStream t, MonadAsync m, MonadCatch m)
+    => (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> SerialT m Word8
+    -> t m Word8
+transformBytesWith addr port input =
+    withInputConnect addr port input ISK.toBytes

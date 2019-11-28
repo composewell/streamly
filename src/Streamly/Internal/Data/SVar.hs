@@ -103,6 +103,7 @@ module Streamly.Internal.Data.SVar
     , delThread
     , modifyThread
     , doFork
+    , fork
 
     , toStreamVar
     , SVarStats (..)
@@ -112,9 +113,10 @@ module Streamly.Internal.Data.SVar
 where
 
 import Control.Concurrent
-       (ThreadId, myThreadId, threadDelay, throwTo)
+       (ThreadId, myThreadId, threadDelay, throwTo, forkIO)
 import Control.Concurrent.MVar
-       (MVar, newEmptyMVar, tryPutMVar, takeMVar, tryTakeMVar, newMVar, tryReadMVar)
+       (MVar, newEmptyMVar, tryPutMVar, takeMVar, tryTakeMVar, newMVar,
+        tryReadMVar)
 import Control.Exception
        (SomeException(..), catch, mask, assert, Exception, catches,
         throwIO, Handler(..), BlockedIndefinitelyOnMVar(..),
@@ -122,7 +124,8 @@ import Control.Exception
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl, control, StM)
+import Control.Monad.Trans.Control
+       (MonadBaseControl, control, StM, liftBaseDiscard)
 import Streamly.Internal.Data.Atomics
        (atomicModifyIORefCAS, atomicModifyIORefCAS_, writeBarrier,
         storeLoadBarrier)
@@ -938,6 +941,10 @@ doFork action (RunInIO mrun) exHandler =
                 tid <- rawForkIO $ catch (restore $ void $ mrun action)
                                          exHandler
                 run (return tid)
+
+{-# INLINABLE fork #-}
+fork :: MonadBaseControl IO m => m () -> m ThreadId
+fork = liftBaseDiscard forkIO
 
 ------------------------------------------------------------------------------
 -- Collecting results from child workers in a streamed fashion
