@@ -271,6 +271,7 @@ module Streamly.Internal.Prelude
     , intercalateSuffix
     , interpose
     , interposeSuffix
+    , concatMapTreeWith
 
     -- -- ** Breaking
 
@@ -2613,6 +2614,72 @@ interposeSuffix :: (IsStream t, Monad m)
     => c -> Unfold m b c -> t m b -> t m c
 interposeSuffix x unf str =
     D.fromStreamD $ D.interposeSuffix (return x) unf (D.toStreamD str)
+
+------------------------------------------------------------------------------
+-- Flattening Trees
+------------------------------------------------------------------------------
+
+-- | Traverse a forest with recursive tree structures whose non-leaf nodes are
+-- of type @a@ and leaf nodes are of type @b@, flattening all the trees into
+-- streams and combining the streams into a single stream consisting of both
+-- leaf and non-leaf nodes.
+--
+-- 'concatMapTreeWith' is a generalization of 'concatMap', using a recursive
+-- feedback loop to append the non-leaf nodes back to the input stream enabling
+-- recursive traversal.  'concatMap' flattens a single level nesting whereas
+-- 'concatMapTreeWith' flattens a recursively nested structure.
+--
+-- Traversing a directory tree recursively is a canonical use case of
+-- 'concatMapTreeWith'.
+--
+-- /Internal/
+--
+{-# INLINE concatMapTreeWith #-}
+concatMapTreeWith
+    :: IsStream t
+    => (forall c. t m c -> t m c -> t m c)
+    -> (a -> t m (Either a b))
+    -> t m (Either a b)
+    -> t m (Either a b)
+concatMapTreeWith combine f xs = concatMapWith combine go xs
+    where
+    go (Left tree)  = Left tree `K.cons` concatMapWith combine go (f tree)
+    go (Right leaf) = yield $ Right leaf
+
+{-
+-- | Like concatMapTreeWith but produces only stream of leaf elements.
+--
+{-# INLINE concatMapLeavesWith #-}
+concatMapLeavesWith :: (IsStream t, MonadAsync m)
+    => _ -> (a -> t m (Either a b)) -> t m (Either a b) -> t m b
+concatMapLeavesWith combine f xs = undefined
+-}
+
+{-
+{-# INLINE concatUnfoldTree #-}
+concatUnfoldTree :: (IsStream t, MonadAsync m)
+    => Unfold m a (Either a b) -> t m (Either a b) -> t m (Either a b)
+concatUnfoldTree unf xs = undefined
+
+------------------------------------------------------------------------------
+-- Feedback loop
+------------------------------------------------------------------------------
+
+-- Flatten a stream with a feedback loop back into the input. For example, if
+-- the output stream may generate an exception the exceptions can be fed back
+-- to the input to take any corrective action. For example, we may retry the
+-- action again or do nothing or log the errors. For the retry case we need a
+-- feedback loop.
+--
+-- We can perhaps even implement the SVar using this. The stream we are mapping
+-- on is the work queue. When evaluated it results in either a leaf element to
+-- yield or a tail stream to queue back to the work queue.
+--
+{-# INLINE concatMapLoopWith #-}
+concatMapLoopWith :: (IsStream t, MonadAsync m)
+    => _ -> (a -> t m (Either b c)) -> (b -> t m a) -> t m a -> t m c
+concatMapLoopWith combine f xs = undefined
+-}
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
