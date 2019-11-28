@@ -159,7 +159,9 @@ module Streamly.Internal.Data.Fold
     , demux
     -- , demuxWith
     , demux_
+    , demuxDefault_
     -- , demuxWith_
+    , demuxWithDefault_
 
     -- * Classifying
 
@@ -1016,6 +1018,32 @@ demux :: (Monad m, Ord k)
     => Map k (Fold m a b) -> Fold m (k, a) (Map k b)
 demux = demuxWith id
 
+{-# INLINE demuxWithDefault_ #-}
+demuxWithDefault_ :: (Monad m, Ord k)
+    => (a -> (k, a')) -> Map k (Fold m a' b) -> Fold m (k, a') b -> Fold m a ()
+demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
+    Fold step initial extract
+
+    where
+
+    initFold (Fold s i e) = i >>= \r -> return (Fold s (return r) e)
+    initial = do
+        mp <- Prelude.mapM initFold kv
+        dacc <- dinitial
+        return (Tuple' mp dacc)
+    step (Tuple' mp dacc) a
+      | (k, a') <- f a
+      = case Map.lookup k mp of
+            Nothing -> do
+                acc <- dstep dacc (k, a')
+                return (Tuple' mp acc)
+            Just (Fold step' acc _) -> do
+                _ <- acc >>= \x -> step' x a'
+                return (Tuple' mp dacc)
+    extract (Tuple' mp dacc) = do
+        void $ dextract dacc
+        Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e) mp
+
 -- | Split the input stream based on a key field and fold each split using a
 -- specific fold without collecting the results. Useful for cases like protocol
 -- handlers to handle different type of packets.
@@ -1073,6 +1101,11 @@ demuxWith_ f kv = Fold step initial extract
 {-# INLINE demux_ #-}
 demux_ :: (Monad m, Ord k) => Map k (Fold m a ()) -> Fold m (k, a) ()
 demux_ = demuxWith_ id
+
+{-# INLINE demuxDefault_ #-}
+demuxDefault_ :: (Monad m, Ord k)
+    => Map k (Fold m a ()) -> Fold m (k, a) () -> Fold m (k, a) ()
+demuxDefault_ = demuxWithDefault_ id
 
 -- TODO If the data is large we may need a map/hashmap in pinned memory instead
 -- of a regular Map. That may require a serializable constraint though. We can
