@@ -301,6 +301,7 @@ library
 
     exposed-modules:   Streamly.Prelude
                      , Streamly
+                     , Streamly.Data.Array
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream
@@ -320,6 +321,7 @@ library
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.SVar
+                     , Streamly.Internal.Data.Array
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
                      , Streamly.Internal.Memory.ArrayStream
