@@ -1,7 +1,9 @@
 {-# LANGUAGE CPP                 #-}
+{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnboxedTuples       #-}
 
 #include "inline.hs"
 
@@ -29,6 +31,7 @@ module Streamly.Data.Array
 
     , toStream
     , toStreamRev
+    , read
 
     -- * Random Access
     , length
@@ -39,13 +42,16 @@ module Streamly.Data.Array
     )
 where
 
-import Prelude hiding (length)
+import Prelude hiding (length, read)
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
+import GHC.Base (Int(..))
+import qualified GHC.Exts as Exts
 
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Array (Array(..))
 
 import qualified Streamly.Internal.Data.Array as A
@@ -77,3 +83,15 @@ fold f arr = P.runFold f (toStream arr :: SerialT m a)
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
+
+{-# INLINE_NORMAL read #-}
+read :: Monad m => Unfold m (Array a) a
+read = Unfold step inject
+  where
+    inject arr = return (arr, 0)
+    step (Array {..}, i)
+        | i == aLen = return D.Stop
+    step (arr, (I# i)) =
+        return $
+        case Exts.indexArray# (aA arr) i of
+            (# x #) -> D.Yield x (arr, I# i + 1)
