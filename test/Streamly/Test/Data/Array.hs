@@ -15,9 +15,12 @@ import Foreign.Storable (Storable(..))
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
-import Test.QuickCheck.Monadic (monadicIO, assert)
+import Test.QuickCheck.Monadic (monadicIO, assert, run)
 
 import Test.Hspec as H
+
+import Streamly (SerialT)
+import Streamly.Data.Array (Array)
 
 import qualified Streamly.Data.Array as A
 import qualified Streamly.Prelude as S
@@ -44,78 +47,64 @@ defaultChunkSize = 32 * k - allocOverhead
 maxArrLen :: Int
 maxArrLen = defaultChunkSize * 8
 
-testLength :: Property
-testLength =
+genericTestFrom ::
+       (Int -> SerialT IO Int -> IO (Array Int))
+    -> Property
+genericTestFrom arrFold =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <-  S.fold (A.writeN len)
-                      $ S.fromList list
+                arr <- run $ arrFold len $ S.fromList list
                 assert (A.length arr == len)
+
+testLength :: Property
+testLength = genericTestFrom (\n -> S.fold (A.writeN n))
 
 testLengthFromStreamN :: Property
-testLengthFromStreamN =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                arr <-  A.fromStreamN len
-                      $ S.fromList list
-                assert (A.length arr == len)
+testLengthFromStreamN = genericTestFrom A.fromStreamN
 
-testFoldUnfold :: Property
-testFoldUnfold =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                arr <- S.fold (A.writeN len)
-                     $ S.fromList list
-                xs <- S.toList
-                    $ S.unfold A.read arr
-                assert (xs == list)
+testLengthFromStream :: Property
+testLengthFromStream = genericTestFrom (const A.fromStream)
 
-testFoldToStream :: Property
-testFoldToStream =
+genericTestFromTo ::
+       (Int -> SerialT IO Int -> IO (Array Int))
+    -> (Array Int -> SerialT IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> Property
+genericTestFromTo arrFold arrUnfold listEq =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                arr <- S.fold (A.writeN len)
-                     $ S.fromList list
-                xs <- S.toList
-                    $ A.toStream arr
-                assert (xs == list)
+                arr <- run $ arrFold len $ S.fromList list
+                xs <- run $ S.toList $ arrUnfold arr
+                assert (listEq xs list)
 
-testFoldToStreamRev :: Property
-testFoldToStreamRev =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                arr <- S.fold (A.writeN len)
-                     $ S.fromList list
-                xs <- S.toList
-                    $ A.toStreamRev arr
-                assert (xs == reverse list)
+testFoldNUnfold :: Property
+testFoldNUnfold =
+    genericTestFromTo (\n -> S.fold (A.writeN n)) (S.unfold A.read) (==)
 
-testFromStreamUnfold :: Property
-testFromStreamUnfold =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                arr <- A.fromStreamN len
-                     $ S.fromList list
-                xs <- S.toList
-                    $ S.unfold A.read arr
-                assert (xs == list)
+testFoldNToStream :: Property
+testFoldNToStream =
+    genericTestFromTo (\n -> S.fold (A.writeN n)) A.toStream (==)
+
+testFoldNToStreamRev :: Property
+testFoldNToStreamRev =
+    genericTestFromTo
+        (\n -> S.fold (A.writeN n))
+        A.toStreamRev
+        (\xs list -> xs == reverse list)
+
+testFromStreamNUnfold :: Property
+testFromStreamNUnfold = genericTestFromTo A.fromStreamN (S.unfold A.read) (==)
+
+testFromStreamNToStream :: Property
+testFromStreamNToStream = genericTestFromTo A.fromStreamN A.toStream (==)
 
 testFromStreamToStream :: Property
-testFromStreamToStream =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                arr <- A.fromStreamN len
-                     $ S.fromList list
-                xs <- S.toList
-                    $ A.toStream arr
-                assert (xs == list)
+testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
+
+testFoldUnfold :: Property
+testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
 
 main :: IO ()
 main =
@@ -125,8 +114,11 @@ main =
     describe "Construction" $ do
         prop "length . writeN n === n" testLength
         prop "length . fromStreamN n === n" testLengthFromStreamN
-        prop "read . writeN === id " testFoldUnfold
-        prop "toStream . writeN === id" testFoldToStream
-        prop "toStreamRev . writeN === reverse" testFoldToStreamRev
-        prop "read . fromStreamN === id" testFromStreamUnfold
-        prop "toStream . fromStreamN === reverse" testFromStreamToStream
+        prop "length . fromStream === n" testLengthFromStream
+        prop "read . writeN === id " testFoldNUnfold
+        prop "toStream . writeN === id" testFoldNToStream
+        prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
+        prop "read . fromStreamN === id" testFromStreamNUnfold
+        prop "toStream . fromStreamN === id" testFromStreamNToStream
+        prop "toStream . fromStream === id" testFromStreamToStream
+        prop "read . write === id" testFoldUnfold

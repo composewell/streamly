@@ -20,12 +20,16 @@ module Streamly.Data.Array
     ( Array
 
     -- * Construction
+    , A.fromListN
+    , A.fromList
 
     -- Stream Folds
     , fromStreamN
+    , fromStream
 
     -- MonadicAPIs
     , A.writeN
+    , A.write
 
     -- * Elimination
 
@@ -34,11 +38,12 @@ module Streamly.Data.Array
     , read
 
     -- * Random Access
-    , length
 
     -- * Folding Arrays
     , streamFold
     , fold
+
+    , A.length
     )
 where
 
@@ -64,6 +69,10 @@ fromStreamN n m = do
     when (n < 0) $ error "fromStreamN: negative write count specified"
     A.fromStreamDN n $ D.toStreamD m
 
+{-# INLINE fromStream #-}
+fromStream :: MonadIO m => SerialT m a -> m (Array a)
+fromStream m = A.fromStreamD $ D.toStreamD m
+
 {-# INLINE_EARLY toStream #-}
 toStream :: (Monad m, IsStream t) => Array a -> t m a
 toStream = D.fromStreamD . A.toStreamD
@@ -71,10 +80,6 @@ toStream = D.fromStreamD . A.toStreamD
 {-# INLINE_EARLY toStreamRev #-}
 toStreamRev :: (Monad m, IsStream t) => Array a -> t m a
 toStreamRev = D.fromStreamD . A.toStreamDRev
-
-{-# INLINE length #-}
-length :: Array a -> Int
-length Array {..} = aLen
 
 {-# INLINE fold #-}
 fold :: forall m a b . Monad m => Fold m a b -> Array a -> m b
@@ -89,9 +94,9 @@ read :: Monad m => Unfold m (Array a) a
 read = Unfold step inject
   where
     inject arr = return (arr, 0)
-    step (Array {..}, i)
-        | i == aLen = return D.Stop
+    step (arr, i)
+        | i == A.length arr = return D.Stop
     step (arr, (I# i)) =
         return $
-        case Exts.indexArray# (aA arr) i of
+        case Exts.indexArray# (array# arr) i of
             (# x #) -> D.Yield x (arr, I# i + 1)
