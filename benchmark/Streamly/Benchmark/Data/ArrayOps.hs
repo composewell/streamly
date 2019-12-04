@@ -16,7 +16,7 @@
 module Streamly.Benchmark.Data.ArrayOps where
 
 import Control.Monad.IO.Class (MonadIO)
-import Prelude (Int, (+), ($), (>), (.), Maybe(..), undefined)
+import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
 import qualified Prelude as P
 #ifdef DEVBUILD
 import qualified Data.Foldable as F
@@ -27,7 +27,7 @@ import qualified Streamly.Data.Array as A
 import qualified Streamly.Prelude   as S
 
 value :: Int
-value = 10000
+value = 100000
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -104,7 +104,7 @@ onArray f arr = S.fold (A.writeN value) $ f $ (S.unfold A.read arr)
 scanl'        n = composeN n $ onArray $ S.scanl' (+) 0
 scanl1'       n = composeN n $ onArray $ S.scanl1' (+)
 map           n = composeN n $ onArray $ S.map (+1)
-{-
+
 {-# INLINE eqInstance #-}
 eqInstance :: Stream Int -> Bool
 eqInstance src = src == src
@@ -132,7 +132,7 @@ readInstance str =
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
--}
+
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: MonadIO m => Stream Int -> m Int
 pureFoldl' = S.foldl' (+) 0 . S.unfold A.read

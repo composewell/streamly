@@ -11,7 +11,7 @@
 
 module Main (main) where
 
-import Control.DeepSeq (NFData(..))
+import Control.DeepSeq (NFData(..), deepseq)
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.ArrayOps as Ops
@@ -48,6 +48,9 @@ benchIO' name src f = bench name $ nfIO $
 benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
 benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
 
+mkString :: String
+mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
+
 main :: IO ()
 main =
   defaultMain
@@ -60,15 +63,15 @@ main =
         , benchIOSrc "writeN . fromList" Ops.sourceFromList
         -- , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
         -- , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
-        -- , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
-        -- , benchPureSink "show" Ops.showInstance
+        , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
+        , benchPureSink "show" Ops.showInstance
         ]
       , bgroup "elimination"
         [ benchPureSink "id" id
-        -- , benchPureSink "==" Ops.eqInstance
-        -- , benchPureSink "/=" Ops.eqInstanceNotEq
-        -- , benchPureSink "<" Ops.ordInstance
-        -- , benchPureSink "min" Ops.ordInstanceMin
+        , benchPureSink "==" Ops.eqInstance
+        , benchPureSink "/=" Ops.eqInstanceNotEq
+        , benchPureSink "<" Ops.ordInstance
+        , benchPureSink "min" Ops.ordInstanceMin
         -- length is used to check for foldr/build fusion
         -- , benchPureSink "length . IsList.toList" (length . GHC.toList)
         , benchIOSink "foldl'" Ops.pureFoldl'
