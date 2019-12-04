@@ -1,0 +1,165 @@
+-- |
+-- Module      : Streamly.Internal.Data.SmallArray
+-- Copyright   : (c) 2019 Composewell Technologies
+--
+-- License     : BSD-3-Clause
+-- Maintainer  : streamly@composewell.com
+-- Stability   : experimental
+-- Portability : GHC
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE MagicHash     #-}
+{-# LANGUAGE UnboxedTuples #-}
+
+#include "inline.hs"
+
+module Streamly.Internal.Data.SmallArray
+  ( SmallArray(..)
+
+  , foldl'
+  , foldr
+
+  , length
+
+  , writeN
+
+  , toStreamD
+  , toStreamDRev
+
+  , toStream
+  , toStreamRev
+  , read
+
+  , fromListN
+  , fromStreamDN
+  , fromStreamN
+
+  , streamFold
+  , fold
+  )
+where
+
+import Prelude hiding (foldr, length, read)
+import Control.DeepSeq (NFData(..))
+import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import GHC.IO (unsafePerformIO)
+import Data.Functor.Identity (runIdentity)
+import Data.Primitive.SmallArray
+
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Streams.Serial (SerialT)
+
+import qualified Streamly.Streams.StreamD as D
+
+{-# NOINLINE bottomElement #-}
+bottomElement :: a
+bottomElement = undefined
+
+{-# INLINE length #-}
+length :: SmallArray a -> Int
+length arr = sizeofSmallArray arr
+
+{-# INLINE_NORMAL toStreamD #-}
+toStreamD :: Monad m => SmallArray a -> D.Stream m a
+toStreamD arr = D.Stream step 0
+  where
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i == length arr = return D.Stop
+        | otherwise =
+            return $
+            case indexSmallArray## arr i of
+                (# x #) -> D.Yield x (i + 1)
+
+{-# INLINE_NORMAL toStreamDRev #-}
+toStreamDRev :: Monad m => SmallArray a -> D.Stream m a
+toStreamDRev arr = D.Stream step (length arr - 1)
+  where
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i < 0 = return D.Stop
+        | otherwise =
+            return $
+            case indexSmallArray## arr i of
+                (# x #) -> D.Yield x (i - 1)
+
+{-# INLINE_NORMAL foldl' #-}
+foldl' :: (b -> a -> b) -> b -> SmallArray a -> b
+foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
+
+{-# INLINE_NORMAL foldr #-}
+foldr :: (a -> b -> b) -> b -> SmallArray a -> b
+foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
+
+-- writeN n = S.evertM (fromStreamDN n)
+{-# INLINE_NORMAL writeN #-}
+writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
+writeN limit = Fold step initial extract
+  where
+    initial = do
+        marr <- liftIO $ newSmallArray limit bottomElement
+        return (marr, 0)
+    step (marr, i) x
+        | i == limit = return (marr, i)
+        | otherwise = do
+            liftIO $ writeSmallArray marr i x
+            return (marr, i + 1)
+    extract (marr, len) = liftIO $ freezeSmallArray marr 0 len
+
+{-# INLINE_NORMAL fromStreamDN #-}
+fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (SmallArray a)
+fromStreamDN limit str = do
+    marr <- liftIO $ newSmallArray (max limit 0) bottomElement
+    i <-
+        D.foldlM'
+            (\i x -> i `seq` (liftIO $ writeSmallArray marr i x) >> return (i + 1))
+            0 $
+        D.take limit str
+    liftIO $ freezeSmallArray marr 0 i
+
+{-# INLINABLE fromListN #-}
+fromListN :: Int -> [a] -> SmallArray a
+fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
+
+instance NFData a => NFData (SmallArray a) where
+    {-# INLINE rnf #-}
+    rnf = foldl' (\_ x -> rnf x) ()
+
+{-# INLINE fromStreamN #-}
+fromStreamN :: MonadIO m => Int -> SerialT m a -> m (SmallArray a)
+fromStreamN n m = do
+    when (n < 0) $ error "fromStreamN: negative write count specified"
+    fromStreamDN n $ D.toStreamD m
+
+{-# INLINE_EARLY toStream #-}
+toStream :: (Monad m, IsStream t) => SmallArray a -> t m a
+toStream = D.fromStreamD . toStreamD
+
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, IsStream t) => SmallArray a -> t m a
+toStreamRev = D.fromStreamD . toStreamDRev
+
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> SmallArray a -> m b
+fold f arr = D.runFold f (toStreamD arr)
+
+{-# INLINE streamFold #-}
+streamFold :: Monad m => (SerialT m a -> m b) -> SmallArray a -> m b
+streamFold f arr = f (toStream arr)
+
+{-# INLINE_NORMAL read #-}
+read :: Monad m => Unfold m (SmallArray a) a
+read = Unfold step inject
+  where
+    inject arr = return (arr, 0)
+    step (arr, i)
+        | i == length arr = return D.Stop
+        | otherwise =
+            return $
+            case indexSmallArray## arr i of
+                (# x #) -> D.Yield x (arr, i + 1)

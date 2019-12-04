@@ -288,6 +288,7 @@ library
                        Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Array
+                     , Streamly.Data.SmallArray
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream
@@ -308,6 +309,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
                      , Streamly.Internal.Memory.ArrayStream
