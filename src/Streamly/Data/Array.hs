@@ -1,12 +1,3 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE UnboxedTuples       #-}
-
-#include "inline.hs"
-
 -- |
 -- Module      : Streamly.Data.Array
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -24,8 +15,8 @@ module Streamly.Data.Array
     , A.fromList
 
     -- Stream Folds
-    , fromStreamN
-    , fromStream
+    , A.fromStreamN
+    , A.fromStream
 
     -- MonadicAPIs
     , A.writeN
@@ -33,70 +24,20 @@ module Streamly.Data.Array
 
     -- * Elimination
 
-    , toStream
-    , toStreamRev
-    , read
+    , A.toStream
+    , A.toStreamRev
+    , A.read
 
     -- * Random Access
 
     -- * Folding Arrays
-    , streamFold
-    , fold
+    , A.streamFold
+    , A.fold
 
     , A.length
     )
 where
 
-import Prelude hiding (length, read)
-import Control.Monad (when)
-import Control.Monad.IO.Class (MonadIO)
-import GHC.Base (Int(..))
-import qualified GHC.Exts as Exts
-
-import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Array (Array(..))
+import Streamly.Internal.Data.Array (Array)
 
 import qualified Streamly.Internal.Data.Array as A
-import qualified Streamly.Streams.Prelude as P
-import qualified Streamly.Streams.StreamD as D
-
-{-# INLINE fromStreamN #-}
-fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
-fromStreamN n m = do
-    when (n < 0) $ error "fromStreamN: negative write count specified"
-    A.fromStreamDN n $ D.toStreamD m
-
-{-# INLINE fromStream #-}
-fromStream :: MonadIO m => SerialT m a -> m (Array a)
-fromStream m = A.fromStreamD $ D.toStreamD m
-
-{-# INLINE_EARLY toStream #-}
-toStream :: (Monad m, IsStream t) => Array a -> t m a
-toStream = D.fromStreamD . A.toStreamD
-
-{-# INLINE_EARLY toStreamRev #-}
-toStreamRev :: (Monad m, IsStream t) => Array a -> t m a
-toStreamRev = D.fromStreamD . A.toStreamDRev
-
-{-# INLINE fold #-}
-fold :: forall m a b . Monad m => Fold m a b -> Array a -> m b
-fold f arr = P.runFold f (toStream arr :: SerialT m a)
-
-{-# INLINE streamFold #-}
-streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
-streamFold f arr = f (toStream arr)
-
-{-# INLINE_NORMAL read #-}
-read :: Monad m => Unfold m (Array a) a
-read = Unfold step inject
-  where
-    inject arr = return (arr, 0)
-    step (arr, i)
-        | i == A.length arr = return D.Stop
-    step (arr, (I# i)) =
-        return $
-        case Exts.indexArray# (array# arr) i of
-            (# x #) -> D.Yield x (arr, I# i + 1)

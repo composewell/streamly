@@ -1,8 +1,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE CPP             #-}
-{-# LANGUAGE MagicHash       #-}
-{-# LANGUAGE UnboxedTuples   #-}
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE MagicHash     #-}
+{-# LANGUAGE UnboxedTuples #-}
 
 #include "inline.hs"
 
@@ -29,15 +29,26 @@ module Streamly.Internal.Data.Array
     , toStreamD
     , toStreamDRev
 
+    , toStream
+    , toStreamRev
+    , read
+
     , fromListN
     , fromList
     , fromStreamDN
     , fromStreamD
+
+    , fromStreamN
+    , fromStream
+
+    , streamFold
+    , fold
     )
 where
 
-import Prelude hiding (foldr, length)
+import Prelude hiding (foldr, length, read)
 import Control.DeepSeq (NFData(..))
+import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.IO (unsafePerformIO)
 import GHC.Base (Int(..))
@@ -45,7 +56,10 @@ import Data.Functor.Identity (runIdentity)
 import Data.Primitive.Array hiding (fromList, fromListN)
 import qualified GHC.Exts as Exts
 
+import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Streams.Serial (SerialT)
 
 import qualified Streamly.Streams.StreamD as D
 
@@ -149,3 +163,41 @@ fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 instance NFData a => NFData (Array a) where
     {-# INLINE rnf #-}
     rnf = foldl' (\_ x -> rnf x) ()
+
+{-# INLINE fromStreamN #-}
+fromStreamN :: MonadIO m => Int -> SerialT m a -> m (Array a)
+fromStreamN n m = do
+    when (n < 0) $ error "fromStreamN: negative write count specified"
+    fromStreamDN n $ D.toStreamD m
+
+{-# INLINE fromStream #-}
+fromStream :: MonadIO m => SerialT m a -> m (Array a)
+fromStream m = fromStreamD $ D.toStreamD m
+
+{-# INLINE_EARLY toStream #-}
+toStream :: (Monad m, IsStream t) => Array a -> t m a
+toStream = D.fromStreamD . toStreamD
+
+{-# INLINE_EARLY toStreamRev #-}
+toStreamRev :: (Monad m, IsStream t) => Array a -> t m a
+toStreamRev = D.fromStreamD . toStreamDRev
+
+{-# INLINE fold #-}
+fold :: Monad m => Fold m a b -> Array a -> m b
+fold f arr = D.runFold f (toStreamD arr)
+
+{-# INLINE streamFold #-}
+streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
+streamFold f arr = f (toStream arr)
+
+{-# INLINE_NORMAL read #-}
+read :: Monad m => Unfold m (Array a) a
+read = Unfold step inject
+  where
+    inject arr = return (arr, 0)
+    step (arr, i)
+        | i == length arr = return D.Stop
+    step (arr, (I# i)) =
+        return $
+        case Exts.indexArray# (array# arr) i of
+            (# x #) -> D.Yield x (arr, I# i + 1)
