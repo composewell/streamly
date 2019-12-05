@@ -78,6 +78,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , fromIndicesM
     , generate
     , generateM
+    , iterate
+    , iterateM
 
     -- ** Enumerations
     , enumerateFromStepIntegral
@@ -324,7 +326,7 @@ import Prelude
                takeWhile, drop, dropWhile, all, any, maximum, minimum, elem,
                notElem, null, head, tail, zipWith, lookup, foldr1, sequence,
                (!!), scanl, scanl1, concatMap, replicate, enumFromTo, concat,
-               reverse)
+               reverse, iterate)
 
 import qualified Control.Monad.Catch as MC
 import qualified Control.Monad.Reader as Reader
@@ -448,11 +450,21 @@ unfold (Unfold ustep inject) seed = Stream step Nothing
 -- Specialized Generation
 ------------------------------------------------------------------------------
 
+{-# INLINE_NORMAL repeatM #-}
 repeatM :: Monad m => m a -> Stream m a
 repeatM x = Stream (\_ _ -> x >>= \r -> return $ Yield r ()) ()
 
+{-# INLINE_NORMAL repeat #-}
 repeat :: Monad m => a -> Stream m a
 repeat x = Stream (\_ _ -> return $ Yield x ()) ()
+
+{-# INLINE_NORMAL iterateM #-}
+iterateM :: Monad m => (a -> m a) -> m a -> Stream m a
+iterateM step = Stream (\_ st -> st >>= \x -> return $ Yield x (step x))
+
+{-# INLINE_NORMAL iterate #-}
+iterate :: Monad m => (a -> a) -> a -> Stream m a
+iterate step st = iterateM (return . step) (return st)
 
 {-# INLINE_NORMAL replicateM #-}
 replicateM :: forall m a. Monad m => Int -> m a -> Stream m a

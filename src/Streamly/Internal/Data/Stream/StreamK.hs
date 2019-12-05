@@ -67,6 +67,8 @@ module Streamly.Internal.Data.Stream.StreamK
     , replicateM
     , fromIndices
     , fromIndicesM
+    , iterate 
+    , iterateM
 
     -- ** Conversions
     , yield
@@ -196,7 +198,7 @@ import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
                maximum, elem, notElem, null, head, tail, init, zipWith, lookup,
-               foldr1, (!!), replicate, reverse, concatMap)
+               foldr1, (!!), replicate, reverse, concatMap, iterate)
 import qualified Prelude
 
 import Streamly.Internal.Data.SVar
@@ -310,6 +312,20 @@ fromIndices :: IsStream t => (Int -> a) -> t m a
 fromIndices gen = go 0
   where
     go n = (gen n) `cons` go (n + 1)
+
+{-# INLINE iterate #-}
+iterate :: IsStream t => (a -> a) -> a -> t m a
+iterate step = fromStream . go
+    where
+        go s = cons s (go (step s))
+
+{-# INLINE iterateM #-}
+iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
+iterateM step = go
+    where
+    go s = mkStream $ \st stp sng yld -> do
+        next <- s
+        foldStreamShared st stp sng yld (return next |: go (step next))
 
 -------------------------------------------------------------------------------
 -- Conversions

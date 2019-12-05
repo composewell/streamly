@@ -770,10 +770,9 @@ repeatMSerial = fromStreamS . S.repeatM
 -- @
 --
 -- @since 0.1.2
-iterate :: IsStream t => (a -> a) -> a -> t m a
-iterate step = K.fromStream . go
-    where
-    go s = K.cons s (go (step s))
+{-# INLINE_NORMAL iterate #-}
+iterate :: (IsStream t, Monad m) => (a -> a) -> a -> t m a
+iterate step = fromStreamS . S.iterate step
 
 -- |
 -- @
@@ -802,12 +801,14 @@ iterate step = K.fromStream . go
 -- /Since: 0.7.0 (signature change)/
 --
 -- /Since: 0.1.2/
+{-# INLINE_EARLY iterateM #-}
 iterateM :: (IsStream t, MonadAsync m) => (a -> m a) -> m a -> t m a
-iterateM step = go
-    where
-    go s = K.mkStream $ \st stp sng yld -> do
-        next <- s
-        K.foldStreamShared st stp sng yld (return next |: go (step next))
+iterateM = K.iterateM
+
+{-# RULES "iterateM serial" iterateM = iterateMSerial #-}
+{-# INLINE iterateMSerial #-}
+iterateMSerial :: MonadAsync m => (a -> m a) -> m a -> SerialT m a
+iterateMSerial step = fromStreamS . S.iterateM step
 
 ------------------------------------------------------------------------------
 -- Conversions

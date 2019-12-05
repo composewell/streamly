@@ -251,6 +251,10 @@ iterateTakeAll         = iterateSource (S.take maxValue) maxIters
 iterateDropOne         = iterateSource (S.drop 1) maxIters
 iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
+{-# INLINE iterateM #-}
+iterateM :: Monad m => Int -> Stream m Int
+iterateM i = S.take maxIters (S.iterateM (\x -> return (x + 1)) (return i))
+
 -------------------------------------------------------------------------------
 -- Zipping and concat
 -------------------------------------------------------------------------------
