@@ -229,6 +229,9 @@ main =
         ]
       , bgroup "folds"
         [ benchIOSink "drain" (S.fold FL.drain)
+        , benchIOSink "drainN" (S.fold (IFL.drainN Ops.value))
+        , benchIOSink "drainWhileTrue" (S.fold (IFL.drainWhile $ (<=) Ops.maxValue))
+        , benchIOSink "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) Ops.maxValue))
         , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
         , benchIOSink "last" (S.fold FL.last)
         , benchIOSink "length" (S.fold FL.length)

@@ -56,7 +56,7 @@ module Streamly.Internal.Data.Fold
     , stdDev
     , rollingHash
     , rollingHashWithSalt
-    -- , rollingHashFirstN
+    , rollingHashFirstN
     -- , rollingHashLastN
 
     -- ** Full Folds (Monoidal)
@@ -70,8 +70,8 @@ module Streamly.Internal.Data.Fold
     , toListRevF  -- experimental
 
     -- ** Partial Folds
-    -- , drainN
-    -- , drainWhile
+    , drainN
+    , drainWhile
     -- , lastN
     -- , (!!)
     -- , genericIndex
@@ -563,6 +563,14 @@ defaultSalt = 0x087fc72c
 rollingHash :: (Monad m, Enum a) => Fold m a Int
 rollingHash = rollingHashWithSalt defaultSalt
 
+-- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
+-- a stream.
+--
+-- > rollingHashFirstN = ltake n rollingHash
+{-# INLINABLE rollingHashFirstN #-}
+rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
+rollingHashFirstN n = ltake n rollingHash
+
 ------------------------------------------------------------------------------
 -- Monoidal left folds
 ------------------------------------------------------------------------------
@@ -630,6 +638,18 @@ toList = Fold (\f x -> return $ f . (x :))
 ------------------------------------------------------------------------------
 -- Partial Folds
 ------------------------------------------------------------------------------
+
+-- | A fold that drains the first n elements of its input, running the effects
+-- and discarding the results.
+{-# INLINABLE drainN #-}
+drainN :: Monad m => Int -> Fold m a () 
+drainN n = ltake n drain
+
+-- | A fold that drains elements of its input as long as the predicate succeeds,
+-- running the effects and discarding the results.
+{-# INLINABLE drainWhile #-}
+drainWhile :: Monad m => (a -> Bool) -> Fold m a ()
+drainWhile p = ltakeWhile p drain
 
 ------------------------------------------------------------------------------
 -- To Elements
