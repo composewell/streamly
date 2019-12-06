@@ -124,6 +124,9 @@ module Streamly.Internal.Memory.Array
     -- * Folding Arrays
     , streamFold
     , fold
+
+    -- * Folds with Array as the container
+    , D.lastN
     )
 where
 

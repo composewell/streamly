@@ -24,6 +24,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Sink as Sink
 
+import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Pipe as Pipe
@@ -200,6 +201,9 @@ main =
         -- this is too low and causes all benchmarks reported in ns
         -- , benchIOSink "head" Ops.head
         , benchIOSink "last" Ops.last
+        , benchIOSink "lastN.1"   (S.fold (IA.lastN 1))
+        , benchIOSink "lastN.10"  (S.fold (IA.lastN 10))
+        , benchIOSink "lastN.Max" (S.fold (IA.lastN Ops.maxValue))
         -- , benchIOSink "lookup" Ops.lookup
         , benchIOSink "find" Ops.find
         , benchIOSink "findIndex" Ops.findIndex
