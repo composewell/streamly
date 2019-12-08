@@ -35,7 +35,6 @@ module Streamly.Internal.Data.Stream.Parallel
 where
 
 import Control.Concurrent (myThreadId, takeMVar)
-import Control.Exception (SomeException(..))
 import Control.Monad (when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -55,7 +54,7 @@ import Prelude hiding (map)
 import qualified Data.Set as Set
 
 import Streamly.Internal.Data.Stream.SVar
-       (fromSVar, fromProducer, fromConsumer)
+       (fromSVar, fromProducer, fromConsumer, pushToFold)
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared, adapt)
 
@@ -277,30 +276,6 @@ foldParallel f m = do
 -- Clone and distribute a stream in parallel
 ------------------------------------------------------------------------------
 
--- push values to a fold worker via an SVar. Returns whether the fold is done.
-{-# INLINE pushToFold #-}
-pushToFold :: MonadAsync m => SVar Stream m a -> a -> m Bool
-pushToFold sv a = do
-    -- Check for exceptions before decrement so that we do not
-    -- block forever if the child already exited with an exception.
-    --
-    -- We avoid a race between the consumer fold sending an event and we
-    -- blocking on decrementBufferLimit by waking up the producer thread in
-    -- sendToProducer before any event is sent by the fold to the producer
-    -- stream.
-    let qref = outputQueueFromConsumer sv
-    done <- do
-        (_, n) <- liftIO $ readIORef qref
-        if (n > 0)
-        then fromConsumer sv
-        else return False
-    if done
-    then return True
-    else liftIO $ do
-        decrementBufferLimit sv
-        void $ send sv (ChildYield a)
-        return False
-
 -- Tap a stream and send the elements to the specified SVar in addition to
 -- yielding them again.
 --
@@ -347,18 +322,6 @@ teeToSVar svr m = mkStream $ \st yld sng stp -> do
 -- Note: If we terminate due to an exception, we do not actively terminate the
 -- fold. It gets cleaned up by the GC.
 
-{-# NOINLINE handleFoldException #-}
-handleFoldException :: SVar t m a -> SomeException -> IO ()
-handleFoldException sv e = do
-    tid <- myThreadId
-    void $ sendToProducer sv (ChildStop tid (Just e))
-
-{-# NOINLINE sendStopToConsumer #-}
-sendStopToConsumer :: MonadIO m => SVar t m a -> m ()
-sendStopToConsumer sv = liftIO $ do
-    tid <- myThreadId
-    void $ sendToProducer sv (ChildStop tid Nothing)
-
 -- | Create an SVar with a fold consumer that will fold any elements sent to it
 -- using the supplied fold function.
 {-# INLINE newFoldSVar #-}
@@ -371,11 +334,13 @@ newFoldSVar stt f = do
     -- Add the producer thread-id to the SVar.
     liftIO myThreadId >>= modifyThread sv
 
+    -- XXX move this in fromProducer itself.
+    --
     -- A wrapper to send a Stop event back to the producer when the fold
     -- receives a stop from the producer.
     let pull m = mkStream $ \st yld _ stp -> do
-            let stop = sendStopToConsumer sv >> stp
-                single a = yld a (K.nilM (sendStopToConsumer sv))
+            let stop = sendStopToProducer sv >> stp
+                single a = yld a (K.nilM (sendStopToProducer sv))
                 yieldk a r = yld a (pull r)
              in foldStreamShared st yieldk single stop m
 

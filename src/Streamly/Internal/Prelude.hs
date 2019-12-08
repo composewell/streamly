@@ -341,7 +341,7 @@ module Streamly.Internal.Prelude
     -- ** Distributing
     , trace
     , tap
-    , Par.tapAsync
+    , tapAsync
 
     -- * Windowed Classification
 
@@ -3567,8 +3567,40 @@ reassembleBy = undefined
 -- Compare with 'trace'.
 --
 -- @since 0.7.0
+{-# INLINE tap #-}
 tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
 tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
+
+-- | Redirect a copy of the stream to a supplied fold and run it concurrently
+-- in an independent thread. The fold may buffer some elements. The buffer size
+-- is determined by the prevailing 'maxBuffer' setting.
+--
+-- @
+--               Stream m a -> m b
+--                       |
+-- -----stream m a ---------------stream m a-----
+--
+-- @
+--
+-- @
+-- > S.drain $ S.tapAsync (S.mapM_ print) (S.enumerateFromTo 1 2)
+-- 1
+-- 2
+-- @
+--
+-- Exceptions from the concurrently running fold are propagated to the current
+-- computation.  Note that, because of buffering in the fold, exceptions may be
+-- delayed and may not correspond to the current element being processed in the
+-- parent stream, but we guarantee that before the parent stream stops the tap
+-- finishes and all exceptions from it are drained.
+--
+--
+-- Compare with 'tap'.
+--
+-- /Internal/
+{-# INLINE tapAsync #-}
+tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
+tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.
@@ -3582,6 +3614,7 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 -- Compare with 'tap'.
 --
 -- @since 0.7.0
+{-# INLINE trace #-}
 trace :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m a
 trace f = mapM (\x -> void (f x) >> return x)
 

@@ -65,12 +65,14 @@ module Streamly.Internal.Data.SVar
     , sendToProducer
     , sendYield
     , sendStop
+    , sendStopToProducer
     , enqueueLIFO
     , enqueueFIFO
     , enqueueAhead
     , reEnqueueAhead
     , pushWorkerPar
     , handleChildException
+    , handleFoldException
 
     , queueEmptyAhead
     , dequeueAhead
@@ -1101,6 +1103,12 @@ sendToProducer sv msg = do
     sendWithDoorBell (outputQueueFromConsumer sv)
                      (outputDoorBellFromConsumer sv) msg
 
+-- {-# NOINLINE sendStopToProducer #-}
+sendStopToProducer :: MonadIO m => SVar t m a -> m ()
+sendStopToProducer sv = liftIO $ do
+    tid <- myThreadId
+    void $ sendToProducer sv (ChildStop tid Nothing)
+
 workerCollectLatency :: WorkerInfo -> IO (Maybe (Count, NanoSecond64))
 workerCollectLatency winfo = do
     (cnt0, t0) <- readIORef (workerLatencyStart winfo)
@@ -1527,6 +1535,12 @@ handleChildException :: SVar t m a -> SomeException -> IO ()
 handleChildException sv e = do
     tid <- myThreadId
     void $ send sv (ChildStop tid (Just e))
+
+{-# NOINLINE handleFoldException #-}
+handleFoldException :: SVar t m a -> SomeException -> IO ()
+handleFoldException sv e = do
+    tid <- myThreadId
+    void $ sendToProducer sv (ChildStop tid (Just e))
 
 {-# NOINLINE recordMaxWorkers #-}
 recordMaxWorkers :: MonadIO m => SVar t m a -> m ()

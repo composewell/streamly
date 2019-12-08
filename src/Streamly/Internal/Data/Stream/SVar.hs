@@ -17,11 +17,12 @@ module Streamly.Internal.Data.Stream.SVar
     , fromProducer
     , fromConsumer
     , toSVar
+    , pushToFold
     )
 where
 
 import Control.Exception (fromException)
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
@@ -177,3 +178,27 @@ fromConsumer sv = do
                     Nothing -> return True
                     Just ex -> throwM ex
             ChildYield _ -> error "Bug: fromConsumer: invalid ChildYield event"
+
+-- push values to a fold worker via an SVar. Returns whether the fold is done.
+{-# INLINE pushToFold #-}
+pushToFold :: MonadAsync m => SVar Stream m a -> a -> m Bool
+pushToFold sv a = do
+    -- Check for exceptions before decrement so that we do not
+    -- block forever if the child already exited with an exception.
+    --
+    -- We avoid a race between the consumer fold sending an event and we
+    -- blocking on decrementBufferLimit by waking up the producer thread in
+    -- sendToProducer before any event is sent by the fold to the producer
+    -- stream.
+    let qref = outputQueueFromConsumer sv
+    done <- do
+        (_, n) <- liftIO $ readIORef qref
+        if (n > 0)
+        then fromConsumer sv
+        else return False
+    if done
+    then return True
+    else liftIO $ do
+        decrementBufferLimit sv
+        void $ send sv (ChildYield a)
+        return False
