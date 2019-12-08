@@ -334,17 +334,7 @@ newFoldSVar stt f = do
     -- Add the producer thread-id to the SVar.
     liftIO myThreadId >>= modifyThread sv
 
-    -- XXX move this in fromProducer itself.
-    --
-    -- A wrapper to send a Stop event back to the producer when the fold
-    -- receives a stop from the producer.
-    let pull m = mkStream $ \st yld _ stp -> do
-            let stop = sendStopToProducer sv >> stp
-                single a = yld a (K.nilM (sendStopToProducer sv))
-                yieldk a r = yld a (pull r)
-             in foldStreamShared st yieldk single stop m
-
-    void $ doFork (void $ f $ fromStream $ pull $ fromProducer sv)
+    void $ doFork (void $ f $ fromStream $ fromProducer sv)
                   (svarMrun sv)
                   (handleFoldException sv)
     return sv
