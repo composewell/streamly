@@ -133,6 +133,7 @@ fromProducer sv = mkStream $ \st yld sng stp -> do
             t <- liftIO $ getTime Monotonic
             liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
             liftIO $ printSVar sv "SVar Done"
+        sendStopToProducer sv
         stp
 
     {-# INLINE processEvents #-}
