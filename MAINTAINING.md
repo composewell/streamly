@@ -5,11 +5,15 @@
 * All the CI tests pass
 * New tests are added where applicable
 * Benchmarks are added where applicable
-* hlint
 * Run benchmarks locally if you suspect any regressions
-* If the PR is by someone other than you yourself then merge with a merge
-  commit, otherwise merge by rebasing on master without a separate merge
-  commit.
+* Documentation is added for any new combinators
+* Changelog entry is added for exposed combinators.
+* Optionally, look at hlint output if anything in that is worth fixing.
+* Merge the PR by rebasing. Note that github always creates new commits when
+  merged with rebase, it records the committer as well as the author in the
+  commit. This makes the local branch diverge from master. You can rebase and
+  merge the commit manually in your local git tree and push the resulting
+  master branch to avoid new commits and divergence from the original tree.
 
 ## Release Checklist
 
