@@ -69,7 +69,7 @@ import Prelude hiding (map, mapM)
 
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), adapt, Stream, mkStream,
                                  foldStream)
-import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

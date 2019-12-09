@@ -284,7 +284,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Internal.Data.Stream.Enumeration
-                     , Streamly.Streams.Prelude
+                     , Streamly.Internal.Data.Stream.Prelude
 
                     -- Higher level streams
                      , Streamly.Internal.Data.Stream.SVar
@@ -729,7 +729,7 @@ benchmark base
                    , Streamly.Internal.Data.Stream.StreamK.Type
                    , Streamly.Internal.Data.Stream.StreamK
                    , Streamly.Internal.Data.Stream.StreamD
-                   , Streamly.Streams.Prelude
+                   , Streamly.Internal.Data.Stream.Prelude
                    , Streamly.FileSystem.IOVec
 
                    , StreamDOps

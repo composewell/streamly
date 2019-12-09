@@ -20,7 +20,7 @@ import qualified Prelude as P
 -- import qualified Data.List as List
 
 import qualified Streamly.Internal.Data.Stream.StreamDK as S
--- import qualified Streamly.Streams.Prelude as SP
+-- import qualified Streamly.Internal.Data.Stream.Prelude as SP
 -- import qualified Streamly.Internal.Data.SVar as S
 
 value, value2, value3, value16, maxValue :: Int

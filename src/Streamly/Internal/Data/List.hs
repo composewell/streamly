@@ -87,7 +87,7 @@ import GHC.Exts (IsList(..), IsString(..))
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 
-import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- We implement list as a newtype instead of a type synonym to make type

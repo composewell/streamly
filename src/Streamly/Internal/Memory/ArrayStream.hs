@@ -57,7 +57,7 @@ import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Internal.Data.Stream.Prelude as P
 
 -- XXX efficiently compare two streams of arrays. Two streams can have chunks
 -- of different sizes, we can handle that in the stream comparison abstraction.

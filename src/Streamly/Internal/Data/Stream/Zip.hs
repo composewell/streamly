@@ -53,7 +53,7 @@ import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Prelude (zipWith, zipAsyncWith)
 
-import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 #include "Instances.hs"

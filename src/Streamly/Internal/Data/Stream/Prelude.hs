@@ -7,7 +7,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.Prelude
+-- Module      : Streamly.Internal.Data.Stream.Prelude
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -16,7 +16,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Prelude
+module Streamly.Internal.Data.Stream.Prelude
     (
     -- * Stream Conversion
       fromStreamS

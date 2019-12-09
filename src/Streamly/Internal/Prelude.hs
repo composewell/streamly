@@ -449,7 +449,7 @@ import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 import Streamly.Internal.Data.SVar (MonadAsync, State, defState, adaptState)
 import Streamly.Internal.Data.Stream.Async (mkAsync')
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
-import Streamly.Streams.Prelude
+import Streamly.Internal.Data.Stream.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
@@ -464,7 +464,7 @@ import Streamly.Internal.Data.Strict
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
-import qualified Streamly.Streams.Prelude as P
+import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
