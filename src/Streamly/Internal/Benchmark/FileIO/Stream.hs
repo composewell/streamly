@@ -82,7 +82,7 @@ import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.Memory.Unicode.Array as IUA
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)

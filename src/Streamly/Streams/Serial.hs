@@ -71,7 +71,7 @@ import Streamly.Streams.StreamK (IsStream(..), adapt, Stream, mkStream,
                                  foldStream)
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.StreamK as K
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"
 #include "inline.hs"

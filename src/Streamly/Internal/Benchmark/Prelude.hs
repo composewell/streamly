@@ -41,7 +41,7 @@ import qualified GHC.Exts as GHC
 #ifdef INSPECTION
 import Test.Inspection
 
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
 import qualified Streamly          as S hiding (runStream)

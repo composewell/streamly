@@ -53,7 +53,7 @@ import Streamly.Memory.Array (Array)
 import Streamly.Internal.Data.Unfold (Unfold)
 
 import qualified Streamly.Internal.Prelude as S
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -------------------------------------------------------------------------------
 -- Encoding/Decoding Unicode Characters

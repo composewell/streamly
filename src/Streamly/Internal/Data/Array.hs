@@ -61,7 +61,7 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Streams.StreamK.Type (IsStream)
 import Streamly.Streams.Serial (SerialT)
 
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a

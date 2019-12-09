@@ -282,7 +282,7 @@ library
                      , Streamly.Streams.StreamK
                      , Streamly.Streams.StreamDK.Type
                      , Streamly.Streams.StreamDK
-                     , Streamly.Streams.StreamD
+                     , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Streams.Enumeration
                      , Streamly.Streams.Prelude
 
@@ -728,7 +728,7 @@ benchmark base
                    , Streamly.Streams.StreamDK
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
-                   , Streamly.Streams.StreamD
+                   , Streamly.Internal.Data.Stream.StreamD
                    , Streamly.Streams.Prelude
                    , Streamly.FileSystem.IOVec
 
@@ -782,7 +782,7 @@ executable nano-bench
                    , Streamly.Streams.StreamK.Type
                    , Streamly.Streams.StreamK
                    , Streamly.FileSystem.IOVec
-                   , Streamly.Streams.StreamD
+                   , Streamly.Internal.Data.Stream.StreamD
   if flag(dev)
     buildable: True
     build-depends:

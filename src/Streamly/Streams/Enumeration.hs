@@ -62,10 +62,10 @@ import Data.Word
 import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 
-import Streamly.Streams.StreamD (fromStreamD)
+import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
 import Streamly.Streams.StreamK (IsStream(..))
 
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Streams.Serial as Serial
 
 -------------------------------------------------------------------------------

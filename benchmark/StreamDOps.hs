@@ -18,7 +18,7 @@ import Prelude
          maxBound, fmap, odd, (==), flip, (<$>), (<*>), round, (/), (**), (<))
 import qualified Prelude as P
 
-import qualified Streamly.Streams.StreamD as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Unfold as UF
 
 -- We try to keep the total number of iterations same irrespective of nesting

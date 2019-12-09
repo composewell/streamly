@@ -72,12 +72,12 @@ import Streamly.Internal.Data.Fold.Types (Fold (..))
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Streams.StreamK as S
 #else
-import qualified Streamly.Streams.StreamD as S
+import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
 import Streamly.Streams.StreamK (IsStream(..))
 import qualified Streamly.Streams.StreamK as K
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 ------------------------------------------------------------------------------
 -- Conversion to and from direct style stream

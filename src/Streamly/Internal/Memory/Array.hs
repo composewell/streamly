@@ -148,7 +148,7 @@ import Streamly.Streams.StreamK.Type (IsStream)
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Streams.StreamK as K
 
 -------------------------------------------------------------------------------

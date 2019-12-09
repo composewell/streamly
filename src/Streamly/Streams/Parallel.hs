@@ -62,7 +62,7 @@ import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
 import Streamly.Internal.Data.SVar hiding (handleChildException)
 
 import qualified Streamly.Streams.StreamK as K
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"
 

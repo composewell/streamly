@@ -19,7 +19,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamD
+-- Module      : Streamly.Internal.Data.Stream.StreamD
 -- Copyright   : (c) 2018 Harendra Kumar
 -- Copyright   : (c) Roman Leshchinskiy 2008-2010
 -- Copyright   : (c) The University of Glasgow, 2009
@@ -36,13 +36,13 @@
 -- CPS implementation.
 --
 -- @
--- import qualified Streamly.Streams.StreamD as D
+-- import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- @
 
 -- Some of the functions in this file have been adapted from the vector
 -- library,  https://hackage.haskell.org/package/vector.
 
-module Streamly.Streams.StreamD
+module Streamly.Internal.Data.Stream.StreamD
     (
     -- * The stream type
       Step (..)
@@ -3826,7 +3826,7 @@ decodeUtf8With cfm (Stream step state) =
     inputUnderflow =
         case cfm of
             ErrorOnCodingFailure ->
-                error "Streamly.Streams.StreamD.decodeUtf8With: Input Underflow"
+                error "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Input Underflow"
             TransliterateCodingFailure -> YieldAndContinue replacementChar Done
     {-# INLINE_LATE step' #-}
     step' _ gst (FreshPointDecodeInit st) = do
@@ -3860,7 +3860,7 @@ decodeUtf8With cfm (Stream step state) =
                 12 ->
                     Skip $
                     transliterateOrError
-                        "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
+                        "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
                         (FreshPointDecodeInit st)
                 0 -> error "unreachable state"
                 _ -> Skip (FreshPointDecoding st sv cp)
@@ -3879,7 +3879,7 @@ decodeUtf8With cfm (Stream step state) =
                         12 ->
                             Skip $
                             transliterateOrError
-                                "Streamly.Streams.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
+                                "Streamly.Internal.Data.Stream.StreamD.decodeUtf8With: Invalid UTF8 codepoint encountered"
                                 (FreshPointDecodeInit1 s x)
                         _ -> Skip (FreshPointDecoding s sv cp)
             Skip s -> return $ Skip (FreshPointDecoding s statePtr codepointPtr)
@@ -4012,7 +4012,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
         case cfm of
             ErrorOnCodingFailure ->
                 error
-                    "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Input Underflow"
+                    "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Input Underflow"
             TransliterateCodingFailure -> YAndC replacementChar D
     {-# INLINE_LATE step' #-}
     step' _ gst (OuterLoop st Nothing) = do
@@ -4061,7 +4061,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                 12 ->
                     Skip $
                     transliterateOrError
-                        "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                        "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
                         (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
                 0 -> error "unreachable state"
                 _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
@@ -4082,7 +4082,7 @@ decodeUtf8ArraysWith cfm (Stream step state) =
                 12 ->
                     Skip $
                     transliterateOrError
-                        "Streamly.Streams.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
+                        "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
                         (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
                 _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
     step' _ _ (YAndC c s) = return $ Yield c s
@@ -4128,7 +4128,7 @@ encodeUtf8 (Stream step state) = Stream step' (EncodeState state WNil)
                             | x <= 0xFFFF ->
                                 if isSurrogate c
                                     then error
-                                             "Streamly.Streams.StreamD.encodeUtf8: Encountered a surrogate"
+                                             "Streamly.Internal.Data.Stream.StreamD.encodeUtf8: Encountered a surrogate"
                                     else Skip (EncodeState s (ord3 c))
                             | otherwise -> Skip (EncodeState s (ord4 c))
                 Skip s -> Skip (EncodeState s WNil)

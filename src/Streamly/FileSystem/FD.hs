@@ -142,7 +142,7 @@ import Streamly.Streams.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
 import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
-import Streamly.Streams.StreamD (toStreamD)
+import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 #endif
