@@ -286,7 +286,7 @@ withNewArray count f = do
 --
 -- Internal routine for when the array is being created. Appends one item at
 -- the end of the array. Useful when sequentially writing a stream to the
--- array. DOES NOT CHECK THE ARRAY BOUNDS.
+-- array.
 {-# INLINE unsafeSnoc #-}
 unsafeSnoc :: forall a. Storable a => Array a -> a -> IO (Array a)
 unsafeSnoc arr@Array{..} x = do

@@ -4028,11 +4028,11 @@ lastN n = Fold step initial done
         step (Tuple3' rb rh i) a = do
             rh1 <- liftIO $ RB.unsafeInsert rb rh a
             return $ Tuple3' rb rh1 (i + 1)
-        initial = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n 
+        initial = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n
         done (Tuple3' rb rh i) = do
             arr <- liftIO $ A.newArray n
             foldFunc i rh snoc' arr rb
         snoc' b a = liftIO $ A.unsafeSnoc b a
         foldFunc i
-            | i < n = RB.unsafeFoldRingM 
-            | otherwise = RB.unsafeFoldRingFullM 
+            | i < n = RB.unsafeFoldRingM
+            | otherwise = RB.unsafeFoldRingFullM
