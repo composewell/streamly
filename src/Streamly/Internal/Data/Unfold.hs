@@ -9,7 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TupleSections             #-}
 
-#include "../../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Unfold

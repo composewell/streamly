@@ -7,7 +7,7 @@
 {-# LANGUAGE RecordWildCards #-}
 -- {-# LANGUAGE ScopedTypeVariables #-}
 
-#include "../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamDK

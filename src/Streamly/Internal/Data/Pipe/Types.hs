@@ -2,7 +2,7 @@
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
-#include "../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Pipe.Types

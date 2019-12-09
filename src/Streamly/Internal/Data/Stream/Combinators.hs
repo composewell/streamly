@@ -1,6 +1,6 @@
 {-# LANGUAGE CPP                       #-}
 
-#include "../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Combinators

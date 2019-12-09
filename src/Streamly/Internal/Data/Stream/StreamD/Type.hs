@@ -10,7 +10,7 @@
 {-# LANGUAGE ViewPatterns              #-}
 {-# LANGUAGE RankNTypes                #-}
 
-#include "../../../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Type

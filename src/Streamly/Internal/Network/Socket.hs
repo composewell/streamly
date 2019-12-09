@@ -6,7 +6,7 @@
 {-# LANGUAGE RecordWildCards  #-}
 {-# LANGUAGE UnboxedTuples    #-}
 
-#include "../../inline.hs"
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Network.Socket

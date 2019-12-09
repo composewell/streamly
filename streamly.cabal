@@ -266,7 +266,7 @@ library
     import: lib-options
     js-sources: jsbits/clock.js
     include-dirs:     src/Streamly/Internal/Data/Time
-                    , src/Streamly/Streams
+                    , src
     if os(windows)
       c-sources:     src/Streamly/Internal/Data/Time/Windows.c
     if os(darwin)
@@ -712,7 +712,6 @@ benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
   include-dirs:     src/Streamly/Internal/Data/Time
-                  , src/Streamly/Streams
   if os(windows)
     c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)
@@ -768,7 +767,6 @@ executable nano-bench
   import: bench-options
   hs-source-dirs: benchmark, src
   include-dirs:     src/Streamly/Internal/Data/Time
-                  , src/Streamly/Streams
   if os(windows)
     c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)
