@@ -291,7 +291,7 @@ library
                      , Streamly.Streams.Serial
                      , Streamly.Streams.Async
                      , Streamly.Streams.Parallel
-                     , Streamly.Streams.Ahead
+                     , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Streams.Zip
                      , Streamly.Streams.Combinators
 

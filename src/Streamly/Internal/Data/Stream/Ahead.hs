@@ -8,7 +8,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.Ahead
+-- Module      : Streamly.Internal.Data.Stream.Ahead
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -17,7 +17,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Ahead
+module Streamly.Internal.Data.Stream.Ahead
     (
       AheadT
     , Ahead
