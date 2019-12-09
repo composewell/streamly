@@ -5,7 +5,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-#include "inline.hs"
+#include "../../inline.hs"
 
 -- |
 -- Module      : Streamly.Memory.Array

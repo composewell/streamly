@@ -58,7 +58,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 #endif
 
-#include "Streamly/Streams/inline.hs"
+#include "inline.hs"
 
 module Streamly
     (

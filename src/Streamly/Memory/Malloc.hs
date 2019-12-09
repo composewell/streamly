@@ -8,7 +8,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-#include "inline.hs"
+#include "../../inline.hs"
 
 -- |
 -- Module      : Streamly.Memory.Malloc

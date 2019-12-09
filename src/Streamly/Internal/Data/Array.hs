@@ -4,7 +4,7 @@
 {-# LANGUAGE MagicHash     #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-#include "inline.hs"
+#include "../../../inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Array

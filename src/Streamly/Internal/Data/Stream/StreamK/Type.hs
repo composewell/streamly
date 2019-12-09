@@ -14,7 +14,7 @@
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
-#include "inline.hs"
+#include "../../../../inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamK.Type

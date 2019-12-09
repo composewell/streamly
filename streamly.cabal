@@ -119,7 +119,7 @@ extra-source-files:
     bench.sh
     stack.yaml
     src/Streamly/Internal/Data/Stream/Instances.hs
-    src/Streamly/Internal/Data/Stream/inline.hs
+    src/inline.hs
     configure.ac
     configure
     src/Streamly/Internal/Data/Time/config.h.in

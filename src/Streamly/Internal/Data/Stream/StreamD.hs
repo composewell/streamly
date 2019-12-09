@@ -16,7 +16,7 @@
 {-# LANGUAGE TypeApplications          #-}
 #endif
 
-#include "inline.hs"
+#include "../../inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD

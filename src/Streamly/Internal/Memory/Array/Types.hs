@@ -8,7 +8,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE FlexibleContexts          #-}
-#include "inline.hs"
+#include "../../../../inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Memory.Array.Types

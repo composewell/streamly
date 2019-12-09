@@ -74,7 +74,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"
-#include "inline.hs"
+#include "../../inline.hs"
 
 ------------------------------------------------------------------------------
 -- SerialT

@@ -4,7 +4,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 #endif
 
-#include "inline.hs"
+#include "../../inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Prelude
