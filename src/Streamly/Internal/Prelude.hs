@@ -448,7 +448,7 @@ import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, State, defState, adaptState)
 import Streamly.Internal.Data.Stream.Async (mkAsync')
-import Streamly.Streams.Combinators (inspectMode, maxYields)
+import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Streams.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)

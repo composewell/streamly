@@ -293,7 +293,7 @@ library
                      , Streamly.Streams.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Streams.Zip
-                     , Streamly.Streams.Combinators
+                     , Streamly.Internal.Data.Stream.Combinators
 
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO

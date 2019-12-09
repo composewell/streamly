@@ -226,7 +226,7 @@ import Data.Semigroup (Semigroup(..))
 import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
 import Streamly.Internal.Data.Stream.Ahead
 import Streamly.Internal.Data.Stream.Async
-import Streamly.Streams.Combinators
+import Streamly.Internal.Data.Stream.Combinators
 import Streamly.Streams.Parallel
 import Streamly.Streams.Serial
 import Streamly.Internal.Data.Stream.StreamK hiding (serial)

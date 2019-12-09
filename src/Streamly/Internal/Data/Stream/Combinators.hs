@@ -3,7 +3,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.Combinators
+-- Module      : Streamly.Internal.Data.Stream.Combinators
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -12,7 +12,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Combinators
+module Streamly.Internal.Data.Stream.Combinators
     ( maxThreads
     , maxBuffer
     , maxYields
