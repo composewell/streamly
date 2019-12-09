@@ -15,7 +15,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Prelude as S
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Data.Char (ord)
 import Gauge

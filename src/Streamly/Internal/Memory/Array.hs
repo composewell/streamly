@@ -143,13 +143,13 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..), length)
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Streams.Prelude as P
 import qualified Streamly.Streams.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -------------------------------------------------------------------------------
 -- Construction

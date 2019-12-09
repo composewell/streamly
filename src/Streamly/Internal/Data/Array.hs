@@ -58,7 +58,7 @@ import qualified GHC.Exts as Exts
 
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Streams.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D

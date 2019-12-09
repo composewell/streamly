@@ -60,10 +60,10 @@ import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar
-import Streamly.Streams.StreamK
+import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared,
         foldStreamSVar)
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 #include "Instances.hs"
 

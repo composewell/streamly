@@ -88,7 +88,7 @@ import Streamly.Streams.Serial (SerialT)
 import Streamly.Streams.Zip (ZipSerialM)
 
 import qualified Streamly.Streams.Prelude as P
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- We implement list as a newtype instead of a type synonym to make type
 -- inference easier when using -XOverloadedLists and -XOverloadedStrings. When

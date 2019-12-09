@@ -360,7 +360,7 @@ import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Foreign.Ptr (plusPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)

@@ -28,7 +28,7 @@ import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import Streamly.Internal.Data.SVar
-import Streamly.Streams.StreamK hiding (reverse)
+import Streamly.Internal.Data.Stream.StreamK hiding (reverse)
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromStreamVar #-}

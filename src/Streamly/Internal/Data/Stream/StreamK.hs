@@ -12,7 +12,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamK
+-- Module      : Streamly.Internal.Data.Stream.StreamK
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -25,10 +25,10 @@
 -- denotes a function as well as a Kontinuation.
 --
 -- @
--- import qualified Streamly.Streams.StreamK as K
+-- import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- @
 --
-module Streamly.Streams.StreamK
+module Streamly.Internal.Data.Stream.StreamK
     (
     -- * A class for streams
       IsStream (..)
@@ -198,7 +198,7 @@ import Prelude
 import qualified Prelude
 
 import Streamly.Internal.Data.SVar
-import Streamly.Streams.StreamK.Type
+import Streamly.Internal.Data.Stream.StreamK.Type
 
 -------------------------------------------------------------------------------
 -- Deconstruction

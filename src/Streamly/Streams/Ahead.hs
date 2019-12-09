@@ -49,10 +49,10 @@ import qualified Data.Heap as H
 import Streamly.Streams.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar
-import Streamly.Streams.StreamK
+import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared,
         foldStreamSVar)
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 import Prelude hiding (map)
 

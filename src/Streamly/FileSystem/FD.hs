@@ -138,7 +138,7 @@ import qualified GHC.IO.Device as RawIO
 
 import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
 import Streamly.Streams.Serial (SerialT)
-import Streamly.Streams.StreamK.Type (IsStream, mkStream)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
 import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)

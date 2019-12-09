@@ -56,12 +56,12 @@ import qualified Data.Set as Set
 
 import Streamly.Streams.SVar (fromSVar, fromStreamVar)
 import Streamly.Streams.Serial (map)
-import Streamly.Streams.StreamK (IsStream(..), Stream, mkStream, foldStream,
+import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream, mkStream, foldStream,
                                  foldStreamShared, adapt)
 
 import Streamly.Internal.Data.SVar hiding (handleChildException)
 
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"

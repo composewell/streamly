@@ -258,7 +258,7 @@ import Streamly.Internal.Data.Pipe.Types
 -- import Streamly.Internal.Memory.Array.Types (Array)
 -- import Streamly.Memory.Ring (Ring)
 -- import Streamly.Streams.Serial (SerialT)
--- import Streamly.Streams.StreamK (IsStream())
+-- import Streamly.Internal.Data.Stream.StreamK (IsStream())
 -- import Streamly.Internal.Data.Time.Units
 -- (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
 -- toAbsTime)
@@ -268,7 +268,7 @@ import Streamly.Internal.Data.Pipe.Types
 -- import qualified Streamly.Internal.Memory.Array.Types as A
 -- import qualified Streamly.Prelude as S
 -- import qualified Streamly.Internal.Data.Stream.StreamD as D
--- import qualified Streamly.Streams.StreamK as K
+-- import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- import qualified Streamly.Streams.Prelude as P
 
 ------------------------------------------------------------------------------

@@ -121,7 +121,7 @@ import Streamly.FileSystem.FDIO (IOVec(..))
 
 import qualified Streamly.Memory.Malloc as Malloc
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified GHC.Exts as Exts
 
 #ifdef DEVBUILD

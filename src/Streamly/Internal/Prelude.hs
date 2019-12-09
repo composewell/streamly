@@ -452,7 +452,7 @@ import Streamly.Streams.Combinators (inspectMode, maxYields)
 import Streamly.Streams.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
-import Streamly.Streams.StreamK (IsStream((|:), consM))
+import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
@@ -465,11 +465,11 @@ import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Streams.Prelude as P
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #ifdef USE_STREAMK_ONLY
-import qualified Streamly.Streams.StreamK as S
+import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif

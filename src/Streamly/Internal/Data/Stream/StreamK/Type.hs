@@ -14,10 +14,10 @@
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
-#include "../inline.hs"
+#include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamK.Type
+-- Module      : Streamly.Internal.Data.Stream.StreamK.Type
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -29,7 +29,7 @@
 -- Continuation passing style (CPS) stream implementation. The symbol 'K' below
 -- denotes a function as well as a Kontinuation.
 --
-module Streamly.Streams.StreamK.Type
+module Streamly.Internal.Data.Stream.StreamK.Type
     (
     -- * A class for streams
       IsStream (..)

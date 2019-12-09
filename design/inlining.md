@@ -13,7 +13,7 @@ i.e. phase 0, 1 and 2. We have defined them as follows in `inline.h`:
 ## Low Level `fromStreamD/toStreamD` Fusion
 
 The combinators in `Streamly.Prelude` are defined in terms of combinators in
-`Streamly.Internal.Data.Stream.StreamD` (Direct style streams) or `Streamly.Streams.StreamK`
+`Streamly.Internal.Data.Stream.StreamD` (Direct style streams) or `Streamly.Internal.Data.Stream.StreamK`
 (CPS style streams). We convert the stream from `StreamD` to `StreamK`
 representation or vice versa in some cases. 
 

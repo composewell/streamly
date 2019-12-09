@@ -278,8 +278,8 @@ library
                      , Streamly.Memory.Ring
 
                     -- Base streams
-                     , Streamly.Streams.StreamK.Type
-                     , Streamly.Streams.StreamK
+                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Stream.StreamK
                      , Streamly.Streams.StreamDK.Type
                      , Streamly.Streams.StreamDK
                      , Streamly.Internal.Data.Stream.StreamD
@@ -726,8 +726,8 @@ benchmark base
                    , Streamly.Internal.Data.Time.Clock
                    , Streamly.Streams.StreamDK.Type
                    , Streamly.Streams.StreamDK
-                   , Streamly.Streams.StreamK.Type
-                   , Streamly.Streams.StreamK
+                   , Streamly.Internal.Data.Stream.StreamK.Type
+                   , Streamly.Internal.Data.Stream.StreamK
                    , Streamly.Internal.Data.Stream.StreamD
                    , Streamly.Streams.Prelude
                    , Streamly.FileSystem.IOVec
@@ -779,8 +779,8 @@ executable nano-bench
                    , Streamly.Internal.Data.SVar
                    , Streamly.Internal.Data.Time.Units
                    , Streamly.Internal.Data.Time.Clock
-                   , Streamly.Streams.StreamK.Type
-                   , Streamly.Streams.StreamK
+                   , Streamly.Internal.Data.Stream.StreamK.Type
+                   , Streamly.Internal.Data.Stream.StreamK
                    , Streamly.FileSystem.IOVec
                    , Streamly.Internal.Data.Stream.StreamD
   if flag(dev)

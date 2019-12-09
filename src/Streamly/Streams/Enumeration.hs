@@ -63,7 +63,7 @@ import Numeric.Natural
 import Data.Functor.Identity (Identity(..))
 
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
-import Streamly.Streams.StreamK (IsStream(..))
+import Streamly.Internal.Data.Stream.StreamK (IsStream(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Streams.Serial as Serial

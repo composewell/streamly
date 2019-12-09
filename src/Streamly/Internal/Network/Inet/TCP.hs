@@ -114,7 +114,7 @@ import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Streams.Serial (SerialT)
 import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
-import Streamly.Streams.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net

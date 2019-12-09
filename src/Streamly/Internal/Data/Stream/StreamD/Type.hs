@@ -79,7 +79,7 @@ import Prelude hiding (map, mapM, foldr, take, concatMap)
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 ------------------------------------------------------------------------------
 -- The direct style stream type

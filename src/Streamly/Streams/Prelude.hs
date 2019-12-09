@@ -70,13 +70,13 @@ import qualified Prelude
 import Streamly.Internal.Data.Fold.Types (Fold (..))
 
 #ifdef USE_STREAMK_ONLY
-import qualified Streamly.Streams.StreamK as S
+import qualified Streamly.Internal.Data.Stream.StreamK as S
 #else
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
-import Streamly.Streams.StreamK (IsStream(..))
-import qualified Streamly.Streams.StreamK as K
+import Streamly.Internal.Data.Stream.StreamK (IsStream(..))
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 ------------------------------------------------------------------------------

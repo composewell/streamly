@@ -139,7 +139,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Prelude
 import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -------------------------------------------------------------------------------

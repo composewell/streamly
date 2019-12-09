@@ -48,13 +48,13 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
 import Prelude hiding (map, repeat, zipWith)
 
-import Streamly.Streams.StreamK (IsStream(..), Stream)
+import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Prelude (zipWith, zipAsyncWith)
 
 import qualified Streamly.Streams.Prelude as P
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 #include "Instances.hs"
 

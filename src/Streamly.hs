@@ -229,12 +229,12 @@ import Streamly.Streams.Async
 import Streamly.Streams.Combinators
 import Streamly.Streams.Parallel
 import Streamly.Streams.Serial
-import Streamly.Streams.StreamK hiding (serial)
+import Streamly.Internal.Data.Stream.StreamK hiding (serial)
 import Streamly.Streams.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Prelude as IP
-import qualified Streamly.Streams.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -- XXX provide good succinct examples of pipelining, merging, splitting etc.
 -- below.
