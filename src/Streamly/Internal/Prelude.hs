@@ -453,7 +453,7 @@ import Streamly.Streams.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
-import Streamly.Streams.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
@@ -474,7 +474,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
-import qualified Streamly.Streams.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Streams.Parallel as Par
 
 ------------------------------------------------------------------------------

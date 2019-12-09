@@ -49,7 +49,7 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
-import Streamly.Streams.Serial (map)
+import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.SVar (MonadAsync)
 import Streamly.Internal.Prelude (zipWith, zipAsyncWith)
 

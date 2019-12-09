@@ -112,7 +112,7 @@ import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
-import Streamly.Streams.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 

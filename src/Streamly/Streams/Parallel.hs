@@ -55,7 +55,7 @@ import Prelude hiding (map)
 import qualified Data.Set as Set
 
 import Streamly.Internal.Data.Stream.SVar (fromSVar, fromStreamVar)
-import Streamly.Streams.Serial (map)
+import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream, mkStream, foldStream,
                                  foldStreamShared, adapt)
 

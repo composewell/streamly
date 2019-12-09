@@ -66,7 +66,7 @@ import Streamly.Internal.Data.Stream.StreamD (fromStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Streams.Serial as Serial
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 -------------------------------------------------------------------------------
 -- Enumeration of Integral types

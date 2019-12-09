@@ -9,7 +9,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.Serial
+-- Module      : Streamly.Internal.Data.Stream.Serial
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Serial
+module Streamly.Internal.Data.Stream.Serial
     (
     -- * Serial appending stream
       SerialT

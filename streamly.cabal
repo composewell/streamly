@@ -288,7 +288,7 @@ library
 
                     -- Higher level streams
                      , Streamly.Internal.Data.Stream.SVar
-                     , Streamly.Streams.Serial
+                     , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Streams.Parallel
                      , Streamly.Internal.Data.Stream.Ahead

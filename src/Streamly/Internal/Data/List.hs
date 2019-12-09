@@ -84,7 +84,7 @@ import Data.Semigroup (Semigroup(..))
 #endif
 import GHC.Exts (IsList(..), IsString(..))
 
-import Streamly.Streams.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 
 import qualified Streamly.Streams.Prelude as P

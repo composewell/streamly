@@ -257,7 +257,7 @@ import Streamly.Internal.Data.Pipe.Types
        (Pipe(..), PipeState(..), Step(..), zipWith, tee, map, compose)
 -- import Streamly.Internal.Memory.Array.Types (Array)
 -- import Streamly.Memory.Ring (Ring)
--- import Streamly.Streams.Serial (SerialT)
+-- import Streamly.Internal.Data.Stream.Serial (SerialT)
 -- import Streamly.Internal.Data.Stream.StreamK (IsStream())
 -- import Streamly.Internal.Data.Time.Units
 -- (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
