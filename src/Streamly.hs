@@ -225,7 +225,7 @@ where
 import Data.Semigroup (Semigroup(..))
 import Streamly.Internal.Data.SVar (MonadAsync, Rate(..))
 import Streamly.Internal.Data.Stream.Ahead
-import Streamly.Streams.Async
+import Streamly.Internal.Data.Stream.Async
 import Streamly.Streams.Combinators
 import Streamly.Streams.Parallel
 import Streamly.Streams.Serial

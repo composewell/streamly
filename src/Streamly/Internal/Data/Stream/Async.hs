@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.Async
+-- Module      : Streamly.Internal.Data.Stream.Async
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -19,7 +19,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Async
+module Streamly.Internal.Data.Stream.Async
     (
       AsyncT
     , Async

@@ -289,7 +289,7 @@ library
                     -- Higher level streams
                      , Streamly.Streams.SVar
                      , Streamly.Streams.Serial
-                     , Streamly.Streams.Async
+                     , Streamly.Internal.Data.Stream.Async
                      , Streamly.Streams.Parallel
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Streams.Zip
