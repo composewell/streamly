@@ -14,8 +14,8 @@ module Main (main) where
 import Control.DeepSeq (NFData(..), deepseq)
 import System.Random (randomRIO)
 
-import qualified Streamly.Benchmark.Data.ArrayOps as Ops
-import qualified Streamly.Data.Array as A
+import qualified Streamly.Benchmark.Data.SmallArrayOps as Ops
+import qualified Streamly.Data.SmallArray as A
 import qualified Streamly.Prelude as S
 
 import Gauge
@@ -49,20 +49,19 @@ benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
 benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
 
 mkString :: String
-mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
+mkString =
+    "fromListN " ++
+    show (Ops.value + 1) ++ " [1" ++ concat (replicate Ops.value ",1") ++ "]"
 
 main :: IO ()
 main =
   defaultMain
-    [ bgroup "Data.Array"
+    [ bgroup "SmallArray"
      [  bgroup "generation"
         [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
-        , benchIOSrc "write . intFromTo" Ops.sourceIntFromToFromStream
-       , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
+        , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
         , benchIOSrc "writeN . unfoldr" Ops.sourceUnfoldr
         , benchIOSrc "writeN . fromList" Ops.sourceFromList
-        -- , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
-        -- , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
         , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
         , benchPureSink "show" Ops.showInstance
         ]
