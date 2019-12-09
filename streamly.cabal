@@ -280,8 +280,8 @@ library
                     -- Base streams
                      , Streamly.Internal.Data.Stream.StreamK.Type
                      , Streamly.Internal.Data.Stream.StreamK
-                     , Streamly.Streams.StreamDK.Type
-                     , Streamly.Streams.StreamDK
+                     , Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.StreamD
                      , Streamly.Streams.Enumeration
                      , Streamly.Streams.Prelude
@@ -724,8 +724,8 @@ benchmark base
                    , Streamly.Internal.Data.SVar
                    , Streamly.Internal.Data.Time.Units
                    , Streamly.Internal.Data.Time.Clock
-                   , Streamly.Streams.StreamDK.Type
-                   , Streamly.Streams.StreamDK
+                   , Streamly.Internal.Data.Stream.StreamDK.Type
+                   , Streamly.Internal.Data.Stream.StreamDK
                    , Streamly.Internal.Data.Stream.StreamK.Type
                    , Streamly.Internal.Data.Stream.StreamK
                    , Streamly.Internal.Data.Stream.StreamD

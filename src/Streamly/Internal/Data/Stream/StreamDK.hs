@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.StreamDK
+-- Module      : Streamly.Internal.Data.Stream.StreamDK
 -- Copyright   : (c) 2019 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -18,7 +18,7 @@
 -- Portability : GHC
 --
 
-module Streamly.Streams.StreamDK
+module Streamly.Internal.Data.Stream.StreamDK
     (
     -- * Stream Type
 
@@ -42,7 +42,7 @@ module Streamly.Streams.StreamDK
     )
 where
 
-import Streamly.Streams.StreamDK.Type (Stream(..), Step(..))
+import Streamly.Internal.Data.Stream.StreamDK.Type (Stream(..), Step(..))
 
 -------------------------------------------------------------------------------
 -- Construction

@@ -96,7 +96,7 @@
 -- a push style CPS representation should be able to be used along with StreamK
 -- to efficiently implement composable folds.
 
-module Streamly.Streams.StreamDK.Type
+module Streamly.Internal.Data.Stream.StreamDK.Type
     ( Step(..)
     , Stream (..)
     )
