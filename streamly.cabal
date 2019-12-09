@@ -283,7 +283,7 @@ library
                      , Streamly.Internal.Data.Stream.StreamDK.Type
                      , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Streams.Enumeration
+                     , Streamly.Internal.Data.Stream.Enumeration
                      , Streamly.Streams.Prelude
 
                     -- Higher level streams
