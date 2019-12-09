@@ -475,7 +475,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Streams.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
 
 ------------------------------------------------------------------------------
 -- Deconstruction

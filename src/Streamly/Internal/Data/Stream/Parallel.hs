@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Streams.Parallel
+-- Module      : Streamly.Internal.Data.Stream.Parallel
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -19,7 +19,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Parallel
+module Streamly.Internal.Data.Stream.Parallel
     (
       ParallelT
     , Parallel
