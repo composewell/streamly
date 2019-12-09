@@ -287,7 +287,7 @@ library
                      , Streamly.Streams.Prelude
 
                     -- Higher level streams
-                     , Streamly.Streams.SVar
+                     , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Streams.Serial
                      , Streamly.Internal.Data.Stream.Async
                      , Streamly.Streams.Parallel

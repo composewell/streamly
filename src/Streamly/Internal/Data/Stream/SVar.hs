@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts          #-}
 
 -- |
--- Module      : Streamly.Streams.SVar
+-- Module      : Streamly.Internal.Data.Stream.SVar
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -11,7 +11,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.SVar
+module Streamly.Internal.Data.Stream.SVar
     ( fromSVar
     , fromStreamVar
     , toSVar

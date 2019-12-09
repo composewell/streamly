@@ -46,7 +46,7 @@ import GHC.Exts (inline)
 
 import qualified Data.Heap as H
 
-import Streamly.Streams.SVar (fromSVar)
+import Streamly.Internal.Data.Stream.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK

@@ -57,7 +57,7 @@ import Prelude hiding (map)
 import qualified Data.Set as S
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
-import Streamly.Streams.SVar (fromSVar)
+import Streamly.Internal.Data.Stream.SVar (fromSVar)
 import Streamly.Streams.Serial (map)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK
