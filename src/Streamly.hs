@@ -230,7 +230,7 @@ import Streamly.Internal.Data.Stream.Combinators
 import Streamly.Streams.Parallel
 import Streamly.Streams.Serial
 import Streamly.Internal.Data.Stream.StreamK hiding (serial)
-import Streamly.Streams.Zip
+import Streamly.Internal.Data.Stream.Zip
 
 import qualified Streamly.Prelude as P
 import qualified Streamly.Internal.Prelude as IP

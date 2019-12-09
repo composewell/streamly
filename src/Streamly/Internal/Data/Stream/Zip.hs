@@ -9,7 +9,7 @@
 {-# LANGUAGE UndecidableInstances      #-} -- XXX
 
 -- |
--- Module      : Streamly.Streams.Zip
+-- Module      : Streamly.Internal.Data.Stream.Zip
 -- Copyright   : (c) 2017 Harendra Kumar
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Portability : GHC
 --
 --
-module Streamly.Streams.Zip
+module Streamly.Internal.Data.Stream.Zip
     (
       ZipSerialM
     , ZipSerial
