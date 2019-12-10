@@ -96,7 +96,11 @@ foldl' f z arr = runIdentity $ D.foldl' f z $ toStreamD arr
 foldr :: (a -> b -> b) -> b -> SmallArray a -> b
 foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 
--- writeN n = S.evertM (fromStreamDN n)
+-- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- 'SmallArray'.
+--
+-- Since we are folding to a 'SmallArray' @n@ should be <= 128, for larger number
+-- of elements use an 'Array' from either "Streamly.Data.Array" or "Streamly.Memory.Array".
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
 writeN limit = Fold step initial extract
@@ -122,6 +126,13 @@ fromStreamDN limit str = do
         D.take limit str
     liftIO $ freezeSmallArray marr 0 i
 
+-- | Create a 'SmallArray' from the first @n@ elements of a list. The
+-- array may hold less than @n@ elements if the length of the list <=
+-- @n@.
+--
+-- It is recommended to use a value of @n@ <= 128. For larger sized
+-- arrays, use an 'Array' from "Streamly.Data.Array" or
+-- "Streamly.Memory.Array"
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> SmallArray a
 fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
@@ -130,6 +141,11 @@ instance NFData a => NFData (SmallArray a) where
     {-# INLINE rnf #-}
     rnf = foldl' (\_ x -> rnf x) ()
 
+-- | Create a 'SmallArray' from the first @n@ elements of a stream. The
+-- array is allocated to size @n@, if the stream terminates before @n@
+-- elements then the array may hold less than @n@ elements.
+--
+-- For optimal performance use this with @n@ <= 128.
 {-# INLINE fromStreamN #-}
 fromStreamN :: MonadIO m => Int -> SerialT m a -> m (SmallArray a)
 fromStreamN n m = do
