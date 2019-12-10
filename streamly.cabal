@@ -273,33 +273,19 @@ library
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:
+                       Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Stream.StreamDK
+
                     -- Memory storage
                        Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
-
-                    -- Base streams
-                     , Streamly.Internal.Data.Stream.StreamK.Type
-                     , Streamly.Internal.Data.Stream.StreamK
-                     , Streamly.Internal.Data.Stream.StreamDK.Type
-                     , Streamly.Internal.Data.Stream.StreamDK
-                     , Streamly.Internal.Data.Stream.StreamD
-                     , Streamly.Internal.Data.Stream.Enumeration
-                     , Streamly.Internal.Data.Stream.Prelude
-
-                    -- Higher level streams
-                     , Streamly.Internal.Data.Stream.SVar
-                     , Streamly.Internal.Data.Stream.Serial
-                     , Streamly.Internal.Data.Stream.Async
-                     , Streamly.Internal.Data.Stream.Parallel
-                     , Streamly.Internal.Data.Stream.Ahead
-                     , Streamly.Internal.Data.Stream.Zip
-                     , Streamly.Internal.Data.Stream.Combinators
 
                      , Streamly.FileSystem.IOVec
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
 
-    exposed-modules:   Streamly.Prelude
+    exposed-modules:
+                       Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Array
                      , Streamly.Data.Fold
@@ -329,6 +315,22 @@ library
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Sink.Types
                      , Streamly.Internal.Data.Sink
+
+                     -- Base streams
+                     , Streamly.Internal.Data.Stream.StreamK.Type
+                     , Streamly.Internal.Data.Stream.StreamK
+                     , Streamly.Internal.Data.Stream.StreamD
+                     , Streamly.Internal.Data.Stream.Enumeration
+                     , Streamly.Internal.Data.Stream.Prelude
+
+                     -- Higher level streams
+                     , Streamly.Internal.Data.Stream.SVar
+                     , Streamly.Internal.Data.Stream.Serial
+                     , Streamly.Internal.Data.Stream.Async
+                     , Streamly.Internal.Data.Stream.Parallel
+                     , Streamly.Internal.Data.Stream.Ahead
+                     , Streamly.Internal.Data.Stream.Zip
+                     , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
                      , Streamly.Internal.Data.Pipe.Types
@@ -341,6 +343,7 @@ library
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
+
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
