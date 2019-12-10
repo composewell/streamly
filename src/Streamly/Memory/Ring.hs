@@ -32,13 +32,15 @@ module Streamly.Memory.Ring
     ) where
 
 import Control.Exception (assert)
-import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
+import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrAlignedBytes)
 import GHC.Ptr (Ptr(..))
 import Prelude hiding (length, concat)
+
+import Control.Monad.IO.Class (MonadIO(..))
 
 import qualified Streamly.Internal.Memory.Array.Types as A
 
@@ -163,13 +165,21 @@ unsafeFoldRing ptr f z Ring{..} =
             x <- peek p
             go (f acc x) (p `plusPtr` sizeOf (undefined :: a)) q
 
+-- XXX Can we remove MonadIO here?
+withForeignPtrM :: MonadIO m => ForeignPtr a -> (Ptr a -> m b) -> m b
+withForeignPtrM fp fn = do
+    r <- fn $ unsafeForeignPtrToPtr fp
+    liftIO $ touchForeignPtr fp
+    return r
+
 -- | Like unsafeFoldRing but with a monadic step function.
 {-# INLINE unsafeFoldRingM #-}
-unsafeFoldRingM :: forall m a b. (Monad m, Storable a)
+unsafeFoldRingM :: forall m a b. (MonadIO m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingM ptr f z Ring{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
-    where
-      go !acc !start !end
+unsafeFoldRingM ptr f z Ring {..} =
+    withForeignPtrM ringStart $ \x -> go z x ptr
+  where
+    go !acc !start !end
         | start == end = return acc
         | otherwise = do
             let !x = A.unsafeInlineIO $ peek start
@@ -181,14 +191,15 @@ unsafeFoldRingM ptr f z Ring{..} = go z (unsafeForeignPtrToPtr ringStart) ptr
 -- this would fold the ring starting from the oldest item to the newest item in
 -- the ring.
 {-# INLINE unsafeFoldRingFullM #-}
-unsafeFoldRingFullM :: forall m a b. (Monad m, Storable a)
+unsafeFoldRingFullM :: forall m a b. (MonadIO m, Storable a)
     => Ptr a -> (b -> a -> m b) -> b -> Ring a -> m b
-unsafeFoldRingFullM rh f z rb@Ring{..} = go z rh
-    where
-      go !acc !start = do
-            let !x = A.unsafeInlineIO $ peek start
-            acc' <- f acc x
-            let ptr = advance rb start
-            if ptr == rh
+unsafeFoldRingFullM rh f z rb@Ring {..} =
+    withForeignPtrM ringStart $ \_ -> go z rh
+  where
+    go !acc !start = do
+        let !x = A.unsafeInlineIO $ peek start
+        acc' <- f acc x
+        let ptr = advance rb start
+        if ptr == rh
             then return acc'
             else go acc' ptr
