@@ -8,7 +8,7 @@
 import Control.DeepSeq (NFData)
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import qualified Streamly.Internal.Benchmark.Prelude as Ops
+import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import Gauge

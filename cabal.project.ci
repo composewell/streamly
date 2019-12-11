@@ -3,5 +3,4 @@ packages:
 
 package streamly
   ghc-options: -Werror
-  flags: benchmark
-         inspection
+  flags: inspection

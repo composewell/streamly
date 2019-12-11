@@ -134,11 +134,6 @@ source-repository head
     type: git
     location: https://github.com/composewell/streamly
 
-flag benchmark
-  description: Benchmark build
-  manual: True
-  default: False
-
 flag inspection
   description: Enable inspection testing
   manual: True
@@ -257,6 +252,7 @@ common exe-options
 common bench-options
   import: compile-options, optimization-options
   ghc-options: -with-rtsopts "-T"
+  build-depends: mtl >= 2.2 && < 3
 
 -------------------------------------------------------------------------------
 -- Library
@@ -354,12 +350,6 @@ library
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Inet.TCP
 
-    if flag(benchmark)
-       exposed-modules:
-                       Streamly.Internal.Benchmark.FileIO.Array
-                     , Streamly.Internal.Benchmark.FileIO.Stream
-                     , Streamly.Internal.Benchmark.Prelude
-
     build-depends:     base              >= 4.8   &&  < 5
                      , ghc-prim          >= 0.2   && < 0.6
                      , deepseq           >= 1.4.1 && < 1.5
@@ -378,10 +368,6 @@ library
                      , mtl               >= 2.2   && < 3
                      , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
-
-  if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.16
-                     , inspection-testing >= 0.4   && < 0.5
 
   if !impl(ghcjs)
     build-depends:
@@ -571,61 +557,64 @@ test-suite parallel-loops
 
 benchmark linear
   import: bench-options
+  other-modules: Streamly.Benchmark.Prelude
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Linear.hs
-  if flag(benchmark)
-    buildable: True
+  buildable: True
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
     build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
 
 benchmark linear-async
   import: bench-options
+  other-modules: Streamly.Benchmark.Prelude
   cpp-options: -DLINEAR_ASYNC
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
-  if flag(benchmark)
-    buildable: True
+  buildable: True
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
     build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
 
 benchmark linear-rate
   import: bench-options
+  other-modules: Streamly.Benchmark.Prelude
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
-  if flag(benchmark)
-    buildable: True
+  buildable: True
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
     build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-  else
-    buildable: False
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
 
 benchmark nested
   import: bench-options
@@ -709,22 +698,24 @@ benchmark array
 
 benchmark fileio
   import: bench-options
+  other-modules: Streamly.Benchmark.FileIO.Array
+               , Streamly.Benchmark.FileIO.Stream
   type: exitcode-stdio-1.0
   -- A value of 400 works better for some benchmarks, however, it takes
   -- extraordinary amount of time to compile with that.
   -- ghc-options: -funfolding-use-threshold=150
   hs-source-dirs: benchmark
   main-is: FileIO.hs
-  if flag(benchmark)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , gauge               >= 0.2.4 && < 0.3
-      , typed-process       >= 0.2.3 && < 0.3
-      , deepseq             >= 1.4.1 && < 1.5
-  else
-    buildable: False
+  buildable: True
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , gauge               >= 0.2.4 && < 0.3
+    , typed-process       >= 0.2.3 && < 0.3
+    , deepseq             >= 1.4.1 && < 1.5
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
 
 benchmark concurrent
   import: bench-options
@@ -750,7 +741,8 @@ benchmark concurrent
 benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
-  include-dirs:     src/Streamly/Internal/Data/Time
+  include-dirs:    src/Streamly/Internal/Data/Time
+                   src
   if os(windows)
     c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)
@@ -805,7 +797,8 @@ benchmark base
 executable nano-bench
   import: bench-options
   hs-source-dirs: benchmark, src
-  include-dirs:     src/Streamly/Internal/Data/Time
+  include-dirs:    src/Streamly/Internal/Data/Time
+                 , src
   if os(windows)
     c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)

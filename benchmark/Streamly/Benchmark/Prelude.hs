@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Internal.Benchmark.Prelude
+-- Module      : Streamly.Benchmark.Prelude
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : MIT
@@ -20,7 +20,7 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Streamly.Internal.Benchmark.Prelude where
+module Streamly.Benchmark.Prelude where
 
 import Control.DeepSeq (NFData)
 import Control.Monad (when)
