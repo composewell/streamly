@@ -413,6 +413,10 @@ module Streamly.Internal.Prelude
     -- * Diagnostics
     , inspectMode
 
+    -- * Time related
+    , takeByTime
+    , dropByTime
+
     -- * Deprecated
     , K.once
     , each
@@ -470,7 +474,7 @@ import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
-       toAbsTime)
+       toAbsTime, TimeUnit64)
 import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
@@ -4191,3 +4195,25 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
+
+------------------------------------------------------------------------------
+-- Time related
+------------------------------------------------------------------------------
+
+-- | /takeByTime d/ keeps taking elements from the stream until d duration has
+-- passed. We first check the if the duration has expired, if yes, then we
+-- 'Stop' else we take the element,  executing the corresponding monadic
+-- action. The only guarentee is, the element will not be taken (the action
+-- will not begin) if the duration has expired. If the duration has expired
+-- during the execution of the monadic action, the next element will not be
+-- taken but the current action will run to completion.
+{-# INLINE takeByTime #-}
+takeByTime ::(MonadIO m, IsStream t, TimeUnit64 u) => u -> t m a -> t m a
+takeByTime d = fromStreamD . D.takeByTime d . toStreamD
+
+-- | /dropByTime d/ keeps dropping elements from the stream until d duration has
+-- passed. The first element is taken only after the duration has expired.
+{-# INLINE dropByTime #-}
+dropByTime ::(MonadIO m, IsStream t, TimeUnit64 u) => u -> t m a -> t m a
+dropByTime d = fromStreamD . D.dropByTime d . toStreamD
+

@@ -26,6 +26,7 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Sink as Sink
 
+import Streamly.Internal.Data.Time.Units
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
@@ -356,6 +357,11 @@ main = do
         , benchIOSink value "filter-all-out"  (Ops.filterAllOut value 1)
         , benchIOSink value "filter-all-in"   (Ops.filterAllIn value 1)
         , benchIOSink value "take-all"        (Ops.takeAll value 1)
+        
+        -- XXX Compare this to takeAll
+        , benchIOSink value "takeByTime: All" (Ops.takeByTime (NanoSecond64 maxBound) 1)
+        , benchIOSink value "dropByTime: All" (Ops.dropByTime (NanoSecond64 maxBound) 1)
+        
         , benchIOSink value "takeWhile-true"  (Ops.takeWhileTrue value 1)
         --, benchIOSink value "takeWhileM-true" (Ops.takeWhileMTrue 1)
         , benchIOSink value "drop-one"        (Ops.dropOne 1)

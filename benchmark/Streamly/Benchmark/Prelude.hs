@@ -53,6 +53,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import Streamly.Internal.Data.Time.Units
 
 -- To detect memory leak issues use larger streams.
 -- See Note in .cabal file on how to generate streams of specific size.
@@ -381,6 +382,14 @@ filterAllOut,
 {-# INLINE intersperse #-}
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
+
+{-# INLINE takeByTime #-}
+takeByTime :: (MonadIO m, TimeUnit64 t) => t -> Int -> Stream m Int -> m ()
+takeByTime i n = composeN n (Internal.takeByTime i)
+
+{-# INLINE dropByTime #-}
+dropByTime :: (MonadIO m, TimeUnit64 t) => t -> Int -> Stream m Int -> m ()
+dropByTime i n = composeN n (Internal.dropByTime i)
 
 {-# INLINE mapM #-}
 {-# INLINE map' #-}

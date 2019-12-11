@@ -307,6 +307,10 @@ module Streamly.Internal.Data.Stream.StreamD
     , foldParallel
 
     , lastN
+
+    -- * Time related
+    , takeByTime
+    , dropByTime
     )
 where
 
@@ -342,6 +346,8 @@ import qualified Prelude
 
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
+import Streamly.Internal.Data.Time.Units
+
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -4034,3 +4040,56 @@ lastN n = Fold step initial done
         foldFunc i
             | i < n = RB.unsafeFoldRingM
             | otherwise = RB.unsafeFoldRingFullM
+
+------------------------------------------------------------------------------
+-- Time related
+------------------------------------------------------------------------------
+
+-- XXX This does not fuse. Removing the if function results in fusion though.
+-- XXX This function will fuse with the use of fusion-plugin.
+-- XXX This function also fuses if compiled with -funfolding-use-threshold=500
+{-# INLINE_NORMAL takeByTime #-}
+takeByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
+takeByTime lim' (Stream step state) = Stream step' (state, Nothing)
+  where
+    lim = toRelTime64 lim'
+    {-# INLINE_LATE step' #-}
+    step' _ (s, Nothing) = do
+        t <- liftIO $ getTime Monotonic
+        return $ Skip (s, Just t)
+    step' gst (s, jt@(Just t)) = do
+        ns <- step gst s
+        t' <- liftIO $ getTime Monotonic
+        if diffAbsTime64 t' t > lim
+            then return Stop
+            else return $ case ns of
+                     Yield a s' -> Yield a (s', jt)
+                     Skip s' -> Skip (s', jt)
+                     Stop -> Stop
+
+-- XXX This does not fuse. Removing the if function results in fusion though.
+-- XXX This function will fuse with the use of fusion-plugin.
+-- XXX This function also fuses if compiled with -funfolding-use-threshold=500
+{-# INLINE_NORMAL dropByTime #-}
+dropByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
+dropByTime lim' (Stream step state) = Stream step' (state, Nothing)
+  where
+    lim = toRelTime64 lim'
+    {-# INLINE_LATE step' #-}
+    step' _ (s, Nothing) = do
+        t <- liftIO $ getTime Monotonic
+        return $ Skip (s, Just t)
+    step' gst (s, jt@(Just t)) = do
+        t' <- liftIO $ getTime Monotonic
+        ns <- step gst s
+        if diffAbsTime64 t' t <= lim
+            then return $
+                 case ns of
+                     Yield _ s' -> Skip (s', jt)
+                     Skip s' -> Skip (s', jt)
+                     Stop -> Stop
+            else return $
+                 case ns of
+                     Yield a s' -> Yield a (s', jt)
+                     Skip s' -> Skip (s', jt)
+                     Stop -> Stop
