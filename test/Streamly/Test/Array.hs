@@ -20,10 +20,21 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Test.Hspec as H
 
 import Streamly (SerialT)
-import Streamly.Data.Array (Array)
 
-import qualified Streamly.Data.Array as A
 import qualified Streamly.Prelude as S
+
+#ifdef TEST_SMALL_ARRAY
+import qualified Streamly.Data.SmallArray as A
+type Array = A.SmallArray
+#elif defined(TEST_ARRAY)
+import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Prelude as IP
+type Array = A.Array
+#else
+import qualified Streamly.Data.Array as A
+type Array = A.Array
+#endif
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -63,8 +74,10 @@ testLength = genericTestFrom (\n -> S.fold (A.writeN n))
 testLengthFromStreamN :: Property
 testLengthFromStreamN = genericTestFrom A.fromStreamN
 
+#ifndef TEST_SMALL_ARRAY
 testLengthFromStream :: Property
 testLengthFromStream = genericTestFrom (const A.fromStream)
+#endif
 
 genericTestFromTo ::
        (Int -> SerialT IO Int -> IO (Array Int))
@@ -100,11 +113,26 @@ testFromStreamNUnfold = genericTestFromTo A.fromStreamN (S.unfold A.read) (==)
 testFromStreamNToStream :: Property
 testFromStreamNToStream = genericTestFromTo A.fromStreamN A.toStream (==)
 
+#ifndef TEST_SMALL_ARRAY
 testFromStreamToStream :: Property
 testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
 
 testFoldUnfold :: Property
 testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
+#endif
+
+#ifdef TEST_ARRAY
+testArraysOf :: Property
+testArraysOf =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            monadicIO $ do
+                xs <- S.toList
+                    $ S.concatUnfold A.read
+                    $ IP.arraysOf 240
+                    $ S.fromList list
+                assert (xs == list)
+#endif
 
 main :: IO ()
 main =
@@ -114,11 +142,16 @@ main =
     describe "Construction" $ do
         prop "length . writeN n === n" testLength
         prop "length . fromStreamN n === n" testLengthFromStreamN
-        prop "length . fromStream === n" testLengthFromStream
         prop "read . writeN === id " testFoldNUnfold
         prop "toStream . writeN === id" testFoldNToStream
         prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
         prop "read . fromStreamN === id" testFromStreamNUnfold
         prop "toStream . fromStreamN === id" testFromStreamNToStream
+#ifndef TEST_SMALL_ARRAY
+        prop "length . fromStream === n" testLengthFromStream
         prop "toStream . fromStream === id" testFromStreamToStream
         prop "read . write === id" testFoldUnfold
+#endif
+#ifdef TEST_ARRAY
+        prop "arraysOf concats to original" testArraysOf
+#endif

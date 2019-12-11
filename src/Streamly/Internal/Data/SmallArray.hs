@@ -51,10 +51,10 @@ import Data.Primitive.SmallArray
 
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Streams.StreamK.Type (IsStream)
-import Streamly.Streams.Serial (SerialT)
+import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
+import Streamly.Internal.Data.Stream.Serial (SerialT)
 
-import qualified Streamly.Streams.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a

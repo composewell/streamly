@@ -452,9 +452,10 @@ test-suite properties
 test-suite array-test
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Arrays.hs
+  main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
+  cpp-options: -DTEST_ARRAY
   build-depends:
       streamly
     , base              >= 4.8   && < 5
@@ -465,10 +466,10 @@ test-suite array-test
         transformers  >= 0.4 && < 0.6
   default-language: Haskell2010
 
-test-suite unpinned-array-test
+test-suite data-array-test
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/Array.hs
+  main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
   build-depends:
@@ -484,9 +485,10 @@ test-suite unpinned-array-test
 test-suite smallarray-test
   import: test-options
   type: exitcode-stdio-1.0
-  main-is: Streamly/Test/Data/SmallArray.hs
+  main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
   hs-source-dirs: test
+  cpp-options: -DTEST_SMALL_ARRAY
   build-depends:
       streamly
     , base              >= 4.8   && < 5
