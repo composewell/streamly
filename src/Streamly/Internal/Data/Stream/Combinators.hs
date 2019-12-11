@@ -62,6 +62,15 @@ maxThreadsSerial :: Int -> SerialT m a -> SerialT m a
 maxThreadsSerial _ = id
 -}
 
+-- XXX The actual buffer size can be double of the specified value because the
+-- consumer thread takes the whole buffer in one go and decrements the used
+-- buffer space to 0. Since the full buffer space is now available to the
+-- producers they can again fill it even though the consumer may not yet have
+-- actually consumed any of the previous items. So the actual buffer is in the
+-- range n and 2n where n is the buffer size specified by the user. We can make
+-- this precise by having the consumer also modify the buffer count, but then
+-- there will be more lock contention.
+--
 -- | Specify the maximum size of the buffer for storing the results from
 -- concurrent computations. If the buffer becomes full we stop spawning more
 -- concurrent tasks until there is space in the buffer.

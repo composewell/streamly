@@ -342,6 +342,7 @@ module Streamly.Internal.Prelude
     , trace
     , tap
     , tapAsync
+    , Par.sample
 
     -- * Windowed Classification
 

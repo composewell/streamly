@@ -31,10 +31,12 @@ module Streamly.Internal.Data.Stream.Parallel
     , mkParallel
     , applyParallel
     , foldParallel
+    , sample
+    , sampleWithDefault
     )
 where
 
-import Control.Concurrent (myThreadId, takeMVar)
+import Control.Concurrent (myThreadId, takeMVar, tryPutMVar)
 import Control.Monad (when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
@@ -54,7 +56,7 @@ import Prelude hiding (map)
 import qualified Data.Set as Set
 
 import Streamly.Internal.Data.Stream.SVar
-       (fromSVar, fromProducer, fromConsumer, pushToFold)
+       (fromSVar, fromProducer, fromProducerPeek, fromConsumer, pushToFold)
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared, adapt)
 
@@ -85,17 +87,29 @@ runOne st m0 winfo =
     where
 
     go m = do
-        liftIO $ decrementBufferLimit sv
-        foldStreamShared st yieldk single stop m
+         case maxBufferLimit sv of
+            BufferUnlimited ->
+                foldStreamShared st yieldk single stopUnlim m
+            BufferLast ->
+                foldStreamShared st yieldkRep singleRep stopUnlim m
+            BufferLimited _ policy -> do
+                liftIO $ decrementBufferLimit sv policy
+                foldStreamShared st yieldk single stopLim m
 
     sv = fromJust $ streamVar st
 
-    stop = liftIO $ do
+    stopUnlim = liftIO $ sendStop sv winfo
+    stopLim = liftIO $ do
         incrementBufferLimit sv
         sendStop sv winfo
+
     sendit a = liftIO $ void $ send sv (ChildYield a)
     single a = sendit a >> (liftIO $ sendStop sv winfo)
     yieldk a r = sendit a >> go r
+
+    sendReplaceIt a = liftIO $ void $ sendReplace sv (ChildYield a)
+    singleRep a = sendReplaceIt a >> (liftIO $ sendStop sv winfo)
+    yieldkRep a r = sendReplaceIt a >> go r
 
 runOneLimited
     :: MonadIO m
@@ -108,21 +122,33 @@ runOneLimited st m0 winfo = go m0
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if yieldLimitOk
         then do
-            liftIO $ decrementBufferLimit sv
-            foldStreamShared st yieldk single stop m
+            case maxBufferLimit sv of
+                BufferUnlimited ->
+                    foldStreamShared st yieldk single stopUnlim m
+                BufferLast ->
+                    foldStreamShared st yieldkRep singleRep stopUnlim m
+                BufferLimited _ policy -> do
+                    liftIO $ decrementBufferLimit sv policy
+                    foldStreamShared st yieldk single stopLim m
         else do
             liftIO $ cleanupSVarFromWorker sv
             liftIO $ sendStop sv winfo
 
     sv = fromJust $ streamVar st
 
-    stop = liftIO $ do
+    stopUnlim = liftIO $ sendStop sv winfo
+    stopLim = liftIO $ do
         incrementBufferLimit sv
         incrementYieldLimit sv
         sendStop sv winfo
+
     sendit a = liftIO $ void $ send sv (ChildYield a)
     single a = sendit a >> (liftIO $ sendStop sv winfo)
     yieldk a r = sendit a >> go r
+
+    sendReplaceIt a = liftIO $ void $ sendReplace sv (ChildYield a)
+    singleRep a = sendReplaceIt a >> (liftIO $ sendStop sv winfo)
+    yieldkRep a r = sendReplaceIt a >> go r
 
 -------------------------------------------------------------------------------
 -- Consing and appending a stream in parallel style
@@ -385,6 +411,67 @@ tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
     sv <- newFoldSVar st f
     foldStreamShared st yld sng stp (teeToSVar sv m)
+
+------------------------------------------------------------------------------
+-- Sampling
+------------------------------------------------------------------------------
+
+-- | The input stream of 'sample' is asynchronously evaluated in a loop, the
+-- latest value from the evaluation is retained, whenever the output stream
+-- produced by 'sample' is evaluated it supplies the latest sample available
+-- from the input stream. If the input has not yet generated any output
+-- 'sample' waits for the first sample to arrive.  Any exceptions from the
+-- input stream are propagated to the output stream.
+--
+-- @
+--      S.mapM_ (\x -> print x >> threadDelay 100000)
+--    $ S.sample
+--    $ S.fromList [1..]
+-- @
+--
+-- /Internal/
+--
+{-# INLINE sample #-}
+sample :: (IsStream t, MonadAsync m) => t m a -> t m a
+sample m = mkStream $ \s yld sng stp -> do
+    let st = setBufferStyle BufferLast s
+    sv <- newParallelVar StopNone (adaptState st)
+    -- pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
+    D.toSVarParallel (adaptState st) sv $ D.toStreamD m
+    -- Hack! drain the putMVar from modifyThread in D.toSVarParallel
+    -- so that we can wait for the first event in fromProducerPeek
+    liftIO $ takeMVar (outputDoorBell sv)
+    foldStream st yld sng stp $ fromProducerPeek sv
+
+-- This can be implemented by merging the sampled stream with a default stream
+-- using a priority merge giving higher priority to the sampled stream.
+--
+-- | Like 'sample' but uses a default sample when no output is yet generated by
+-- the input stream.
+--
+-- @
+--      S.mapM_ (\x -> print x >> threadDelay 100000)
+--    $ Par.sampleWithDefault 0
+--    $ S.mapM (\x ->
+--          if x == 1
+--          then threadDelay 1000000 >> return x
+--          else return x)
+--    $ S.fromList [1..]
+-- @
+--
+-- /Internal/
+--
+{-# INLINE sampleWithDefault #-}
+sampleWithDefault :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
+sampleWithDefault def m = mkStream $ \s yld sng stp -> do
+    let st = setBufferStyle BufferLast s
+    sv <- newParallelVar StopNone (adaptState st)
+    -- initialize the buffer with the default value
+    liftIO $ writeIORef (outputQueue sv) ([ChildYield def],1)
+    liftIO $ void $ tryPutMVar (outputDoorBell sv) ()
+    -- pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
+    D.toSVarParallel (adaptState st) sv $ D.toStreamD m
+    foldStream st yld sng stp $ fromProducerPeek sv
 
 ------------------------------------------------------------------------------
 -- ParallelT
