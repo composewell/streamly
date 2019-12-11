@@ -22,25 +22,30 @@ module Streamly.Internal.Data.Stream.Serial
     (
     -- * Serial appending stream
       SerialT
-    , StreamT           -- deprecated
     , Serial
     , K.serial
     , serially
 
     -- * Serial interleaving stream
     , WSerialT
-    , InterleavedT      -- deprecated
     , WSerial
     , wSerial
     , wSerialFst
     , wSerialMin
-    , (<=>)            -- deprecated
     , wSerially
-    , interleaving     -- deprecated
+
+    -- * Construction
+    , unfoldrM
 
     -- * Transformation
     , map
     , mapM
+
+    -- * Deprecated
+    , StreamT
+    , InterleavedT
+    , (<=>)
+    , interleaving
     )
 where
 
@@ -397,3 +402,32 @@ LIST_INSTANCES(WSerialT)
 NFDATA1_INSTANCE(WSerialT)
 FOLDABLE_INSTANCE(WSerialT)
 TRAVERSABLE_INSTANCE(WSerialT)
+
+------------------------------------------------------------------------------
+-- Construction
+------------------------------------------------------------------------------
+
+-- | Build a stream by unfolding a /monadic/ step function starting from a
+-- seed.  The step function returns the next element in the stream and the next
+-- seed value. When it is done it returns 'Nothing' and the stream ends. For
+-- example,
+--
+-- @
+-- let f b =
+--         if b > 3
+--         then return Nothing
+--         else print b >> return (Just (b, b + 1))
+-- in drain $ unfoldrM f 0
+-- @
+-- @
+--  0
+--  1
+--  2
+--  3
+-- @
+--
+-- /Internal/
+--
+{-# INLINE unfoldrM #-}
+unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
+unfoldrM step seed = D.fromStreamD (D.unfoldrM step seed)

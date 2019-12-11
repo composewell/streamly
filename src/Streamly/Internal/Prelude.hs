@@ -569,7 +569,7 @@ unfoldrM = K.unfoldrM
 {-# RULES "unfoldrM serial" unfoldrM = unfoldrMSerial #-}
 {-# INLINE_EARLY unfoldrMSerial #-}
 unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
-unfoldrMSerial step seed = fromStreamS (S.unfoldrM step seed)
+unfoldrMSerial = Serial.unfoldrM
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
