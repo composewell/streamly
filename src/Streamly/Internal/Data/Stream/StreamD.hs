@@ -3189,7 +3189,7 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
         r <- initial
         return $ Skip (Just (r, state))
 
-    step' gst (Just (acc, st)) = do
+    step' gst (Just (acc, st)) = acc `seq` do
         r <- step gst st
         case r of
             Yield x s -> do
