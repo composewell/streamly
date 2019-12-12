@@ -2,8 +2,10 @@
 
 ### Bug Fixes
 
-* Fix a bug that caused `findIndices` to return wrong indices in some 
+* Fix a bug that caused `findIndices` to return wrong indices in some
 pipelines
+
+* Fix a bug in `tap` that sometimes increased memory consumption.
 
 ## 0.7.0
 
