@@ -34,6 +34,7 @@ import Streamly.Prelude ((.:), nil)
 import Streamly as S
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
+import qualified Streamly.Internal.Data.Fold as FL
 
 -- Coverage build takes too long with default number of tests
 maxTestCount :: Int
@@ -491,6 +492,22 @@ transformCombineOpsCommon constr desc eq t = do
 
     let f x = if odd x then Just (x + 100) else Nothing
     prop (desc <> " mapMaybe") $ transform (mapMaybe f) t (S.mapMaybe f)
+
+    -- tap
+    prop (desc <> " tap FL.sum . map (+1)") $ \a b ->
+        withMaxSuccess maxTestCount $
+        monadicIO $ do
+            cref <- run $ newIORef 0
+            let sumfoldinref = FL.Fold (\_ e -> modifyIORef' cref (e+))
+                                       (return ())
+                                       (const $ return ())
+                op = S.tap sumfoldinref . S.mapM (\x -> return (x+1))
+                listOp = fmap (+1)
+            stream <- run ((S.toList . t) $ op (constr a <> constr b))
+            let list = listOp (a <> b)
+            ssum <- run $ readIORef cref
+            assert (sum list == ssum)
+            listEquals eq stream list
 
     -- reordering
     prop (desc <> " reverse") $ transform reverse t S.reverse
