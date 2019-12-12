@@ -2643,7 +2643,7 @@ concatMapTreeWith
     -> t m (Either a b)
 concatMapTreeWith combine f xs = concatMapWith combine go xs
     where
-    go (Left tree)  = Left tree `K.cons` concatMapWith combine go (f tree)
+    go (Left tree)  = yield (Left tree) `combine` concatMapWith combine go (f tree)
     go (Right leaf) = yield $ Right leaf
 
 {-
