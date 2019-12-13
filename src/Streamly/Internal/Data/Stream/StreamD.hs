@@ -127,6 +127,7 @@ module Streamly.Internal.Data.Stream.StreamD
     -- ** Specialized Folds
     , tap
     , tapAsync
+    , tapRate
     , drain
     , null
     , head
@@ -301,8 +302,9 @@ module Streamly.Internal.Data.Stream.StreamD
     )
 where
 
-import Control.Concurrent (myThreadId, takeMVar)
-import Control.Exception (Exception, SomeException, fromException)
+import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
+import Control.Exception
+       (Exception, SomeException, AsyncException, fromException)
 import Control.Monad (void, when)
 import Control.Monad.Catch (MonadCatch, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -311,7 +313,7 @@ import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans (MonadTrans(lift))
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
-import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
+import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, modifyIORef')
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
@@ -3226,6 +3228,51 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
             Stop      -> do
                 void $ extract acc
                 return $ Stop
+
+{-# INLINE_NORMAL tapRate #-}
+tapRate ::
+       (MonadAsync m, MonadCatch m)
+    => Double
+    -> (Int -> m b)
+    -> Stream m a
+    -> Stream m a
+tapRate samplingRate action (Stream step state) = Stream step' Nothing
+  where
+    {-# NOINLINE loop #-}
+    loop countRef prev = do
+        i <-
+            MC.catch
+                (do liftIO $ threadDelay (round $ samplingRate * 1000000)
+                    i <- liftIO $ readIORef countRef
+                    let !diff = i - prev
+                    void $ action diff
+                    return i)
+                (\(e :: AsyncException) -> do
+                     i <- liftIO $ readIORef countRef
+                     let !diff = i - prev
+                     void $ action diff
+                     throwM (MC.toException e))
+        loop countRef i
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        countRef <- liftIO $ newIORef 0
+        tid <- fork $ loop countRef 0
+        ref <- liftIO $ newIORef ()
+        _ <- liftIO $ mkWeakIORef ref (killThread tid)
+        return $ Skip (Just (countRef, tid, state, ref))
+
+    step' gst (Just (countRef, tid, st, ref)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                liftIO $ modifyIORef' countRef (+ 1)
+                return $ Yield x (Just (countRef, tid, s, ref))
+            Skip s -> return $ Skip (Just (countRef, tid, s, ref))
+            Stop -> do
+                liftIO $ killThread tid
+                return Stop
+
 
 -------------------------------------------------------------------------------
 -- Filtering
