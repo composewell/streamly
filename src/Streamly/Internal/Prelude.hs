@@ -342,6 +342,7 @@ module Streamly.Internal.Prelude
     , trace
     , tap
     , tapAsync
+    , tapRate
 
     -- * Windowed Classification
 
@@ -3601,6 +3602,29 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
 tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
+
+-- | Calls the supplied function with the number of elements consumed
+-- every @n@ seconds. The given function is run in a separate thread
+-- until the end of the stream. In case there is an exception in the
+-- stream the thread is killed during the next major GC.
+--
+-- Note: The action is not guaranteed to run if the main thread exits.
+--
+-- @
+-- > delay n = threadDelay (round $ n * 1000000) >> return n
+-- > S.drain $ S.tapRate 2 (\\n -> print $ show n ++ " elements processed") (delay 1 S.|: delay 0.5 S.|: delay 0.5 S.|: S.nil)
+-- 2 elements processed
+-- 1 elements processed
+-- @
+--
+{-# INLINE tapRate #-}
+tapRate ::
+       (IsStream t, MonadAsync m, MonadCatch m)
+    => Double
+    -> (Int -> m b)
+    -> t m a
+    -> t m a
+tapRate n f xs = D.fromStreamD $ D.tapRate n f $ (D.toStreamD xs)
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.

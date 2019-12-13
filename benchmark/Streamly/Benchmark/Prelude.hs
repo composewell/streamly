@@ -28,6 +28,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
+import Data.IORef (newIORef, modifyIORef')
 import Data.Maybe (fromJust)
 import GHC.Generics (Generic)
 import Prelude
@@ -403,6 +404,12 @@ mapM t        n = composeN' n $ t . S.mapM return
 {-# INLINE tap #-}
 tap :: MonadIO m => Int -> Stream m Int -> m ()
 tap n = composeN n $ S.tap FL.sum
+
+{-# INLINE tapRate #-}
+tapRate :: Int -> Stream IO Int -> IO ()
+tapRate n str = do
+    cref <- newIORef 0
+    composeN n (S.tapRate 1 (\c -> modifyIORef' cref (c +))) str
 
 {-# INLINE tapAsyncS #-}
 tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()
