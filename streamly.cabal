@@ -557,11 +557,10 @@ test-suite parallel-loops
 
 benchmark linear
   import: bench-options
-  other-modules: Streamly.Benchmark.Prelude
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Linear.hs
-  buildable: True
+  other-modules: Streamly.Benchmark.Prelude
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -577,12 +576,11 @@ benchmark linear
 
 benchmark linear-async
   import: bench-options
-  other-modules: Streamly.Benchmark.Prelude
   cpp-options: -DLINEAR_ASYNC
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
-  buildable: True
+  other-modules: Streamly.Benchmark.Prelude
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -598,11 +596,10 @@ benchmark linear-async
 
 benchmark linear-rate
   import: bench-options
-  other-modules: Streamly.Benchmark.Prelude
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
-  buildable: True
+  other-modules: Streamly.Benchmark.Prelude
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -698,15 +695,14 @@ benchmark array
 
 benchmark fileio
   import: bench-options
-  other-modules: Streamly.Benchmark.FileIO.Array
-               , Streamly.Benchmark.FileIO.Stream
   type: exitcode-stdio-1.0
   -- A value of 400 works better for some benchmarks, however, it takes
   -- extraordinary amount of time to compile with that.
   -- ghc-options: -funfolding-use-threshold=150
   hs-source-dirs: benchmark
   main-is: FileIO.hs
-  buildable: True
+  other-modules: Streamly.Benchmark.FileIO.Array
+               , Streamly.Benchmark.FileIO.Stream
   build-depends:
       streamly
     , base                >= 4.8   && < 5
