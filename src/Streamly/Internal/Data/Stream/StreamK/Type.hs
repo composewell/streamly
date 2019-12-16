@@ -999,44 +999,9 @@ instance Monad m => Monad (Stream m) where
     (>>=) = flip concatMap
 
 {-
--- ConcatMap recursively on itself using a merge strategy.
-concatLoopBy :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
-    -> (a -> t m a) -> t m a
-concatLoopBy = undefined
-
--- This is mfix. Put another way, concatMap recursively on the output of a
--- stream. Compare with iterate.
-concatLoop :: IsStream t => (a -> t m a) -> t m a
-concatLoop = concatLoopBy serial
-
-instance MonadFix (Stream m) where
-    mfix = concatLoop
-
--- The SVar implementation is something similar to concatFeedBack, so maybe
--- there is an opportunity to share the implementation here. In an SVar we run
--- a part of an action (a stream), it yields an output and the rest of the
--- stream, we yield the output and queue back the rest of the stream for
--- further evaluation. Also see unfoldrA.
---
--- There could be multiple variants of this combinator, for example use a
--- specific way of concating i.e. concatLoopBy. Which also includes combinators
--- with different stop behaviors. For example if the Left values are errors we
--- can stop the whole composition on errors or on specific errors.
---
--- We can also flip the serial/ahead append behavior e.g. instead of processing
--- the Left output after the original stream we can reverse the order.
---
--- | Concat map on the 'Left' output of a stream and merge it back into the
--- stream. The right output is yielded in the output stream.
-concatFeedBack :: IsStream t
-    => (b -> t m (Either a b)) -> t m (Either a b) -> t m a
-concatFeedBack = undefined
-
--- Compare this with unfoldr. Start with a seed stream and generate a stream
--- with a value and new seeds. The new seeds are fed back to generate a seed
--- stream and so on. This is a stream level unfoldr.
+-- Like concatMap but generates stream using an unfold function. Similar to
+-- concatUnfold but for StreamK.
 concatUnfoldr :: IsStream t
-    => (b -> t m (Maybe (a, b))) -> t m (Maybe (a, b)) -> t m a
+    => (b -> t m (Maybe (a, b))) -> t m b -> t m a
 concatUnfoldr = undefined
 -}

@@ -271,7 +271,10 @@ module Streamly.Internal.Prelude
     , intercalateSuffix
     , interpose
     , interposeSuffix
+    , concatMapIterateWith
     , concatMapTreeWith
+    , concatMapLoopWith
+    , concatMapTreeYieldLeavesWith
 
     -- -- ** Breaking
 
@@ -2581,6 +2584,23 @@ interposeSuffix x unf str =
 -- Flattening Trees
 ------------------------------------------------------------------------------
 
+-- | Like 'iterateM' but using a stream generator function.
+--
+-- /Internal/
+--
+{-# INLINE concatMapIterateWith #-}
+concatMapIterateWith
+    :: IsStream t
+    => (forall c. t m c -> t m c -> t m c)
+    -> (a -> t m a)
+    -> t m a
+    -> t m a
+concatMapIterateWith combine f xs = concatMapWith combine go xs
+    where
+    go x = yield x `combine` concatMapWith combine go (f x)
+
+-- concatMapIterateLeftsWith
+--
 -- | Traverse a forest with recursive tree structures whose non-leaf nodes are
 -- of type @a@ and leaf nodes are of type @b@, flattening all the trees into
 -- streams and combining the streams into a single stream consisting of both
@@ -2594,6 +2614,13 @@ interposeSuffix x unf str =
 -- Traversing a directory tree recursively is a canonical use case of
 -- 'concatMapTreeWith'.
 --
+-- @
+-- concatMapTreeWith combine f xs = concatMapIterateWith combine g xs
+--      where
+--      g (Left tree)  = f tree
+--      g (Right leaf) = nil
+-- @
+--
 -- /Internal/
 --
 {-# INLINE concatMapTreeWith #-}
@@ -2601,7 +2628,7 @@ concatMapTreeWith
     :: IsStream t
     => (forall c. t m c -> t m c -> t m c)
     -> (a -> t m (Either a b))
-    -> t m (Either a b)
+    -> t m (Either a b) -- Should be t m a?
     -> t m (Either a b)
 concatMapTreeWith combine f xs = concatMapWith combine go xs
     where
@@ -2610,11 +2637,15 @@ concatMapTreeWith combine f xs = concatMapWith combine go xs
 
 {-
 -- | Like concatMapTreeWith but produces only stream of leaf elements.
+-- On an either stream, iterate lefts but yield only rights.
 --
-{-# INLINE concatMapLeavesWith #-}
-concatMapLeavesWith :: (IsStream t, MonadAsync m)
+-- concatMapEitherYieldRightsWith combine f xs =
+--  catRights $ concatMapTreeWith combine f xs
+--
+{-# INLINE concatMapEitherYieldRightsWith #-}
+concatMapEitherYieldRightsWith :: (IsStream t, MonadAsync m)
     => _ -> (a -> t m (Either a b)) -> t m (Either a b) -> t m b
-concatMapLeavesWith combine f xs = undefined
+concatMapEitherYieldRightsWith combine f xs = undefined
 -}
 
 {-
@@ -2622,6 +2653,7 @@ concatMapLeavesWith combine f xs = undefined
 concatUnfoldTree :: (IsStream t, MonadAsync m)
     => Unfold m a (Either a b) -> t m (Either a b) -> t m (Either a b)
 concatUnfoldTree unf xs = undefined
+-}
 
 ------------------------------------------------------------------------------
 -- Feedback loop
@@ -2637,11 +2669,36 @@ concatUnfoldTree unf xs = undefined
 -- on is the work queue. When evaluated it results in either a leaf element to
 -- yield or a tail stream to queue back to the work queue.
 --
+-- | Feedback a component of the output back to the input stream.
+--
+-- /Internal/
+--
 {-# INLINE concatMapLoopWith #-}
-concatMapLoopWith :: (IsStream t, MonadAsync m)
-    => _ -> (a -> t m (Either b c)) -> (b -> t m a) -> t m a -> t m c
-concatMapLoopWith combine f xs = undefined
--}
+concatMapLoopWith
+    :: (IsStream t, MonadAsync m)
+    => (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either b c))
+    -> (b -> t m a)  -- feedback function to feed b back into input
+    -> t m a
+    -> t m c
+concatMapLoopWith combine f fb xs =
+    concatMapWith combine go $ concatMapWith combine f xs
+    where
+    go (Left b) = concatMapLoopWith combine f fb $ fb b
+    go (Right c) = yield c
+
+-- Concat a stream of trees, generating only leaves.
+--
+-- /Internal/
+--
+{-# INLINE concatMapTreeYieldLeavesWith #-}
+concatMapTreeYieldLeavesWith
+    :: (IsStream t, MonadAsync m)
+    => (forall x. t m x -> t m x -> t m x)
+    -> (a -> t m (Either a b))
+    -> t m a
+    -> t m b
+concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting
