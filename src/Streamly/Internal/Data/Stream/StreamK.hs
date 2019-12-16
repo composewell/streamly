@@ -180,6 +180,7 @@ module Streamly.Internal.Data.Stream.StreamK
     -- * Utilities
     , consMStream
     , withLocal
+    , mfix
 
     -- * Deprecated
     , Streaming -- deprecated
@@ -190,6 +191,7 @@ where
 import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad (void, join)
 import Control.Monad.Reader.Class  (MonadReader(..))
+import Data.Function (fix)
 import Prelude
        hiding (foldl, foldr, last, map, mapM, mapM_, repeat, sequence,
                take, filter, all, any, takeWhile, drop, dropWhile, minimum,
@@ -499,6 +501,47 @@ tail m =
         single _  = return $ Just nil
         yieldk _ r = return $ Just r
     in foldStream defState yieldk single stop m
+
+{-# INLINE headPartial #-}
+headPartial :: (IsStream t, Monad m) => t m a -> m a
+headPartial = foldrM (\x _ -> return x) (error "head of nil")
+
+{-# INLINE tailPartial #-}
+tailPartial :: IsStream t => t m a -> t m a
+tailPartial m = mkStream $ \st yld sng stp ->
+    let stop      = error "tail of nil"
+        single _  = stp
+        yieldk _ r = foldStream st yld sng stp r
+    in foldStream st yieldk single stop m
+
+-- | Iterate a lazy function `f` of the shape `m a -> t m a` until it gets
+-- fully defined i.e. becomes independent of its argument action, then return
+-- the resulting value of the function (`t m a`).
+--
+-- It can be used to construct a stream that uses a cyclic definition. For
+-- example:
+--
+-- @
+-- import Streamly.Internal.Prelude as S
+-- import System.IO.Unsafe (unsafeInterleaveIO)
+--
+-- main = do
+--     S.mapM_ print $ S.mfix $ \x -> do
+--       a <- S.fromList [1,2]
+--       b <- S.fromListM [return 3, unsafeInterleaveIO (fmap fst x)]
+--       return (a, b)
+-- @
+--
+-- Note that the function `f` must be lazy in its argument, that's why we use
+-- 'unsafeInterleaveIO' because IO monad is strict.
+
+mfix :: (IsStream t, Monad m) => (m a -> t m a) -> t m a
+mfix f = mkStream $ \st yld sng stp ->
+    let single a  = foldStream st yld sng stp $ a `cons` ys
+        yieldk a _ = foldStream st yld sng stp $ a `cons` ys
+    in foldStream st yieldk single stp xs
+    where xs = fix  (f . headPartial)
+          ys = mfix (tailPartial . f)
 
 {-# INLINE init #-}
 init :: (IsStream t, Monad m) => t m a -> m (Maybe (t m a))

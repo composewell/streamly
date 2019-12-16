@@ -398,6 +398,9 @@ module Streamly.Internal.Prelude
     -- * Concurrency
     , mkParallel
 
+    -- * MonadFix
+    , K.mfix
+
     -- * Diagnostics
     , inspectMode
 
