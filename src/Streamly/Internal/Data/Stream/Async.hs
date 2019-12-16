@@ -37,7 +37,6 @@ module Streamly.Internal.Data.Stream.Async
 where
 
 import Control.Concurrent (myThreadId)
-import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Concurrent.MVar (newEmptyMVar)
@@ -58,12 +57,12 @@ import qualified Data.Set as S
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Internal.Data.Stream.SVar (fromSVar)
-import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared,
         foldStreamSVar)
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"
 
@@ -691,6 +690,23 @@ instance MonadAsync m => Monoid (AsyncT m a) where
     mappend = (<>)
 
 ------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+{-# INLINE apAsync #-}
+{-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
+apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
+apAsync (AsyncT m1) (AsyncT m2) =
+    let f x1 = K.concatMapBy async (pure . x1) m2
+    in AsyncT $ K.concatMapBy async f m1
+
+instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
+    {-# INLINE pure #-}
+    pure = AsyncT . K.yield
+    {-# INLINE (<*>) #-}
+    (<*>) = apAsync
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -706,15 +722,6 @@ bindAsync m f = fromStream $ K.bindWith async (adapt m) (\a -> adapt $ f a)
 instance MonadAsync m => Monad (AsyncT m) where
     return = pure
     (>>=) = bindAsync
-
-{-# INLINE apAsync #-}
-{-# SPECIALIZE apAsync :: AsyncT IO (a -> b) -> AsyncT IO a -> AsyncT IO b #-}
-apAsync :: MonadAsync m => AsyncT m (a -> b) -> AsyncT m a -> AsyncT m b
-apAsync mf m = ap (adapt mf) (adapt m)
-
-instance (Monad m, MonadAsync m) => Applicative (AsyncT m) where
-    pure = AsyncT . K.yield
-    (<*>) = apAsync
 
 ------------------------------------------------------------------------------
 -- Other instances
@@ -832,6 +839,23 @@ instance MonadAsync m => Monoid (WAsyncT m a) where
     mappend = (<>)
 
 ------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+{-# INLINE apWAsync #-}
+{-# SPECIALIZE apWAsync :: WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
+apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
+apWAsync (WAsyncT m1) (WAsyncT m2) =
+    let f x1 = K.concatMapBy wAsync (pure . x1) m2
+    in WAsyncT $ K.concatMapBy wAsync f m1
+
+-- GHC: if we specify arguments in the definition of (<*>) we see a significant
+-- performance degradation (~2x).
+instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
+    pure = WAsyncT . K.yield
+    (<*>) = apWAsync
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -847,15 +871,6 @@ bindWAsync m f = fromStream $ K.bindWith wAsync (adapt m) (\a -> adapt $ f a)
 instance MonadAsync m => Monad (WAsyncT m) where
     return = pure
     (>>=) = bindWAsync
-
-{-# INLINE apWAsync #-}
-{-# SPECIALIZE apWAsync :: WAsyncT IO (a -> b) -> WAsyncT IO a -> WAsyncT IO b #-}
-apWAsync :: MonadAsync m => WAsyncT m (a -> b) -> WAsyncT m a -> WAsyncT m b
-apWAsync mf m = ap (adapt mf) (adapt m)
-
-instance (Monad m, MonadAsync m) => Applicative (WAsyncT m) where
-    pure = WAsyncT . K.yield
-    (<*>) = apWAsync
 
 ------------------------------------------------------------------------------
 -- Other instances

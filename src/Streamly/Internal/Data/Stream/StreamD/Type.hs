@@ -68,7 +68,7 @@ module Streamly.Internal.Data.Stream.StreamD.Type
 where
 
 import Control.Applicative (liftA2)
-import Control.Monad (ap, when)
+import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Trans (lift, MonadTrans)
 import Data.Functor.Identity (Identity(..))
@@ -242,7 +242,12 @@ instance Monad m => Applicative (Stream m) where
     {-# INLINE pure #-}
     pure = yield
     {-# INLINE (<*>) #-}
-    (<*>) = ap
+    m1 <*> m2 =
+        -- XXX concatMapU is faster but it would require us to merge
+        -- Unfold/Types.hs into this file so that we can use UF.singleton here.
+        -- let f x1 = concatMapU (UF.singleton (pure . x1)) m2
+        let f x1 = concatMap (\x2 -> pure (x1 x2)) m2
+        in concatMap f m1
 
 -- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
 -- the monad instance does not seem to be significantly faster.

@@ -742,8 +742,8 @@ benchmark concurrent
 benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
-  include-dirs:    src/Streamly/Internal/Data/Time
-                   src
+  include-dirs:     src/Streamly/Internal/Data/Time
+                  , src
   if os(windows)
     c-sources:     src/Streamly/Internal/Data/Time/Windows.c
   if os(darwin)

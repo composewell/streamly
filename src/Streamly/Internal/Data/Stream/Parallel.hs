@@ -36,7 +36,7 @@ where
 
 import Control.Concurrent (myThreadId, takeMVar)
 import Control.Exception (SomeException(..))
-import Control.Monad (ap, when)
+import Control.Monad (when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
@@ -56,7 +56,6 @@ import qualified Data.Set as Set
 
 import Streamly.Internal.Data.Stream.SVar
        (fromSVar, fromProducer, fromConsumer)
-import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared, adapt)
 
@@ -552,6 +551,23 @@ instance MonadAsync m => Monoid (ParallelT m a) where
     mappend = (<>)
 
 ------------------------------------------------------------------------------
+-- Applicative
+------------------------------------------------------------------------------
+
+{-# INLINE apParallel #-}
+{-# SPECIALIZE apParallel :: ParallelT IO (a -> b) -> ParallelT IO a -> ParallelT IO b #-}
+apParallel :: MonadAsync m => ParallelT m (a -> b) -> ParallelT m a -> ParallelT m b
+apParallel (ParallelT m1) (ParallelT m2) =
+    let f x1 = K.concatMapBy parallel (pure . x1) m2
+    in ParallelT $ K.concatMapBy parallel f m1
+
+instance (Monad m, MonadAsync m) => Applicative (ParallelT m) where
+    {-# INLINE pure #-}
+    pure = ParallelT . K.yield
+    {-# INLINE (<*>) #-}
+    (<*>) = apParallel
+
+------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
 
@@ -568,5 +584,4 @@ instance MonadAsync m => Monad (ParallelT m) where
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(ParallelT,MONADPARALLEL)
 MONAD_COMMON_INSTANCES(ParallelT, MONADPARALLEL)

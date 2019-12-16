@@ -93,4 +93,12 @@ main =
       , benchIO "filterSome"     $ Ops.filterSome     parallely
       , benchIO "breakAfterSome" $ Ops.breakAfterSome parallely
       ]
+
+    , bgroup "zipSerially"
+      [ benchIO "toNullAp"       $ Ops.toNullAp       zipSerially
+      ]
+
+    , bgroup "zipAsyncly"
+      [ benchIO "toNullAp"       $ Ops.toNullAp       zipAsyncly
+      ]
     ]

@@ -789,8 +789,8 @@ foldrMKWith f step acc g = go g
 -- @since 0.2.0
 {-# INLINE serial #-}
 serial :: IsStream t => t m a -> t m a -> t m a
-serial xs ys = augmentS (\c n -> foldrS c n xs) ys
-{-
+-- XXX This doubles the time of toNullAp benchmark, may not be fusing properly
+-- serial xs ys = augmentS (\c n -> foldrS c n xs) ys
 serial m1 m2 = go m1
     where
     go m = mkStream $ \st yld sng stp ->
@@ -798,7 +798,6 @@ serial m1 m2 = go m1
                    single a   = yld a m2
                    yieldk a r = yld a (go r)
                in foldStream st yieldk single stop m
--}
 
 -- join/merge/append streams depending on consM
 {-# INLINE conjoin #-}

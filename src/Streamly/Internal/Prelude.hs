@@ -253,10 +253,10 @@ module Streamly.Internal.Prelude
     , mergeAsyncByM
 
     -- ** Zipping
-    , zipWith
-    , zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
+    , Z.zipWith
+    , Z.zipWithM
+    , Z.zipAsyncWith
+    , Z.zipAsyncWithM
 
     -- ** Nested Streams
     , concatMapM
@@ -446,14 +446,15 @@ import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.Internal.Data.SVar (MonadAsync, State, defState, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync, State, defState)
 import Streamly.Internal.Data.Stream.Async (mkAsync')
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Internal.Data.Stream.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
-import Streamly.Internal.Data.Stream.Serial (SerialT)
+import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
+import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
@@ -476,6 +477,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Data.Stream.Zip as Z
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -570,6 +572,16 @@ unfoldrM = K.unfoldrM
 {-# INLINE_EARLY unfoldrMSerial #-}
 unfoldrMSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
 unfoldrMSerial = Serial.unfoldrM
+
+{-# RULES "unfoldrM wSerial" unfoldrM = unfoldrMWSerial #-}
+{-# INLINE_EARLY unfoldrMWSerial #-}
+unfoldrMWSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> WSerialT m a
+unfoldrMWSerial = Serial.unfoldrM
+
+{-# RULES "unfoldrM zipSerial" unfoldrM = unfoldrMZipSerial #-}
+{-# INLINE_EARLY unfoldrMZipSerial #-}
+unfoldrMZipSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
+unfoldrMZipSerial = Serial.unfoldrM
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
@@ -2127,59 +2139,6 @@ indexed = fromStreamD . D.indexed . toStreamD
 {-# INLINE indexedR #-}
 indexedR :: (IsStream t, Monad m) => Int -> t m a -> t m (Int, a)
 indexedR n = fromStreamD . D.indexedR n . toStreamD
-
--- | Like 'zipWith' but using a monadic zipping function.
---
--- @since 0.4.0
-{-# INLINABLE zipWithM #-}
-zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipWithM f m1 m2 = fromStreamS $ S.zipWithM f (toStreamS m1) (toStreamS m2)
-
--- | Zip two streams serially using a pure zipping function.
---
--- @
--- > S.toList $ S.zipWith (+) (S.fromList [1,2,3]) (S.fromList [4,5,6])
--- [5,7,9]
--- @
---
--- @since 0.1.0
-{-# INLINABLE zipWith #-}
-zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
-zipWith f m1 m2 = fromStreamS $ S.zipWith f (toStreamS m1) (toStreamS m2)
-
-------------------------------------------------------------------------------
--- Parallel Zipping
-------------------------------------------------------------------------------
-
--- The CPS version and the direct version of zipAsyncWithM below seem to have
--- identical performane.  However, we need to use the StreamD version of
--- mkParallel which uses a direct implementation of fromSVar. In comparison to
--- CPS version of fromSVar the direct version gives a 2x improvement.
-
--- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
--- @since 0.4.0
-{-# INLINE zipAsyncWithM #-}
-zipAsyncWithM :: (IsStream t, MonadAsync m)
-    => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- mkParallel (adaptState st) m1
-    mb <- mkParallel (adaptState st) m2
-    K.foldStream st stp sng yld $ zipWithM f ma mb
-{-
-zipAsyncWithM f m1 m2 =
-    fromStreamD $ D.zipAsyncWithM f (toStreamD m1) (toStreamD m2)
--}
-
--- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
--- @since 0.1.0
-{-# INLINE zipAsyncWith #-}
-zipAsyncWith :: (IsStream t, MonadAsync m)
-    => (a -> b -> c) -> t m a -> t m b -> t m c
-zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Comparison

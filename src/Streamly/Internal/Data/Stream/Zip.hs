@@ -22,14 +22,21 @@ module Streamly.Internal.Data.Stream.Zip
     (
       ZipSerialM
     , ZipSerial
-    , ZipStream         -- deprecated
     , zipSerially
-    , zipping          -- deprecated
 
     , ZipAsyncM
     , ZipAsync
     , zipAsyncly
-    , zippingAsync     -- deprecated
+
+    , zipWith
+    , zipWithM
+    , zipAsyncWith
+    , zipAsyncWithM
+
+    -- * Deprecated
+    , ZipStream
+    , zipping
+    , zippingAsync
     )
 where
 
@@ -49,14 +56,73 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
-import Streamly.Internal.Data.Stream.Serial (map)
-import Streamly.Internal.Data.SVar (MonadAsync)
-import Streamly.Internal.Prelude (zipWith, zipAsyncWith)
+import Streamly.Internal.Data.SVar (MonadAsync, adaptState)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+
+#ifdef USE_STREAMK_ONLY
+import qualified Streamly.Internal.Data.Stream.StreamK as S
+#else
+import qualified Streamly.Internal.Data.Stream.StreamD as S
+#endif
 
 #include "Instances.hs"
+
+-- | Like 'zipWith' but using a monadic zipping function.
+--
+-- @since 0.4.0
+{-# INLINABLE zipWithM #-}
+zipWithM :: (IsStream t, Monad m) => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipWithM f m1 m2 = P.fromStreamS $ S.zipWithM f (P.toStreamS m1) (P.toStreamS m2)
+
+-- | Zip two streams serially using a pure zipping function.
+--
+-- @
+-- > S.toList $ S.zipWith (+) (S.fromList [1,2,3]) (S.fromList [4,5,6])
+-- [5,7,9]
+-- @
+--
+-- @since 0.1.0
+{-# INLINABLE zipWith #-}
+zipWith :: (IsStream t, Monad m) => (a -> b -> c) -> t m a -> t m b -> t m c
+zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
+
+------------------------------------------------------------------------------
+-- Parallel Zipping
+------------------------------------------------------------------------------
+
+-- The CPS version and the direct version of zipAsyncWithM below seem to have
+-- identical performance.  However, we need to use the StreamD version of
+-- mkParallel which uses a direct implementation of fromSVar. In comparison to
+-- CPS version of fromSVar the direct version gives a 2x improvement.
+
+-- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
+--
+-- @since 0.4.0
+{-# INLINE zipAsyncWithM #-}
+zipAsyncWithM :: (IsStream t, MonadAsync m)
+    => (a -> b -> m c) -> t m a -> t m b -> t m c
+zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
+    ma <- D.mkParallel (adaptState st) (D.toStreamD m1)
+    mb <- D.mkParallel (adaptState st) (D.toStreamD m2)
+    K.foldStream st stp sng yld $ zipWithM f (D.fromStreamD ma)
+                                             (D.fromStreamD mb)
+{-
+zipAsyncWithM f m1 m2 =
+    fromStreamD $ D.zipAsyncWithM f (toStreamD m1) (toStreamD m2)
+-}
+
+-- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
+-- are generated concurrently.
+--
+-- @since 0.1.0
+{-# INLINE zipAsyncWith #-}
+zipAsyncWith :: (IsStream t, MonadAsync m)
+    => (a -> b -> c) -> t m a -> t m b -> t m c
+zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
 
 ------------------------------------------------------------------------------
 -- Serially Zipping Streams
@@ -127,7 +193,8 @@ LIST_INSTANCES(ZipSerialM)
 NFDATA1_INSTANCE(ZipSerialM)
 
 instance Monad m => Functor (ZipSerialM m) where
-    fmap = map
+    {-# INLINE fmap #-}
+    fmap f (ZipSerialM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m
 
 instance Monad m => Applicative (ZipSerialM m) where
     pure = ZipSerialM . K.repeat
@@ -197,7 +264,8 @@ instance IsStream ZipAsyncM where
     (|:) = consMZipAsync
 
 instance Monad m => Functor (ZipAsyncM m) where
-    fmap = map
+    {-# INLINE fmap #-}
+    fmap f (ZipAsyncM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m
 
 instance MonadAsync m => Applicative (ZipAsyncM m) where
     pure = ZipAsyncM . K.repeat

@@ -440,4 +440,19 @@ main =
       , benchIOSrc serially "dropWhileTrue"  Ops.iterateDropWhileTrue
       ]
       ]
+    , bgroup "wSerially"
+        [ bgroup "transformation"
+            [ benchIOSink "fmap"   $ Ops.fmap' wSerially 1
+            ]
+        ]
+    , bgroup "zipSerially"
+        [ bgroup "transformation"
+            [ benchIOSink "fmap"   $ Ops.fmap' zipSerially 1
+            ]
+        ]
+    , bgroup "zipAsyncly"
+        [ bgroup "transformation"
+            [ benchIOSink "fmap"   $ Ops.fmap' zipAsyncly 1
+            ]
+        ]
     ]

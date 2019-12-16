@@ -7,16 +7,10 @@
 
 #define MONADPARALLEL , MonadAsync m
 
-#define MONAD_APPLICATIVE_INSTANCE(STREAM,CONSTRAINT)         \
-instance (Monad m CONSTRAINT) => Applicative (STREAM m) where { \
-    {-# INLINE pure #-}; \
-    pure = STREAM . K.yield;                     \
-    {-# INLINE (<*>) #-}; \
-    (<*>) = ap }
-
 #define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
 instance Monad m => Functor (STREAM m) where { \
-    fmap = map };                                                             \
+    {-# INLINE fmap #-}; \
+    fmap f (STREAM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m }; \
                                                                               \
 instance (MonadBase b m, Monad m CONSTRAINT) => MonadBase b (STREAM m) where {\
     liftBase = liftBaseDefault };                                             \

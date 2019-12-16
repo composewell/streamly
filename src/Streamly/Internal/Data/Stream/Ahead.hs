@@ -28,7 +28,7 @@ where
 
 import Control.Concurrent.MVar (putMVar, takeMVar)
 import Control.Exception (assert)
-import Control.Monad (ap, void, when)
+import Control.Monad (void, when)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
@@ -47,12 +47,12 @@ import GHC.Exts (inline)
 import qualified Data.Heap as H
 
 import Streamly.Internal.Data.Stream.SVar (fromSVar)
-import Streamly.Internal.Data.Stream.Serial (map)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK
        (IsStream(..), Stream, mkStream, foldStream, foldStreamShared,
         foldStreamSVar)
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 import Prelude hiding (map)
 
@@ -683,15 +683,22 @@ concatMapAhead :: MonadAsync m => (a -> AheadT m b) -> AheadT m a -> AheadT m b
 concatMapAhead f m = fromStream $
     K.concatMapBy ahead (\a -> K.adapt $ f a) (K.adapt m)
 
+{-# INLINE apAhead #-}
+apAhead :: MonadAsync m => AheadT m (a -> b) -> AheadT m a -> AheadT m b
+apAhead (AheadT m1) (AheadT m2) =
+        let f x1 = K.concatMapBy ahead (pure . x1) m2
+         in AheadT $ K.concatMapBy ahead f m1
+
+instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
+    {-# INLINE pure #-}
+    pure = AheadT . K.yield
+    {-# INLINE (<*>) #-}
+    (<*>) = apAhead
+
 instance MonadAsync m => Monad (AheadT m) where
     return = pure
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMapAhead
-
-instance (Monad m, MonadAsync m) => Applicative (AheadT m) where
-    pure = AheadT . K.yield
-    {-# INLINE (<*>) #-}
-    (<*>) = ap
 
 ------------------------------------------------------------------------------
 -- Other instances

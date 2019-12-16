@@ -70,7 +70,7 @@ runToList = S.toList
 
 {-# INLINE toNullAp #-}
 toNullAp
-    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
     => (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNullAp t start = runStream . t $
     (+) <$> source start nestedCount2 <*> source start nestedCount2

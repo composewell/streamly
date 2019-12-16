@@ -54,7 +54,6 @@ import Control.DeepSeq (NFData(..))
 #if MIN_VERSION_deepseq(1,4,3)
 import Control.DeepSeq (NFData1(..))
 #endif
-import Control.Monad (ap)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
 -- import Control.Monad.Error.Class   (MonadError(..))
@@ -77,6 +76,7 @@ import Streamly.Internal.Data.Stream.StreamK (IsStream(..), adapt, Stream, mkStr
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Unfold as UF
 
 #include "Instances.hs"
 #include "inline.hs"
@@ -190,9 +190,9 @@ instance Monad m => Monad (SerialT m) where
 -- Other instances
 ------------------------------------------------------------------------------
 
-{-# INLINE_EARLY mapM #-}
+{-# INLINE mapM #-}
 mapM :: (IsStream t, Monad m) => (a -> m b) -> t m a -> t m b
-mapM f m = fromStream $ D.toStreamK $ D.mapM f $ D.fromStreamK (toStream m)
+mapM f m = D.fromStreamD $ D.mapM f $ D.toStreamD m
 
 -- |
 -- @
@@ -211,7 +211,18 @@ mapM f m = fromStream $ D.toStreamK $ D.mapM f $ D.fromStreamK (toStream m)
 map :: (IsStream t, Monad m) => (a -> b) -> t m a -> t m b
 map f = mapM (return . f)
 
-MONAD_APPLICATIVE_INSTANCE(SerialT,)
+{-# INLINE apSerial #-}
+apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
+apSerial (SerialT m1) (SerialT m2) =
+    let f x1 = D.concatMapU (UF.singleton (pure . x1)) (D.toStreamD m2)
+    in D.fromStreamD $ D.concatMap f (D.toStreamD m1)
+
+instance Monad m => Applicative (SerialT m) where
+    {-# INLINE pure #-}
+    pure = SerialT . K.yield
+    {-# INLINE (<*>) #-}
+    (<*>) = apSerial
+
 MONAD_COMMON_INSTANCES(SerialT,)
 LIST_INSTANCES(SerialT)
 NFDATA1_INSTANCE(SerialT)
@@ -383,6 +394,18 @@ instance Monoid (WSerialT m a) where
     mempty = K.nil
     mappend = (<>)
 
+{-# INLINE apWSerial #-}
+apWSerial :: Monad m => WSerialT m (a -> b) -> WSerialT m a -> WSerialT m b
+apWSerial (WSerialT m1) (WSerialT m2) =
+    let f x1 = K.concatMapBy wSerial (pure . x1) m2
+    in WSerialT $ K.concatMapBy wSerial f m1
+
+instance Monad m => Applicative (WSerialT m) where
+    {-# INLINE pure #-}
+    pure = WSerialT . K.yield
+    {-# INLINE (<*>) #-}
+    (<*>) = apWSerial
+
 ------------------------------------------------------------------------------
 -- Monad
 ------------------------------------------------------------------------------
@@ -396,7 +419,6 @@ instance Monad m => Monad (WSerialT m) where
 -- Other instances
 ------------------------------------------------------------------------------
 
-MONAD_APPLICATIVE_INSTANCE(WSerialT,)
 MONAD_COMMON_INSTANCES(WSerialT,)
 LIST_INSTANCES(WSerialT)
 NFDATA1_INSTANCE(WSerialT)
@@ -429,5 +451,5 @@ TRAVERSABLE_INSTANCE(WSerialT)
 -- /Internal/
 --
 {-# INLINE unfoldrM #-}
-unfoldrM :: Monad m => (b -> m (Maybe (a, b))) -> b -> SerialT m a
+unfoldrM :: (IsStream t, Monad m) => (b -> m (Maybe (a, b))) -> b -> t m a
 unfoldrM step seed = D.fromStreamD (D.unfoldrM step seed)
