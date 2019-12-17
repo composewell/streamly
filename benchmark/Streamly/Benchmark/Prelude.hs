@@ -47,8 +47,10 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
 
 value, maxValue, value2 :: Int
 #ifdef LINEAR_ASYNC
@@ -433,6 +435,14 @@ fmap' t       n = composeN' n $ t . Prelude.fmap (+1)
 map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
+
+{-# INLINE tap #-}
+tap :: MonadIO m => Int -> Stream m Int -> m ()
+tap n = composeN n $ S.tap FL.sum
+
+{-# INLINE tapAsyncS #-}
+tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()
+tapAsyncS n = composeN n $ Par.tapAsync S.sum
 
 {-# INLINE transformMapM #-}
 {-# INLINE transformComposeMapM #-}

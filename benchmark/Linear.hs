@@ -318,6 +318,8 @@ main =
         , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
         , benchIOSink "foldrT" (Ops.foldrT 1)
         , benchIOSink "foldrTMap" (Ops.foldrTMap 1)
+        , benchIOSink "tap" (Ops.tap 1)
+        , benchIOSink "tapAsyncS" (Ops.tapAsyncS 1)
         ]
       , bgroup "transformationX4"
         [ benchIOSink "scan" (Ops.scan 4)
