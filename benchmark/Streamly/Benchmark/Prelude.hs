@@ -444,6 +444,10 @@ tap n = composeN n $ S.tap FL.sum
 tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()
 tapAsyncS n = composeN n $ Par.tapAsync S.sum
 
+{-# INLINE tapAsync #-}
+tapAsync :: S.MonadAsync m => Int -> Stream m Int -> m ()
+tapAsync n = composeN n $ Internal.tapAsync FL.sum
+
 {-# INLINE transformMapM #-}
 {-# INLINE transformComposeMapM #-}
 {-# INLINE transformTeeMapM #-}
