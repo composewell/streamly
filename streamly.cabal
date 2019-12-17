@@ -376,6 +376,11 @@ library
     build-depends:
         semigroups    >= 0.18   && < 0.19
 
+  -- Array uses a Storable constraint in dev build making several inspection
+  -- tests fail
+  if flag(dev) && flag(inspection)
+    build-depends: inspection-and-dev-flags-cannot-be-used-together
+
 -------------------------------------------------------------------------------
 -- Test suites
 -------------------------------------------------------------------------------
