@@ -588,7 +588,7 @@ splitOnSeq str inh =
         $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'splitOnSeq
+-- inspect $ hasNoTypeClasses 'splitOnSeq
 -- inspect $ 'splitOnSeq `hasNoType` ''Step
 -- inspect $ 'splitOnSeq `hasNoType` ''AT.FlattenState
 -- inspect $ 'splitOnSeq `hasNoType` ''D.ConcatMapUState
@@ -610,7 +610,7 @@ splitOnSuffixSeq str inh =
         $ S.unfold FH.read inh) -- >>= print
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'splitOnSuffixSeq
+-- inspect $ hasNoTypeClasses 'splitOnSuffixSeq
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''Step
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''AT.FlattenState
 -- inspect $ 'splitOnSuffixSeq `hasNoType` ''D.ConcatMapUState
