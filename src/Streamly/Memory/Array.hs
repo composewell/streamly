@@ -24,7 +24,7 @@
 -- 'Storable' values of a given type, they cannot store non-serializable data
 -- like functions.  Once created an array cannot be modified.  Pinned memory
 -- allows efficient buffering of long lived data without adding any impact to
--- GC. One array is just one pointer visible to GC and it does not have to
+-- GC. One array is just one pointer visible to GC and it does not have to be
 -- copied across generations.  Moreover, pinned memory allows communication
 -- with foreign consumers and producers (e.g. file or network IO) without
 -- copying the data.

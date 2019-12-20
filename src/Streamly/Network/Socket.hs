@@ -9,7 +9,7 @@
 --
 -- A socket is a handle to a protocol endpoint.
 --
--- This module provides APIs to read and write streams and arrays to and from
+-- This module provides APIs to read and write streams and arrays from and to
 -- network sockets. Sockets may be connected or unconnected. Connected sockets
 -- can only send or recv data to/from the connected endpoint, therefore, APIs
 -- for connected sockets do not need to explicitly specify the remote endpoint.
