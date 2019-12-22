@@ -23,5 +23,6 @@ import Control.Monad.Catch (MonadCatch, catch, SomeException)
 --
 -- /Internal/
 --
+{-# INLINE discard #-}
 discard :: MonadCatch m => m b -> m ()
 discard action = (void $ action) `catch` (\(_ :: SomeException) -> return ())
