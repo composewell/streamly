@@ -122,7 +122,7 @@ matrix:
         - sourceline: 'ppa:hvr/ghcjs'
         - sourceline: 'deb https://deb.nodesource.com/node_11.x xenial main'
           key_url: 'https://deb.nodesource.com/gpgkey/nodesource.gpg.key'
-        packages: [cabal-install-head,ghcjs-8.4]
+        packages: [cabal-install-2.4,ghcjs-8.4]
 
   # --------------------------------------------------------------------------
   # (Linux) stack builds (BUILD=stack). Some common envvars for stack builds
@@ -200,7 +200,6 @@ matrix:
   - env: BUILD=cabal-v2 GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
   - env: BUILD=stack RESOLVER=lts-13 HLINT_COMMANDS="hlint lint ."
-  - env: BUILD=cabal-v2 ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_DOCS=y DISABLE_SDIST_BUILD=y
 
 # ------------------------------------------------------------------------
 #  Settings beyond this point are advanced and normally not tweaked
