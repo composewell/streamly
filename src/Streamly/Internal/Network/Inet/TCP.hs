@@ -24,11 +24,14 @@ module Streamly.Internal.Network.Inet.TCP
     -- * TCP Servers
     -- ** Unfolds
       acceptOnAddr
+    , acceptOnAddrWith
     , acceptOnPort
+    , acceptOnPortWith
     , acceptOnPortLocal
 
     -- ** Streams
     , connectionsOnAddr
+    , connectionsOnAddrWith
     , connectionsOnPort
     , connectionsOnLocalHost
 
@@ -131,6 +134,24 @@ import qualified Streamly.Internal.Network.Socket as ISK
 -- Accept (unfolds)
 -------------------------------------------------------------------------------
 
+{-# INLINE acceptOnAddrWith #-}
+acceptOnAddrWith
+    :: MonadIO m
+    => [(SocketOption, Int)]
+    -> Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
+acceptOnAddrWith opts = UF.lmap f accept
+    where
+    f (addr, port) =
+        (maxListenQueue
+        , SockSpec
+            { sockFamily = AF_INET
+            , sockType = Stream
+            , sockProto = defaultProtocol -- TCP
+            , sockOpts = opts
+            }
+        , SockAddrInet port (tupleToHostAddress addr)
+        )
+
 -- | Unfold a tuple @(ipAddr, port)@ into a stream of connected TCP sockets.
 -- @ipAddr@ is the local IP address and @port@ is the local port on which
 -- connections are accepted.
@@ -140,18 +161,13 @@ import qualified Streamly.Internal.Network.Socket as ISK
 acceptOnAddr
     :: MonadIO m
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Socket
-acceptOnAddr = UF.lmap f accept
-    where
-    f (addr, port) =
-        (maxListenQueue
-        , SockSpec
-            { sockFamily = AF_INET
-            , sockType = Stream
-            , sockProto = defaultProtocol -- TCP
-            , sockOpts = [(NoDelay,1), (ReuseAddr,1)]
-            }
-        , SockAddrInet port (tupleToHostAddress addr)
-        )
+acceptOnAddr = acceptOnAddrWith []
+
+{-# INLINE acceptOnPortWith #-}
+acceptOnPortWith :: MonadIO m
+    => [(SocketOption, Int)]
+    -> Unfold m PortNumber Socket
+acceptOnPortWith opts = UF.supplyFirst (acceptOnAddrWith opts) (0,0,0,0)
 
 -- | Like 'acceptOnAddr' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
@@ -179,6 +195,22 @@ acceptOnPortLocal = UF.supplyFirst acceptOnAddr (127,0,0,1)
 -- Accept (streams)
 -------------------------------------------------------------------------------
 
+{-# INLINE connectionsOnAddrWith #-}
+connectionsOnAddrWith
+    :: MonadAsync m
+    => [(SocketOption, Int)]
+    -> (Word8, Word8, Word8, Word8)
+    -> PortNumber
+    -> SerialT m Socket
+connectionsOnAddrWith opts addr port =
+    connections maxListenQueue SockSpec
+        { sockFamily = AF_INET
+        , sockType = Stream
+        , sockProto = defaultProtocol
+        , sockOpts = opts
+        }
+        (SockAddrInet port (tupleToHostAddress addr))
+
 -- | Like 'connections' but binds on the specified IPv4 address of the machine
 -- and listens for TCP connections on the specified port.
 --
@@ -189,14 +221,7 @@ connectionsOnAddr
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Socket
-connectionsOnAddr addr port =
-    connections maxListenQueue SockSpec
-        { sockFamily = AF_INET
-        , sockType = Stream
-        , sockProto = defaultProtocol
-        , sockOpts = [(NoDelay,1), (ReuseAddr,1)]
-        }
-        (SockAddrInet port (tupleToHostAddress addr))
+connectionsOnAddr = connectionsOnAddrWith []
 
 -- | Like 'connections' but binds on the IPv4 address @0.0.0.0@ i.e.  on all
 -- IPv4 addresses/interfaces of the machine and listens for TCP connections on
