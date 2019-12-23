@@ -62,6 +62,7 @@ module Streamly.Internal.Network.Socket
     -- -- * Array Write
     , writeChunk
     , writeChunks
+    , writeChunksWithBufferOf
     , writeStrings
 
     -- reading/writing datagrams
@@ -94,7 +95,7 @@ import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types (Array(..))
+import Streamly.Internal.Memory.Array.Types (Array(..), lpackArraysChunksOf)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -425,6 +426,18 @@ fromChunks h m = S.mapM_ (liftIO . writeChunk h) m
 {-# INLINE writeChunks #-}
 writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeChunk h)
+
+-- | @writeChunksWithBufferOf bufsize socket@ writes a stream of arrays
+-- to @socket@ after coalescing the adjacent arrays in chunks of @bufsize@.
+-- We never split an array, if a single array is bigger than the specified size
+-- it emitted as it is. Multiple arrays are coalesed as long as the total size
+-- remains below the specified size.
+--
+-- @since 0.7.0
+{-# INLINE writeChunksWithBufferOf #-}
+writeChunksWithBufferOf :: (MonadIO m, Storable a)
+    => Int -> Socket -> Fold m (Array a) ()
+writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 
 -- | Write a stream of strings to a socket in Latin1 encoding.  Output is
 -- flushed to the socket for each string.
