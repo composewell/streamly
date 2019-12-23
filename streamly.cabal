@@ -308,6 +308,7 @@ library
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Fold.KeyValue
                      , Streamly.Internal.Data.Sink.Types
                      , Streamly.Internal.Data.Sink
 
