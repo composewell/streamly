@@ -146,6 +146,7 @@ module Streamly.Internal.Data.Fold
 
     , tee
     , distribute
+    , distribute_
 
     -- * Partitioning
 
@@ -865,6 +866,22 @@ foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
 distribute [] = foldNil
 distribute (x:xs) = foldCons x (distribute xs)
+
+-- | Like 'distribute' but for folds that return (), this can be more efficient
+-- than 'distribute' as it does not need to maintain state.
+--
+{-# INLINE distribute_ #-}
+distribute_ :: Monad m => [Fold m a ()] -> Fold m a ()
+distribute_ fs = Fold step initial extract
+    where
+    initial    = Prelude.mapM (\(Fold s i e) ->
+        i >>= \r -> return (Fold s (return r) e)) fs
+    step ss a  = do
+        Prelude.mapM_ (\(Fold s i _) -> i >>= \r -> s r a >> return ()) ss
+        return ss
+    extract ss = do
+        Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
+        return ()
 
 ------------------------------------------------------------------------------
 -- Partitioning
