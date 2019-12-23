@@ -90,13 +90,11 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- the stream.
 data Step s a = Yield a s | Skip s | Stop
 
-{-
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap f (Yield x s) = Yield (f x) s
     fmap _ (Skip s) = Skip s
     fmap _ Stop = Stop
--}
 
 -- gst = global state
 -- | A stream consists of a step function that generates the next step given a
@@ -176,9 +174,12 @@ mapM f (Stream step state) = Stream step' state
 map :: Monad m => (a -> b) -> Stream m a -> Stream m b
 map f = mapM (return . f)
 
-instance Monad m => Functor (Stream m) where
+instance Functor m => Functor (Stream m) where
     {-# INLINE fmap #-}
-    fmap = map
+    fmap f (Stream step state) = Stream step' state
+      where
+        {-# INLINE_LATE step' #-}
+        step' gst st = fmap (fmap f) (step (adaptState gst) st)
 
 ------------------------------------------------------------------------------
 -- concatMap
@@ -231,23 +232,61 @@ concatMap f = concatMapM (return . f)
 
 -- | Create a singleton 'Stream' from a pure value.
 {-# INLINE_NORMAL yield #-}
-yield :: Monad m => a -> Stream m a
-yield x = Stream (\_ s -> return $ step undefined s) True
+yield :: Applicative m => a -> Stream m a
+yield x = Stream (\_ s -> pure $ step undefined s) True
   where
     {-# INLINE_LATE step #-}
     step _ True  = Yield x False
     step _ False = Stop
 
-instance Monad m => Applicative (Stream m) where
+{-# INLINE_NORMAL concatAp #-}
+concatAp :: Functor f => Stream f (a -> b) -> Stream f a -> Stream f b
+concatAp (Stream stepa statea) (Stream stepb stateb) = Stream step' (Left statea)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (Left st) = fmap
+        (\r -> case r of
+            Yield f s -> Skip (Right (f, s, stateb))
+            Skip    s -> Skip (Left s)
+            Stop      -> Stop)
+        (stepa (adaptState gst) st)
+    step' gst (Right (f, os, st)) = fmap
+        (\r -> case r of
+            Yield a s -> Yield (f a) (Right (f, os, s))
+            Skip s    -> Skip (Right (f,os, s))
+            Stop      -> Skip (Left os))
+        (stepb (adaptState gst) st)
+
+{-# INLINE_NORMAL apSequence #-}
+apSequence :: Functor f => Stream f a -> Stream f b -> Stream f b
+apSequence (Stream stepa statea) (Stream stepb stateb) = Stream step (Left statea)
+  where
+    {-# INLINE_LATE step #-}
+    step gst (Left st) =
+        fmap
+            (\r ->
+                 case r of
+                     Yield _ s -> Skip (Right (s, stateb))
+                     Skip s -> Skip (Left s)
+                     Stop -> Stop)
+            (stepa (adaptState gst) st)
+    step gst (Right (ostate, st)) =
+        fmap
+            (\r ->
+                 case r of
+                     Yield b s -> Yield b (Right (ostate, s))
+                     Skip s -> Skip (Right (ostate, s))
+                     Stop -> Skip (Left ostate))
+            (stepb gst st)
+
+instance Applicative f => Applicative (Stream f) where
     {-# INLINE pure #-}
     pure = yield
     {-# INLINE (<*>) #-}
-    m1 <*> m2 =
-        -- XXX concatMapU is faster but it would require us to merge
-        -- Unfold/Types.hs into this file so that we can use UF.singleton here.
-        -- let f x1 = concatMapU (UF.singleton (pure . x1)) m2
-        let f x1 = concatMap (\x2 -> pure (x1 x2)) m2
-        in concatMap f m1
+    (<*>) = concatAp
+    {-# INLINE (*>) #-}
+    (*>) = apSequence
+
 
 -- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
 -- the monad instance does not seem to be significantly faster.
@@ -256,6 +295,8 @@ instance Monad m => Monad (Stream m) where
     return = pure
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMap
+    {-# INLINE (>>) #-}
+    (>>) = (*>)
 
 instance MonadTrans Stream where
     lift = yieldM
@@ -425,12 +466,12 @@ foldl' fstep = foldlM' (\b a -> return (fstep b a))
 
 -- | Convert a list of pure values to a 'Stream'
 {-# INLINE_LATE fromList #-}
-fromList :: Monad m => [a] -> Stream m a
+fromList :: Applicative m => [a] -> Stream m a
 fromList = Stream step
   where
     {-# INLINE_LATE step #-}
-    step _ (x:xs) = return $ Yield x xs
-    step _ []     = return Stop
+    step _ (x:xs) = pure $ Yield x xs
+    step _ []     = pure Stop
 
 ------------------------------------------------------------------------------
 -- Comparisons

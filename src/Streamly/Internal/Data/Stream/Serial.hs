@@ -76,7 +76,6 @@ import Streamly.Internal.Data.Stream.StreamK (IsStream(..), adapt, Stream, mkStr
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Unfold as UF
 
 #include "Instances.hs"
 #include "inline.hs"
@@ -181,6 +180,8 @@ instance Monad m => Monad (SerialT m) where
     return = pure
     {-# INLINE (>>=) #-}
     (>>=) = K.bindWith K.serial
+    {-# INLINE (>>) #-}
+    (>>)  = (*>)
 
     -- StreamD based implementation
     -- return = SerialT . D.fromStreamD . D.yield
@@ -213,15 +214,19 @@ map f = mapM (return . f)
 
 {-# INLINE apSerial #-}
 apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
-apSerial (SerialT m1) (SerialT m2) =
-    let f x1 = D.concatMapU (UF.singleton (pure . x1)) (D.toStreamD m2)
-    in D.fromStreamD $ D.concatMap f (D.toStreamD m1)
+apSerial (SerialT m1) (SerialT m2) = D.fromStreamD $ D.toStreamD m1 <*> D.toStreamD m2
+
+{-# INLINE apSequence #-}
+apSequence :: Monad m => SerialT m a -> SerialT m b -> SerialT m b
+apSequence (SerialT m1) (SerialT m2) = D.fromStreamD $ D.toStreamD m1 *> D.toStreamD m2
 
 instance Monad m => Applicative (SerialT m) where
     {-# INLINE pure #-}
     pure = SerialT . K.yield
     {-# INLINE (<*>) #-}
     (<*>) = apSerial
+    {-# INLINE (*>) #-}
+    (*>)  = apSequence
 
 MONAD_COMMON_INSTANCES(SerialT,)
 LIST_INSTANCES(SerialT)
