@@ -269,9 +269,6 @@ library
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:
-                       Streamly.Internal.Data.Stream.StreamDK.Type
-                     , Streamly.Internal.Data.Stream.StreamDK
-
                     -- Memory storage
                        Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
@@ -302,7 +299,6 @@ library
                      , Streamly.Internal.Data.Time
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
-                     , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.SmallArray
@@ -317,7 +313,10 @@ library
                      -- Base streams
                      , Streamly.Internal.Data.Stream.StreamK.Type
                      , Streamly.Internal.Data.Stream.StreamK
+                     , Streamly.Internal.Data.Stream.StreamD.Type
                      , Streamly.Internal.Data.Stream.StreamD
+                     , Streamly.Internal.Data.Stream.StreamDK.Type
+                     , Streamly.Internal.Data.Stream.StreamDK
                      , Streamly.Internal.Data.Stream.Enumeration
                      , Streamly.Internal.Data.Stream.Prelude
 
@@ -733,112 +732,46 @@ benchmark concurrent
     buildable: False
 
 -------------------------------------------------------------------------------
--- Internal benchmarks for unexposed modules
+-- Internal benchmarks
 -------------------------------------------------------------------------------
-
--- We have to copy the streamly library modules here because there is no
--- way to use unexposed modules from the library.
 
 benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
-  include-dirs:     src/Streamly/Internal/Data/Time
-                  , src
-  if os(windows)
-    c-sources:     src/Streamly/Internal/Data/Time/Windows.c
-  if os(darwin)
-    c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
-  hs-source-dirs: benchmark, src
+  hs-source-dirs: benchmark
   main-is: BaseStreams.hs
-  other-modules:     Streamly.Internal.Data.Atomics
-                   , Streamly.Internal.Data.Stream.StreamD.Type
-                   , Streamly.Internal.Data.SVar
-                   , Streamly.Internal.Data.Time.Units
-                   , Streamly.Internal.Data.Time.Clock
-                   , Streamly.Internal.Data.Stream.StreamDK.Type
-                   , Streamly.Internal.Data.Stream.StreamDK
-                   , Streamly.Internal.Data.Stream.StreamK.Type
-                   , Streamly.Internal.Data.Stream.StreamK
-                   , Streamly.Internal.Data.Stream.StreamD
-                   , Streamly.Internal.Data.Stream.Prelude
-                   , Streamly.FileSystem.IOVec
-
-                   , StreamDOps
+  other-modules:     StreamDOps
                    , StreamKOps
                    , StreamDKOps
 
   if flag(dev)
     buildable: True
     build-depends:
-        base              >= 4.8   && < 5
+        streamly
+      , base              >= 4.8   && < 5
       , deepseq           >= 1.4.1 && < 1.5
       , random            >= 1.0   && < 2.0
       , gauge             >= 0.2.4 && < 0.3
-
-      , ghc-prim          >= 0.2   && < 0.6
-      , containers        >= 0.5.8.2   && < 0.7
-      , heaps             >= 0.3   && < 0.4
-
-      -- concurrency
-      , atomic-primops    >= 0.8   && < 0.9
-      , lockfree-queue    >= 0.2.3 && < 0.3
-
-      , exceptions        >= 0.8   && < 0.11
-      , monad-control     >= 1.0   && < 2
-      , mtl               >= 2.2   && < 3
-      , transformers      >= 0.4   && < 0.6
-      , transformers-base >= 0.4   && < 0.5
-
-    if impl(ghc < 8.0)
-        build-depends:
-            semigroups    >= 0.18   && < 0.19
   else
     buildable: False
 
 executable nano-bench
   import: bench-options
-  hs-source-dirs: benchmark, src
-  include-dirs:    src/Streamly/Internal/Data/Time
-                 , src
-  if os(windows)
-    c-sources:     src/Streamly/Internal/Data/Time/Windows.c
-  if os(darwin)
-    c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
+  hs-source-dirs: benchmark
   main-is: NanoBenchmarks.hs
-  other-modules:     Streamly.Internal.Data.Atomics
-                   , Streamly.Internal.Data.Stream.StreamD.Type
-                   , Streamly.Internal.Data.SVar
-                   , Streamly.Internal.Data.Time.Units
-                   , Streamly.Internal.Data.Time.Clock
-                   , Streamly.Internal.Data.Stream.StreamK.Type
-                   , Streamly.Internal.Data.Stream.StreamK
-                   , Streamly.FileSystem.IOVec
-                   , Streamly.Internal.Data.Stream.StreamD
   if flag(dev)
     buildable: True
     build-depends:
-         base              >= 4.8   && < 5
-       , gauge             >= 0.2.4 && < 0.3
-       , ghc-prim          >= 0.2   && < 0.6
-       , containers        >= 0.5.8.2   && < 0.7
-       , deepseq           >= 1.4.1 && < 1.5
-       , heaps             >= 0.3   && < 0.4
-       , random            >= 1.0   && < 2.0
-
-       -- concurrency
-       , atomic-primops    >= 0.8   && < 0.9
-       , lockfree-queue    >= 0.2.3 && < 0.3
-
-       , exceptions        >= 0.8   && < 0.11
-       , monad-control     >= 1.0   && < 2
-       , mtl               >= 2.2   && < 3
-       , transformers      >= 0.4   && < 0.6
-       , transformers-base >= 0.4   && < 0.5
+        streamly
+      , base              >= 4.8   && < 5
+      , gauge             >= 0.2.4 && < 0.3
+      , random            >= 1.0   && < 2.0
   else
     buildable: False
 
-executable adaptive
+benchmark adaptive
   import: bench-options
+  type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Adaptive.hs
   default-language: Haskell2010
@@ -846,9 +779,9 @@ executable adaptive
     buildable: True
     build-depends:
         streamly
-       , base              >= 4.8   && < 5
-       , gauge             >= 0.2.4 && < 0.3
-       , random            >= 1.0   && < 2.0
+      , base              >= 4.8   && < 5
+      , gauge             >= 0.2.4 && < 0.3
+      , random            >= 1.0   && < 2.0
   else
     buildable: False
 
