@@ -586,69 +586,6 @@ benchmark linear
     build-depends:     template-haskell   >= 2.14  && < 2.16
                      , inspection-testing >= 0.4   && < 0.5
 
-benchmark linear-async
-  import: bench-options-threaded
-  cpp-options: -DLINEAR_ASYNC
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearAsync.hs
-  other-modules: Streamly.Benchmark.Prelude
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-  if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.16
-                     , inspection-testing >= 0.4   && < 0.5
-
-benchmark linear-async-long
-  import: bench-options-threaded
-  cpp-options: -DLONG_BENCHMARKS
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearAsync.hs
-  other-modules: Streamly.Benchmark.Prelude
-  if flag(dev)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-    if flag(inspection)
-      build-depends:     template-haskell   >= 2.14  && < 2.16
-                       , inspection-testing >= 0.4   && < 0.5
-  else
-    buildable: False
-
-benchmark linear-rate
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearRate.hs
-  other-modules: Streamly.Benchmark.Prelude
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-  if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.16
-                     , inspection-testing >= 0.4   && < 0.5
-
 benchmark nested
   import: bench-options
   type: exitcode-stdio-1.0
@@ -745,6 +682,89 @@ benchmark fileio
     , gauge               >= 0.2.4 && < 0.3
     , typed-process       >= 0.2.3 && < 0.3
     , deepseq             >= 1.4.1 && < 1.5
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
+
+-------------------------------------------------------------------------------
+-- Threaded Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark linear-async
+  import: bench-options-threaded
+  cpp-options: -DLINEAR_ASYNC
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: LinearAsync.hs
+  other-modules: Streamly.Benchmark.Prelude
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
+
+benchmark linear-async-long
+  import: bench-options-threaded
+  cpp-options: -DLONG_BENCHMARKS
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: LinearAsync.hs
+  other-modules: Streamly.Benchmark.Prelude
+  if flag(dev)
+    buildable: True
+    build-depends:
+        streamly
+      , base                >= 4.8   && < 5
+      , deepseq             >= 1.4.1 && < 1.5
+      , random              >= 1.0   && < 2.0
+      , gauge               >= 0.2.4 && < 0.3
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
+    if flag(inspection)
+      build-depends:     template-haskell   >= 2.14  && < 2.16
+                       , inspection-testing >= 0.4   && < 0.5
+  else
+    buildable: False
+
+benchmark nested-concurrent
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: NestedConcurrent.hs
+  other-modules: NestedOps
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+
+benchmark linear-rate
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: LinearRate.hs
+  other-modules: Streamly.Benchmark.Prelude
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.16
                      , inspection-testing >= 0.4   && < 0.5
