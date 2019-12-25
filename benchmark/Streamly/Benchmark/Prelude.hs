@@ -10,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RankNTypes #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -53,7 +54,11 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 
 value, maxValue, value2 :: Int
-#ifdef LINEAR_ASYNC
+
+-- To detect memory leak issues we need larger streams
+#ifdef LONG_BENCHMARKS
+value = 10000000
+#elif defined(LINEAR_ASYNC)
 value = 10000
 #else
 value = 100000
@@ -818,12 +823,21 @@ inspect $ hasNoTypeClasses 'concatMapRepl4xN
 
 -- concatMapWith
 
-{-# INLINE concatMapWithSerial #-}
-concatMapWithSerial :: Int -> Int -> Int -> IO ()
-concatMapWithSerial outer inner n =
-    S.drain $ S.concatMapWith S.serial
+{-# INLINE concatStreamsWith #-}
+concatStreamsWith
+    :: (forall c. S.SerialT IO c -> S.SerialT IO c -> S.SerialT IO c)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+concatStreamsWith op outer inner n =
+    S.drain $ S.concatMapWith op
         (\_ -> sourceUnfoldrMN inner n)
         (sourceUnfoldrMN outer n)
+
+{-# INLINE concatMapWithSerial #-}
+concatMapWithSerial :: Int -> Int -> Int -> IO ()
+concatMapWithSerial = concatStreamsWith S.serial
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapWithSerial
@@ -831,10 +845,7 @@ inspect $ hasNoTypeClasses 'concatMapWithSerial
 
 {-# INLINE concatMapWithAppend #-}
 concatMapWithAppend :: Int -> Int -> Int -> IO ()
-concatMapWithAppend outer inner n =
-    S.drain $ S.concatMapWith Internal.append
-        (\_ -> sourceUnfoldrMN inner n)
-        (sourceUnfoldrMN outer n)
+concatMapWithAppend = concatStreamsWith Internal.append
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapWithAppend
@@ -842,10 +853,7 @@ inspect $ hasNoTypeClasses 'concatMapWithAppend
 
 {-# INLINE concatMapWithWSerial #-}
 concatMapWithWSerial :: Int -> Int -> Int -> IO ()
-concatMapWithWSerial outer inner n =
-    S.drain $ S.concatMapWith S.wSerial
-        (\_ -> sourceUnfoldrMN inner n)
-        (sourceUnfoldrMN outer n)
+concatMapWithWSerial = concatStreamsWith S.wSerial
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapWithWSerial

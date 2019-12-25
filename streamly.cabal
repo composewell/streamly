@@ -598,6 +598,26 @@ benchmark linear-async
     build-depends:     template-haskell   >= 2.14  && < 2.16
                      , inspection-testing >= 0.4   && < 0.5
 
+benchmark linear-async-long
+  import: bench-options
+  cpp-options: -DLONG_BENCHMARKS
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: LinearAsync.hs
+  other-modules: Streamly.Benchmark.Prelude
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
+
 benchmark linear-rate
   import: bench-options
   type: exitcode-stdio-1.0

@@ -368,46 +368,46 @@ main =
         , benchIOSink "insertBy" (Ops.insertBy 4)
         ]
       , bgroup "joining"
-        [ benchIOSrc1 "zip (2x50K)" (Ops.zip 50000)
-        , benchIOSrc1 "zipM (2x50K)" (Ops.zipM 50000)
-        , benchIOSrc1 "mergeBy (2x50K)" (Ops.mergeBy 50000)
-        , benchIOSrc1 "serial (2x50K)" (Ops.serial2 50000)
-        , benchIOSrc1 "append (2x50K)" (Ops.append2 50000)
-        , benchIOSrc1 "serial (2x2x25K)" (Ops.serial4 25000)
-        , benchIOSrc1 "append (2x2x25K)" (Ops.append4 25000)
-        , benchIOSrc1 "wSerial (2x50K)" Ops.wSerial2
-        , benchIOSrc1 "interleave (2x50K)" Ops.interleave2
-        , benchIOSrc1 "roundRobin (2x50K)" Ops.roundRobin2
+        [ benchIOSrc1 "zip (2,x/2)" (Ops.zip (Ops.value `div` 2))
+        , benchIOSrc1 "zipM (2,x/2)" (Ops.zipM (Ops.value `div` 2))
+        , benchIOSrc1 "mergeBy (2,x/2)" (Ops.mergeBy (Ops.value `div` 2))
+        , benchIOSrc1 "serial (2,x/2)" (Ops.serial2 (Ops.value `div` 2))
+        , benchIOSrc1 "append (2,x/2)" (Ops.append2 (Ops.value `div` 2))
+        , benchIOSrc1 "serial (2,2,x/4)" (Ops.serial4 (Ops.value `div` 4))
+        , benchIOSrc1 "append (2,2,x/4)" (Ops.append4 (Ops.value `div` 4))
+        , benchIOSrc1 "wSerial (2,x/2)" Ops.wSerial2
+        , benchIOSrc1 "interleave (2,x/2)" Ops.interleave2
+        , benchIOSrc1 "roundRobin (2,x/2)" Ops.roundRobin2
         ]
       , bgroup "concat-foldable"
-        [ benchIOSrc serially "foldMapWith (1x100K)" Ops.sourceFoldMapWith
-        , benchIOSrc serially "foldMapWithM (1x100K)" Ops.sourceFoldMapWithM
-        , benchIOSrc serially "foldMapM (1x100K)" Ops.sourceFoldMapM
-        , benchIOSrc serially "foldWithConcatMapId (1x100K)" Ops.sourceConcatMapId
+        [ benchIOSrc serially "foldMapWith" Ops.sourceFoldMapWith
+        , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
+        , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
+        , benchIOSrc serially "foldWithConcatMapId" Ops.sourceConcatMapId
         ]
       , bgroup "concat-serial"
-        [ benchIOSrc1 "concatMapPure (2x50K)" (Ops.concatMapPure 2 50000)
-        , benchIOSrc1 "concatMap (2x50K)" (Ops.concatMap 2 50000)
-        , benchIOSrc1 "concatMap (50Kx2)" (Ops.concatMap 50000 2)
-        , benchIOSrc1 "concatMapRepl (25Kx4)" Ops.concatMapRepl4xN
-        , benchIOSrc1 "concatUnfoldRepl (25Kx4)" Ops.concatUnfoldRepl4xN
+        [ benchIOSrc1 "concatMapPure (2,x/2)" (Ops.concatMapPure 2 (Ops.value `div` 2))
+        , benchIOSrc1 "concatMap (2,x/2)" (Ops.concatMap 2 (Ops.value `div` 2))
+        , benchIOSrc1 "concatMap (x/2,2)" (Ops.concatMap (Ops.value `div` 2) 2)
+        , benchIOSrc1 "concatMapRepl (x/4,4)" Ops.concatMapRepl4xN
+        , benchIOSrc1 "concatUnfoldRepl (x/4,4)" Ops.concatUnfoldRepl4xN
 
-        , benchIOSrc1 "concatMapWithSerial (2x50K)"
-            (Ops.concatMapWithSerial 2 50000)
-        , benchIOSrc1 "concatMapWithSerial (50Kx2)"
-            (Ops.concatMapWithSerial 50000 2)
+        , benchIOSrc1 "concatMapWithSerial (2,x/2)"
+            (Ops.concatMapWithSerial 2 (Ops.value `div` 2))
+        , benchIOSrc1 "concatMapWithSerial (x/2,2)"
+            (Ops.concatMapWithSerial (Ops.value `div` 2) 2)
 
-        , benchIOSrc1 "concatMapWithAppend (2x50K)"
-            (Ops.concatMapWithAppend 2 50000)
+        , benchIOSrc1 "concatMapWithAppend (2,x/2)"
+            (Ops.concatMapWithAppend 2 (Ops.value `div` 2))
         ]
       , bgroup "concat-interleave"
-        [ benchIOSrc1 "concatMapWithWSerial (2x50K)"
-            (Ops.concatMapWithWSerial 2 50000)
-        , benchIOSrc1 "concatMapWithWSerial (50Kx2)"
-            (Ops.concatMapWithWSerial 50000 2)
-        , benchIOSrc1 "concatUnfoldInterleaveRepl (25Kx4)"
+        [ benchIOSrc1 "concatMapWithWSerial (2,x/2)"
+            (Ops.concatMapWithWSerial 2 (Ops.value `div` 2))
+        , benchIOSrc1 "concatMapWithWSerial (x/2,2)"
+            (Ops.concatMapWithWSerial (Ops.value `div` 2) 2)
+        , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
                 Ops.concatUnfoldInterleaveRepl4xN
-        , benchIOSrc1 "concatUnfoldRoundrobinRepl (25Kx4)"
+        , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
                 Ops.concatUnfoldRoundrobinRepl4xN
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl

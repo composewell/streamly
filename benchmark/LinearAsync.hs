@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -31,6 +32,10 @@ benchSrcIO
 benchSrcIO t name f
     = bench name $ nfIO $ randomRIO (1,1) >>= Ops.toNull t . f
 
+{-# INLINE benchMonadicSrcIO #-}
+benchMonadicSrcIO :: String -> (Int -> IO ()) -> Benchmark
+benchMonadicSrcIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
 {-
 _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
@@ -38,7 +43,13 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 
 main :: IO ()
 main =
-  defaultMain
+  defaultMainWith (defaultConfig
+        { timeLimit = Just 1
+        , minDuration = 0
+#ifdef LONG_BENCHMARKS
+        , includeFirstIter = True
+#endif
+        })
     [ bgroup "asyncly"
         [ benchSrcIO asyncly "unfoldr" Ops.sourceUnfoldr
         , benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
@@ -52,8 +63,12 @@ main =
         , benchIO "mapM"   $ Ops.mapM asyncly 1
         , benchSrcIO asyncly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
-        , benchSrcIO asyncly "unfoldrM maxBuffer 1 (1000 ops)"
-            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
+        , benchSrcIO asyncly "unfoldrM maxBuffer 1 (x/10 ops)"
+            (maxBuffer 1 . Ops.sourceUnfoldrMN (Ops.value `div` 10))
+        , benchMonadicSrcIO "concatMapWith (2,x/2)"
+            (Ops.concatStreamsWith async 2 (Ops.value `div` 2))
+        , benchMonadicSrcIO "concatMapWith (x/2,2)"
+            (Ops.concatStreamsWith async (Ops.value `div` 2) 2)
         ]
       , bgroup "wAsyncly"
         [ benchSrcIO wAsyncly "unfoldr" Ops.sourceUnfoldr
@@ -66,6 +81,10 @@ main =
         , benchIO "map"    $ Ops.map' wAsyncly 1
         , benchIO "fmap"   $ Ops.fmap' wAsyncly 1
         , benchIO "mapM"   $ Ops.mapM wAsyncly 1
+        , benchMonadicSrcIO "concatMapWith (2,x/2)"
+            (Ops.concatStreamsWith wAsync 2 (Ops.value `div` 2))
+        , benchMonadicSrcIO "concatMapWith (x/2,2)"
+            (Ops.concatStreamsWith wAsync (Ops.value `div` 2) 2)
         ]
       -- unfoldr and fromFoldable are always serial and thereofore the same for
       -- all stream types.
@@ -81,9 +100,13 @@ main =
         , benchIO "mapM" $ Ops.mapM aheadly 1
         , benchSrcIO aheadly "unfoldrM maxThreads 1"
             (maxThreads 1 . Ops.sourceUnfoldrM)
-        , benchSrcIO aheadly "unfoldrM maxBuffer 1 (1000 ops)"
-            (maxBuffer 1 . Ops.sourceUnfoldrMN 1000)
+        , benchSrcIO aheadly "unfoldrM maxBuffer 1 (x/10 ops)"
+            (maxBuffer 1 . Ops.sourceUnfoldrMN (Ops.value `div` 10))
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
+        , benchMonadicSrcIO "concatMapWith (2,x/2)"
+            (Ops.concatStreamsWith ahead 2 (Ops.value `div` 2))
+        , benchMonadicSrcIO "concatMapWith (x/2,2)"
+            (Ops.concatStreamsWith ahead (Ops.value `div` 2) 2)
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
@@ -104,5 +127,9 @@ main =
         -- Parallel stages in a pipeline
         , benchIO "parAppMap" Ops.parAppMap
         , benchIO "parAppSum" Ops.parAppSum
+        , benchMonadicSrcIO "concatMapWith (2,x/2)"
+            (Ops.concatStreamsWith parallel 2 (Ops.value `div` 2))
+        , benchMonadicSrcIO "concatMapWith (x/10,10)"
+            (Ops.concatStreamsWith parallel (Ops.value `div` 10) 10)
         ]
       ]
