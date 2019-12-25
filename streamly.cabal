@@ -249,9 +249,17 @@ common exe-options
   import: compile-options, optimization-options, threading-options
 
 -- Some benchmarks are threaded some are not
+-- XXX dependencies should be separated under bench-depends
 common bench-options
   import: compile-options, optimization-options
-  ghc-options: -with-rtsopts "-T"
+  ghc-options: -with-rtsopts "-T -M256M"
+  build-depends: mtl >= 2.2 && < 3
+
+common bench-options-threaded
+  import: compile-options, optimization-options
+  -- -threaded and -N2 is important because some GC and space leak issues
+  -- trigger only with these options.
+  ghc-options: -threaded -with-rtsopts "-T -N2 -M256M"
   build-depends: mtl >= 2.2 && < 3
 
 -------------------------------------------------------------------------------
@@ -579,7 +587,7 @@ benchmark linear
                      , inspection-testing >= 0.4   && < 0.5
 
 benchmark linear-async
-  import: bench-options
+  import: bench-options-threaded
   cpp-options: -DLINEAR_ASYNC
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
@@ -599,27 +607,31 @@ benchmark linear-async
                      , inspection-testing >= 0.4   && < 0.5
 
 benchmark linear-async-long
-  import: bench-options
+  import: bench-options-threaded
   cpp-options: -DLONG_BENCHMARKS
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
   other-modules: Streamly.Benchmark.Prelude
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
+  if flag(dev)
+    buildable: True
     build-depends:
-        transformers  >= 0.4 && < 0.6
-  if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.16
-                     , inspection-testing >= 0.4   && < 0.5
+        streamly
+      , base                >= 4.8   && < 5
+      , deepseq             >= 1.4.1 && < 1.5
+      , random              >= 1.0   && < 2.0
+      , gauge               >= 0.2.4 && < 0.3
+    if impl(ghc < 8.0)
+      build-depends:
+          transformers  >= 0.4 && < 0.6
+    if flag(inspection)
+      build-depends:     template-haskell   >= 2.14  && < 2.16
+                       , inspection-testing >= 0.4   && < 0.5
+  else
+    buildable: False
 
 benchmark linear-rate
-  import: bench-options
+  import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
@@ -738,7 +750,7 @@ benchmark fileio
                      , inspection-testing >= 0.4   && < 0.5
 
 benchmark concurrent
-  import: bench-options
+  import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Concurrent.hs
