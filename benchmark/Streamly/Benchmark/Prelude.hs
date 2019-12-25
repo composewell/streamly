@@ -61,19 +61,13 @@ value = 100000
 maxValue = value + 1
 value2 = P.round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
 
--------------------------------------------------------------------------------
--- Benchmark ops
--------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- Stream generation and elimination
--------------------------------------------------------------------------------
-
 type Stream m a = S.SerialT m a
 
-{-# INLINE source #-}
-source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-source n = sourceUnfoldrM n
+-------------------------------------------------------------------------------
+-- Stream generation
+-------------------------------------------------------------------------------
+
+-- enumerate
 
 {-# INLINE sourceIntFromTo #-}
 sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -98,50 +92,7 @@ sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> t m Integer
 sourceIntegerFromStep n =
     S.take value $ S.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
 
-{-# INLINE sourceFromList #-}
-sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceFromList n = S.fromList [n..n+value]
-
-{-# INLINE sourceFromListM #-}
-sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
-
-{-# INLINE sourceFromIndices #-}
-sourceFromIndices :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceFromIndices n = S.take value $ S.fromIndices (+ n)
-
-{-# INLINE sourceFromIndicesM #-}
-sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-sourceFromIndicesM n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
-
-{-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: S.IsStream t => Int -> t m Int
-sourceFromFoldable n = S.fromFoldable [n..n+value]
-
-{-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
-
-{-# INLINE sourceFoldMapWith #-}
-sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
-
-{-# INLINE sourceFoldMapWithM #-}
-sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
-
-{-# INLINE sourceFoldMapM #-}
-sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
-    => Int -> t m Int
-sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
-
-{-# INLINE sourceConcatMapId #-}
-sourceConcatMapId :: (S.IsStream t, Monad m)
-    => Int -> t m Int
-sourceConcatMapId n =
-    S.concatMap P.id $ S.fromFoldable $ P.map (S.yieldM . return) [n..n+value]
+-- unfoldr
 
 {-# INLINE sourceUnfoldr #-}
 sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
@@ -170,18 +121,9 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-# INLINE sourceUnfoldrState #-}
-sourceUnfoldrState :: (S.IsStream t, S.MonadAsync m)
-    => Int -> t (StateT Int m) Int
-sourceUnfoldrState n = S.unfoldrM step n
-    where
-    step cnt =
-        if cnt > n + value
-        then return Nothing
-        else do
-            s <- get
-            put (s + 1)
-            return (Just (s, cnt + 1))
+{-# INLINE source #-}
+source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+source n = sourceUnfoldrM n
 
 {-# INLINE sourceUnfoldrMN #-}
 sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
@@ -201,9 +143,25 @@ sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
         then return Nothing
         else return (Just (return cnt, cnt + 1))
 
--------------------------------------------------------------------------------
--- Pure stream generation
--------------------------------------------------------------------------------
+-- fromIndices
+
+{-# INLINE sourceFromIndices #-}
+sourceFromIndices :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceFromIndices n = S.take value $ S.fromIndices (+ n)
+
+{-# INLINE sourceFromIndicesM #-}
+sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+sourceFromIndicesM n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
+
+-- fromList
+
+{-# INLINE sourceFromList #-}
+sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
+sourceFromList n = S.fromList [n..n+value]
+
+{-# INLINE sourceFromListM #-}
+sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
+sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> S.SerialT Identity Int
@@ -212,6 +170,16 @@ sourceIsList n = GHC.fromList [n..n+value]
 {-# INLINE sourceIsString #-}
 sourceIsString :: Int -> S.SerialT Identity P.Char
 sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
+
+-- fromFoldable
+
+{-# INLINE sourceFromFoldable #-}
+sourceFromFoldable :: S.IsStream t => Int -> t m Int
+sourceFromFoldable n = S.fromFoldable [n..n+value]
+
+{-# INLINE sourceFromFoldableM #-}
+sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
+sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -223,15 +191,6 @@ runStream = S.drain
 
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
-
-{-# INLINE evalStateT #-}
-evalStateT :: S.MonadAsync m => Int -> Stream m Int
-evalStateT n = Internal.evalStateT 0 (sourceUnfoldrState n)
-
-{-# INLINE withState #-}
-withState :: S.MonadAsync m => Int -> Stream m Int
-withState n =
-    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM n))
 
 {-# INLINE head #-}
 {-# INLINE last #-}
@@ -448,26 +407,6 @@ tapAsyncS n = composeN n $ Par.tapAsync S.sum
 tapAsync :: S.MonadAsync m => Int -> Stream m Int -> m ()
 tapAsync n = composeN n $ Internal.tapAsync FL.sum
 
-{-# INLINE transformMapM #-}
-{-# INLINE transformComposeMapM #-}
-{-# INLINE transformTeeMapM #-}
-{-# INLINE transformZipMapM #-}
-
-transformMapM, transformComposeMapM, transformTeeMapM,
-    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
-
-transformMapM t n = composeN' n $ t . Internal.transform (Pipe.mapM return)
-transformComposeMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.mapM (\x -> return (x + 1))
-        `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
-transformTeeMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.mapM (\x -> return (x + 1))
-        `Pipe.tee` Pipe.mapM (\x -> return (x + 2)))
-transformZipMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
-        (Pipe.mapM (\x -> return (x + 2))))
-
 mapMaybe      n = composeN n $ S.mapMaybe
     (\x -> if Prelude.odd x then Nothing else Just x)
 mapMaybeM     n = composeN n $ S.mapMaybeM
@@ -496,6 +435,76 @@ foldrS         n = composeN n $ Internal.foldrS S.cons S.nil
 foldrSMap      n = composeN n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
 foldrT         n = composeN n $ Internal.foldrT S.cons S.nil
 foldrTMap      n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
+
+-------------------------------------------------------------------------------
+-- Pipes
+-------------------------------------------------------------------------------
+
+{-# INLINE transformMapM #-}
+{-# INLINE transformComposeMapM #-}
+{-# INLINE transformTeeMapM #-}
+{-# INLINE transformZipMapM #-}
+
+transformMapM, transformComposeMapM, transformTeeMapM,
+    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
+
+transformMapM t n = composeN' n $ t . Internal.transform (Pipe.mapM return)
+transformComposeMapM t n = composeN' n $ t . Internal.transform
+    (Pipe.mapM (\x -> return (x + 1))
+        `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
+transformTeeMapM t n = composeN' n $ t . Internal.transform
+    (Pipe.mapM (\x -> return (x + 1))
+        `Pipe.tee` Pipe.mapM (\x -> return (x + 2)))
+transformZipMapM t n = composeN' n $ t . Internal.transform
+    (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
+        (Pipe.mapM (\x -> return (x + 2))))
+
+-------------------------------------------------------------------------------
+-- Mixed Transformation
+-------------------------------------------------------------------------------
+
+{-# INLINE scanMap #-}
+{-# INLINE dropMap #-}
+{-# INLINE dropScan #-}
+{-# INLINE takeDrop #-}
+{-# INLINE takeScan #-}
+{-# INLINE takeMap #-}
+{-# INLINE filterDrop #-}
+{-# INLINE filterTake #-}
+{-# INLINE filterScan #-}
+{-# INLINE filterScanl1 #-}
+{-# INLINE filterMap #-}
+scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
+    filterTake, filterScan, filterScanl1, filterMap
+    :: MonadIO m => Int -> Stream m Int -> m ()
+
+scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
+dropMap    n = composeN n $ S.map (subtract 1) . S.drop 1
+dropScan   n = composeN n $ S.scanl' (+) 0 . S.drop 1
+takeDrop   n = composeN n $ S.drop 1 . S.take maxValue
+takeScan   n = composeN n $ S.scanl' (+) 0 . S.take maxValue
+takeMap    n = composeN n $ S.map (subtract 1) . S.take maxValue
+filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
+filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
+filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
+filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+-------------------------------------------------------------------------------
+-- Scan and fold
+-------------------------------------------------------------------------------
+
+data Pair a b = Pair !a !b deriving (Generic, NFData)
+
+{-# INLINE sumProductFold #-}
+sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
+sumProductFold = S.foldl' (\(s,p) x -> (s + x, p P.* x)) (0,1)
+
+{-# INLINE sumProductScan #-}
+sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
+sumProductScan = S.foldl' (\(Pair _  p) (s0,x) -> Pair s0 (p P.* x)) (Pair 0 1)
+    . S.scanl' (\(s,_) x -> (s + x,x)) (0,0)
 
 -------------------------------------------------------------------------------
 -- Iteration
@@ -540,44 +549,12 @@ iterateDropWhileFalse  = iterateSource (S.dropWhile (> maxValue)) maxIters
 iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 -------------------------------------------------------------------------------
--- Zipping and concat
+-- Combining streams
 -------------------------------------------------------------------------------
 
-{-# INLINE zip #-}
-zip :: Int -> Int -> IO ()
-zip count n =
-    S.drain $ S.zipWith (,)
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zip
-inspect $ 'zip `hasNoType` ''D.Step
-#endif
-
-{-# INLINE zipM #-}
-zipM :: Int -> Int -> IO ()
-zipM count n =
-    S.drain $ S.zipWithM (curry return)
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'zipM
-inspect $ 'zipM `hasNoType` ''D.Step
-#endif
-
-{-# INLINE mergeBy #-}
-mergeBy :: Int -> Int -> IO ()
-mergeBy count n =
-    S.drain $ S.mergeBy P.compare
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'mergeBy
-inspect $ 'mergeBy `hasNoType` ''D.Step
-#endif
+-------------------------------------------------------------------------------
+-- Appending
+-------------------------------------------------------------------------------
 
 {-# INLINE serial2 #-}
 serial2 :: Int -> Int -> IO ()
@@ -616,6 +593,10 @@ inspect $ hasNoTypeClasses 'append2
 inspect $ 'append2 `hasNoType` ''D.AppendState
 #endif
 
+-------------------------------------------------------------------------------
+-- Interleaving
+-------------------------------------------------------------------------------
+
 {-# INLINE wSerial2 #-}
 wSerial2 :: Int -> IO ()
 wSerial2 n = S.drain $ S.wSerial
@@ -644,18 +625,49 @@ inspect $ hasNoTypeClasses 'roundRobin2
 inspect $ 'roundRobin2 `hasNoType` ''D.InterleaveState
 #endif
 
-{-# INLINE isPrefixOf #-}
-{-# INLINE isSubsequenceOf #-}
-isPrefixOf, isSubsequenceOf :: Monad m => Stream m Int -> m Bool
+-------------------------------------------------------------------------------
+-- Merging
+-------------------------------------------------------------------------------
 
-isPrefixOf src = S.isPrefixOf src src
-isSubsequenceOf src = S.isSubsequenceOf src src
+{-# INLINE mergeBy #-}
+mergeBy :: Int -> Int -> IO ()
+mergeBy count n =
+    S.drain $ S.mergeBy P.compare
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
 
-{-# INLINE stripPrefix #-}
-stripPrefix :: Monad m => Stream m Int -> m ()
-stripPrefix src = do
-    _ <- S.stripPrefix src src
-    return ()
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'mergeBy
+inspect $ 'mergeBy `hasNoType` ''D.Step
+#endif
+
+-------------------------------------------------------------------------------
+-- Zipping
+-------------------------------------------------------------------------------
+
+{-# INLINE zip #-}
+zip :: Int -> Int -> IO ()
+zip count n =
+    S.drain $ S.zipWith (,)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zip
+inspect $ 'zip `hasNoType` ''D.Step
+#endif
+
+{-# INLINE zipM #-}
+zipM :: Int -> Int -> IO ()
+zipM count n =
+    S.drain $ S.zipWithM (curry return)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'zipM
+inspect $ 'zipM `hasNoType` ''D.Step
+#endif
 
 {-# INLINE zipAsync #-}
 {-# INLINE zipAsyncM #-}
@@ -677,6 +689,23 @@ zipAsyncAp src  = do
     let src1 = fromJust r
     transform (S.zipAsyncly $ (,) <$> S.serially src
                                   <*> S.serially src1)
+
+-------------------------------------------------------------------------------
+-- Multi-stream folds
+-------------------------------------------------------------------------------
+
+{-# INLINE isPrefixOf #-}
+{-# INLINE isSubsequenceOf #-}
+isPrefixOf, isSubsequenceOf :: Monad m => Stream m Int -> m Bool
+
+isPrefixOf src = S.isPrefixOf src src
+isSubsequenceOf src = S.isSubsequenceOf src src
+
+{-# INLINE stripPrefix #-}
+stripPrefix :: Monad m => Stream m Int -> m ()
+stripPrefix src = do
+    _ <- S.stripPrefix src src
+    return ()
 
 {-# INLINE eqBy' #-}
 eqBy' :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
@@ -723,6 +752,35 @@ inspect $ hasNoTypeClasses 'cmpByPure
 inspect $ 'cmpByPure `hasNoType` ''D.Step
 #endif
 
+-------------------------------------------------------------------------------
+-- Streams of streams
+-------------------------------------------------------------------------------
+
+-- Special cases of concatMap
+
+{-# INLINE sourceFoldMapWith #-}
+sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
+    => Int -> t m Int
+sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
+
+{-# INLINE sourceFoldMapWithM #-}
+sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
+    => Int -> t m Int
+sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+
+{-# INLINE sourceFoldMapM #-}
+sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
+    => Int -> t m Int
+sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
+
+{-# INLINE sourceConcatMapId #-}
+sourceConcatMapId :: (S.IsStream t, Monad m)
+    => Int -> t m Int
+sourceConcatMapId n =
+    S.concatMap P.id $ S.fromFoldable $ P.map (S.yieldM . return) [n..n+value]
+
+-- concatMap unfoldrM/unfoldrM
+
 {-# INLINE concatMap #-}
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
@@ -733,6 +791,8 @@ concatMap outer inner n =
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
 #endif
+
+-- concatMap unfoldr/unfoldr
 
 {-# INLINE concatMapPure #-}
 concatMapPure :: Int -> Int -> Int -> IO ()
@@ -745,6 +805,8 @@ concatMapPure outer inner n =
 inspect $ hasNoTypeClasses 'concatMapPure
 #endif
 
+-- concatMap replicate/unfoldrM
+
 {-# INLINE concatMapRepl4xN #-}
 concatMapRepl4xN :: Int -> IO ()
 concatMapRepl4xN n = S.drain $ S.concatMap (S.replicate 4)
@@ -754,17 +816,7 @@ concatMapRepl4xN n = S.drain $ S.concatMap (S.replicate 4)
 inspect $ hasNoTypeClasses 'concatMapRepl4xN
 #endif
 
-{-# INLINE concatUnfoldRepl4xN #-}
-concatUnfoldRepl4xN :: Int -> IO ()
-concatUnfoldRepl4xN n =
-    S.drain $ S.concatUnfold
-        (UF.replicateM 4)
-        (sourceUnfoldrMN (value `div` 4) n)
-
-#ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldRepl4xN
-inspect $ 'concatUnfoldRepl4xN `hasNoType` ''D.ConcatMapUState
-#endif
+-- concatMapWith
 
 {-# INLINE concatMapWithSerial #-}
 concatMapWithSerial :: Int -> Int -> Int -> IO ()
@@ -799,6 +851,22 @@ concatMapWithWSerial outer inner n =
 inspect $ hasNoTypeClasses 'concatMapWithWSerial
 #endif
 
+-- concatUnfold
+
+-- concatUnfold replicate/unfoldrM
+
+{-# INLINE concatUnfoldRepl4xN #-}
+concatUnfoldRepl4xN :: Int -> IO ()
+concatUnfoldRepl4xN n =
+    S.drain $ S.concatUnfold
+        (UF.replicateM 4)
+        (sourceUnfoldrMN (value `div` 4) n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatUnfoldRepl4xN
+inspect $ 'concatUnfoldRepl4xN `hasNoType` ''D.ConcatMapUState
+#endif
+
 {-# INLINE concatUnfoldInterleaveRepl4xN #-}
 concatUnfoldInterleaveRepl4xN :: Int -> IO ()
 concatUnfoldInterleaveRepl4xN n =
@@ -824,7 +892,33 @@ inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN
 #endif
 
 -------------------------------------------------------------------------------
--- Parallel application/fold
+-- Monad transformation (hoisting etc.)
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceUnfoldrState #-}
+sourceUnfoldrState :: (S.IsStream t, S.MonadAsync m)
+    => Int -> t (StateT Int m) Int
+sourceUnfoldrState n = S.unfoldrM step n
+    where
+    step cnt =
+        if cnt > n + value
+        then return Nothing
+        else do
+            s <- get
+            put (s + 1)
+            return (Just (s, cnt + 1))
+
+{-# INLINE evalStateT #-}
+evalStateT :: S.MonadAsync m => Int -> Stream m Int
+evalStateT n = Internal.evalStateT 0 (sourceUnfoldrState n)
+
+{-# INLINE withState #-}
+withState :: S.MonadAsync m => Int -> Stream m Int
+withState n =
+    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM n))
+
+-------------------------------------------------------------------------------
+-- Concurrent application/fold
 -------------------------------------------------------------------------------
 
 {-# INLINE parAppMap #-}
@@ -836,49 +930,7 @@ parAppSum :: S.MonadAsync m => Stream m Int -> m ()
 parAppSum src = (S.sum S.|$. src) >>= \x -> P.seq x (return ())
 
 -------------------------------------------------------------------------------
--- Mixed Composition
--------------------------------------------------------------------------------
-
-{-# INLINE scanMap #-}
-{-# INLINE dropMap #-}
-{-# INLINE dropScan #-}
-{-# INLINE takeDrop #-}
-{-# INLINE takeScan #-}
-{-# INLINE takeMap #-}
-{-# INLINE filterDrop #-}
-{-# INLINE filterTake #-}
-{-# INLINE filterScan #-}
-{-# INLINE filterScanl1 #-}
-{-# INLINE filterMap #-}
-scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
-    filterTake, filterScan, filterScanl1, filterMap
-    :: MonadIO m => Int -> Stream m Int -> m ()
-
-scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
-dropMap    n = composeN n $ S.map (subtract 1) . S.drop 1
-dropScan   n = composeN n $ S.scanl' (+) 0 . S.drop 1
-takeDrop   n = composeN n $ S.drop 1 . S.take maxValue
-takeScan   n = composeN n $ S.scanl' (+) 0 . S.take maxValue
-takeMap    n = composeN n $ S.map (subtract 1) . S.take maxValue
-filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
-filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
-filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
-filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
-filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
-
-data Pair a b = Pair !a !b deriving (Generic, NFData)
-
-{-# INLINE sumProductFold #-}
-sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
-sumProductFold = S.foldl' (\(s,p) x -> (s + x, p P.* x)) (0,1)
-
-{-# INLINE sumProductScan #-}
-sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
-sumProductScan = S.foldl' (\(Pair _  p) (s0,x) -> Pair s0 (p P.* x)) (Pair 0 1)
-    . S.scanl' (\(s,_) x -> (s + x,x)) (0,0)
-
--------------------------------------------------------------------------------
--- Pure stream operations
+-- Type class instances
 -------------------------------------------------------------------------------
 
 {-# INLINE eqInstance #-}
@@ -920,6 +972,10 @@ readInstanceList str =
     in case r of
         [(x,"")] -> x
         _ -> P.error "readInstance: no parse"
+
+-------------------------------------------------------------------------------
+-- Pure (Identity) streams
+-------------------------------------------------------------------------------
 
 {-# INLINE pureFoldl' #-}
 pureFoldl' :: Stream Identity Int -> Int
