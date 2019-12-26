@@ -11,6 +11,12 @@
   only in cases when a worker thread happens to be used continuously for a
   long time.
 
+### Behavior change
+
+* Combinators in `Streamly.Network.Inet.TCP` no longer use TCP `NoDelay` and
+  `ReuseAddr` socket options by default. These options can now be specified
+  using appropriate combinators.
+
 ## 0.7.0
 
 ### Breaking changes
