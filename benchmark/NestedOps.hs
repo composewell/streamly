@@ -5,6 +5,7 @@
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -17,12 +18,15 @@ import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 
 linearCount :: Int
+#ifdef LONG_BENCHMARKS
+linearCount = 10000000
+#else
 linearCount = 100000
+#endif
 
 -- double nested loop
 nestedCount2 :: Int
--- nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
-nestedCount2 = 100
+nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
 -- triple nested loop
 nestedCount3 :: Int
