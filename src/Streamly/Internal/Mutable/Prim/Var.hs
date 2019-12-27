@@ -33,6 +33,7 @@ module Streamly.Internal.Mutable.Prim.Var
 
     -- * modification
     , writeVar
+    , modifyVar'
 
     -- * modification
     , readVar
@@ -52,10 +53,12 @@ type MonadMut = PrimMonad
 
 -- | Create a new mutable variable.
 {-# INLINE newVar #-}
-newVar :: forall m a. (MonadMut m, Prim a) => m (Var m a)
-newVar = primitive (\s# ->
+newVar :: forall m a. (MonadMut m, Prim a) => a -> m (Var m a)
+newVar x = primitive (\s# ->
       case newByteArray# (sizeOf# (undefined :: a)) s# of
-        (# s'#, arr# #) -> (# s'#, Var arr# #)
+        (# s1#, arr# #) ->
+            case writeByteArray# arr# 0# x s1# of
+                s2# -> (# s2#, Var arr# #)
     )
 
 -- | Write a value to a mutable variable.
@@ -66,3 +69,11 @@ writeVar (Var arr#) x = primitive_ (writeByteArray# arr# 0# x)
 {-# INLINE readVar #-}
 readVar :: (MonadMut m, Prim a) => Var m a -> m a
 readVar (Var arr#) = primitive (readByteArray# arr# 0#)
+
+-- | Modify the value of a mutable variable using a function with strict
+-- application.
+{-# INLINE modifyVar' #-}
+modifyVar' :: (MonadMut m, Prim a) => Var m a -> (a -> a) -> m ()
+modifyVar' (Var arr#) g = primitive_ $ \s# ->
+  case readByteArray# arr# 0# s# of
+    (# s'#, a #) -> let a' = g a in a' `seq` writeByteArray# arr# 0# a' s'#
