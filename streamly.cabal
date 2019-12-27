@@ -349,6 +349,9 @@ library
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
 
+                     -- Mutable data
+                     , Streamly.Internal.Mutable.Prim.Var
+
     if !impl(ghcjs)
        exposed-modules:
                        Streamly.Network.Socket
