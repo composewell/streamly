@@ -409,7 +409,7 @@ tap n = composeN n $ S.tap FL.sum
 tapRate :: Int -> Stream IO Int -> IO ()
 tapRate n str = do
     cref <- newIORef 0
-    composeN n (S.tapRate 1 (\c -> modifyIORef' cref (c +))) str
+    composeN n (Internal.tapRate 1 (\c -> modifyIORef' cref (c +))) str
 
 {-# INLINE tapAsyncS #-}
 tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()
