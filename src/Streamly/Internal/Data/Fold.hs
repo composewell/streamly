@@ -1261,8 +1261,14 @@ toParallelSVar svar winfo = Fold step initial extract
     step () x = liftIO $ do
         -- XXX we can have a separate fold for unlimited buffer case to avoid a
         -- branch in the step here.
-        decrementBufferLimit svar
-        void $ send svar (ChildYield x)
+         case maxBufferLimit svar of
+            BufferUnlimited ->
+                void $ send svar (ChildYield x)
+            BufferLast ->
+                void $ sendReplace svar (ChildYield x)
+            BufferLimited _ policy -> do
+                decrementBufferLimit svar policy
+                void $ send svar (ChildYield x)
 
     extract () = liftIO $ do
         sendStop svar winfo
@@ -1279,8 +1285,14 @@ toParallelSVarLimited svar winfo = Fold step initial extract
         yieldLimitOk <- decrementYieldLimit svar
         if yieldLimitOk
         then do
-            decrementBufferLimit svar
-            void $ send svar (ChildYield x)
+            case maxBufferLimit svar of
+                BufferUnlimited ->
+                    void $ send svar (ChildYield x)
+                BufferLast ->
+                    void $ sendReplace svar (ChildYield x)
+                BufferLimited _ policy -> do
+                    decrementBufferLimit svar policy
+                    void $ send svar (ChildYield x)
             return True
         else do
             cleanupSVarFromWorker svar

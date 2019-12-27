@@ -143,9 +143,9 @@ underMaxHeap sv hp = do
 
     -- XXX simplify this
     let maxHeap = case maxBufferLimit sv of
-            Limited lim -> Limited $
+            BufferLimited lim _ -> Limited $
                 max 0 (lim - fromIntegral len)
-            Unlimited -> Unlimited
+            _ -> Unlimited
 
     case maxHeap of
         Limited lim -> do

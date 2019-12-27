@@ -16,14 +16,16 @@ module Streamly.Internal.Data.Stream.SVar
     , fromStreamVar
     , fromProducer
     , fromConsumer
+    , fromProducerPeek
     , toSVar
     , pushToFold
     )
 where
 
+import Control.Concurrent.MVar (takeMVar)
 import Control.Exception (fromException)
 import Control.Monad (when, void)
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
@@ -118,7 +120,7 @@ toSVar sv m = toStreamVar sv (toStream m)
 
 -- | Pull a stream from an SVar.
 {-# NOINLINE fromProducer #-}
-fromProducer :: MonadAsync m => SVar Stream m a -> Stream m a
+fromProducer :: MonadIO m => SVar Stream m a -> Stream m a
 fromProducer sv = mkStream $ \st yld sng stp -> do
     list <- readOutputQ sv
     -- Reversing the output is important to guarantee that we process the
@@ -150,6 +152,53 @@ fromProducer sv = mkStream $ \st yld sng stp -> do
                     Nothing -> allDone stp
                     Just _ -> error "Bug: fromProducer: received exception"
 
+{-# INLINE peekOutputQPar #-}
+peekOutputQPar :: MonadIO m => SVar t m a -> m [ChildEvent a]
+peekOutputQPar sv = liftIO $ do
+    case yieldRateInfo sv of
+        Nothing -> return ()
+        Just yinfo -> void $ collectLatency sv yinfo False
+    fst `fmap` readIORef (outputQueue sv)
+
+-- | Pull a stream from an SVar.
+{-# NOINLINE fromProducerPeek #-}
+fromProducerPeek :: (IsStream t, MonadIO m) => SVar Stream m a -> t m a
+fromProducerPeek sv = go True
+    where
+
+    go True = mkStream $ \st yld sng stp -> do
+        liftIO $ withDiagMVar sv "peekOutputQPar: doorbell"
+               $ takeMVar (outputDoorBell sv)
+        list <- liftIO $ fst `fmap` readIORef (outputQueue sv)
+        when (Prelude.null list) $ error "bug empty list"
+        foldStream st yld sng stp $ processEvents $ reverse list
+
+    go False = mkStream $ \st yld sng stp -> do
+        list <- peekOutputQPar sv
+        foldStream st yld sng stp $ processEvents $ reverse list
+
+    allDone stp = do
+        when (svarInspectMode sv) $ do
+            t <- liftIO $ getTime Monotonic
+            liftIO $ writeIORef (svarStopTime (svarStats sv)) (Just t)
+            liftIO $ printSVar sv "SVar Done"
+        sendStopToProducer sv
+        stp
+
+    {-# INLINE processEvents #-}
+    processEvents [] = mkStream $ \st yld sng stp -> do
+        foldStream st yld sng stp $ go False
+
+    processEvents (ev : es) = mkStream $ \_ yld _ stp -> do
+        let rest = processEvents es
+        case ev of
+            ChildYield a -> yld a rest
+            ChildStop tid e -> do
+                accountThread sv tid
+                case e of
+                    Nothing -> allDone stp
+                    Just _ -> error "Bug: fromProducer: received exception"
+
 -------------------------------------------------------------------------------
 -- Process events received by the producer thread from the consumer side
 -------------------------------------------------------------------------------
@@ -160,7 +209,7 @@ fromProducer sv = mkStream $ \st yld sng stp -> do
 -- exceptions or handle them and still keep driving the fold.
 --
 {-# NOINLINE fromConsumer #-}
-fromConsumer :: MonadAsync m => SVar Stream m a -> m Bool
+fromConsumer :: (MonadIO m, MonadThrow m) => SVar Stream m a -> m Bool
 fromConsumer sv = do
     (list, _) <- liftIO $ readOutputQBasic (outputQueueFromConsumer sv)
     -- Reversing the output is important to guarantee that we process the
@@ -182,7 +231,7 @@ fromConsumer sv = do
 
 -- push values to a fold worker via an SVar. Returns whether the fold is done.
 {-# INLINE pushToFold #-}
-pushToFold :: MonadAsync m => SVar Stream m a -> a -> m Bool
+pushToFold :: (MonadIO m, MonadThrow m) => SVar Stream m a -> a -> m Bool
 pushToFold sv a = do
     -- Check for exceptions before decrement so that we do not
     -- block forever if the child already exited with an exception.
@@ -200,6 +249,11 @@ pushToFold sv a = do
     if done
     then return True
     else liftIO $ do
-        decrementBufferLimit sv
-        void $ send sv (ChildYield a)
+        let sendit = void $ send sv (ChildYield a)
+         in case maxBufferLimit sv of
+            BufferUnlimited -> sendit
+            BufferLast -> sendReplace sv (ChildYield a)
+            BufferLimited _ policy -> do
+                decrementBufferLimit sv policy
+                sendit
         return False
