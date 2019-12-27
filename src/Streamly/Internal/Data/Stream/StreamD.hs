@@ -103,6 +103,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , fromListM
     , fromStreamK
     , fromStreamD
+    , fromPrimVar
     , fromSVar
 
     -- * Elimination
@@ -333,6 +334,7 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
+import Streamly.Internal.Mutable.Prim.Var (MonadMut, Prim, Var, readVar)
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -663,6 +665,13 @@ fromListM = Stream step
 {-# INLINE toStreamD #-}
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
+
+{-# INLINE_NORMAL fromPrimVar #-}
+fromPrimVar :: (MonadMut m, Prim a) => Var m a -> Stream m a
+fromPrimVar var = Stream step ()
+  where
+    {-# INLINE_LATE step #-}
+    step _ () = readVar var >>= \x -> return $ Yield x ()
 
 -------------------------------------------------------------------------------
 -- Generation from SVar
