@@ -332,7 +332,8 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
-import Streamly.Internal.Mutable.Prim.Var (MonadMut, Prim, Var, readVar)
+import Streamly.Internal.Mutable.Prim.Var
+       (MonadMut, Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -3239,36 +3240,36 @@ tapRate ::
 tapRate samplingRate action (Stream step state) = Stream step' Nothing
   where
     {-# NOINLINE loop #-}
-    loop countRef prev = do
+    loop countVar prev = do
         i <-
             MC.catch
                 (do liftIO $ threadDelay (round $ samplingRate * 1000000)
-                    i <- liftIO $ readIORef countRef
+                    i <- liftIO $ readVar countVar
                     let !diff = i - prev
                     void $ action diff
                     return i)
                 (\(e :: AsyncException) -> do
-                     i <- liftIO $ readIORef countRef
+                     i <- liftIO $ readVar countVar
                      let !diff = i - prev
                      void $ action diff
                      throwM (MC.toException e))
-        loop countRef i
+        loop countVar i
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        countRef <- liftIO $ newIORef 0
-        tid <- fork $ loop countRef 0
+        countVar <- liftIO $ newVar 0
+        tid <- fork $ loop countVar 0
         ref <- liftIO $ newIORef ()
         _ <- liftIO $ mkWeakIORef ref (killThread tid)
-        return $ Skip (Just (countRef, tid, state, ref))
+        return $ Skip (Just (countVar, tid, state, ref))
 
-    step' gst (Just (countRef, tid, st, ref)) = do
+    step' gst (Just (countVar, tid, st, ref)) = do
         r <- step gst st
         case r of
             Yield x s -> do
-                liftIO $ modifyIORef' countRef (+ 1)
-                return $ Yield x (Just (countRef, tid, s, ref))
-            Skip s -> return $ Skip (Just (countRef, tid, s, ref))
+                liftIO $ modifyVar' countVar (+ 1)
+                return $ Yield x (Just (countVar, tid, s, ref))
+            Skip s -> return $ Skip (Just (countVar, tid, s, ref))
             Stop -> do
                 liftIO $ killThread tid
                 return Stop
