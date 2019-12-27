@@ -58,6 +58,7 @@ module Streamly.Internal.Prelude
     , fromListM
     , K.fromFoldable
     , fromFoldableM
+    , fromPrimVar
 
     -- * Elimination
 
@@ -465,6 +466,7 @@ import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
        toAbsTime)
+import Streamly.Internal.Mutable.Prim.Var (MonadMut, Prim, Var)
 
 import Streamly.Internal.Data.Strict
 
@@ -869,6 +871,14 @@ fromHandle h = go
         else do
             str <- liftIO $ IO.hGetLine h
             yld str go
+
+-- | Construct a stream by reading a 'Prim' 'Var' repeatedly.
+--
+-- /Internal/
+--
+{-# INLINE fromPrimVar #-}
+fromPrimVar :: (IsStream t, MonadMut m, Prim a) => Var m a -> t m a
+fromPrimVar = fromStreamD . D.fromPrimVar
 
 ------------------------------------------------------------------------------
 -- Elimination by Folding

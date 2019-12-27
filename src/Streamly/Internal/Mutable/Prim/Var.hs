@@ -24,6 +24,8 @@
 module Streamly.Internal.Mutable.Prim.Var
     (
       Var
+    , MonadMut
+    , Prim
 
     -- * Construction
 
