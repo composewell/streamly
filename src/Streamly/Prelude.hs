@@ -285,7 +285,6 @@ module Streamly.Prelude
     , mapM_
     , trace
     , tap
-    , tapRate
 
     -- ** Scanning
     --
