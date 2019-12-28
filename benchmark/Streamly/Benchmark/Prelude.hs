@@ -25,7 +25,7 @@ module Streamly.Benchmark.Prelude where
 
 import Control.DeepSeq (NFData)
 import Control.Monad (when)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
@@ -410,6 +410,12 @@ tapRate :: Int -> Stream IO Int -> IO ()
 tapRate n str = do
     cref <- newIORef 0
     composeN n (Internal.tapRate 1 (\c -> modifyIORef' cref (c +))) str
+
+{-# INLINE pollCounts #-}
+pollCounts :: Int -> Stream IO Int -> IO ()
+pollCounts n str = do
+    composeN n (Internal.pollCounts f FL.drain) str
+    where f = Internal.rollingMap (P.-) . Internal.delayPost 1
 
 {-# INLINE tapAsyncS #-}
 tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()

@@ -130,6 +130,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , tap
     , tapAsync
     , tapRate
+    , pollCounts
     , drain
     , null
     , head
@@ -254,6 +255,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , map
     , mapM
     , sequence
+    , rollingMap
+    , rollingMapM
 
     -- * Inserting
     , intersperseM
@@ -335,7 +338,7 @@ import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
 import Streamly.Internal.Mutable.Prim.Var
-       (MonadMut, Prim, Var, readVar, newVar, modifyVar')
+       (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -668,11 +671,11 @@ toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
 
 {-# INLINE_NORMAL fromPrimVar #-}
-fromPrimVar :: (MonadMut m, Prim a) => Var m a -> Stream m a
+fromPrimVar :: (MonadIO m, Prim a) => Var IO a -> Stream m a
 fromPrimVar var = Stream step ()
   where
     {-# INLINE_LATE step #-}
-    step _ () = readVar var >>= \x -> return $ Yield x ()
+    step _ () = liftIO (readVar var) >>= \x -> return $ Yield x ()
 
 -------------------------------------------------------------------------------
 -- Generation from SVar
@@ -3221,6 +3224,40 @@ scanl1M' fstep (Stream step state) = Stream step' (state, Nothing)
 scanl1' :: Monad m => (a -> a -> a) -> Stream m a -> Stream m a
 scanl1' f = scanl1M' (\x y -> return (f x y))
 
+------------------------------------------------------------------------------
+-- Stateful map/scan
+------------------------------------------------------------------------------
+
+data RollingMapState s a = RollingMapInit s | RollingMapGo s a
+
+{-# INLINE rollingMapM #-}
+rollingMapM :: Monad m => (a -> a -> m b) -> Stream m a -> Stream m b
+rollingMapM f (Stream step1 state1) = Stream step (RollingMapInit state1)
+    where
+    step gst (RollingMapInit st) = do
+        r <- step1 (adaptState gst) st
+        return $ case r of
+            Yield x s -> Skip $ RollingMapGo s x
+            Skip s -> Skip $ RollingMapInit s
+            Stop   -> Stop
+
+    step gst (RollingMapGo s1 x1) = do
+        r <- step1 (adaptState gst) s1
+        case r of
+            Yield x s -> do
+                !res <- f x x1
+                return $ Yield res $ RollingMapGo s x
+            Skip s -> return $ Skip $ RollingMapGo s x1
+            Stop   -> return $ Stop
+
+{-# INLINE rollingMap #-}
+rollingMap :: Monad m => (a -> a -> b) -> Stream m a -> Stream m b
+rollingMap f = rollingMapM (\x y -> return $ f x y)
+
+------------------------------------------------------------------------------
+-- Tapping/Distributing
+------------------------------------------------------------------------------
+
 {-# INLINE tap #-}
 tap :: Monad m => Fold m a b -> Stream m a -> Stream m a
 tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
@@ -3241,6 +3278,35 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
             Stop      -> do
                 void $ extract acc
                 return $ Stop
+
+{-# INLINE_NORMAL pollCounts #-}
+pollCounts
+    :: MonadAsync m
+    => (Stream m Int -> Stream m Int)
+    -> Fold m Int b
+    -> Stream m a
+    -> Stream m a
+pollCounts transf fld (Stream step state) = Stream step' Nothing
+  where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        countVar <- liftIO $ newVar (0 :: Int)
+        tid <- forkManaged
+            $ void $ runFold fld
+            $ transf $ fromPrimVar countVar
+        return $ Skip (Just (countVar, tid, state))
+
+    step' gst (Just (countVar, tid, st)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                liftIO $ modifyVar' countVar (+ 1)
+                return $ Yield x (Just (countVar, tid, s))
+            Skip s -> return $ Skip (Just (countVar, tid, s))
+            Stop -> do
+                liftIO $ killThread tid
+                return Stop
 
 {-# INLINE_NORMAL tapRate #-}
 tapRate ::

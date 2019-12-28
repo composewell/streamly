@@ -323,6 +323,7 @@ main =
         , benchIOSink "foldrTMap" (Ops.foldrTMap 1)
         , benchIOSink "tap" (Ops.tap 1)
         , benchIOSink "tapRate 1 second" (Ops.tapRate 1)
+        , benchIOSink "pollCounts 1 second" (Ops.pollCounts 1)
         , benchIOSink "tapAsync" (Ops.tapAsync 1)
         , benchIOSink "tapAsyncS" (Ops.tapAsyncS 1)
         ]

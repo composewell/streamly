@@ -205,6 +205,8 @@ module Streamly.Internal.Prelude
     -- ** Mapping Filters
     , mapMaybe
     , mapMaybeM
+    , rollingMapM
+    , rollingMap
 
     -- ** Scanning Filters
     , findIndices
@@ -219,6 +221,7 @@ module Streamly.Internal.Prelude
     , intersperseSuffixBySpan
     -- , intersperseBySpan
     , interjectSuffix
+    , delayPost
 
     -- ** Reordering
     , reverse
@@ -344,6 +347,7 @@ module Streamly.Internal.Prelude
     , tap
     , tapAsync
     , tapRate
+    , pollCounts
 
     -- * Windowed Classification
 
@@ -467,7 +471,7 @@ import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
        toAbsTime)
-import Streamly.Internal.Mutable.Prim.Var (MonadMut, Prim, Var)
+import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
 
@@ -879,7 +883,7 @@ fromHandle h = go
 -- /Internal/
 --
 {-# INLINE fromPrimVar #-}
-fromPrimVar :: (IsStream t, MonadMut m, Prim a) => Var m a -> t m a
+fromPrimVar :: (IsStream t, MonadIO m, Prim a) => Var IO a -> t m a
 fromPrimVar = fromStreamD . D.fromPrimVar
 
 ------------------------------------------------------------------------------
@@ -1787,6 +1791,27 @@ postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
 postscan (Fold step begin done) = P.postscanlMx' step begin done
 
 ------------------------------------------------------------------------------
+-- Stateful Transformations
+------------------------------------------------------------------------------
+
+-- | Apply a function on every two successive elements of a stream. If the
+-- stream consists of a single element the output is an empty stream.
+--
+-- /Internal/
+--
+{-# INLINE rollingMap #-}
+rollingMap :: (IsStream t, Monad m) => (a -> a -> b) -> t m a -> t m b
+rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
+
+-- | Like 'rollingMap' but with an effectful map function.
+--
+-- /Internal/
+--
+{-# INLINE rollingMapM #-}
+rollingMapM :: (IsStream t, Monad m) => (a -> a -> m b) -> t m a -> t m b
+rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
+
+------------------------------------------------------------------------------
 -- Transformation by Filtering
 ------------------------------------------------------------------------------
 
@@ -2004,10 +2029,9 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 -- intersperseM = intersperseBySpan 1
 
--- | Generate a stream by performing a monadic action between consecutive
--- elements of the given stream.
---
--- /Concurrent (do not use with 'parallely' on infinite streams)/
+-- | Generate a stream by inserting the result of a monadic action between
+-- consecutive elements of the given stream. Note that the monadic action is
+-- performed after the stream action before which its result is inserted.
 --
 -- @
 -- > S.toList $ S.intersperseM (return ',') $ S.fromList "hello"
@@ -2038,6 +2062,28 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 {-# INLINE intersperseSuffix #-}
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
+
+-- | Perform a side effect after each element of a stream. The output of the
+-- effectful action is discarded, therefore, the input stream remains
+-- unchanged.
+--
+-- @
+-- > S.mapM_ putChar $ S.intersperseSuffix_ (threadDelay 1000000) $ S.fromList "hello"
+-- @
+--
+-- /Internal/
+--
+{-# INLINE intersperseSuffix_ #-}
+intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
+intersperseSuffix_ m = Serial.mapM (\x -> void m >> return x)
+
+-- | Introduces a delay of specified seconds after each element of a stream.
+--
+-- /Internal/
+--
+{-# INLINE delayPost #-}
+delayPost :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
+delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 
 -- | Like 'intersperseSuffix' but intersperses a monadic action into the input
 -- stream after every @n@ elements and after the last element.
@@ -3613,6 +3659,30 @@ tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
 tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
+
+-- | Maintain the count of elements flowing in the stream and poll the count
+-- asynchronously from another thread. The count stream is transformed using
+-- the supplied transform and then folded using the supplied fold. The thread
+-- is automatically cleaned up if the stream stops or aborts due to exception.
+--
+-- For example, to print the count of elements processed every second:
+--
+-- @
+-- > S.drain $ S.pollCounts (rollingMap (-) . delayPost 1) (FL.drainBy print)
+--           $ S.enumerateFrom 0
+-- @
+--
+{-# INLINE pollCounts #-}
+pollCounts ::
+       (IsStream t, MonadAsync m)
+    => (t m Int -> t m Int)
+    -> Fold m Int b
+    -> t m a
+    -> t m a
+pollCounts transf f xs =
+      D.fromStreamD
+    $ D.pollCounts (D.toStreamD . transf . D.fromStreamD) f
+    $ (D.toStreamD xs)
 
 -- | Calls the supplied function with the number of elements consumed
 -- every @n@ seconds. The given function is run in a separate thread

@@ -108,6 +108,7 @@ module Streamly.Internal.Data.SVar
     , modifyThread
     , doFork
     , fork
+    , forkManaged
 
     , toStreamVar
     , SVarStats (..)
@@ -118,7 +119,7 @@ module Streamly.Internal.Data.SVar
 where
 
 import Control.Concurrent
-       (ThreadId, myThreadId, threadDelay, throwTo, forkIO)
+       (ThreadId, myThreadId, threadDelay, throwTo, forkIO, killThread)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, takeMVar, tryTakeMVar, newMVar,
         tryReadMVar)
@@ -151,11 +152,13 @@ import Data.Set (Set)
 import GHC.Conc (ThreadId(..))
 import GHC.Exts
 import GHC.IO (IO(..))
+import System.IO (hPutStrLn, stderr)
+import System.Mem.Weak (addFinalizer)
+
 import Streamly.Internal.Data.Time.Clock (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
-import System.IO (hPutStrLn, stderr)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
@@ -957,6 +960,16 @@ doFork action (RunInIO mrun) exHandler =
 {-# INLINABLE fork #-}
 fork :: MonadBaseControl IO m => m () -> m ThreadId
 fork = liftBaseDiscard forkIO
+
+-- | Fork a thread that is automatically killed as soon as the reference to the
+-- returned threadId is garbage collected.
+--
+{-# INLINABLE forkManaged #-}
+forkManaged :: (MonadIO m, MonadBaseControl IO m) => m () -> m ThreadId
+forkManaged action = do
+    tid <- fork action
+    liftIO $ addFinalizer tid (killThread tid)
+    return tid
 
 ------------------------------------------------------------------------------
 -- Collecting results from child workers in a streamed fashion
