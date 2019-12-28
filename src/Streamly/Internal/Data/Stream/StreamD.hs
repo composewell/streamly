@@ -128,6 +128,7 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- ** Specialized Folds
     , tap
+    , tapOffsetEvery
     , tapAsync
     , tapRate
     , pollCounts
@@ -3275,6 +3276,39 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
                 acc' <- fstep acc x
                 return $ Yield x (Just (acc', s))
             Skip s    -> return $ Skip (Just (acc, s))
+            Stop      -> do
+                void $ extract acc
+                return $ Stop
+
+{-# INLINE_NORMAL tapOffsetEvery #-}
+tapOffsetEvery :: Monad m
+    => Int -> Int -> Fold m a b -> Stream m a -> Stream m a
+tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
+    Stream step' Nothing
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' _ Nothing = do
+        r <- initial
+        return $ Skip (Just (r, state, offset `mod` n))
+
+    step' gst (Just (acc, st, count)) | count <= 0 = do
+        r <- step gst st
+        case r of
+            Yield x s -> do
+                !acc' <- fstep acc x
+                return $ Yield x (Just (acc', s, n - 1))
+            Skip s    -> return $ Skip (Just (acc, s, count))
+            Stop      -> do
+                void $ extract acc
+                return $ Stop
+
+    step' gst (Just (acc, st, count)) = do
+        r <- step gst st
+        case r of
+            Yield x s -> return $ Yield x (Just (acc, s, count - 1))
+            Skip s    -> return $ Skip (Just (acc, s, count))
             Stop      -> do
                 void $ extract acc
                 return $ Stop

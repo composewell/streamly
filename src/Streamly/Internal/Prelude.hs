@@ -345,6 +345,7 @@ module Streamly.Internal.Prelude
     -- ** Distributing
     , trace
     , tap
+    , tapOffsetEvery
     , tapAsync
     , tapRate
     , pollCounts
@@ -3628,6 +3629,24 @@ reassembleBy = undefined
 {-# INLINE tap #-}
 tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
 tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
+
+-- | @tapOffsetEvery offset n@ taps every @n@th element in the stream
+-- starting at @offset@. @offset@ can be between @0@ and @n - 1@. Offset 0
+-- means start at the first element in the stream. If the offset is outside
+-- this range then @offset `mod` n@ is used as offset.
+--
+-- @
+-- >>> S.drain $ S.tapOffsetEvery 0 2 (FL.mapM print FL.toList) $ S.enumerateFromTo 0 10
+-- > [0,2,4,6,8,10]
+-- @
+--
+-- /Internal/
+--
+{-# INLINE tapOffsetEvery #-}
+tapOffsetEvery :: (IsStream t, Monad m)
+    => Int -> Int -> FL.Fold m a b -> t m a -> t m a
+tapOffsetEvery offset n f xs =
+    D.fromStreamD $ D.tapOffsetEvery offset n f (D.toStreamD xs)
 
 -- | Redirect a copy of the stream to a supplied fold and run it concurrently
 -- in an independent thread. The fold may buffer some elements. The buffer size
