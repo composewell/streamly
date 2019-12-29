@@ -38,6 +38,11 @@ multi-core parallelism use the following GHC options:
 
 # Compiler Versions
 
+GHC 8.8.x seems to have a GC issue which causes space leak in concurrent
+streams especially when used with `-N` RTS option. The root cause of
+this has not yet been established. The leak is not seen with earlier
+versions of GHC.
+
 GHC 8.2.2 may hog memory and hang when building certain application using
 streamly (particularly the benchmark programs in the streamly package).
 Therefore we recommend avoiding using the GHC version 8.2.x.
