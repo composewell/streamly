@@ -201,9 +201,6 @@ main =
         -- this is too low and causes all benchmarks reported in ns
         -- , benchIOSink "head" Ops.head
         , benchIOSink "last" Ops.last
-        , benchIOSink "lastN.1"   (S.fold (IA.lastN 1))
-        , benchIOSink "lastN.10"  (S.fold (IA.lastN 10))
-        , benchIOSink "lastN.Max" (S.fold (IA.lastN Ops.maxValue))
         -- , benchIOSink "lookup" Ops.lookup
         , benchIOSink "find" Ops.find
         , benchIOSink "findIndex" Ops.findIndex
@@ -238,6 +235,9 @@ main =
         , benchIOSink "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) Ops.maxValue))
         , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
         , benchIOSink "last" (S.fold FL.last)
+        , benchIOSink "lastN.1" (S.fold (IA.lastN 1))
+        , benchIOSink "lastN.10" (S.fold (IA.lastN 10))
+        , benchIOSink "lastN.Max" (S.fold (IA.lastN Ops.maxValue))
         , benchIOSink "length" (S.fold FL.length)
         , benchIOSink "sum" (S.fold FL.sum)
         , benchIOSink "product" (S.fold FL.product)

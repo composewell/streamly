@@ -306,8 +306,6 @@ module Streamly.Internal.Data.Stream.StreamD
     , applyParallel
     , foldParallel
 
-    -- XXX Move this later
-    -- XXX Exported from Array again
     , lastN
     )
 where
@@ -4019,16 +4017,16 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
             Skip s    -> Skip (TapDone s)
             Stop      -> Stop
 
--- XXX Is there room for improvement?
+-- XXX Exported from Array again as this fold is specific to Array
 -- | Take last 'n' elements from the stream and discard the rest.
-{-# INLINABLE lastN #-}
+{-# INLINE lastN #-}
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
 lastN n = Fold step initial done
     where
         step (Tuple3' rb rh i) a = do
             rh1 <- liftIO $ RB.unsafeInsert rb rh a
             return $ Tuple3' rb rh1 (i + 1)
-        initial = fmap (\(a, b) -> Tuple3' a b 0) $ liftIO $ RB.new n
+        initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
         done (Tuple3' rb rh i) = do
             arr <- liftIO $ A.newArray n
             foldFunc i rh snoc' arr rb
