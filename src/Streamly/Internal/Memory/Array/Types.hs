@@ -1,4 +1,3 @@
-{-# OPTIONS_HADDOCK hide               #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE ExistentialQuantification #-}

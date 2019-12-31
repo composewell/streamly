@@ -1,5 +1,3 @@
-{-# OPTIONS_HADDOCK hide #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Sink.Types
 -- Copyright   : (c) 2019 Composewell Technologies

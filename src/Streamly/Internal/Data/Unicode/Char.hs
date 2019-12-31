@@ -1,4 +1,3 @@
-{-# OPTIONS_HADDOCK hide      #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 -- |

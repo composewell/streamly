@@ -1,4 +1,3 @@
-{-# OPTIONS_HADDOCK hide               #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}

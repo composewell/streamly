@@ -1,5 +1,3 @@
-{-# OPTIONS_HADDOCK hide #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Strict
 -- Copyright   : (c) 2019 Composewell Technologies
