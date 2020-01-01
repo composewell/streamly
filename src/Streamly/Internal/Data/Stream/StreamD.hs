@@ -311,6 +311,7 @@ module Streamly.Internal.Data.Stream.StreamD
     -- * Time related
     , takeByTime
     , dropByTime
+    , currentTime
     )
 where
 
@@ -345,6 +346,7 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
+import Data.Int (Int64)
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
@@ -355,6 +357,7 @@ import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+import Streamly.Internal.Data.Time.Units (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Strict (Tuple3'(..))
 
@@ -4207,3 +4210,26 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Yield x s -> Yield x (DropByTimeYield s)
              Skip s -> Skip (DropByTimeYield s)
              Stop -> Stop
+
+{-# INLINE_NORMAL currentTime #-}
+currentTime :: MonadAsync m => Double -> Stream m AbsTime
+currentTime g = Stream step Nothing
+  where
+    next timeVar = do
+        threadDelay $ delayTime
+        MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
+        modifyVar' timeVar (const t)
+        next timeVar
+    g' = g * 10 ^ (6 :: Int)
+    {-# INLINE delayTime #-}
+    delayTime = if g' >= fromIntegral (maxBound :: Int)
+                   then maxBound
+                   else round g'
+    {-# INLINE_LATE step #-}
+    step _ Nothing = do
+        timeVar <- liftIO $ newVar (0 :: Int64)
+        tid <- forkManaged $ liftIO $ void $ next timeVar 
+        return $ Skip $ Just (timeVar, tid)
+    step _ s@(Just (timeVar, _)) = do
+        a <- liftIO $ readVar timeVar
+        return $ Yield (toAbsTime (MicroSecond64 a)) s

@@ -382,6 +382,11 @@ filterAllOut,
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
 
+-- XXX Change granularity and compare with takeAll
+{-# INLINE currentTime #-}
+currentTime :: S.MonadAsync m => Int -> Double -> m ()
+currentTime value g = S.drain $ S.take value $ Internal.currentTime g
+
 {-# INLINE mapM #-}
 {-# INLINE map' #-}
 {-# INLINE fmap' #-}

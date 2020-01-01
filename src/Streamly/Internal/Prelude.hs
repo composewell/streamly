@@ -421,6 +421,9 @@ module Streamly.Internal.Prelude
     -- * Diagnostics
     , inspectMode
 
+    -- * Time related
+    , currentTime
+
     -- * Deprecated
     , K.once
     , each
@@ -4297,3 +4300,18 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
+
+------------------------------------------------------------------------------
+-- Time related
+------------------------------------------------------------------------------
+
+-- | /currentTime g/ returns a stream of 'AbsTime'. The time is updated every
+-- /g/ seconds. Between any 2 updates, the stream will contain the same
+-- element. Getting the absolute time is a costly operation and hence the time
+-- taken to generate this stream depends on the granularity /g/. If /g/ is very
+-- low, the time taken to generate this the elements of this stream will be
+-- very high. Conversely, if the granularity is high, the time taken to
+-- generate the elements of this stream will be low.
+{-# INLINE currentTime #-}
+currentTime :: (IsStream t, MonadAsync m) => Double -> t m AbsTime
+currentTime g = fromStreamD $ D.currentTime g
