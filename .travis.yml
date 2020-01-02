@@ -114,7 +114,7 @@ matrix:
   # Use CABAL_BUILD_OPTIONS to pass any options to cabal e.g. project-file
   # DISABLE_SDIST_BUILD is set because of a cabal issue. 'cabal info'
   # unnecessarily requires "ghc".
-  - env: BUILD=cabal-v2 ENABLE_GHCJS=y ENABLE_INSTALL= DISABLE_DOCS=y DISABLE_SDIST_BUILD=y
+  - env: BUILD=cabal-v2 ENABLE_GHCJS=y DISABLE_TEST=y ENABLE_INSTALL= DISABLE_DOCS=y DISABLE_SDIST_BUILD=y
     addons:
       apt:
         sources:

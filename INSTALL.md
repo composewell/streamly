@@ -4,7 +4,7 @@
   Hackage.
 * [Latest development version](https://github.com/composewell/streamly) is
   available on github.
-* See [recommeded compilation options here](docs/Build.md).
+* See [recommended compilation options here](docs/Build.md).
 
 If you are using `stack` or `nix` please make sure to add the latest version
 from Hackage to your tool configuration.
