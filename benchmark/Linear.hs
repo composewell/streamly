@@ -14,6 +14,8 @@ import Control.DeepSeq (NFData(..), deepseq)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 import Data.Monoid (Last(..))
+import System.Environment (getArgs)
+import Text.Read (readMaybe)
 
 import qualified GHC.Exts as GHC
 import qualified Streamly.Benchmark.Prelude as Ops
@@ -46,15 +48,15 @@ instance NFData Ordering where rnf = (`seq` ())
 {-# INLINE benchIOSink #-}
 benchIOSink
     :: (IsStream t, NFData b)
-    => String -> (t IO Int -> IO b) -> Benchmark
-benchIOSink name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
+    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source value
 
 {-# INLINE benchHoistSink #-}
 benchHoistSink
     :: (IsStream t, NFData b)
-    => String -> (t Identity Int -> IO b) -> Benchmark
-benchHoistSink name f =
-    bench name $ nfIO $ randomRIO (1,1) >>= f .  Ops.sourceUnfoldr
+    => Int -> String -> (t Identity Int -> IO b) -> Benchmark
+benchHoistSink value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f .  Ops.sourceUnfoldr value
 
 -- XXX once we convert all the functions to use this we can rename this to
 -- benchIOSink
@@ -67,8 +69,8 @@ benchIOSink1 name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 {-# INLINE benchIdentitySink #-}
 benchIdentitySink
     :: (IsStream t, NFData b)
-    => String -> (t Identity Int -> Identity b) -> Benchmark
-benchIdentitySink name f = bench name $ nf (f . Ops.sourceUnfoldr) 1
+    => Int -> String -> (t Identity Int -> Identity b) -> Benchmark
+benchIdentitySink value name f = bench name $ nf (f . Ops.sourceUnfoldr value) 1
 
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchIOSrc #-}
@@ -89,8 +91,8 @@ benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
 benchPure name src f = bench name $ nfIO $ randomRIO (1,1) >>= return . f . src
 
 {-# INLINE benchPureSink #-}
-benchPureSink :: NFData b => String -> (SerialT Identity Int -> b) -> Benchmark
-benchPureSink name f = benchPure name Ops.sourceUnfoldr f
+benchPureSink :: NFData b => Int -> String -> (SerialT Identity Int -> b) -> Benchmark
+benchPureSink value name f = benchPure name (Ops.sourceUnfoldr value) f
 
 -- XXX once we convert all the functions to use this we can rename this to
 -- benchPureSink
@@ -102,369 +104,380 @@ benchPureSink1 name f =
 {-# INLINE benchPureSinkIO #-}
 benchPureSinkIO
     :: NFData b
-    => String -> (SerialT Identity Int -> IO b) -> Benchmark
-benchPureSinkIO name f =
-    bench name $ nfIO $ randomRIO (1, 1) >>= f . Ops.sourceUnfoldr
+    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
+benchPureSinkIO value name f =
+    bench name $ nfIO $ randomRIO (1, 1) >>= f . Ops.sourceUnfoldr value
 
 {-# INLINE benchPureSrc #-}
 benchPureSrc :: String -> (Int -> SerialT Identity a) -> Benchmark
 benchPureSrc name src = benchPure name src (runIdentity . S.drain)
 
-mkString :: String
-mkString = "fromList [1" ++ concat (replicate Ops.value ",1") ++ "]"
+mkString :: Int -> String
+mkString value = "fromList [1" ++ concat (replicate value ",1") ++ "]"
 
-mkListString :: String
-mkListString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
+mkListString :: Int -> String
+mkListString value = "[1" ++ concat (replicate value ",1") ++ "]"
 
-mkList :: [Int]
-mkList = [1..Ops.value]
+mkList :: Int -> [Int]
+mkList value = [1..value]
 
 main :: IO ()
-main =
-  defaultMain
+main = do
+  -- Basement.Terminal.initialize required?
+  args <- getArgs
+  let (value, args') = parseValue args
+      (cfg, extra) = parseWith defaultConfig args'
+  runMode (mode cfg) cfg extra
     [ bgroup "serially"
       [ bgroup "pure"
-        [ benchPureSink "id" id
-        , benchPureSink1 "eqBy" Ops.eqByPure
-        , benchPureSink "==" Ops.eqInstance
-        , benchPureSink "/=" Ops.eqInstanceNotEq
-        , benchPureSink1 "cmpBy" Ops.cmpByPure
-        , benchPureSink "<" Ops.ordInstance
-        , benchPureSink "min" Ops.ordInstanceMin
-        , benchPureSrc "IsList.fromList" Ops.sourceIsList
+        [ benchPureSink value "id" id
+        , benchPureSink1 "eqBy" (Ops.eqByPure value)
+        , benchPureSink value "==" Ops.eqInstance
+        , benchPureSink value "/=" Ops.eqInstanceNotEq
+        , benchPureSink1 "cmpBy" (Ops.cmpByPure value)
+        , benchPureSink value "<" Ops.ordInstance
+        , benchPureSink value "min" Ops.ordInstanceMin
+        , benchPureSrc "IsList.fromList" (Ops.sourceIsList value)
         -- length is used to check for foldr/build fusion
-        , benchPureSink "length . IsList.toList" (length . GHC.toList)
-        , benchPureSrc "IsString.fromString" Ops.sourceIsString
-        , mkString `deepseq` (bench "readsPrec pure streams" $
-                                nf Ops.readInstance mkString)
-        , mkString `deepseq` (bench "readsPrec Haskell lists" $
-                                nf Ops.readInstanceList mkListString)
-        , benchPureSink "showsPrec pure streams" Ops.showInstance
-        , mkList `deepseq` (bench "showPrec Haskell lists" $
-                                nf Ops.showInstanceList mkList)
-        , benchPureSink "foldl'" Ops.pureFoldl'
-        , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
-        , benchPureSink "foldable/sum" Ops.foldableSum
-        , benchPureSinkIO "traversable/mapM" Ops.traversableMapM
+        , benchPureSink value "length . IsList.toList" (length . GHC.toList)
+        , benchPureSrc "IsString.fromString" (Ops.sourceIsString value)
+        , mkString value `deepseq` (bench "readsPrec pure streams" $
+                                nf Ops.readInstance (mkString value))
+        , mkString value `deepseq` (bench "readsPrec Haskell lists" $
+                                nf Ops.readInstanceList (mkListString value))
+        , benchPureSink value "showsPrec pure streams" Ops.showInstance
+        , mkList value `deepseq` (bench "showPrec Haskell lists" $
+                                nf Ops.showInstanceList (mkList value))
+        , benchPureSink value "foldl'" Ops.pureFoldl'
+        , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
+        , benchPureSink value "foldable/sum" Ops.foldableSum
+        , benchPureSinkIO value "traversable/mapM" Ops.traversableMapM
         ]
       , bgroup "generation"
         [ -- Most basic, barely stream continuations running
-          benchIOSrc serially "unfoldr" Ops.sourceUnfoldr
-        , benchIOSrc serially "unfoldrM" Ops.sourceUnfoldrM
-        , benchIOSrc serially "intFromTo" Ops.sourceIntFromTo
-        , benchIOSrc serially "intFromThenTo" Ops.sourceIntFromThenTo
-        , benchIOSrc serially "integerFromStep" Ops.sourceIntegerFromStep
-        , benchIOSrc serially "fracFromThenTo" Ops.sourceFracFromThenTo
-        , benchIOSrc serially "fracFromTo" Ops.sourceFracFromTo
-        , benchIOSrc serially "fromList" Ops.sourceFromList
-        , benchIOSrc serially "fromListM" Ops.sourceFromListM
+          benchIOSrc serially "unfoldr" (Ops.sourceUnfoldr value)
+        , benchIOSrc serially "unfoldrM" (Ops.sourceUnfoldrM value)
+        , benchIOSrc serially "intFromTo" (Ops.sourceIntFromTo value)
+        , benchIOSrc serially "intFromThenTo" (Ops.sourceIntFromThenTo value)
+        , benchIOSrc serially "integerFromStep" (Ops.sourceIntegerFromStep value)
+        , benchIOSrc serially "fracFromThenTo" (Ops.sourceFracFromThenTo value)
+        , benchIOSrc serially "fracFromTo" (Ops.sourceFracFromTo value)
+        , benchIOSrc serially "fromList" (Ops.sourceFromList value)
+        , benchIOSrc serially "fromListM" (Ops.sourceFromListM value)
         -- These are essentially cons and consM
-        , benchIOSrc serially "fromFoldable" Ops.sourceFromFoldable
-        , benchIOSrc serially "fromFoldableM" Ops.sourceFromFoldableM
+        , benchIOSrc serially "fromFoldable" (Ops.sourceFromFoldable value)
+        , benchIOSrc serially "fromFoldableM" (Ops.sourceFromFoldableM value)
         ]
       , bgroup "elimination"
         [ bgroup "reduce"
           [ bgroup "IO"
-            [ benchIOSink "foldrM" Ops.foldrMReduce
-            , benchIOSink "foldl'" Ops.foldl'Reduce
-            , benchIOSink "foldl1'" Ops.foldl1'Reduce
-            , benchIOSink "foldlM'" Ops.foldlM'Reduce
+            [ benchIOSink value "foldrM" Ops.foldrMReduce
+            , benchIOSink value "foldl'" Ops.foldl'Reduce
+            , benchIOSink value "foldl1'" Ops.foldl1'Reduce
+            , benchIOSink value "foldlM'" Ops.foldlM'Reduce
             ]
           , bgroup "Identity"
-            [ benchIdentitySink "foldrM" Ops.foldrMReduce
-            , benchIdentitySink "foldl'" Ops.foldl'Reduce
-            , benchIdentitySink "foldl1'" Ops.foldl1'Reduce
-            , benchIdentitySink "foldlM'" Ops.foldlM'Reduce
+            [ benchIdentitySink value "foldrM" Ops.foldrMReduce
+            , benchIdentitySink value "foldl'" Ops.foldl'Reduce
+            , benchIdentitySink value "foldl1'" Ops.foldl1'Reduce
+            , benchIdentitySink value "foldlM'" Ops.foldlM'Reduce
             ]
           ]
 
         , bgroup "build"
           [ bgroup "IO"
-            [ benchIOSink "foldrM" Ops.foldrMBuild
-            , benchIOSink "foldl'" Ops.foldl'Build
-            , benchIOSink "foldlM'" Ops.foldlM'Build
+            [ benchIOSink value "foldrM" Ops.foldrMBuild
+            , benchIOSink value "foldl'" Ops.foldl'Build
+            , benchIOSink value "foldlM'" Ops.foldlM'Build
             ]
           , bgroup "Identity"
-            [ benchIdentitySink "foldrM" Ops.foldrMBuild
-            , benchIdentitySink "foldl'" Ops.foldl'Build
-            , benchIdentitySink "foldlM'" Ops.foldlM'Build
+            [ benchIdentitySink value "foldrM" Ops.foldrMBuild
+            , benchIdentitySink value "foldl'" Ops.foldl'Build
+            , benchIdentitySink value "foldlM'" Ops.foldlM'Build
             ]
           ]
-        , benchIOSink "uncons" Ops.uncons
-        , benchIOSink "toNull" $ Ops.toNull serially
-        , benchIOSink "mapM_" Ops.mapM_
+        , benchIOSink value "uncons" Ops.uncons
+        , benchIOSink value "toNull" $ Ops.toNull serially
+        , benchIOSink value "mapM_" Ops.mapM_
 
-        , benchIOSink "init" Ops.init
-        , benchIOSink "tail" Ops.tail
-        , benchIOSink "nullHeadTail" Ops.nullHeadTail
-
-        -- this is too low and causes all benchmarks reported in ns
-        -- , benchIOSink "head" Ops.head
-        , benchIOSink "last" Ops.last
-        -- , benchIOSink "lookup" Ops.lookup
-        , benchIOSink "find" Ops.find
-        , benchIOSink "findIndex" Ops.findIndex
-        , benchIOSink "elemIndex" Ops.elemIndex
+        , benchIOSink value "init" Ops.init
+        , benchIOSink value "tail" Ops.tail
+        , benchIOSink value "nullHeadTail" Ops.nullHeadTail
 
         -- this is too low and causes all benchmarks reported in ns
-        -- , benchIOSink "null" Ops.null
-        , benchIOSink "elem" Ops.elem
-        , benchIOSink "notElem" Ops.notElem
-        , benchIOSink "all" Ops.all
-        , benchIOSink "any" Ops.any
-        , benchIOSink "and" Ops.and
-        , benchIOSink "or" Ops.or
+        -- , benchIOSink value "head" Ops.head
+        , benchIOSink value "last" Ops.last
+        -- , benchIOSink value "lookup" Ops.lookup
+        , benchIOSink value "find" (Ops.find value)
+        , benchIOSink value "findIndex" (Ops.findIndex value)
+        , benchIOSink value "elemIndex" (Ops.elemIndex value)
 
-        , benchIOSink "length" Ops.length
-        , benchHoistSink "length . generally" (Ops.length . IP.generally)
-        , benchIOSink "sum" Ops.sum
-        , benchIOSink "product" Ops.product
+        -- this is too low and causes all benchmarks reported in ns
+        -- , benchIOSink value "null" Ops.null
+        , benchIOSink value "elem" (Ops.elem value)
+        , benchIOSink value "notElem" (Ops.notElem value)
+        , benchIOSink value "all" (Ops.all value)
+        , benchIOSink value "any" (Ops.any value)
+        , benchIOSink value "and" (Ops.and value)
+        , benchIOSink value "or" (Ops.or value)
 
-        , benchIOSink "maximumBy" Ops.maximumBy
-        , benchIOSink "maximum" Ops.maximum
-        , benchIOSink "minimumBy" Ops.minimumBy
-        , benchIOSink "minimum" Ops.minimum
+        , benchIOSink value "length" Ops.length
+        , benchHoistSink value "length . generally" (Ops.length . IP.generally)
+        , benchIOSink value "sum" Ops.sum
+        , benchIOSink value "product" Ops.product
 
-        , benchIOSink "toList" Ops.toList
-        , benchIOSink "toListRev" Ops.toListRev
+        , benchIOSink value "maximumBy" Ops.maximumBy
+        , benchIOSink value "maximum" Ops.maximum
+        , benchIOSink value "minimumBy" Ops.minimumBy
+        , benchIOSink value "minimum" Ops.minimum
+
+        , benchIOSink value "toList" Ops.toList
+        , benchIOSink value "toListRev" Ops.toListRev
         ]
       , bgroup "folds"
-        [ benchIOSink "drain" (S.fold FL.drain)
-        , benchIOSink "drainN" (S.fold (IFL.drainN Ops.value))
-        , benchIOSink "drainWhileTrue" (S.fold (IFL.drainWhile $ (<=) Ops.maxValue))
-        , benchIOSink "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) Ops.maxValue))
-        , benchIOSink "sink" (S.fold $ Sink.toFold Sink.drain)
-        , benchIOSink "last" (S.fold FL.last)
-        , benchIOSink "lastN.1" (S.fold (IA.lastN 1))
-        , benchIOSink "lastN.10" (S.fold (IA.lastN 10))
-        , benchIOSink "lastN.Max" (S.fold (IA.lastN Ops.maxValue))
-        , benchIOSink "length" (S.fold FL.length)
-        , benchIOSink "sum" (S.fold FL.sum)
-        , benchIOSink "product" (S.fold FL.product)
-        , benchIOSink "maximumBy" (S.fold (FL.maximumBy compare))
-        , benchIOSink "maximum" (S.fold FL.maximum)
-        , benchIOSink "minimumBy" (S.fold (FL.minimumBy compare))
-        , benchIOSink "minimum" (S.fold FL.minimum)
-        , benchIOSink "mean" (\s -> S.fold FL.mean (S.map (fromIntegral :: Int -> Double) s))
-        , benchIOSink "variance" (\s -> S.fold FL.variance (S.map (fromIntegral :: Int -> Double) s))
-        , benchIOSink "stdDev" (\s -> S.fold FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
+        [ benchIOSink value "drain" (S.fold FL.drain)
+        , benchIOSink value "drainN" (S.fold (IFL.drainN value))
+        , benchIOSink value "drainWhileTrue" (S.fold (IFL.drainWhile $ (<=) (value + 1)))
+        , benchIOSink value "drainWhileFalse" (S.fold (IFL.drainWhile $ (>=) (value + 1)))
+        , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
+        , benchIOSink value "last" (S.fold FL.last)
+        , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
+        , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
+        , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
+        , benchIOSink value "length" (S.fold FL.length)
+        , benchIOSink value "sum" (S.fold FL.sum)
+        , benchIOSink value "product" (S.fold FL.product)
+        , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
+        , benchIOSink value "maximum" (S.fold FL.maximum)
+        , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
+        , benchIOSink value "minimum" (S.fold FL.minimum)
+        , benchIOSink value "mean" (\s -> S.fold FL.mean (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink value "variance" (\s -> S.fold FL.variance (S.map (fromIntegral :: Int -> Double) s))
+        , benchIOSink value "stdDev" (\s -> S.fold FL.stdDev (S.map (fromIntegral :: Int -> Double) s))
 
-        , benchIOSink "mconcat" (S.fold FL.mconcat . (S.map (Last . Just)))
-        , benchIOSink "foldMap" (S.fold (FL.foldMap (Last . Just)))
+        , benchIOSink value "mconcat" (S.fold FL.mconcat . (S.map (Last . Just)))
+        , benchIOSink value "foldMap" (S.fold (FL.foldMap (Last . Just)))
 
-        , benchIOSink "toList" (S.fold FL.toList)
-        , benchIOSink "toListRevF" (S.fold IFL.toListRevF)
-        , benchIOSink "toStream" (S.fold IP.toStream)
-        , benchIOSink "toStreamRev" (S.fold IP.toStreamRev)
-        , benchIOSink "writeN" (S.fold (A.writeN Ops.value))
+        , benchIOSink value "toList" (S.fold FL.toList)
+        , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
+        , benchIOSink value "toStream" (S.fold IP.toStream)
+        , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
+        , benchIOSink value "writeN" (S.fold (A.writeN value))
 
-        , benchIOSink "index" (S.fold (FL.index Ops.maxValue))
-        , benchIOSink "head" (S.fold FL.head)
-        , benchIOSink "find" (S.fold (FL.find (== Ops.maxValue)))
-        , benchIOSink "findIndex" (S.fold (FL.findIndex (== Ops.maxValue)))
-        , benchIOSink "elemIndex" (S.fold (FL.elemIndex Ops.maxValue))
+        , benchIOSink value "index" (S.fold (FL.index (value + 1)))
+        , benchIOSink value "head" (S.fold FL.head)
+        , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
+        , benchIOSink value "findIndex" (S.fold (FL.findIndex (== (value + 1))))
+        , benchIOSink value "elemIndex" (S.fold (FL.elemIndex (value + 1)))
 
-        , benchIOSink "null" (S.fold FL.null)
-        , benchIOSink "elem" (S.fold (FL.elem Ops.maxValue))
-        , benchIOSink "notElem" (S.fold (FL.notElem Ops.maxValue))
-        , benchIOSink "all" (S.fold (FL.all (<= Ops.maxValue)))
-        , benchIOSink "any" (S.fold (FL.any (> Ops.maxValue)))
-        , benchIOSink "and" (\s -> S.fold FL.and (S.map (<= Ops.maxValue) s))
-        , benchIOSink "or" (\s -> S.fold FL.or (S.map (> Ops.maxValue) s))
+        , benchIOSink value "null" (S.fold FL.null)
+        , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
+        , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
+        , benchIOSink value "all" (S.fold (FL.all (<= (value + 1))))
+        , benchIOSink value "any" (S.fold (FL.any (> (value + 1))))
+        , benchIOSink value "and" (\s -> S.fold FL.and (S.map (<= (value + 1)) s))
+        , benchIOSink value "or" (\s -> S.fold FL.or (S.map (> (value + 1)) s))
         ]
       , bgroup "fold-multi-stream"
-        [ benchIOSink1 "eqBy" Ops.eqBy
-        , benchIOSink1 "cmpBy" Ops.cmpBy
-        , benchIOSink "isPrefixOf" Ops.isPrefixOf
-        , benchIOSink "isSubsequenceOf" Ops.isSubsequenceOf
-        , benchIOSink "stripPrefix" Ops.stripPrefix
+        [ benchIOSink1 "eqBy" (Ops.eqBy value)
+        , benchIOSink1 "cmpBy" (Ops.cmpBy value)
+        , benchIOSink value "isPrefixOf" Ops.isPrefixOf
+        , benchIOSink value "isSubsequenceOf" Ops.isSubsequenceOf
+        , benchIOSink value "stripPrefix" Ops.stripPrefix
         ]
       , bgroup "folds-transforms"
-        [ benchIOSink "drain" (S.fold FL.drain)
-        , benchIOSink "lmap" (S.fold (IFL.lmap (+1) FL.drain))
-        , benchIOSink "pipe-mapM"
+        [ benchIOSink value "drain" (S.fold FL.drain)
+        , benchIOSink value "lmap" (S.fold (IFL.lmap (+1) FL.drain))
+        , benchIOSink value "pipe-mapM"
              (S.fold (IFL.transform (Pipe.mapM (\x -> return $ x + 1)) FL.drain))
         ]
       , bgroup "folds-compositions" -- Applicative
         [
-          benchIOSink "all,any"    (S.fold ((,) <$> FL.all (<= Ops.maxValue)
-                                                  <*> FL.any (> Ops.maxValue)))
-        , benchIOSink "sum,length" (S.fold ((,) <$> FL.sum <*> FL.length))
+          benchIOSink value "all,any"    (S.fold ((,) <$> FL.all (<= (value + 1))
+                                                  <*> FL.any (> (value + 1))))
+        , benchIOSink value "sum,length" (S.fold ((,) <$> FL.sum <*> FL.length))
         ]
       , bgroup "pipes"
-        [ benchIOSink "mapM" (Ops.transformMapM serially 1)
-        , benchIOSink "compose" (Ops.transformComposeMapM serially 1)
-        , benchIOSink "tee" (Ops.transformTeeMapM serially 1)
-        , benchIOSink "zip" (Ops.transformZipMapM serially 1)
+        [ benchIOSink value "mapM" (Ops.transformMapM serially 1)
+        , benchIOSink value "compose" (Ops.transformComposeMapM serially 1)
+        , benchIOSink value "tee" (Ops.transformTeeMapM serially 1)
+        , benchIOSink value "zip" (Ops.transformZipMapM serially 1)
         ]
       , bgroup "pipesX4"
-        [ benchIOSink "mapM" (Ops.transformMapM serially 4)
-        , benchIOSink "compose" (Ops.transformComposeMapM serially 4)
-        , benchIOSink "tee" (Ops.transformTeeMapM serially 4)
-        , benchIOSink "zip" (Ops.transformZipMapM serially 4)
+        [ benchIOSink value "mapM" (Ops.transformMapM serially 4)
+        , benchIOSink value "compose" (Ops.transformComposeMapM serially 4)
+        , benchIOSink value "tee" (Ops.transformTeeMapM serially 4)
+        , benchIOSink value "zip" (Ops.transformZipMapM serially 4)
         ]
       , bgroup "transformer"
-        [ benchIOSrc serially "evalState" Ops.evalStateT
-        , benchIOSrc serially "withState" Ops.withState
+        [ benchIOSrc serially "evalState" (Ops.evalStateT value)
+        , benchIOSrc serially "withState" (Ops.withState value)
         ]
       , bgroup "transformation"
-        [ benchIOSink "scanl" (Ops.scan 1)
-        , benchIOSink "scanl1'" (Ops.scanl1' 1)
-        , benchIOSink "map" (Ops.map 1)
-        , benchIOSink "fmap" (Ops.fmap 1)
-        , benchIOSink "mapM" (Ops.mapM serially 1)
-        , benchIOSink "mapMaybe" (Ops.mapMaybe 1)
-        , benchIOSink "mapMaybeM" (Ops.mapMaybeM 1)
+        [ benchIOSink value "scanl" (Ops.scan 1)
+        , benchIOSink value "scanl1'" (Ops.scanl1' 1)
+        , benchIOSink value "map" (Ops.map 1)
+        , benchIOSink value "fmap" (Ops.fmap 1)
+        , benchIOSink value "mapM" (Ops.mapM serially 1)
+        , benchIOSink value "mapMaybe" (Ops.mapMaybe 1)
+        , benchIOSink value "mapMaybeM" (Ops.mapMaybeM 1)
         , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
-            Ops.sequence serially (Ops.sourceUnfoldrMAction n)
-        , benchIOSink "findIndices" (Ops.findIndices 1)
-        , benchIOSink "elemIndices" (Ops.elemIndices 1)
-        , benchIOSink "reverse" (Ops.reverse 1)
-        , benchIOSink "reverse'" (Ops.reverse' 1)
-        , benchIOSink "foldrS" (Ops.foldrS 1)
-        , benchIOSink "foldrSMap" (Ops.foldrSMap 1)
-        , benchIOSink "foldrT" (Ops.foldrT 1)
-        , benchIOSink "foldrTMap" (Ops.foldrTMap 1)
-        , benchIOSink "tap" (Ops.tap 1)
-        , benchIOSink "tapRate 1 second" (Ops.tapRate 1)
-        , benchIOSink "pollCounts 1 second" (Ops.pollCounts 1)
-        , benchIOSink "tapAsync" (Ops.tapAsync 1)
-        , benchIOSink "tapAsyncS" (Ops.tapAsyncS 1)
+            Ops.sequence serially (Ops.sourceUnfoldrMAction value n)
+        , benchIOSink value "findIndices" (Ops.findIndices value 1)
+        , benchIOSink value "elemIndices" (Ops.elemIndices value 1)
+        , benchIOSink value "reverse" (Ops.reverse 1)
+        , benchIOSink value "reverse'" (Ops.reverse' 1)
+        , benchIOSink value "foldrS" (Ops.foldrS 1)
+        , benchIOSink value "foldrSMap" (Ops.foldrSMap 1)
+        , benchIOSink value "foldrT" (Ops.foldrT 1)
+        , benchIOSink value "foldrTMap" (Ops.foldrTMap 1)
+        , benchIOSink value "tap" (Ops.tap 1)
+        , benchIOSink value "tapRate 1 second" (Ops.tapRate 1)
+        , benchIOSink value "pollCounts 1 second" (Ops.pollCounts 1)
+        , benchIOSink value "tapAsync" (Ops.tapAsync 1)
+        , benchIOSink value "tapAsyncS" (Ops.tapAsyncS 1)
         ]
       , bgroup "transformationX4"
-        [ benchIOSink "scan" (Ops.scan 4)
-        , benchIOSink "scanl1'" (Ops.scanl1' 4)
-        , benchIOSink "map" (Ops.map 4)
-        , benchIOSink "fmap" (Ops.fmap 4)
-        , benchIOSink "mapM" (Ops.mapM serially 4)
-        , benchIOSink "mapMaybe" (Ops.mapMaybe 4)
-        , benchIOSink "mapMaybeM" (Ops.mapMaybeM 4)
+        [ benchIOSink value "scan" (Ops.scan 4)
+        , benchIOSink value "scanl1'" (Ops.scanl1' 4)
+        , benchIOSink value "map" (Ops.map 4)
+        , benchIOSink value "fmap" (Ops.fmap 4)
+        , benchIOSink value "mapM" (Ops.mapM serially 4)
+        , benchIOSink value "mapMaybe" (Ops.mapMaybe 4)
+        , benchIOSink value "mapMaybeM" (Ops.mapMaybeM 4)
         -- , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
             -- Ops.sequence serially (Ops.sourceUnfoldrMAction n)
-        , benchIOSink "findIndices" (Ops.findIndices 4)
-        , benchIOSink "elemIndices" (Ops.elemIndices 4)
+        , benchIOSink value "findIndices" (Ops.findIndices value 4)
+        , benchIOSink value "elemIndices" (Ops.elemIndices value 4)
         ]
       , bgroup "filtering"
-        [ benchIOSink "filter-even"     (Ops.filterEven 1)
-        , benchIOSink "filter-all-out"  (Ops.filterAllOut 1)
-        , benchIOSink "filter-all-in"   (Ops.filterAllIn 1)
-        , benchIOSink "take-all"        (Ops.takeAll 1)
-        , benchIOSink "takeWhile-true"  (Ops.takeWhileTrue 1)
-        --, benchIOSink "takeWhileM-true" (Ops.takeWhileMTrue 1)
-        , benchIOSink "drop-one"        (Ops.dropOne 1)
-        , benchIOSink "drop-all"        (Ops.dropAll 1)
-        , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 1)
-        --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 1)
-        , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 1)
-        , benchIOSink "deleteBy" (Ops.deleteBy 1)
-        , benchIOSink "intersperse" (Ops.intersperse 1)
-        , benchIOSink "insertBy" (Ops.insertBy 1)
+        [ benchIOSink value "filter-even"     (Ops.filterEven 1)
+        , benchIOSink value "filter-all-out"  (Ops.filterAllOut value 1)
+        , benchIOSink value "filter-all-in"   (Ops.filterAllIn value 1)
+        , benchIOSink value "take-all"        (Ops.takeAll value 1)
+        , benchIOSink value "takeWhile-true"  (Ops.takeWhileTrue value 1)
+        --, benchIOSink value "takeWhileM-true" (Ops.takeWhileMTrue 1)
+        , benchIOSink value "drop-one"        (Ops.dropOne 1)
+        , benchIOSink value "drop-all"        (Ops.dropAll value 1)
+        , benchIOSink value "dropWhile-true"  (Ops.dropWhileTrue value 1)
+        --, benchIOSink value "dropWhileM-true" (Ops.dropWhileMTrue 1)
+        , benchIOSink value "dropWhile-false" (Ops.dropWhileFalse value 1)
+        , benchIOSink value "deleteBy" (Ops.deleteBy value 1)
+        , benchIOSink value "intersperse" (Ops.intersperse value 1)
+        , benchIOSink value "insertBy" (Ops.insertBy value 1)
         ]
       , bgroup "filteringX4"
-        [ benchIOSink "filter-even"     (Ops.filterEven 4)
-        , benchIOSink "filter-all-out"  (Ops.filterAllOut 4)
-        , benchIOSink "filter-all-in"   (Ops.filterAllIn 4)
-        , benchIOSink "take-all"        (Ops.takeAll 4)
-        , benchIOSink "takeWhile-true"  (Ops.takeWhileTrue 4)
-        --, benchIOSink "takeWhileM-true" (Ops.takeWhileMTrue 4)
-        , benchIOSink "drop-one"        (Ops.dropOne 4)
-        , benchIOSink "drop-all"        (Ops.dropAll 4)
-        , benchIOSink "dropWhile-true"  (Ops.dropWhileTrue 4)
-        --, benchIOSink "dropWhileM-true" (Ops.dropWhileMTrue 4)
-        , benchIOSink "dropWhile-false" (Ops.dropWhileFalse 4)
-        , benchIOSink "deleteBy" (Ops.deleteBy 4)
-        , benchIOSink "intersperse" (Ops.intersperse 4)
-        , benchIOSink "insertBy" (Ops.insertBy 4)
+        [ benchIOSink value "filter-even"     (Ops.filterEven 4)
+        , benchIOSink value "filter-all-out"  (Ops.filterAllOut value 4)
+        , benchIOSink value "filter-all-in"   (Ops.filterAllIn value 4)
+        , benchIOSink value "take-all"        (Ops.takeAll value 4)
+        , benchIOSink value "takeWhile-true"  (Ops.takeWhileTrue value 4)
+        --, benchIOSink value "takeWhileM-true" (Ops.takeWhileMTrue 4)
+        , benchIOSink value "drop-one"        (Ops.dropOne 4)
+        , benchIOSink value "drop-all"        (Ops.dropAll value 4)
+        , benchIOSink value "dropWhile-true"  (Ops.dropWhileTrue value 4)
+        --, benchIOSink value "dropWhileM-true" (Ops.dropWhileMTrue 4)
+        , benchIOSink value "dropWhile-false" (Ops.dropWhileFalse value 4)
+        , benchIOSink value "deleteBy" (Ops.deleteBy value 4)
+        , benchIOSink value "intersperse" (Ops.intersperse value 4)
+        , benchIOSink value "insertBy" (Ops.insertBy value 4)
         ]
       , bgroup "joining"
-        [ benchIOSrc1 "zip (2,x/2)" (Ops.zip (Ops.value `div` 2))
-        , benchIOSrc1 "zipM (2,x/2)" (Ops.zipM (Ops.value `div` 2))
-        , benchIOSrc1 "mergeBy (2,x/2)" (Ops.mergeBy (Ops.value `div` 2))
-        , benchIOSrc1 "serial (2,x/2)" (Ops.serial2 (Ops.value `div` 2))
-        , benchIOSrc1 "append (2,x/2)" (Ops.append2 (Ops.value `div` 2))
-        , benchIOSrc1 "serial (2,2,x/4)" (Ops.serial4 (Ops.value `div` 4))
-        , benchIOSrc1 "append (2,2,x/4)" (Ops.append4 (Ops.value `div` 4))
-        , benchIOSrc1 "wSerial (2,x/2)" Ops.wSerial2
-        , benchIOSrc1 "interleave (2,x/2)" Ops.interleave2
-        , benchIOSrc1 "roundRobin (2,x/2)" Ops.roundRobin2
+        [ benchIOSrc1 "zip (2,x/2)" (Ops.zip (value `div` 2))
+        , benchIOSrc1 "zipM (2,x/2)" (Ops.zipM (value `div` 2))
+        , benchIOSrc1 "mergeBy (2,x/2)" (Ops.mergeBy (value `div` 2))
+        , benchIOSrc1 "serial (2,x/2)" (Ops.serial2 (value `div` 2))
+        , benchIOSrc1 "append (2,x/2)" (Ops.append2 (value `div` 2))
+        , benchIOSrc1 "serial (2,2,x/4)" (Ops.serial4 (value `div` 4))
+        , benchIOSrc1 "append (2,2,x/4)" (Ops.append4 (value `div` 4))
+        , benchIOSrc1 "wSerial (2,x/2)" (Ops.wSerial2 value)
+        , benchIOSrc1 "interleave (2,x/2)" (Ops.interleave2 value)
+        , benchIOSrc1 "roundRobin (2,x/2)" (Ops.roundRobin2 value)
         ]
       , bgroup "concat-foldable"
-        [ benchIOSrc serially "foldMapWith" Ops.sourceFoldMapWith
-        , benchIOSrc serially "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchIOSrc serially "foldMapM" Ops.sourceFoldMapM
-        , benchIOSrc serially "foldWithConcatMapId" Ops.sourceConcatMapId
+        [ benchIOSrc serially "foldMapWith" (Ops.sourceFoldMapWith value)
+        , benchIOSrc serially "foldMapWithM" (Ops.sourceFoldMapWithM value)
+        , benchIOSrc serially "foldMapM" (Ops.sourceFoldMapM value)
+        , benchIOSrc serially "foldWithConcatMapId" (Ops.sourceConcatMapId value)
         ]
       , bgroup "concat-serial"
-        [ benchIOSrc1 "concatMapPure (2,x/2)" (Ops.concatMapPure 2 (Ops.value `div` 2))
-        , benchIOSrc1 "concatMap (2,x/2)" (Ops.concatMap 2 (Ops.value `div` 2))
-        , benchIOSrc1 "concatMap (x/2,2)" (Ops.concatMap (Ops.value `div` 2) 2)
-        , benchIOSrc1 "concatMapRepl (x/4,4)" Ops.concatMapRepl4xN
-        , benchIOSrc1 "concatUnfoldRepl (x/4,4)" Ops.concatUnfoldRepl4xN
+        [ benchIOSrc1 "concatMapPure (2,x/2)" (Ops.concatMapPure 2 (value `div` 2))
+        , benchIOSrc1 "concatMap (2,x/2)" (Ops.concatMap 2 (value `div` 2))
+        , benchIOSrc1 "concatMap (x/2,2)" (Ops.concatMap (value `div` 2) 2)
+        , benchIOSrc1 "concatMapRepl (x/4,4)" (Ops.concatMapRepl4xN value)
+        , benchIOSrc1 "concatUnfoldRepl (x/4,4)" (Ops.concatUnfoldRepl4xN value)
 
         , benchIOSrc1 "concatMapWithSerial (2,x/2)"
-            (Ops.concatMapWithSerial 2 (Ops.value `div` 2))
+            (Ops.concatMapWithSerial 2 (value `div` 2))
         , benchIOSrc1 "concatMapWithSerial (x/2,2)"
-            (Ops.concatMapWithSerial (Ops.value `div` 2) 2)
+            (Ops.concatMapWithSerial (value `div` 2) 2)
 
         , benchIOSrc1 "concatMapWithAppend (2,x/2)"
-            (Ops.concatMapWithAppend 2 (Ops.value `div` 2))
+            (Ops.concatMapWithAppend 2 (value `div` 2))
         ]
       , bgroup "concat-interleave"
         [ benchIOSrc1 "concatMapWithWSerial (2,x/2)"
-            (Ops.concatMapWithWSerial 2 (Ops.value `div` 2))
+            (Ops.concatMapWithWSerial 2 (value `div` 2))
         , benchIOSrc1 "concatMapWithWSerial (x/2,2)"
-            (Ops.concatMapWithWSerial (Ops.value `div` 2) 2)
+            (Ops.concatMapWithWSerial (value `div` 2) 2)
         , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
-                Ops.concatUnfoldInterleaveRepl4xN
+                (Ops.concatUnfoldInterleaveRepl4xN value)
         , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
-                Ops.concatUnfoldRoundrobinRepl4xN
+                (Ops.concatUnfoldRoundrobinRepl4xN value)
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not
     -- need monolithic implementations of these.
     , bgroup "mixed"
-      [ benchIOSink "scanl-map" (Ops.scanMap 1)
-      , benchIOSink "foldl-map" Ops.foldl'ReduceMap
-      , benchIOSink "sum-product-fold"  Ops.sumProductFold
-      , benchIOSink "sum-product-scan"  Ops.sumProductScan
+      [ benchIOSink value "scanl-map" (Ops.scanMap 1)
+      , benchIOSink value "foldl-map" Ops.foldl'ReduceMap
+      , benchIOSink value "sum-product-fold"  Ops.sumProductFold
+      , benchIOSink value "sum-product-scan"  Ops.sumProductScan
       ]
     , bgroup "mixedX4"
-      [ benchIOSink "scan-map"    (Ops.scanMap 4)
-      , benchIOSink "drop-map"    (Ops.dropMap 4)
-      , benchIOSink "drop-scan"   (Ops.dropScan 4)
-      , benchIOSink "take-drop"   (Ops.takeDrop 4)
-      , benchIOSink "take-scan"   (Ops.takeScan 4)
-      , benchIOSink "take-map"    (Ops.takeMap 4)
-      , benchIOSink "filter-drop" (Ops.filterDrop 4)
-      , benchIOSink "filter-take" (Ops.filterTake 4)
-      , benchIOSink "filter-scan" (Ops.filterScan 4)
-      , benchIOSink "filter-scanl1" (Ops.filterScanl1 4)
-      , benchIOSink "filter-map"  (Ops.filterMap 4)
+      [ benchIOSink value "scan-map"    (Ops.scanMap 4)
+      , benchIOSink value "drop-map"    (Ops.dropMap 4)
+      , benchIOSink value "drop-scan"   (Ops.dropScan 4)
+      , benchIOSink value "take-drop"   (Ops.takeDrop value 4)
+      , benchIOSink value "take-scan"   (Ops.takeScan value 4)
+      , benchIOSink value "take-map"    (Ops.takeMap value 4)
+      , benchIOSink value "filter-drop" (Ops.filterDrop value 4)
+      , benchIOSink value "filter-take" (Ops.filterTake value 4)
+      , benchIOSink value "filter-scan" (Ops.filterScan 4)
+      , benchIOSink value "filter-scanl1" (Ops.filterScanl1 4)
+      , benchIOSink value "filter-map"  (Ops.filterMap value 4)
       ]
     , bgroup "iterated"
       [ benchIOSrc serially "mapM"           Ops.iterateMapM
       , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
       , benchIOSrc serially "scanl1(1/100)"  Ops.iterateScanl1
       , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
-      , benchIOSrc serially "takeAll"        Ops.iterateTakeAll
+      , benchIOSrc serially "takeAll"        (Ops.iterateTakeAll value)
       , benchIOSrc serially "dropOne"        Ops.iterateDropOne
-      , benchIOSrc serially "dropWhileFalse" Ops.iterateDropWhileFalse
-      , benchIOSrc serially "dropWhileTrue"  Ops.iterateDropWhileTrue
+      , benchIOSrc serially "dropWhileFalse" (Ops.iterateDropWhileFalse value)
+      , benchIOSrc serially "dropWhileTrue"  (Ops.iterateDropWhileTrue value)
       ]
       ]
     , bgroup "wSerially"
         [ bgroup "transformation"
-            [ benchIOSink "fmap"   $ Ops.fmap' wSerially 1
+            [ benchIOSink value "fmap"   $ Ops.fmap' wSerially 1
             ]
         ]
     , bgroup "zipSerially"
         [ bgroup "transformation"
-            [ benchIOSink "fmap"   $ Ops.fmap' zipSerially 1
+            [ benchIOSink value "fmap"   $ Ops.fmap' zipSerially 1
             ]
         ]
     , bgroup "zipAsyncly"
         [ bgroup "transformation"
-            [ benchIOSink "fmap"   $ Ops.fmap' zipAsyncly 1
+            [ benchIOSink value "fmap"   $ Ops.fmap' zipAsyncly 1
             ]
         ]
     ]
+  where
+      defaultValue = 100000
+      parseValue [] = (defaultValue, [])
+      parseValue a@(x:xs) =
+          case (readMaybe x :: Maybe Int) of
+            Just value -> (value, xs)
+            Nothing -> (defaultValue, a)

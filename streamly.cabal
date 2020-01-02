@@ -584,29 +584,18 @@ test-suite parallel-loops
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+-- NOTE :
+-- For linear, linear-async and linear-rate if you want to pass the number
+-- of stream elements for benchmarking then you can pass it as the first 
+-- argument after `--`, as a gauge argument. If you don't give the argument,
+-- the number of stream elements default to 100000.
+-- Examples:
+-- $ cabal run linear -- 1000000 [additional gauge options here...]
+-- $ cabal run linear -- [additional gauge options here...]
+
 benchmark linear
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: Linear.hs
-  other-modules: Streamly.Benchmark.Prelude
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-  if flag(inspection)
-    build-depends:     template-haskell   >= 2.14  && < 2.16
-                     , inspection-testing >= 0.4   && < 0.5
-
-benchmark linear-long
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  cpp-options: -DLONG_BENCHMARKS
   hs-source-dirs: benchmark
   main-is: Linear.hs
   other-modules: Streamly.Benchmark.Prelude
@@ -729,7 +718,6 @@ benchmark fileio
 
 benchmark linear-async
   import: bench-options-threaded
-  cpp-options: -DLINEAR_ASYNC
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
@@ -746,30 +734,6 @@ benchmark linear-async
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.16
                      , inspection-testing >= 0.4   && < 0.5
-
-benchmark linear-async-long
-  import: bench-options-threaded
-  cpp-options: -DLONG_BENCHMARKS
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: LinearAsync.hs
-  other-modules: Streamly.Benchmark.Prelude
-  if flag(dev)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , deepseq             >= 1.4.1 && < 1.5
-      , random              >= 1.0   && < 2.0
-      , gauge               >= 0.2.4 && < 0.3
-    if impl(ghc < 8.0)
-      build-depends:
-          transformers  >= 0.4 && < 0.6
-    if flag(inspection)
-      build-depends:     template-haskell   >= 2.14  && < 2.16
-                       , inspection-testing >= 0.4   && < 0.5
-  else
-    buildable: False
 
 benchmark nested-concurrent
   import: bench-options-threaded

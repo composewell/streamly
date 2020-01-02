@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -11,6 +12,8 @@
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 import qualified Streamly.Benchmark.Prelude as Ops
+import System.Environment (getArgs)
+import Text.Read (readMaybe)
 
 import Streamly
 import Gauge
@@ -31,30 +34,41 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main =
-  defaultMain
+main = do
+  -- Basement.Terminal.initialize required?
+  args <- getArgs
+  let (value, args') = parseValue args
+      (cfg, extra) = parseWith defaultConfig args'
+  runMode (mode cfg) cfg extra
     -- XXX arbitrarily large rate should be the same as rate Nothing
     [ bgroup "avgrate"
       [ bgroup "asyncly"
         [ -- benchIO "unfoldr" $ Ops.toNull asyncly
-          benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
+          benchSrcIO asyncly "unfoldrM" (Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/Nothing"
-            (rate Nothing . Ops.sourceUnfoldrM)
+            (rate Nothing . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/1,000,000"
-            (avgRate 1000000 . Ops.sourceUnfoldrM)
+            (avgRate 1000000 . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/3,000,000"
-            (avgRate 3000000 . Ops.sourceUnfoldrM)
+            (avgRate 3000000 . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/10,000,000/maxThreads1"
-            (maxThreads 1 . avgRate 10000000 . Ops.sourceUnfoldrM)
+            (maxThreads 1 . avgRate 10000000 . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/10,000,000"
-            (avgRate 10000000 . Ops.sourceUnfoldrM)
+            (avgRate 10000000 . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM/20,000,000"
-            (avgRate 20000000 . Ops.sourceUnfoldrM)
+            (avgRate 20000000 . Ops.sourceUnfoldrM value)
         ]
       , bgroup "aheadly"
         [
           benchSrcIO aheadly "unfoldrM/1,000,000"
-            (avgRate 1000000 . Ops.sourceUnfoldrM)
+            (avgRate 1000000 . Ops.sourceUnfoldrM value)
         ]
       ]
     ]
+  where
+      defaultValue = 100000
+      parseValue [] = (defaultValue, [])
+      parseValue a@(x:xs) =
+          case (readMaybe x :: Maybe Int) of
+            Just value -> (value, xs)
+            Nothing -> (defaultValue, a)

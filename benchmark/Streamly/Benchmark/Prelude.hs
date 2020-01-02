@@ -35,7 +35,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip, (**), (/))
+        (<*>), flip)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -54,18 +54,8 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 
-value, maxValue, value2 :: Int
-
--- To detect memory leak issues we need larger streams
-#ifdef LONG_BENCHMARKS
-value = 10000000
-#elif defined(LINEAR_ASYNC)
-value = 10000
-#else
-value = 100000
-#endif
-maxValue = value + 1
-value2 = P.round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
+-- To detect memory leak issues use larger streams.
+-- See Note in .cabal file on how to generate streams of specific size.
 
 type Stream m a = S.SerialT m a
 
@@ -76,33 +66,33 @@ type Stream m a = S.SerialT m a
 -- enumerate
 
 {-# INLINE sourceIntFromTo #-}
-sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromTo n = S.enumerateFromTo n (n + value)
+sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceIntFromTo value n = S.enumerateFromTo n (n + value)
 
 {-# INLINE sourceIntFromThenTo #-}
-sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceIntFromThenTo n = S.enumerateFromThenTo n (n + 1) (n + value)
+sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceIntFromThenTo value n = S.enumerateFromThenTo n (n + 1) (n + value)
 
 {-# INLINE sourceFracFromTo #-}
-sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromTo n =
+sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Double
+sourceFracFromTo value n =
     S.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
 
 {-# INLINE sourceFracFromThenTo #-}
-sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> t m Double
-sourceFracFromThenTo n = S.enumerateFromThenTo (fromIntegral n)
+sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Double
+sourceFracFromThenTo value n = S.enumerateFromThenTo (fromIntegral n)
     (fromIntegral n + 1.0001) (fromIntegral (n + value))
 
 {-# INLINE sourceIntegerFromStep #-}
-sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> t m Integer
-sourceIntegerFromStep n =
+sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> Int -> t m Integer
+sourceIntegerFromStep value n =
     S.take value $ S.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
 
 -- unfoldr
 
 {-# INLINE sourceUnfoldr #-}
-sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceUnfoldr n = S.unfoldr step n
+sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceUnfoldr value n = S.unfoldr step n
     where
     step cnt =
         if cnt > n + value
@@ -119,8 +109,8 @@ sourceUnfoldrN upto start = S.unfoldr step start
         else Just (cnt, cnt + 1)
 
 {-# INLINE sourceUnfoldrM #-}
-sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceUnfoldrM n = S.unfoldrM step n
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM value n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -128,8 +118,8 @@ sourceUnfoldrM n = S.unfoldrM step n
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE source #-}
-source :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-source n = sourceUnfoldrM n
+source :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+source = sourceUnfoldrM
 
 {-# INLINE sourceUnfoldrMN #-}
 sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
@@ -141,8 +131,8 @@ sourceUnfoldrMN upto start = S.unfoldrM step start
         else return (Just (cnt, cnt + 1))
 
 {-# INLINE sourceUnfoldrMAction #-}
-sourceUnfoldrMAction :: (S.IsStream t, S.MonadAsync m) => Int -> t m (m Int)
-sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
+sourceUnfoldrMAction :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (m Int)
+sourceUnfoldrMAction value n = S.serially $ S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -152,40 +142,40 @@ sourceUnfoldrMAction n = S.serially $ S.unfoldrM step n
 -- fromIndices
 
 {-# INLINE sourceFromIndices #-}
-sourceFromIndices :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceFromIndices n = S.take value $ S.fromIndices (+ n)
+sourceFromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
 
 {-# INLINE sourceFromIndicesM #-}
-sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-sourceFromIndicesM n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
+sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromIndicesM value n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
 
 -- fromList
 
 {-# INLINE sourceFromList #-}
-sourceFromList :: (Monad m, S.IsStream t) => Int -> t m Int
-sourceFromList n = S.fromList [n..n+value]
+sourceFromList :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromList value n = S.fromList [n..n+value]
 
 {-# INLINE sourceFromListM #-}
-sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> t m Int
-sourceFromListM n = S.fromListM (Prelude.fmap return [n..n+value])
+sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromListM value n = S.fromListM (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceIsList #-}
-sourceIsList :: Int -> S.SerialT Identity Int
-sourceIsList n = GHC.fromList [n..n+value]
+sourceIsList :: Int -> Int -> S.SerialT Identity Int
+sourceIsList value n = GHC.fromList [n..n+value]
 
 {-# INLINE sourceIsString #-}
-sourceIsString :: Int -> S.SerialT Identity P.Char
-sourceIsString n = GHC.fromString (P.replicate (n + value) 'a')
+sourceIsString :: Int -> Int -> S.SerialT Identity P.Char
+sourceIsString value n = GHC.fromString (P.replicate (n + value) 'a')
 
 -- fromFoldable
 
 {-# INLINE sourceFromFoldable #-}
-sourceFromFoldable :: S.IsStream t => Int -> t m Int
-sourceFromFoldable n = S.fromFoldable [n..n+value]
+sourceFromFoldable :: S.IsStream t => Int -> Int -> t m Int
+sourceFromFoldable value n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}
-sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> t m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
+sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceFromFoldableM value n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -206,8 +196,11 @@ toList :: Monad m => Stream m Int -> m [Int]
 {-# INLINE findIndex #-}
 {-# INLINE elemIndex #-}
 {-# INLINE foldl1'Reduce #-}
-head, last, minimum, maximum, find, findIndex, elemIndex, foldl1'Reduce
+head, last, minimum, maximum, foldl1'Reduce
     :: Monad m => Stream m Int -> m (Maybe Int)
+
+find, findIndex, elemIndex
+    :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 
 {-# INLINE minimumBy #-}
 {-# INLINE maximumBy #-}
@@ -238,7 +231,9 @@ foldrMBuild, foldl'Build, foldlM'Build
 {-# INLINE null #-}
 {-# INLINE elem #-}
 {-# INLINE notElem #-}
-null, elem, notElem, all, any, and, or :: Monad m => Stream m Int -> m Bool
+null :: Monad m => Stream m Int -> m Bool
+
+elem, notElem, all, any, and, or :: Monad m => Int -> Stream m Int -> m Bool
 
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
@@ -291,16 +286,16 @@ foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 last   = S.last
 null   = S.null
 head   = S.head
-elem   = S.elem maxValue
-notElem = S.notElem maxValue
+elem value   = S.elem (value + 1)
+notElem value = S.notElem (value + 1)
 length = S.length
-all    = S.all (<= maxValue)
-any    = S.any (> maxValue)
-and    = S.and . S.map (<= maxValue)
-or     = S.or . S.map (> maxValue)
-find   = S.find (== maxValue)
-findIndex = S.findIndex (== maxValue)
-elemIndex = S.elemIndex maxValue
+all value    = S.all (<= (value + 1))
+any value    = S.any (> (value + 1))
+and value    = S.and . S.map (<= (value + 1))
+or value     = S.or . S.map (> (value + 1))
+find value   = S.find (== (value + 1))
+findIndex value = S.findIndex (== (value + 1))
+elemIndex value = S.elemIndex (value + 1)
 maximum = S.maximum
 minimum = S.minimum
 sum    = S.sum
@@ -368,17 +363,24 @@ composeN' n f =
 {-# INLINE foldrSMap #-}
 {-# INLINE foldrT #-}
 {-# INLINE foldrTMap #-}
-scan, scanl1', map, fmap, mapMaybe, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, takeWhileMTrue, dropOne,
-    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy, reverse, reverse',
+scan, scanl1', map, fmap, mapMaybe, filterEven,
+    takeOne, dropOne,
+    reverse, reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
     :: MonadIO m
     => Int -> Stream m Int -> m ()
 
+filterAllOut,
+    filterAllIn, takeAll, takeWhileTrue, takeWhileMTrue,
+    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
+    findIndices, elemIndices, insertBy, deleteBy
+    :: MonadIO m
+    => Int -> Int -> Stream m Int -> m ()
+
 {-# INLINE mapMaybeM #-}
 {-# INLINE intersperse #-}
-mapMaybeM, intersperse :: S.MonadAsync m => Int -> Stream m Int -> m ()
+mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
 
 {-# INLINE mapM #-}
 {-# INLINE map' #-}
@@ -431,22 +433,22 @@ mapMaybeM     n = composeN n $ S.mapMaybeM
     (\x -> if Prelude.odd x then return Nothing else return $ Just x)
 sequence t    = transform . t . S.sequence
 filterEven    n = composeN n $ S.filter even
-filterAllOut  n = composeN n $ S.filter (> maxValue)
-filterAllIn   n = composeN n $ S.filter (<= maxValue)
+filterAllOut value  n = composeN n $ S.filter (> (value + 1))
+filterAllIn value   n = composeN n $ S.filter (<= (value + 1))
 takeOne       n = composeN n $ S.take 1
-takeAll       n = composeN n $ S.take maxValue
-takeWhileTrue n = composeN n $ S.takeWhile (<= maxValue)
-takeWhileMTrue n = composeN n $ S.takeWhileM (return . (<= maxValue))
+takeAll value       n = composeN n $ S.take (value + 1)
+takeWhileTrue value n = composeN n $ S.takeWhile (<= (value + 1))
+takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
 dropOne        n = composeN n $ S.drop 1
-dropAll        n = composeN n $ S.drop maxValue
-dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
-dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
-dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
-findIndices    n = composeN n $ S.findIndices (== maxValue)
-elemIndices    n = composeN n $ S.elemIndices maxValue
-intersperse    n = composeN n $ S.intersperse maxValue
-insertBy       n = composeN n $ S.insertBy compare maxValue
-deleteBy       n = composeN n $ S.deleteBy (>=) maxValue
+dropAll value        n = composeN n $ S.drop (value + 1)
+dropWhileTrue value  n = composeN n $ S.dropWhile (<= (value + 1))
+dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
+dropWhileFalse value n = composeN n $ S.dropWhile (> (value + 1))
+findIndices value    n = composeN n $ S.findIndices (== (value + 1))
+elemIndices value    n = composeN n $ S.elemIndices (value + 1)
+intersperse value    n = composeN n $ S.intersperse (value + 1)
+insertBy value       n = composeN n $ S.insertBy compare (value + 1)
+deleteBy value       n = composeN n $ S.deleteBy (>=) (value + 1)
 reverse        n = composeN n $ S.reverse
 reverse'       n = composeN n $ Internal.reverse'
 foldrS         n = composeN n $ Internal.foldrS S.cons S.nil
@@ -493,21 +495,25 @@ transformZipMapM t n = composeN' n $ t . Internal.transform
 {-# INLINE filterScan #-}
 {-# INLINE filterScanl1 #-}
 {-# INLINE filterMap #-}
-scanMap, dropMap, dropScan, takeDrop, takeScan, takeMap, filterDrop,
-    filterTake, filterScan, filterScanl1, filterMap
+scanMap, dropMap, dropScan,
+    filterScan, filterScanl1
     :: MonadIO m => Int -> Stream m Int -> m ()
+
+takeDrop, takeScan, takeMap, filterDrop,
+    filterTake, filterMap
+    :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 
 scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
 dropMap    n = composeN n $ S.map (subtract 1) . S.drop 1
 dropScan   n = composeN n $ S.scanl' (+) 0 . S.drop 1
-takeDrop   n = composeN n $ S.drop 1 . S.take maxValue
-takeScan   n = composeN n $ S.scanl' (+) 0 . S.take maxValue
-takeMap    n = composeN n $ S.map (subtract 1) . S.take maxValue
-filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
-filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
+takeDrop value   n = composeN n $ S.drop 1 . S.take (value + 1)
+takeScan value   n = composeN n $ S.scanl' (+) 0 . S.take (value + 1)
+takeMap value    n = composeN n $ S.map (subtract 1) . S.take (value + 1)
+filterDrop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
+filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
-filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+filterMap value  n = composeN n $ S.map (subtract 1) . S.filter (<= (value + 1))
 
 -------------------------------------------------------------------------------
 -- Scan and fold
@@ -549,10 +555,15 @@ iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
 {-# INLINE iterateDropOne #-}
 {-# INLINE iterateDropWhileFalse #-}
 {-# INLINE iterateDropWhileTrue #-}
-iterateMapM, iterateScan, iterateScanl1, iterateFilterEven, iterateTakeAll,
-    iterateDropOne, iterateDropWhileFalse, iterateDropWhileTrue
+iterateMapM, iterateScan, iterateScanl1, iterateFilterEven,
+    iterateDropOne
     :: S.MonadAsync m
     => Int -> Stream m Int
+
+iterateTakeAll,
+    iterateDropWhileFalse, iterateDropWhileTrue
+    :: S.MonadAsync m
+    => Int -> Int -> Stream m Int
 
 -- this is quadratic
 iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
@@ -561,10 +572,10 @@ iterateScanl1          = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
 
 iterateMapM            = iterateSource (S.mapM return) maxIters
 iterateFilterEven      = iterateSource (S.filter even) maxIters
-iterateTakeAll         = iterateSource (S.take maxValue) maxIters
+iterateTakeAll value         = iterateSource (S.take (value + 1)) maxIters
 iterateDropOne         = iterateSource (S.drop 1) maxIters
-iterateDropWhileFalse  = iterateSource (S.dropWhile (> maxValue)) maxIters
-iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
+iterateDropWhileFalse value  = iterateSource (S.dropWhile (> (value + 1))) maxIters
+iterateDropWhileTrue value   = iterateSource (S.dropWhile (<= (value + 1))) maxIters
 
 -------------------------------------------------------------------------------
 -- Combining streams
@@ -616,14 +627,14 @@ inspect $ 'append2 `hasNoType` ''D.AppendState
 -------------------------------------------------------------------------------
 
 {-# INLINE wSerial2 #-}
-wSerial2 :: Int -> IO ()
-wSerial2 n = S.drain $ S.wSerial
+wSerial2 :: Int -> Int -> IO ()
+wSerial2 value n = S.drain $ S.wSerial
     (sourceUnfoldrMN (value `div` 2) n)
     (sourceUnfoldrMN (value `div` 2) (n + 1))
 
 {-# INLINE interleave2 #-}
-interleave2 :: Int -> IO ()
-interleave2 n = S.drain $ Internal.interleave
+interleave2 :: Int -> Int -> IO ()
+interleave2 value n = S.drain $ Internal.interleave
     (sourceUnfoldrMN (value `div` 2) n)
     (sourceUnfoldrMN (value `div` 2) (n + 1))
 
@@ -633,8 +644,8 @@ inspect $ 'interleave2 `hasNoType` ''D.InterleaveState
 #endif
 
 {-# INLINE roundRobin2 #-}
-roundRobin2 :: Int -> IO ()
-roundRobin2 n = S.drain $ Internal.roundrobin
+roundRobin2 :: Int -> Int -> IO ()
+roundRobin2 value n = S.drain $ Internal.roundrobin
     (sourceUnfoldrMN (value `div` 2) n)
     (sourceUnfoldrMN (value `div` 2) (n + 1))
 
@@ -730,8 +741,8 @@ eqBy' :: (Monad m, P.Eq a) => Stream m a -> m P.Bool
 eqBy' src = S.eqBy (==) src src
 
 {-# INLINE eqBy #-}
-eqBy :: Int -> IO Bool
-eqBy n = eqBy' (source n)
+eqBy :: Int -> Int -> IO Bool
+eqBy value n = eqBy' (source value n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqBy
@@ -740,8 +751,8 @@ inspect $ 'eqBy `hasNoType` ''D.Step
 
 
 {-# INLINE eqByPure #-}
-eqByPure :: Int -> Identity Bool
-eqByPure n = eqBy' (sourceUnfoldr n)
+eqByPure :: Int -> Int -> Identity Bool
+eqByPure value n = eqBy' (sourceUnfoldr value n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'eqByPure
@@ -753,8 +764,8 @@ cmpBy' :: (Monad m, P.Ord a) => Stream m a -> m P.Ordering
 cmpBy' src = S.cmpBy P.compare src src
 
 {-# INLINE cmpBy #-}
-cmpBy :: Int -> IO P.Ordering
-cmpBy n = cmpBy' (source n)
+cmpBy :: Int -> Int -> IO P.Ordering
+cmpBy value n = cmpBy' (source value n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpBy
@@ -762,8 +773,8 @@ inspect $ 'cmpBy `hasNoType` ''D.Step
 #endif
 
 {-# INLINE cmpByPure #-}
-cmpByPure :: Int -> Identity P.Ordering
-cmpByPure n = cmpBy' (sourceUnfoldr n)
+cmpByPure :: Int -> Int -> Identity P.Ordering
+cmpByPure value n = cmpBy' (sourceUnfoldr value n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'cmpByPure
@@ -778,23 +789,23 @@ inspect $ 'cmpByPure `hasNoType` ''D.Step
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWith n = S.foldMapWith (S.<>) S.yield [n..n+value]
+                  => Int -> Int -> t m Int
+sourceFoldMapWith value n = S.foldMapWith (S.<>) S.yield [n..n+value]
 
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
-    => Int -> t m Int
-sourceFoldMapWithM n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+                   => Int -> Int -> t m Int
+sourceFoldMapWithM value n = S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceFoldMapM #-}
 sourceFoldMapM :: (S.IsStream t, Monad m, P.Monoid (t m Int))
-    => Int -> t m Int
-sourceFoldMapM n = F.foldMap (S.yieldM . return) [n..n+value]
+               => Int -> Int -> t m Int
+sourceFoldMapM value n = F.foldMap (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceConcatMapId #-}
 sourceConcatMapId :: (S.IsStream t, Monad m)
-    => Int -> t m Int
-sourceConcatMapId n =
+                  => Int -> Int -> t m Int
+sourceConcatMapId value n =
     S.concatMap P.id $ S.fromFoldable $ P.map (S.yieldM . return) [n..n+value]
 
 -- concatMap unfoldrM/unfoldrM
@@ -826,8 +837,8 @@ inspect $ hasNoTypeClasses 'concatMapPure
 -- concatMap replicate/unfoldrM
 
 {-# INLINE concatMapRepl4xN #-}
-concatMapRepl4xN :: Int -> IO ()
-concatMapRepl4xN n = S.drain $ S.concatMap (S.replicate 4)
+concatMapRepl4xN :: Int -> Int -> IO ()
+concatMapRepl4xN value n = S.drain $ S.concatMap (S.replicate 4)
                           (sourceUnfoldrMN (value `div` 4) n)
 
 #ifdef INSPECTION
@@ -877,8 +888,8 @@ inspect $ hasNoTypeClasses 'concatMapWithWSerial
 -- concatUnfold replicate/unfoldrM
 
 {-# INLINE concatUnfoldRepl4xN #-}
-concatUnfoldRepl4xN :: Int -> IO ()
-concatUnfoldRepl4xN n =
+concatUnfoldRepl4xN :: Int -> Int -> IO ()
+concatUnfoldRepl4xN value n =
     S.drain $ S.concatUnfold
         (UF.replicateM 4)
         (sourceUnfoldrMN (value `div` 4) n)
@@ -889,8 +900,8 @@ inspect $ 'concatUnfoldRepl4xN `hasNoType` ''D.ConcatMapUState
 #endif
 
 {-# INLINE concatUnfoldInterleaveRepl4xN #-}
-concatUnfoldInterleaveRepl4xN :: Int -> IO ()
-concatUnfoldInterleaveRepl4xN n =
+concatUnfoldInterleaveRepl4xN :: Int -> Int -> IO ()
+concatUnfoldInterleaveRepl4xN value n =
     S.drain $ Internal.concatUnfoldInterleave
         (UF.replicateM 4)
         (sourceUnfoldrMN (value `div` 4) n)
@@ -901,8 +912,8 @@ inspect $ hasNoTypeClasses 'concatUnfoldInterleaveRepl4xN
 #endif
 
 {-# INLINE concatUnfoldRoundrobinRepl4xN #-}
-concatUnfoldRoundrobinRepl4xN :: Int -> IO ()
-concatUnfoldRoundrobinRepl4xN n =
+concatUnfoldRoundrobinRepl4xN :: Int -> Int -> IO ()
+concatUnfoldRoundrobinRepl4xN value n =
     S.drain $ Internal.concatUnfoldRoundrobin
         (UF.replicateM 4)
         (sourceUnfoldrMN (value `div` 4) n)
@@ -918,8 +929,8 @@ inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN
 
 {-# INLINE sourceUnfoldrState #-}
 sourceUnfoldrState :: (S.IsStream t, S.MonadAsync m)
-    => Int -> t (StateT Int m) Int
-sourceUnfoldrState n = S.unfoldrM step n
+                   => Int -> Int -> t (StateT Int m) Int
+sourceUnfoldrState value n = S.unfoldrM step n
     where
     step cnt =
         if cnt > n + value
@@ -930,13 +941,13 @@ sourceUnfoldrState n = S.unfoldrM step n
             return (Just (s, cnt + 1))
 
 {-# INLINE evalStateT #-}
-evalStateT :: S.MonadAsync m => Int -> Stream m Int
-evalStateT n = Internal.evalStateT 0 (sourceUnfoldrState n)
+evalStateT :: S.MonadAsync m => Int -> Int -> Stream m Int
+evalStateT value n = Internal.evalStateT 0 (sourceUnfoldrState value n)
 
 {-# INLINE withState #-}
-withState :: S.MonadAsync m => Int -> Stream m Int
-withState n =
-    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM n))
+withState :: S.MonadAsync m => Int -> Int -> Stream m Int
+withState value n =
+    Internal.evalStateT (0 :: Int) (Internal.liftInner (sourceUnfoldrM value n))
 
 -------------------------------------------------------------------------------
 -- Concurrent application/fold

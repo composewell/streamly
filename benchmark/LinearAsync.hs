@@ -9,6 +9,8 @@
 import Control.DeepSeq (NFData)
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
+import Text.Read (readMaybe)
+import System.Environment (getArgs)
 import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
@@ -19,8 +21,8 @@ import Gauge
 --
 -- | Takes a fold method, and uses it with a default source.
 {-# INLINE benchIO #-}
-benchIO :: (IsStream t, NFData b) => String -> (t IO Int -> IO b) -> Benchmark
-benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source
+benchIO :: (IsStream t, NFData b) => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIO value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source value
 
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchSrcIO #-}
@@ -42,94 +44,105 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 main :: IO ()
-main =
-  defaultMainWith (defaultConfig
-        { timeLimit = Just 1
-        , minDuration = 0
-#ifdef LONG_BENCHMARKS
-        , includeFirstIter = True
-#endif
-        })
+main = do
+  -- Basement.Terminal.initialize required?
+  args <- getArgs
+  let (value, args') = parseValue args
+      (cfg, extra) = parseWith (newConfig value) args'
+  runMode (mode cfg) cfg extra
     [ bgroup "asyncly"
-        [ benchSrcIO asyncly "unfoldr" Ops.sourceUnfoldr
-        , benchSrcIO asyncly "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO asyncly "fromFoldable" Ops.sourceFromFoldable
-        , benchSrcIO asyncly "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO asyncly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO asyncly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchSrcIO asyncly "foldMapM" Ops.sourceFoldMapM
-        , benchIO "map"    $ Ops.map' asyncly 1
-        , benchIO "fmap"   $ Ops.fmap' asyncly 1
-        , benchIO "mapM"   $ Ops.mapM asyncly 1
+        [ benchSrcIO asyncly "unfoldr" (Ops.sourceUnfoldr value)
+        , benchSrcIO asyncly "unfoldrM" (Ops.sourceUnfoldrM value)
+        , benchSrcIO asyncly "fromFoldable" (Ops.sourceFromFoldable value)
+        , benchSrcIO asyncly "fromFoldableM" (Ops.sourceFromFoldableM value)
+        , benchSrcIO asyncly "foldMapWith" (Ops.sourceFoldMapWith value)
+        , benchSrcIO asyncly "foldMapWithM" (Ops.sourceFoldMapWithM value)
+        , benchSrcIO asyncly "foldMapM" (Ops.sourceFoldMapM value)
+        , benchIO value "map"    $ Ops.map' asyncly 1
+        , benchIO value "fmap"   $ Ops.fmap' asyncly 1
+        , benchIO value "mapM"   $ Ops.mapM asyncly 1
         , benchSrcIO asyncly "unfoldrM maxThreads 1"
-            (maxThreads 1 . Ops.sourceUnfoldrM)
+            (maxThreads 1 . Ops.sourceUnfoldrM value)
         , benchSrcIO asyncly "unfoldrM maxBuffer 1 (x/10 ops)"
-            (maxBuffer 1 . Ops.sourceUnfoldrMN (Ops.value `div` 10))
+            (maxBuffer 1 . Ops.sourceUnfoldrMN (value `div` 10))
         , benchMonadicSrcIO "concatMapWith (2,x/2)"
-            (Ops.concatStreamsWith async 2 (Ops.value `div` 2))
+            (Ops.concatStreamsWith async 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith async (Ops.value `div` 2) 2)
+            (Ops.concatStreamsWith async (value `div` 2) 2)
         ]
       , bgroup "wAsyncly"
-        [ benchSrcIO wAsyncly "unfoldr" Ops.sourceUnfoldr
-        , benchSrcIO wAsyncly "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO wAsyncly "fromFoldable" Ops.sourceFromFoldable
-        , benchSrcIO wAsyncly "fromFoldableM" Ops.sourceFromFoldableM
-        , benchSrcIO wAsyncly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO wAsyncly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchSrcIO wAsyncly "foldMapM" Ops.sourceFoldMapM
-        , benchIO "map"    $ Ops.map' wAsyncly 1
-        , benchIO "fmap"   $ Ops.fmap' wAsyncly 1
-        , benchIO "mapM"   $ Ops.mapM wAsyncly 1
+        [ benchSrcIO wAsyncly "unfoldr" (Ops.sourceUnfoldr value)
+        , benchSrcIO wAsyncly "unfoldrM" (Ops.sourceUnfoldrM value)
+        , benchSrcIO wAsyncly "fromFoldable" (Ops.sourceFromFoldable value)
+        , benchSrcIO wAsyncly "fromFoldableM" (Ops.sourceFromFoldableM value)
+        , benchSrcIO wAsyncly "foldMapWith" (Ops.sourceFoldMapWith value)
+        , benchSrcIO wAsyncly "foldMapWithM" (Ops.sourceFoldMapWithM value)
+        , benchSrcIO wAsyncly "foldMapM" (Ops.sourceFoldMapM value)
+        , benchIO value "map"    $ Ops.map' wAsyncly 1
+        , benchIO value "fmap"   $ Ops.fmap' wAsyncly 1
+        , benchIO value "mapM"   $ Ops.mapM wAsyncly 1
         , benchMonadicSrcIO "concatMapWith (2,x/2)"
-            (Ops.concatStreamsWith wAsync 2 (Ops.value `div` 2))
+            (Ops.concatStreamsWith wAsync 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith wAsync (Ops.value `div` 2) 2)
+            (Ops.concatStreamsWith wAsync (value `div` 2) 2)
         ]
       -- unfoldr and fromFoldable are always serial and thereofore the same for
       -- all stream types.
       , bgroup "aheadly"
-        [ benchSrcIO aheadly "unfoldr" Ops.sourceUnfoldr
-        , benchSrcIO aheadly "unfoldrM" Ops.sourceUnfoldrM
-        , benchSrcIO aheadly "fromFoldableM" Ops.sourceFromFoldableM
+        [ benchSrcIO aheadly "unfoldr" (Ops.sourceUnfoldr value)
+        , benchSrcIO aheadly "unfoldrM" (Ops.sourceUnfoldrM value)
+        , benchSrcIO aheadly "fromFoldableM" (Ops.sourceFromFoldableM value)
         -- , benchSrcIO aheadly "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO aheadly "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchSrcIO aheadly "foldMapM" Ops.sourceFoldMapM
-        , benchIO "map"  $ Ops.map' aheadly 1
-        , benchIO "fmap" $ Ops.fmap' aheadly 1
-        , benchIO "mapM" $ Ops.mapM aheadly 1
+        , benchSrcIO aheadly "foldMapWithM" (Ops.sourceFoldMapWithM value)
+        , benchSrcIO aheadly "foldMapM" (Ops.sourceFoldMapM value)
+        , benchIO value "map"  $ Ops.map' aheadly 1
+        , benchIO value "fmap" $ Ops.fmap' aheadly 1
+        , benchIO value "mapM" $ Ops.mapM aheadly 1
         , benchSrcIO aheadly "unfoldrM maxThreads 1"
-            (maxThreads 1 . Ops.sourceUnfoldrM)
+            (maxThreads 1 . Ops.sourceUnfoldrM value)
         , benchSrcIO aheadly "unfoldrM maxBuffer 1 (x/10 ops)"
-            (maxBuffer 1 . Ops.sourceUnfoldrMN (Ops.value `div` 10))
+            (maxBuffer 1 . Ops.sourceUnfoldrMN (value `div` 10))
         -- , benchSrcIO aheadly "fromFoldable" Ops.sourceFromFoldable
         , benchMonadicSrcIO "concatMapWith (2,x/2)"
-            (Ops.concatStreamsWith ahead 2 (Ops.value `div` 2))
+            (Ops.concatStreamsWith ahead 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith ahead (Ops.value `div` 2) 2)
+            (Ops.concatStreamsWith ahead (value `div` 2) 2)
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
-        [ benchSrcIO parallely "unfoldr" Ops.sourceUnfoldr
-        , benchSrcIO parallely "unfoldrM" Ops.sourceUnfoldrM
+        [ benchSrcIO parallely "unfoldr" (Ops.sourceUnfoldr value)
+        , benchSrcIO parallely "unfoldrM" (Ops.sourceUnfoldrM value)
         --, benchSrcIO parallely "fromFoldable" Ops.sourceFromFoldable
-        , benchSrcIO parallely "fromFoldableM" Ops.sourceFromFoldableM
+        , benchSrcIO parallely "fromFoldableM" (Ops.sourceFromFoldableM value)
         -- , benchSrcIO parallely "foldMapWith" Ops.sourceFoldMapWith
-        , benchSrcIO parallely "foldMapWithM" Ops.sourceFoldMapWithM
-        , benchSrcIO parallely "foldMapM" Ops.sourceFoldMapM
-        , benchIO "map"  $ Ops.map' parallely 1
-        , benchIO "fmap" $ Ops.fmap' parallely 1
-        , benchIO "mapM" $ Ops.mapM parallely 1
+        , benchSrcIO parallely "foldMapWithM" (Ops.sourceFoldMapWithM value)
+        , benchSrcIO parallely "foldMapM" (Ops.sourceFoldMapM value)
+        , benchIO value "map"  $ Ops.map' parallely 1
+        , benchIO value "fmap" $ Ops.fmap' parallely 1
+        , benchIO value "mapM" $ Ops.mapM parallely 1
         -- Zip has only one parallel flavor
-        , benchIO "zip" Ops.zipAsync
-        , benchIO "zipM" Ops.zipAsyncM
-        , benchIO "zipAp" Ops.zipAsyncAp
+        , benchIO value "zip" Ops.zipAsync
+        , benchIO value "zipM" Ops.zipAsyncM
+        , benchIO value "zipAp" Ops.zipAsyncAp
         -- Parallel stages in a pipeline
-        , benchIO "parAppMap" Ops.parAppMap
-        , benchIO "parAppSum" Ops.parAppSum
+        , benchIO value "parAppMap" Ops.parAppMap
+        , benchIO value "parAppSum" Ops.parAppSum
         , benchMonadicSrcIO "concatMapWith (2,x/2)"
-            (Ops.concatStreamsWith parallel 2 (Ops.value `div` 2))
+            (Ops.concatStreamsWith parallel 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (x/10,10)"
-            (Ops.concatStreamsWith parallel (Ops.value `div` 10) 10)
+            (Ops.concatStreamsWith parallel (value `div` 10) 10)
         ]
       ]
+  where
+      defaultValue = 10000
+      parseValue [] = (defaultValue, [])
+      parseValue a@(x:xs) =
+          case (readMaybe x :: Maybe Int) of
+            Just value -> (value, xs)
+            Nothing -> (defaultValue, a)
+      newConfig value = 
+        defaultConfig
+              { timeLimit = Just 1
+              , minDuration = 0
+              , includeFirstIter = value >= 10000000
+              }
