@@ -623,7 +623,7 @@ foldMapM act = Fold step begin done
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Array" instead.
+-- very inefficient, consider using "Streamly.Memory.Array" instead.
 --
 -- @since 0.7.0
 
@@ -641,7 +641,7 @@ toList = Fold (\f x -> return $ f . (x :))
 -- | A fold that drains the first n elements of its input, running the effects
 -- and discarding the results.
 {-# INLINABLE drainN #-}
-drainN :: Monad m => Int -> Fold m a () 
+drainN :: Monad m => Int -> Fold m a ()
 drainN n = ltake n drain
 
 -- | A fold that drains elements of its input as long as the predicate succeeds,

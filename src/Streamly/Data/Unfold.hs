@@ -22,8 +22,8 @@
 -- values from a single starting value often called a seed value. Values can be
 -- generated and /pulled/ from the 'Unfold' one at a time. It can also be
 -- called a producer or a source of stream.  It is a data representation of the
--- standard 'S.unfoldr' function.  An 'Unfold' can be converted into a stream
--- type using 'S.unfold' by supplying the seed.
+-- standard 'Streamly.Prelude.unfoldr' function.  An 'Unfold' can be converted
+-- into a stream type using 'Streamly.Prelude.unfold' by supplying the seed.
 --
 -- = Performance Notes
 --
@@ -34,13 +34,13 @@
 -- @Unfold m a b@ can be considered roughly equivalent to an action @a -> t m
 -- b@ (where @t@ is a stream type). Instead of using an 'Unfold' one could just
 -- use a function of the shape @a -> t m b@. However, working with stream types
--- like 'S.SerialT' does not allow the compiler to perform stream fusion
+-- like t'Streamly.SerialT' does not allow the compiler to perform stream fusion
 -- optimization when merging, appending or concatenating multiple streams.
 -- Even though stream based combinator have excellent performance, they are
 -- much less efficient when compared to combinators using 'Unfold'.  For
--- example, the 'S.concatMap' combinator which uses @a -> t m b@ (where @t@ is
--- a stream type) to generate streams is much less efficient compared to
--- 'S.concatUnfold'.
+-- example, the 'Streamly.Prelude.concatMap' combinator which uses @a -> t m b@
+-- (where @t@ is a stream type) to generate streams is much less efficient
+-- compared to 'Streamly.Prelude.concatUnfold'.
 --
 -- On the other hand, transformation operations on stream types are as
 -- efficient as transformations on 'Unfold'.
@@ -58,8 +58,8 @@
 -- More, not yet exposed, unfold combinators can be found in
 -- "Streamly.Internal.Data.Unfold".
 
--- The stream types (e.g. 'S.SerialT') can be considered as a special case of
--- 'Unfold' with no starting seed.
+-- The stream types (e.g. t'Streamly.SerialT') can be considered as a special
+-- case of 'Unfold' with no starting seed.
 --
 module Streamly.Data.Unfold
     (

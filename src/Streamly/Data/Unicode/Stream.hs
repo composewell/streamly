@@ -58,8 +58,9 @@
 --
 -- = Experimental APIs
 --
--- Some experimental APIs to conveniently process text using the @Array Char@
--- represenation directly can be found in "Streamly.Internal.Unicode.Array".
+-- Some experimental APIs to conveniently process text using the
+-- @Array Char@ represenation directly can be found in
+-- "Streamly.Internal.Memory.Unicode.Array".
 
 -- XXX an unpinned array representation can be useful to store short and short
 -- lived strings in memory.

@@ -598,7 +598,7 @@ unfoldrMZipSerial = Serial.unfoldrM
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
--- >>> unfold UF.replicateM 10 (putStrLn "hello")
+-- >>> unfold (UF.replicateM 10) (putStrLn "hello")
 --
 -- /Since: 0.7.0/
 {-# INLINE unfold #-}

@@ -95,7 +95,7 @@ performance results and a comparison with the `async` package.
 
 ## Installing and using
 
-Please see [INSTALL.md](INSTALL.md) for instructions on how to use streamly
+Please see [INSTALL.md](./INSTALL.md) for instructions on how to use streamly
 with your Haskell build tool or package manager. You may want to go through it
 before jumping to run the examples below.
 
@@ -508,7 +508,7 @@ In presence of concurrency, synchronous exceptions work just the way they are
 supposed to work in non-concurrent code. When concurrent streams
 are combined together, exceptions from the constituent streams are propagated
 to the consumer stream. When an exception occurs in any of the constituent
-streams other concurrent streams are promptly terminated. 
+streams other concurrent streams are promptly terminated.
 
 There is no notion of explicit threads in streamly, therefore, no
 asynchronous exceptions to deal with. You can just ignore the zillions of
