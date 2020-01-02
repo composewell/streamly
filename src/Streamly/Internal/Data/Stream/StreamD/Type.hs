@@ -585,7 +585,7 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                fs' <- fstep fs x
+                !fs' <- fstep fs x
                 let i' = i + 1
                 return $
                     if i' >= n
@@ -629,7 +629,7 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                fs' <- fstep fs x
+                !fs' <- fstep fs x
                 let i' = i + 1
                 return $
                     if i' >= n

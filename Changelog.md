@@ -4,7 +4,8 @@
 
 * Fix a bug that caused `findIndices` to return wrong indices in some
   cases.
-* Fix a bug in `tap` that caused memory consumption to increase in some cases.
+* Fix a bug in `tap`, `chunksOf` that caused memory consumption to
+  increase in some cases.
 * Fix a space leak in `async` streams that caused memory consumption
   to increase with the number of elements in the stream, especially when
   built with `-threaded` and used with `-N` RTS option. The issue occurs
