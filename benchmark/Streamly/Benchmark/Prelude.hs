@@ -1086,22 +1086,22 @@ diff :: WholeInt -> WholeInt -> Int
 diff (WholeInt x) (WholeInt y) = x - y
 
 favBench :: Int -> Int -> IO ()
-favBench value i = S.drain $ Internal.reassembleBy i diff src
+favBench value' i = S.drain $ Internal.reassembleBy i diff src
   where
     src = S.unfoldr step (WholeInt 0)
       where
         step cnt =
-            if cnt > WholeInt value
+            if cnt > WholeInt value'
                 then Nothing
                 else Just (cnt, cnt + 1)
 
 unfavBench :: Int -> Int -> IO ()
-unfavBench value i = S.drain $ Internal.reassembleBy i diff src
+unfavBench value' i = S.drain $ Internal.reassembleBy i diff src
   where
     src = S.unfoldr step (WholeInt (i - 1))
       where
         step cnt
-            | cnt > WholeInt value = Nothing
+            | cnt > WholeInt value' = Nothing
             | unb cnt `P.rem` i == 0 = Just (cnt, cnt + 2 * WholeInt i - 1)
             | P.otherwise = Just (cnt, cnt - 1)
         unb (WholeInt x) = x
