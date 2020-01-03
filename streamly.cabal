@@ -585,10 +585,10 @@ test-suite parallel-loops
 -------------------------------------------------------------------------------
 
 -- NOTE :
--- For linear, linear-async and linear-rate if you want to pass the number
--- of stream elements for benchmarking then you can pass it as the first 
--- argument after `--`, as a gauge argument. If you don't give the argument,
--- the number of stream elements default to 100000.
+-- For linear, linear-async, linear-rate, nested and nested-concurrent if you
+-- want to pass the number of stream elements for benchmarking, you can pass it
+-- as the first argument after `--`, as a gauge argument. If you don't give the
+-- argument, the number of stream elements default to 100000.
 -- Examples:
 -- $ cabal run linear -- 1000000 [additional gauge options here...]
 -- $ cabal run linear -- [additional gauge options here...]
@@ -737,23 +737,6 @@ benchmark linear-async
 
 benchmark nested-concurrent
   import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  hs-source-dirs: benchmark
-  main-is: NestedConcurrent.hs
-  other-modules: NestedOps
-  build-depends:
-      streamly
-    , base                >= 4.8   && < 5
-    , deepseq             >= 1.4.1 && < 1.5
-    , random              >= 1.0   && < 2.0
-    , gauge               >= 0.2.4 && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
-
-benchmark nested-concurrent-long
-  import: bench-options-threaded
-  cpp-options: -DLONG_BENCHMARKS
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: NestedConcurrent.hs

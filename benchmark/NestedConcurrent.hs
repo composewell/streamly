@@ -11,6 +11,8 @@ import System.Random (randomRIO)
 import qualified NestedOps as Ops
 import Streamly
 import Gauge
+import System.Environment (getArgs)
+import Text.Read (readMaybe)
 
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
@@ -19,59 +21,70 @@ _benchId :: (NFData b) => String -> (Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (\g -> runIdentity (g 1))  f
 
 main :: IO ()
-main =
+main = do
   -- TBD Study scaling with 10, 100, 1000 loop iterations
-  defaultMain
+  -- Basement.Terminal.initialize required?
+  args <- getArgs
+  let (linearCount, args') = parseValue args
+      (cfg, extra) = parseWith defaultConfig args'
+  runMode (mode cfg) cfg extra
     [
       bgroup "aheadly"
-      [ benchIO "toNullAp"       $ Ops.toNullAp       aheadly
-      , benchIO "toNull"         $ Ops.toNull         aheadly
-      , benchIO "toNull3"        $ Ops.toNull3        aheadly
-      , benchIO "toList"         $ Ops.toList         aheadly
+      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       aheadly
+      , benchIO "toNull"         $ Ops.toNull linearCount         aheadly
+      , benchIO "toNull3"        $ Ops.toNull3 linearCount        aheadly
+      , benchIO "toList"         $ Ops.toList linearCount         aheadly
      -- , benchIO "toListSome"     $ Ops.toListSome     aheadly
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   aheadly
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    aheadly
-      , benchIO "filterSome"     $ Ops.filterSome     aheadly
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome aheadly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   aheadly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    aheadly
+      , benchIO "filterSome"     $ Ops.filterSome linearCount     aheadly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount aheadly
       ]
 
     , bgroup "asyncly"
-      [ benchIO "toNullAp"       $ Ops.toNullAp       asyncly
-      , benchIO "toNull"         $ Ops.toNull         asyncly
-      , benchIO "toNull3"        $ Ops.toNull3        asyncly
-      , benchIO "toList"         $ Ops.toList         asyncly
+      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       asyncly
+      , benchIO "toNull"         $ Ops.toNull linearCount         asyncly
+      , benchIO "toNull3"        $ Ops.toNull3 linearCount        asyncly
+      , benchIO "toList"         $ Ops.toList linearCount         asyncly
     --  , benchIO "toListSome"     $ Ops.toListSome     asyncly
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   asyncly
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    asyncly
-      , benchIO "filterSome"     $ Ops.filterSome     asyncly
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome asyncly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   asyncly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    asyncly
+      , benchIO "filterSome"     $ Ops.filterSome linearCount     asyncly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount asyncly
       ]
 
     , bgroup "wAsyncly"
-      [ benchIO "toNullAp"       $ Ops.toNullAp       wAsyncly
-      , benchIO "toNull"         $ Ops.toNull         wAsyncly
-      , benchIO "toNull3"        $ Ops.toNull3        wAsyncly
-      , benchIO "toList"         $ Ops.toList         wAsyncly
+      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       wAsyncly
+      , benchIO "toNull"         $ Ops.toNull linearCount         wAsyncly
+      , benchIO "toNull3"        $ Ops.toNull3 linearCount        wAsyncly
+      , benchIO "toList"         $ Ops.toList linearCount         wAsyncly
      -- , benchIO "toListSome"     $ Ops.toListSome     wAsyncly
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   wAsyncly
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    wAsyncly
-      , benchIO "filterSome"     $ Ops.filterSome     wAsyncly
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome wAsyncly
+      , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   wAsyncly
+      , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    wAsyncly
+      , benchIO "filterSome"     $ Ops.filterSome linearCount     wAsyncly
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount wAsyncly
       ]
 
     , bgroup "parallely"
-      [ benchIO "toNullAp"       $ Ops.toNullAp       parallely
-      , benchIO "toNull"         $ Ops.toNull         parallely
-      , benchIO "toNull3"        $ Ops.toNull3        parallely
-      , benchIO "toList"         $ Ops.toList         parallely
+      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       parallely
+      , benchIO "toNull"         $ Ops.toNull linearCount         parallely
+      , benchIO "toNull3"        $ Ops.toNull3 linearCount        parallely
+      , benchIO "toList"         $ Ops.toList linearCount         parallely
       --, benchIO "toListSome"     $ Ops.toListSome     parallely
-      , benchIO "filterAllOut"   $ Ops.filterAllOut   parallely
-      , benchIO "filterAllIn"    $ Ops.filterAllIn    parallely
-      , benchIO "filterSome"     $ Ops.filterSome     parallely
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome parallely
+      , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   parallely
+      , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    parallely
+      , benchIO "filterSome"     $ Ops.filterSome linearCount     parallely
+      , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount parallely
       ]
 
     , bgroup "zipAsyncly"
-      [ benchIO "toNullAp"       $ Ops.toNullAp       zipAsyncly
+      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       zipAsyncly
       ]
     ]
+  where
+      defaultValue = 100000
+      parseValue [] = (defaultValue, [])
+      parseValue a@(x:xs) =
+          case (readMaybe x :: Maybe Int) of
+            Just value -> (value, xs)
+            Nothing -> (defaultValue, a)
