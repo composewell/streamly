@@ -424,6 +424,9 @@ module Streamly.Internal.Prelude
     -- * Diagnostics
     , inspectMode
 
+    -- * Reordering
+    , reassembleBy
+
     -- * Deprecated
     , K.once
     , each
@@ -3681,19 +3684,17 @@ splitInnerBySuffix splitter joiner xs =
 -- Reorder in sequence
 ------------------------------------------------------------------------------
 
-{-
 -- Buffer until the next element in sequence arrives. The function argument
 -- determines the difference in sequence numbers. This could be useful in
 -- implementing sequenced streams, for example, TCP reassembly.
 {-# INLINE reassembleBy #-}
 reassembleBy
-    :: (IsStream t, Monad m)
-    => Fold m a b
+    :: (Bounded a, IsStream t, Monad m)
+    => Int
     -> (a -> a -> Int)
     -> t m a
-    -> t m b
-reassembleBy = undefined
--}
+    -> t m a
+reassembleBy sz diff = D.fromStreamD . D.reassembleBy sz diff . D.toStreamD
 
 ------------------------------------------------------------------------------
 -- Distributing

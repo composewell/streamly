@@ -312,6 +312,9 @@ module Streamly.Internal.Data.Stream.StreamD
     , mkParallelD
 
     , lastN
+
+    -- * Time related
+    , reassembleBy
     )
 where
 
@@ -329,6 +332,7 @@ import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
+import Data.Heap (Entry(..))
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
@@ -366,6 +370,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
+import qualified Data.Heap as H
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
@@ -4252,3 +4257,53 @@ currentTime g = Stream step Nothing
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time
         return $ Yield (toAbsTime (MicroSecond64 a)) s
+
+------------------------------------------------------------------------------
+-- Reorder in sequence
+------------------------------------------------------------------------------
+
+-- XXX Improve the Buffer
+-- Buffer until the next element in sequence arrives. The function argument
+-- determines the difference in sequence numbers. This could be useful in
+-- implementing sequenced streams, for example, TCP reassembly.
+{-# INLINE_NORMAL reassembleBy #-}
+reassembleBy
+    :: (Bounded a, Monad m)
+    => Int
+    -> (a -> a -> Int)
+    -> Stream m a
+    -> Stream m a
+reassembleBy sz diff (Stream step state) = Stream step' (H.empty, Nothing, state)
+  where
+    {-# INLINE_LATE step' #-}
+    step' _ (h, Nothing, s) = do
+        r <- step defState s
+        case r of 
+            Yield a s' -> case diff a minBound of
+                0 -> return $ Yield a (h, Just a, s')
+                x | x < sz -> return $ Skip (hi x a h, Nothing, s')
+                  | otherwise -> return $ Skip (h, Nothing, s')
+            Skip s' -> return $ Skip (h, Nothing, s')
+            Stop -> return Stop
+    step' _ (h, Just c, s) = exhaustH (h, c, s)
+    hi p v = H.insert (Entry p v)
+    {-# INLINE processS #-}
+    processS (h, c, s) = do
+        r <- step defState s
+        case r of
+            Yield a s' -> 
+                return $ case diff a c of 
+                    x | x <= 0  -> Skip (h, Just c, s')
+                    1           -> Yield a (h, Just a, s')
+                    x | x <= sz -> Skip (hi (diff a minBound) a h, Just c, s')
+                    _           -> Skip (h, Just c, s')
+            Skip s' -> return $ Skip (h, Just c, s')
+            Stop    -> return Stop
+    exhaustH (h, c, s) = 
+        case H.uncons h of
+            Nothing -> processS (h, c, s)
+            Just (Entry _ payH, delH) -> 
+                case diff payH c of
+                    x | x <= 0 -> return $ Skip (delH, Just c, s)
+                    1          -> return $ Yield payH (delH, Just payH, s)
+                    _          -> processS (h, c, s)

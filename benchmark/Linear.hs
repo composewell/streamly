@@ -312,6 +312,9 @@ main = do
         , benchIOSink value "pollCounts 1 second" (Ops.pollCounts 1)
         , benchIOSink value "tapAsync" (Ops.tapAsync 1)
         , benchIOSink value "tapAsyncS" (Ops.tapAsyncS 1)
+        , bench "reassembleBy Fav" $ nfIO $ randomRIO (5,5) >>= Ops.favBench value
+        , bench "reassembleBy Unfav 2" $ nfIO $ randomRIO (2,2) >>= Ops.unfavBench value
+        , bench "reassembleBy Unfav 5" $ nfIO $ randomRIO (5,5) >>= Ops.unfavBench value
         ]
       , bgroup "transformationX4"
         [ benchIOSink value "scan" (Ops.scan 4)

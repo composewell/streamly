@@ -34,7 +34,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+        (<*>), flip, (**), (/), Bounded(..), Num(..), Eq(..), Ord(..), error)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -1061,3 +1061,49 @@ foldableSum = P.sum
 {-# INLINE traversableMapM #-}
 traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
 traversableMapM = P.mapM return
+
+-- Benchmark for reassembleBy
+newtype WholeInt = WholeInt Int deriving (Eq, Ord)
+
+instance Num WholeInt where
+    (WholeInt x) + (WholeInt y) = WholeInt (x + y)
+    (WholeInt x) * (WholeInt y) = WholeInt (x * y)
+    (WholeInt x) - (WholeInt y) = if x >= y
+                                     then WholeInt (x - y)
+                                     else error "Invaid subtraction: WholeInt"
+    fromInteger x = if x >= 0
+                       then WholeInt $ fromIntegral x
+                       else error "Cannot convert -ve Int to WholeInt"
+    negate = undefined
+    abs = undefined
+    signum = undefined
+
+instance Bounded WholeInt where
+    minBound = WholeInt 0
+    maxBound = WholeInt maxBound
+
+diff :: WholeInt -> WholeInt -> Int
+diff (WholeInt x) (WholeInt y) = x - y
+
+favBench :: Int -> Int -> IO ()
+favBench value i = S.drain $ Internal.reassembleBy i diff src
+  where
+    src = S.unfoldr step (WholeInt 0)
+      where
+        step cnt =
+            if cnt > WholeInt value
+                then Nothing
+                else Just (cnt, cnt + 1)
+
+unfavBench :: Int -> Int -> IO ()
+unfavBench value i = S.drain $ Internal.reassembleBy i diff src
+  where
+    src = S.unfoldr step (WholeInt (i - 1))
+      where
+        step cnt
+            | cnt > WholeInt value = Nothing
+            | unb cnt `P.rem` i == 0 = Just (cnt, cnt + 2 * WholeInt i - 1)
+            | P.otherwise = Just (cnt, cnt - 1)
+        unb (WholeInt x) = x
+
+
