@@ -4262,7 +4262,7 @@ currentTime g = Stream step Nothing
 -- Reorder in sequence
 ------------------------------------------------------------------------------
 
--- XXX Improve the Buffer
+-- XXX Improve Buffer operations. (Heap) 
 -- Buffer until the next element in sequence arrives. The function argument
 -- determines the difference in sequence numbers. This could be useful in
 -- implementing sequenced streams, for example, TCP reassembly.
