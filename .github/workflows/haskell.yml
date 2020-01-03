@@ -1,0 +1,70 @@
+name: Haskell CI
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: GHC ${{ matrix.ghc_version }}
+    env:
+      CABAL_REINIT_CONFIG: y
+      LC_ALL: C.UTF-8
+
+      ENABLE_INSTALL: y
+
+      STACK_UPGRADE: "y"
+
+      CABAL_CHECK_RELAX: y
+      CABAL_NO_SANDBOX: y
+      CABAL_HACKAGE_MIRROR: hackage.haskell.org:http://hackage.fpcomplete.com
+
+      PACKCHECK_LOCAL_PATH: "./packcheck.sh"
+      PACKCHECK_GITHUB_URL: "https://raw.githubusercontent.com/harendra-kumar/packcheck"
+      PACKCHECK_GITHUB_COMMIT: "d11a8a68fef00f4932bbedd6134950495ccd7420"
+
+      BUILD: ${{ matrix.build }}
+      GHCVER: ${{ matrix.ghc_version }}
+      CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ghc_version: [8.6.5, 8.8.1]
+        cabal_version: ["3.0"]
+        include:
+          - ghc_version: 8.8.1
+            build: cabal-v2
+            cabal_build_options: "--project-file=cabal.project.ci"
+          - ghc_version: 8.6.5
+            build: cabal-v2
+            cabal_build_options: "--flags streamk"
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - uses: actions/setup-haskell@v1
+      with:
+        ghc-version: ${{ matrix.ghc_version }}
+        cabal-version: ${{ matrix.cabal_version }}
+
+    - uses: actions/cache@v1
+      name: Cache ~/.cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-${{ matrix.ghc_version }}-cabal
+
+    - name: Download packcheck
+      run: |
+        # If a custom stack-yaml is specified, replace the default with that
+        if test -e "$STACK_YAML"; then rm -f stack.yaml && ln -sv $STACK_YAML stack.yaml; else true; fi
+        unset STACK_YAML
+
+        # Get packcheck if needed
+        CURL=$(which curl)
+        PACKCHECK_URL=${PACKCHECK_GITHUB_URL}/${PACKCHECK_GITHUB_COMMIT}/packcheck.sh
+        if test ! -e "$PACKCHECK_LOCAL_PATH"; then $CURL -sL -o "$PACKCHECK_LOCAL_PATH" $PACKCHECK_URL; fi;
+        chmod +x $PACKCHECK_LOCAL_PATH
+
+    - name: Run packcheck
+      run: |
+        bash -c "$PACKCHECK_LOCAL_PATH $BUILD"
