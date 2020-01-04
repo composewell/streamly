@@ -9,12 +9,13 @@
 import Control.DeepSeq (NFData)
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import Text.Read (readMaybe)
-import System.Environment (getArgs)
-import qualified Streamly.Benchmark.Prelude as Ops
+
+import Common (parseCLIOpts)
 
 import Streamly
 import Gauge
+
+import qualified Streamly.Benchmark.Prelude as Ops
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -43,13 +44,14 @@ _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
+defaultStreamSize :: Int
+defaultStreamSize = 10000
+
 main :: IO ()
 main = do
-  -- Basement.Terminal.initialize required?
-  args <- getArgs
-  let (value, args') = parseValue args
-      (cfg, extra) = parseWith (newConfig value) args'
-  runMode (mode cfg) cfg extra
+  -- XXX Fix indentation
+  (value, cfg, benches) <- parseCLIOpts defaultStreamSize
+  runMode (mode cfg) cfg benches
     [ bgroup "asyncly"
         [ benchSrcIO asyncly "unfoldr" (Ops.sourceUnfoldr value)
         , benchSrcIO asyncly "unfoldrM" (Ops.sourceUnfoldrM value)
@@ -133,16 +135,3 @@ main = do
             (Ops.concatStreamsWith parallel (value `div` 10) 10)
         ]
       ]
-  where
-      defaultValue = 10000
-      parseValue [] = (defaultValue, [])
-      parseValue a@(x:xs) =
-          case (readMaybe x :: Maybe Int) of
-            Just value -> (value, xs)
-            Nothing -> (defaultValue, a)
-      newConfig value = 
-        defaultConfig
-              { timeLimit = Just 1
-              , minDuration = 0
-              , includeFirstIter = value >= 10000000
-              }

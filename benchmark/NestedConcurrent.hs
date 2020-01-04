@@ -8,11 +8,13 @@
 import Control.DeepSeq (NFData)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import qualified NestedOps as Ops
+
+import Common (parseCLIOpts)
+
 import Streamly
 import Gauge
-import System.Environment (getArgs)
-import Text.Read (readMaybe)
+
+import qualified NestedOps as Ops
 
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
@@ -20,14 +22,14 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 _benchId :: (NFData b) => String -> (Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (\g -> runIdentity (g 1))  f
 
+defaultStreamSize :: Int
+defaultStreamSize = 100000
+
 main :: IO ()
 main = do
-  -- TBD Study scaling with 10, 100, 1000 loop iterations
-  -- Basement.Terminal.initialize required?
-  args <- getArgs
-  let (linearCount, args') = parseValue args
-      (cfg, extra) = parseWith defaultConfig args'
-  runMode (mode cfg) cfg extra
+  -- XXX Fix indentation
+  (linearCount, cfg, benches) <- parseCLIOpts defaultStreamSize
+  runMode (mode cfg) cfg benches
     [
       bgroup "aheadly"
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       aheadly
@@ -81,10 +83,3 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       zipAsyncly
       ]
     ]
-  where
-      defaultValue = 100000
-      parseValue [] = (defaultValue, [])
-      parseValue a@(x:xs) =
-          case (readMaybe x :: Maybe Int) of
-            Just value -> (value, xs)
-            Nothing -> (defaultValue, a)

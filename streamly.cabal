@@ -584,21 +584,17 @@ test-suite parallel-loops
 -- Benchmarks
 -------------------------------------------------------------------------------
 
--- NOTE :
--- For linear, linear-async, linear-rate, nested and nested-concurrent if you
--- want to pass the number of stream elements for benchmarking, you can pass it
--- as the first argument after `--`, as a gauge argument. If you don't give the
--- argument, the number of stream elements default to 100000.
--- Examples:
--- $ cabal run linear -- 1000000 [additional gauge options here...]
--- $ cabal run linear -- [additional gauge options here...]
+-- For linear, linear-async, linear-rate, nested and nested-concurrent
+-- you can pass the number of elements in the stream using the
+-- --stream-size option:
+-- $ cabal run linear -- --stream-size 1000000
 
 benchmark linear
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Linear.hs
-  other-modules: Streamly.Benchmark.Prelude
+  other-modules: Streamly.Benchmark.Prelude, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -617,7 +613,7 @@ benchmark nested
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Nested.hs
-  other-modules: NestedOps
+  other-modules: NestedOps, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -721,7 +717,7 @@ benchmark linear-async
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearAsync.hs
-  other-modules: Streamly.Benchmark.Prelude
+  other-modules: Streamly.Benchmark.Prelude, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -740,7 +736,7 @@ benchmark nested-concurrent
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: NestedConcurrent.hs
-  other-modules: NestedOps
+  other-modules: NestedOps, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5
@@ -756,7 +752,7 @@ benchmark linear-rate
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: LinearRate.hs
-  other-modules: Streamly.Benchmark.Prelude
+  other-modules: Streamly.Benchmark.Prelude, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5

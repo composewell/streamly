@@ -12,10 +12,10 @@
 
 import Control.DeepSeq (NFData(..), deepseq)
 import Data.Functor.Identity (Identity, runIdentity)
-import System.Random (randomRIO)
 import Data.Monoid (Last(..))
-import System.Environment (getArgs)
-import Text.Read (readMaybe)
+import System.Random (randomRIO)
+
+import Common (parseCLIOpts)
 
 import qualified GHC.Exts as GHC
 import qualified Streamly.Benchmark.Prelude as Ops
@@ -121,13 +121,14 @@ mkListString value = "[1" ++ concat (replicate value ",1") ++ "]"
 mkList :: Int -> [Int]
 mkList value = [1..value]
 
+defaultStreamSize :: Int
+defaultStreamSize = 100000
+
 main :: IO ()
 main = do
-  -- Basement.Terminal.initialize required?
-  args <- getArgs
-  let (value, args') = parseValue args
-      (cfg, extra) = parseWith defaultConfig args'
-  runMode (mode cfg) cfg extra
+  -- XXX Fix indentation
+  (value, cfg, benches) <- parseCLIOpts defaultStreamSize
+  runMode (mode cfg) cfg benches
     [ bgroup "serially"
       [ bgroup "pure"
         [ benchPureSink value "id" id
@@ -474,10 +475,3 @@ main = do
             ]
         ]
     ]
-  where
-      defaultValue = 100000
-      parseValue [] = (defaultValue, [])
-      parseValue a@(x:xs) =
-          case (readMaybe x :: Maybe Int) of
-            Just value -> (value, xs)
-            Nothing -> (defaultValue, a)

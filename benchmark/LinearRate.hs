@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- |
 -- Module      : Main
 -- Copyright   : (c) 2018 Harendra Kumar
@@ -11,12 +10,13 @@
 
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
-import qualified Streamly.Benchmark.Prelude as Ops
-import System.Environment (getArgs)
-import Text.Read (readMaybe)
+
+import Common (parseCLIOpts)
 
 import Streamly
 import Gauge
+
+import qualified Streamly.Benchmark.Prelude as Ops
 
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchSrcIO #-}
@@ -33,13 +33,14 @@ _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
 _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
+defaultStreamSize :: Int
+defaultStreamSize = 100000
+
 main :: IO ()
 main = do
-  -- Basement.Terminal.initialize required?
-  args <- getArgs
-  let (value, args') = parseValue args
-      (cfg, extra) = parseWith defaultConfig args'
-  runMode (mode cfg) cfg extra
+  -- XXX Fix indentation
+  (value, cfg, benches) <- parseCLIOpts defaultStreamSize
+  runMode (mode cfg) cfg benches
     -- XXX arbitrarily large rate should be the same as rate Nothing
     [ bgroup "avgrate"
       [ bgroup "asyncly"
@@ -65,10 +66,3 @@ main = do
         ]
       ]
     ]
-  where
-      defaultValue = 100000
-      parseValue [] = (defaultValue, [])
-      parseValue a@(x:xs) =
-          case (readMaybe x :: Maybe Int) of
-            Just value -> (value, xs)
-            Nothing -> (defaultValue, a)
