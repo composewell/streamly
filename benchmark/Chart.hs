@@ -27,6 +27,7 @@ data BenchType
     | LinearAsync
     | LinearRate
     | Nested
+    | NestedConcurrent
     | Base
     | FileIO
     | Array
@@ -69,6 +70,7 @@ parseBench = do
         Just "linear-async" -> setBenchType LinearAsync
         Just "linear-rate" -> setBenchType LinearRate
         Just "nested" -> setBenchType Nested
+        Just "nested-concurrent" -> setBenchType NestedConcurrent
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array" -> setBenchType Array
@@ -345,10 +347,15 @@ main = do
                             "charts/linear-rate/results.csv"
                             "charts/linear-rate"
                 Nested -> benchShow opts cfg
-                            { title = Just "Nested loops 100 x 100 elems" }
+                            { title = Just "Nested loops 316 x 316 elems" }
                             makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
+                NestedConcurrent -> benchShow opts cfg
+                            { title = Just "Nested concurrent loops 316 x 316 elems" }
+                            makeNestedGraphs
+                            "charts/nested-concurrent/results.csv"
+                            "charts/nested-concurrent"
                 FileIO -> benchShow opts cfg
                             { title = Just "File IO" }
                             makeFileIOGraphs

@@ -231,7 +231,7 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
-ALL_BENCHMARKS="linear linear-async linear-rate nested concurrrent fileio array base"
+ALL_BENCHMARKS="linear linear-async linear-rate nested nested-concurrent concurrent fileio array base"
 GROUP_DIFF=0
 
 COMPARE=0
@@ -290,25 +290,29 @@ then
   CABAL_BUILD_FLAGS="--flags dev"
 fi
 
-if echo "$BENCHMARKS" | grep -q concurrent
-then
-  STACK_BUILD_FLAGS="--flag streamly:dev"
-  CABAL_BUILD_FLAGS="--flags dev"
-fi
+for i in $BENCHMARKS
+do
+  if test "$i" = concurrent
+  then
+    STACK_BUILD_FLAGS="--flag streamly:dev"
+    CABAL_BUILD_FLAGS="--flags dev"
+    break
+  fi
+done
 
 if test "$USE_STACK" = "1"
 then
   WHICH_COMMAND="stack exec which"
   BUILD_CHART_EXE="stack build --flag streamly:dev"
   GET_BENCH_PROG=stack_bench_prog
-  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --flags "streamly:benchmark" --bench --no-run-benchmarks"
+  BUILD_BENCH="stack build $STACK_BUILD_FLAGS --bench --no-run-benchmarks"
 else
   # XXX cabal issue "cabal v2-exec which" cannot find benchmark/test executables
   #WHICH_COMMAND="cabal v2-exec which"
   WHICH_COMMAND=cabal_which
   BUILD_CHART_EXE="cabal v2-build --flags dev chart"
   GET_BENCH_PROG=cabal_bench_prog
-  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --flag benchmark --enable-benchmarks"
+  BUILD_BENCH="cabal v2-build $CABAL_BUILD_FLAGS --enable-benchmarks"
 fi
 
 #-----------------------------------------------------------------------------
