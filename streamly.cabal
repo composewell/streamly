@@ -356,12 +356,18 @@ library
                      , Streamly.Internal.Network.Socket
                      , Streamly.Internal.Network.Inet.TCP
 
-    build-depends:     base              >= 4.8   &&  < 5
-                     , ghc-prim          >= 0.2   && < 0.6
+    build-depends:
+                    -- Core libraries shipped with ghc, the min and max
+                    -- constraints of these libraries should match with
+                    -- the GHC versions we support
+                       base              >= 4.8   &&  < 5
+                     , containers        >= 0.5   && < 0.7
                      , deepseq           >= 1.4.1 && < 1.5
-                     , containers        >= 0.5.8.2   && < 0.7
-                     , heaps             >= 0.3   && < 0.4
                      , directory         >= 1.3   && < 1.4
+                     , ghc-prim          >= 0.2   && < 0.6
+                     , transformers      >= 0.4   && < 0.6
+
+                     , heaps             >= 0.3   && < 0.4
                      , primitive         >= 0.6.4.0   && < 0.8
 
                     -- concurrency
@@ -372,7 +378,6 @@ library
                      , exceptions        >= 0.8   && < 0.11
                      , monad-control     >= 1.0   && < 2
                      , mtl               >= 2.2   && < 3
-                     , transformers      >= 0.4   && < 0.6
                      , transformers-base >= 0.4   && < 0.5
 
   if !impl(ghcjs)
@@ -401,7 +406,7 @@ test-suite test
       streamly
     , base              >= 4.8   && < 5
     , hspec             >= 2.0   && < 3
-    , containers        >= 0.5.8.2   && < 0.7
+    , containers        >= 0.5   && < 0.7
     , transformers      >= 0.4   && < 0.6
     , mtl               >= 2.2   && < 3
     , exceptions        >= 0.8   && < 0.11

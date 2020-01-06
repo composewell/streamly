@@ -1005,6 +1005,8 @@ demuxWith f kv = Fold step initial extract
     where
 
     initial = return kv
+-- alterF is available only since containers version 0.5.8.2
+#if MIN_VERSION_containers(0,5,8)
     step mp a = case f a of
       (k, a') -> Map.alterF twiddle k mp
         -- XXX should we raise an exception in Nothing case?
@@ -1017,6 +1019,15 @@ demuxWith f kv = Fold step initial extract
           twiddle (Just (Fold step' acc extract')) = do
             !r <- acc >>= \x -> step' x a'
             pure . Just $ Fold step' (return r) extract'
+#else
+    step mp a =
+        let (k, a') = f a
+        in case Map.lookup k mp of
+            Nothing -> return mp
+            Just (Fold step' acc extract') -> do
+                !r <- acc >>= \x -> step' x a'
+                return $ Map.insert k (Fold step' (return r) extract') mp
+#endif
     extract = Prelude.mapM (\(Fold _ acc e) -> acc >>= e)
 
 -- | Fold a stream of key value pairs using a map of specific folds for each
