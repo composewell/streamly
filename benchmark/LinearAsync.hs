@@ -51,7 +51,7 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-  runMode (mode cfg) cfg benches
+  value `seq` runMode (mode cfg) cfg benches
     [ bgroup "asyncly"
         [ benchSrcIO asyncly "unfoldr" (Ops.sourceUnfoldr value)
         , benchSrcIO asyncly "unfoldrM" (Ops.sourceUnfoldrM value)

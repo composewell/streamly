@@ -29,7 +29,7 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (linearCount, cfg, benches) <- parseCLIOpts defaultStreamSize
-  runMode (mode cfg) cfg benches
+  linearCount `seq` runMode (mode cfg) cfg benches
     [
       bgroup "aheadly"
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       aheadly

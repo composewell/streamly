@@ -40,7 +40,7 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-  runMode (mode cfg) cfg benches
+  value `seq` runMode (mode cfg) cfg benches
     -- XXX arbitrarily large rate should be the same as rate Nothing
     [ bgroup "avgrate"
       [ bgroup "asyncly"

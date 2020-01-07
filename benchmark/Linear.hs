@@ -128,7 +128,7 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-  runMode (mode cfg) cfg benches
+  value `seq` runMode (mode cfg) cfg benches
     [ bgroup "serially"
       [ bgroup "pure"
         [ benchPureSink value "id" id
