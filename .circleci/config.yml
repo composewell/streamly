@@ -211,6 +211,9 @@ jobs:
 
 workflows:
   version: 2
+  branches:
+    only:
+      - master
   build:
     jobs:
       #- cabal-ghc-8.6.5
