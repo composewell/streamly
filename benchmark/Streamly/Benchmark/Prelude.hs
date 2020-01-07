@@ -1085,8 +1085,8 @@ instance Bounded WholeInt where
 diff :: WholeInt -> WholeInt -> Int
 diff (WholeInt x) (WholeInt y) = x - y
 
-favBench :: Int -> Int -> IO ()
-favBench value' i = S.drain $ Internal.reassembleBy i diff src
+favBenchReassembleBy :: Int -> Int -> IO ()
+favBenchReassembleBy value' i = S.drain $ Internal.reassembleBy i diff src
   where
     src = S.unfoldr step (WholeInt 0)
       where
@@ -1095,8 +1095,8 @@ favBench value' i = S.drain $ Internal.reassembleBy i diff src
                 then Nothing
                 else Just (cnt, cnt + 1)
 
-unfavBench :: Int -> Int -> IO ()
-unfavBench value' i = S.drain $ Internal.reassembleBy i diff src
+unfavBenchReassembleBy :: Int -> Int -> IO ()
+unfavBenchReassembleBy value' i = S.drain $ Internal.reassembleBy i diff src
   where
     src = S.unfoldr step (WholeInt (i - 1))
       where
