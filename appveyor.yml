@@ -2,6 +2,10 @@
 # You can use any of the options supported by packcheck as environment
 # variables here.  See https://github.com/harendra-kumar/packcheck for all
 # options and their explanation.
+branches:
+  only:
+    - master
+
 environment:
     # ------------------------------------------------------------------------
     # Global options, you can use these per build as well
