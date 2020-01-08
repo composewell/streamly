@@ -18,6 +18,10 @@
   `ReuseAddr` socket options by default. These options can now be specified
   using appropriate combinators.
 
+### Performance
+
+* Significant improvement in performance of concurrent stream operations.
+
 ## 0.7.0
 
 ### Breaking changes
