@@ -277,8 +277,6 @@ module Streamly.Internal.Data.Stream.StreamD
     , indexedR
     , zipWith
     , zipWithM
-    , zipAsyncWith
-    , zipAsyncWithM
 
     -- * Comparisons
     , eqBy
@@ -306,8 +304,6 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- * Concurrent Application
     , mkParallel
-    , applyParallel
-    , foldParallel
 
     , lastN
 
@@ -3857,37 +3853,6 @@ zipWithM f (Stream stepa ta) (Stream stepb tb) = Stream step (ta, tb, Nothing)
 zipWith :: Monad m => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
 zipWith f = zipWithM (\a b -> return (f a b))
 
--- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
-{-# INLINE_NORMAL zipAsyncWithM #-}
-zipAsyncWithM :: MonadAsync m
-    => (a -> b -> m c) -> Stream m a -> Stream m b -> Stream m c
-zipAsyncWithM f m1 m2 = Stream step Nothing
-
-    where
-
-    {-# INLINE_LATE step #-}
-    step gst Nothing = do
-        ma <- mkParallel (adaptState gst) m1
-        mb <- mkParallel (adaptState gst) m2
-        return $ Skip (Just $ zipWithM f ma mb)
-
-    step gst (Just (UnStream step1 st)) = do
-        r <- step1 gst st
-        return $ case r of
-            Yield a s -> Yield a (Just $ Stream step1 s)
-            Skip s    -> Skip (Just $ Stream step1 s)
-            Stop      -> Stop
-
--- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
--- are generated concurrently.
---
-{-# INLINE zipAsyncWith #-}
-zipAsyncWith :: MonadAsync m
-    => (a -> b -> c) -> Stream m a -> Stream m b -> Stream m c
-zipAsyncWith f = zipAsyncWithM (\a b -> return (f a b))
-
 ------------------------------------------------------------------------------
 -- Merging
 ------------------------------------------------------------------------------
@@ -3968,6 +3933,8 @@ runFold (Fold step begin done) = foldlMx' step begin done
 -- Concurrent application and fold
 -------------------------------------------------------------------------------
 
+-- XXX These functions should be moved to Stream/Parallel.hs
+--
 -- Using StreamD the worker stream producing code can fuse with the code to
 -- queue output to the SVar giving some perf boost.
 --
@@ -4034,24 +4001,16 @@ toSVarParallel st sv xs =
                                   (handleChildException sv)
         modifyThread sv tid
 
-{-# INLINE_NORMAL mkParallel #-}
-mkParallel :: MonadAsync m => State t m a -> Stream m a -> m (Stream m a)
-mkParallel st m = do
-    sv <- newParallelVar StopNone defState
-    toSVarParallel st sv m
-    return $ fromSVar sv
-
-{-# INLINE_NORMAL applyParallel #-}
-applyParallel :: MonadAsync m
-    => (Stream m a -> Stream m b) -> Stream m a -> Stream m b
-applyParallel f m = Stream step Nothing
+{-# INLINE_NORMAL mkParallelD #-}
+mkParallelD :: MonadAsync m => Stream m a -> Stream m a
+mkParallelD m = Stream step Nothing
     where
 
-    {-# INLINE_LATE step #-}
     step gst Nothing = do
-        sv <- newParallelVar StopNone (adaptState gst)
-        toSVarParallel (adaptState gst) sv m
-        return $ Skip $ Just $ f (fromSVar sv)
+        sv <- newParallelVar StopNone gst
+        toSVarParallel gst sv m
+        -- XXX use unfold instead?
+        return $ Skip $ Just $ fromSVar sv
 
     step gst (Just (UnStream step1 st)) = do
         r <- step1 gst st
@@ -4060,12 +4019,22 @@ applyParallel f m = Stream step Nothing
             Skip s    -> Skip (Just $ Stream step1 s)
             Stop      -> Stop
 
-{-# INLINE foldParallel #-}
-foldParallel :: (K.IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-foldParallel f m = do
-    sv <- newParallelVar StopNone defState
-    toSVarParallel defState sv (toStreamD m)
-    f $ fromStreamD $ fromSVar sv
+-- Compare with mkAsync. mkAsync uses an Async style SVar whereas this uses a
+-- parallel style SVar for evaluation. Currently, parallel style cannot use
+-- rate control whereas Async style can use rate control. In async style SVar
+-- the worker thread terminates when the buffer is full whereas in Parallel
+-- style it blocks.
+--
+-- | Make the stream producer and consumer run concurrently by introducing a
+-- buffer between them. The producer thread evaluates the input stream until
+-- the buffer fills, it blocks if the buffer is full until there is space in
+-- the buffer. The consumer consumes the stream lazily from the buffer.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL mkParallel #-}
+mkParallel :: (K.IsStream t, MonadAsync m) => t m a -> t m a
+mkParallel = fromStreamD . mkParallelD . toStreamD
 
 -------------------------------------------------------------------------------
 -- Concurrent tap

@@ -172,6 +172,8 @@ module Streamly.Internal.Prelude
     -- , lprescanlM'
 
     -- ** Concurrent Transformation
+    , D.mkParallel
+    -- Par.mkParallel
     , applyAsync
     , (|$)
     , (|&)
@@ -413,9 +415,6 @@ module Streamly.Internal.Prelude
     , usingStateT
     , runStateT
 
-    -- * Concurrency
-    , mkParallel
-
     -- * MonadFix
     , K.mfix
 
@@ -468,8 +467,7 @@ import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.Internal.Data.SVar (MonadAsync, State, defState)
-import Streamly.Internal.Data.Stream.Async (mkAsync')
+import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Internal.Data.Stream.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
@@ -498,6 +496,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
+-- import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
@@ -1541,19 +1540,6 @@ toPureRev = foldl' (flip K.cons) K.nil
 -- Concurrent Application
 ------------------------------------------------------------------------------
 
--- XXX mkParallel is usually used to make serial streams concurrent by
--- evaluating the stream in another thread. Ideally, we should not be creating
--- an SVar if the stream itself is concurrent. For example, if we are zipping
--- two streams that are concurrently composed, we should be able to pull from
--- the SVar of that concurrent stream instead of creating another redundant
--- SVar on top of it.
---
-{-# INLINE_NORMAL mkParallel #-}
-mkParallel :: (IsStream t, MonadAsync m)
-    => State K.Stream m a -> t m a -> m (t m a)
-mkParallel st m = fmap fromStreamD $ D.mkParallel st (toStreamD m)
--- mkParallel = Par.mkParallel
-
 infixr 0 |$
 infixr 0 |$.
 
@@ -1586,11 +1572,10 @@ infixl 1 |&.
 -- @since 0.3.0
 {-# INLINE (|$) #-}
 (|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> (t m a -> t m b)
-f |$ x = D.fromStreamD $
-    D.applyParallel (D.toStreamD . f . D.fromStreamD) (D.toStreamD x)
--- (|$) = Par.applyParallel
+-- (|$) f = f . Async.mkAsync
+(|$) f = f . D.mkParallel
 
--- | Same as (|$).
+-- | Same as '|$'.
 --
 --  /Internal/
 --
@@ -1639,10 +1624,10 @@ x |& f = f |$ x
 -- @since 0.3.0
 {-# INLINE (|$.) #-}
 (|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
-(|$.) = D.foldParallel
--- (|$.) = Par.foldParallel
+-- (|$.) f = f . Async.mkAsync
+(|$.) f = f . D.mkParallel
 
--- | Same as '(|$.)'.
+-- | Same as '|$.'.
 --
 --  /Internal/
 --
@@ -2404,10 +2389,7 @@ merge = mergeBy compare
 -- @since 0.6.0
 mergeAsyncBy :: (IsStream t, MonadAsync m)
     => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeAsyncBy f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' st m1
-    mb <- mkAsync' st m2
-    K.foldStream st stp sng yld (K.mergeBy f ma mb)
+mergeAsyncBy f m1 m2 = K.mergeBy f (D.mkParallel m1) (D.mkParallel m2)
 
 -- | Like 'mergeByM' but merges concurrently (i.e. both the elements being
 -- merged are generated concurrently).
@@ -2415,10 +2397,7 @@ mergeAsyncBy f m1 m2 = K.mkStream $ \st stp sng yld -> do
 -- @since 0.6.0
 mergeAsyncByM :: (IsStream t, MonadAsync m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeAsyncByM f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- mkAsync' st m1
-    mb <- mkAsync' st m2
-    K.foldStream st stp sng yld (K.mergeByM f ma mb)
+mergeAsyncByM f m1 m2 = K.mergeByM f (D.mkParallel m1) (D.mkParallel m2)
 
 ------------------------------------------------------------------------------
 -- Nesting

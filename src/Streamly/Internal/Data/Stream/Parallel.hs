@@ -33,13 +33,10 @@ module Streamly.Internal.Data.Stream.Parallel
 
     -- * Evaluate Concurrently
     , mkParallel
-    , applyParallel
-    , foldParallel
 
     -- * Tap Concurrently
     , tapAsync
     , distributeAsync_
-
     )
 where
 
@@ -248,38 +245,17 @@ parallelMin = joinStreamVarPar ParallelVar StopAny
 -- Convert a stream to parallel
 ------------------------------------------------------------------------------
 
-mkParallel :: (IsStream t, MonadAsync m)
-    => State Stream m a -> t m a -> m (t m a)
-mkParallel st m = do
-    sv <- newParallelVar StopNone defState
+-- | Generate a stream asynchronously to keep it buffered, lazily consume
+-- from the buffer.
+--
+-- /Internal/
+--
+mkParallel :: (IsStream t, MonadAsync m) => t m a -> t m a
+mkParallel m = mkStream $ \st yld sng stp -> do
+    sv <- newParallelVar StopNone (adaptState st)
     -- pushWorkerPar sv (runOne st{streamVar = Just sv} $ toStream m)
     D.toSVarParallel st sv $ D.toStreamD m
-    return $ fromSVar sv
-
-------------------------------------------------------------------------------
--- Stream to stream concurrent function application
-------------------------------------------------------------------------------
-
-{-# INLINE applyParallel #-}
-applyParallel :: (IsStream t, MonadAsync m)
-    => (t m a -> t m b) -> t m a -> t m b
-applyParallel f m = mkStream $ \st yld sng stp -> do
-    sv <- newParallelVar StopNone (adaptState st)
-    -- pushWorkerPar sv (runOne st{streamVar = Just sv} (toStream m))
-    D.toSVarParallel (adaptState st) sv $ D.toStreamD m
-    foldStream st yld sng stp $ f $ fromSVar sv
-
-------------------------------------------------------------------------------
--- Stream runner concurrent function application
-------------------------------------------------------------------------------
-
-{-# INLINE foldParallel #-}
-foldParallel :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
-foldParallel f m = do
-    sv <- newParallelVar StopNone defState
-    -- pushWorkerPar sv (runOne defState{streamVar = Just sv} $ toStream m)
-    D.toSVarParallel defState sv $ D.toStreamD m
-    f $ fromSVar sv
+    foldStream st yld sng stp $ fromSVar sv
 
 ------------------------------------------------------------------------------
 -- Clone and distribute a stream in parallel

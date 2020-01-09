@@ -56,7 +56,7 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
-import Streamly.Internal.Data.SVar (MonadAsync, adaptState)
+import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -93,11 +93,6 @@ zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
 -- Parallel Zipping
 ------------------------------------------------------------------------------
 
--- The CPS version and the direct version of zipAsyncWithM below seem to have
--- identical performance.  However, we need to use the StreamD version of
--- mkParallel which uses a direct implementation of fromSVar. In comparison to
--- CPS version of fromSVar the direct version gives a 2x improvement.
-
 -- | Like 'zipWithM' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.
 --
@@ -105,16 +100,7 @@ zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
 {-# INLINE zipAsyncWithM #-}
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = K.mkStream $ \st stp sng yld -> do
-    ma <- D.mkParallel (adaptState st) (D.toStreamD m1)
-    mb <- D.mkParallel (adaptState st) (D.toStreamD m2)
-    K.foldStream st stp sng yld $ zipWithM f (D.fromStreamD ma)
-                                             (D.fromStreamD mb)
-{-
-zipAsyncWithM f m1 m2 =
-    fromStreamD $ D.zipAsyncWithM f (toStreamD m1) (toStreamD m2)
--}
-
+zipAsyncWithM f m1 m2 = zipWithM f (D.mkParallel m1) (D.mkParallel m2)
 -- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.
 --
