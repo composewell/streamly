@@ -23,6 +23,27 @@
 -- import qualified Streamly.Prelude as S
 -- @
 --
+-- The stream combinators in this module fall broadly in the following
+-- categories:
+--
+-- +------------------------------------------+-------------------------------+
+-- | Category                                 | Shape                         |
+-- +==========================================+===============================+
+-- | Stream generators or unfolds             | @m a -> t m b@                |
+-- +------------------------------------------+-------------------------------+
+-- | Stream elimination or folds              | @t m a -> m b@                |
+-- +------------------------------------------+-------------------------------+
+-- | Stream transformation or transforms      | @t m a -> t m b@              |
+-- +------------------------------------------+-------------------------------+
+-- | Stream extension operations              | @m a -> t m a -> t m a@       |
+-- +------------------------------------------+-------------------------------+
+-- | Stream merge or combine operations       | @t m a -> t m a -> t m a@     |
+-- +------------------------------------------+-------------------------------+
+--
+-- Where @t@ is a stream type. You can generally tell the type of a combinator
+-- by matching the tail of its signature with these shapes. Sometimes you may
+-- have to squint a bit.
+--
 -- Functions with the suffix @M@ are general functions that work on monadic
 -- arguments. The corresponding functions without the suffix @M@ work on pure
 -- arguments and can in general be derived from their monadic versions but are
