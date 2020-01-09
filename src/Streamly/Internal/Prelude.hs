@@ -78,6 +78,11 @@ module Streamly.Internal.Prelude
     , foldl1'
     , foldlM'
 
+    -- ** Concurrent Folds
+    , foldAsync
+    , (|$.)
+    , (|&.)
+
     -- ** Full Folds
 
     -- -- ** To Summary (Full Folds)
@@ -132,12 +137,6 @@ module Streamly.Internal.Prelude
     , toStream    -- XXX rename to write?
     , toStreamRev -- XXX rename to writeRev?
 
-    -- * Function application
-    , (|$)
-    , (|&)
-    , (|$.)
-    , (|&.)
-
     -- * Transformation
     , transform
 
@@ -171,6 +170,11 @@ module Streamly.Internal.Prelude
     -- , lpostscanlM'
     -- , lprescanl'
     -- , lprescanlM'
+
+    -- ** Concurrent Transformation
+    , applyAsync
+    , (|$)
+    , (|&)
 
     -- ** Indexing
     , indexed
@@ -1556,10 +1560,19 @@ infixr 0 |$.
 infixl 1 |&
 infixl 1 |&.
 
--- | Parallel function application operator for streams; just like the regular
--- function application operator '$' except that it is concurrent. The
--- following code prints a value every second even though each stage adds a 1
--- second delay.
+-- | Parallel transform application operator; applies a stream transformation
+-- function @t m a -> t m b@ to a stream @t m a@ concurrently; the input stream
+-- is evaluated asynchronously in an independent thread yielding elements to a
+-- buffer and the transformation function runs in another thread consuming the
+-- input from the buffer.  '|$' is just like regular function application
+-- operator '$' except that it is concurrent.
+--
+-- If you read the signature as @(t m a -> t m b) -> (t m a -> t m b)@ you can
+-- look at it as a transformation that converts a transform function to a
+-- buffered concurrent transform function.
+--
+-- The following code prints a value every second even though each stage adds a
+-- 1 second delay.
 --
 --
 -- @
@@ -1572,10 +1585,19 @@ infixl 1 |&.
 --
 -- @since 0.3.0
 {-# INLINE (|$) #-}
-(|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> t m a -> t m b
+(|$) :: (IsStream t, MonadAsync m) => (t m a -> t m b) -> (t m a -> t m b)
 f |$ x = D.fromStreamD $
     D.applyParallel (D.toStreamD . f . D.fromStreamD) (D.toStreamD x)
 -- (|$) = Par.applyParallel
+
+-- | Same as (|$).
+--
+--  /Internal/
+--
+{-# INLINE applyAsync #-}
+applyAsync :: (IsStream t, MonadAsync m)
+    => (t m a -> t m b) -> (t m a -> t m b)
+applyAsync = (|$)
 
 -- | Parallel reverse function application operator for streams; just like the
 -- regular reverse function application operator '&' except that it is
@@ -1594,11 +1616,18 @@ f |$ x = D.fromStreamD $
 (|&) :: (IsStream t, MonadAsync m) => t m a -> (t m a -> t m b) -> t m b
 x |& f = f |$ x
 
--- | Parallel function application operator; applies a @run@ or @fold@ function
--- to a stream such that the fold consumer and the stream producer run in
--- parallel. A @run@ or @fold@ function reduces the stream to a value in the
--- underlying monad. The @.@ at the end of the operator is a mnemonic for
--- termination of the stream.
+-- | Parallel fold application operator; applies a fold function @t m a -> m b@
+-- to a stream @t m a@ concurrently; The the input stream is evaluated
+-- asynchronously in an independent thread yielding elements to a buffer and
+-- the folding action runs in another thread consuming the input from the
+-- buffer.
+--
+-- If you read the signature as @(t m a -> m b) -> (t m a -> m b)@ you can look
+-- at it as a transformation that converts a fold function to a buffered
+-- concurrent fold function.
+--
+-- The @.@ at the end of the operator is a mnemonic for termination of the
+-- stream.
 --
 -- @
 --    S.foldlM' (\\_ a -> threadDelay 1000000 >> print a) ()
@@ -1609,9 +1638,17 @@ x |& f = f |$ x
 --
 -- @since 0.3.0
 {-# INLINE (|$.) #-}
-(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> m b
+(|$.) :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
 (|$.) = D.foldParallel
 -- (|$.) = Par.foldParallel
+
+-- | Same as '(|$.)'.
+--
+--  /Internal/
+--
+{-# INLINE foldAsync #-}
+foldAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> (t m a -> m b)
+foldAsync = (|$.)
 
 -- | Parallel reverse function application operator for applying a run or fold
 -- functions to a stream. Just like '|$.' except that the operands are reversed.
