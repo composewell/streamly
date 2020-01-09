@@ -21,16 +21,25 @@
 --
 module Streamly.Internal.Data.Stream.Parallel
     (
+    -- * Parallel Stream Type
       ParallelT
     , Parallel
     , parallely
+
+    -- * Merge Concurrently
     , parallel
     , parallelFst
     , parallelMin
-    , tapAsync
+
+    -- * Evaluate Concurrently
     , mkParallel
     , applyParallel
     , foldParallel
+
+    -- * Tap Concurrently
+    , tapAsync
+    , distributeAsync_
+
     )
 where
 
@@ -385,6 +394,22 @@ tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
     sv <- newFoldSVar st f
     foldStreamShared st yld sng stp (teeToSVar sv m)
+
+-- | Concurrently distribute a stream to a collection of fold functions,
+-- discarding the outputs of the folds.
+--
+-- >>> S.drain $ distributeAsync_ [S.mapM_ print, S.mapM_ print] (S.enumerateFromTo 1 2)
+--
+-- @
+-- distributeAsync_ = flip (foldr tapAsync)
+-- @
+--
+-- /Internal/
+--
+{-# INLINE distributeAsync_ #-}
+distributeAsync_ :: (Foldable f, IsStream t, MonadAsync m)
+    => f (t m a -> m b) -> t m a -> t m a
+distributeAsync_ = flip (foldr tapAsync)
 
 ------------------------------------------------------------------------------
 -- ParallelT
