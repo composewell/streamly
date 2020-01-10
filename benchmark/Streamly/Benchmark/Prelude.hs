@@ -34,7 +34,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip, (**), (/), Bounded(..), Num(..), Eq(..), Ord(..), error)
+        (<*>), flip, Bounded(..), Num(..), Eq(..), Ord(..), error)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
