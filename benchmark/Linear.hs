@@ -356,19 +356,22 @@ main = do
         [ benchIOSink value "filter-even"     (Ops.filterEven 1)
         , benchIOSink value "filter-all-out"  (Ops.filterAllOut value 1)
         , benchIOSink value "filter-all-in"   (Ops.filterAllIn value 1)
+
         , benchIOSink value "take-all"        (Ops.takeAll value 1)
-        
-        -- XXX Compare this to takeAll
-        , benchIOSink value "takeByTime: All" (Ops.takeByTime (NanoSecond64 maxBound) 1)
-        , benchIOSink value "dropByTime: All" (Ops.dropByTime (NanoSecond64 maxBound) 1)
-        
+        , benchIOSink value "takeByTime-all"
+            (Ops.takeByTime (NanoSecond64 maxBound) 1)
         , benchIOSink value "takeWhile-true"  (Ops.takeWhileTrue value 1)
         --, benchIOSink value "takeWhileM-true" (Ops.takeWhileMTrue 1)
+
+        -- "drop-one" is dual to "last"
         , benchIOSink value "drop-one"        (Ops.dropOne 1)
         , benchIOSink value "drop-all"        (Ops.dropAll value 1)
+        , benchIOSink value "dropByTime-all"
+            (Ops.dropByTime (NanoSecond64 maxBound) 1)
         , benchIOSink value "dropWhile-true"  (Ops.dropWhileTrue value 1)
         --, benchIOSink value "dropWhileM-true" (Ops.dropWhileMTrue 1)
         , benchIOSink value "dropWhile-false" (Ops.dropWhileFalse value 1)
+
         , benchIOSink value "deleteBy" (Ops.deleteBy value 1)
         , benchIOSink value "intersperse" (Ops.intersperse value 1)
         , benchIOSink value "insertBy" (Ops.insertBy value 1)

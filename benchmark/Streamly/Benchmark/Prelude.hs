@@ -383,14 +383,6 @@ filterAllOut,
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
 
-{-# INLINE takeByTime #-}
-takeByTime :: (MonadIO m, TimeUnit64 t) => t -> Int -> Stream m Int -> m ()
-takeByTime i n = composeN n (Internal.takeByTime i)
-
-{-# INLINE dropByTime #-}
-dropByTime :: (MonadIO m, TimeUnit64 t) => t -> Int -> Stream m Int -> m ()
-dropByTime i n = composeN n (Internal.dropByTime i)
-
 {-# INLINE mapM #-}
 {-# INLINE map' #-}
 {-# INLINE fmap' #-}
@@ -464,6 +456,24 @@ foldrS         n = composeN n $ Internal.foldrS S.cons S.nil
 foldrSMap      n = composeN n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
 foldrT         n = composeN n $ Internal.foldrT S.cons S.nil
 foldrTMap      n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
+
+{-# INLINE takeByTime #-}
+takeByTime :: NanoSecond64 -> Int -> Stream IO Int -> IO ()
+takeByTime i n = composeN n (Internal.takeByTime i)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'takeByTime
+-- inspect $ 'takeByTime `hasNoType` ''D.Step
+#endif
+
+{-# INLINE dropByTime #-}
+dropByTime :: NanoSecond64 -> Int -> Stream IO Int -> IO ()
+dropByTime i n = composeN n (Internal.dropByTime i)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'dropByTime
+-- inspect $ 'dropByTime `hasNoType` ''D.Step
+#endif
 
 -------------------------------------------------------------------------------
 -- Pipes

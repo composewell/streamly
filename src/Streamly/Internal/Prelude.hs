@@ -185,11 +185,13 @@ module Streamly.Internal.Prelude
 
     -- ** Stateful Filters
     , take
+    , takeByTime
     -- , takeEnd
     , takeWhile
     , takeWhileM
     -- , takeWhileEnd
     , drop
+    , dropByTime
     -- , dropEnd
     , dropWhile
     , dropWhileM
@@ -412,10 +414,6 @@ module Streamly.Internal.Prelude
 
     -- * Diagnostics
     , inspectMode
-
-    -- * Time related
-    , takeByTime
-    , dropByTime
 
     -- * Deprecated
     , K.once
@@ -1876,6 +1874,26 @@ takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
 takeWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 
+-- | @takeByTime duration@ yields stream elements upto specified time
+-- @duration@. The duration starts when the stream is evaluated for the first
+-- time, before the first element is yielded. The time duration is checked
+-- before generating each element, if the duration has expired the stream
+-- stops.
+--
+-- The total time taken in executing the stream is guaranteed to be /at least/
+-- @duration@, however, because the duration is checked before generating an
+-- element, the upper bound is indeterminate and depends on the time taken in
+-- generating and processing the last element.
+--
+-- No element is yielded if the duration is zero. At least one element is
+-- yielded if the duration is non-zero.
+--
+-- /Internal/
+--
+{-# INLINE takeByTime #-}
+takeByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
+takeByTime d = fromStreamD . D.takeByTime d . toStreamD
+
 -- | Discard first 'n' elements from the stream and take the rest.
 --
 -- @since 0.1.0
@@ -1897,6 +1915,24 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 {-# INLINE dropWhileM #-}
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
+
+-- | @dropByTime duration@ drops stream elements until specified @duration@ has
+-- passed.  The duration begins when the stream is evaluated for the first
+-- time. The time duration is checked /after/ generating a stream element, the
+-- element is yielded if the duration has expired otherwise it is dropped.
+--
+-- The time elapsed before starting to generate the first element is /at most/
+-- @duration@, however, because the duration expiry is checked after the
+-- element is generated, the lower bound is indeterminate and depends on the
+-- time taken in generating an element.
+--
+-- All elements are yielded if the duration is zero.
+--
+-- /Internal/
+--
+{-# INLINE dropByTime #-}
+dropByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
+dropByTime d = fromStreamD . D.dropByTime d . toStreamD
 
 ------------------------------------------------------------------------------
 -- Transformation by Mapping
@@ -4195,25 +4231,3 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
-
-------------------------------------------------------------------------------
--- Time related
-------------------------------------------------------------------------------
-
--- | /takeByTime d/ keeps taking elements from the stream until d duration has
--- passed. We first check the if the duration has expired, if yes, then we
--- 'Stop' else we take the element,  executing the corresponding monadic
--- action. The only guarentee is, the element will not be taken (the action
--- will not begin) if the duration has expired. If the duration has expired
--- during the execution of the monadic action, the next element will not be
--- taken but the current action will run to completion.
-{-# INLINE takeByTime #-}
-takeByTime ::(MonadIO m, IsStream t, TimeUnit64 u) => u -> t m a -> t m a
-takeByTime d = fromStreamD . D.takeByTime d . toStreamD
-
--- | /dropByTime d/ keeps dropping elements from the stream until d duration has
--- passed. The first element is taken only after the duration has expired.
-{-# INLINE dropByTime #-}
-dropByTime ::(MonadIO m, IsStream t, TimeUnit64 u) => u -> t m a -> t m a
-dropByTime d = fromStreamD . D.dropByTime d . toStreamD
-

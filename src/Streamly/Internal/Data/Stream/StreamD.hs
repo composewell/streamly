@@ -347,6 +347,7 @@ import qualified Prelude
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
+       (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
@@ -4045,51 +4046,80 @@ lastN n = Fold step initial done
 -- Time related
 ------------------------------------------------------------------------------
 
--- XXX This does not fuse. Removing the if function results in fusion though.
--- XXX This function will fuse with the use of fusion-plugin.
--- XXX This function also fuses if compiled with -funfolding-use-threshold=500
+-- XXX using getTime in the loop can be pretty expensive especially for
+-- computations where iterations are lightweight. We have the following
+-- options:
+--
+-- 1) Run a timeout thread updating a flag asynchronously and check that
+-- flag here, that way we can have a cheap termination check.
+--
+-- 2) Use COARSE clock to get time with lower resolution but more efficiently.
+--
+-- 3) Use rdtscp/rdtsc to get time directly from the processor, compute the
+-- termination value of rdtsc in the beginning and then in each iteration just
+-- get rdtsc and check if we should terminate.
+--
+data TakeByTime st s
+    = TakeByTimeInit st
+    | TakeByTimeCheck st s
+    | TakeByTimeYield st s
+
 {-# INLINE_NORMAL takeByTime #-}
 takeByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
-takeByTime lim' (Stream step state) = Stream step' (state, Nothing)
-  where
-    lim = toRelTime64 lim'
-    {-# INLINE_LATE step' #-}
-    step' _ (s, Nothing) = do
-        t <- liftIO $ getTime Monotonic
-        return $ Skip (s, Just t)
-    step' gst (s, jt@(Just t)) = do
-        ns <- step gst s
-        t' <- liftIO $ getTime Monotonic
-        if diffAbsTime64 t' t > lim
-            then return Stop
-            else return $ case ns of
-                     Yield a s' -> Yield a (s', jt)
-                     Skip s' -> Skip (s', jt)
-                     Stop -> Stop
+takeByTime duration (Stream step1 state1) = Stream step (TakeByTimeInit state1)
+    where
 
--- XXX This does not fuse. Removing the if function results in fusion though.
--- XXX This function will fuse with the use of fusion-plugin.
--- XXX This function also fuses if compiled with -funfolding-use-threshold=500
+    lim = toRelTime64 duration
+
+    {-# INLINE_LATE step #-}
+    step _ (TakeByTimeInit _) | lim == 0 = return Stop
+    step _ (TakeByTimeInit st) = do
+        t0 <- liftIO $ getTime Monotonic
+        return $ Skip (TakeByTimeYield st t0)
+    step _ (TakeByTimeCheck st t0) = do
+        t <- liftIO $ getTime Monotonic
+        return $
+            if diffAbsTime64 t t0 > lim
+            then Stop
+            else Skip (TakeByTimeYield st t0)
+    step gst (TakeByTimeYield st t0) = do
+        r <- step1 gst st
+        return $ case r of
+             Yield x s -> Yield x (TakeByTimeCheck s t0)
+             Skip s -> Skip (TakeByTimeCheck s t0)
+             Stop -> Stop
+
+data DropByTime st s x
+    = DropByTimeInit st
+    | DropByTimeGen st s
+    | DropByTimeCheck st s x
+    | DropByTimeYield st
+
 {-# INLINE_NORMAL dropByTime #-}
 dropByTime :: (MonadIO m, TimeUnit64 t) => t -> Stream m a -> Stream m a
-dropByTime lim' (Stream step state) = Stream step' (state, Nothing)
-  where
-    lim = toRelTime64 lim'
-    {-# INLINE_LATE step' #-}
-    step' _ (s, Nothing) = do
+dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
+    where
+
+    lim = toRelTime64 duration
+
+    {-# INLINE_LATE step #-}
+    step _ (DropByTimeInit st) = do
+        t0 <- liftIO $ getTime Monotonic
+        return $ Skip (DropByTimeGen st t0)
+    step gst (DropByTimeGen st t0) = do
+        r <- step1 gst st
+        return $ case r of
+             Yield x s -> Skip (DropByTimeCheck s t0 x)
+             Skip s -> Skip (DropByTimeGen s t0)
+             Stop -> Stop
+    step _ (DropByTimeCheck st t0 x) = do
         t <- liftIO $ getTime Monotonic
-        return $ Skip (s, Just t)
-    step' gst (s, jt@(Just t)) = do
-        t' <- liftIO $ getTime Monotonic
-        ns <- step gst s
-        if diffAbsTime64 t' t <= lim
-            then return $
-                 case ns of
-                     Yield _ s' -> Skip (s', jt)
-                     Skip s' -> Skip (s', jt)
-                     Stop -> Stop
-            else return $
-                 case ns of
-                     Yield a s' -> Yield a (s', jt)
-                     Skip s' -> Skip (s', jt)
-                     Stop -> Stop
+        if diffAbsTime64 t t0 <= lim
+        then return $ Skip $ DropByTimeGen st t0
+        else return $ Yield x $ DropByTimeYield st
+    step gst (DropByTimeYield st) = do
+        r <- step1 gst st
+        return $ case r of
+             Yield x s -> Yield x (DropByTimeYield s)
+             Skip s -> Skip (DropByTimeYield s)
+             Stop -> Stop
