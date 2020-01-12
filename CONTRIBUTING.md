@@ -153,6 +153,58 @@ Specifically,
 * Please use 4 spaces for indentation.
 * Do not let the code go beyond 80 columns
 
+Indent the `where` clause as follows:
+
+```
+f x = ...
+    where
+
+    f1 = ...
+```
+
+In general, we avoid using a prime on the variable names, e.g. we use `step1`
+instead of `step'`. Numbered indexing is better because it is easier on the
+eyes and we can represent multiple generations of the variables without adding
+more characters e.g. we can write `step2` instead of `step''`.
+
+Use shorter variable names for shorter scopes, use longer variable names for
+bigger scopes.
+
+Imports:
+
+* Import symbols explicitly by names as long as possible
+* Import qualified is there are too many symbols to be imported
+
+### StreamD coding style
+
+Some conventions that we follow in the StreamD code are illustrated by the
+following example:
+
+```
+mapM f (Stream step1 state1) = Stream step state
+    where
+
+    step gst st = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield x s -> f x >>= \a -> return $ Yield a s
+            Skip s    -> return $ Skip s
+            Stop      -> return Stop
+```
+
+* For the input streams use numbering for `step` and `state` e.g.
+  step1/state1. For the ouput stream use `step` and `state`.
+* For state argument of `step`, use `st`.
+* For result of executing a `step` use `r` or `res`
+* For the yielded element use `x`
+* For the yielded state use `s`
+
+In general, the rule is - the shorter the scope of a variable the shorter its
+name can be. For example, `s` has the shortest scope in the above code, `st`
+has a bigger scope and `state` has the biggest scope.
+
+For better fusion we try to keep a single yield point in the state machine.
+
 ### Organization
 
 Use this simple rule to organize functions in a file: `Define before first
