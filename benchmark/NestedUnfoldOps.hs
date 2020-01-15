@@ -13,20 +13,18 @@ import Streamly.Internal.Data.Unfold (Unfold)
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Fold as FL
 
-linearCount :: Int
-linearCount = 100000
-
 -- n * (n + 1) / 2 == linearCount
-concatCount :: Int
-concatCount = 450
+concatCount :: Int -> Int
+concatCount linearCount =
+    round (((1 + 8 * fromIntegral linearCount)**(1/2::Double) - 1) / 2)
 
 -- double nested loop
-nestedCount2 :: Int
-nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+nestedCount2 :: Int -> Int
+nestedCount2 linearCount = round (fromIntegral linearCount**(1/2::Double))
 
 -- triple nested loop
-nestedCount3 :: Int
-nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
+nestedCount3 :: Int -> Int
+nestedCount3 linearCount = round (fromIntegral linearCount**(1/3::Double))
 
 -------------------------------------------------------------------------------
 -- Stream generation and elimination
@@ -42,18 +40,18 @@ source n = UF.enumerateFromToIntegral n
 -------------------------------------------------------------------------------
 
 {-# INLINE toNull #-}
-toNull :: MonadIO m => Int -> m ()
-toNull start = do
-    let end = start + nestedCount2
+toNull :: MonadIO m => Int -> Int -> m ()
+toNull linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.map (\(x, y) -> x + y)
         $ UF.outerProduct (source end) (source end))
         FL.drain (start, start)
 
 {-# INLINE toNull3 #-}
-toNull3 :: MonadIO m => Int -> m ()
-toNull3 start = do
-    let end = start + nestedCount3
+toNull3 :: MonadIO m => Int -> Int -> m ()
+toNull3 linearCount start = do
+    let end = start + nestedCount3 linearCount
     UF.fold
             (UF.map (\(x, y) -> x + y)
             $ UF.outerProduct (source end)
@@ -62,35 +60,35 @@ toNull3 start = do
             FL.drain (start, (start, start))
 
 {-# INLINE concat #-}
-concat :: MonadIO m => Int -> m ()
-concat start = do
-    let end = start + concatCount
+concat :: MonadIO m => Int -> Int -> m ()
+concat linearCount start = do
+    let end = start + concatCount linearCount
     UF.fold
         (UF.concat (source end) (source end))
         FL.drain start
 
 {-# INLINE toList #-}
-toList :: MonadIO m => Int -> m [Int]
-toList start = do
-    let end = start + nestedCount2
+toList :: MonadIO m => Int -> Int -> m [Int]
+toList linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.map (\(x, y) -> x + y)
         $ UF.outerProduct (source end) (source end))
         FL.toList (start, start)
 
 {-# INLINE toListSome #-}
-toListSome :: MonadIO m => Int -> m [Int]
-toListSome start = do
-    let end = start + nestedCount2
+toListSome :: MonadIO m => Int -> Int -> m [Int]
+toListSome linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.take 1000 $ (UF.map (\(x, y) -> x + y)
             $ UF.outerProduct (source end) (source end)))
         FL.toList (start, start)
 
 {-# INLINE filterAllOut #-}
-filterAllOut :: MonadIO m => Int -> m ()
-filterAllOut start = do
-    let end = start + nestedCount2
+filterAllOut :: MonadIO m => Int -> Int -> m ()
+filterAllOut linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.filter (< 0)
         $ UF.map (\(x, y) -> x + y)
@@ -98,9 +96,9 @@ filterAllOut start = do
         FL.drain (start, start)
 
 {-# INLINE filterAllIn #-}
-filterAllIn :: MonadIO m => Int -> m ()
-filterAllIn start = do
-    let end = start + nestedCount2
+filterAllIn :: MonadIO m => Int -> Int -> m ()
+filterAllIn linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.filter (> 0)
         $ UF.map (\(x, y) -> x + y)
@@ -108,9 +106,9 @@ filterAllIn start = do
         FL.drain (start, start)
 
 {-# INLINE filterSome #-}
-filterSome :: MonadIO m => Int -> m ()
-filterSome start = do
-    let end = start + nestedCount2
+filterSome :: MonadIO m => Int -> Int -> m ()
+filterSome linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.filter (> 1100000)
         $ UF.map (\(x, y) -> x + y)
@@ -118,9 +116,9 @@ filterSome start = do
         FL.drain (start, start)
 
 {-# INLINE breakAfterSome #-}
-breakAfterSome :: MonadIO m => Int -> m ()
-breakAfterSome start = do
-    let end = start + nestedCount2
+breakAfterSome :: MonadIO m => Int -> Int -> m ()
+breakAfterSome linearCount start = do
+    let end = start + nestedCount2 linearCount
     UF.fold
         (UF.takeWhile (<= 1100000)
         $ UF.map (\(x, y) -> x + y)
