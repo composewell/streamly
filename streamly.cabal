@@ -637,12 +637,12 @@ benchmark nested
     build-depends:
         transformers  >= 0.4 && < 0.6
 
-benchmark nestedUnfold
+benchmark nested-unfold
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: NestedUnfold.hs
-  other-modules: NestedUnfoldOps
+  other-modules: NestedUnfoldOps, Common
   build-depends:
       streamly
     , base                >= 4.8   && < 5

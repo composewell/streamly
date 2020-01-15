@@ -28,6 +28,7 @@ data BenchType
     | LinearRate
     | Nested
     | NestedConcurrent
+    | NestedUnfold
     | Base
     | FileIO
     | Array
@@ -71,6 +72,7 @@ parseBench = do
         Just "linear-rate" -> setBenchType LinearRate
         Just "nested" -> setBenchType Nested
         Just "nested-concurrent" -> setBenchType NestedConcurrent
+        Just "nested-unfold" -> setBenchType NestedUnfold
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array" -> setBenchType Array
@@ -351,11 +353,11 @@ main = do
                             makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
-                NestedConcurrent -> benchShow opts cfg
-                            { title = Just "Nested concurrent loops 316 x 316 elems" }
+                NestedUnfold -> benchShow opts cfg
+                            { title = Just "Nested unfold loops 316 x 316 elems" }
                             makeNestedGraphs
-                            "charts/nested-concurrent/results.csv"
-                            "charts/nested-concurrent"
+                            "charts/nested-unfold/results.csv"
+                            "charts/nested-unfold"
                 FileIO -> benchShow opts cfg
                             { title = Just "File IO" }
                             makeFileIOGraphs
