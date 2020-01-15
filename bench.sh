@@ -1,12 +1,15 @@
 #!/bin/bash
 
+ALL_BENCHMARKS="linear linear-async linear-rate nested nested-concurrent nested-unfold concurrent fileio array base"
+
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|concurrent|fileio|array|base>]"
+  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|nested-concurrent|nested-unfold|concurrent|fileio|array|base>]"
   echo "       [--group-diff]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
-  echo "       [--append] "
+  echo "       [--append]"
+  echo "       [--long]"
   echo "       [--compare] [--base commit] [--candidate commit]"
   echo "       [--slow]"
   echo "       -- <gauge options>"
@@ -144,6 +147,19 @@ run_bench () {
 
   echo "Running benchmark $bench_name ..."
 
+  local SPEED_OPTIONS
+  if test "$LONG" -eq 0
+  then
+    if test "$SLOW" -eq 0
+    then
+      SPEED_OPTIONS="--quick --min-samples 10 --time-limit 1 --min-duration 0"
+    else
+      SPEED_OPTIONS="--min-duration 0"
+    fi
+  else
+      SPEED_OPTIONS="--stream-size 10000000 -v2 --quick --include-first-iter --time-limit 1 --min-duration 0"
+  fi
+
   $bench_prog $SPEED_OPTIONS \
     --csvraw=$output_file \
     -v 2 \
@@ -231,7 +247,6 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
-ALL_BENCHMARKS="linear linear-async linear-rate nested nested-concurrent concurrent fileio array base"
 GROUP_DIFF=0
 
 COMPARE=0
@@ -239,10 +254,11 @@ BASE=
 CANDIDATE=
 
 APPEND=0
+SLOW=0
+LONG=0
 RAW=0
 GRAPH=0
 MEASURE=1
-SPEED_OPTIONS="--quick --min-samples 10 --time-limit 1 --min-duration 0"
 
 GAUGE_ARGS=
 BUILD_ONCE=0
@@ -263,7 +279,7 @@ do
   case $1 in
     -h|--help|help) print_help ;;
     # options with arguments
-    --slow) SPEED_OPTIONS="--min-duration 0"; shift ;;
+    --slow) SLOW=1; shift ;;
     --benchmarks) shift; BENCHMARKS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
@@ -271,6 +287,7 @@ do
     --compare) COMPARE=1; shift ;;
     --raw) RAW=1; shift ;;
     --append) APPEND=1; shift ;;
+    --long) LONG=1; shift ;;
     --group-diff) GROUP_DIFF=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
