@@ -353,6 +353,11 @@ main = do
                             makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
+                NestedConcurrent -> benchShow opts cfg
+                            { title = Just "Nested concurrent loops 316 x 316 elems" }
+                            makeNestedGraphs
+                            "charts/nested-concurrent/results.csv"
+                            "charts/nested-concurrent"
                 NestedUnfold -> benchShow opts cfg
                             { title = Just "Nested unfold loops 316 x 316 elems" }
                             makeNestedGraphs

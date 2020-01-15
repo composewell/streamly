@@ -30,6 +30,9 @@
 * _Benchmarks_:
 
     * Check regressions from previous release
+    * Run benchmarks with large stream size (`bench.sh -- long`) to
+      check for space leaks and to ensure constant memory usage for streaming
+      operations.
     * Check comparative benchmarks using streaming-benchmarks
 
 * _Update Package Metadata:_
