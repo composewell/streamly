@@ -91,9 +91,15 @@ main = do
            , mkBench "catBracket" href $ do
                Handles inh _ <- readIORef href
                BFA.catBracket devNull inh
+           , mkBench "catBracketIO" href $ do
+               Handles inh _ <- readIORef href
+               BFA.catBracketIO devNull inh
            , mkBench "catBracketStream" href $ do
                Handles inh _ <- readIORef href
                BFA.catBracketStream devNull inh
+           , mkBench "catBracketStreamIO" href $ do
+               Handles inh _ <- readIORef href
+               BFA.catBracketStreamIO devNull inh
            , mkBench "catOnException" href $ do
                Handles inh _ <- readIORef href
                BFA.catOnException devNull inh
@@ -142,15 +148,27 @@ main = do
            , mkBench "catFinally" href $ do
                Handles inh _ <- readIORef href
                BFS.catFinally devNull inh
+           , mkBench "catFinallyIO" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catFinallyIO devNull inh
            , mkBench "catFinallyStream" href $ do
                Handles inh _ <- readIORef href
                BFS.catFinallyStream devNull inh
+           , mkBench "catFinallyStreamIO" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catFinallyStreamIO devNull inh
            , mkBench "catBracketStream" href $ do
                Handles inh _ <- readIORef href
                BFS.catBracketStream devNull inh
+           , mkBench "catBracketStreamIO" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catBracketStreamIO devNull inh
            , mkBench "catBracket" href $ do
                Handles inh _ <- readIORef href
                BFS.catBracket devNull inh
+           , mkBench "catBracketIO" href $ do
+               Handles inh _ <- readIORef href
+               BFS.catBracketIO devNull inh
 #endif
            , mkBench "read-word8" href $ do
                Handles inh _ <- readIORef href

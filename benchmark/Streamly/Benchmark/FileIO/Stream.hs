@@ -31,13 +31,17 @@ module Streamly.Benchmark.FileIO.Stream
     , cat
     , catStreamWrite
     , catBracket
+    , catBracketIO
     , catBracketStream
+    , catBracketStreamIO
     , catOnException
     , catOnExceptionStream
     , catHandle
     , catHandleStream
     , catFinally
+    , catFinallyIO
     , catFinallyStream
+    , catFinallyStreamIO
     , copy
     , linesUnlinesCopy
     , linesUnlinesArrayWord8Copy
@@ -211,6 +215,12 @@ inspect $ hasNoTypeClasses 'catBracket
 -- inspect $ 'catBracket `hasNoType` ''D.ConcatMapUState
 #endif
 
+{-# INLINE catBracketIO #-}
+catBracketIO :: Handle -> Handle -> IO ()
+catBracketIO devNull inh =
+    let readEx = IUF.bracketIO return (\_ -> hClose inh) FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE catBracketStream #-}
 catBracketStream :: Handle -> Handle -> IO ()
@@ -223,6 +233,13 @@ catBracketStream devNull inh =
 inspect $ hasNoTypeClasses 'catBracketStream
 -- inspect $ 'catBracketStream `hasNoType` ''Step
 #endif
+
+{-# INLINE catBracketStreamIO #-}
+catBracketStreamIO :: Handle -> Handle -> IO ()
+catBracketStreamIO devNull inh =
+    let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
+                    (\_ -> IFH.toBytes inh)
+    in IFH.fromBytes devNull $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE catOnException #-}
@@ -259,11 +276,23 @@ inspect $ hasNoTypeClasses 'catFinally
 -- inspect $ 'catFinally `hasNoType` ''D.ConcatMapUState
 #endif
 
+{-# INLINE catFinallyIO #-}
+catFinallyIO :: Handle -> Handle -> IO ()
+catFinallyIO devNull inh =
+    let readEx = IUF.finallyIO (\_ -> hClose inh) FH.read
+    in S.fold (FH.write devNull) $ S.unfold readEx inh
+
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE catFinallyStream #-}
 catFinallyStream :: Handle -> Handle -> IO ()
 catFinallyStream devNull inh =
     let readEx = S.finally (hClose inh) (S.unfold FH.read inh)
+    in S.fold (FH.write devNull) readEx
+
+{-# INLINE catFinallyStreamIO #-}
+catFinallyStreamIO :: Handle -> Handle -> IO ()
+catFinallyStreamIO devNull inh =
+    let readEx = IP.finallyIO (hClose inh) (S.unfold FH.read inh)
     in S.fold (FH.write devNull) readEx
 
 -- | Send the file contents to /dev/null with exception handling

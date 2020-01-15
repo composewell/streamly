@@ -28,7 +28,9 @@ module Streamly.Benchmark.FileIO.Array
     , cat
     , catOnException
     , catBracket
+    , catBracketIO
     , catBracketStream
+    , catBracketStreamIO
     , copy
     , linesUnlinesCopy
     , wordsUnwordsCopy
@@ -52,6 +54,7 @@ import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Prelude as IP
 
 #ifdef INSPECTION
 import Foreign.Storable (Storable)
@@ -144,6 +147,13 @@ inspect $ hasNoTypeClasses 'catBracket
 -- inspect $ 'catBracket `hasNoType` ''Step
 #endif
 
+{-# INLINE catBracketIO #-}
+catBracketIO :: Handle -> Handle -> IO ()
+catBracketIO devNull inh =
+    let readEx = IUF.bracketIO return (\_ -> hClose inh)
+                    (IUF.supplyFirst FH.readChunksWithBufferOf (256*1024))
+    in IUF.fold readEx (IFH.writeChunks devNull) inh
+
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE catBracketStream #-}
 catBracketStream :: Handle -> Handle -> IO ()
@@ -156,6 +166,13 @@ catBracketStream devNull inh =
 inspect $ hasNoTypeClasses 'catBracketStream
 -- inspect $ 'catBracketStream `hasNoType` ''Step
 #endif
+
+{-# INLINE catBracketStreamIO #-}
+catBracketStreamIO :: Handle -> Handle -> IO ()
+catBracketStreamIO devNull inh =
+    let readEx = IP.bracketIO (return ()) (\_ -> hClose inh)
+                    (\_ -> IFH.toChunksWithBufferOf (256*1024) inh)
+    in S.fold (IFH.writeChunks devNull) $ readEx
 
 -- | Send the file contents to /dev/null with exception handling
 {-# INLINE catOnException #-}

@@ -112,16 +112,23 @@ module Streamly.Internal.Data.Unfold
 
     -- * Exceptions
     , gbracket
+    , gbracketIO
     , before
     , after
+    , afterIO
     , onException
     , finally
+    , finallyIO
     , bracket
+    , bracketIO
     , handle
     )
 where
 
 import Control.Exception (Exception)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Control (MonadBaseControl)
+import Data.IORef (readIORef, writeIORef)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude hiding (concat, map, mapM, takeWhile, take, filter, const)
@@ -132,7 +139,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type (pattern Stream)
 #endif
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.SVar (defState)
+import Streamly.Internal.Data.SVar (defState, MonadAsync)
 import Control.Monad.Catch (MonadCatch)
 
 import qualified Prelude
@@ -653,6 +660,53 @@ gbracket bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
             Skip s    -> return $ Skip (Left s)
             Stop      -> return Stop
 
+-- | The most general bracketing and exception combinator. All other
+-- combinators can be expressed in terms of this combinator. This can also be
+-- used for cases which are not covered by the standard combinators.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL gbracketIO #-}
+gbracketIO
+    :: (MonadIO m, MonadBaseControl IO m)
+    => (a -> m c)                           -- ^ before
+    -> (forall s. m s -> m (Either e s))    -- ^ try (exception handling)
+    -> (c -> m d)                           -- ^ after, on normal stop, or GC
+    -> Unfold m (c, e) b                    -- ^ on exception
+    -> Unfold m c b                         -- ^ unfold to run
+    -> Unfold m a b
+gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
+    Unfold step inject
+
+    where
+
+    inject x = do
+        r <- bef x
+        ref <- D.newFinalizedIORef (aft r)
+        s <- inject1 r
+        return $ Right (s, r, ref)
+
+    {-# INLINE_LATE step #-}
+    step (Right (st, v, ref)) = do
+        res <- exc $ step1 st
+        case res of
+            Right r -> case r of
+                Yield x s -> return $ Yield x (Right (s, v, ref))
+                Skip s    -> return $ Skip (Right (s, v, ref))
+                Stop      -> do
+                    liftIO $ writeIORef ref Nothing
+                    aft v >> return Stop
+            Left e -> do
+                liftIO (writeIORef ref Nothing)
+                r <- einject (v, e)
+                return $ Skip (Left r)
+    step (Left st) = do
+        res <- estep st
+        case res of
+            Yield x s -> return $ Yield x (Left s)
+            Skip s    -> return $ Skip (Left s)
+            Stop      -> return Stop
+
 -- The custom implementation of "before" is slightly faster (5-7%) than
 -- "_before".  This is just to document and make sure that we can always use
 -- gbracket to implement before. The same applies to other combinators as well.
@@ -690,6 +744,10 @@ _after aft = gbracket return (fmap Right) aft undefined
 
 -- | Run a side effect whenever the unfold stops normally.
 --
+-- Prefer afterIO over this as the @after@ action in this combinator is not
+-- executed if the unfold is partially evaluated lazily and then garbage
+-- collected.
+--
 -- /Internal/
 {-# INLINE_NORMAL after #-}
 after :: Monad m => (a -> m c) -> Unfold m a b -> Unfold m a b
@@ -708,6 +766,33 @@ after action (Unfold step1 inject1) = Unfold step inject
             Yield x s -> return $ Yield x (s, v)
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
+
+-- | Run a side effect whenever the unfold stops normally
+-- or is garbage collected after a partial lazy evaluation.
+--
+-- /Internal/
+{-# INLINE_NORMAL afterIO #-}
+afterIO :: (MonadIO m, MonadBaseControl IO m)
+    => (a -> m c) -> Unfold m a b -> Unfold m a b
+afterIO action (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = do
+        s <- inject1 x
+        ref <- D.newFinalizedIORef (action x)
+        return (s, ref)
+
+    {-# INLINE_LATE step #-}
+    step (st, ref) = do
+        res <- step1 st
+        case res of
+            Yield x s -> return $ Yield x (s, ref)
+            Skip s    -> return $ Skip (s, ref)
+            Stop      -> liftIO $ do
+                Just f <- readIORef ref
+                writeIORef ref Nothing
+                f >> return Stop
 
 {-# INLINE_NORMAL _onException #-}
 _onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
@@ -746,6 +831,10 @@ _finally action unf =
 -- | Run a side effect whenever the unfold stops normally or aborts due to an
 -- exception.
 --
+-- Prefer finallyIO over this as the @after@ action in this combinator is not
+-- executed if the unfold is partially evaluated lazily and then garbage
+-- collected.
+--
 -- /Internal/
 {-# INLINE_NORMAL finally #-}
 finally :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
@@ -765,6 +854,32 @@ finally action (Unfold step1 inject1) = Unfold step inject
             Skip s    -> return $ Skip (s, v)
             Stop      -> action v >> return Stop
 
+-- | Run a side effect whenever the unfold stops normally, aborts due to an
+-- exception or if it is garbage collected after a partial lazy evaluation.
+--
+-- /Internal/
+{-# INLINE_NORMAL finallyIO #-}
+finallyIO :: (MonadAsync m, MonadCatch m)
+    => (a -> m c) -> Unfold m a b -> Unfold m a b
+finallyIO action (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = do
+        s <- inject1 x
+        ref <- D.newFinalizedIORef (action x)
+        return (s, x, ref)
+
+    {-# INLINE_LATE step #-}
+    step (st, v, ref) = do
+        res <- step1 st `MC.onException` action v
+        case res of
+            Yield x s -> return $ Yield x (s, v, ref)
+            Skip s    -> return $ Skip (s, v, ref)
+            Stop      -> do
+                liftIO (writeIORef ref Nothing)
+                action v >> return Stop
+
 {-# INLINE_NORMAL _bracket #-}
 _bracket :: MonadCatch m
     => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
@@ -776,6 +891,10 @@ _bracket bef aft unf =
 -- its output using the @between@ unfold. When the @between@ unfold is done or
 -- if an exception occurs then the @after@ action is run with the output of
 -- @before@ as argument.
+--
+-- Prefer bracketIO over this as the @after@ action in this combinator is not
+-- executed if the unfold is partially evaluated lazily and then garbage
+-- collected.
 --
 -- /Internal/
 {-# INLINE_NORMAL bracket #-}
@@ -797,6 +916,36 @@ bracket bef aft (Unfold step1 inject1) = Unfold step inject
             Yield x s -> return $ Yield x (s, v)
             Skip s    -> return $ Skip (s, v)
             Stop      -> aft v >> return Stop
+
+-- | @bracket before after between@ runs the @before@ action and then unfolds
+-- its output using the @between@ unfold. When the @between@ unfold is done or
+-- if an exception occurs then the @after@ action is run with the output of
+-- @before@ as argument. The after action is also executed if the unfold is
+-- paritally evaluated and then garbage collected.
+--
+-- /Internal/
+{-# INLINE_NORMAL bracketIO #-}
+bracketIO :: (MonadAsync m, MonadCatch m)
+    => (a -> m c) -> (c -> m d) -> Unfold m c b -> Unfold m a b
+bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
+
+    where
+
+    inject x = do
+        r <- bef x
+        s <- inject1 r
+        ref <- D.newFinalizedIORef (aft r)
+        return (s, r, ref)
+
+    {-# INLINE_LATE step #-}
+    step (st, v, ref) = do
+        res <- step1 st `MC.onException` aft v
+        case res of
+            Yield x s -> return $ Yield x (s, v, ref)
+            Skip s    -> return $ Skip (s, v, ref)
+            Stop      -> do
+                liftIO (writeIORef ref Nothing)
+                aft v >> return Stop
 
 -- | When unfolding if an exception occurs, unfold the exception using the
 -- exception unfold supplied as the first argument to 'handle'.
