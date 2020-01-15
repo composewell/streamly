@@ -7,6 +7,13 @@
 [![CircleCI](https://circleci.com/gh/composewell/streamly/tree/master.svg?style=svg)](https://circleci.com/gh/composewell/streamly/tree/master)
 [![Coverage Status](https://coveralls.io/repos/composewell/streamly/badge.svg?branch=master&service=github)](https://coveralls.io/github/composewell/streamly?branch=master)
 
+## Learning Materials
+
+* [Overview: this readme](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference](https://hackage.haskell.org/package/streamly) | [Guides](docs) 
+* [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
+* Examples: [in this repo](examples) | [streamly-examples](https://github.com/composewell/streamly-examples)
+* Benchmarks: [Streaming](https://github.com/composewell/streaming-benchmarks) | [Concurrency](https://github.com/composewell/concurrency-benchmarks)
+* Talks: [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
 
 ## Streaming Concurrently
 
@@ -576,17 +583,6 @@ streaming with concurrency we can write FRP applications similar in concept to
 
 See the `Comparison with existing packages` section at the end of the
 [tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html).
-
-## Further Reading
-
-For more information, see:
-
-  * [Detailed tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html)
-  * [Reference documentation](https://hackage.haskell.org/package/streamly)
-  * [Examples](examples)
-  * [Guides](docs)
-  * [Streaming benchmarks](https://github.com/composewell/streaming-benchmarks)
-  * [Concurrency benchmarks](https://github.com/composewell/concurrency-benchmarks)
 
 ## Support
 
