@@ -37,6 +37,15 @@
 -- on stream types can be as efficient as transformations on 'Fold' (e.g.
 -- 'Streamly.Internal.Data.Fold.lmap').
 --
+-- = Left folds vs Right Folds
+--
+-- The folds in this module are left folds, therefore, even partial folds, e.g.
+-- @head@ in this module, would drain the whole stream. On the other hand, the
+-- partial folds in "Streamly.Prelude" module are lazy right folds and would
+-- terminate as soon as the result is determined. However, the folds in this
+-- module can be composed but the folds in "Streamly.Prelude" cannot be
+-- composed.
+--
 -- = Programmer Notes
 --
 -- > import qualified Streamly.Data.Fold as FL
