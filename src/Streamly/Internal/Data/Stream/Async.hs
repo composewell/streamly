@@ -225,13 +225,14 @@ workLoopFIFO q st sv winfo = run
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         return $ if res then Continue else Suspend
 
+    -- XXX in general we would like to yield "n" elements from a single stream
+    -- before moving on to the next. Single element granularity could be too
+    -- expensive in certain cases. Similarly, we can use time limit for
+    -- yielding.
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        if res
-        then foldStreamShared st yieldk single (return Continue) r
-        else liftIO $ do
-            enqueueFIFO sv q r
-            return Suspend
+        liftIO $ enqueueFIFO sv q r
+        return $ if res then Continue else Suspend
 
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
@@ -273,12 +274,12 @@ workLoopFIFOLimited q st sv winfo = run
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
+        liftIO $ enqueueFIFO sv q r
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
         if res && yieldLimitOk
-        then foldStreamShared st yieldk single incrContinue r
+        then return Continue
         else liftIO $ do
             incrementYieldLimit sv
-            enqueueFIFO sv q r
             return Suspend
 
 -------------------------------------------------------------------------------

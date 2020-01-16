@@ -11,6 +11,7 @@
   stream, especially when built with `-threaded` and used with `-N` RTS option.
   The issue occurs only in cases when a worker thread happens to be used
   continuously for a long time.
+* Fix scheduling of WAsyncT stream style to be in round-robin fashion.
 
 ### Behavior change
 
