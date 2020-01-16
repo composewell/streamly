@@ -36,6 +36,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
+import Control.Monad.Trans.Control (MonadBaseControl (..))
 import Data.Heap (Heap, Entry(..))
 import Data.IORef (IORef, readIORef, atomicModifyIORef, writeIORef)
 import Data.Maybe (fromJust)
@@ -49,8 +50,7 @@ import qualified Data.Heap as H
 import Streamly.Internal.Data.Stream.SVar (fromSVar)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK
-       (IsStream(..), Stream, mkStream, foldStream, foldStreamShared,
-        foldStreamSVar)
+       (IsStream(..), Stream, mkStream, foldStream, foldStreamShared)
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -212,7 +212,8 @@ abortExecution q sv winfo m = do
 --
 -- In both cases we give the drainer a chance to run more often.
 --
-processHeap :: MonadIO m
+processHeap
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -316,7 +317,8 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
         runStreamWithYieldLimit continue seqNo r
 
 {-# NOINLINE drainHeap #-}
-drainHeap :: MonadIO m
+drainHeap
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -331,8 +333,10 @@ drainHeap q heap st sv winfo = do
         _ -> liftIO $ sendStop sv winfo
 
 data HeapStatus = HContinue | HStop
+data WorkerStatus = Continue | Suspend
 
-processWithoutToken :: MonadIO m
+processWithoutToken
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -351,12 +355,18 @@ processWithoutToken q heap st sv winfo m seqNo = do
             -- put it on heap. So we have to put a null entry on heap even when
             -- we stop.
             toHeap AheadEntryNull
+        mrun = runInIO $ svarMrun sv
 
-    foldStreamSVar sv st
-        (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
-        (toHeap . AheadEntryPure)
-        stop
-        m
+    r <- liftIO $ mrun $
+            foldStreamShared st
+                (\a r -> toHeap $ AheadEntryStream $ K.cons a r)
+                (toHeap . AheadEntryPure)
+                stop
+                m
+    res <- restoreM r
+    case res of
+        Continue -> workLoopAhead q heap st sv winfo
+        Suspend -> drainHeap q heap st sv winfo
 
     where
 
@@ -377,8 +387,6 @@ processWithoutToken q heap st sv winfo m seqNo = do
                     writeIORef (maxHeapSize $ svarStats sv) (H.size newHp)
 
         heapOk <- liftIO $ underMaxHeap sv newHp
-        let drainAndStop = drainHeap q heap st sv winfo
-            mainLoop = workLoopAhead q heap st sv winfo
         status <-
             case yieldRateInfo sv of
                 Nothing -> return HContinue
@@ -394,11 +402,14 @@ processWithoutToken q heap st sv winfo m seqNo = do
         if heapOk
         then
             case status of
-                HContinue -> mainLoop
-                HStop -> drainAndStop
-        else drainAndStop
+                HContinue -> return Continue
+                HStop -> return Suspend
+        else return Suspend
 
-processWithToken :: MonadIO m
+data TokenWorkerStatus = TokenContinue Int | TokenSuspend
+
+processWithToken
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a
@@ -412,19 +423,26 @@ processWithToken q heap st sv winfo action sno = do
     -- XXX deduplicate stop in all invocations
     let stop = do
             liftIO (incrementYieldLimit sv)
-            loopWithToken (sno + 1)
+            return $ TokenContinue (sno + 1)
+        mrun = runInIO $ svarMrun sv
 
-    foldStreamSVar sv st (yieldOutput sno) (singleOutput sno) stop action
+    r <- liftIO $ mrun $
+        foldStreamShared st (yieldOutput sno) (singleOutput sno) stop action
+
+    res <- restoreM r
+    case res of
+        TokenContinue seqNo -> loopWithToken seqNo
+        TokenSuspend -> drainHeap q heap st sv winfo
 
     where
 
     singleOutput seqNo a = do
         continue <- liftIO $ sendYield sv winfo (ChildYield a)
         if continue
-        then loopWithToken (seqNo + 1)
+        then return $ TokenContinue (seqNo + 1)
         else do
             liftIO $ updateHeapSeq heap (seqNo + 1)
-            drainHeap q heap st sv winfo
+            return TokenSuspend
 
     -- XXX use a wrapper function around stop so that we never miss
     -- incrementing the yield in a stop continuation. Essentiatlly all
@@ -436,7 +454,7 @@ processWithToken q heap st sv winfo action sno = do
         then do
             let stop = do
                     liftIO (incrementYieldLimit sv)
-                    loopWithToken (seqNo + 1)
+                    return $ TokenContinue (seqNo + 1)
             foldStreamShared st
                           (yieldOutput seqNo)
                           (singleOutput seqNo)
@@ -446,7 +464,7 @@ processWithToken q heap st sv winfo action sno = do
             let ent = Entry seqNo (AheadEntryStream r)
             liftIO $ requeueOnHeapTop heap ent seqNo
             liftIO $ incrementYieldLimit sv
-            drainHeap q heap st sv winfo
+            return TokenSuspend
 
     loopWithToken nextSeqNo = do
         work <- dequeueAhead q
@@ -467,12 +485,19 @@ processWithToken q heap st sv winfo action sno = do
                     then do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
-                                loopWithToken (seqNo + 1)
-                        foldStreamShared st
-                                      (yieldOutput seqNo)
-                                      (singleOutput seqNo)
-                                      stop
-                                      m
+                                return $ TokenContinue (seqNo + 1)
+                            mrun = runInIO $ svarMrun sv
+                        r <- liftIO $ mrun $
+                            foldStreamShared st
+                                          (yieldOutput seqNo)
+                                          (singleOutput seqNo)
+                                          stop
+                                          m
+                        res <- restoreM r
+                        case res of
+                            TokenContinue seqNo1 -> loopWithToken seqNo1
+                            TokenSuspend -> drainHeap q heap st sv winfo
+
                     else
                         -- To avoid a race when another thread puts something
                         -- on the heap and goes away, the consumer will not get
@@ -496,7 +521,8 @@ processWithToken q heap st sv winfo action sno = do
 
 -- XXX we can remove the sv parameter as it can be derived from st
 
-workLoopAhead :: MonadIO m
+workLoopAhead
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef ([Stream m a], Int)
     -> IORef (Heap (Entry Int (AheadHeapEntry Stream m a)), Maybe Int)
     -> State Stream m a

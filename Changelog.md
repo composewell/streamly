@@ -6,11 +6,11 @@
   cases.
 * Fix a bug in `tap`, `chunksOf` that caused memory consumption to
   increase in some cases.
-* Fix a space leak in `async` streams that caused memory consumption
-  to increase with the number of elements in the stream, especially when
-  built with `-threaded` and used with `-N` RTS option. The issue occurs
-  only in cases when a worker thread happens to be used continuously for a
-  long time.
+* Fix a space leak in concurrent streams (`async`, `wAsync`, and `ahead`) that
+  caused memory consumption to increase with the number of elements in the
+  stream, especially when built with `-threaded` and used with `-N` RTS option.
+  The issue occurs only in cases when a worker thread happens to be used
+  continuously for a long time.
 
 ### Behavior change
 

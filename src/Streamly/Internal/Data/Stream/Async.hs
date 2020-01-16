@@ -39,6 +39,7 @@ where
 import Control.Concurrent (myThreadId)
 import Control.Monad.Base (MonadBase(..), liftBaseDefault)
 import Control.Monad.Catch (MonadThrow, throwM)
+import Control.Monad.Trans.Control (MonadBaseControl (..))
 import Control.Concurrent.MVar (newEmptyMVar)
 -- import Control.Monad.Error.Class   (MonadError(..))
 import Control.Monad.IO.Class (MonadIO(..))
@@ -59,8 +60,7 @@ import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS)
 import Streamly.Internal.Data.Stream.SVar (fromSVar)
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.StreamK
-       (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared,
-        foldStreamSVar)
+       (IsStream(..), Stream, mkStream, foldStream, adapt, foldStreamShared)
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -70,9 +70,11 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 -- Async
 -------------------------------------------------------------------------------
 
+data WorkerStatus = Continue | Suspend
+
 {-# INLINE workLoopLIFO #-}
 workLoopLIFO
-    :: MonadIO m
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef [Stream m a]
     -> State Stream m a
     -> SVar Stream m a
@@ -82,23 +84,39 @@ workLoopLIFO q st sv winfo = run
 
     where
 
+    mrun = runInIO $ svarMrun sv
     run = do
         work <- dequeue
+        let stop = liftIO $ sendStop sv winfo
         case work of
-            Nothing -> liftIO $ sendStop sv winfo
-            Just m -> foldStreamSVar sv st yieldk single run m
+            Nothing -> stop
+            Just m -> do
+                -- XXX when we finish we need to send the monadic state back to
+                -- the parent so that the state can be merged back. We capture
+                -- and return the state in the stop continuation.
+                --
+                -- Instead of using the run function we can just restore the
+                -- monad state here. That way it can work easily for
+                -- distributed case as well.
+                r <- liftIO $ mrun $
+                        foldStreamShared st yieldk single (return Continue) m
+                res <- restoreM r
+                case res of
+                    Continue -> run
+                    Suspend -> stop
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        if res then run else liftIO $ sendStop sv winfo
+        return $ if res then Continue else Suspend
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then foldStreamShared st yieldk single run r
+        then foldStreamShared st yieldk single (return Continue) r
         else liftIO $ do
+            -- XXX we also need to save the monadic state here
             enqueueLIFO sv q r
-            sendStop sv winfo
+            return Suspend
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
                 [] -> ([], Nothing)
@@ -111,7 +129,7 @@ workLoopLIFO q st sv winfo = run
 -- make a check every time.
 {-# INLINE workLoopLIFOLimited #-}
 workLoopLIFOLimited
-    :: MonadIO m
+    :: (MonadIO m, MonadBaseControl IO m)
     => IORef [Stream m a]
     -> State Stream m a
     -> SVar Stream m a
@@ -121,10 +139,13 @@ workLoopLIFOLimited q st sv winfo = run
 
     where
 
+    mrun = runInIO $ svarMrun sv
+    incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
     run = do
         work <- dequeue
+        let stop = liftIO $ sendStop sv winfo
         case work of
-            Nothing -> liftIO $ sendStop sv winfo
+            Nothing -> stop
             Just m -> do
                 -- XXX This is just a best effort minimization of concurrency
                 -- to the yield limit. If the stream is made of concurrent
@@ -135,8 +156,12 @@ workLoopLIFOLimited q st sv winfo = run
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then do
-                    let stop = liftIO (incrementYieldLimit sv) >> run
-                    foldStreamSVar sv st yieldk single stop m
+                    r <- liftIO $ mrun $
+                            foldStreamShared st yieldk single incrContinue m
+                    res <- restoreM r
+                    case res of
+                        Continue -> run
+                        Suspend -> stop
                 -- Avoid any side effects, undo the yield limit decrement if we
                 -- never yielded anything.
                 else liftIO $ do
@@ -146,20 +171,19 @@ workLoopLIFOLimited q st sv winfo = run
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        if res then run else liftIO $ sendStop sv winfo
+        return $ if res then Continue else Suspend
 
     -- XXX can we pass on the yield limit downstream to limit the concurrency
     -- of constituent streams.
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
-        let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then foldStreamShared st yieldk single stop r
+        then foldStreamShared st yieldk single incrContinue r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueLIFO sv q r
-            sendStop sv winfo
+            return Suspend
 
     dequeue = liftIO $ atomicModifyIORefCAS q $ \case
                 [] -> ([], Nothing)
@@ -173,7 +197,7 @@ workLoopLIFOLimited q st sv winfo = run
 
 {-# INLINE workLoopFIFO #-}
 workLoopFIFO
-    :: MonadIO m
+    :: (MonadIO m, MonadBaseControl IO m)
     => LinkedQueue (Stream m a)
     -> State Stream m a
     -> SVar Stream m a
@@ -183,27 +207,35 @@ workLoopFIFO q st sv winfo = run
 
     where
 
+    mrun = runInIO $ svarMrun sv
     run = do
         work <- liftIO $ tryPopR q
+        let stop = liftIO $ sendStop sv winfo
         case work of
-            Nothing -> liftIO $ sendStop sv winfo
-            Just m -> foldStreamSVar sv st yieldk single run m
+            Nothing -> stop
+            Just m -> do
+                r <- liftIO $ mrun $
+                        foldStreamShared st yieldk single (return Continue) m
+                res <- restoreM r
+                case res of
+                    Continue -> run
+                    Suspend -> stop
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        if res then run else liftIO $ sendStop sv winfo
+        return $ if res then Continue else Suspend
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         if res
-        then foldStreamShared st yieldk single run r
+        then foldStreamShared st yieldk single (return Continue) r
         else liftIO $ do
             enqueueFIFO sv q r
-            sendStop sv winfo
+            return Suspend
 
 {-# INLINE workLoopFIFOLimited #-}
 workLoopFIFOLimited
-    :: MonadIO m
+    :: (MonadIO m, MonadBaseControl IO m)
     => LinkedQueue (Stream m a)
     -> State Stream m a
     -> SVar Stream m a
@@ -213,16 +245,23 @@ workLoopFIFOLimited q st sv winfo = run
 
     where
 
+    mrun = runInIO $ svarMrun sv
+    incrContinue = liftIO (incrementYieldLimit sv) >> return Continue
     run = do
         work <- liftIO $ tryPopR q
+        let stop = liftIO $ sendStop sv winfo
         case work of
-            Nothing -> liftIO $ sendStop sv winfo
+            Nothing -> stop
             Just m -> do
                 yieldLimitOk <- liftIO $ decrementYieldLimit sv
                 if yieldLimitOk
                 then do
-                    let stop = liftIO (incrementYieldLimit sv) >> run
-                    foldStreamSVar sv st yieldk single stop m
+                    r <- liftIO $ mrun $
+                            foldStreamShared st yieldk single incrContinue m
+                    res <- restoreM r
+                    case res of
+                        Continue -> run
+                        Suspend -> stop
                 else liftIO $ do
                     enqueueFIFO sv q m
                     incrementYieldLimit sv
@@ -230,18 +269,17 @@ workLoopFIFOLimited q st sv winfo = run
 
     single a = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
-        if res then run else liftIO $ sendStop sv winfo
+        return $ if res then Continue else Suspend
 
     yieldk a r = do
         res <- liftIO $ sendYield sv winfo (ChildYield a)
         yieldLimitOk <- liftIO $ decrementYieldLimit sv
-        let stop = liftIO (incrementYieldLimit sv) >> run
         if res && yieldLimitOk
-        then foldStreamShared st yieldk single stop r
+        then foldStreamShared st yieldk single incrContinue r
         else liftIO $ do
             incrementYieldLimit sv
             enqueueFIFO sv q r
-            sendStop sv winfo
+            return Suspend
 
 -------------------------------------------------------------------------------
 -- SVar creation

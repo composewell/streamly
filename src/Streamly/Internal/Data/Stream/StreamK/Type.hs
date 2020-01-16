@@ -47,7 +47,6 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     -- * Elimination
     , foldStream
     , foldStreamShared
-    , foldStreamSVar
 
     -- * foldr/build
     , foldrM
@@ -85,8 +84,7 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     )
 where
 
-import Control.Monad (void, ap, (>=>))
-import Control.Monad.IO.Class (MonadIO(liftIO))
+import Control.Monad (ap, (>=>))
 import Control.Monad.Trans.Class (MonadTrans(lift))
 #if __GLASGOW_HASKELL__ >= 800
 import Data.Kind (Type)
@@ -414,22 +412,6 @@ foldStream st yld sng stp m =
     let yieldk a x = yld a (fromStream x)
         MkStream k = toStream m
      in k (adaptState st) yieldk sng stp
-
--- Run the stream using a run function associated with the SVar that runs the
--- streams with a captured snapshot of the monadic state.
-{-# INLINE foldStreamSVar #-}
-foldStreamSVar
-    :: (IsStream t, MonadIO m)
-    => SVar Stream m a
-    -> State Stream m a          -- state
-    -> (a -> t m a -> m r)       -- yield
-    -> (a -> m r)                -- singleton
-    -> m r                       -- stop
-    -> t m a
-    -> m ()
-foldStreamSVar sv st yld sng stp m =
-    let mrun = runInIO $ svarMrun sv
-    in void $ liftIO $ mrun $ foldStreamShared st yld sng stp m
 
 -------------------------------------------------------------------------------
 -- Instances

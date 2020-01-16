@@ -47,7 +47,6 @@ module Streamly.Internal.Data.Stream.StreamK
     -- * Elimination Primitives
     , foldStream
     , foldStreamShared
-    , foldStreamSVar
 
     -- * Transformation Primitives
     , unShare
@@ -67,7 +66,7 @@ module Streamly.Internal.Data.Stream.StreamK
     , replicateM
     , fromIndices
     , fromIndicesM
-    , iterate 
+    , iterate
     , iterateM
 
     -- ** Conversions
