@@ -45,7 +45,7 @@ _benchId name f = bench name $ nf (runIdentity . f) (Ops.source 10)
 -}
 
 defaultStreamSize :: Int
-defaultStreamSize = 10000
+defaultStreamSize = 100000
 
 main :: IO ()
 main = do
@@ -72,8 +72,8 @@ main = do
             (Ops.concatStreamsWith async 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (sqrt x,sqrt x)"
             (Ops.concatStreamsWith async value2 value2)
-        , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith async (value `div` 2) 2)
+        , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
+            (Ops.concatStreamsWith async (value2 * 2) (value2 `div` 2))
         ]
       , bgroup "wAsyncly"
         [ benchSrcIO wAsyncly "unfoldr" (Ops.sourceUnfoldr value)
@@ -102,10 +102,10 @@ main = do
             (Ops.concatStreamsWith wAsync 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (sqrt x,sqrt x)"
             (Ops.concatStreamsWith wAsync value2 value2)
-        , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith wAsync (value `div` 2) 2)
+        , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
+            (Ops.concatStreamsWith wAsync (value2 * 2) (value2 `div` 2))
         ]
-      -- unfoldr and fromFoldable are always serial and thereofore the same for
+      -- unfoldr and fromFoldable are always serial and therefore the same for
       -- all stream types.
       , bgroup "aheadly"
         [ benchSrcIO aheadly "unfoldr" (Ops.sourceUnfoldr value)
@@ -126,8 +126,8 @@ main = do
             (Ops.concatStreamsWith ahead 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (sqrt x,sqrt x)"
             (Ops.concatStreamsWith ahead value2 value2)
-        , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith ahead (value `div` 2) 2)
+        , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
+            (Ops.concatStreamsWith ahead (value2 * 2) (value2 `div` 2))
         ]
      -- XXX need to use smaller streams to finish in reasonable time
       , bgroup "parallely"
@@ -148,8 +148,8 @@ main = do
             (Ops.concatStreamsWith parallel 2 (value `div` 2))
         , benchMonadicSrcIO "concatMapWith (sqrt x,sqrt x)"
             (Ops.concatStreamsWith parallel value2 value2)
-        , benchMonadicSrcIO "concatMapWith (x/2,2)"
-            (Ops.concatStreamsWith parallel (value `div` 2) 2)
+        , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
+            (Ops.concatStreamsWith parallel (value2 * 2) (value2 `div` 2))
         ]
       , bgroup "zip"
         [ benchIO value "zip" Ops.zipAsync
