@@ -143,17 +143,9 @@ main = do
         -- length is used to check for foldr/build fusion
         , benchPureSink value "length . IsList.toList" (length . GHC.toList)
         , benchPureSrc "IsString.fromString" (Ops.sourceIsString value)
-        , mkString value `deepseq` (bench "readsPrec pure streams" $
-                                nf Ops.readInstance (mkString value))
-        , mkString value `deepseq` (bench "readsPrec Haskell lists" $
-                                nf Ops.readInstanceList (mkListString value))
         , benchPureSink value "showsPrec pure streams" Ops.showInstance
-        , mkList value `deepseq` (bench "showPrec Haskell lists" $
-                                nf Ops.showInstanceList (mkList value))
         , benchPureSink value "foldl'" Ops.pureFoldl'
         , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
-        , benchPureSink value "foldable/sum" Ops.foldableSum
-        , benchPureSinkIO value "traversable/mapM" Ops.traversableMapM
         ]
       , bgroup "generation"
         [ -- Most basic, barely stream continuations running
@@ -173,29 +165,22 @@ main = do
       , bgroup "elimination"
         [ bgroup "reduce"
           [ bgroup "IO"
-            [ benchIOSink value "foldrM" Ops.foldrMReduce
-            , benchIOSink value "foldl'" Ops.foldl'Reduce
+            [
+              benchIOSink value "foldl'" Ops.foldl'Reduce
             , benchIOSink value "foldl1'" Ops.foldl1'Reduce
             , benchIOSink value "foldlM'" Ops.foldlM'Reduce
             ]
           , bgroup "Identity"
-            [ benchIdentitySink value "foldrM" Ops.foldrMReduce
-            , benchIdentitySink value "foldl'" Ops.foldl'Reduce
+            [
+              benchIdentitySink value "foldl'" Ops.foldl'Reduce
             , benchIdentitySink value "foldl1'" Ops.foldl1'Reduce
             , benchIdentitySink value "foldlM'" Ops.foldlM'Reduce
             ]
           ]
 
         , bgroup "build"
-          [ bgroup "IO"
-            [ benchIOSink value "foldrM" Ops.foldrMBuild
-            , benchIOSink value "foldl'" Ops.foldl'Build
-            , benchIOSink value "foldlM'" Ops.foldlM'Build
-            ]
-          , bgroup "Identity"
+          [ bgroup "Identity"
             [ benchIdentitySink value "foldrM" Ops.foldrMBuild
-            , benchIdentitySink value "foldl'" Ops.foldl'Build
-            , benchIdentitySink value "foldlM'" Ops.foldlM'Build
             ]
           ]
         , benchIOSink value "uncons" Ops.uncons
@@ -203,8 +188,6 @@ main = do
         , benchIOSink value "mapM_" Ops.mapM_
 
         , benchIOSink value "init" Ops.init
-        , benchIOSink value "tail" Ops.tail
-        , benchIOSink value "nullHeadTail" Ops.nullHeadTail
 
         -- this is too low and causes all benchmarks reported in ns
         -- , benchIOSink value "head" Ops.head
@@ -233,8 +216,6 @@ main = do
         , benchIOSink value "minimumBy" Ops.minimumBy
         , benchIOSink value "minimum" Ops.minimum
 
-        , benchIOSink value "toList" Ops.toList
-        , benchIOSink value "toListRev" Ops.toListRev
         ]
       , bgroup "folds"
         [ benchIOSink value "drain" (S.fold FL.drain)
@@ -245,7 +226,6 @@ main = do
         , benchIOSink value "last" (S.fold FL.last)
         , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
         , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
-        , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
         , benchIOSink value "length" (S.fold FL.length)
         , benchIOSink value "sum" (S.fold FL.sum)
         , benchIOSink value "product" (S.fold FL.product)
@@ -259,12 +239,6 @@ main = do
 
         , benchIOSink value "mconcat" (S.fold FL.mconcat . (S.map (Last . Just)))
         , benchIOSink value "foldMap" (S.fold (FL.foldMap (Last . Just)))
-
-        , benchIOSink value "toList" (S.fold FL.toList)
-        , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
-        , benchIOSink value "toStream" (S.fold IP.toStream)
-        , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
-        , benchIOSink value "writeN" (S.fold (A.writeN value))
 
         , benchIOSink value "index" (S.fold (FL.index (value + 1)))
         , benchIOSink value "head" (S.fold FL.head)
@@ -327,8 +301,6 @@ main = do
             Ops.sequence serially (Ops.sourceUnfoldrMAction value n)
         , benchIOSink value "findIndices" (Ops.findIndices value 1)
         , benchIOSink value "elemIndices" (Ops.elemIndices value 1)
-        , benchIOSink value "reverse" (Ops.reverse 1)
-        , benchIOSink value "reverse'" (Ops.reverse' 1)
         , benchIOSink value "foldrS" (Ops.foldrS 1)
         , benchIOSink value "foldrSMap" (Ops.foldrSMap 1)
         , benchIOSink value "foldrT" (Ops.foldrT 1)
@@ -430,10 +402,6 @@ main = do
             (Ops.concatMapWithWSerial 2 (value `div` 2))
         , benchIOSrc1 "concatMapWithWSerial (x/2,2)"
             (Ops.concatMapWithWSerial (value `div` 2) 2)
-        , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
-                (Ops.concatUnfoldInterleaveRepl4xN value)
-        , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
-                (Ops.concatUnfoldRoundrobinRepl4xN value)
         ]
     -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
     -- library. If scan/fold followed by a map is efficient enough we may not
@@ -478,9 +446,63 @@ main = do
             [ benchIOSink value "fmap"   $ Ops.fmap' zipSerially 1
             ]
         ]
-    , bgroup "zipAsyncly"
-        [ bgroup "transformation"
-            [ benchIOSink value "fmap"   $ Ops.fmap' zipAsyncly 1
-            ]
-        ]
+    -- Non-streaming operations. We keep these in a spearate group so that we
+    -- can run these conveniently with smaller stream size.
+    --
+    -- These are also the operations that programmers should be aware of and
+    -- should avoid using in a streaming application.
+    , bgroup "buffered"
+      [ -- Inherently non-streaming operations
+
+      -- Right folds for reducing are inherently non-streaming as the
+      -- expression needs to be fully built before it can be reduced.
+        benchIOSink value "foldrM/reduce/IO" Ops.foldrMReduce
+      , benchIdentitySink value "foldrM/reduce/Identity" Ops.foldrMReduce
+
+      -- Left folds for building a structure are inherently non-streaming as
+      -- the structure cannot be lazily consumed until fully built.
+      , benchIOSink value "foldl'/build/IO" Ops.foldl'Build
+      , benchIdentitySink value "foldl'/build/Identity" Ops.foldl'Build
+      , benchIOSink value "foldlM'/build/IO" Ops.foldlM'Build
+      , benchIdentitySink value "foldlM'/build/Identity" Ops.foldlM'Build
+
+      -- accumulation due to strictness of IO monad
+      , benchIOSink value "foldrM/build/IO" Ops.foldrMBuild
+      , benchPureSinkIO value "traversable/mapM" Ops.traversableMapM
+
+      -- Converting the stream to a list or pure stream
+      , benchIOSink value "toList" Ops.toList
+      , benchIOSink value "toListRev" Ops.toListRev
+      , benchIOSink value "toStream" (S.fold IP.toStream)
+      , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
+
+      , benchIOSink value "folds/toList" (S.fold FL.toList)
+      , benchIOSink value "folds/toListRevF" (S.fold IFL.toListRevF)
+
+      -- Converting the stream to an array
+      , benchIOSink value "folds/lastN.Max" (S.fold (IA.lastN (value + 1)))
+      , benchIOSink value "folds/writeN" (S.fold (A.writeN value))
+
+      -- Reversing/sorting a stream
+      , benchIOSink value "reverse" (Ops.reverse 1)
+      , benchIOSink value "reverse'" (Ops.reverse' 1)
+
+        -- XXX can these be streaming? Can we have special read/show style type
+        -- classes supporting streaming?
+      , mkString value `deepseq` (bench "readsPrec pure streams" $
+                                nf Ops.readInstance (mkString value))
+      , mkString value `deepseq` (bench "readsPrec Haskell lists" $
+                                nf Ops.readInstanceList (mkListString value))
+      , mkList value `deepseq` (bench "showPrec Haskell lists" $
+                                nf Ops.showInstanceList (mkList value))
+
+      -- XXX streaming operations that can potentially be fixed
+      , benchPureSink value "foldable/sum" Ops.foldableSum
+      , benchIOSink value "tail" Ops.tail
+      , benchIOSink value "nullHeadTail" Ops.nullHeadTail
+      , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
+                (Ops.concatUnfoldInterleaveRepl4xN value)
+      , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
+                (Ops.concatUnfoldRoundrobinRepl4xN value)
+      ]
     ]

@@ -34,8 +34,8 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       serially
       , benchIO "toNull"         $ Ops.toNull linearCount         serially
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        serially
-      , benchIO "toList"         $ Ops.toList linearCount         serially
-   --   , benchIO "toListSome"     $ Ops.toListSome     serially
+      -- , benchIO "toList"         $ Ops.toList linearCount         serially
+      , benchIO "toListSome"     $ Ops.toListSome linearCount     serially
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   serially
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    serially
       , benchIO "filterSome"     $ Ops.filterSome linearCount     serially
@@ -46,8 +46,8 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       wSerially
       , benchIO "toNull"         $ Ops.toNull linearCount         wSerially
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        wSerially
-      , benchIO "toList"         $ Ops.toList linearCount         wSerially
-    --  , benchIO "toListSome"     $ Ops.toListSome     wSerially
+      -- , benchIO "toList"         $ Ops.toList linearCount         wSerially
+      , benchIO "toListSome"     $ Ops.toListSome  linearCount    wSerially
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   wSerially
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    wSerially
       , benchIO "filterSome"     $ Ops.filterSome linearCount     wSerially

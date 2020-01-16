@@ -35,8 +35,8 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       aheadly
       , benchIO "toNull"         $ Ops.toNull linearCount         aheadly
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        aheadly
-      , benchIO "toList"         $ Ops.toList linearCount         aheadly
-     -- , benchIO "toListSome"     $ Ops.toListSome     aheadly
+      -- , benchIO "toList"         $ Ops.toList linearCount         aheadly
+      , benchIO "toListSome"     $ Ops.toListSome linearCount     aheadly
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   aheadly
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    aheadly
       , benchIO "filterSome"     $ Ops.filterSome linearCount     aheadly
@@ -47,8 +47,8 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       asyncly
       , benchIO "toNull"         $ Ops.toNull linearCount         asyncly
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        asyncly
-      , benchIO "toList"         $ Ops.toList linearCount         asyncly
-    --  , benchIO "toListSome"     $ Ops.toListSome     asyncly
+      -- , benchIO "toList"         $ Ops.toList linearCount         asyncly
+      , benchIO "toListSome"     $ Ops.toListSome  linearCount    asyncly
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   asyncly
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    asyncly
       , benchIO "filterSome"     $ Ops.filterSome linearCount     asyncly
@@ -59,20 +59,22 @@ main = do
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       wAsyncly
       , benchIO "toNull"         $ Ops.toNull linearCount         wAsyncly
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        wAsyncly
-      , benchIO "toList"         $ Ops.toList linearCount         wAsyncly
-     -- , benchIO "toListSome"     $ Ops.toListSome     wAsyncly
+      -- , benchIO "toList"         $ Ops.toList linearCount         wAsyncly
+      , benchIO "toListSome"     $ Ops.toListSome linearCount     wAsyncly
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   wAsyncly
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    wAsyncly
       , benchIO "filterSome"     $ Ops.filterSome linearCount     wAsyncly
       , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount wAsyncly
       ]
 
+    -- XXX move this in a separate benchmark
     , bgroup "parallely"
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       parallely
       , benchIO "toNull"         $ Ops.toNull linearCount         parallely
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        parallely
-      , benchIO "toList"         $ Ops.toList linearCount         parallely
-      --, benchIO "toListSome"     $ Ops.toListSome     parallely
+      -- , benchIO "toList"         $ Ops.toList linearCount         parallely
+      -- XXX fix thread blocked indefinitely in MVar
+      -- , benchIO "toListSome"     $ Ops.toListSome linearCount     parallely
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   parallely
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    parallely
       , benchIO "filterSome"     $ Ops.filterSome linearCount     parallely

@@ -101,12 +101,14 @@ toList linearCount t start = runToList . t $ do
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
 
+-- Taking a specified number of elements is very expensive in logict so we have
+-- a test to measure the same.
 {-# INLINE toListSome #-}
 toListSome
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toListSome linearCount t start =
-    runToList . t $ S.take 1000 $ do
+    runToList . t $ S.take 10000 $ do
         x <- source start nestedCount2
         y <- source start nestedCount2
         return $ x + y

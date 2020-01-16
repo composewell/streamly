@@ -126,6 +126,7 @@ main = do
         , benchIO value "zip" Ops.zipAsync
         , benchIO value "zipM" Ops.zipAsyncM
         , benchIO value "zipAp" Ops.zipAsyncAp
+        , benchIO value "fmap zipAsyncly"  $ Ops.fmap' zipAsyncly 1
         -- Parallel stages in a pipeline
         , benchIO value "parAppMap" Ops.parAppMap
         , benchIO value "parAppSum" Ops.parAppSum
