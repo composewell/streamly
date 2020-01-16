@@ -129,28 +129,6 @@ main = do
         , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
             (Ops.concatStreamsWith ahead (value2 * 2) (value2 `div` 2))
         ]
-     -- XXX need to use smaller streams to finish in reasonable time
-      , bgroup "parallely"
-        [ -- unfoldr is pure and works serially irrespective of the stream type
-          benchSrcIO parallely "unfoldr" (Ops.sourceUnfoldr value)
-        , benchSrcIO parallely "unfoldrM" (Ops.sourceUnfoldrM value)
-        , benchSrcIO parallely "fromFoldable" (Ops.sourceFromFoldable value)
-        , benchSrcIO parallely "fromFoldableM" (Ops.sourceFromFoldableM value)
-        , benchSrcIO parallely "foldMapWith" (Ops.sourceFoldMapWith value)
-        , benchSrcIO parallely "foldMapWithM" (Ops.sourceFoldMapWithM value)
-        , benchSrcIO parallely "foldMapM" (Ops.sourceFoldMapM value)
-        -- map/fmap are pure and therefore no concurrency would be added on top
-        -- of what the source stream (i.e. unfoldrM) provides.
-        , benchIO value "map"  $ Ops.map' parallely 1
-        , benchIO value "fmap" $ Ops.fmap' parallely 1
-        , benchIO value "mapM" $ Ops.mapM parallely 1
-        , benchMonadicSrcIO "concatMapWith (2,x/2)"
-            (Ops.concatStreamsWith parallel 2 (value `div` 2))
-        , benchMonadicSrcIO "concatMapWith (sqrt x,sqrt x)"
-            (Ops.concatStreamsWith parallel value2 value2)
-        , benchMonadicSrcIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
-            (Ops.concatStreamsWith parallel (value2 * 2) (value2 `div` 2))
-        ]
       , bgroup "zip"
         [ benchIO value "zip" Ops.zipAsync
         , benchIO value "zipM" Ops.zipAsyncM
