@@ -875,8 +875,8 @@ concatStreamsWith
     -> IO ()
 concatStreamsWith op outer inner n =
     S.drain $ S.concatMapWith op
-        (\_ -> sourceUnfoldrMN inner n)
-        (sourceUnfoldrMN outer n)
+        (\i -> sourceUnfoldrMN (i + inner) i)
+        (sourceUnfoldrMN (n + outer) n)
 
 {-# INLINE concatMapWithSerial #-}
 concatMapWithSerial :: Int -> Int -> Int -> IO ()
