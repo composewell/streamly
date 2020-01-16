@@ -300,7 +300,7 @@ processHeap q heap st sv winfo entry sno stopping = loopHeap sno entry
             let stop = do
                   liftIO (incrementYieldLimit sv)
                   nextHeap seqNo
-            foldStreamSVar sv st
+            foldStreamShared st
                           (yieldStreamFromHeap seqNo)
                           (singleStreamFromHeap seqNo)
                           stop
@@ -437,7 +437,7 @@ processWithToken q heap st sv winfo action sno = do
             let stop = do
                     liftIO (incrementYieldLimit sv)
                     loopWithToken (seqNo + 1)
-            foldStreamSVar sv st
+            foldStreamShared st
                           (yieldOutput seqNo)
                           (singleOutput seqNo)
                           stop
@@ -468,7 +468,7 @@ processWithToken q heap st sv winfo action sno = do
                         let stop = do
                                 liftIO (incrementYieldLimit sv)
                                 loopWithToken (seqNo + 1)
-                        foldStreamSVar sv st
+                        foldStreamShared st
                                       (yieldOutput seqNo)
                                       (singleOutput seqNo)
                                       stop
