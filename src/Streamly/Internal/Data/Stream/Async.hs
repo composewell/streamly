@@ -584,26 +584,26 @@ newWAsyncVar st m = do
 
 forkSVarAsync :: (IsStream t, MonadAsync m)
     => SVarStyle -> t m a -> t m a -> t m a
-forkSVarAsync style m1 m2 = mkStream $ \st stp sng yld -> do
+forkSVarAsync style m1 m2 = mkStream $ \st yld sng stp -> do
     sv <- case style of
         AsyncVar -> newAsyncVar st (concurrently (toStream m1) (toStream m2))
         WAsyncVar -> newWAsyncVar st (concurrently (toStream m1) (toStream m2))
         _ -> error "illegal svar type"
-    foldStream st stp sng yld $ fromSVar sv
+    foldStream st yld sng stp $ fromSVar sv
     where
-    concurrently ma mb = mkStream $ \st stp sng yld -> do
+    concurrently ma mb = mkStream $ \st yld sng stp -> do
         liftIO $ enqueue (fromJust $ streamVar st) mb
-        foldStreamShared st stp sng yld ma
+        foldStreamShared st yld sng stp ma
 
 {-# INLINE joinStreamVarAsync #-}
 joinStreamVarAsync :: (IsStream t, MonadAsync m)
     => SVarStyle -> t m a -> t m a -> t m a
-joinStreamVarAsync style m1 m2 = mkStream $ \st stp sng yld ->
+joinStreamVarAsync style m1 m2 = mkStream $ \st yld sng stp ->
     case streamVar st of
         Just sv | svarStyle sv == style -> do
             liftIO $ enqueue sv (toStream m2)
-            foldStreamShared st stp sng yld m1
-        _ -> foldStreamShared st stp sng yld (forkSVarAsync style m1 m2)
+            foldStreamShared st yld sng stp m1
+        _ -> foldStreamShared st yld sng stp (forkSVarAsync style m1 m2)
 
 ------------------------------------------------------------------------------
 -- Semigroup and Monoid style compositions for parallel actions
