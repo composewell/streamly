@@ -245,12 +245,20 @@ TRAVERSABLE_INSTANCE(SerialT)
 -- then we go back to evaluating stream @a@ and so on. In other words, the
 -- elements of stream @a@ are interleaved with the elements of stream @b@.
 --
--- Note that when multiple actions are combined like @a <> b <> c ... <> z@ we
--- interleave them in a binary fashion i.e. @a@ and @b@ are interleaved with
--- each other and the result is interleaved with @c@ and so on. This will not
--- act as a true round-robin scheduling across all the streams.  Note that this
--- operation cannot be used to fold a container of infinite streams as the
--- state that it needs to maintain is proportional to the number of streams.
+-- Note that evaluation of @a <> b <> c@ does not schedule @a@, @b@ and @c@
+-- with equal priority.  This expression is equivalent to @a <> (b <> c)@,
+-- therefore, it fairly interleaves @a@ with the result of @b <> c@.  For
+-- example, @S.fromList [1,2] <> S.fromList [3,4] <> S.fromList [5,6] ::
+-- WSerialT Identity Int@ would result in [1,3,2,5,4,6].  In other words, the
+-- leftmost stream gets the same scheduling priority as the rest of the
+-- streams taken together. The same is true for each subexpression on the right.
+--
+-- Note that this operation cannot be used to fold a container of infinite
+-- streams as the state that it needs to maintain is proportional to the number
+-- of streams.
+--
+-- The @W@ in the name stands for @wide@ or breadth wise scheduling in
+-- contrast to the depth wise scheduling behavior of 'SerialT'.
 --
 -- @
 -- import Streamly

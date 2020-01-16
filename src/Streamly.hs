@@ -511,39 +511,43 @@ forEachWith = P.forEachWith
 
 -- $async
 --
--- When a stream consumer demands an element from an asynchronous stream,
--- constructed as @a \`consM` b \`consM` ... nil@, the action @a@ along with
--- multiple following at the head of the stream sequence are executed
--- concurrently and the output of the one that completes first is supplied to
--- the consumer. As more actions complete, their results are buffered in the
--- order of completion.  When the next element is demanded it may be served
--- from the buffer and we may initiate execution of more actions in the
--- sequence to keep the buffer adequately filled.  Thus, the actions are
--- executed concurrently and their results are consumed in the order of
--- completion.  `consM` can be used to fold an infinite lazy container of
--- effects, as the number of concurrent executions is limited.
+-- /Scheduling and execution:/ In an asynchronous stream @a \`consM` b \`consM`
+-- c ...@, the actions @a@, @b@, and @c@ are executed concurrently with the
+-- consumer of the stream.  The actions are /scheduled/ for execution in the
+-- same order as they are specified in the stream. Multiple scheduled actions
+-- may be /executed/ concurrently in parallel threads of execution.  The
+-- actions may be executed out of order and they may complete at arbitrary
+-- times.  Therefore, the /effects/ of the actions may be observed out of
+-- order.
 --
--- Similar to 'consM', the monadic stream generation (e.g. replicateM) and
--- transformation operations (e.g. mapM) on asynchronous streams can execute
--- multiple effects concurrently in an asynchronous manner.
+-- /Buffering:/ The /results/ from multiple threads of execution are queued in
+-- a buffer as soon as they become available. The consumer of the stream is
+-- served from this buffer.  Therefore, the consumer may observe the results to
+-- be out of order.  In other words, an asynchronous stream is an unordered
+-- stream i.e.  order does not matter.
 --
--- How many effects can be executed concurrently and how many results can be
--- buffered are controlled by 'maxThreads' and 'maxBuffer' combinators
--- respectively.  The actual number of concurrent threads is adjusted according
--- to the rate at which the consumer is consuming the stream. It may even
--- execute actions serially in a single thread if that is enough to match the
--- consumer's speed.
+-- /Concurrency control:/ Threads are suspended if the `maxBuffer` limit is
+-- reached, and resumed when the consumer makes space in the buffer.  The
+-- maximum number of concurrent threads depends on `maxThreads`. Number of
+-- threads is increased or decreased based on the speed of the consumer.
 --
--- Asynchronous streams do not enforce any spatial order on the side effects or
--- on the results of the actions. However there is a partial ordering as the
--- actions to be executed are picked from the head of stream. The results are
--- presented to the consumer in the completion time order.  Therefore, the
--- semigroup operation for asynchronous streams is commutative i.e. the stream
--- is considered unordered.
+-- /Generation operations:/ Concurrent stream generation operations e.g.
+-- 'Streamly.Prelude.replicateM' when used in async style schedule and execute
+-- the stream generating actions in the manner described above. The generation
+-- actions run concurrently, effects and results of the actions as observed by
+-- the consumer of the stream may be out of order.
 --
--- There are two asynchronous stream types 'AsyncT' and 'WAsyncT'. The stream
--- evaluation of both the variants works in the same way as described above,
--- they differ only in the 'Semigroup' and 'Monad' implementaitons.
+-- /Transformation operations:/ Concurrent stream transformation operations
+-- e.g.  'Streamly.Prelude.mapM', when used in async style, schedule and
+-- execute transformation actions in the manner described above. Transformation
+-- actions run concurrently, effects and results of the actions may be
+-- observed by the consumer out of order.
+--
+-- /Variants:/ There are two asynchronous stream types 'AsyncT' and 'WAsyncT'.
+-- They are identical with respect to single stream evaluation behavior.  Their
+-- behaviors differ in how they combine multiple streams using 'Semigroup' or
+-- 'Monad' composition. Since the order of elements does not matter in
+-- asynchronous streams the 'Semigroup' operation is effectively commutative.
 
 -- $zipping
 --
