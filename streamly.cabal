@@ -306,6 +306,7 @@ library
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.PrimArray
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
