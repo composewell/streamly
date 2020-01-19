@@ -56,5 +56,6 @@ If performance is below expectations:
   folds and scans, can help in improving performance.
 * Strictness annotations on function arguments can help the compiler unbox
   constructors in certain cases, improving performance.
-* Sometims using `-XStrict` extension can help improve performance, if so you
+* Sometimes using `-XStrict` extension can help improve performance, if so you
   may be missing some strictness annotations.
+* Use tail recursion for streaming data or for large loops
