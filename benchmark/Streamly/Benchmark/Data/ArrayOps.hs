@@ -23,7 +23,7 @@ import qualified Data.Foldable as F
 #endif
 
 import qualified Streamly           as S hiding (foldMapWith, runStream)
-import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Prelude   as S
 
 value :: Int

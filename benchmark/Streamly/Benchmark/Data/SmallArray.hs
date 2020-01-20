@@ -15,7 +15,7 @@ import Control.DeepSeq (NFData(..), deepseq)
 import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Data.SmallArrayOps as Ops
-import qualified Streamly.Data.SmallArray as A
+import qualified Streamly.Internal.Data.SmallArray as A
 import qualified Streamly.Prelude as S
 
 import Gauge
