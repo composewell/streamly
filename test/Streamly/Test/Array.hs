@@ -31,6 +31,9 @@ import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Prelude as IP
 type Array = A.Array
+#elif defined(TEST_PRIM_ARRAY)
+import qualified Streamly.Data.PrimArray as A
+type Array = A.PrimArray
 #else
 import qualified Streamly.Internal.Data.Array as A
 type Array = A.Array
