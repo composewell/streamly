@@ -691,6 +691,22 @@ benchmark unpinned-array
     build-depends:
         transformers  >= 0.4 && < 0.6
 
+benchmark prim-array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: benchmark
+  main-is: Streamly/Benchmark/Data/PrimArray.hs
+  other-modules: Streamly.Benchmark.Data.PrimArrayOps
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+        
 benchmark small-array
   import: bench-options
   type: exitcode-stdio-1.0
