@@ -9,6 +9,7 @@
 --
 module Streamly.Data.PrimArray
     ( PrimArray
+    , Prim
 
     -- * Construction
     , A.fromListN
@@ -38,6 +39,6 @@ module Streamly.Data.PrimArray
     )
 where
 
-import Streamly.Internal.Data.PrimArray (PrimArray)
+import Streamly.Internal.Data.PrimArray (PrimArray, Prim)
 
 import qualified Streamly.Internal.Data.PrimArray as A

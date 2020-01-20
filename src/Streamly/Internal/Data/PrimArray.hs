@@ -17,6 +17,7 @@
 --
 module Streamly.Internal.Data.PrimArray
     ( PrimArray(..)
+    , Prim(..)
 
     , foldl'
     , foldr
@@ -149,9 +150,9 @@ fromListN n xs = unsafePerformIO $ fromStreamDN n $ D.fromList xs
 fromList :: Prim a => [a] -> PrimArray a
 fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 
-instance NFData (PrimArray a) where
+instance Prim a => NFData (PrimArray a) where
     {-# INLINE rnf #-}
-    rnf = const ()
+    rnf = foldl' (\_ _ -> ()) ()
 
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Prim a) => Int -> SerialT m a -> m (PrimArray a)
