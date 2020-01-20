@@ -273,6 +273,9 @@ library
       c-sources:     src/Streamly/Internal/Data/Time/Darwin.c
     hs-source-dirs:    src
     other-modules:
+                       Streamly.Data.Array
+                     , Streamly.Data.SmallArray
+
                     -- Memory storage
                        Streamly.Memory.Malloc
                      , Streamly.Memory.Ring
@@ -284,8 +287,6 @@ library
     exposed-modules:
                        Streamly.Prelude
                      , Streamly
-                     , Streamly.Data.Array
-                     , Streamly.Data.SmallArray
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream

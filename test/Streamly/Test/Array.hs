@@ -24,7 +24,7 @@ import Streamly (SerialT)
 import qualified Streamly.Prelude as S
 
 #ifdef TEST_SMALL_ARRAY
-import qualified Streamly.Data.SmallArray as A
+import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
 import qualified Streamly.Memory.Array as A
@@ -32,7 +32,7 @@ import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Prelude as IP
 type Array = A.Array
 #else
-import qualified Streamly.Data.Array as A
+import qualified Streamly.Internal.Data.Array as A
 type Array = A.Array
 #endif
 
