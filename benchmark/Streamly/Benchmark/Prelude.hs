@@ -29,7 +29,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
-import Data.Maybe (fromJust)
 import GHC.Generics (Generic)
 import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
@@ -718,25 +717,32 @@ inspect $ 'zipM `hasNoType` ''D.Step
 #endif
 
 {-# INLINE zipAsync #-}
+zipAsync :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
+zipAsync count n = do
+    S.zipAsyncWith (,)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
 {-# INLINE zipAsyncM #-}
+zipAsyncM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
+zipAsyncM count n = do
+    S.zipAsyncWithM (curry return)
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
 {-# INLINE zipAsyncAp #-}
-zipAsync, zipAsyncAp, zipAsyncM :: S.MonadAsync m => Stream m Int -> m ()
+zipAsyncAp :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
+zipAsyncAp count n  = do
+    S.zipAsyncly $ (,)
+        <$> (sourceUnfoldrMN count n)
+        <*> (sourceUnfoldrMN count (n + 1))
 
-zipAsync src  = do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.zipAsyncWith (,) src src1)
-
-zipAsyncM src = do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.zipAsyncWithM (curry return) src src1)
-
-zipAsyncAp src  = do
-    r <- S.tail src
-    let src1 = fromJust r
-    transform (S.zipAsyncly $ (,) <$> S.serially src
-                                  <*> S.serially src1)
+{-# INLINE mergeAsyncByM #-}
+mergeAsyncByM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+mergeAsyncByM count n = do
+    S.mergeAsyncByM (\a b -> return (a `compare` b))
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
 
 -------------------------------------------------------------------------------
 -- Multi-stream folds

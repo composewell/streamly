@@ -28,9 +28,9 @@ benchIO value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . Ops.source va
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchSrcIO #-}
 benchSrcIO
-    :: (t IO Int -> SerialT IO Int)
+    :: (t IO a -> SerialT IO a)
     -> String
-    -> (Int -> t IO Int)
+    -> (Int -> t IO a)
     -> Benchmark
 benchSrcIO t name f
     = bench name $ nfIO $ randomRIO (1,1) >>= Ops.toNull t . f
@@ -130,10 +130,14 @@ main = do
             (Ops.concatStreamsWith ahead (value2 * 2) (value2 `div` 2))
         ]
       , bgroup "zip"
-        [ benchIO value "zip" Ops.zipAsync
-        , benchIO value "zipM" Ops.zipAsyncM
-        , benchIO value "zipAp" Ops.zipAsyncAp
+        [ benchSrcIO serially "zipAsync (2,x/2)" (Ops.zipAsync (value `div` 2))
+        , benchSrcIO serially "zipAsyncM (2,x/2)"
+            (Ops.zipAsyncM (value `div` 2))
+        , benchSrcIO serially "zipAsyncAp (2,x/2)"
+            (Ops.zipAsyncAp (value `div` 2))
         , benchIO value "fmap zipAsyncly"  $ Ops.fmap' zipAsyncly 1
+        , benchSrcIO serially "mergeAsyncByM (2,x/2)"
+            (Ops.mergeAsyncByM (value `div` 2))
         -- Parallel stages in a pipeline
         , benchIO value "parAppMap" Ops.parAppMap
         , benchIO value "parAppSum" Ops.parAppSum
