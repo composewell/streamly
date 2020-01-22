@@ -119,7 +119,7 @@ testReassembleBy =
 
 main :: IO ()
 main =
-    hspec $
+    hspec $ do
     describe "Filtering" $ do
         it "takeByTime" (testTakeByTime `shouldReturn` True)
         it "dropByTime" (testDropByTime `shouldReturn` True)
