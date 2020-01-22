@@ -284,11 +284,12 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
 
+                     , Streamly.Data.PrimArray
+
     exposed-modules:
                        Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Array
-                     , Streamly.Data.PrimArray
                      , Streamly.Data.SmallArray
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold

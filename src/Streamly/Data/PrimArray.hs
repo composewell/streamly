@@ -16,8 +16,8 @@ module Streamly.Data.PrimArray
     , A.fromList
 
     -- Stream Folds
-    , A.fromStreamN
-    , A.fromStream
+    -- , A.fromStreamN
+    -- , A.fromStream
 
     -- MonadicAPIs
     , A.writeN
@@ -25,15 +25,15 @@ module Streamly.Data.PrimArray
 
     -- * Elimination
 
-    , A.toStream
-    , A.toStreamRev
+    -- , A.toStream
+    -- , A.toStreamRev
     , A.read
 
     -- * Random Access
 
     -- * Folding Arrays
-    , A.streamFold
-    , A.fold
+    -- , A.streamFold
+    -- , A.fold
 
     , A.length
     )
