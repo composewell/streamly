@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.PrimArrayOps
+-- Module      : Streamly.Benchmark.Data.Prim.ArrayOps
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -13,7 +13,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.PrimArrayOps where
+module Streamly.Benchmark.Data.Prim.ArrayOps where
 
 import Control.Monad.IO.Class (MonadIO)
 import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
@@ -23,7 +23,7 @@ import qualified Data.Foldable as F
 #endif
 
 import qualified Streamly           as S hiding (foldMapWith, runStream)
-import qualified Streamly.Data.PrimArray as A
+import qualified Streamly.Internal.Data.Prim.Array as A
 import qualified Streamly.Prelude   as S
 
 value :: Int

@@ -7,7 +7,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.PrimArray
+-- Module      : Streamly.Internal.Data.Prim.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -15,7 +15,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.PrimArray
+module Streamly.Internal.Data.Prim.Array
     ( PrimArray(..)
     , Prim(..)
 
@@ -52,7 +52,6 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.IO (unsafePerformIO)
-import GHC.Base (Int(..))
 import Data.Primitive.PrimArray
 import Data.Primitive.Types (Prim(..))
 

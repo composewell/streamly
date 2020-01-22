@@ -14,8 +14,8 @@ module Main (main) where
 import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
-import qualified Streamly.Benchmark.Data.PrimArrayOps as Ops
-import qualified Streamly.Data.PrimArray as A
+import qualified Streamly.Benchmark.Data.Prim.ArrayOps as Ops
+import qualified Streamly.Internal.Data.Prim.Array as A
 import qualified Streamly.Prelude as S
 
 import Gauge
@@ -55,7 +55,7 @@ mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
 main :: IO ()
 main =
   defaultMain
-    [ bgroup "Data.PrimArray"
+    [ bgroup "Data.Prim.Array"
      [  bgroup "generation"
         [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
         , benchIOSrc "write . intFromTo" Ops.sourceIntFromToFromStream

@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Data.PrimArray
+-- Module      : Streamly.Data.Prim.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD-3-Clause
@@ -7,7 +7,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Data.PrimArray
+module Streamly.Data.Prim.Array
     ( PrimArray
     , Prim
 
@@ -39,6 +39,6 @@ module Streamly.Data.PrimArray
     )
 where
 
-import Streamly.Internal.Data.PrimArray (PrimArray, Prim)
+import Streamly.Internal.Data.Prim.Array (PrimArray, Prim)
 
-import qualified Streamly.Internal.Data.PrimArray as A
+import qualified Streamly.Internal.Data.Prim.Array as A

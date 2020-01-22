@@ -284,7 +284,7 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
 
-                     , Streamly.Data.PrimArray
+                     , Streamly.Data.Prim.Array
 
     exposed-modules:
                        Streamly.Prelude
@@ -310,7 +310,7 @@ library
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.PrimArray
+                     , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
@@ -696,8 +696,8 @@ benchmark prim-array
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
-  main-is: Streamly/Benchmark/Data/PrimArray.hs
-  other-modules: Streamly.Benchmark.Data.PrimArrayOps
+  main-is: Streamly/Benchmark/Data/Prim/Array.hs
+  other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
   build-depends:
       streamly
     , base                >= 4.8   && < 5
