@@ -744,6 +744,13 @@ mergeAsyncByM count n = do
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
+{-# INLINE mergeAsyncBy #-}
+mergeAsyncBy :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+mergeAsyncBy count n = do
+    S.mergeAsyncBy compare
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
 -------------------------------------------------------------------------------
 -- Multi-stream folds
 -------------------------------------------------------------------------------

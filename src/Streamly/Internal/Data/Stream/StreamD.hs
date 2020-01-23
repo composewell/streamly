@@ -304,6 +304,7 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- * Concurrent Application
     , mkParallel
+    , mkParallelD
 
     , lastN
 

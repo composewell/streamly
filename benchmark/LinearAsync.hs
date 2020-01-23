@@ -136,6 +136,8 @@ main = do
         , benchSrcIO serially "zipAsyncAp (2,x/2)"
             (Ops.zipAsyncAp (value `div` 2))
         , benchIO value "fmap zipAsyncly"  $ Ops.fmap' zipAsyncly 1
+        , benchSrcIO serially "mergeAsyncBy (2,x/2)"
+            (Ops.mergeAsyncBy (value `div` 2))
         , benchSrcIO serially "mergeAsyncByM (2,x/2)"
             (Ops.mergeAsyncByM (value `div` 2))
         -- Parallel stages in a pipeline

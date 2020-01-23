@@ -2387,17 +2387,20 @@ merge = mergeBy compare
 -- merged are generated concurrently).
 --
 -- @since 0.6.0
+{-# INLINE mergeAsyncBy #-}
 mergeAsyncBy :: (IsStream t, MonadAsync m)
     => (a -> a -> Ordering) -> t m a -> t m a -> t m a
-mergeAsyncBy f m1 m2 = K.mergeBy f (D.mkParallel m1) (D.mkParallel m2)
+mergeAsyncBy f = mergeAsyncByM (\a b -> return $ f a b)
 
 -- | Like 'mergeByM' but merges concurrently (i.e. both the elements being
 -- merged are generated concurrently).
 --
 -- @since 0.6.0
+{-# INLINE mergeAsyncByM #-}
 mergeAsyncByM :: (IsStream t, MonadAsync m)
     => (a -> a -> m Ordering) -> t m a -> t m a -> t m a
-mergeAsyncByM f m1 m2 = K.mergeByM f (D.mkParallel m1) (D.mkParallel m2)
+mergeAsyncByM f m1 m2 = fromStreamD $
+    D.mergeByM f (D.mkParallelD $ toStreamD m1) (D.mkParallelD $ toStreamD m2)
 
 ------------------------------------------------------------------------------
 -- Nesting
