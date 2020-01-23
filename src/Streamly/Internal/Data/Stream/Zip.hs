@@ -100,7 +100,10 @@ zipWith f m1 m2 = P.fromStreamS $ S.zipWith f (P.toStreamS m1) (P.toStreamS m2)
 {-# INLINE zipAsyncWithM #-}
 zipAsyncWithM :: (IsStream t, MonadAsync m)
     => (a -> b -> m c) -> t m a -> t m b -> t m c
-zipAsyncWithM f m1 m2 = zipWithM f (D.mkParallel m1) (D.mkParallel m2)
+zipAsyncWithM f m1 m2 = D.fromStreamD $
+    D.zipWithM f (D.mkParallelD $ D.toStreamD m1)
+                 (D.mkParallelD $ D.toStreamD m2)
+
 -- | Like 'zipWith' but zips concurrently i.e. both the streams being zipped
 -- are generated concurrently.
 --
