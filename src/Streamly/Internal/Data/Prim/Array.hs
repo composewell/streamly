@@ -33,6 +33,7 @@ module Streamly.Internal.Data.Prim.Array
     , toStream
     , toStreamRev
     , read
+    , readSlice
 
     , fromListN
     , fromList
@@ -188,3 +189,11 @@ read = Unfold step inject
         | i == length arr = return D.Stop
     step (arr, i) = return $ D.Yield (indexPrimArray arr i) (arr, i + 1)
 
+{-# INLINE_NORMAL readSlice #-}
+readSlice :: (Prim a, Monad m) => Int -> Int -> Unfold m (PrimArray a) a
+readSlice off len = Unfold step inject
+  where
+    inject arr = return (arr, off)
+    step (arr, i)
+        | i == min (off + len) (length arr) = return D.Stop
+    step (arr, i) = return $ D.Yield (indexPrimArray arr i) (arr, i + 1)

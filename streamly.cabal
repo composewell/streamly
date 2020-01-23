@@ -275,6 +275,7 @@ library
     other-modules:
                        Streamly.Data.Array
                      , Streamly.Data.SmallArray
+                     , Streamly.Data.Prim.Array
 
                     -- Memory storage
                        Streamly.Memory.Malloc
@@ -284,13 +285,9 @@ library
                      , Streamly.FileSystem.FDIO
                      , Streamly.FileSystem.FD
 
-                     , Streamly.Data.Prim.Array
-
     exposed-modules:
                        Streamly.Prelude
                      , Streamly
-                     , Streamly.Data.Array
-                     , Streamly.Data.SmallArray
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
                      , Streamly.Data.Unicode.Stream
