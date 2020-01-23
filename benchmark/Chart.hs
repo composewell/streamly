@@ -336,12 +336,12 @@ main = do
         Just opts@Options{..} ->
             case benchType of
                 Linear -> benchShow opts cfg
-                            { title = Just "100,000 elems" }
+                            { title = Just "Linear" }
                             makeLinearGraphs
                             "charts/linear/results.csv"
                             "charts/linear"
                 LinearAsync -> benchShow opts cfg
-                            { title = Just "Async 10,000 elems" }
+                            { title = Just "Linear Async" }
                             makeLinearAsyncGraphs
                             "charts/linear-async/results.csv"
                             "charts/linear-async"
@@ -349,17 +349,17 @@ main = do
                             "charts/linear-rate/results.csv"
                             "charts/linear-rate"
                 Nested -> benchShow opts cfg
-                            { title = Just "Nested loops 316 x 316 elems" }
+                            { title = Just "Nested loops" }
                             makeNestedGraphs
                             "charts/nested/results.csv"
                             "charts/nested"
                 NestedConcurrent -> benchShow opts cfg
-                            { title = Just "Nested concurrent loops 316 x 316 elems" }
+                            { title = Just "Nested concurrent loops" }
                             makeNestedGraphs
                             "charts/nested-concurrent/results.csv"
                             "charts/nested-concurrent"
                 NestedUnfold -> benchShow opts cfg
-                            { title = Just "Nested unfold loops 316 x 316 elems" }
+                            { title = Just "Nested unfold loops" }
                             makeNestedGraphs
                             "charts/nested-unfold/results.csv"
                             "charts/nested-unfold"
@@ -379,7 +379,7 @@ main = do
                             "charts/concurrent/results.csv"
                             "charts/concurrent"
                 Base -> do
-                    let cfg' = cfg { title = Just "100,000 elems" }
+                    let cfg' = cfg { title = Just "Base stream" }
                     if groupDiff
                     then showStreamDVsK opts cfg'
                                 "charts/base/results.csv"
