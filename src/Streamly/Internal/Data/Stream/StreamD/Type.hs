@@ -74,6 +74,7 @@ import Data.Functor.Identity (Identity(..))
 import GHC.Base (build)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
+import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
@@ -87,6 +88,7 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -- | A stream is a succession of 'Step's. A 'Yield' produces a single value and
 -- the next state of the stream. 'Stop' indicates there are no more values in
 -- the stream.
+{-# ANN type Step Fuse #-}
 data Step s a = Yield a s | Skip s | Stop
 
 instance Functor (Step s) where
