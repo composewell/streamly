@@ -8,6 +8,7 @@
 -- |
 -- Module      : Streamly.Data.Internal.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
+--               (c) Bjoern Hoehrmann 2008-2009
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

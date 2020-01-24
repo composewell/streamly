@@ -14,7 +14,7 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD.Type
 -- Copyright   : (c) 2018 Harendra Kumar
--- Copyright   : (c) Roman Leshchinskiy 2008-2010
+--               (c) Roman Leshchinskiy 2008-2010
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com

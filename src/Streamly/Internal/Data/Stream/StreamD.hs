@@ -21,9 +21,8 @@
 -- |
 -- Module      : Streamly.Internal.Data.Stream.StreamD
 -- Copyright   : (c) 2018 Harendra Kumar
--- Copyright   : (c) Roman Leshchinskiy 2008-2010
--- Copyright   : (c) The University of Glasgow, 2009
--- Copyright   : (c) Bjoern Hoehrmann 2008-2009
+--               (c) Roman Leshchinskiy 2008-2010
+--               (c) The University of Glasgow, 2009
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
