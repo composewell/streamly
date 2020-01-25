@@ -129,6 +129,11 @@ source-repository head
     type: git
     location: https://github.com/composewell/streamly
 
+flag fusion-plugin
+  description: Enable fusion plugin for better optimizations
+  manual: True
+  default: False
+
 flag inspection
   description: Enable inspection testing
   manual: True
@@ -237,18 +242,31 @@ common lib-options
 -- in general.
 common test-options
   import: compile-options, threading-options
+
   ghc-options:  -O0
                 -fno-ignore-asserts
+  if flag(fusion-plugin)
+    ghc-options: -fplugin Fusion.Plugin
+    build-depends:
+        fusion-plugin     >= 0.1   && < 0.2
 
 -- Used by maxrate test, benchmarks and executables
 common exe-options
   import: compile-options, optimization-options, threading-options
+  if flag(fusion-plugin)
+    ghc-options: -fplugin Fusion.Plugin
+    build-depends:
+        fusion-plugin     >= 0.1   && < 0.2
 
 -- Some benchmarks are threaded some are not
 -- XXX dependencies should be separated under bench-depends
 common bench-options
   import: compile-options, optimization-options
   ghc-options: -with-rtsopts "-T -M256M"
+  if flag(fusion-plugin)
+    ghc-options: -fplugin Fusion.Plugin
+    build-depends:
+        fusion-plugin     >= 0.1   && < 0.2
   build-depends: mtl >= 2.2 && < 3
 
 common bench-options-threaded
@@ -256,6 +274,10 @@ common bench-options-threaded
   -- -threaded and -N2 is important because some GC and space leak issues
   -- trigger only with these options.
   ghc-options: -threaded -with-rtsopts "-T -N2 -M256M"
+  if flag(fusion-plugin)
+    ghc-options: -fplugin Fusion.Plugin
+    build-depends:
+        fusion-plugin     >= 0.1   && < 0.2
   build-depends: mtl >= 2.2 && < 3
 
 -------------------------------------------------------------------------------
