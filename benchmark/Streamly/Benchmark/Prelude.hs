@@ -888,8 +888,8 @@ concatStreamsWith
     -> IO ()
 concatStreamsWith op outer inner n =
     S.drain $ S.concatMapWith op
-        (\i -> sourceUnfoldrMN (i + inner) i)
-        (sourceUnfoldrMN (n + outer) n)
+        (\i -> sourceUnfoldrMN inner i)
+        (sourceUnfoldrMN outer n)
 
 {-# INLINE concatMapWithSerial #-}
 concatMapWithSerial :: Int -> Int -> Int -> IO ()
