@@ -361,7 +361,12 @@ build_report_progs "$BENCHMARKS"
 if test "$MEASURE" = "1"
 then
   echo $BUILD_BENCH
-  $BUILD_BENCH || die "build failed"
+  if test "$USE_STACK" = "1"
+  then
+    $BUILD_BENCH || die "build failed"
+  else
+    $BUILD_BENCH $BENCHMARKS || die "build failed"
+  fi
   run_measurements "$BENCHMARKS"
 fi
 
