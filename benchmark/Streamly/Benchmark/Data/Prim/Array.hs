@@ -78,7 +78,10 @@ main =
         , benchIOSink "foldl'" Ops.pureFoldl'
         , benchIOSink "read" (S.drain . S.unfold A.read)
         , benchIOSink "toStreamRev" (S.drain . A.toStreamRev)
-#ifdef DEVBUILD
+#if 0
+        -- PrimArray does not have a Foldable instance because it requires a
+        -- Prim constraint. Though it should be possible to make an instance in
+        -- the same way as we do in Memory.Array.
         , benchPureSink "foldable/foldl'" Ops.foldableFoldl'
         , benchPureSink "foldable/sum" Ops.foldableSum
 #endif

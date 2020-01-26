@@ -19,7 +19,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Prelude (Int, Bool, (+), ($), (==), (>), (.), Maybe(..), undefined)
 import qualified Prelude as P
 #ifdef DEVBUILD
-import qualified Data.Foldable as F
+-- import qualified Data.Foldable as F
 #endif
 
 import qualified Streamly           as S hiding (foldMapWith, runStream)
@@ -139,7 +139,10 @@ readInstance str =
 pureFoldl' :: MonadIO m => Stream Int -> m Int
 pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 
-#ifdef DEVBUILD
+#if 0
+-- PrimArray does not have a Foldable instance because it reuqires a Prim
+-- constraint. Though it should be possible to make an instance in the same way
+-- as we do in Memory.Array.
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Stream Int -> Int
 foldableFoldl' = F.foldl' (+) 0
