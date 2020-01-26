@@ -59,6 +59,9 @@ module Streamly.Internal.Prelude
     , fromFoldableM
     , fromPrimVar
 
+    -- ** Time related
+    , currentTime
+
     -- * Elimination
 
     -- ** Deconstruction
@@ -420,9 +423,6 @@ module Streamly.Internal.Prelude
 
     -- * Diagnostics
     , inspectMode
-
-    -- * Time related
-    , currentTime
 
     -- * Deprecated
     , K.once
@@ -897,6 +897,34 @@ fromHandle h = go
 {-# INLINE fromPrimVar #-}
 fromPrimVar :: (IsStream t, MonadIO m, Prim a) => Var IO a -> t m a
 fromPrimVar = fromStreamD . D.fromPrimVar
+
+------------------------------------------------------------------------------
+-- Time related
+------------------------------------------------------------------------------
+
+-- XXX Some related/interesting combinators:
+--
+-- 1) emit the relative time elapsed since last evaluation. That would just be
+-- a rollingMap on the currentTime stream.
+--
+-- 2) Generate ticks at specified interval. Drop ticks when blocked.
+-- ticks :: Double -> t m ()
+--
+-- 3) Emit relative time at specified tick interval. If a tick is dropped
+-- combine the interval with the next tick.
+-- ticks :: Double -> t m RelTime
+--
+-- | @currentTime g@ returns a stream of absolute timestamps using a clock of
+-- granularity @g@ specified in seconds. A low granularity clock is more
+-- expensive in terms of CPU usage.
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE currentTime #-}
+currentTime :: (IsStream t, MonadAsync m) => Double -> t m AbsTime
+currentTime g = fromStreamD $ D.currentTime g
 
 ------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -3756,6 +3784,10 @@ tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 --           $ S.enumerateFrom 0
 -- @
 --
+-- Note: This may not work correctly on 32-bit machines.
+--
+-- /Internal
+--
 {-# INLINE pollCounts #-}
 pollCounts ::
        (IsStream t, MonadAsync m)
@@ -3782,6 +3814,9 @@ pollCounts transf f xs =
 -- 1 elements processed
 -- @
 --
+-- Note: This may not work correctly on 32-bit machines.
+--
+-- /Internal
 {-# INLINE tapRate #-}
 tapRate ::
        (IsStream t, MonadAsync m, MonadCatch m)
@@ -4300,18 +4335,3 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
-
-------------------------------------------------------------------------------
--- Time related
-------------------------------------------------------------------------------
-
--- | /currentTime g/ returns a stream of 'AbsTime'. The time is updated every
--- /g/ seconds. Between any 2 updates, the stream will contain the same
--- element. Getting the absolute time is a costly operation and hence the time
--- taken to generate this stream depends on the granularity /g/. If /g/ is very
--- low, the time taken to generate this the elements of this stream will be
--- very high. Conversely, if the granularity is high, the time taken to
--- generate the elements of this stream will be low.
-{-# INLINE currentTime #-}
-currentTime :: (IsStream t, MonadAsync m) => Double -> t m AbsTime
-currentTime g = fromStreamD $ D.currentTime g

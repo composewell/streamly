@@ -20,6 +20,15 @@
 --
 -- A mutable variable in a mutation capable monad (IO/ST) holding a 'Prim'
 -- value. This allows fast modification because of unboxed storage.
+--
+-- = Multithread Consistency Notes
+--
+-- In general, any value that straddles a machine word cannot be guaranteed to
+-- be consistently read from another thread without a lock.  GHC heap objects
+-- are always machine word aligned, therefore, a 'Var' is also word aligned. On
+-- a 64-bit platform, writing a 64-bit aligned type from one thread and reading
+-- it from another thread should give consistent old or new value. The same
+-- holds true for 32-bit values on a 32-bit platform.
 
 module Streamly.Internal.Mutable.Prim.Var
     (

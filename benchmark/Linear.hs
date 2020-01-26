@@ -161,13 +161,8 @@ main = do
         -- These are essentially cons and consM
         , benchIOSrc serially "fromFoldable" (Ops.sourceFromFoldable value)
         , benchIOSrc serially "fromFoldableM" (Ops.sourceFromFoldableM value)
-
-        -- Compare this with takeAll
-        , bench "currentTime: 0.00001 sec granularity" $ nfIO $ Ops.currentTime value 0.00001
-        , bench "currentTime: 0.0001 sec granularity" $ nfIO $ Ops.currentTime value 0.0001
-        , bench "currentTime: 0.001 sec granularity" $ nfIO $ Ops.currentTime value 0.001
-        , bench "currentTime: 0.01 sec granularity" $ nfIO $ Ops.currentTime value 0.01
-
+        , benchIOSrc serially "currentTime/0.00001s"
+            $ Ops.currentTime value 0.00001
         ]
       , bgroup "elimination"
         [ bgroup "reduce"

@@ -93,6 +93,9 @@ module Streamly.Internal.Data.Stream.StreamD
     , enumerateFromToFractional
     , enumerateFromThenToFractional
 
+    -- ** Time
+    , currentTime
+
     -- ** Conversions
     -- | Transform an input structure into a stream.
     -- | Direct style stream does not support @fromFoldable@.
@@ -245,9 +248,11 @@ module Streamly.Internal.Data.Stream.StreamD
     , filterM
     , uniq
     , take
+    , takeByTime
     , takeWhile
     , takeWhileM
     , drop
+    , dropByTime
     , dropWhile
     , dropWhileM
 
@@ -307,18 +312,13 @@ module Streamly.Internal.Data.Stream.StreamD
     , mkParallelD
 
     , lastN
-
-    -- * Time related
-    , takeByTime
-    , dropByTime
-    , currentTime
     )
 where
 
 import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
 import Control.Exception
        (Exception, SomeException, AsyncException, fromException)
-import Control.Monad (void, when)
+import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT)
@@ -327,6 +327,7 @@ import Control.Monad.Trans (MonadTrans(lift))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
+import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Word (Word32)
@@ -346,7 +347,6 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
-import Data.Int (Int64)
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
@@ -357,7 +357,8 @@ import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
-import Streamly.Internal.Data.Time.Units (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
+import Streamly.Internal.Data.Time.Units
+       (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Strict (Tuple3'(..))
 
@@ -3449,6 +3450,9 @@ pollCounts transf fld (Stream step state) = Stream step' Nothing
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
+        -- As long as we are using an "Int" for counts lockfree reads from
+        -- Var should work correctly on both 32-bit and 64-bit machines.
+        -- However, an Int on a 32-bit machine may overflow quickly.
         countVar <- liftIO $ newVar (0 :: Int)
         tid <- forkManaged
             $ void $ runFold fld
@@ -4211,25 +4215,40 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Skip s -> Skip (DropByTimeYield s)
              Stop -> Stop
 
+-- XXX we should move this to stream generation section of this file. Also, the
+-- take/drop combinators above should be moved to filtering section.
 {-# INLINE_NORMAL currentTime #-}
 currentTime :: MonadAsync m => Double -> Stream m AbsTime
 currentTime g = Stream step Nothing
-  where
-    next timeVar = do
+
+    where
+
+    g' = g * 10 ^ (6 :: Int)
+
+    -- XXX should have a minimum granularity to avoid high CPU usage?
+    {-# INLINE delayTime #-}
+    delayTime =
+        if g' >= fromIntegral (maxBound :: Int)
+        then maxBound
+        else round g'
+
+    updateTimeVar timeVar = do
         threadDelay $ delayTime
         MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
         modifyVar' timeVar (const t)
-        next timeVar
-    g' = g * 10 ^ (6 :: Int)
-    {-# INLINE delayTime #-}
-    delayTime = if g' >= fromIntegral (maxBound :: Int)
-                   then maxBound
-                   else round g'
+
     {-# INLINE_LATE step #-}
     step _ Nothing = do
+        -- XXX note that this is safe only on a 64-bit machine. On a 32-bit
+        -- machine a 64-bit 'Var' cannot be read consistently without a lock
+        -- while another thread is writing to it.
         timeVar <- liftIO $ newVar (0 :: Int64)
-        tid <- forkManaged $ liftIO $ void $ next timeVar 
+        tid <- forkManaged $ liftIO $ forever (updateTimeVar timeVar)
         return $ Skip $ Just (timeVar, tid)
+
     step _ s@(Just (timeVar, _)) = do
         a <- liftIO $ readVar timeVar
+        -- XXX we can perhaps use an AbsTime64 using a 64 bit Int for
+        -- efficiency.  or maybe we can use a representation using Double for
+        -- floating precision time
         return $ Yield (toAbsTime (MicroSecond64 a)) s

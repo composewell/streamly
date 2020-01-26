@@ -177,6 +177,11 @@ sourceFromFoldable value n = S.fromFoldable [n..n+value]
 sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceFromFoldableM value n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 
+{-# INLINE currentTime #-}
+currentTime :: (S.IsStream t, S.MonadAsync m)
+    => Int -> Double -> Int -> t m AbsTime
+currentTime value g _ = S.take value $ Internal.currentTime g
+
 -------------------------------------------------------------------------------
 -- Elimination
 -------------------------------------------------------------------------------
@@ -381,11 +386,6 @@ filterAllOut,
 {-# INLINE intersperse #-}
 mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
 intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
-
--- XXX Change granularity and compare with takeAll
-{-# INLINE currentTime #-}
-currentTime :: S.MonadAsync m => Int -> Double -> m ()
-currentTime value g = S.drain $ S.take value $ Internal.currentTime g
 
 {-# INLINE mapM #-}
 {-# INLINE map' #-}
