@@ -10,8 +10,10 @@ print_help () {
   echo "       [--no-measure]"
   echo "       [--append]"
   echo "       [--long]"
-  echo "       [--compare] [--base commit] [--candidate commit]"
   echo "       [--slow]"
+  echo "       [--quick]"
+  echo "       [--compare] [--base commit] [--candidate commit]"
+  echo "       [--cabal-build-flags]"
   echo "       -- <gauge options>"
   echo
   echo "Multiple benchmarks can be specified as a space separate list"
@@ -147,17 +149,25 @@ run_bench () {
 
   echo "Running benchmark $bench_name ..."
 
+  local QUICK_OPTS="--quick --time-limit 1 --min-duration 0"
   local SPEED_OPTIONS
   if test "$LONG" -eq 0
   then
     if test "$SLOW" -eq 0
     then
-      SPEED_OPTIONS="--quick --min-samples 10 --time-limit 1 --min-duration 0"
+        if test "$QUICK" -eq 0
+        then
+          # reasonably quick
+          SPEED_OPTIONS="$QUICK_OPTS --min-samples 10"
+        else
+          # super quick but less accurate
+          SPEED_OPTIONS="$QUICK_OPTS --include-first-iter"
+        fi
     else
       SPEED_OPTIONS="--min-duration 0"
     fi
   else
-      SPEED_OPTIONS="--stream-size 10000000 -v2 --quick --include-first-iter --time-limit 1 --min-duration 0"
+      SPEED_OPTIONS="--stream-size 10000000 $QUICK_OPTS --include-first-iter"
   fi
 
   $bench_prog $SPEED_OPTIONS \
@@ -255,6 +265,7 @@ CANDIDATE=
 
 APPEND=0
 SLOW=0
+QUICK=0
 LONG=0
 RAW=0
 GRAPH=0
@@ -263,6 +274,7 @@ MEASURE=1
 GAUGE_ARGS=
 BUILD_ONCE=0
 USE_STACK=0
+CABAL_BUILD_FLAGS=""
 
 GHC_VERSION=$(ghc --numeric-version)
 
@@ -279,11 +291,13 @@ do
   case $1 in
     -h|--help|help) print_help ;;
     # options with arguments
-    --slow) SLOW=1; shift ;;
     --benchmarks) shift; BENCHMARKS=$1; shift ;;
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
+    --cabal-build-flags) shift; CABAL_BUILD_FLAGS=$1; shift ;;
     # flags
+    --slow) SLOW=1; shift ;;
+    --quick) QUICK=1; shift ;;
     --compare) COMPARE=1; shift ;;
     --raw) RAW=1; shift ;;
     --append) APPEND=1; shift ;;
@@ -301,10 +315,11 @@ GAUGE_ARGS=$*
 echo "Using stack command [$STACK]"
 set_benchmarks
 
+# XXX we can remove these if we pass stack build flags from command line like
+# cabal build flags.
 if echo "$BENCHMARKS" | grep -q base
 then
   STACK_BUILD_FLAGS="--flag streamly:dev"
-  CABAL_BUILD_FLAGS="--flags dev"
 fi
 
 for i in $BENCHMARKS
@@ -312,7 +327,6 @@ do
   if test "$i" = concurrent
   then
     STACK_BUILD_FLAGS="--flag streamly:dev"
-    CABAL_BUILD_FLAGS="--flags dev"
     break
   fi
 done
