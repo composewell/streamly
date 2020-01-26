@@ -16,7 +16,13 @@
 -- Portability : GHC
 --
 module Streamly.Internal.Data.Prim.Array
-    ( PrimArray(..)
+    (
+
+    -- XXX should it be just Array instead? We should be able to replace one
+    -- array type with another easily.
+      PrimArray(..)
+
+    -- XXX Prim should be exported from Data.Prim module?
     , Prim(..)
 
     , foldl'
@@ -53,8 +59,9 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.IO (unsafePerformIO)
-import Data.Primitive.PrimArray
 import Data.Primitive.Types (Prim(..))
+
+import Data.Primitive.PrimArray
 
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
