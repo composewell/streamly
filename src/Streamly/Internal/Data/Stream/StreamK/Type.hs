@@ -36,7 +36,7 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , adapt
 
     -- * The stream type
-    , Stream ()
+    , Stream (..)
 
     -- * Construction
     , mkStream
