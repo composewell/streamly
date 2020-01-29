@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Memory.Array
+-- Module      : Streamly.Memory.Mutable.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -39,9 +39,9 @@
 --
 -- > import qualified Streamly.Array as A
 --
--- For experimental APIs see "Streamly.Internal.Memory.Array".
+-- For experimental APIs see "Streamly.Internal.Memory.Mutable.Array".
 
-module Streamly.Memory.Array
+module Streamly.Memory.Mutable.Array
     (
       A.Array
 
@@ -77,4 +77,4 @@ module Streamly.Memory.Array
     )
 where
 
-import Streamly.Internal.Memory.Array as A
+import Streamly.Internal.Memory.Mutable.Array as A

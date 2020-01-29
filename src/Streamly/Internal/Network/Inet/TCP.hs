@@ -115,15 +115,15 @@ import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK

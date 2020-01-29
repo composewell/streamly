@@ -293,7 +293,7 @@ library
                      , Streamly.Data.Unicode.Stream
 
                     -- IO devices
-                     , Streamly.Memory.Array
+                     , Streamly.Memory.Mutable.Array
                      , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
@@ -309,9 +309,9 @@ library
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.SmallArray
-                     , Streamly.Internal.Memory.Array.Types
-                     , Streamly.Internal.Memory.Array
-                     , Streamly.Internal.Memory.ArrayStream
+                     , Streamly.Internal.Memory.Mutable.Array.Types
+                     , Streamly.Internal.Memory.Mutable.Array
+                     , Streamly.Internal.Memory.Mutable.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Sink.Types

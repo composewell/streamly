@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Memory.ArrayStream
+-- Module      : Streamly.Internal.Memory.Mutable.ArrayStream
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 --
 -- Combinators to efficiently manipulate streams of arrays.
 --
-module Streamly.Internal.Memory.ArrayStream
+module Streamly.Internal.Memory.Mutable.ArrayStream
     (
     -- * Creation
       arraysOf
@@ -48,12 +48,12 @@ import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Foreign.Storable (Storable(..))
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
-import Streamly.Internal.Memory.Array.Types (Array(..), length)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array(..), length)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
-import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Prelude as P

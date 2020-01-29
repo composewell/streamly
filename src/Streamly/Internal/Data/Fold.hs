@@ -624,7 +624,7 @@ foldMapM act = Fold step begin done
 -- | Folds the input stream to a list.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
--- very inefficient, consider using "Streamly.Memory.Array" instead.
+-- very inefficient, consider using "Streamly.Memory.Mutable.Array" instead.
 --
 -- @since 0.7.0
 

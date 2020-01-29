@@ -82,7 +82,7 @@ consume as arguments. This means `StreamD` combinators should not be marked
 as `INLINE` or `INLINE_EARLY`, instead they should all be marked as
 `INLINE_NORMAL` because higher order funcitons like `concatMap`/`map`/`mapM`
 etc are marked as `INLINE_NORMAL`. `StreamD` functions in other modules like
-`Streamly.Memory.Array` should also follow the same rules.
+`Streamly.Memory.Mutable.Array` should also follow the same rules.
 
 ## Stream Fusion
 

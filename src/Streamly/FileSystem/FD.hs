@@ -31,7 +31,7 @@
 --
 -- Reading and writing APIs are divided into two categories, sequential
 -- streaming APIs and random or seekable access APIs.  File IO APIs are quite
--- similar to "Streamly.Memory.Array" read write APIs. In that regard, arrays can
+-- similar to "Streamly.Memory.Mutable.Array" read write APIs. In that regard, arrays can
 -- be considered as in-memory files or files can be considered as on-disk
 -- arrays.
 --
@@ -136,12 +136,12 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array(..), byteLength, defaultChunkSize)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
+import Streamly.Internal.Memory.Mutable.Array.Types (groupIOVecsOf)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
@@ -149,8 +149,8 @@ import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 

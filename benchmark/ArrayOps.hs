@@ -26,7 +26,7 @@ import qualified GHC.Exts as GHC
 -- import GHC.Generics (Generic)
 
 import qualified Streamly           as S hiding (foldMapWith, runStream)
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.Mutable.Array as A
 import qualified Streamly.Prelude   as S
 
 value, maxValue :: Int

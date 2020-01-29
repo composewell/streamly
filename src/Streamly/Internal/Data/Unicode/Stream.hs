@@ -76,7 +76,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import Streamly (IsStream)
 import Streamly.Data.Fold (Fold)
-import Streamly.Memory.Array (Array)
+import Streamly.Memory.Mutable.Array (Array)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
@@ -86,7 +86,7 @@ import Streamly.Internal.Data.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD (pattern Stream)
 #endif
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as A
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 

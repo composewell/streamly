@@ -45,14 +45,14 @@ import System.IO (Handle, hClose)
 import Prelude hiding (last)
 
 import qualified Streamly.FileSystem.Handle as FH
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.Mutable.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Memory.Mutable.Array as IA
+import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
 import qualified Streamly.Internal.Data.Unfold as IUF
 import qualified Streamly.Internal.Prelude as IP
 

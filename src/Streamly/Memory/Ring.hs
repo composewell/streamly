@@ -42,7 +42,7 @@ import Prelude hiding (length, concat)
 
 import Control.Monad.IO.Class (MonadIO(..))
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as A
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the

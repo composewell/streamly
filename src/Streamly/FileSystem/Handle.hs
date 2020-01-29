@@ -16,7 +16,7 @@
 -- Portability : GHC
 --
 -- Read and write streams and arrays to and from file handles. File handle IO
--- APIs are quite similar to "Streamly.Memory.Array" read write APIs. In that
+-- APIs are quite similar to "Streamly.Memory.Mutable.Array" read write APIs. In that
 -- regard, arrays can be considered as in-memory files or files can be
 -- considered as on-disk arrays.
 --
@@ -50,12 +50,12 @@ module Streamly.FileSystem.Handle
     -- the stream is lazy and generated on-demand as the consumer consumes it.
     -- Read IO requests to the IO device are performed in chunks limited to a
     -- maximum size of 32KiB, this is referred to as
-    -- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' in the
+    -- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize' in the
     -- documentation. One IO request may or may not read the full
     -- chunk. If the whole stream is not consumed, it is possible that we may
     -- read slightly more from the IO device than what the consumer needed.
     -- Unless specified otherwise in the API, writes are collected into chunks
-    -- of 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' before they
+    -- of 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize' before they
     -- are written to the IO device.
 
     -- Streaming APIs work for all kind of devices, seekable or non-seekable;

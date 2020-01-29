@@ -1,7 +1,7 @@
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Data.Fold as FL
--- import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+-- import qualified Streamly.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH

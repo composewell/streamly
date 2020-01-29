@@ -22,12 +22,12 @@ import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Memory.Mutable.Array as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Sink as Sink
 
 import Streamly.Internal.Data.Time.Units
-import qualified Streamly.Internal.Memory.Array as IA
+import qualified Streamly.Internal.Memory.Mutable.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Pipe as Pipe

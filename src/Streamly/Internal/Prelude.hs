@@ -468,7 +468,7 @@ import qualified System.IO as IO
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
@@ -486,7 +486,7 @@ import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
 
-import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Memory.Mutable.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P

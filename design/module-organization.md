@@ -85,7 +85,7 @@ An alternative name could be "Module.Interface".
 In some other cases such modules are named after the class name (e.g. see the
 array package for an example). This is more appropriate when there is no single
 hierarchy where we can place the ".Class" module. For example, we have arrays
-in Data.Array, Memory.Array, we have to choose one over the other to place the
+in Data.Array, Memory.Mutable.Array, we have to choose one over the other to place the
 ".Class" module for an array abstraction. Alternatively, we can choose
 "Data.IsArray" instead.
 

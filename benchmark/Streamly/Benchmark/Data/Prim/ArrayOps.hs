@@ -142,7 +142,7 @@ pureFoldl' = S.foldl' (+) 0 . S.unfold A.read
 #if 0
 -- PrimArray does not have a Foldable instance because it reuqires a Prim
 -- constraint. Though it should be possible to make an instance in the same way
--- as we do in Memory.Array.
+-- as we do in Memory.Mutable.Array.
 {-# INLINE foldableFoldl' #-}
 foldableFoldl' :: Stream Int -> Int
 foldableFoldl' = F.foldl' (+) 0

@@ -27,8 +27,8 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.Array as A
 import qualified Streamly.Internal.Prelude as IP
 type Array = A.Array
 #elif defined(TEST_PRIM_ARRAY)

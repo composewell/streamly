@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Memory.Array
+-- Module      : Streamly.Internal.Memory.Mutable.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -27,7 +27,7 @@
 -- less efficient compared to folding via streams.  'Semigroup' and 'Monoid'
 -- instances should be used with care; concatenating arrays using binary
 -- operations can be highly inefficient.  Instead, use
--- 'Streamly.Internal.Memory.ArrayStream.toArray' to concatenate N arrays at
+-- 'Streamly.Internal.Memory.Mutable.ArrayStream.toArray' to concatenate N arrays at
 -- once.
 --
 -- Each array is one pointer visible to the GC.  Too many small arrays (e.g.
@@ -37,7 +37,7 @@
 -- if we use one array for each chunk. This is still significant to add
 -- pressure to GC.
 
-module Streamly.Internal.Memory.Array
+module Streamly.Internal.Memory.Mutable.Array
     (
       Array
 
@@ -143,11 +143,11 @@ import GHC.IO (IO(..))
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types (Array(..), length)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array(..), length)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as A
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.StreamD as D

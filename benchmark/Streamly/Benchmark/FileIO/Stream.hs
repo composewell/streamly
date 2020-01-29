@@ -75,9 +75,9 @@ import Prelude hiding (last, length)
 
 import qualified Streamly.FileSystem.Handle as FH
 import qualified Streamly.Internal.FileSystem.Handle as IFH
-import qualified Streamly.Memory.Array as A
--- import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Internal.Memory.Array.Types as AT
+import qualified Streamly.Memory.Mutable.Array as A
+-- import qualified Streamly.Internal.Memory.Mutable.Array as IA
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as AT
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold as IFL

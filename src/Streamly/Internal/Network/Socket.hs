@@ -94,7 +94,7 @@ import qualified Network.Socket as Net
 
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types (Array(..), lpackArraysChunksOf)
+import Streamly.Internal.Memory.Mutable.Array.Types (Array(..), lpackArraysChunksOf)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -103,10 +103,10 @@ import Streamly.Data.Fold (Fold)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array as IA
+import qualified Streamly.Memory.Mutable.Array as A
+import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as A
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -350,9 +350,9 @@ readChunksWithBufferOf = Unfold step return
 
 -- | Unfolds a socket into a stream of 'Word8' arrays. Requests to the socket
 -- are performed using a buffer of size
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -399,7 +399,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
 -- performed in sizes of
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}

@@ -69,7 +69,7 @@ import Prelude hiding (read)
 
 -- import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
--- import Streamly.Internal.Memory.Array.Types
+-- import Streamly.Internal.Memory.Mutable.Array.Types
 --        (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
 --         lpackArraysChunksOf)
 -- import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -79,9 +79,9 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 -- import qualified Streamly.Data.Fold as FL
 -- import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
--- import qualified Streamly.Internal.Memory.ArrayStream as AS
+-- import qualified Streamly.Internal.Memory.Mutable.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
--- import qualified Streamly.Memory.Array as A
+-- import qualified Streamly.Memory.Mutable.Array as A
 -- import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified System.Directory as Dir
 
@@ -183,9 +183,9 @@ toChunks = toChunksWithBufferOf defaultChunkSize
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -360,7 +360,7 @@ fromStreamWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
@@ -410,7 +410,7 @@ writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Memory.Mutable.Array.Types.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- @since 0.7.0
