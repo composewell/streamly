@@ -23,10 +23,10 @@ module Streamly.Internal.Memory.Array.Types
       Array (..)
 
     -- XXX Change the location
-    , thraw
+    , unsafeThraw
 
     -- * Construction
-    , freeze
+    , unsafeFreeze
     , fromList
     , fromListN
     , fromStreamDN
@@ -104,9 +104,9 @@ data Array a =
     , aEnd   :: {-# UNPACK #-} !(Ptr a)        -- first unused address
     }
 
-{-# INLINE thraw #-}
-thraw :: Array a -> MA.Array a
-thraw Array{..} = MA.Array aStart aEnd aEnd
+{-# INLINE unsafeThraw #-}
+unsafeThraw :: Array a -> MA.Array a
+unsafeThraw Array{..} = MA.Array aStart aEnd aEnd
 
 -------------------------------------------------------------------------------
 -- Construction
@@ -116,14 +116,14 @@ foreign import ccall unsafe "string.h memchr" c_memchr
     :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
 
 -- XXX Shrink before freezing
-{-# INLINE freeze #-}
-freeze :: MA.Array a -> Array a
-freeze (MA.Array s e _) = Array s e
+{-# INLINE unsafeFreeze #-}
+unsafeFreeze :: MA.Array a -> Array a
+unsafeFreeze (MA.Array s e _) = Array s e
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
-fromStreamDN limit str = freeze <$> MA.fromStreamDN limit str
+fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
@@ -132,14 +132,14 @@ fromStreamDN limit str = freeze <$> MA.fromStreamDN limit str
 -- @since 0.7.0
 {-# INLINABLE fromListN #-}
 fromListN :: Storable a => Int -> [a] -> Array a
-fromListN n xs = freeze $ MA.fromListN n xs
+fromListN n xs = unsafeFreeze $ MA.fromListN n xs
 
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
-fromList xs = freeze $ MA.fromList xs
+fromList xs = unsafeFreeze $ MA.fromList xs
 
 -- XXX concatMap does not seem to have the best possible performance so we have
 -- a custom way to concat arrays.
