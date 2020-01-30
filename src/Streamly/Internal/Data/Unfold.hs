@@ -128,7 +128,6 @@ where
 import Control.Exception (Exception)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
-import Data.IORef (readIORef, writeIORef)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude hiding (concat, map, mapM, takeWhile, take, filter, const)
@@ -694,10 +693,10 @@ gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
                 Yield x s -> return $ Yield x (Right (s, v, ref))
                 Skip s    -> return $ Skip (Right (s, v, ref))
                 Stop      -> do
-                    liftIO $ writeIORef ref Nothing
-                    aft v >> return Stop
+                    D.runIORefFinalizer ref
+                    return Stop
             Left e -> do
-                liftIO (writeIORef ref Nothing)
+                D.clearIORefFinalizer ref
                 r <- einject (v, e)
                 return $ Skip (Left r)
     step (Left st) = do
@@ -789,10 +788,9 @@ afterIO action (Unfold step1 inject1) = Unfold step inject
         case res of
             Yield x s -> return $ Yield x (s, ref)
             Skip s    -> return $ Skip (s, ref)
-            Stop      -> liftIO $ do
-                Just f <- readIORef ref
-                writeIORef ref Nothing
-                f >> return Stop
+            Stop      -> do
+                D.runIORefFinalizer ref
+                return Stop
 
 {-# INLINE_NORMAL _onException #-}
 _onException :: MonadCatch m => (a -> m c) -> Unfold m a b -> Unfold m a b
@@ -868,17 +866,17 @@ finallyIO action (Unfold step1 inject1) = Unfold step inject
     inject x = do
         s <- inject1 x
         ref <- D.newFinalizedIORef (action x)
-        return (s, x, ref)
+        return (s, ref)
 
     {-# INLINE_LATE step #-}
-    step (st, v, ref) = do
-        res <- step1 st `MC.onException` action v
+    step (st, ref) = do
+        res <- step1 st `MC.onException` D.runIORefFinalizer ref
         case res of
-            Yield x s -> return $ Yield x (s, v, ref)
-            Skip s    -> return $ Skip (s, v, ref)
+            Yield x s -> return $ Yield x (s, ref)
+            Skip s    -> return $ Skip (s, ref)
             Stop      -> do
-                liftIO (writeIORef ref Nothing)
-                action v >> return Stop
+                D.runIORefFinalizer ref
+                return Stop
 
 {-# INLINE_NORMAL _bracket #-}
 _bracket :: MonadCatch m
@@ -935,17 +933,17 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
         r <- bef x
         s <- inject1 r
         ref <- D.newFinalizedIORef (aft r)
-        return (s, r, ref)
+        return (s, ref)
 
     {-# INLINE_LATE step #-}
-    step (st, v, ref) = do
-        res <- step1 st `MC.onException` aft v
+    step (st, ref) = do
+        res <- step1 st `MC.onException` D.runIORefFinalizer ref
         case res of
-            Yield x s -> return $ Yield x (s, v, ref)
-            Skip s    -> return $ Skip (s, v, ref)
+            Yield x s -> return $ Yield x (s, ref)
+            Skip s    -> return $ Skip (s, ref)
             Stop      -> do
-                liftIO (writeIORef ref Nothing)
-                aft v >> return Stop
+                D.runIORefFinalizer ref
+                return Stop
 
 -- | When unfolding if an exception occurs, unfold the exception using the
 -- exception unfold supplied as the first argument to 'handle'.

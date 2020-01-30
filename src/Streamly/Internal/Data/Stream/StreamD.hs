@@ -296,6 +296,8 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- * Exceptions
     , newFinalizedIORef
+    , runIORefFinalizer
+    , clearIORefFinalizer
     , gbracket
     , before
     , after
@@ -2899,6 +2901,21 @@ newFinalizedIORef finalizer = do
     _ <- liftIO $ mkWeakIORef ref finalizer1
     return ref
 
+-- | Run the finalizer stored in an IORef and deactivate it so that it is run
+-- only once.
+--
+runIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
+runIORefFinalizer ref = liftIO $ do
+    res <- readIORef ref
+    case res of
+        Nothing -> return ()
+        Just f -> writeIORef ref Nothing >> f
+
+-- | Deactivate the finalizer stored in an IORef without running it.
+--
+clearIORefFinalizer :: MonadIO m => IORef (Maybe (IO ())) -> m ()
+clearIORefFinalizer ref = liftIO $ writeIORef ref Nothing
+
 data GbracketIOState s1 s2 v wref
     = GBracketIOInit
     | GBracketIONormal s1 v wref
@@ -2946,10 +2963,10 @@ gbracketIO bef exc aft fexc fnormal =
                 Skip s ->
                     return $ Skip (GBracketIONormal (Stream step1 s) v ref)
                 Stop -> do
-                    liftIO (writeIORef ref Nothing)
-                    aft v >> return Stop
+                    runIORefFinalizer ref
+                    return Stop
             Left e -> do
-                liftIO (writeIORef ref Nothing)
+                clearIORefFinalizer ref
                 return $ Skip (GBracketIOException (fexc v e))
     step gst (GBracketIOException (UnStream step1 st)) = do
         res <- step1 gst st
@@ -3007,10 +3024,9 @@ afterIO action (Stream step state) = Stream step' Nothing
         case res of
             Yield x s -> return $ Yield x (Just (s, ref))
             Skip s    -> return $ Skip (Just (s, ref))
-            Stop      -> liftIO $ do
-                Just f <- readIORef ref
-                writeIORef ref Nothing
-                f >> return Stop
+            Stop      -> do
+                runIORefFinalizer ref
+                return Stop
 
 -- XXX These combinators are expensive due to the call to
 -- onException/handle/try on each step. Therefore, when possible, they should
