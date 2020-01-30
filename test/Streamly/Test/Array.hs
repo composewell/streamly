@@ -12,6 +12,7 @@
 module Main (main) where
 
 import Foreign.Storable (Storable(..))
+-- import Control.Monad.IO.Class (MonadIO)
 
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (Property, forAll, Gen, vectorOf, arbitrary, choose)
@@ -30,6 +31,11 @@ type Array = A.SmallArray
 import qualified Streamly.Memory.Mutable.Array as A
 import qualified Streamly.Internal.Memory.Mutable.Array as A
 import qualified Streamly.Internal.Prelude as IP
+type Array = A.Array
+#elif defined(TEST_ARRAY_IMMUTABLE)
+import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array as MA
 type Array = A.Array
 #elif defined(TEST_PRIM_ARRAY)
 import qualified Streamly.Internal.Data.Prim.Array as A
@@ -72,7 +78,14 @@ genericTestFrom arrFold =
                 assert (A.length arr == len)
 
 testLength :: Property
-testLength = genericTestFrom (\n -> S.fold (A.writeN n))
+testLength = genericTestFrom (\n -> S.fold (genFoldN n))
+  where
+#ifdef TEST_ARRAY_IMMUTABLE
+    genFoldN = fmap A.unsafeFreeze . MA.writeN
+#else
+    genFoldN = A.writeN
+#endif
+    
 
 testLengthFromStreamN :: Property
 testLengthFromStreamN = genericTestFrom A.fromStreamN
@@ -97,18 +110,36 @@ genericTestFromTo arrFold arrUnfold listEq =
 
 testFoldNUnfold :: Property
 testFoldNUnfold =
-    genericTestFromTo (\n -> S.fold (A.writeN n)) (S.unfold A.read) (==)
+    genericTestFromTo (\n -> S.fold (genFoldN n)) (S.unfold A.read) (==)
+  where
+#ifdef TEST_ARRAY_IMMUTABLE
+    genFoldN = fmap A.unsafeFreeze . MA.writeN
+#else
+    genFoldN = A.writeN
+#endif
 
 testFoldNToStream :: Property
 testFoldNToStream =
-    genericTestFromTo (\n -> S.fold (A.writeN n)) A.toStream (==)
+    genericTestFromTo (\n -> S.fold (genFoldN n)) A.toStream (==)
+  where
+#ifdef TEST_ARRAY_IMMUTABLE
+    genFoldN = fmap A.unsafeFreeze . MA.writeN
+#else
+    genFoldN = A.writeN
+#endif
 
 testFoldNToStreamRev :: Property
 testFoldNToStreamRev =
     genericTestFromTo
-        (\n -> S.fold (A.writeN n))
+        (\n -> S.fold (genFoldN n))
         A.toStreamRev
         (\xs list -> xs == reverse list)
+  where
+#ifdef TEST_ARRAY_IMMUTABLE
+    genFoldN = fmap A.unsafeFreeze . MA.writeN
+#else
+    genFoldN = A.writeN
+#endif
 
 testFromStreamNUnfold :: Property
 testFromStreamNUnfold = genericTestFromTo A.fromStreamN (S.unfold A.read) (==)
@@ -121,7 +152,14 @@ testFromStreamToStream :: Property
 testFromStreamToStream = genericTestFromTo (const A.fromStream) A.toStream (==)
 
 testFoldUnfold :: Property
-testFoldUnfold = genericTestFromTo (const (S.fold A.write)) (S.unfold A.read) (==)
+testFoldUnfold = genericTestFromTo (const (S.fold genFold)) (S.unfold A.read) (==)
+  where
+#ifdef TEST_ARRAY_IMMUTABLE
+    genFold = fmap A.unsafeFreeze MA.write
+#else
+    genFold = A.write
+#endif
+
 #endif
 
 #ifdef TEST_ARRAY
@@ -135,6 +173,7 @@ testArraysOf =
                     $ IP.arraysOf 240
                     $ S.fromList list
                 assert (xs == list)
+
 
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
@@ -157,17 +196,17 @@ main =
     H.parallel $
     modifyMaxSuccess (const maxTestCount) $ do
         describe "Construction" $ do
-            prop "length . writeN n === n" testLength
+            prop "length . genFoldN n === n" testLength
             prop "length . fromStreamN n === n" testLengthFromStreamN
-            prop "read . writeN === id " testFoldNUnfold
-            prop "toStream . writeN === id" testFoldNToStream
-            prop "toStreamRev . writeN === reverse" testFoldNToStreamRev
+            prop "read . genFoldN === id " testFoldNUnfold
+            prop "toStream . genFoldN === id" testFoldNToStream
+            prop "toStreamRev . genFoldN === reverse" testFoldNToStreamRev
             prop "read . fromStreamN === id" testFromStreamNUnfold
             prop "toStream . fromStreamN === id" testFromStreamNToStream
 #ifndef TEST_SMALL_ARRAY
             prop "length . fromStream === n" testLengthFromStream
             prop "toStream . fromStream === id" testFromStreamToStream
-            prop "read . write === id" testFoldUnfold
+            prop "read . genFold === id" testFoldUnfold
 #endif
 #ifdef TEST_ARRAY
             prop "arraysOf concats to original" testArraysOf
