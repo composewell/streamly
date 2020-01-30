@@ -18,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Memory.Array
+module Streamly.Internal.Memory.Array.Types
     (
       Array (..)
 

@@ -309,7 +309,7 @@ library
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.SmallArray
-                     , Streamly.Internal.Memory.Array
+                     , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Mutable.Array.Types
                      , Streamly.Internal.Memory.Mutable.Array
                      , Streamly.Internal.Memory.Mutable.ArrayStream
