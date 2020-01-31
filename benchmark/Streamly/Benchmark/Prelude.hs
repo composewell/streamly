@@ -54,9 +54,6 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import Streamly.Internal.Data.Time.Units
 
--- To detect memory leak issues use larger streams.
--- See Note in .cabal file on how to generate streams of specific size.
-
 type Stream m a = S.SerialT m a
 
 -------------------------------------------------------------------------------
