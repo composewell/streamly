@@ -313,7 +313,7 @@ module Streamly.Internal.Data.Stream.StreamD
 
     , lastN
 
-    -- * Time related
+    -- * Reordering 
     , reassembleBy
     )
 where
