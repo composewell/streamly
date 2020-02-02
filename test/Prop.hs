@@ -41,7 +41,7 @@ maxTestCount :: Int
 #ifdef DEVBUILD
 maxTestCount = 100
 #else
-maxTestCount = 10
+maxTestCount = 100
 #endif
 
 singleton :: IsStream t => a -> t m a
@@ -521,11 +521,13 @@ transformCombineOpsCommon constr desc eq t = do
         forAll (choose (minBound, maxBound)) $ \n ->
             transform (insertBy compare n) t (S.insertBy compare n)
 
+{-
     -- multi-stream
     prop (desc <> " concatMap") $
         forAll (choose (0, 100)) $ \n ->
             transform (concatMap (const [1..n]))
                 t (S.concatMap (const (S.fromList [1..n])))
+                -}
 
 toListFL :: Monad m => FL.Fold m a [a]
 toListFL = FL.toList
@@ -1071,6 +1073,7 @@ main = hspec
     let zipAsyncOps :: IsStream t => ((ZipAsyncM IO a -> t IO a) -> Spec) -> Spec
         zipAsyncOps spec = mapOps spec $ makeOps zipAsyncly
 
+{-
     describe "Construction" $ do
         serialOps   $ prop "serially replicate" . constructWithReplicate
 
@@ -1133,22 +1136,30 @@ main = hspec
         zipSerialOps $ semigroupOps "zipSerially" (==)
         zipAsyncOps  $ semigroupOps "zipAsyncly" (==)
 
+        -}
     describe "Applicative operations" $ do
         -- The tests using sorted equality are weaker tests
         -- We need to have stronger unit tests for all those
         -- XXX applicative with three arguments
+        {-
         serialOps   $ prop "serially applicative" . applicativeOps S.fromFoldable (==)
         serialOps   $ prop "serially applicative folded" . applicativeOps folded (==)
         wSerialOps  $ prop "wSerially applicative" . applicativeOps S.fromFoldable sortEq
         wSerialOps  $ prop "wSerially applicative folded" . applicativeOps folded sortEq
-        aheadOps    $ prop "aheadly applicative" . applicativeOps S.fromFoldable (==)
-        aheadOps    $ prop "aheadly applicative folded" . applicativeOps folded (==)
+        -}
+        -- aheadOps    $ prop "aheadly applicative" . applicativeOps S.fromFoldable (==)
+        -- aheadOps    $ prop "aheadly applicative folded" . applicativeOps folded (==)
         asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
-        asyncOps    $ prop "asyncly applicative folded" . applicativeOps folded sortEq
-        wAsyncOps   $ prop "wAsyncly applicative" . applicativeOps S.fromFoldable sortEq
-        wAsyncOps   $ prop "wAsyncly applicative folded" . applicativeOps folded sortEq
-        parallelOps $ prop "parallely applicative folded" . applicativeOps folded sortEq
+        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
+        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
+        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
+        asyncOps    $ prop "asyncly applicative" . applicativeOps S.fromFoldable sortEq
+        -- asyncOps    $ prop "asyncly applicative folded" . applicativeOps folded sortEq
+        -- wAsyncOps   $ prop "wAsyncly applicative" . applicativeOps S.fromFoldable sortEq
+        -- wAsyncOps   $ prop "wAsyncly applicative folded" . applicativeOps folded sortEq
+        -- parallelOps $ prop "parallely applicative folded" . applicativeOps folded sortEq
 
+{-
     -- XXX add tests for indexed/indexedR
     describe "Zip operations" $ do
         zipSerialOps $ prop "zipSerially applicative" . zipApplicative S.fromFoldable (==)
@@ -1171,12 +1182,14 @@ main = hspec
         wAsyncOps   $ prop "zip monadic wAsyncly folded" . zipAsyncMonadic folded (==)
         parallelOps $ prop "zip monadic parallely" . zipMonadic S.fromFoldable (==)
         parallelOps $ prop "zip monadic parallely folded" . zipMonadic folded (==)
+        -}
 
     -- XXX add merge tests like zip tests
     -- for mergeBy, we can split a list randomly into two lists and
     -- then merge them, it should result in original list
     -- describe "Merge operations" $ do
 
+{-
     describe "Monad operations" $ do
         serialOps   $ prop "serially monad then" . monadThen S.fromFoldable (==)
         wSerialOps  $ prop "wSerially monad then" . monadThen S.fromFoldable sortEq
@@ -1205,6 +1218,7 @@ main = hspec
         asyncOps    $ prop "asyncly monad bind folded"   . monadBind folded sortEq
         wAsyncOps   $ prop "wAsyncly monad bind folded"  . monadBind folded sortEq
         parallelOps $ prop "parallely monad bind folded" . monadBind folded sortEq
+        -}
 
     -- These tests won't work with maxBuffer or maxThreads set to 1, so we
     -- exclude those cases from these.
@@ -1220,6 +1234,7 @@ main = hspec
             ]
 
     let forOps ops spec = forM_ ops (\(desc, f) -> describe desc $ spec f)
+    {-
     describe "Stream concurrent operations" $ do
         forOps (mkOps aheadly)   $ concurrentOps S.fromFoldable "aheadly" (==)
         forOps (mkOps asyncly)   $ concurrentOps S.fromFoldable "asyncly" sortEq
@@ -1230,7 +1245,9 @@ main = hspec
         forOps (mkOps asyncly)   $ concurrentOps folded "asyncly folded" sortEq
         forOps (mkOps wAsyncly)  $ concurrentOps folded "wAsyncly folded" sortEq
         forOps (mkOps parallely) $ concurrentOps folded "parallely folded" sortEq
+        -}
 
+{-
     describe "Concurrent application" $ do
         serialOps $ prop "serial" . concurrentApplication (==)
         asyncOps $ prop "async" . concurrentApplication sortEq
@@ -1242,22 +1259,39 @@ main = hspec
             concurrentFoldrApplication
         prop "concurrent foldl application" $ withMaxSuccess maxTestCount
             concurrentFoldlApplication
+            -}
 
     describe "Stream transform and combine operations" $ do
         serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        serialOps    $ transformCombineOpsCommon S.fromFoldable "serially" (==)
+        {-
         wSerialOps   $ transformCombineOpsCommon S.fromFoldable "wSerially" sortEq
         aheadOps     $ transformCombineOpsCommon S.fromFoldable "aheadly" (==)
         asyncOps     $ transformCombineOpsCommon S.fromFoldable "asyncly" sortEq
         wAsyncOps    $ transformCombineOpsCommon S.fromFoldable "wAsyncly" sortEq
         parallelOps  $ transformCombineOpsCommon S.fromFoldable "parallely" sortEq
-        zipSerialOps $ transformCombineOpsCommon S.fromFoldable "zipSerially" (==)
+        -- zipSerialOps $ transformCombineOpsCommon S.fromFoldable "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsCommon S.fromFoldable "zipAsyncly" (==)
 
         serialOps    $ transformCombineOpsCommon folded "serially" (==)
         wSerialOps   $ transformCombineOpsCommon folded "wSerially" sortEq
+
         aheadOps     $ transformCombineOpsCommon folded "aheadly" (==)
         asyncOps     $ transformCombineOpsCommon folded "asyncly" sortEq
-        wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
+        -}
+        --
+        -- wAsyncOps    $ transformCombineOpsCommon folded "wAsyncly" sortEq
+{-
         parallelOps  $ transformCombineOpsCommon folded "parallely" sortEq
         zipSerialOps $ transformCombineOpsCommon folded "zipSerially" (==)
         zipAsyncOps  $ transformCombineOpsCommon folded "zipAsyncly" (==)
@@ -1274,7 +1308,9 @@ main = hspec
 
     describe "Stream group and split operations" $ do
         groupSplitOps "serially"
+        -}
 
+{-
     describe "Stream elimination operations" $ do
         serialOps    $ eliminationOps S.fromFoldable "serially"
         wSerialOps   $ eliminationOps S.fromFoldable "wSerially"
@@ -1326,3 +1362,4 @@ main = hspec
         aheadOps     $ eliminationOpsOrdered folded "aheadly folded"
         zipSerialOps $ eliminationOpsOrdered folded "zipSerially folded"
         zipAsyncOps  $ eliminationOpsOrdered folded "zipAsyncly folded"
+        -}

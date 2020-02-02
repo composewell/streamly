@@ -221,7 +221,7 @@ common optimization-options
 
 common threading-options
   ghc-options:  -threaded
-                -with-rtsopts=-N
+                -with-rtsopts "-N -M24M"
 
 -- We need optimization options here to optimize internal (non-inlined)
 -- versions of functions. Also, we have some benchmarking inspection tests
@@ -459,13 +459,14 @@ test-suite properties
   import: test-options
   type: exitcode-stdio-1.0
   main-is: Prop.hs
-  js-sources: jsbits/clock.js
+  -- js-sources: jsbits/clock.js
   hs-source-dirs: test
   build-depends:
       streamly
     , base              >= 4.8   && < 5
     , QuickCheck        >= 2.10  && < 2.14
-    , hspec             >= 2.0   && < 3
+    -- , hspec             >= 2.0   && < 3
+    , hspec             == 2.7.1
   if impl(ghc < 8.0)
     build-depends:
         transformers  >= 0.4 && < 0.6
@@ -473,6 +474,7 @@ test-suite properties
 
 test-suite array-test
   import: test-options
+  ghc-options:  -with-rtsopts "-T -N -M384M"
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
@@ -503,6 +505,7 @@ test-suite internal-data-fold-test
 
 test-suite data-array-test
   import: test-options
+  ghc-options:  -with-rtsopts "-T -N -M384M"
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
@@ -519,6 +522,7 @@ test-suite data-array-test
 
 test-suite smallarray-test
   import: test-options
+  ghc-options:  -with-rtsopts "-T -N -M384M"
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
@@ -536,6 +540,7 @@ test-suite smallarray-test
 
 test-suite primarray-test
   import: test-options
+  ghc-options:  -with-rtsopts "-T -N -M384M"
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Array.hs
   js-sources: jsbits/clock.js
