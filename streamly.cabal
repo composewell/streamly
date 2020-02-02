@@ -13,25 +13,11 @@ library
                  -fmax-worker-args=16
     include-dirs:  src
     hs-source-dirs:    src
-    other-modules:
-                       Streamly.Data.Array
-                     , Streamly.Data.SmallArray
-                     , Streamly.Data.Prim.Array
-
-                    -- Memory storage
-                       Streamly.Memory.Malloc
-                     , Streamly.Memory.Ring
-
     exposed-modules:
                        Streamly.Prelude
                      , Streamly
                      , Streamly.Data.Fold
                      , Streamly.Data.Unfold
-                     , Streamly.Data.Unicode.Stream
-
-                    -- IO devices
-                     , Streamly.Memory.Array
-                     , Streamly.FileSystem.Handle
 
                      , Streamly.Tutorial
 
@@ -41,12 +27,6 @@ library
                      , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.SVar
-                     , Streamly.Internal.Data.Array
-                     , Streamly.Internal.Data.Prim.Array
-                     , Streamly.Internal.Data.SmallArray
-                     , Streamly.Internal.Memory.Array.Types
-                     , Streamly.Internal.Memory.Array
-                     , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Sink.Types
@@ -75,11 +55,6 @@ library
                      , Streamly.Internal.Data.Pipe.Types
                      , Streamly.Internal.Data.Pipe
                      , Streamly.Internal.Data.List
-                     , Streamly.Internal.FileSystem.Handle
-                     , Streamly.Internal.FileSystem.Dir
-                     , Streamly.Internal.Data.Unicode.Stream
-                     , Streamly.Internal.Data.Unicode.Char
-                     , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
 
                      -- Mutable data

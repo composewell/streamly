@@ -198,8 +198,8 @@ main = hspec
     let makeCommonOps :: IsStream t => (t m a -> c) -> [(String, t m a -> c)]
         makeCommonOps t =
             [ ("default", t)
-            , ("rate AvgRate 10000", t . avgRate 10000)
-            , ("rate Nothing", t . rate Nothing)
+            -- , ("rate AvgRate 10000", t . avgRate 10000)
+            -- , ("rate Nothing", t . rate Nothing)
             , ("maxBuffer 0", t . maxBuffer 0)
             , ("maxThreads 0", t . maxThreads 0)
             , ("maxThreads 1", t . maxThreads 1)
@@ -215,8 +215,10 @@ main = hspec
     let mapOps spec = mapM_ (\(desc, f) -> describe desc $ spec f)
     let serialOps :: IsStream t => ((SerialT IO a -> t IO a) -> Spec) -> Spec
         serialOps spec = mapOps spec $ makeOps serially
+        {-
             <> [("rate AvgRate 0.00000001", serially . avgRate 0.00000001)]
             <> [("maxBuffer -1", serially . maxBuffer (-1))]
+            -}
     let asyncOps :: IsStream t => ((AsyncT IO a -> t IO a) -> Spec) -> Spec
         asyncOps spec = mapOps spec $ makeOps asyncly
             <> [("maxBuffer (-1)", asyncly . maxBuffer (-1))]
