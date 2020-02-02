@@ -17,7 +17,8 @@ import Test.QuickCheck.Monadic (run, monadicIO, monitor, assert, PropertyM)
 
 import Test.Hspec as H
 
-import Streamly
+import Streamly (SerialT, AsyncT, IsStream, maxThreads, maxBuffer, asyncly,
+    serially, avgRate, rate)
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 

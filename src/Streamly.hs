@@ -110,15 +110,16 @@ module Streamly
     -- ** Serial Streams
     -- $serial
     , SerialT
-    , WSerialT
+ --   , WSerialT
 
     -- ** Speculative Streams
     -- $ahead
-    , AheadT
+--    , AheadT
 
     -- ** Asynchronous Streams
     -- $async
     , AsyncT
+{-
     , WAsyncT
     , ParallelT
 
@@ -134,15 +135,18 @@ module Streamly
     , (IP.|$.)
     , (IP.|&.)
     , mkAsync
+    -}
 
     -- * Merging Streams
     -- $sum
+    {-
     , serial
     , wSerial
     , ahead
     , async
     , wAsync
     , parallel
+    -}
 
     -- * Concurrency Control
     -- $concurrency
@@ -150,27 +154,32 @@ module Streamly
     , maxBuffer
 
     -- * Rate Limiting
-    , Rate (..)
+--    , Rate (..)
     , rate
     , avgRate
+    {-
     , minRate
     , maxRate
     , constRate
+    -}
 
     -- * Stream Type Adapters
     -- $adapters
     , IsStream ()
 
     , serially
-    , wSerially
+    -- , wSerially
     , asyncly
+    {-
     , aheadly
     , wAsyncly
     , parallely
     , zipSerially
     , zipAsyncly
     , adapt
+    -}
 
+{-
     -- * IO Streams
     , Serial
     , WSerial
@@ -219,6 +228,7 @@ module Streamly
     , foldWith
     , foldMapWith
     , forEachWith
+    -}
     -}
     )
 where
@@ -372,6 +382,7 @@ import qualified Streamly.Internal.Data.Stream.Async as Async
 -- Eliminating a stream
 ------------------------------------------------------------------------------
 
+{-
 -- | Same as 'runStream'
 --
 -- @since 0.1.0
@@ -466,6 +477,7 @@ forEachWith = P.forEachWith
 mkAsync :: (IsStream t, MonadAsync m) => t m a -> m (t m a)
 mkAsync = return . Async.mkAsync
 
+-}
 ------------------------------------------------------------------------------
 -- Documentation
 ------------------------------------------------------------------------------

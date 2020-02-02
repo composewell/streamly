@@ -53,6 +53,7 @@ module Streamly.Prelude
     -- versions provided in this module can be much more efficient in most
     -- cases. Users can create custom combinators using these primitives.
 
+{-
       nil
     , cons
     , (.:)
@@ -103,7 +104,9 @@ module Streamly.Prelude
     -- these can be expressed in terms of primitives.
     , fromList
     , fromListM
-    , fromFoldable
+    -}
+      fromFoldable
+    {-
     , fromFoldableM
 
     -- * Elimination
@@ -219,8 +222,10 @@ module Streamly.Prelude
     -- -- ** To Containers (Full Folds)
     -- -- | Convert or divert a stream into an output structure, container or
     -- sink.
+    -}
     , toList
 
+{-
     -- ** Partial Folds
     -- | Folds that may terminate before evaluating the whole stream. These
     -- folds strictly evaluate the stream until the result is determined.
@@ -279,13 +284,17 @@ module Streamly.Prelude
     -- the stream, it can merely transform them.
     , map
     , sequence
+    -}
     , mapM
 
+{-
     -- ** Special Maps
     , mapM_
     , trace
+    -}
     , tap
 
+{-
     -- ** Scanning
     --
     -- | A scan is more powerful than map. While a 'map' is a stateless loop, a
@@ -339,17 +348,21 @@ module Streamly.Prelude
     -- > foldr f z xs = head $ scanr f z xs
 
     -- ** Left scans
+    -}
     , scanl'
     , scanlM'
+    {-
     , postscanl'
     , postscanlM'
     -- , prescanl'
     -- , prescanlM'
+    -}
     , scanl1'
     , scanl1M'
 
     -- ** Scan Using Fold
     , scan
+    {-
     , postscan
 
     -- , lscanl'
@@ -367,6 +380,7 @@ module Streamly.Prelude
     -- imperative terms a filter over a stream corresponds to a loop with a
     -- @continue@ clause for the cases when the predicate fails.
 
+-}
     , filter
     , filterM
 
@@ -400,6 +414,7 @@ module Streamly.Prelude
     -- , interposeBy
     -- , intercalate
 
+{-
     -- ** Indexing
     -- | Indexing can be considered as a special type of zipping where we zip a
     -- stream with an index stream.
@@ -409,11 +424,14 @@ module Streamly.Prelude
     -- , timestampedR -- timer
 
     -- ** Reordering Elements
+    -}
     , reverse
+    {-
     -- , reverse'
 
     -- ** Trimming
     -- | Take or remove elements from one or both ends of a stream.
+    -}
     , take
     -- , takeEnd
     , takeWhile
@@ -426,6 +444,7 @@ module Streamly.Prelude
     -- , dropWhileEnd
     -- , dropAround
 
+{-
     -- -- ** Breaking
 
     -- By chunks
@@ -687,6 +706,7 @@ module Streamly.Prelude
     , runWhile
     , fromHandle
     , toHandle
+    -}
     )
 where
 
