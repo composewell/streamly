@@ -97,7 +97,7 @@ module Streamly.Internal.Data.Fold
     , mapM
 
     -- ** Mapping
-    , transform
+    -- , transform
     , lmap
     --, lsequence
     , lmapM
@@ -205,12 +205,12 @@ import Prelude
 import qualified Data.Map.Strict as Map
 import qualified Prelude
 
-import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
+-- import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+-- import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 
 ------------------------------------------------------------------------------
 -- Smart constructors
@@ -302,6 +302,7 @@ mapM f = sequence . fmap f
 -- Transformations on fold inputs
 ------------------------------------------------------------------------------
 
+{-
 -- rename to lpipe?
 --
 -- | Apply a transformation on a 'Fold' using a 'Pipe'.
@@ -337,6 +338,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
             go acc r
 
     extract (Tuple' _ fs) = fextract fs
+    -}
 
 ------------------------------------------------------------------------------
 -- Utilities

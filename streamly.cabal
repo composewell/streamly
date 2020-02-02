@@ -16,15 +16,13 @@ library
     exposed-modules:
                        Streamly.Prelude
                      , Streamly
-                     , Streamly.Data.Fold
-                     , Streamly.Data.Unfold
 
-                     , Streamly.Tutorial
+                     -- XXX uses C code
+                     , Streamly.Internal.Data.Atomics
 
                      -- Internal modules
                      , Streamly.Internal.Control.Monad
                      , Streamly.Internal.Data.Strict
-                     , Streamly.Internal.Data.Atomics
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Fold.Types
@@ -52,13 +50,13 @@ library
                      , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
-                     , Streamly.Internal.Data.Pipe.Types
-                     , Streamly.Internal.Data.Pipe
-                     , Streamly.Internal.Data.List
+                     -- , Streamly.Internal.Data.Pipe.Types
+                     -- , Streamly.Internal.Data.Pipe
+                     -- , Streamly.Internal.Data.List
                      , Streamly.Internal.Prelude
 
                      -- Mutable data
-                     , Streamly.Internal.Mutable.Prim.Var
+                     -- , Streamly.Internal.Mutable.Prim.Var
 
     build-depends:
                     -- Core libraries shipped with ghc, the min and max

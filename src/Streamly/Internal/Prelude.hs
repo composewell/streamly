@@ -57,10 +57,10 @@ module Streamly.Internal.Prelude
     , fromListM
     , K.fromFoldable
     , fromFoldableM
-    , fromPrimVar
+    -- , fromPrimVar
 
     -- ** Time related
-    , currentTime
+    -- , currentTime
 
     -- * Elimination
 
@@ -141,7 +141,7 @@ module Streamly.Internal.Prelude
     , toStreamRev -- XXX rename to writeRev?
 
     -- * Transformation
-    , transform
+    -- , transform
 
     -- ** Mapping
     , Serial.map
@@ -359,8 +359,8 @@ module Streamly.Internal.Prelude
     , tap
     , tapOffsetEvery
     , tapAsync
-    , tapRate
-    , pollCounts
+    -- , tapRate
+    -- , pollCounts
 
     -- * Windowed Classification
 
@@ -480,16 +480,16 @@ import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
 import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
 import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
-import Streamly.Internal.Data.Pipe.Types (Pipe (..))
+-- import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
        toAbsTime, TimeUnit64)
-import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
+-- import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
 
 -- import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Data.Fold as FL
+-- import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -892,6 +892,7 @@ fromHandle h = go
             str <- liftIO $ IO.hGetLine h
             yld str go
 
+{-
 -- | Construct a stream by reading a 'Prim' 'Var' repeatedly.
 --
 -- /Internal/
@@ -899,6 +900,7 @@ fromHandle h = go
 {-# INLINE fromPrimVar #-}
 fromPrimVar :: (IsStream t, MonadIO m, Prim a) => Var IO a -> t m a
 fromPrimVar = fromStreamD . D.fromPrimVar
+-}
 
 ------------------------------------------------------------------------------
 -- Time related
@@ -924,9 +926,11 @@ fromPrimVar = fromStreamD . D.fromPrimVar
 --
 -- /Internal/
 --
+{-
 {-# INLINE currentTime #-}
 currentTime :: (IsStream t, MonadAsync m) => Double -> t m AbsTime
 currentTime g = fromStreamD $ D.currentTime g
+-}
 
 ------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -1687,10 +1691,12 @@ x |&. f = f |$. x
 -- General Transformation
 ------------------------------------------------------------------------------
 
+{-
 -- | Use a 'Pipe' to transform a stream.
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
 transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
+-}
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -3799,7 +3805,7 @@ tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 -- Note: This may not work correctly on 32-bit machines.
 --
 -- /Internal
---
+{-
 {-# INLINE pollCounts #-}
 pollCounts ::
        (IsStream t, MonadAsync m)
@@ -3811,6 +3817,7 @@ pollCounts transf f xs =
       D.fromStreamD
     $ D.pollCounts (D.toStreamD . transf . D.fromStreamD) f
     $ (D.toStreamD xs)
+    -}
 
 -- | Calls the supplied function with the number of elements consumed
 -- every @n@ seconds. The given function is run in a separate thread
@@ -3829,6 +3836,7 @@ pollCounts transf f xs =
 -- Note: This may not work correctly on 32-bit machines.
 --
 -- /Internal
+{-
 {-# INLINE tapRate #-}
 tapRate ::
        (IsStream t, MonadAsync m, MonadCatch m)
@@ -3837,6 +3845,7 @@ tapRate ::
     -> t m a
     -> t m a
 tapRate n f xs = D.fromStreamD $ D.tapRate n f $ (D.toStreamD xs)
+-}
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.

@@ -94,7 +94,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , enumerateFromThenToFractional
 
     -- ** Time
-    , currentTime
+    -- , currentTime
 
     -- ** Conversions
     -- | Transform an input structure into a stream.
@@ -105,7 +105,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , fromListM
     , fromStreamK
     , fromStreamD
-    , fromPrimVar
+    -- , fromPrimVar
     , fromSVar
 
     -- * Elimination
@@ -132,8 +132,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , tap
     , tapOffsetEvery
     , tapAsync
-    , tapRate
-    , pollCounts
+    -- , tapRate
+    -- , pollCounts
     , drain
     , null
     , head
@@ -220,7 +220,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , runStateT
 
     -- * Transformation
-    , transform
+    -- , transform
 
     -- ** By folding (scans)
     , scanlM'
@@ -349,15 +349,15 @@ import qualified Control.Monad.Reader as Reader
 import qualified Control.Monad.State.Strict as State
 import qualified Prelude
 
-import Streamly.Internal.Mutable.Prim.Var
-       (Prim, Var, readVar, newVar, modifyVar')
+-- import Streamly.Internal.Mutable.Prim.Var
+--        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 -- import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
+-- import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 -- import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
        (MicroSecond64(..), fromAbsTime, toAbsTime, AbsTime)
@@ -368,7 +368,7 @@ import Streamly.Internal.Data.Stream.StreamD.Type
 import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
-import qualified Streamly.Internal.Data.Pipe.Types as Pipe
+-- import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 -- import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 -- import qualified Streamly.Memory.Ring as RB
@@ -688,12 +688,14 @@ fromListM = Stream step
 toStreamD :: (K.IsStream t, Monad m) => t m a -> Stream m a
 toStreamD = fromStreamK . K.toStream
 
+{-
 {-# INLINE_NORMAL fromPrimVar #-}
 fromPrimVar :: (MonadIO m, Prim a) => Var IO a -> Stream m a
 fromPrimVar var = Stream step ()
   where
     {-# INLINE_LATE step #-}
     step _ () = liftIO (readVar var) >>= \x -> return $ Yield x ()
+    -}
 
 -------------------------------------------------------------------------------
 -- Generation from SVar
@@ -3141,6 +3143,7 @@ _handle f (Stream step state) = Stream step' (Left state)
 -- General transformation
 -------------------------------------------------------------------------------
 
+{-
 {-# INLINE_NORMAL transform #-}
 transform :: Monad m => Pipe m a b -> Stream m a -> Stream m b
 transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
@@ -3166,6 +3169,7 @@ transform (Pipe pstep1 pstep2 pstate) (Stream step state) =
         case res of
             Pipe.Yield b pst' -> return $ Yield b (pst', st)
             Pipe.Continue pst' -> return $ Skip (pst', st)
+            -}
 
 ------------------------------------------------------------------------------
 -- Transformation by Folding (Scans)
@@ -3444,6 +3448,7 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
                 void $ extract acc
                 return $ Stop
 
+{-
 {-# INLINE_NORMAL pollCounts #-}
 pollCounts
     :: MonadAsync m
@@ -3475,7 +3480,9 @@ pollCounts transf fld (Stream step state) = Stream step' Nothing
             Stop -> do
                 liftIO $ killThread tid
                 return Stop
+                -}
 
+{-
 {-# INLINE_NORMAL tapRate #-}
 tapRate ::
        (MonadAsync m, MonadCatch m)
@@ -3520,6 +3527,7 @@ tapRate samplingRate action (Stream step state) = Stream step' Nothing
                 liftIO $ killThread tid
                 return Stop
 
+-}
 
 -------------------------------------------------------------------------------
 -- Filtering
@@ -4223,6 +4231,7 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Skip s -> Skip (DropByTimeYield s)
              Stop -> Stop
 
+{-
 -- XXX we should move this to stream generation section of this file. Also, the
 -- take/drop combinators above should be moved to filtering section.
 {-# INLINE_NORMAL currentTime #-}
@@ -4260,3 +4269,4 @@ currentTime g = Stream step Nothing
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time
         return $ Yield (toAbsTime (MicroSecond64 a)) s
+        -}
