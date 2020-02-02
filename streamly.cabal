@@ -70,10 +70,8 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3   && < 0.4
-                     , primitive         >= 0.6.4.0   && < 0.8
 
                     -- concurrency
-                     , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3
 
                     -- transfomers
@@ -81,7 +79,6 @@ library
                      , monad-control     >= 1.0   && < 2
                      , mtl               >= 2.2   && < 3
                      , transformers-base >= 0.4   && < 0.5
-                     , network           >= 2.6   && < 4
 
 -------------------------------------------------------------------------------
 -- Test suites

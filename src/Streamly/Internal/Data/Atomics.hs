@@ -19,7 +19,7 @@ module Streamly.Internal.Data.Atomics
 where
 
 import Data.IORef (IORef, atomicModifyIORef)
-import qualified Data.Atomics as A
+-- import qualified Data.Atomics as A
 
 -- XXX Does it make sense to have replacements for atomicModifyIORef etc. on a
 -- single threaded system.
@@ -55,8 +55,10 @@ atomicModifyIORefCAS_ ref fn = do
 
 {-# INLINE writeBarrier #-}
 writeBarrier :: IO ()
-writeBarrier = A.writeBarrier
+-- writeBarrier = A.writeBarrier
+writeBarrier = return ()
 
 {-# INLINE storeLoadBarrier #-}
 storeLoadBarrier :: IO ()
-storeLoadBarrier = A.storeLoadBarrier
+-- storeLoadBarrier = A.storeLoadBarrier
+storeLoadBarrier = return ()
