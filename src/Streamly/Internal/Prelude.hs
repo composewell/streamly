@@ -22,6 +22,7 @@ module Streamly.Internal.Prelude
     (
     -- * Construction
     -- ** Primitives
+    {-
       K.nil
     , K.nilM
     , K.cons
@@ -55,8 +56,10 @@ module Streamly.Internal.Prelude
     -- ** From Containers
     , P.fromList
     , fromListM
-    , K.fromFoldable
+    -}
+      K.fromFoldable
     , fromFoldableM
+    {-
     -- , fromPrimVar
 
     -- ** Time related
@@ -129,7 +132,9 @@ module Streamly.Internal.Prelude
     , or
 
     -- ** To Containers
+    -}
     , toList
+    {-
     , toListRev
     , toPure
     , toPureRev
@@ -146,8 +151,9 @@ module Streamly.Internal.Prelude
     -- ** Mapping
     , Serial.map
     , sequence
+    -}
     , mapM
-    , mapM_
+    -- , mapM_
 
     -- ** Scanning
     -- ** Left scans
@@ -174,6 +180,7 @@ module Streamly.Internal.Prelude
     -- , lprescanl'
     -- , lprescanlM'
 
+{-
     -- ** Concurrent Transformation
     , D.mkParallel
     -- Par.mkParallel
@@ -187,6 +194,7 @@ module Streamly.Internal.Prelude
     -- , timestamped
     -- , timestampedR -- timer
 
+-}
     -- ** Filtering
 
     , filter
@@ -194,13 +202,13 @@ module Streamly.Internal.Prelude
 
     -- ** Stateful Filters
     , take
-    , takeByTime
+    -- , takeByTime
     -- , takeEnd
     , takeWhile
     , takeWhileM
     -- , takeWhileEnd
     , drop
-    , dropByTime
+    -- , dropByTime
     -- , dropEnd
     , dropWhile
     , dropWhileM
@@ -215,6 +223,7 @@ module Streamly.Internal.Prelude
     -- ** Mapping Filters
     , mapMaybe
     , mapMaybeM
+    {-
     , rollingMapM
     , rollingMap
 
@@ -223,20 +232,24 @@ module Streamly.Internal.Prelude
     , elemIndices
     -- , seqIndices -- search a sequence in the stream
 
+-}
     -- ** Insertion
     , insertBy
     , intersperseM
     , intersperse
+    {-
     , intersperseSuffix
     , intersperseSuffixBySpan
     -- , intersperseBySpan
     , interjectSuffix
     , delayPost
 
+-}
     -- ** Reordering
     , reverse
     -- , reverse'
 
+{-
     -- * Multi-Stream Operations
 
     -- ** Appending
@@ -317,7 +330,6 @@ module Streamly.Internal.Prelude
     -- , arraysOf
     , intervalsOf
 
-{-
     -- -- *** Using Element Separators
     , splitOn
     , splitOnSuffix
@@ -347,7 +359,6 @@ module Streamly.Internal.Prelude
     -- Nested splitting
     , splitInnerBy
     , splitInnerBySuffix
-    -}
 
     -- ** Grouping
     , groups
@@ -356,7 +367,9 @@ module Streamly.Internal.Prelude
 
     -- ** Distributing
     , trace
+    -}
     , tap
+    {-
     , tapOffsetEvery
     , tapAsync
     -- , tapRate
@@ -438,6 +451,7 @@ module Streamly.Internal.Prelude
     , runWhile
     , fromHandle
     , toHandle
+    -}
     )
 where
 
@@ -479,7 +493,7 @@ import Streamly.Internal.Data.Stream.Prelude
 import Streamly.Internal.Data.Stream.StreamD (fromStreamD, toStreamD)
 import Streamly.Internal.Data.Stream.StreamK (IsStream((|:), consM))
 import Streamly.Internal.Data.Stream.Serial (SerialT, WSerialT)
-import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
+-- import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 -- import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, diffAbsTime, toRelTime,
@@ -503,9 +517,10 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 
 -- import qualified Streamly.Internal.Data.Stream.Async as Async
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
-import qualified Streamly.Internal.Data.Stream.Parallel as Par
-import qualified Streamly.Internal.Data.Stream.Zip as Z
+-- import qualified Streamly.Internal.Data.Stream.Parallel as Par
+-- import qualified Streamly.Internal.Data.Stream.Zip as Z
 
+{-
 ------------------------------------------------------------------------------
 -- Deconstruction
 ------------------------------------------------------------------------------
@@ -605,10 +620,12 @@ unfoldrMSerial = Serial.unfoldrM
 unfoldrMWSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> WSerialT m a
 unfoldrMWSerial = Serial.unfoldrM
 
+{-
 {-# RULES "unfoldrM zipSerial" unfoldrM = unfoldrMZipSerial #-}
 {-# INLINE_EARLY unfoldrMZipSerial #-}
 unfoldrMZipSerial :: MonadAsync m => (b -> m (Maybe (a, b))) -> b -> ZipSerialM m a
 unfoldrMZipSerial = Serial.unfoldrM
+-}
 
 -- | Convert an 'Unfold' into a stream by supplying it an input seed.
 --
@@ -848,6 +865,7 @@ fromListM :: (MonadAsync m, IsStream t) => [m a] -> t m a
 fromListM = fromStreamD . D.fromListM
 {-# RULES "fromListM fallback to StreamK" [1]
     forall a. D.toStreamK (D.fromListM a) = fromFoldableM a #-}
+    -}
 
 -- |
 -- @
@@ -868,6 +886,7 @@ fromListM = fromStreamD . D.fromListM
 fromFoldableM :: (IsStream t, MonadAsync m, Foldable f) => f (m a) -> t m a
 fromFoldableM = Prelude.foldr consM K.nil
 
+{-
 -- | Same as 'fromFoldable'.
 --
 -- @since 0.1.0
@@ -1467,6 +1486,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 -- Conversions
 ------------------------------------------------------------------------------
 
+-}
 -- |
 -- @
 -- toList = S.foldr (:) []
@@ -1484,6 +1504,7 @@ mapM_ f m = S.mapM_ f $ toStreamS m
 toList :: Monad m => SerialT m a -> m [a]
 toList = P.toList
 
+{-
 -- |
 -- @
 -- toListRev = S.foldl' (flip (:)) []
@@ -1725,6 +1746,7 @@ transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
 scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m b
 scanx = P.scanlx'
 
+-}
 -- XXX this needs to be concurrent
 -- | Like 'scanl'' but with a monadic fold function.
 --
@@ -1857,6 +1879,7 @@ scan (Fold step begin done) = P.scanlMx' step begin done
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
 postscan (Fold step begin done) = P.postscanlMx' step begin done
 
+{-
 ------------------------------------------------------------------------------
 -- Stateful Transformations
 ------------------------------------------------------------------------------
@@ -1878,6 +1901,7 @@ rollingMap f m = fromStreamD $ D.rollingMap f $ toStreamD m
 rollingMapM :: (IsStream t, Monad m) => (a -> a -> m b) -> t m a -> t m b
 rollingMapM f m = fromStreamD $ D.rollingMapM f $ toStreamD m
 
+-}
 ------------------------------------------------------------------------------
 -- Transformation by Filtering
 ------------------------------------------------------------------------------
@@ -1939,6 +1963,7 @@ takeWhile p m = fromStreamS $ S.takeWhile p $ toStreamS m
 takeWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 
+{-
 -- | @takeByTime duration@ yields stream elements upto specified time
 -- @duration@. The duration starts when the stream is evaluated for the first
 -- time, before the first element is yielded. The time duration is checked
@@ -1959,6 +1984,7 @@ takeWhileM p m = fromStreamD $ D.takeWhileM p $ toStreamD m
 takeByTime ::(MonadIO m, IsStream t, TimeUnit64 d) => d -> t m a -> t m a
 takeByTime d = fromStreamD . D.takeByTime d . toStreamD
 
+-}
 -- | Discard first 'n' elements from the stream and take the rest.
 --
 -- @since 0.1.0
@@ -1981,6 +2007,7 @@ dropWhile p m = fromStreamS $ S.dropWhile p $ toStreamS m
 dropWhileM :: (IsStream t, Monad m) => (a -> m Bool) -> t m a -> t m a
 dropWhileM p m = fromStreamD $ D.dropWhileM p $ toStreamD m
 
+{-
 -- | @dropByTime duration@ drops stream elements until specified @duration@ has
 -- passed.  The duration begins when the stream is evaluated for the first
 -- time. The time duration is checked /after/ generating a stream element, the
@@ -2003,6 +2030,7 @@ dropByTime d = fromStreamD . D.dropByTime d . toStreamD
 -- Transformation by Mapping
 ------------------------------------------------------------------------------
 
+-}
 -- |
 -- @
 -- mapM f = sequence . map f
@@ -2034,6 +2062,7 @@ mapM = K.mapM
 mapMSerial :: Monad m => (a -> m b) -> SerialT m a -> SerialT m b
 mapMSerial = Serial.mapM
 
+{-
 -- |
 -- @
 -- sequence = mapM id
@@ -2060,6 +2089,7 @@ mapMSerial = Serial.mapM
 sequence :: (IsStream t, MonadAsync m) => t m (m a) -> t m a
 sequence m = fromStreamS $ S.sequence (toStreamS m)
 
+-}
 ------------------------------------------------------------------------------
 -- Transformation by Map and Filter
 ------------------------------------------------------------------------------
@@ -2163,6 +2193,7 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
 intersperse a = fromStreamS . S.intersperse a . toStreamS
 
+{-
 -- | Insert a monadic action after each element in the stream.
 --
 -- @since 0.7.0
@@ -2223,6 +2254,7 @@ intersperseBySpan :: IsStream t => Int -> m a -> t m a -> t m a
 intersperseBySpan _n _f _xs = undefined
 -}
 
+{-
 -- | Intersperse a monadic action into the input stream after every @n@
 -- seconds.
 --
@@ -2238,7 +2270,9 @@ interjectSuffix
     => Double -> m a -> t m a -> t m a
 interjectSuffix n f xs = xs `Par.parallelFst` repeatM timed
     where timed = liftIO (threadDelay (round $ n * 1000000)) >> f
+    -}
 
+-}
 -- | @insertBy cmp elem stream@ inserts @elem@ before the first element in
 -- @stream@ that is less than @elem@ when compared using @cmp@.
 --
@@ -2274,6 +2308,7 @@ insertBy cmp x m = fromStreamS $ S.insertBy cmp x (toStreamS m)
 deleteBy :: (IsStream t, Monad m) => (a -> a -> Bool) -> a -> t m a -> t m a
 deleteBy cmp x m = fromStreamS $ S.deleteBy cmp x (toStreamS m)
 
+{-
 ------------------------------------------------------------------------------
 -- Zipping
 ------------------------------------------------------------------------------
@@ -3001,7 +3036,6 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
 arraysOf n = chunksOf n (writeNUnsafe n)
--}
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
@@ -3019,6 +3053,7 @@ intervalsOf
 intervalsOf n f xs =
     splitWithSuffix isNothing (FL.lcatMaybes f)
         (interjectSuffix n (return Nothing) (Serial.map Just xs))
+-}
 
 ------------------------------------------------------------------------------
 -- Element Aware APIs
@@ -3414,6 +3449,7 @@ splitWithSuffix
     => (a -> Bool) -> Fold m a b -> t m a -> t m b
 splitWithSuffix predicate f m =
     D.fromStreamD $ D.splitSuffixBy' predicate f (D.toStreamD m)
+    -}
 
 ------------------------------------------------------------------------------
 -- Split on a delimiter sequence
@@ -3713,6 +3749,7 @@ reassembleBy = undefined
 -}
 
 -}
+
 ------------------------------------------------------------------------------
 -- Distributing
 ------------------------------------------------------------------------------
@@ -3741,6 +3778,7 @@ reassembleBy = undefined
 tap :: (IsStream t, Monad m) => FL.Fold m a b -> t m a -> t m a
 tap f xs = D.fromStreamD $ D.tap f (D.toStreamD xs)
 
+{-
 -- | @tapOffsetEvery offset n@ taps every @n@th element in the stream
 -- starting at @offset@. @offset@ can be between @0@ and @n - 1@. Offset 0
 -- means start at the first element in the stream. If the offset is outside
@@ -3862,6 +3900,7 @@ tapRate n f xs = D.fromStreamD $ D.tapRate n f $ (D.toStreamD xs)
 {-# INLINE trace #-}
 trace :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m a
 trace f = mapM (\x -> void (f x) >> return x)
+-}
 
 ------------------------------------------------------------------------------
 -- Windowed classification
@@ -3988,6 +4027,7 @@ classifyKeepAliveChunks
 classifyKeepAliveChunks spanout = classifyChunksBy spanout True
 -}
 
+{-
 -- | @classifySessionsBy tick timeout reset f stream@ groups together all input
 -- stream elements that belong to the same session. @timeout@ is the maximum
 -- lifetime of a session in seconds. All elements belonging to a session are
@@ -4356,3 +4396,4 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
+-}

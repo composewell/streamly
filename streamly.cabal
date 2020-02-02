@@ -27,8 +27,8 @@ library
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Sink.Types
-                     , Streamly.Internal.Data.Sink
+                     -- , Streamly.Internal.Data.Sink.Types
+                     -- , Streamly.Internal.Data.Sink
 
                      -- Base streams
                      , Streamly.Internal.Data.Stream.StreamK.Type
@@ -44,9 +44,9 @@ library
                      , Streamly.Internal.Data.Stream.SVar
                      , Streamly.Internal.Data.Stream.Serial
                      , Streamly.Internal.Data.Stream.Async
-                     , Streamly.Internal.Data.Stream.Parallel
-                     , Streamly.Internal.Data.Stream.Ahead
-                     , Streamly.Internal.Data.Stream.Zip
+                     -- , Streamly.Internal.Data.Stream.Parallel
+                     -- , Streamly.Internal.Data.Stream.Ahead
+                     -- , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Combinators
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
