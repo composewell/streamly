@@ -122,7 +122,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , foldlS
     , foldlT
     , reverse
-    , reverse'
+    -- , reverse'
 
     , foldlx'
     , foldlMx'
@@ -188,11 +188,13 @@ module Streamly.Internal.Data.Stream.StreamD
     , wordsBy
     , splitSuffixBy'
 
+{-
     , splitOn
     , splitSuffixOn
 
     , splitInnerBy
     , splitInnerBySuffix
+    -}
 
     -- ** Substreams
     , isPrefixOf
@@ -311,7 +313,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , mkParallel
     , mkParallelD
 
-    , lastN
+    -- , lastN
     )
 where
 
@@ -353,7 +355,7 @@ import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64)
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
-import Streamly.Internal.Memory.Array.Types (Array(..))
+-- import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 -- import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -367,9 +369,9 @@ import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
-import qualified Streamly.Internal.Memory.Array.Types as A
+-- import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Memory.Ring as RB
+-- import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 ------------------------------------------------------------------------------
@@ -1170,10 +1172,10 @@ reverse m = Stream step Nothing
     step _ (Just (x:xs)) = return $ Yield x (Just xs)
     step _ (Just []) = return Stop
 
+{-
 -- Much faster reverse for Storables
 {-# INLINE_NORMAL reverse' #-}
 reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
-{-
 -- This commented implementation copies the whole stream into one single array
 -- and then streams from that array, this is 3-4x faster than the chunked code
 -- that follows.  Though this could be problematic due to unbounded large
@@ -1201,12 +1203,14 @@ reverse' m = Stream step Nothing
             next = p `plusPtr` negate (sizeOf (undefined :: a))
         return $ Yield x (Just (start, next))
 -}
+{-
 reverse' m =
           A.flattenArraysRev
         $ fromStreamK
         $ K.reverse
         $ toStreamK
         $ A.fromStreamDArraysOf A.defaultChunkSize m
+        -}
 
 
 ------------------------------------------------------------------------------
@@ -1483,6 +1487,7 @@ data SplitOptions = SplitOptions
     }
 -}
 
+{-
 data SplitOnState s a =
       GO_START
     | GO_EMPTY_PAT s
@@ -2039,6 +2044,7 @@ splitInnerBySuffix splitter joiner (Stream step1 state1) =
 
     step _ (SplitYielding x next) = return $ Yield x next
     step _ SplitFinishing = return $ Stop
+    -}
 
 ------------------------------------------------------------------------------
 -- Substreams
@@ -4115,6 +4121,7 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
             Skip s    -> Skip (TapDone s)
             Stop      -> Stop
 
+{-
 -- XXX Exported from Array again as this fold is specific to Array
 -- | Take last 'n' elements from the stream and discard the rest.
 {-# INLINE lastN #-}
@@ -4132,6 +4139,7 @@ lastN n = Fold step initial done
         foldFunc i
             | i < n = RB.unsafeFoldRingM
             | otherwise = RB.unsafeFoldRingFullM
+            -}
 
 ------------------------------------------------------------------------------
 -- Time related

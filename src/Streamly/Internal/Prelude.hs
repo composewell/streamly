@@ -235,7 +235,7 @@ module Streamly.Internal.Prelude
 
     -- ** Reordering
     , reverse
-    , reverse'
+    -- , reverse'
 
     -- * Multi-Stream Operations
 
@@ -314,9 +314,10 @@ module Streamly.Internal.Prelude
     -- -- *** Chunks
     , chunksOf
     , chunksOf2
-    , arraysOf
+    -- , arraysOf
     , intervalsOf
 
+{-
     -- -- *** Using Element Separators
     , splitOn
     , splitOnSuffix
@@ -346,6 +347,7 @@ module Streamly.Internal.Prelude
     -- Nested splitting
     , splitInnerBy
     , splitInnerBySuffix
+    -}
 
     -- ** Grouping
     , groups
@@ -468,7 +470,7 @@ import qualified System.IO as IO
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
+-- import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
@@ -486,7 +488,7 @@ import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
 
-import qualified Streamly.Internal.Memory.Array as A
+-- import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
@@ -2113,12 +2115,14 @@ mapMaybeMSerial f m = fromStreamD $ D.mapMaybeM f $ toStreamD m
 reverse :: (IsStream t, Monad m) => t m a -> t m a
 reverse s = fromStreamS $ S.reverse $ toStreamS s
 
+{-
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
 -- @since 0.7.0
 {-# INLINE reverse' #-}
 reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
+-}
 
 ------------------------------------------------------------------------------
 -- Transformation by Inserting
@@ -2978,6 +2982,7 @@ chunksOf2
     => Int -> m c -> Fold2 m c a b -> t m a -> t m b
 chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 
+{-
 -- | @arraysOf n stream@ groups the elements in the input stream into arrays of
 -- @n@ elements each.
 --
@@ -2990,6 +2995,7 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
 arraysOf n = chunksOf n (writeNUnsafe n)
+-}
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
@@ -3480,6 +3486,7 @@ splitWithSuffix predicate f m =
 --
 -- @since 0.7.0
 
+{-
 -- XXX We can use a polymorphic vector implemented by Array# to represent the
 -- sequence, that way we can avoid the Storable constraint. If we still need
 -- Storable Array for performance, we can use a separate splitOnArray API for
@@ -3490,6 +3497,7 @@ splitOnSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
+-}
 
 {-
 -- This can be implemented easily using Rabin Karp
@@ -3533,12 +3541,14 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- > lines = splitSuffixOn "\n"
 --
 -- @since 0.7.0
+{-
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
+    -}
 
 {-
 -- | Like 'splitOn' but drops any empty splits.
@@ -3584,6 +3594,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- > ["he","ll","o"]
 --
 -- @since 0.7.0
+{-
 {-# INLINE splitBySeq #-}
 splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
@@ -3695,6 +3706,7 @@ reassembleBy
 reassembleBy = undefined
 -}
 
+-}
 ------------------------------------------------------------------------------
 -- Distributing
 ------------------------------------------------------------------------------
