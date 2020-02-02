@@ -36,7 +36,7 @@ import Control.Monad.Catch (throwM)
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef)
 import Data.Maybe (isNothing)
-import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
+-- import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import System.Mem (performMajorGC)
 
 import Streamly.Internal.Data.SVar

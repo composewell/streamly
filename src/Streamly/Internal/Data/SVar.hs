@@ -27,6 +27,8 @@ module Streamly.Internal.Data.SVar
     , SVarStyle (..)
     , SVarStopStyle (..)
     , SVar (..)
+    , getTime
+    , Xyz(..)
 
     -- State threaded around the stream
     , Limit (..)
@@ -154,13 +156,15 @@ import GHC.IO (IO(..))
 import System.IO (hPutStrLn, stderr)
 import System.Mem.Weak (addFinalizer)
 
-import Streamly.Internal.Data.Time.Clock (Clock(..), getTime)
 import Streamly.Internal.Data.Time.Units
        (AbsTime, NanoSecond64(..), MicroSecond64(..), diffAbsTime64,
         fromRelTime64, toRelTime64, showNanoSecond64, showRelTime64)
 
 import qualified Data.Heap as H
 import qualified Data.Set                    as S
+
+data Xyz = Monotonic
+getTime = undefined
 
 newtype Count = Count Int64
     deriving ( Eq
