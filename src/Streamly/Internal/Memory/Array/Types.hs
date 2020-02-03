@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Memory.Array
+-- Module      : Streamly.Internal.Memory.Array.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
