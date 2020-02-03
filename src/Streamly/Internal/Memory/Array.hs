@@ -48,8 +48,8 @@ module Streamly.Internal.Memory.Array
     -- * Construction
 
     -- Pure List APIs
-    , A.fromListN
-    , A.fromList
+    , fromListN
+    , fromList
 
     -- Stream Folds
     , fromStreamN
@@ -122,6 +122,7 @@ import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array as MA
 import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
@@ -147,9 +148,23 @@ newArray len = undefined
 -- /Internal/
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
-fromStreamN n m = do
-    if n < 0 then error "writeN: negative write count specified" else return ()
-    A.fromStreamDN n $ D.toStreamD m
+fromStreamN n m = A.unsafeFreeze <$> MA.fromStreamN n m
+
+-- | Create an 'Array' from the first N elements of a list. The array is
+-- allocated to size N, if the list terminates before N elements then the
+-- array may hold less than N elements.
+--
+-- @since 0.7.0
+{-# INLINABLE fromListN #-}
+fromListN :: Storable a => Int -> [a] -> Array a
+fromListN n xs = A.unsafeFreeze $ MA.fromListN n xs
+
+-- | Create an 'Array' from a list. The list must be of finite size.
+--
+-- @since 0.7.0
+{-# INLINABLE fromList #-}
+fromList :: Storable a => [a] -> Array a
+fromList xs = A.unsafeFreeze $ MA.fromList xs
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
 -- single array from a stream of unknown size. 'writeN' is at least twice

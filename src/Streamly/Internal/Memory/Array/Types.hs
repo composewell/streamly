@@ -23,13 +23,14 @@ module Streamly.Internal.Memory.Array.Types
       Array (..)
 
     -- XXX Change the location
+    -- XXX Move this to Mutable?
     , unsafeThraw
 
     -- * Construction
     , unsafeFreeze
-    , fromList
-    , fromListN
-    , fromStreamDN
+    -- , fromList
+    -- , fromListN
+    -- , fromStreamDN
     -- , fromStreamD
 
     -- * Streams of arrays
@@ -120,11 +121,14 @@ foreign import ccall unsafe "string.h memchr" c_memchr
 unsafeFreeze :: MA.Array a -> Array a
 unsafeFreeze (MA.Array s e _) = Array s e
 
+{-
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: forall m a. (MonadIO m, Storable a)
     => Int -> D.Stream m a -> m (Array a)
 fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
+-}
 
+{-
 -- | Create an 'Array' from the first N elements of a list. The array is
 -- allocated to size N, if the list terminates before N elements then the
 -- array may hold less than N elements.
@@ -133,13 +137,16 @@ fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 {-# INLINABLE fromListN #-}
 fromListN :: Storable a => Int -> [a] -> Array a
 fromListN n xs = unsafeFreeze $ MA.fromListN n xs
+-}
 
+{-
 -- | Create an 'Array' from a list. The list must be of finite size.
 --
 -- @since 0.7.0
 {-# INLINABLE fromList #-}
 fromList :: Storable a => [a] -> Array a
 fromList xs = unsafeFreeze $ MA.fromList xs
+-}
 
 -- XXX concatMap does not seem to have the best possible performance so we have
 -- a custom way to concat arrays.
