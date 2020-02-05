@@ -192,7 +192,7 @@ decode0 table byte =
     utf8table =
         let !(Ptr addr) = table
             end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
+        in A.Array (ForeignPtr addr undefined) end :: A.Array Word8
     showByte = "Streamly: decode0: byte: " ++ show byte
     showTable = " table: " ++ show utf8table
 
@@ -219,7 +219,7 @@ decode1 table state codep byte =
     utf8table =
         let !(Ptr addr) = table
             end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
+        in A.Array (ForeignPtr addr undefined) end :: A.Array Word8
     showByte = "Streamly: decode1: byte: " ++ show byte
     showState st cp =
         " state: " ++ show st ++
@@ -246,7 +246,7 @@ data FreshPoint s a
 {-# INLINE_NORMAL decodeUtf8WithD #-}
 decodeUtf8WithD :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
-    let A.Array p _ _ = utf8d
+    let A.Array p _ = utf8d
         !ptr = unsafeForeignPtrToPtr p
     in Stream (step' ptr) (FreshPointDecodeInit state)
   where
@@ -337,7 +337,7 @@ resumeDecodeUtf8EitherD
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let A.Array p _ _ = utf8d
+    let A.Array p _ = utf8d
         !ptr = unsafeForeignPtrToPtr p
         stt =
             if dst == 0
@@ -431,7 +431,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
-    let A.Array p _ _ = utf8d
+    let A.Array p _ = utf8d
         !ptr = unsafeForeignPtrToPtr p
     in Stream (step' ptr) (OuterLoop state Nothing)
   where

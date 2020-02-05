@@ -114,8 +114,9 @@ import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types
-       (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
-        lpackArraysChunksOf)
+       (Array(..), writeNUnsafe, defaultChunkSize, lpackArraysChunksOf
+       , unsafeFreezeWithShrink)
+import Streamly.Internal.Memory.Mutable.Array.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
@@ -157,13 +158,10 @@ readArrayUpto size h = do
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
         n <- hGetBufSome h p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
         -- XXX shrink only if the diff is significant
-        shrinkToFit v
+        return $
+            unsafeFreezeWithShrink $
+            mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO

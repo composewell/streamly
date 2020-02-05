@@ -2,9 +2,9 @@
 
 -- |
 -- Module      : Streamly.Internal.Memory.ArrayStream
--- Copyright   : (c) 2019 Composewell Technologies
+-- Copyright   : (c) 2020 Composewell Technologies
 --
--- License     : BSD3
+-- License     : BSD3-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
@@ -47,6 +47,7 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.Prelude as P
@@ -155,17 +156,35 @@ arraysOf n str =
 -- stream.
 {-# INLINE spliceArraysLenUnsafe #-}
 spliceArraysLenUnsafe :: (MonadIO m, Storable a)
-    => Int -> SerialT m (Array a) -> m (Array a)
+    => Int -> SerialT m (MA.Array a) -> m (MA.Array a)
 spliceArraysLenUnsafe len buffered = do
-    arr <- liftIO $ A.newArray len
-    end <- S.foldlM' writeArr (return $ aEnd arr) buffered
-    return $ arr {aEnd = end}
+    arr <- liftIO $ MA.newArray len
+    end <- S.foldlM' writeArr (return $ MA.aEnd arr) buffered
+    return $ arr {MA.aEnd = end}
 
     where
 
-    writeArr dst Array{..} =
-        liftIO $ withForeignPtr aStart $ \src -> do
-                        let count = aEnd `minusPtr` src
+    writeArr dst (MA.Array as ae _) =
+        liftIO $ withForeignPtr as $ \src -> do
+                        let count = ae `minusPtr` src
+                        A.memcpy (castPtr dst) (castPtr src) count
+                        return $ dst `plusPtr` count
+
+{-# INLINE _spliceArrays #-}
+_spliceArrays :: (MonadIO m, Storable a)
+    => SerialT m (Array a) -> m (Array a)
+_spliceArrays s = do
+    buffered <- P.foldr S.cons S.nil s
+    len <- S.sum (S.map length buffered)
+    arr <- liftIO $ MA.newArray len
+    end <- S.foldlM' writeArr (return $ MA.aEnd arr) s
+    return $ A.unsafeFreeze $ arr {MA.aEnd = end}
+
+    where
+
+    writeArr dst (Array as ae) =
+        liftIO $ withForeignPtr as $ \src -> do
+                        let count = ae `minusPtr` src
                         A.memcpy (castPtr dst) (castPtr src) count
                         return $ dst `plusPtr` count
 
@@ -175,17 +194,17 @@ _spliceArraysBuffered :: (MonadIO m, Storable a)
 _spliceArraysBuffered s = do
     buffered <- P.foldr S.cons S.nil s
     len <- S.sum (S.map length buffered)
-    spliceArraysLenUnsafe len s
+    A.unsafeFreeze <$> spliceArraysLenUnsafe len (S.map A.unsafeThaw s)
 
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (MonadIO m, Storable a)
     => SerialT m (Array a) -> m (Array a)
 spliceArraysRealloced s = do
-    let idst = liftIO $ A.newArray (A.bytesToElemCount (undefined :: a)
-                                (A.mkChunkSizeKB 4))
+    let idst = liftIO $ MA.newArray (A.bytesToElemCount (undefined :: a)
+                                  (A.mkChunkSizeKB 4))
 
-    arr <- S.foldlM' A.spliceWithDoubling idst s
-    liftIO $ A.shrinkToFit arr
+    arr <- S.foldlM' MA.spliceWithDoubling idst (S.map A.unsafeThaw s)
+    liftIO $ A.unsafeFreeze <$> MA.shrinkToFit arr
 
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.

@@ -363,6 +363,7 @@ import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
 import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Memory.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -4516,16 +4517,16 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
 lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
 lastN n
     | n <= 0 = fmap (const mempty) FL.drain
-    | otherwise = Fold step initial done
+    | otherwise = A.unsafeFreeze <$> Fold step initial done
   where
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a
         return $ Tuple3' rb rh1 (i + 1)
     initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
-        arr <- liftIO $ A.newArray n
+        arr <- liftIO $ MA.newArray n
         foldFunc i rh snoc' arr rb
-    snoc' b a = liftIO $ A.unsafeSnoc b a
+    snoc' b a = liftIO $ MA.unsafeSnoc b a
     foldFunc i
         | i < n = RB.unsafeFoldRingM
         | otherwise = RB.unsafeFoldRingFullM

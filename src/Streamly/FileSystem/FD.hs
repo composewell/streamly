@@ -130,7 +130,9 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
+import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize, unsafeFreeze)
+import Streamly.Internal.Memory.Mutable.Array.Types (mutableArray)
+
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
@@ -216,14 +218,10 @@ readArrayUpto size (Handle fd) = do
     withForeignPtr ptr $ \p -> do
         -- n <- hGetBufSome h p size
         n <- RawIO.read fd p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
         -- XXX shrink only if the diff is significant
-        -- A.shrinkToFit v
-        return v
+        -- Use unsafeFreezeWithShrink
+        return $
+            unsafeFreeze $ mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
 
 -------------------------------------------------------------------------------
 -- Array IO (output)

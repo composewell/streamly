@@ -90,6 +90,7 @@ import qualified Network.Socket as Net
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Memory.Array.Types (Array(..), lpackArraysChunksOf)
+import Streamly.Internal.Memory.Mutable.Array.Types (mutableArray)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -255,11 +256,9 @@ readArrayUptoWith f size h = do
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
     withForeignPtr ptr $ \p -> do
         n <- f h p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
+        let v = A.unsafeFreeze
+                $ mutableArray ptr (p `plusPtr` n) (p `plusPtr` size)
+
         -- XXX shrink only if the diff is significant
         -- A.shrinkToFit v
         return v
@@ -468,6 +467,7 @@ writeChunks h = FL.drainBy (liftIO . writeChunk h)
 writeChunksWithBufferOf :: (MonadIO m, Storable a)
     => Int -> Socket -> Fold m (Array a) ()
 writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
+
 
 -- | Write a stream of strings to a socket in Latin1 encoding.  Output is
 -- flushed to the socket for each string.

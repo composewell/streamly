@@ -382,6 +382,7 @@ library
                      , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.SmallArray.Types
                      , Streamly.Internal.Data.SmallArray
+                     , Streamly.Internal.Memory.Mutable.Array.Types
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
                      , Streamly.Internal.Memory.ArrayStream
