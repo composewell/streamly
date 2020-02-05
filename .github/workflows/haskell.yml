@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc_version: [8.6.5, 8.8.1]
+        ghc_version: [8.8.1, 8.6.5, 8.6.5]
         cabal_version: ["3.0"]
         include:
           - ghc_version: 8.8.1
@@ -42,6 +42,9 @@ jobs:
           - ghc_version: 8.6.5
             build: cabal-v2
             cabal_build_options: "--flags streamk"
+          - ghc_version: 8.6.5
+            build: cabal-v2
+            cabal_build_options: "--flags fusion-plugin"
 
     steps:
     - uses: actions/checkout@v2
