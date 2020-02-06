@@ -3987,20 +3987,19 @@ data SessionState t m k a b = SessionState
 
 #undef Type
 
--- | @classifySessionsBy tick timeout reset f stream@ groups timed events in an
+-- | @classifySessionsBy tick timeout idle f stream@ groups timed events in an
 -- input event stream into sessions based on a session key. Each element in the
--- stream is an event consisting of a 4-tuple @(session key, sesssion data,
--- isClosingEvent, timestamp)@.  @session key@ is a key that uniquely
--- identifies a session. All the events belonging to a session are folded using
--- the fold @f@ until an event with @isClosingEvent@ flag set arrives or a
--- timeout has occurred.  The session key and the result of the fold are
--- emitted in the output stream when the session is purged.
+-- stream is an event consisting of a triple @(session key, sesssion data,
+-- timestamp)@.  @session key@ is a key that uniquely identifies the session.
+-- All the events belonging to a session are folded using the fold @f@ until
+-- the fold returns a 'Left' result or a timeout has occurred.  The session key
+-- and the result of the fold are emitted in the output stream when the session
+-- is purged.
 --
--- When @reset@ is 'False', @timeout@ is the maximum lifetime of a session in
+-- When @idle@ is 'False', @timeout@ is the maximum lifetime of a session in
 -- seconds, measured from the @timestamp@ of the first event in that session.
--- When "reset" is 'True' then the timeout is reset after every event received
--- in the session, in other words timeout is measured from the timestamp of the
--- last event in the session.
+-- When "idle" is 'True' then the timeout is an idle timeout, it is reset after
+-- every event received in the session.
 --
 -- @timestamp@ in an event characterizes the time when the input event was
 -- generated, this is an absolute time measured from some @Epoch@.  The notion
@@ -4012,14 +4011,16 @@ data SessionState t m k a b = SessionState
 --
 -- /Internal/
 --
+
+-- XXX Perhaps we should use an "Event a" type to represent timestamped data.
 {-# INLINABLE classifySessionsBy #-}
 classifySessionsBy
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ timer tick in seconds
     -> Double         -- ^ session timeout in seconds
     -> Bool           -- ^ reset the timeout when an event is received
-    -> Fold m a b     -- ^ Fold to be applied to session events
-    -> t m (k, a, Bool, AbsTime) -- ^ session key, data, timestamp, close event
+    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick timeout reset (Fold step initial extract) str =
       concatMap (\session -> sessionOutputStream session)
@@ -4048,7 +4049,7 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
     -- old ones.
     --
     -- Got a new stream input element
-    sstep (session@SessionState{..}) (Just (key, a, closing, ts)) =
+    sstep (session@SessionState{..}) (Just (key, a, ts)) = do
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
         --
@@ -4071,42 +4072,43 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
                 Tuple' _ old <- maybe (initial >>= return . Tuple' ts) return v
                 new <- step old a
                 return $ Tuple' ts new
-        in if closing
-           then do
-                let (r, mp') = Map.updateLookupWithKey (\_ _ -> Nothing) key
-                                    sessionKeyValueMap
-                Tuple' _ acc <- accumulate r
-                res <- extract acc
+            mOld = Map.lookup key sessionKeyValueMap
+
+        acc@(Tuple' _ fres) <- accumulate mOld
+        res <- extract fres
+        case res of
+            Left x -> do
+                let mp' = case mOld of
+                        Nothing -> sessionKeyValueMap
+                        Just _ -> Map.delete key sessionKeyValueMap
                 return $ session
                     { sessionCurTime = curTime
                     , sessionEventTime = curTime
                     , sessionCount = sessionCount - 1
                     , sessionKeyValueMap = mp'
-                    , sessionOutputStream = yield (key, res)
+                    , sessionOutputStream = yield (key, x)
                     }
-           else do
-                    let r = Map.lookup key sessionKeyValueMap
-                    acc <- accumulate r
-                    let mp' = Map.insert key acc sessionKeyValueMap
-                    let (hp', count) =
-                            case r of
-                                Nothing ->
-                                    let expiry = addToAbsTime ts timeoutMs
-                                    in (H.insert (Entry expiry key)
-                                            sessionTimerHeap, sessionCount + 1)
-                                Just _ -> (sessionTimerHeap, sessionCount)
-                    -- Event time is maintained as monotonically increasing
-                    -- time. If we have lagged behind any of the timestamps
-                    -- seen then we increase it to match the latest time seen
-                    -- in the timestamps. We also increase it on timer ticks.
-                    return $ SessionState
-                        { sessionCurTime = curTime
-                        , sessionEventTime = curTime
-                        , sessionCount = count
-                        , sessionTimerHeap = hp'
-                        , sessionKeyValueMap = mp'
-                        , sessionOutputStream = K.nil
-                        }
+            Right _ -> do
+                let mp' = Map.insert key acc sessionKeyValueMap
+                let (hp', count) =
+                        case mOld of
+                            Nothing ->
+                                let expiry = addToAbsTime ts timeoutMs
+                                in (H.insert (Entry expiry key)
+                                        sessionTimerHeap, sessionCount + 1)
+                            Just _ -> (sessionTimerHeap, sessionCount)
+                -- Event time is maintained as monotonically increasing
+                -- time. If we have lagged behind any of the timestamps
+                -- seen then we increase it to match the latest time seen
+                -- in the timestamps. We also increase it on timer ticks.
+                return $ SessionState
+                    { sessionCurTime = curTime
+                    , sessionEventTime = curTime
+                    , sessionCount = count
+                    , sessionTimerHeap = hp'
+                    , sessionKeyValueMap = mp'
+                    , sessionOutputStream = K.nil
+                    }
 
     -- Got a timer tick event
     -- XXX can we yield the entries without accumulating them?
@@ -4138,7 +4140,10 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
                                 if curTime >= expiry' || not reset
                                 then do
                                     sess <- extract acc
-                                    go hp' mp' ((key, sess) `K.cons` out)
+                                    let val = case sess of
+                                            Left x -> x
+                                            Right x -> x
+                                    go hp' mp' ((key, val) `K.cons` out)
                                                (cnt + 1)
                                 else
                                     -- reset the session timeout
@@ -4171,8 +4176,8 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
 classifyKeepAliveSessions
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ session inactive timeout
-    -> Fold m a b     -- ^ Fold to be applied to session payload data
-    -> t m (k, a, Bool, AbsTime) -- ^ session key, data, close flag, timestamp
+    -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
+    -> t m (k, a, AbsTime) -- ^ session key, data, close flag, timestamp
     -> t m (k, b)
 classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
 
@@ -4205,10 +4210,9 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -}
 
 -- | Split the stream into fixed size time windows of specified interval in
--- seconds. Within each such window, fold the elements in buckets identified by
--- the keys. A particular bucket fold can be terminated early if a closing flag
--- is encountered in an element for that key. Once a fold is terminated the key
--- and value for that bucket are emitted in the output stream.
+-- seconds. Within each such window, fold the elements in sessions identified
+-- by the session keys. The fold result is emitted in the output stream if the
+-- fold returns a 'Left' result or if the time window ends.
 --
 -- Session @timestamp@ in the input stream is an absolute time from some epoch,
 -- characterizing the time when the input element was generated.  To detect
@@ -4225,8 +4229,8 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
-    -> Fold m a b     -- ^ Fold to be applied to window events
-    -> t m (k, a, Bool, AbsTime) -- ^ window key, data, close flag, timestamp
+    -> Fold m a (Either b b) -- ^ Fold to be applied to window events
+    -> t m (k, a, AbsTime) -- ^ window key, data, close flag, timestamp
     -> t m (k, b)
 classifySessionsOf interval = classifySessionsBy 1 interval False
 
