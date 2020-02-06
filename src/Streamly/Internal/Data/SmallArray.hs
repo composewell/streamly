@@ -50,8 +50,8 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import GHC.IO (unsafePerformIO)
 import Data.Functor.Identity (runIdentity)
-import Data.Primitive.SmallArray
 
+import Streamly.Internal.Data.SmallArray.Types
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
