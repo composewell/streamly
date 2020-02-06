@@ -306,6 +306,7 @@ library
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
                      , Streamly.Internal.Data.Array
+                     , Streamly.Internal.Data.Prim.Array.Types
                      , Streamly.Internal.Data.Prim.Array
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
@@ -370,7 +371,7 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3   && < 0.4
-                     , primitive         >= 0.6.4.0   && < 0.8
+                     , primitive         >= 0.6.2.0   && < 0.8
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
@@ -707,7 +708,7 @@ benchmark prim-array
   if impl(ghc < 8.0)
     build-depends:
         transformers  >= 0.4 && < 0.6
-        
+
 benchmark small-array
   import: bench-options
   type: exitcode-stdio-1.0

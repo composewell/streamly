@@ -61,8 +61,7 @@ import Control.Monad.IO.Class (liftIO, MonadIO)
 import GHC.IO (unsafePerformIO)
 import Data.Primitive.Types (Prim(..))
 
-import Data.Primitive.PrimArray
-
+import Streamly.Internal.Data.Prim.Array.Types
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
