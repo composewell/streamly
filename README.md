@@ -9,7 +9,7 @@
 
 ## Learning Materials
 
-* [Overview: this readme](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference](https://hackage.haskell.org/package/streamly) | [Guides](docs) 
+* Documentation: [Overview: this readme](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference latest](https://hackage.haskell.org/package/streamly) | [Reference master](https://composewell.github.io/streamly) | [Guides](docs)
 * [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
 * Examples: [in this repo](examples) | [streamly-examples](https://github.com/composewell/streamly-examples)
 * Benchmarks: [Streaming](https://github.com/composewell/streaming-benchmarks) | [Concurrency](https://github.com/composewell/concurrency-benchmarks)
