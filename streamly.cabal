@@ -308,6 +308,7 @@ library
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Prim.Array.Types
                      , Streamly.Internal.Data.Prim.Array
+                     , Streamly.Internal.Data.SmallArray.Types
                      , Streamly.Internal.Data.SmallArray
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
@@ -371,7 +372,7 @@ library
                      , transformers      >= 0.4   && < 0.6
 
                      , heaps             >= 0.3   && < 0.4
-                     , primitive         >= 0.6.2.0   && < 0.8
+                     , primitive         >= 0.5.4.0   && < 0.8
 
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9

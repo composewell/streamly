@@ -13,7 +13,7 @@
 -- Copyright: (c) 2015 Dan Doel
 -- License: BSD3
 --
--- Maintainer: libraries@haskell.org
+-- Maintainer  : streamly@composewell.com
 -- Portability: non-portable
 --
 -- Small arrays are boxed (im)mutable arrays.
@@ -36,7 +36,7 @@
 -- The underlying type, 'SmallArray#', was introduced in GHC 7.10, so prior to
 -- that version, this module simply implements small arrays as 'Array'.
 
-module Data.Primitive.SmallArray
+module Streamly.Internal.Data.SmallArray.Types
   ( SmallArray(..)
   , SmallMutableArray(..)
   , newSmallArray
@@ -62,19 +62,14 @@ module Data.Primitive.SmallArray
   , traverseSmallArrayP
   ) where
 
-
-#if (__GLASGOW_HASKELL__ >= 710)
-#define HAVE_SMALL_ARRAY 1
-#endif
-
-#if MIN_VERSION_base(4,7,0)
 import GHC.Exts hiding (toList)
 import qualified GHC.Exts
-#endif
 
 import Control.Applicative
 import Control.Monad
+#if MIN_VERSION_base(4,9,0)
 import qualified Control.Monad.Fail as Fail
+#endif
 import Control.Monad.Fix
 import Control.Monad.Primitive
 import Control.Monad.ST
@@ -90,66 +85,20 @@ import qualified GHC.ST as GHCST
 import qualified Data.Semigroup as Sem
 #endif
 import Text.ParserCombinators.ReadP
-#if MIN_VERSION_base(4,10,0)
-import GHC.Exts (runRW#)
-#elif MIN_VERSION_base(4,9,0)
-import GHC.Base (runRW#)
-#endif
 
-#if !(HAVE_SMALL_ARRAY)
-import Data.Primitive.Array
-import Data.Traversable
-import qualified Data.Primitive.Array as Array
+#if MIN_VERSION_base(4,9,0) && !MIN_VERSION_base(4,10,0)
+import GHC.Base (runRW#)
 #endif
 
 #if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
 import Data.Functor.Classes (Eq1(..),Ord1(..),Show1(..),Read1(..))
 #endif
 
-#if HAVE_SMALL_ARRAY
 data SmallArray a = SmallArray (SmallArray# a)
   deriving Typeable
-#else
-newtype SmallArray a = SmallArray (Array a) deriving
-  ( Eq
-  , Ord
-  , Show
-  , Read
-  , Foldable
-  , Traversable
-  , Functor
-  , Applicative
-  , Alternative
-  , Monad
-  , MonadPlus
-  , MonadZip
-  , MonadFix
-  , Monoid
-  , Typeable
-#if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
-  , Eq1
-  , Ord1
-  , Show1
-  , Read1
-#endif
-  )
 
-#if MIN_VERSION_base(4,7,0)
-instance IsList (SmallArray a) where
-  type Item (SmallArray a) = a
-  fromListN n l = SmallArray (fromListN n l)
-  fromList l = SmallArray (fromList l)
-  toList a = Foldable.toList a
-#endif
-#endif
-
-#if HAVE_SMALL_ARRAY
 data SmallMutableArray s a = SmallMutableArray (SmallMutableArray# s a)
   deriving Typeable
-#else
-newtype SmallMutableArray s a = SmallMutableArray (MutableArray s a)
-  deriving (Eq, Typeable)
-#endif
 
 -- | Create a new small mutable array.
 newSmallArray
@@ -157,13 +106,9 @@ newSmallArray
   => Int -- ^ size
   -> a   -- ^ initial contents
   -> m (SmallMutableArray (PrimState m) a)
-#if HAVE_SMALL_ARRAY
 newSmallArray (I# i#) x = primitive $ \s ->
   case newSmallArray# i# x s of
     (# s', sma# #) -> (# s', SmallMutableArray sma# #)
-#else
-newSmallArray n e = SmallMutableArray `liftM` newArray n e
-#endif
 {-# INLINE newSmallArray #-}
 
 -- | Read the element at a given index in a mutable array.
@@ -172,12 +117,8 @@ readSmallArray
   => SmallMutableArray (PrimState m) a -- ^ array
   -> Int                               -- ^ index
   -> m a
-#if HAVE_SMALL_ARRAY
 readSmallArray (SmallMutableArray sma#) (I# i#) =
   primitive $ readSmallArray# sma# i#
-#else
-readSmallArray (SmallMutableArray a) = readArray a
-#endif
 {-# INLINE readSmallArray #-}
 
 -- | Write an element at the given idex in a mutable array.
@@ -187,12 +128,8 @@ writeSmallArray
   -> Int                               -- ^ index
   -> a                                 -- ^ new element
   -> m ()
-#if HAVE_SMALL_ARRAY
 writeSmallArray (SmallMutableArray sma#) (I# i#) x =
   primitive_ $ writeSmallArray# sma# i# x
-#else
-writeSmallArray (SmallMutableArray a) = writeArray a
-#endif
 {-# INLINE writeSmallArray #-}
 
 -- | Look up an element in an immutable array.
@@ -223,13 +160,9 @@ indexSmallArrayM
   => SmallArray a -- ^ array
   -> Int          -- ^ index
   -> m a
-#if HAVE_SMALL_ARRAY
 indexSmallArrayM (SmallArray sa#) (I# i#) =
   case indexSmallArray# sa# i# of
     (# x #) -> pure x
-#else
-indexSmallArrayM (SmallArray a) = indexArrayM a
-#endif
 {-# INLINE indexSmallArrayM #-}
 
 -- | Look up an element in an immutable array.
@@ -237,22 +170,14 @@ indexSmallArray
   :: SmallArray a -- ^ array
   -> Int          -- ^ index
   -> a
-#if HAVE_SMALL_ARRAY
 indexSmallArray sa i = runIdentity $ indexSmallArrayM sa i
-#else
-indexSmallArray (SmallArray a) = indexArray a
-#endif
 {-# INLINE indexSmallArray #-}
 
 -- | Read a value from the immutable array at the given index, returning
 -- the result in an unboxed unary tuple. This is currently used to implement
 -- folds.
 indexSmallArray## :: SmallArray a -> Int -> (# a #)
-#if HAVE_SMALL_ARRAY
 indexSmallArray## (SmallArray ary) (I# i) = indexSmallArray# ary i
-#else
-indexSmallArray## (SmallArray a) = indexArray## a
-#endif
 {-# INLINE indexSmallArray## #-}
 
 -- | Create a copy of a slice of an immutable array.
@@ -261,12 +186,8 @@ cloneSmallArray
   -> Int          -- ^ offset
   -> Int          -- ^ length
   -> SmallArray a
-#if HAVE_SMALL_ARRAY
 cloneSmallArray (SmallArray sa#) (I# i#) (I# j#) =
   SmallArray (cloneSmallArray# sa# i# j#)
-#else
-cloneSmallArray (SmallArray a) i j = SmallArray $ cloneArray a i j
-#endif
 {-# INLINE cloneSmallArray #-}
 
 -- | Create a copy of a slice of a mutable array.
@@ -276,14 +197,9 @@ cloneSmallMutableArray
   -> Int                               -- ^ offset
   -> Int                               -- ^ length
   -> m (SmallMutableArray (PrimState m) a)
-#if HAVE_SMALL_ARRAY
 cloneSmallMutableArray (SmallMutableArray sma#) (I# o#) (I# l#) =
   primitive $ \s -> case cloneSmallMutableArray# sma# o# l# s of
     (# s', smb# #) -> (# s', SmallMutableArray smb# #)
-#else
-cloneSmallMutableArray (SmallMutableArray ma) i j =
-  SmallMutableArray `liftM` cloneMutableArray ma i j
-#endif
 {-# INLINE cloneSmallMutableArray #-}
 
 -- | Create an immutable array corresponding to a slice of a mutable array.
@@ -295,14 +211,9 @@ freezeSmallArray
   -> Int                               -- ^ offset
   -> Int                               -- ^ length
   -> m (SmallArray a)
-#if HAVE_SMALL_ARRAY
 freezeSmallArray (SmallMutableArray sma#) (I# i#) (I# j#) =
   primitive $ \s -> case freezeSmallArray# sma# i# j# s of
     (# s', sa# #) -> (# s', SmallArray sa# #)
-#else
-freezeSmallArray (SmallMutableArray ma) i j =
-  SmallArray `liftM` freezeArray ma i j
-#endif
 {-# INLINE freezeSmallArray #-}
 
 -- | Render a mutable array immutable.
@@ -311,14 +222,9 @@ freezeSmallArray (SmallMutableArray ma) i j =
 -- input array after freezing.
 unsafeFreezeSmallArray
   :: PrimMonad m => SmallMutableArray (PrimState m) a -> m (SmallArray a)
-#if HAVE_SMALL_ARRAY
 unsafeFreezeSmallArray (SmallMutableArray sma#) =
   primitive $ \s -> case unsafeFreezeSmallArray# sma# s of
     (# s', sa# #) -> (# s', SmallArray sa# #)
-#else
-unsafeFreezeSmallArray (SmallMutableArray ma) =
-  SmallArray `liftM` unsafeFreezeArray ma
-#endif
 {-# INLINE unsafeFreezeSmallArray #-}
 
 -- | Create a mutable array corresponding to a slice of an immutable array.
@@ -330,14 +236,9 @@ thawSmallArray
   -> Int          -- ^ offset
   -> Int          -- ^ length
   -> m (SmallMutableArray (PrimState m) a)
-#if HAVE_SMALL_ARRAY
 thawSmallArray (SmallArray sa#) (I# o#) (I# l#) =
   primitive $ \s -> case thawSmallArray# sa# o# l# s of
     (# s', sma# #) -> (# s', SmallMutableArray sma# #)
-#else
-thawSmallArray (SmallArray a) off len =
-  SmallMutableArray `liftM` thawArray a off len
-#endif
 {-# INLINE thawSmallArray #-}
 
 -- | Render an immutable array mutable.
@@ -345,13 +246,9 @@ thawSmallArray (SmallArray a) off len =
 -- This operation performs no copying, so care must be taken with its use.
 unsafeThawSmallArray
   :: PrimMonad m => SmallArray a -> m (SmallMutableArray (PrimState m) a)
-#if HAVE_SMALL_ARRAY
 unsafeThawSmallArray (SmallArray sa#) =
   primitive $ \s -> case unsafeThawSmallArray# sa# s of
     (# s', sma# #) -> (# s', SmallMutableArray sma# #)
-#else
-unsafeThawSmallArray (SmallArray a) = SmallMutableArray `liftM` unsafeThawArray a
-#endif
 {-# INLINE unsafeThawSmallArray #-}
 
 -- | Copy a slice of an immutable array into a mutable array.
@@ -363,13 +260,9 @@ copySmallArray
   -> Int                               -- ^ source offset
   -> Int                               -- ^ length
   -> m ()
-#if HAVE_SMALL_ARRAY
 copySmallArray
   (SmallMutableArray dst#) (I# do#) (SmallArray src#) (I# so#) (I# l#) =
     primitive_ $ copySmallArray# src# so# dst# do# l#
-#else
-copySmallArray (SmallMutableArray dst) i (SmallArray src) = copyArray dst i src
-#endif
 {-# INLINE copySmallArray #-}
 
 -- | Copy a slice of one mutable array into another.
@@ -381,33 +274,20 @@ copySmallMutableArray
   -> Int                               -- ^ source offset
   -> Int                               -- ^ length
   -> m ()
-#if HAVE_SMALL_ARRAY
 copySmallMutableArray
   (SmallMutableArray dst#) (I# do#)
   (SmallMutableArray src#) (I# so#)
   (I# l#) =
     primitive_ $ copySmallMutableArray# src# so# dst# do# l#
-#else
-copySmallMutableArray (SmallMutableArray dst) i (SmallMutableArray src) =
-  copyMutableArray dst i src
-#endif
 {-# INLINE copySmallMutableArray #-}
 
 sizeofSmallArray :: SmallArray a -> Int
-#if HAVE_SMALL_ARRAY
 sizeofSmallArray (SmallArray sa#) = I# (sizeofSmallArray# sa#)
-#else
-sizeofSmallArray (SmallArray a) = sizeofArray a
-#endif
 {-# INLINE sizeofSmallArray #-}
 
 sizeofSmallMutableArray :: SmallMutableArray s a -> Int
-#if HAVE_SMALL_ARRAY
 sizeofSmallMutableArray (SmallMutableArray sa#) =
   I# (sizeofSmallMutableArray# sa#)
-#else
-sizeofSmallMutableArray (SmallMutableArray ma) = sizeofMutableArray ma
-#endif
 {-# INLINE sizeofSmallMutableArray #-}
 
 -- | This is the fastest, most straightforward way to traverse
@@ -420,7 +300,6 @@ traverseSmallArrayP
   => (a -> m b)
   -> SmallArray a
   -> m (SmallArray b)
-#if HAVE_SMALL_ARRAY
 traverseSmallArrayP f = \ !ary ->
   let
     !sz = sizeofSmallArray ary
@@ -436,33 +315,19 @@ traverseSmallArrayP f = \ !ary ->
   in do
     mary <- newSmallArray sz badTraverseValue
     go 0 mary
-#else
-traverseSmallArrayP f (SmallArray ar) = SmallArray `liftM` traverseArrayP f ar
-#endif
 {-# INLINE traverseSmallArrayP #-}
 
 -- | Strict map over the elements of the array.
 mapSmallArray' :: (a -> b) -> SmallArray a -> SmallArray b
-#if HAVE_SMALL_ARRAY
 mapSmallArray' f sa = createSmallArray (length sa) (die "mapSmallArray'" "impossible") $ \smb ->
   fix ? 0 $ \go i ->
     when (i < length sa) $ do
       x <- indexSmallArrayM sa i
       let !y = f x
       writeSmallArray smb i y *> go (i+1)
-#else
-mapSmallArray' f (SmallArray ar) = SmallArray (mapArray' f ar)
-#endif
 {-# INLINE mapSmallArray' #-}
 
-#ifndef HAVE_SMALL_ARRAY
-runSmallArray
-  :: (forall s. ST s (SmallMutableArray s a))
-  -> SmallArray a
-runSmallArray m = SmallArray $ runArray $
-  m >>= \(SmallMutableArray mary) -> return mary
-
-#elif !MIN_VERSION_base(4,9,0)
+#if !MIN_VERSION_base(4,9,0)
 runSmallArray
   :: (forall s. ST s (SmallMutableArray s a))
   -> SmallArray a
@@ -493,7 +358,6 @@ unST (GHCST.ST f) = f
 
 #endif
 
-#if HAVE_SMALL_ARRAY
 -- See the comment on runSmallArray for why we use emptySmallArray#.
 createSmallArray
   :: Int
@@ -809,12 +673,14 @@ instance Monad SmallArray where
      copySmallArray smb off sb 0 (length sb)
        *> fill (off + length sb) sbs smb
 
-#if !(MIN_VERSION_base(4,13,0))
+#if !(MIN_VERSION_base(4,13,0)) && MIN_VERSION_base(4,9,0)
   fail = Fail.fail
 #endif
 
+#if MIN_VERSION_base(4,9,0)
 instance Fail.MonadFail SmallArray where
   fail _ = emptySmallArray
+#endif
 
 instance MonadPlus SmallArray where
   mzero = empty
@@ -946,12 +812,10 @@ instance (Typeable s, Typeable a) => Data (SmallMutableArray s a) where
   toConstr _ = die "toConstr" "SmallMutableArray"
   gunfold _ _ = die "gunfold" "SmallMutableArray"
   dataTypeOf _ = mkNoRepType "Data.Primitive.SmallArray.SmallMutableArray"
-#endif
 
 -- | Create a 'SmallArray' from a list of a known length. If the length
 --   of the list does not match the given length, this throws an exception.
 smallArrayFromListN :: Int -> [a] -> SmallArray a
-#if HAVE_SMALL_ARRAY
 smallArrayFromListN n l =
   createSmallArray n
       (die "smallArrayFromListN" "uninitialized element") $ \sma ->
@@ -964,9 +828,6 @@ smallArrayFromListN n l =
           go (ix+1) xs
         else die "smallArrayFromListN" "list length greater than specified size"
   in go 0 l
-#else
-smallArrayFromListN n l = SmallArray (Array.fromListN n l)
-#endif
 
 -- | Create a 'SmallArray' from a list.
 smallArrayFromList :: [a] -> SmallArray a
