@@ -276,7 +276,8 @@ _wrapM m = \k -> m >>= k
 fromStopK :: IsStream t => StopK m -> t m a
 fromStopK k = mkStream $ \_ _ _ stp -> k stp
 
--- | Make a singleton stream from a yield function.
+-- | Make a singleton stream from a callback function. The callback function
+-- calls the one-shot yield continuation to yield an element.
 fromYieldK :: IsStream t => YieldK m a -> t m a
 fromYieldK k = mkStream $ \_ _ sng _ -> k sng
 
