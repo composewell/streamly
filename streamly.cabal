@@ -618,6 +618,17 @@ test-suite parallel-loops
     , base   >= 4.8   && < 5
     , random >= 1.0.0 && < 2
 
+test-suite version-bounds
+  import: test-options
+  type: exitcode-stdio-1.0
+  default-language: Haskell2010
+  main-is: version-bounds.hs
+  hs-source-dirs:  test
+  build-Depends:
+      streamly
+    , ghc
+    , base   >= 4.8   && < 5
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
