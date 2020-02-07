@@ -4009,6 +4009,8 @@ data SessionState t m k a b = SessionState
 -- is started with a tick duration specified by @tick@. This timer is used to
 -- detect session timeouts in the absence of new events.
 --
+-- After @maxSessions@ limit is reached we start ejecting old sessions.
+--
 -- /Internal/
 --
 
@@ -4019,10 +4021,12 @@ classifySessionsBy
     => Double         -- ^ timer tick in seconds
     -> Double         -- ^ session timeout in seconds
     -> Bool           -- ^ reset the timeout when an event is received
+    -> Int            -- ^ maximum number of sessions to cache
     -> Fold m a (Either b b) -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy tick timeout reset (Fold step initial extract) str =
+classifySessionsBy tick timeout reset maxSessions
+    (Fold step initial extract) str =
       concatMap (\session -> sessionOutputStream session)
     $ scanlM' sstep szero stream
 
@@ -4113,10 +4117,11 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
     -- Got a timer tick event
     -- XXX can we yield the entries without accumulating them?
     sstep (session@SessionState{..}) Nothing = do
-        (hp', mp', out, count) <- go sessionTimerHeap sessionKeyValueMap K.nil 0
+        (hp', mp', out, count) <-
+            go sessionTimerHeap sessionKeyValueMap K.nil sessionCount
         return $ session
             { sessionCurTime = curTime
-            , sessionCount = sessionCount - count
+            , sessionCount = count
             , sessionTimerHeap = hp'
             , sessionKeyValueMap = mp'
             , sessionOutputStream = out
@@ -4125,11 +4130,12 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
         where
 
         curTime = addToAbsTime sessionCurTime tickMs
+        expired etime cnt = curTime >= etime || cnt > maxSessions
         go hp mp out cnt = do
             let hres = H.uncons hp
             case hres of
                 Just (Entry expiry key, hp') -> do
-                    if curTime >= expiry
+                    if expired expiry
                     then do
                         let (r, mp') = Map.updateLookupWithKey
                                             (\_ _ -> Nothing) key mp
@@ -4137,14 +4143,14 @@ classifySessionsBy tick timeout reset (Fold step initial extract) str =
                             Nothing -> go hp' mp' out cnt
                             Just (Tuple' latestTS acc) -> do
                                 let expiry' = addToAbsTime latestTS timeoutMs
-                                if curTime >= expiry' || not reset
+                                if expired expiry' || not reset
                                 then do
                                     sess <- extract acc
                                     let val = case sess of
                                             Left x -> x
                                             Right x -> x
                                     go hp' mp' ((key, val) `K.cons` out)
-                                               (cnt + 1)
+                                               (cnt - 1)
                                 else
                                     -- reset the session timeout
                                     -- XXX purge anyway if the session size
