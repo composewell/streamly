@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE CPP              #-}
 {-# LANGUAGE RankNTypes       #-}
 {-# LANGUAGE RecordWildCards  #-}
@@ -442,7 +443,7 @@ module Streamly.Internal.Prelude
 where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (Exception)
+import Control.Exception (Exception, assert)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -3987,18 +3988,18 @@ data SessionState t m k a b = SessionState
 
 #undef Type
 
--- | @classifySessionsBy tick timeout idle f stream@ groups timed events in an
--- input event stream into sessions based on a session key. Each element in the
--- stream is an event consisting of a triple @(session key, sesssion data,
--- timestamp)@.  @session key@ is a key that uniquely identifies the session.
--- All the events belonging to a session are folded using the fold @f@ until
--- the fold returns a 'Left' result or a timeout has occurred.  The session key
--- and the result of the fold are emitted in the output stream when the session
--- is purged.
+-- | @classifySessionsBy tick timeout idle pred f stream@ groups timestamped
+-- events in an input event stream into sessions based on a session key. Each
+-- element in the stream is an event consisting of a triple @(session key,
+-- sesssion data, timestamp)@.  @session key@ is a key that uniquely identifies
+-- the session.  All the events belonging to a session are folded using the
+-- fold @f@ until the fold returns a 'Left' result or a timeout has occurred.
+-- The session key and the result of the fold are emitted in the output stream
+-- when the session is purged.
 --
 -- When @idle@ is 'False', @timeout@ is the maximum lifetime of a session in
 -- seconds, measured from the @timestamp@ of the first event in that session.
--- When "idle" is 'True' then the timeout is an idle timeout, it is reset after
+-- When @idle@ is 'True' then the timeout is an idle timeout, it is reset after
 -- every event received in the session.
 --
 -- @timestamp@ in an event characterizes the time when the input event was
@@ -4009,7 +4010,10 @@ data SessionState t m k a b = SessionState
 -- is started with a tick duration specified by @tick@. This timer is used to
 -- detect session timeouts in the absence of new events.
 --
--- After @maxSessions@ limit is reached we start ejecting old sessions.
+-- The predicate @pred@ is invoked with the current session count, if it
+-- returns 'True' a session is ejected from the session cache before inserting
+-- a new session. This could be useful to alert or eject sessions when the
+-- number of sessions becomes too high.
 --
 -- /Internal/
 --
@@ -4021,11 +4025,11 @@ classifySessionsBy
     => Double         -- ^ timer tick in seconds
     -> Double         -- ^ session timeout in seconds
     -> Bool           -- ^ reset the timeout when an event is received
-    -> Int            -- ^ maximum number of sessions to cache
+    -> (Int -> m Bool) -- ^ predicate to eject sessions based on session count
     -> Fold m a (Either b b) -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy tick timeout reset maxSessions
+classifySessionsBy tick timeout reset ejectPred
     (Fold step initial extract) str =
       concatMap (\session -> sessionOutputStream session)
     $ scanlM' sstep szero stream
@@ -4043,24 +4047,20 @@ classifySessionsBy tick timeout reset maxSessions
         , sessionOutputStream = K.nil
         }
 
-    -- XXX If there are too many sessions in progress we may want to put a
-    -- limit on the number of sessions because of memory consumption limits. We
-    -- can use two different strategies in this case:
+    -- We can eject sessions based on the current session count to limit
+    -- memory consumption. There are two possible strategies:
     --
     -- 1) Eject old sessions or sessions beyond a certain/lower timeout
     -- threshold even before timeout, effectively reduce the timeout.
     -- 2) Drop creation of new sessions but keep accepting new events for the
     -- old ones.
     --
+    -- We use the first strategy as of now.
+
     -- Got a new stream input element
-    sstep (session@SessionState{..}) (Just (key, a, ts)) = do
+    sstep (session@SessionState{..}) (Just (key, value, timestamp)) = do
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
-        --
-        -- deleting a key from the heap is expensive, so we never delete a
-        -- key, we just purge it from the Map and it gets purged from the
-        -- heap on timeout. We just need an extra lookup in the Map when
-        -- the key is purged from the heap, that should not be expensive.
         --
         -- To detect session inactivity we keep a timestamp of the latest event
         -- in the Map along with the fold result.  When we purge the session
@@ -4071,54 +4071,105 @@ classifySessionsBy tick timeout reset maxSessions
         -- XXX if the key is an Int, we can also use an IntMap for slightly
         -- better performance.
         --
-        let curTime = max sessionEventTime ts
+        let curTime = max sessionEventTime timestamp
             accumulate v = do
-                Tuple' _ old <- maybe (initial >>= return . Tuple' ts) return v
-                new <- step old a
-                return $ Tuple' ts new
+                old <- case v of
+                    Nothing -> initial
+                    Just (Tuple' _ acc) -> return acc
+                new <- step old value
+                return $ Tuple' timestamp new
             mOld = Map.lookup key sessionKeyValueMap
 
         acc@(Tuple' _ fres) <- accumulate mOld
         res <- extract fres
         case res of
             Left x -> do
-                let mp' = case mOld of
-                        Nothing -> sessionKeyValueMap
-                        Just _ -> Map.delete key sessionKeyValueMap
+                -- deleting a key from the heap is expensive, so we never
+                -- delete a key from heap, we just purge it from the Map and it
+                -- gets purged from the heap on timeout. We just need an extra
+                -- lookup in the Map when the key is purged from the heap, that
+                -- should not be expensive.
+                --
+                let (mp, cnt) = case mOld of
+                        Nothing -> (sessionKeyValueMap, sessionCount)
+                        Just _ -> (Map.delete key sessionKeyValueMap
+                                  , sessionCount - 1)
                 return $ session
                     { sessionCurTime = curTime
                     , sessionEventTime = curTime
-                    , sessionCount = sessionCount - 1
-                    , sessionKeyValueMap = mp'
+                    , sessionCount = cnt
+                    , sessionKeyValueMap = mp
                     , sessionOutputStream = yield (key, x)
                     }
             Right _ -> do
-                let mp' = Map.insert key acc sessionKeyValueMap
-                let (hp', count) =
+                (hp1, mp1, out1, cnt1) <- do
+                        let vars = (sessionTimerHeap, sessionKeyValueMap,
+                                           K.nil, sessionCount)
                         case mOld of
-                            Nothing ->
-                                let expiry = addToAbsTime ts timeoutMs
-                                in (H.insert (Entry expiry key)
-                                        sessionTimerHeap, sessionCount + 1)
-                            Just _ -> (sessionTimerHeap, sessionCount)
-                -- Event time is maintained as monotonically increasing
-                -- time. If we have lagged behind any of the timestamps
-                -- seen then we increase it to match the latest time seen
-                -- in the timestamps. We also increase it on timer ticks.
+                            -- inserting new entry
+                            Nothing -> do
+                                -- Eject a session from heap and map is needed
+                                eject <- ejectPred sessionCount
+                                (hp, mp, out, cnt) <-
+                                    if eject
+                                    then ejectOne vars
+                                    else return vars
+
+                                -- Insert the new session in heap
+                                let expiry = addToAbsTime timestamp timeoutMs
+                                    hp' = H.insert (Entry expiry key) hp
+                                 in return $ (hp', mp, out, (cnt + 1))
+                            -- updating old entry
+                            Just _ -> return vars
+
+                let mp2 = Map.insert key acc mp1
                 return $ SessionState
                     { sessionCurTime = curTime
                     , sessionEventTime = curTime
-                    , sessionCount = count
-                    , sessionTimerHeap = hp'
-                    , sessionKeyValueMap = mp'
-                    , sessionOutputStream = K.nil
+                    , sessionCount = cnt1
+                    , sessionTimerHeap = hp1
+                    , sessionKeyValueMap = mp2
+                    , sessionOutputStream = out1
                     }
 
     -- Got a timer tick event
-    -- XXX can we yield the entries without accumulating them?
-    sstep (session@SessionState{..}) Nothing = do
+    sstep (sessionState@SessionState{..}) Nothing =
+        let curTime = addToAbsTime sessionCurTime tickMs
+        in ejectExpired sessionState curTime
+
+    fromEither e =
+        case e of
+            Left  x -> x
+            Right x -> x
+
+    -- delete from map and output the fold accumulator
+    ejectEntry hp mp out cnt acc key = do
+        sess <- extract acc
+        let out1 = (key, fromEither sess) `K.cons` out
+        let mp1 = Map.delete key mp
+        return (hp, mp1, out1, (cnt - 1))
+
+    ejectOne (hp, mp, out, !cnt) = do
+        let hres = H.uncons hp
+        case hres of
+            Just (Entry expiry key, hp1) -> do
+                case Map.lookup key mp of
+                    Nothing -> ejectOne (hp1, mp, out, cnt)
+                    Just (Tuple' latestTS acc) -> do
+                        let expiry1 = addToAbsTime latestTS timeoutMs
+                        if not reset || expiry1 <= expiry
+                        then ejectEntry hp1 mp out cnt acc key
+                        else
+                            -- reset the session timeout and continue
+                            let hp2 = H.insert (Entry expiry1 key) hp1
+                            in ejectOne (hp2, mp, out, cnt)
+            Nothing -> do
+                assert (Map.null mp) (return ())
+                return (hp, mp, out, cnt)
+
+    ejectExpired (session@SessionState{..}) curTime = do
         (hp', mp', out, count) <-
-            go sessionTimerHeap sessionKeyValueMap K.nil sessionCount
+            ejectLoop sessionTimerHeap sessionKeyValueMap K.nil sessionCount
         return $ session
             { sessionCurTime = curTime
             , sessionCount = count
@@ -4129,38 +4180,35 @@ classifySessionsBy tick timeout reset maxSessions
 
         where
 
-        curTime = addToAbsTime sessionCurTime tickMs
-        expired etime cnt = curTime >= etime || cnt > maxSessions
-        go hp mp out cnt = do
+        ejectLoop hp mp out !cnt = do
             let hres = H.uncons hp
             case hres of
-                Just (Entry expiry key, hp') -> do
-                    if expired expiry
+                Just (Entry expiry key, hp1) -> do
+                    (eject, force) <- do
+                        if curTime >= expiry
+                        then return (True, False)
+                        else do
+                            r <- ejectPred cnt
+                            return (r, r)
+                    if eject
                     then do
-                        let (r, mp') = Map.updateLookupWithKey
-                                            (\_ _ -> Nothing) key mp
-                        case r of
-                            Nothing -> go hp' mp' out cnt
+                        case Map.lookup key mp of
+                            Nothing -> ejectLoop hp1 mp out cnt
                             Just (Tuple' latestTS acc) -> do
-                                let expiry' = addToAbsTime latestTS timeoutMs
-                                if expired expiry' || not reset
+                                let expiry1 = addToAbsTime latestTS timeoutMs
+                                if expiry1 <= curTime || not reset || force
                                 then do
-                                    sess <- extract acc
-                                    let val = case sess of
-                                            Left x -> x
-                                            Right x -> x
-                                    go hp' mp' ((key, val) `K.cons` out)
-                                               (cnt - 1)
+                                    (hp2,mp1,out1,cnt1) <-
+                                        ejectEntry hp1 mp out cnt acc key
+                                    ejectLoop hp2 mp1 out1 cnt1
                                 else
-                                    -- reset the session timeout
-                                    -- XXX purge anyway if the session size
-                                    -- goes beyond maximum session size.
-                                    let hp'' = H.insert (Entry expiry' key) hp'
-                                        mp'' = Map.insert key
-                                                (Tuple' latestTS acc) mp'
-                                    in go hp'' mp'' out cnt
+                                    -- reset the session timeout and continue
+                                    let hp2 = H.insert (Entry expiry1 key) hp1
+                                    in ejectLoop hp2 mp out cnt
                     else return (hp, mp, out, cnt)
-                Nothing -> return (hp, mp, out, cnt)
+                Nothing -> do
+                    assert (Map.null mp) (return ())
+                    return (hp, mp, out, cnt)
 
     -- merge timer events in the stream
     stream = Serial.map Just str `Par.parallel` repeatM timer
@@ -4172,8 +4220,11 @@ classifySessionsBy tick timeout reset maxSessions
 -- received within the session window. The session times out and gets closed
 -- only if no event is received within the specified session window size.
 --
+-- If the ejection predicate returns 'True', the session that was idle for
+-- the longest time is ejected before inserting a new session.
+--
 -- @
--- classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
+-- classifyKeepAliveSessions timeout pred = classifySessionsBy 1 timeout True pred
 -- @
 --
 -- /Internal/
@@ -4182,10 +4233,12 @@ classifySessionsBy tick timeout reset maxSessions
 classifyKeepAliveSessions
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ session inactive timeout
+    -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
     -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
-    -> t m (k, a, AbsTime) -- ^ session key, data, close flag, timestamp
+    -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifyKeepAliveSessions timeout = classifySessionsBy 1 timeout True
+classifyKeepAliveSessions timeout ejectPred =
+    classifySessionsBy 1 timeout True ejectPred
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows
@@ -4225,8 +4278,11 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 -- session window end, a monotonic event time clock is maintained synced with
 -- the timestamps with a clock resolution of 1 second.
 --
+-- If the ejection predicate returns 'True', the session with the longest
+-- lifetime is ejected before inserting a new session.
+--
 -- @
--- classifySessionsOf interval = classifySessionsBy 1 interval False
+-- classifySessionsOf interval pred = classifySessionsBy 1 interval False pred
 -- @
 --
 -- /Internal/
@@ -4235,10 +4291,12 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 classifySessionsOf
     :: (IsStream t, MonadAsync m, Ord k)
     => Double         -- ^ time window size
-    -> Fold m a (Either b b) -- ^ Fold to be applied to window events
-    -> t m (k, a, AbsTime) -- ^ window key, data, close flag, timestamp
+    -> (Int -> m Bool) -- ^ predicate to eject sessions on session count
+    -> Fold m a (Either b b) -- ^ Fold to be applied to session events
+    -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifySessionsOf interval = classifySessionsBy 1 interval False
+classifySessionsOf interval ejectPred =
+    classifySessionsBy 1 interval False ejectPred
 
 ------------------------------------------------------------------------------
 -- Exceptions
