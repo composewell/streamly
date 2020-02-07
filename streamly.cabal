@@ -101,7 +101,6 @@ extra-source-files:
     credits/clock-0.7.2.txt
     credits/foldl-1.4.5.txt
     credits/pipes-concurrency-2.0.8.txt
-    credits/pipes-concurrency.txt
     credits/transient-0.5.5.txt
     credits/vector-0.12.0.2.txt
     credits/Yampa-0.10.6.2.txt
