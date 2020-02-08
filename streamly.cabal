@@ -215,6 +215,7 @@ common compile-options
 
 common optimization-options
   ghc-options: -O2
+               -fdicts-strict
                -fspec-constr-recursive=16
                -fmax-worker-args=16
 

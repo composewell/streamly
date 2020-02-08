@@ -2,7 +2,11 @@
 
 Recommended GHC options are: 
 
-  `-O2 -fspec-constr-recursive=16 -fmax-worker-args=16`
+  `-O2 -fdicts-strict -fspec-constr-recursive=16 -fmax-worker-args=16`
+
+`-fdicts-strict` is needed to avoid [a GHC
+issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
+memory leak in some cases.
 
 `-fspec-constr-recursive` is needed for better stream fusion by enabling
 the `SpecConstr` optimization in more cases.
