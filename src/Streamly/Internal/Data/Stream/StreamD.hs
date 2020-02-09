@@ -3457,11 +3457,12 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 {-# INLINE_NORMAL pollCounts #-}
 pollCounts
     :: MonadAsync m
-    => (Stream m Int -> Stream m Int)
+    => (a -> Bool)
+    -> (Stream m Int -> Stream m Int)
     -> Fold m Int b
     -> Stream m a
     -> Stream m a
-pollCounts transf fld (Stream step state) = Stream step' Nothing
+pollCounts predicate transf fld (Stream step state) = Stream step' Nothing
   where
 
     {-# INLINE_LATE step' #-}
@@ -3479,7 +3480,7 @@ pollCounts transf fld (Stream step state) = Stream step' Nothing
         r <- step gst st
         case r of
             Yield x s -> do
-                liftIO $ modifyVar' countVar (+ 1)
+                when (predicate x) $ liftIO $ modifyVar' countVar (+ 1)
                 return $ Yield x (Just (countVar, tid, s))
             Skip s -> return $ Skip (Just (countVar, tid, s))
             Stop -> do

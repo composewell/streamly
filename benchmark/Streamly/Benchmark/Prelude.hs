@@ -418,7 +418,7 @@ tapRate n str = do
 {-# INLINE pollCounts #-}
 pollCounts :: Int -> Stream IO Int -> IO ()
 pollCounts n str = do
-    composeN n (Internal.pollCounts f FL.drain) str
+    composeN n (Internal.pollCounts (P.const P.True) f FL.drain) str
     where f = Internal.rollingMap (P.-) . Internal.delayPost 1
 
 {-# INLINE tapAsyncS #-}

@@ -3778,15 +3778,16 @@ tapOffsetEvery offset n f xs =
 tapAsync :: (IsStream t, MonadAsync m) => FL.Fold m a b -> t m a -> t m a
 tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 
--- | Maintain the count of elements flowing in the stream and poll the count
--- asynchronously from another thread. The count stream is transformed using
--- the supplied transform and then folded using the supplied fold. The thread
--- is automatically cleaned up if the stream stops or aborts due to exception.
+-- | @pollCounts predicate transform fold stream@ counts those elements in the
+-- stream that pass the @predicate@. The resulting count stream is sent to
+-- another thread which transforms it using @transform@ and then folds it using
+-- @fold@.  The thread is automatically cleaned up if the stream stops or
+-- aborts due to exception.
 --
 -- For example, to print the count of elements processed every second:
 --
 -- @
--- > S.drain $ S.pollCounts (rollingMap (-) . delayPost 1) (FL.drainBy print)
+-- > S.drain $ S.pollCounts (const True) (S.rollingMap (-) . S.delayPost 1) (FL.drainBy print)
 --           $ S.enumerateFrom 0
 -- @
 --
@@ -3797,13 +3798,14 @@ tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 {-# INLINE pollCounts #-}
 pollCounts ::
        (IsStream t, MonadAsync m)
-    => (t m Int -> t m Int)
+    => (a -> Bool)
+    -> (t m Int -> t m Int)
     -> Fold m Int b
     -> t m a
     -> t m a
-pollCounts transf f xs =
+pollCounts predicate transf f xs =
       D.fromStreamD
-    $ D.pollCounts (D.toStreamD . transf . D.fromStreamD) f
+    $ D.pollCounts predicate (D.toStreamD . transf . D.fromStreamD) f
     $ (D.toStreamD xs)
 
 -- | Calls the supplied function with the number of elements consumed
