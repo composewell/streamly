@@ -11,6 +11,7 @@
 -- Maintainer  : streamly@composewell.com
 
 import Control.DeepSeq (NFData(..), deepseq)
+import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Monoid (Last(..))
 import System.Random (randomRIO)
@@ -129,7 +130,13 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-  value `seq` runMode (mode cfg) cfg benches
+  let bufValue = min value defaultStreamSize
+  when (bufValue /= value) $
+    putStrLn $ "Limiting stream size to "
+               ++ show defaultStreamSize
+               ++ " for buffered operations"
+
+  bufValue `seq` value `seq` runMode (mode cfg) cfg benches
     [ bgroup "serially"
       [ bgroup "pure"
         [ benchPureSink value "id" id
@@ -458,53 +465,53 @@ main = do
 
       -- Right folds for reducing are inherently non-streaming as the
       -- expression needs to be fully built before it can be reduced.
-        benchIOSink value "foldrM/reduce/IO" Ops.foldrMReduce
-      , benchIdentitySink value "foldrM/reduce/Identity" Ops.foldrMReduce
+        benchIOSink bufValue "foldrM/reduce/IO" Ops.foldrMReduce
+      , benchIdentitySink bufValue "foldrM/reduce/Identity" Ops.foldrMReduce
 
       -- Left folds for building a structure are inherently non-streaming as
       -- the structure cannot be lazily consumed until fully built.
-      , benchIOSink value "foldl'/build/IO" Ops.foldl'Build
-      , benchIdentitySink value "foldl'/build/Identity" Ops.foldl'Build
-      , benchIOSink value "foldlM'/build/IO" Ops.foldlM'Build
-      , benchIdentitySink value "foldlM'/build/Identity" Ops.foldlM'Build
+      , benchIOSink bufValue "foldl'/build/IO" Ops.foldl'Build
+      , benchIdentitySink bufValue "foldl'/build/Identity" Ops.foldl'Build
+      , benchIOSink bufValue "foldlM'/build/IO" Ops.foldlM'Build
+      , benchIdentitySink bufValue "foldlM'/build/Identity" Ops.foldlM'Build
 
       -- accumulation due to strictness of IO monad
-      , benchIOSink value "foldrM/build/IO" Ops.foldrMBuild
-      , benchPureSinkIO value "traversable/mapM" Ops.traversableMapM
+      , benchIOSink bufValue "foldrM/build/IO" Ops.foldrMBuild
+      , benchPureSinkIO bufValue "traversable/mapM" Ops.traversableMapM
 
       -- Converting the stream to a list or pure stream
-      , benchIOSink value "toList" Ops.toList
-      , benchIOSink value "toListRev" Ops.toListRev
-      , benchIOSink value "toStream" (S.fold IP.toStream)
-      , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
+      , benchIOSink bufValue "toList" Ops.toList
+      , benchIOSink bufValue "toListRev" Ops.toListRev
+      , benchIOSink bufValue "toStream" (S.fold IP.toStream)
+      , benchIOSink bufValue "toStreamRev" (S.fold IP.toStreamRev)
 
-      , benchIOSink value "folds/toList" (S.fold FL.toList)
-      , benchIOSink value "folds/toListRevF" (S.fold IFL.toListRevF)
+      , benchIOSink bufValue "folds/toList" (S.fold FL.toList)
+      , benchIOSink bufValue "folds/toListRevF" (S.fold IFL.toListRevF)
 
       -- Converting the stream to an array
-      , benchIOSink value "folds/lastN.Max" (S.fold (IA.lastN (value + 1)))
-      , benchIOSink value "folds/writeN" (S.fold (A.writeN value))
+      , benchIOSink bufValue "folds/lastN.Max" (S.fold (IA.lastN (bufValue + 1)))
+      , benchIOSink bufValue "folds/writeN" (S.fold (A.writeN bufValue))
 
       -- Reversing/sorting a stream
-      , benchIOSink value "reverse" (Ops.reverse 1)
-      , benchIOSink value "reverse'" (Ops.reverse' 1)
+      , benchIOSink bufValue "reverse" (Ops.reverse 1)
+      , benchIOSink bufValue "reverse'" (Ops.reverse' 1)
 
         -- XXX can these be streaming? Can we have special read/show style type
         -- classes supporting streaming?
-      , mkString value `deepseq` (bench "readsPrec pure streams" $
-                                nf Ops.readInstance (mkString value))
-      , mkString value `deepseq` (bench "readsPrec Haskell lists" $
-                                nf Ops.readInstanceList (mkListString value))
-      , mkList value `deepseq` (bench "showPrec Haskell lists" $
-                                nf Ops.showInstanceList (mkList value))
+      , mkString bufValue `deepseq` (bench "readsPrec pure streams" $
+                                nf Ops.readInstance (mkString bufValue))
+      , mkString bufValue `deepseq` (bench "readsPrec Haskell lists" $
+                                nf Ops.readInstanceList (mkListString bufValue))
+      , mkList bufValue `deepseq` (bench "showPrec Haskell lists" $
+                                nf Ops.showInstanceList (mkList bufValue))
 
       -- XXX streaming operations that can potentially be fixed
-      , benchPureSink value "foldable/sum" Ops.foldableSum
-      , benchIOSink value "tail" Ops.tail
-      , benchIOSink value "nullHeadTail" Ops.nullHeadTail
+      , benchPureSink bufValue "foldable/sum" Ops.foldableSum
+      , benchIOSink bufValue "tail" Ops.tail
+      , benchIOSink bufValue "nullHeadTail" Ops.nullHeadTail
       , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
-                (Ops.concatUnfoldInterleaveRepl4xN value)
+                (Ops.concatUnfoldInterleaveRepl4xN bufValue)
       , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
-                (Ops.concatUnfoldRoundrobinRepl4xN value)
+                (Ops.concatUnfoldRoundrobinRepl4xN bufValue)
       ]
     ]
