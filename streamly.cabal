@@ -245,7 +245,7 @@ common test-options
 
   ghc-options:  -O0
                 -fno-ignore-asserts
-  if flag(fusion-plugin)
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
         fusion-plugin     >= 0.1   && < 0.2
@@ -253,7 +253,7 @@ common test-options
 -- Used by maxrate test, benchmarks and executables
 common exe-options
   import: compile-options, optimization-options, threading-options
-  if flag(fusion-plugin)
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
         fusion-plugin     >= 0.1   && < 0.2
@@ -263,7 +263,7 @@ common exe-options
 common bench-options
   import: compile-options, optimization-options
   ghc-options: -with-rtsopts "-T -M256M"
-  if flag(fusion-plugin)
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
         fusion-plugin     >= 0.1   && < 0.2
@@ -274,7 +274,7 @@ common bench-options-threaded
   -- -threaded and -N2 is important because some GC and space leak issues
   -- trigger only with these options.
   ghc-options: -threaded -with-rtsopts "-T -N2 -M256M"
-  if flag(fusion-plugin)
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
         fusion-plugin     >= 0.1   && < 0.2
@@ -371,6 +371,7 @@ library
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
+                     , Streamly.Internal.Fusion
 
                      -- Mutable data
                      , Streamly.Internal.Mutable.Prim.Var
@@ -407,7 +408,9 @@ library
                      , monad-control     >= 1.0   && < 2
                      , transformers-base >= 0.4   && < 0.5
 
-                     , fusion-plugin     >= 0.1   && < 0.2
+  if !impl(ghcjs) && !impl(ghc < 8.6)
+    build-depends:
+                       fusion-plugin     >= 0.1 && < 0.2
 
   if !impl(ghcjs)
     build-depends:
