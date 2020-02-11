@@ -9,9 +9,9 @@
 
 ## Learning Materials
 
-* Documentation: [Overview: this readme](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference latest](https://hackage.haskell.org/package/streamly) | [Reference master](https://composewell.github.io/streamly) | [Guides](docs)
-* [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
-* Examples: [in this repo](examples) | [streamly-examples](https://github.com/composewell/streamly-examples)
+* Documentation: [Quick](#streaming-concurrently) | [Tutorial](https://hackage.haskell.org/package/streamly/docs/Streamly-Tutorial.html) | [Reference (Hackage)](https://hackage.haskell.org/package/streamly) | [Reference (Latest)](https://composewell.github.io/streamly) | [Guides](docs)
+* Installing: [Installing](./INSTALL.md) | [Building for optimal performance](docs/Build.md)
+* Examples: [streamly](examples) | [streamly-examples](https://github.com/composewell/streamly-examples)
 * Benchmarks: [Streaming](https://github.com/composewell/streaming-benchmarks) | [Concurrency](https://github.com/composewell/concurrency-benchmarks)
 * Talks: [Functional Conf 2019 Video](https://www.youtube.com/watch?v=uzsqgdMMgtk) | [Functional Conf 2019 Slides](https://www.slideshare.net/HarendraKumar10/streamly-concurrent-data-flow-programming)
 
