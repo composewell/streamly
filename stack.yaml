@@ -7,6 +7,7 @@ extra-deps:
     - Chart-diagrams-1.9.2
     - bench-show-0.2.2
     - inspection-testing-0.4.2.1
+    - fusion-plugin-0.1.1
 
 #allow-newer: true
 flags: {}
