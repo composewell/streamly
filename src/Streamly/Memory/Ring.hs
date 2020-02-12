@@ -69,7 +69,7 @@ new count = do
     let size = count * sizeOf (undefined :: a)
     fptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: a))
     let p = unsafeForeignPtrToPtr fptr
-    return $ (Ring
+    return (Ring
         { ringStart = fptr
         , ringBound = p `plusPtr` size
         }, p)
@@ -105,7 +105,7 @@ unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
 unsafeEqArrayN Ring{..} rh A.Array{..} n =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
-            let as = unsafeForeignPtrToPtr aStart
+                as = unsafeForeignPtrToPtr aStart
             assert (aBound `minusPtr` as >= ringBound `minusPtr` rs) (return ())
             let len = ringBound `minusPtr` rh
             r1 <- A.memcmp (castPtr rh) (castPtr as) (min len n)
