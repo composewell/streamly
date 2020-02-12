@@ -115,6 +115,7 @@ inspect $ hasNoTypeClassesExcept 'fromStreamVar
     , ''MonadIO
     , ''MonadBaseControl
     , ''Typeable
+    , ''Functor
     ]
 #endif
 
