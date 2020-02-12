@@ -1,36 +1,65 @@
 # Compilation Options
 
-Recommended GHC options are: 
+## Recommended Options
 
-  `-O2 -fdicts-strict -fspec-constr-recursive=16 -fmax-worker-args=16`
+Benchmarks show that GHC 8.8 has significantly better performance than GHC 8.6
+in many cases.
 
-`-fdicts-strict` is needed to avoid [a GHC
-issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
-memory leak in some cases.
+Use the following GHC options:
 
-`-fspec-constr-recursive` is needed for better stream fusion by enabling
-the `SpecConstr` optimization in more cases.
+```
+  -O2 
+  -fdicts-strict 
+  -fspec-constr-recursive=16 
+  -fmax-worker-args=16
+```
 
-`-fmax-worker-args` is needed for better stream fusion by enabling the
-`SpecConstr` optimization in some important cases.
+## Using Fusion Plugin
 
-In some cases, you may need to use `-funfolding-use-threshold` to make sure
-that the combinators fuse. The default value of this option is `60`. Increasing
-this default value can be detrimental in general, therefore, increase only if
-you suspect an issue.  Hopefully GHC will fix this so that it is not needed in
-future.  Some known examples:
+In many cases `fusion-plugin` can improve performance by better stream
+fusion. However, in some cases performance may also regress. Please note
+that the `fusion-plugin` package works only for GHC >= 8.6.
 
-* use a value of `75` to fuse `S.chunksOf n (A.writeN n)`.
-* use a value of `150` to fully fuse `S.splitSuffixOn`.
+* Install the
+[fusion-plugin](https://hackage.haskell.org/package/fusion-plugin)
+package or add it to the `build-depends` section of your program in the
+cabal file.
 
-At the very least `-O` compilation option is required. In some cases, the
-program may exhibit memory hog with default optimization options.  For example,
-the following program, if compiled without an optimization option, is known to
-hog memory:
+* Use the following GHC option in addition to the options listed in the
+  previous section:
+
+```
+  -fplugin=Fusion.Plugin 
+```
+
+## Minimal
+
+At the very least `-O -fdicts-strict` compilation options are
+required. If these options are not used, the program may exhibit memory
+hog.  For example, the following program, if compiled without an
+optimization option, is known to hog memory:
 
 ```
 main = S.drain $ S.concatMap S.fromList $ S.repeat []
 ```
+
+## Explanation
+
+* `-fdicts-strict` is needed to avoid [a GHC
+issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
+memory leak in some cases.
+
+* `-fspec-constr-recursive` is needed for better stream fusion by enabling
+the `SpecConstr` optimization in more cases.
+
+* `-fmax-worker-args` is needed for better stream fusion by enabling the
+`SpecConstr` optimization in some important cases.
+
+* `-fplugin=Fusion.Plugin` enables predictable stream fusion
+optimization in certain cases by helping the compiler inline internal
+bindings and therefore enabling case-of-case optimization. In some
+cases, especially in some fileio benchmarks, it can make a difference of
+5-10x better performance.
 
 # Multi-core Parallelism
 
@@ -42,10 +71,7 @@ multi-core parallelism use the following GHC options:
 
 # Compiler Versions
 
-GHC 8.8.x seems to have a GC issue which causes space leak in concurrent
-streams especially when used with `-N` RTS option. The root cause of
-this has not yet been established. The leak is not seen with earlier
-versions of GHC.
+Use GHC 8.8 for best performance.
 
 GHC 8.2.2 may hog memory and hang when building certain application using
 streamly (particularly the benchmark programs in the streamly package).
