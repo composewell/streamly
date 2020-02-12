@@ -21,6 +21,7 @@
 
 ### Performance
 
+* Now uses `fusion-plugin` package for predictable stream fusion optimizations
 * Significant improvement in performance of concurrent stream operations.
 
 ## 0.7.0
