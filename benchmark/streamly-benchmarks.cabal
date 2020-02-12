@@ -141,6 +141,7 @@ library lib-prelude
     if impl(ghcjs)
       buildable: False
     else
+      build-depends: ghc-prim
       buildable: True
 
 -------------------------------------------------------------------------------
