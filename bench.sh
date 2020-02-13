@@ -1,10 +1,27 @@
 #!/bin/bash
 
-ALL_BENCHMARKS="linear linear-async linear-rate nested nested-concurrent nested-unfold concurrent fileio array base"
+DEV_BENCHMARKS="concurrent base adaptive"
+SERIAL_BENCHMARKS="linear linear-rate nested nested-unfold"
+# parallel benchmark-suite is separated because we run it with a higher
+# heap size limit.
+CONCURRENT_BENCHMARKS="linear-async nested-concurrent parallel"
+ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
+
+INFINITE_BENCHMARKS="$SERIAL_BENCHMARKS linear-async nested-concurrent"
+FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel"
+
+ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $DEV_BENCHMARKS"
+
+list_benches ()  {
+  for i in $ALL_BENCHMARKS
+  do
+    echo -n "|$i"
+  done
+}
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <all|linear|linear-async|linear-rate|nested|nested-concurrent|nested-unfold|concurrent|fileio|array|base>]"
+  echo "       [--benchmarks <ALL|SERIAL|CONCURRENT|ARRAY|INFINITE|FINITE|DEV$(list_benches)>]"
   echo "       [--group-diff]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
@@ -14,9 +31,9 @@ print_help () {
   echo "       [--quick]"
   echo "       [--compare] [--base commit] [--candidate commit]"
   echo "       [--cabal-build-flags]"
-  echo "       -- <gauge options>"
+  echo "       -- <gauge options or benchmarks>"
   echo
-  echo "Multiple benchmarks can be specified as a space separate list"
+  echo "Multiple benchmarks can be specified as a space separated list"
   echo " e.g. --benchmarks \"linear nested\""
   echo
   echo "--group-diff is used to compare groups within a single benchmark"
@@ -39,12 +56,23 @@ die () {
 set_benchmarks() {
   if test -z "$BENCHMARKS"
   then
-    BENCHMARKS=$DEFAULT_BENCHMARKS
-  elif test "$BENCHMARKS" = "all"
-  then
-    BENCHMARKS=$ALL_BENCHMARKS
+    echo $DEFAULT_BENCHMARKS
+  else
+    for i in $(echo $BENCHMARKS)
+    do
+        case $i in
+          ALL) echo -n $ALL_BENCHMARKS ;;
+          DEV) echo -n $DEV_BENCHMARKS ;;
+          SERIAL) echo -n $SERIAL_BENCHMARKS ;;
+          CONCURRENT) echo -n $CONCURRENT_BENCHMARKS ;;
+          ARRAY) echo -n $ARRAY_BENCHMARKS ;;
+          INFINITE) echo -n $INFINITE_BENCHMARKS ;;
+          FINITE) echo -n $FINITE_BENCHMARKS ;;
+          *) echo -n $i ;;
+        esac
+        echo -n " "
+    done
   fi
-  echo "Using benchmark suites [$BENCHMARKS]"
 }
 
 # $1: benchmark name (linear, nested, base)
@@ -313,7 +341,12 @@ done
 GAUGE_ARGS=$*
 
 echo "Using stack command [$STACK]"
-set_benchmarks
+BENCHMARKS=$(set_benchmarks)
+if test "$LONG" -ne 0
+then
+  BENCHMARKS=$INFINITE_BENCHMARKS
+fi
+echo "Using benchmark suites [$BENCHMARKS]"
 
 # XXX we can remove these if we pass stack build flags from command line like
 # cabal build flags.

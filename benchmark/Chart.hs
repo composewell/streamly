@@ -32,7 +32,11 @@ data BenchType
     | Base
     | FileIO
     | Array
+    | UnpinnedArray
+    | SmallArray
+    | PrimArray
     | Concurrent
+    | Parallel
     deriving Show
 
 data Options = Options
@@ -76,7 +80,11 @@ parseBench = do
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array" -> setBenchType Array
+        Just "unpinned-array" -> setBenchType UnpinnedArray
+        Just "small-array" -> setBenchType SmallArray
+        Just "prim-array" -> setBenchType PrimArray
         Just "concurrent" -> setBenchType Concurrent
+        Just "parallel" -> setBenchType Parallel
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -247,9 +255,9 @@ makeFileIOGraphs :: Config -> String -> IO ()
 makeFileIOGraphs cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile "fileIO" cfg
 
-makeArrayGraphs :: Config -> String -> IO ()
-makeArrayGraphs cfg@Config{..} inputFile =
-    ignoringErr $ graph inputFile "array" cfg
+makeGraphs :: String -> Config -> String -> IO ()
+makeGraphs name cfg@Config{..} inputFile =
+    ignoringErr $ graph inputFile name cfg
 
 makeConcurrentGraphs :: Config -> String -> IO ()
 makeConcurrentGraphs cfg@Config{..} inputFile =
@@ -370,14 +378,34 @@ main = do
                             "charts/fileio"
                 Array -> benchShow opts cfg
                             { title = Just "Array" }
-                            makeArrayGraphs
+                            (makeGraphs "array")
                             "charts/array/results.csv"
                             "charts/array"
+                UnpinnedArray -> benchShow opts cfg
+                            { title = Just "Unpinned Array" }
+                            (makeGraphs "unpinned-array")
+                            "charts/unpinned-array/results.csv"
+                            "charts/unpinned-array"
+                SmallArray -> benchShow opts cfg
+                            { title = Just "Small Array" }
+                            (makeGraphs "small-array")
+                            "charts/small-array/results.csv"
+                            "charts/small-array"
+                PrimArray -> benchShow opts cfg
+                            { title = Just "Prim Array" }
+                            (makeGraphs "prim-array")
+                            "charts/prim-array/results.csv"
+                            "charts/prim-array"
                 Concurrent -> benchShow opts cfg
                             { title = Just "Concurrent Ops" }
                             makeConcurrentGraphs
                             "charts/concurrent/results.csv"
                             "charts/concurrent"
+                Parallel -> benchShow opts cfg
+                            { title = Just "Parallel" }
+                            (makeGraphs "parallel")
+                            "charts/parallel/results.csv"
+                            "charts/parallel"
                 Base -> do
                     let cfg' = cfg { title = Just "Base stream" }
                     if groupDiff
