@@ -32,6 +32,7 @@ data BenchType
     | Base
     | FileIO
     | Array
+    | ArrayCmp
     | UnpinnedArray
     | SmallArray
     | PrimArray
@@ -79,6 +80,7 @@ parseBench = do
         Just "nested-unfold" -> setBenchType NestedUnfold
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
+        Just "array-cmp" -> setBenchType ArrayCmp
         Just "array" -> setBenchType Array
         Just "unpinned-array" -> setBenchType UnpinnedArray
         Just "small-array" -> setBenchType SmallArray
@@ -255,13 +257,37 @@ makeFileIOGraphs :: Config -> String -> IO ()
 makeFileIOGraphs cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile "fileIO" cfg
 
+------------------------------------------------------------------------------
+-- Generic
+------------------------------------------------------------------------------
+
 makeGraphs :: String -> Config -> String -> IO ()
 makeGraphs name cfg@Config{..} inputFile =
     ignoringErr $ graph inputFile name cfg
 
-makeConcurrentGraphs :: Config -> String -> IO ()
-makeConcurrentGraphs cfg@Config{..} inputFile =
-    ignoringErr $ graph inputFile "concurrent" cfg
+------------------------------------------------------------------------------
+-- Arrays
+------------------------------------------------------------------------------
+
+showArrayComparisons Options{..} cfg inp out =
+    let cfg' = cfg { classifyBenchmark = classifyArray }
+    in if genGraphs
+       then ignoringErr $ graph inp "Arrays Comparison"
+                cfg' { outputDir = Just out
+                     , presentation = Groups Absolute
+                     }
+       else ignoringErr $ report inp Nothing cfg'
+
+    where
+
+    classifyArray b
+        -- SmallArray uses a small number of elements therefore cannot be
+        -- compared
+        -- | "SmallArray/" `isPrefixOf` b = ("SmallArray",) <$> stripPrefix "SmallArray/" b
+        | "Data.Prim.Array/" `isPrefixOf` b = ("Data.Prim.Array",) <$> stripPrefix "Data.Prim.Array/" b
+        | "Data.Array/" `isPrefixOf` b = ("Data.Array",) <$> stripPrefix "Data.Array/" b
+        | "array/" `isPrefixOf` b = ("array",) <$> stripPrefix "array/" b
+        | otherwise = Nothing
 
 ------------------------------------------------------------------------------
 -- Reports/Charts for base streams
@@ -396,9 +422,13 @@ main = do
                             (makeGraphs "prim-array")
                             "charts/prim-array/results.csv"
                             "charts/prim-array"
+                ArrayCmp -> showArrayComparisons opts cfg
+                            { title = Just "Arrays Comparison" }
+                            "charts/array-cmp/results.csv"
+                            "charts/array-cmp"
                 Concurrent -> benchShow opts cfg
                             { title = Just "Concurrent Ops" }
-                            makeConcurrentGraphs
+                            (makeGraphs "Concurrent")
                             "charts/concurrent/results.csv"
                             "charts/concurrent"
                 Parallel -> benchShow opts cfg

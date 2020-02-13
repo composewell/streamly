@@ -10,7 +10,8 @@ ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
 INFINITE_BENCHMARKS="$SERIAL_BENCHMARKS linear-async nested-concurrent"
 FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel"
 
-ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $DEV_BENCHMARKS"
+VIRTUAL_BENCHMARKS="array-cmp"
+ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS $DEV_BENCHMARKS"
 
 list_benches ()  {
   for i in $ALL_BENCHMARKS
@@ -68,6 +69,7 @@ set_benchmarks() {
           ARRAY) echo -n $ARRAY_BENCHMARKS ;;
           INFINITE) echo -n $INFINITE_BENCHMARKS ;;
           FINITE) echo -n $FINITE_BENCHMARKS ;;
+          array-cmp) echo -n "$ARRAY_BENCHMARKS array-cmp" ;;
           *) echo -n $i ;;
         esac
         echo -n " "
@@ -346,6 +348,27 @@ if test "$LONG" -ne 0
 then
   BENCHMARKS=$INFINITE_BENCHMARKS
 fi
+
+only_real_benchmarks () {
+  for i in $BENCHMARKS
+  do
+    local SKIP=0
+    for j in $VIRTUAL_BENCHMARKS
+    do
+      if test $i == $j
+      then
+        SKIP=1
+      fi
+    done
+    if test "$SKIP" -eq 0
+    then
+      echo -n "$i "
+    fi
+  done
+}
+
+BENCHMARKS_ORIG=$BENCHMARKS
+BENCHMARKS=$(only_real_benchmarks)
 echo "Using benchmark suites [$BENCHMARKS]"
 
 # XXX we can remove these if we pass stack build flags from command line like
@@ -407,7 +430,29 @@ fi
 # Run reports
 #-----------------------------------------------------------------------------
 
+has_benchmark () {
+  for i in $BENCHMARKS_ORIG
+  do
+    if test "$i" = "$1"
+    then
+      echo "$i"
+      break
+    fi
+  done
+}
+
+VIRTUAL_REPORTS=""
+if test "$(has_benchmark 'array-cmp')" = "array-cmp"
+then
+  VIRTUAL_REPORTS="$VIRTUAL_REPORTS array-cmp"
+  mkdir -p "charts/array-cmp"
+  cat "charts/array/results.csv" \
+      "charts/prim-array/results.csv" \
+      "charts/unpinned-array/results.csv" > "charts/array-cmp/results.csv"
+fi
+
 if test "$RAW" = "0"
 then
   run_reports "$BENCHMARKS"
+  run_reports "$VIRTUAL_REPORTS"
 fi
