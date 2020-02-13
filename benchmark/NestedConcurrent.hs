@@ -6,6 +6,7 @@
 -- Maintainer  : streamly@composewell.com
 
 import Control.DeepSeq (NFData)
+import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
@@ -29,7 +30,13 @@ main :: IO ()
 main = do
   -- XXX Fix indentation
   (linearCount, cfg, benches) <- parseCLIOpts defaultStreamSize
-  linearCount `seq` runMode (mode cfg) cfg benches
+  let finiteCount = min linearCount defaultStreamSize
+  when (finiteCount /= linearCount) $
+    putStrLn $ "Limiting stream size to "
+               ++ show defaultStreamSize
+               ++ " for finite stream operations only"
+
+  finiteCount `seq` linearCount `seq` runMode (mode cfg) cfg benches
     [
       bgroup "aheadly"
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       aheadly
@@ -55,19 +62,22 @@ main = do
       , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount asyncly
       ]
 
-    , bgroup "wAsyncly"
-      [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       wAsyncly
-      , benchIO "toNull"         $ Ops.toNull linearCount         wAsyncly
-      , benchIO "toNull3"        $ Ops.toNull3 linearCount        wAsyncly
-      -- , benchIO "toList"         $ Ops.toList linearCount         wAsyncly
-      , benchIO "toListSome"     $ Ops.toListSome linearCount     wAsyncly
-      , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   wAsyncly
-      , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    wAsyncly
-      , benchIO "filterSome"     $ Ops.filterSome linearCount     wAsyncly
-      , benchIO "breakAfterSome" $ Ops.breakAfterSome linearCount wAsyncly
-      ]
-
     , bgroup "zipAsyncly"
       [ benchIO "toNullAp"       $ Ops.toNullAp linearCount       zipAsyncly
+      ]
+
+    -- Operations that are not scalable to infinite streams
+    , bgroup "finite"
+      [ bgroup "wAsyncly"
+        [ benchIO "toNullAp"       $ Ops.toNullAp finiteCount       wAsyncly
+        , benchIO "toNull"         $ Ops.toNull finiteCount         wAsyncly
+        , benchIO "toNull3"        $ Ops.toNull3 finiteCount        wAsyncly
+        -- , benchIO "toList"         $ Ops.toList finiteCount         wAsyncly
+        , benchIO "toListSome"     $ Ops.toListSome finiteCount     wAsyncly
+        , benchIO "filterAllOut"   $ Ops.filterAllOut finiteCount   wAsyncly
+        -- , benchIO "filterAllIn"    $ Ops.filterAllIn finiteCount    wAsyncly
+        , benchIO "filterSome"     $ Ops.filterSome finiteCount     wAsyncly
+        , benchIO "breakAfterSome" $ Ops.breakAfterSome finiteCount wAsyncly
+        ]
       ]
     ]
