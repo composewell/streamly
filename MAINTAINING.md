@@ -33,7 +33,13 @@
     * Run benchmarks with large stream size (`bench.sh -- long`) to
       check for space leaks and to ensure constant memory usage for streaming
       operations.
+    * Run benchmarks with `dev` flag on. Some `fileio` benchmarks are disabled
+      in regular runs.
     * Check comparative benchmarks using streaming-benchmarks
+
+* _Tests_:
+
+    * Run tests with `dev` flag on. Many tests are disabled in regular runs.
 
 * _Update Package Metadata:_
 
