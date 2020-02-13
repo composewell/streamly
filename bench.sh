@@ -342,7 +342,6 @@ do
 done
 GAUGE_ARGS=$*
 
-echo "Using stack command [$STACK]"
 BENCHMARKS=$(set_benchmarks)
 if test "$LONG" -ne 0
 then
@@ -371,21 +370,29 @@ BENCHMARKS_ORIG=$BENCHMARKS
 BENCHMARKS=$(only_real_benchmarks)
 echo "Using benchmark suites [$BENCHMARKS]"
 
-# XXX we can remove these if we pass stack build flags from command line like
-# cabal build flags.
-if echo "$BENCHMARKS" | grep -q base
-then
-  STACK_BUILD_FLAGS="--flag streamly:dev"
-fi
+has_benchmark () {
+  for i in $BENCHMARKS_ORIG
+  do
+    if test "$i" = "$1"
+    then
+      echo "$i"
+      break
+    fi
+  done
+}
 
-for i in $BENCHMARKS
+for i in $DEV_BENCHMARKS
 do
-  if test "$i" = concurrent
+  if test $(has_benchmark $i) = "$i"
   then
-    STACK_BUILD_FLAGS="--flag streamly:dev"
-    break
+    STACK_DEV_FLAG="--flag streamly:dev"
+    CABAL_DEV_FLAG="--flag dev"
+
   fi
 done
+
+STACK_BUILD_FLAGS="$STACK_BUILD_FLAGS $STACK_DEV_FLAG"
+CABAL_BUILD_FLAGS="$CABAL_BUILD_FLAGS $CABAL_DEV_FLAG"
 
 if test "$USE_STACK" = "1"
 then
@@ -429,17 +436,6 @@ fi
 #-----------------------------------------------------------------------------
 # Run reports
 #-----------------------------------------------------------------------------
-
-has_benchmark () {
-  for i in $BENCHMARKS_ORIG
-  do
-    if test "$i" = "$1"
-    then
-      echo "$i"
-      break
-    fi
-  done
-}
 
 VIRTUAL_REPORTS=""
 if test "$(has_benchmark 'array-cmp')" = "array-cmp"
