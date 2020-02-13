@@ -3,7 +3,7 @@ currently shipped with the package.  To find parts of the code where the
 original or modified code has been included please search for the copyright
 notices in the individual files.
 
-## Unreleased
+## 0.7.1
 
 * For compatibility with older GHC versions portions of PrimArray and
   SmallArray code is taken from "primitive" package.

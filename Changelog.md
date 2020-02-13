@@ -1,4 +1,4 @@
-## Unreleased
+## 0.7.1
 
 ### Bug Fixes
 
@@ -12,6 +12,8 @@
   The issue occurs only in cases when a worker thread happens to be used
   continuously for a long time.
 * Fix scheduling of WAsyncT stream style to be in round-robin fashion.
+* Now builds with `containers` package version < 0.5.8.
+* Now builds with `network` package version >= 3.0.0.0 && < 3.1.0.0.
 
 ### Behavior change
 
@@ -23,6 +25,7 @@
 
 * Now uses `fusion-plugin` package for predictable stream fusion optimizations
 * Significant improvement in performance of concurrent stream operations.
+* Improved space and time performance of `Foldable` instance.
 
 ## 0.7.0
 
