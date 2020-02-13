@@ -1055,8 +1055,7 @@ demuxWith f kv = Fold step initial extract
 -- > let table = Data.Map.fromList [(\"SUM", FL.sum), (\"PRODUCT", FL.product)]
 --       input = S.fromList [(\"SUM",1),(\"PRODUCT",2),(\"SUM",3),(\"PRODUCT",4)]
 --   in S.fold (FL.demux table) input
--- One 1
--- Two 2
+-- fromList [("PRODUCT",8),("SUM",4)]
 -- @
 --
 -- @since 0.7.0
