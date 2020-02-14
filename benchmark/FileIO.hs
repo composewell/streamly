@@ -30,6 +30,9 @@ blockSize, blockCount :: Int
 blockSize = 32768
 blockCount = 3200
 
+fileSize :: Int
+fileSize = blockSize * blockCount
+
 #ifdef DEVBUILD
 -- This is a 500MB text file for text processing benchmarks.  We cannot
 -- have it in the repo, therefore we use it locally with DEVBUILD
@@ -37,9 +40,6 @@ blockCount = 3200
 -- this file are available only in DEVBUILD mode.
 infile :: String
 infile = "benchmark/text-processing/gutenberg-500.txt"
-
-fileSize :: Int
-fileSize = blockSize * blockCount
 
 #else
 infile :: String
@@ -204,21 +204,26 @@ main = do
                Handles inh outh <- readIORef href
                BFS.copyCodecUtf8Lenient inh outh
            ]
-        , bgroup "grouping"
-            [ mkBench "chunksOf (single chunk)" href $ do
+#endif
+        , bgroup "grouping-chunks"
+            [ mkBench "sumChunksOf (single chunk)" href $ do
                 Handles inh _ <- readIORef href
-                BFS.chunksOf fileSize inh
+                BFS.chunksOfSum fileSize inh
+            , mkBench "sumChunksOf 1" href $ do
+                Handles inh _ <- readIORef href
+                BFS.chunksOfSum 1 inh
 
-            , mkBench "chunksOf 1" href $ do
+            , mkBench "arraysOf 1" href $ do
                 Handles inh _ <- readIORef href
                 BFS.chunksOf 1 inh
-            , mkBench "chunksOf 10" href $ do
+            , mkBench "arraysOf 10" href $ do
                 Handles inh _ <- readIORef href
                 BFS.chunksOf 10 inh
-            , mkBench "chunksOf 1000" href $ do
+            , mkBench "arraysOf 1000" href $ do
                 Handles inh _ <- readIORef href
                 BFS.chunksOf 1000 inh
             ]
+#ifdef DEVBUILD
         , bgroup "group-ungroup-stream"
             [ mkBench "lines-unlines-[Char]" href $ do
                 Handles inh outh <- readIORef href

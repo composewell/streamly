@@ -56,6 +56,7 @@ module Streamly.Benchmark.FileIO.Stream
     , copyCodecUtf8
     , decodeUtf8Lax
     , copyCodecUtf8Lenient
+    , chunksOfSum
     , chunksOf
     , chunksOfD
     , splitOn
@@ -402,6 +403,10 @@ inspect $ hasNoTypeClasses 'copyCodecUtf8Lenient
 -- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''AT.FlattenState
 -- inspect $ 'copyCodecUtf8Lenient `hasNoType` ''D.ConcatMapUState
 #endif
+
+{-# INLINE chunksOfSum #-}
+chunksOfSum :: Int -> Handle -> IO Int
+chunksOfSum n inh = S.length $ S.chunksOf n FL.sum (S.unfold FH.read inh)
 
 -- | Slice in chunks of size n and get the count of chunks.
 {-# INLINE chunksOf #-}
