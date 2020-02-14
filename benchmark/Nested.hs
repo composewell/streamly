@@ -35,6 +35,7 @@ main = do
       , benchIO "toNull"         $ Ops.toNull linearCount         serially
       , benchIO "toNull3"        $ Ops.toNull3 linearCount        serially
       -- , benchIO "toList"         $ Ops.toList linearCount         serially
+      -- XXX takes too much stack space
       , benchIO "toListSome"     $ Ops.toListSome linearCount     serially
       , benchIO "filterAllOut"   $ Ops.filterAllOut linearCount   serially
       , benchIO "filterAllIn"    $ Ops.filterAllIn linearCount    serially

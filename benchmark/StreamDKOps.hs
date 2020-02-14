@@ -13,9 +13,8 @@ module StreamDKOps where
 -- import Control.Monad (when)
 -- import Data.Maybe (isJust)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, even, (>), (<=), div,
-        subtract, undefined, Maybe(..), not, (>>=),
-        maxBound, flip, (<$>), (<*>), round, (/), (**), (<))
+       (Monad, Int, (+), (.), return, undefined, Maybe(..), round, (/),
+        (**), (>))
 import qualified Prelude as P
 -- import qualified Data.List as List
 

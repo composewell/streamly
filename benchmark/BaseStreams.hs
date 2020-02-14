@@ -41,6 +41,7 @@ benchFold :: NFData b
     => String -> (t IO Int -> IO b) -> (Int -> t IO Int) -> Benchmark
 benchFold name f src = bench name $ nfIO $ randomRIO (1,1) >>= f . src
 
+#ifdef DEVBUILD
 -- | Takes a source, and uses it with a default drain/fold method.
 {-# INLINE benchD #-}
 benchD :: String -> (Int -> D.Stream IO Int) -> Benchmark
@@ -49,6 +50,7 @@ benchD name f = bench name $ nfIO $ randomRIO (1,1) >>= D.toNull . f
 {-# INLINE benchK #-}
 benchK :: String -> (Int -> K.Stream IO Int) -> Benchmark
 benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= K.toNull . f
+#endif
 
 {-
 _benchId :: NFData b => String -> (Ops.Stream m Int -> Identity b) -> Benchmark
@@ -75,10 +77,14 @@ main =
         [ benchIO "toNull"   D.toNull   D.sourceUnfoldrM
         , benchIO "mapM_"    D.mapM_    D.sourceUnfoldrM
         , benchIO "uncons"   D.uncons   D.sourceUnfoldrM
+#ifdef DEVBUILD
+        -- XXX these consume too much stack space, need to fix or segregate in
+        -- another benchmark.
         , benchFold "tail"   D.tail     D.sourceUnfoldrM
         , benchIO "nullTail" D.nullTail D.sourceUnfoldrM
         , benchIO "headTail" D.headTail D.sourceUnfoldrM
         , benchFold "toList" D.toList   D.sourceUnfoldrM
+#endif
         , benchFold "foldl'" D.foldl    D.sourceUnfoldrM
         , benchFold "last"   D.last     D.sourceUnfoldrM
         ]
@@ -186,6 +192,9 @@ main =
         , benchIO "filter-scan" (D.filterScan 4) D.sourceUnfoldrM
         , benchIO "filter-map"  (D.filterMap  4) D.sourceUnfoldrM
         ]
+#ifdef DEVBUILD
+        -- XXX these consume too much stack space, need to fix or segregate in
+        -- another benchmark.
       , bgroup "iterated"
         [ benchD "mapM"                 D.iterateMapM
         , benchD "scan(1/10)"           D.iterateScan
@@ -197,6 +206,7 @@ main =
         , benchD "iterateM"             D.iterateM
 
         ]
+#endif
       ]
     , bgroup "list"
       [ bgroup "elimination"
@@ -228,10 +238,14 @@ main =
         , benchIO "mapM_"    K.mapM_    K.sourceUnfoldrM
         , benchIO "uncons"   K.uncons   K.sourceUnfoldrM
         , benchFold "init"   K.init     K.sourceUnfoldrM
+#ifdef DEVBUILD
+        -- XXX these consume too much stack space, need to fix or segregate in
+        -- another benchmark.
         , benchFold "tail"   K.tail     K.sourceUnfoldrM
         , benchIO "nullTail" K.nullTail K.sourceUnfoldrM
         , benchIO "headTail" K.headTail K.sourceUnfoldrM
         , benchFold "toList" K.toList   K.sourceUnfoldrM
+#endif
         , benchFold "foldl'" K.foldl    K.sourceUnfoldrM
         , benchFold "last"   K.last     K.sourceUnfoldrM
         ]
@@ -260,7 +274,10 @@ main =
             (K.sourceUnfoldrMN (K.value `div` 4))
         , benchIO "intersperse" (K.intersperse 1) (K.sourceUnfoldrMN K.value2)
         , benchIO "interspersePure" (K.intersperse 1) (K.sourceUnfoldrN K.value2)
+#ifdef DEVBUILD
+        -- XXX this consumes too much heap
         , benchIO "foldlS" (K.foldlS 1) K.sourceUnfoldrM
+#endif
         ]
       , bgroup "transformationX4"
         [ benchIO "scan"   (K.scan 4) K.sourceUnfoldrM
@@ -332,6 +349,9 @@ main =
         , benchIO "filter-scan" (K.filterScan 4) K.sourceUnfoldrM
         , benchIO "filter-map"  (K.filterMap  4) K.sourceUnfoldrM
         ]
+#ifdef DEVBUILD
+        -- XXX these consume too much stack space, need to fix or segregate in
+        -- another benchmark.
       , bgroup "iterated"
         [ benchK "mapM"                 K.iterateMapM
         , benchK "scan(1/10)"           K.iterateScan
@@ -341,6 +361,7 @@ main =
         , benchK "dropWhileFalse(1/10)" K.iterateDropWhileFalse
         , benchK "dropWhileTrue"        K.iterateDropWhileTrue
         ]
+#endif
       ]
     , bgroup "streamDK"
       [ bgroup "generation"

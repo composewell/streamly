@@ -262,7 +262,7 @@ common exe-options
 -- XXX dependencies should be separated under bench-depends
 common bench-options
   import: compile-options, optimization-options
-  ghc-options: -with-rtsopts "-T -M256M"
+  ghc-options: -with-rtsopts "-T -K32K -M16M"
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
@@ -273,7 +273,7 @@ common bench-options-threaded
   import: compile-options, optimization-options
   -- -threaded and -N2 is important because some GC and space leak issues
   -- trigger only with these options.
-  ghc-options: -threaded -with-rtsopts "-T -N2 -M256M"
+  ghc-options: -threaded -with-rtsopts "-T -N2 -K32K -M16M"
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
@@ -670,6 +670,9 @@ benchmark linear
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  -- XXX heap/stack limits can be reduced once we split out the buffered
+  -- benchmarks into a separate suite
+  ghc-options: -with-rtsopts "-T -K4M -M128M"
   main-is: Linear.hs
   other-modules: Streamly.Benchmark.Prelude, Common
   build-depends:
@@ -689,6 +692,7 @@ benchmark nested
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K256K -M16M"
   main-is: Nested.hs
   other-modules: NestedOps, Common
   build-depends:
@@ -705,6 +709,7 @@ benchmark nested-unfold
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K64K -M16M"
   main-is: NestedUnfold.hs
   other-modules: NestedUnfoldOps, Common
   build-depends:
@@ -721,6 +726,7 @@ benchmark unpinned-array
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K1K -M128M"
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
   build-depends:
@@ -737,6 +743,7 @@ benchmark prim-array
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K64K -M32M"
   main-is: Streamly/Benchmark/Data/Prim/Array.hs
   other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
   build-depends:
@@ -753,6 +760,7 @@ benchmark small-array
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K128K -M16M"
   main-is: Streamly/Benchmark/Data/SmallArray.hs
   other-modules: Streamly.Benchmark.Data.SmallArrayOps
   build-depends:
@@ -769,6 +777,7 @@ benchmark array
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -K64K -M128M"
   main-is: Array.hs
   other-modules: ArrayOps
   build-depends:
@@ -809,6 +818,7 @@ benchmark linear-async
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
   main-is: LinearAsync.hs
   other-modules: Streamly.Benchmark.Prelude, Common
   build-depends:
@@ -828,6 +838,8 @@ benchmark nested-concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  -- XXX this can be lowered once we split out the finite benchmarks
+  ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
   main-is: NestedConcurrent.hs
   other-modules: NestedOps, Common
   build-depends:
@@ -844,6 +856,7 @@ benchmark parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
   main-is: Parallel.hs
   other-modules: Streamly.Benchmark.Prelude, NestedOps, Common
   build-depends:
@@ -883,14 +896,11 @@ benchmark concurrent
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Concurrent.hs
-  if flag(dev)
-    buildable: True
-    build-depends:
-        streamly
-      , base                >= 4.8   && < 5
-      , gauge               >= 0.2.4 && < 0.3
-  else
-    buildable: False
+  ghc-options: -with-rtsopts "-T -N2 -K256K -M384M"
+  build-depends:
+      streamly
+    , base                >= 4.8   && < 5
+    , gauge               >= 0.2.4 && < 0.3
 
 -------------------------------------------------------------------------------
 -- Internal benchmarks
@@ -900,21 +910,22 @@ benchmark base
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
+  if flag(dev)
+      cpp-options: -DDEVBUILD
+      ghc-options: -with-rtsopts "-T -K2M -M16M"
+  else
+      ghc-options: -with-rtsopts "-T -K128K -M16M"
   main-is: BaseStreams.hs
   other-modules:     StreamDOps
                    , StreamKOps
                    , StreamDKOps
 
-  if flag(dev)
-    buildable: True
-    build-depends:
+  build-depends:
         streamly
       , base              >= 4.8   && < 5
       , deepseq           >= 1.4.1 && < 1.5
       , random            >= 1.0   && < 2.0
       , gauge             >= 0.2.4 && < 0.3
-  else
-    buildable: False
 
 executable nano-bench
   import: bench-options
@@ -931,20 +942,16 @@ executable nano-bench
     buildable: False
 
 benchmark adaptive
-  import: bench-options
+  import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: benchmark
   main-is: Adaptive.hs
   default-language: Haskell2010
-  if flag(dev)
-    buildable: True
-    build-depends:
-        streamly
-      , base              >= 4.8   && < 5
-      , gauge             >= 0.2.4 && < 0.3
-      , random            >= 1.0   && < 2.0
-  else
-    buildable: False
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , gauge             >= 0.2.4 && < 0.3
+    , random            >= 1.0   && < 2.0
 
 executable chart
   default-language: Haskell2010

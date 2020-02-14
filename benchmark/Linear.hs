@@ -434,16 +434,6 @@ main = do
       , benchIOSink value "filter-scanl1" (Ops.filterScanl1 4)
       , benchIOSink value "filter-map"  (Ops.filterMap value 4)
       ]
-    , bgroup "iterated"
-      [ benchIOSrc serially "mapM"           Ops.iterateMapM
-      , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
-      , benchIOSrc serially "scanl1(1/100)"  Ops.iterateScanl1
-      , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
-      , benchIOSrc serially "takeAll"        (Ops.iterateTakeAll value)
-      , benchIOSrc serially "dropOne"        Ops.iterateDropOne
-      , benchIOSrc serially "dropWhileFalse" (Ops.iterateDropWhileFalse value)
-      , benchIOSrc serially "dropWhileTrue"  (Ops.iterateDropWhileTrue value)
-      ]
       ]
     , bgroup "wSerially"
         [ bgroup "transformation"
@@ -460,11 +450,24 @@ main = do
     --
     -- These are also the operations that programmers should be aware of and
     -- should avoid using in a streaming application.
+
+    -- XXX stack dominant (upto 1M), segregate?
+    , bgroup "iterated"
+      [ benchIOSrc serially "mapM"           Ops.iterateMapM
+      , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
+      , benchIOSrc serially "scanl1(1/100)"  Ops.iterateScanl1
+      , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
+      , benchIOSrc serially "takeAll"        (Ops.iterateTakeAll value)
+      , benchIOSrc serially "dropOne"        Ops.iterateDropOne
+      , benchIOSrc serially "dropWhileFalse" (Ops.iterateDropWhileFalse value)
+      , benchIOSrc serially "dropWhileTrue"  (Ops.iterateDropWhileTrue value)
+      ]
     , bgroup "buffered"
       [ -- Inherently non-streaming operations
 
       -- Right folds for reducing are inherently non-streaming as the
       -- expression needs to be fully built before it can be reduced.
+      -- XXX Stack dominant (up to 4MB), segregate?
         benchIOSink bufValue "foldrM/reduce/IO" Ops.foldrMReduce
       , benchIdentitySink bufValue "foldrM/reduce/Identity" Ops.foldrMReduce
 
@@ -476,12 +479,15 @@ main = do
       , benchIdentitySink bufValue "foldlM'/build/Identity" Ops.foldlM'Build
 
       -- accumulation due to strictness of IO monad
+      -- XXX Stack dominant, segregate?
       , benchIOSink bufValue "foldrM/build/IO" Ops.foldrMBuild
       , benchPureSinkIO bufValue "traversable/mapM" Ops.traversableMapM
 
       -- Converting the stream to a list or pure stream
+      -- XXX Stack dominant, segregate?
       , benchIOSink bufValue "toList" Ops.toList
       , benchIOSink bufValue "toListRev" Ops.toListRev
+
       , benchIOSink bufValue "toStream" (S.fold IP.toStream)
       , benchIOSink bufValue "toStreamRev" (S.fold IP.toStreamRev)
 
@@ -506,9 +512,12 @@ main = do
                                 nf Ops.showInstanceList (mkList bufValue))
 
       -- XXX streaming operations that can potentially be fixed
+
+      -- XXX These consume a lot of stack, fix or segregate
       , benchPureSink bufValue "foldable/sum" Ops.foldableSum
       , benchIOSink bufValue "tail" Ops.tail
       , benchIOSink bufValue "nullHeadTail" Ops.nullHeadTail
+
       , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
                 (Ops.concatUnfoldInterleaveRepl4xN bufValue)
       , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
