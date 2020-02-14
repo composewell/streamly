@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEV_BENCHMARKS="concurrent base adaptive"
+DEV_BENCHMARKS="base concurrent adaptive"
 SERIAL_BENCHMARKS="linear linear-rate nested nested-unfold"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
@@ -10,7 +10,9 @@ ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
 INFINITE_BENCHMARKS="$SERIAL_BENCHMARKS linear-async nested-concurrent"
 FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel"
 
+QUICK_BENCHMARKS="linear-rate concurrent adaptive"
 VIRTUAL_BENCHMARKS="array-cmp"
+
 ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS $DEV_BENCHMARKS"
 
 list_benches ()  {
@@ -172,6 +174,7 @@ run_bench () {
   local bench_name=$1
   local output_file=$(bench_output_file $bench_name)
   local bench_prog
+  local quick_bench=0
   bench_prog=$($GET_BENCH_PROG $bench_name) || \
     die "Cannot find benchmark executable for benchmark $bench_name"
 
@@ -179,13 +182,21 @@ run_bench () {
 
   echo "Running benchmark $bench_name ..."
 
+  for i in $QUICK_BENCHMARKS
+  do
+    if test "$(has_benchmark $i)" = "$bench_name"
+    then
+      quick_bench=1
+    fi
+  done
+
   local QUICK_OPTS="--quick --time-limit 1 --min-duration 0"
   local SPEED_OPTIONS
   if test "$LONG" -eq 0
   then
     if test "$SLOW" -eq 0
     then
-        if test "$QUICK" -eq 0
+        if test "$QUICK" -eq 0 -a "$quick_bench" -eq 0
         then
           # reasonably quick
           SPEED_OPTIONS="$QUICK_OPTS --min-samples 10"
@@ -383,11 +394,10 @@ has_benchmark () {
 
 for i in $DEV_BENCHMARKS
 do
-  if test $(has_benchmark $i) = "$i"
+  if test "$(has_benchmark $i)" = "$i"
   then
     STACK_DEV_FLAG="--flag streamly:dev"
     CABAL_DEV_FLAG="--flag dev"
-
   fi
 done
 
