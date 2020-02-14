@@ -1,19 +1,18 @@
 #!/bin/bash
 
-DEV_BENCHMARKS="base concurrent adaptive"
-SERIAL_BENCHMARKS="linear linear-rate nested nested-unfold"
+SERIAL_BENCHMARKS="linear linear-rate nested nested-unfold base"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
-CONCURRENT_BENCHMARKS="linear-async nested-concurrent parallel"
+CONCURRENT_BENCHMARKS="linear-async nested-concurrent parallel concurrent adaptive"
 ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
 
 INFINITE_BENCHMARKS="$SERIAL_BENCHMARKS linear-async nested-concurrent"
-FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel"
+FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel concurrent adaptive"
 
 QUICK_BENCHMARKS="linear-rate concurrent adaptive"
 VIRTUAL_BENCHMARKS="array-cmp"
 
-ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS $DEV_BENCHMARKS"
+ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS"
 
 list_benches ()  {
   for i in $ALL_BENCHMARKS
@@ -65,7 +64,6 @@ set_benchmarks() {
     do
         case $i in
           ALL) echo -n $ALL_BENCHMARKS ;;
-          DEV) echo -n $DEV_BENCHMARKS ;;
           SERIAL) echo -n $SERIAL_BENCHMARKS ;;
           CONCURRENT) echo -n $CONCURRENT_BENCHMARKS ;;
           ARRAY) echo -n $ARRAY_BENCHMARKS ;;
@@ -391,18 +389,6 @@ has_benchmark () {
     fi
   done
 }
-
-for i in $DEV_BENCHMARKS
-do
-  if test "$(has_benchmark $i)" = "$i"
-  then
-    STACK_DEV_FLAG="--flag streamly:dev"
-    CABAL_DEV_FLAG="--flag dev"
-  fi
-done
-
-STACK_BUILD_FLAGS="$STACK_BUILD_FLAGS $STACK_DEV_FLAG"
-CABAL_BUILD_FLAGS="$CABAL_BUILD_FLAGS $CABAL_DEV_FLAG"
 
 if test "$USE_STACK" = "1"
 then
