@@ -7,6 +7,7 @@ module Main where
 import Control.Exception (handle, catch, SomeException, ErrorCall(..))
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Maybe
+import Data.Char (toLower)
 import Data.Function (on, (&))
 import Data.List
 import Data.List.Split
@@ -38,6 +39,7 @@ data BenchType
     | PrimArray
     | Concurrent
     | Parallel
+    | Adaptive
     deriving Show
 
 data Options = Options
@@ -87,6 +89,7 @@ parseBench = do
         Just "prim-array" -> setBenchType PrimArray
         Just "concurrent" -> setBenchType Concurrent
         Just "parallel" -> setBenchType Parallel
+        Just "adaptive" -> setBenchType Adaptive
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -360,6 +363,12 @@ main = do
     let cfg = defaultConfig
             { presentation = Groups PercentDiff
             , selectBenchmarks = selectBench
+            , selectFields = filter
+                ( flip elem ["time" , "mean"
+                            , "maxrss", "cputime"
+                            ]
+                . map toLower
+                )
             }
     res <- parseOptions
 
@@ -379,7 +388,9 @@ main = do
                             makeLinearAsyncGraphs
                             "charts/linear-async/results.csv"
                             "charts/linear-async"
-                LinearRate -> benchShow opts cfg makeLinearRateGraphs
+                LinearRate -> benchShow opts cfg
+                            { title = Just "Linear Rate" }
+                            makeLinearRateGraphs
                             "charts/linear-rate/results.csv"
                             "charts/linear-rate"
                 Nested -> benchShow opts cfg
@@ -436,6 +447,11 @@ main = do
                             (makeGraphs "parallel")
                             "charts/parallel/results.csv"
                             "charts/parallel"
+                Adaptive -> benchShow opts cfg
+                            { title = Just "Adaptive" }
+                            (makeGraphs "adaptive")
+                            "charts/adaptive/results.csv"
+                            "charts/adaptive"
                 Base -> do
                     let cfg' = cfg { title = Just "Base stream" }
                     if groupDiff
