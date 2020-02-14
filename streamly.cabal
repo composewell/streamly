@@ -249,7 +249,7 @@ common test-options
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
-        fusion-plugin     >= 0.1   && < 0.2
+        fusion-plugin     >= 0.2   && < 0.3
 
 -- Used by maxrate test, benchmarks and executables
 common exe-options
@@ -257,7 +257,7 @@ common exe-options
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
-        fusion-plugin     >= 0.1   && < 0.2
+        fusion-plugin     >= 0.2   && < 0.3
 
 -- Some benchmarks are threaded some are not
 -- XXX dependencies should be separated under bench-depends
@@ -267,7 +267,7 @@ common bench-options
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
-        fusion-plugin     >= 0.1   && < 0.2
+        fusion-plugin     >= 0.2   && < 0.3
   build-depends: mtl >= 2.2 && < 3
 
 common bench-options-threaded
@@ -278,7 +278,7 @@ common bench-options-threaded
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     ghc-options: -fplugin Fusion.Plugin
     build-depends:
-        fusion-plugin     >= 0.1   && < 0.2
+        fusion-plugin     >= 0.2   && < 0.3
   build-depends: mtl >= 2.2 && < 3
 
 -------------------------------------------------------------------------------
@@ -373,7 +373,6 @@ library
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
                      , Streamly.Internal.Prelude
-                     , Streamly.Internal.Fusion
 
                      -- Mutable data
                      , Streamly.Internal.Mutable.Prim.Var
@@ -410,9 +409,7 @@ library
                      , monad-control     >= 1.0   && < 2
                      , transformers-base >= 0.4   && < 0.5
 
-  if !impl(ghcjs) && !impl(ghc < 8.6)
-    build-depends:
-                       fusion-plugin     >= 0.1 && < 0.2
+                     , fusion-plugin-types >= 0.1 && < 0.2
 
   if !impl(ghcjs)
     build-depends:

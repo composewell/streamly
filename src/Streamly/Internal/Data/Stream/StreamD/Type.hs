@@ -74,7 +74,7 @@ import Data.Functor.Identity (Identity(..))
 import GHC.Base (build)
 import GHC.Types (SPEC(..))
 import Prelude hiding (map, mapM, foldr, take, concatMap)
-import Streamly.Internal.Fusion (Fuse(..))
+import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
