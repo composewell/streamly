@@ -1,8 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 #include "inline.hs"
 
@@ -204,7 +200,7 @@ stderr = Handle FD.stderr
 -- the same absolute path name and neither has been renamed, for example.
 --
 openFile :: FilePath -> IOMode -> IO Handle
-openFile path mode = fmap (Handle . fst) $ FD.openFile path mode True
+openFile path mode = Handle . fst <$> FD.openFile path mode True
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
@@ -241,7 +237,7 @@ readArrayUpto size (Handle fd) = do
 {-# INLINABLE writeArray #-}
 writeArray :: Storable a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p -> do
+writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
     -- RawIO.writeAll fd (castPtr p) aLen
     RawIO.write fd (castPtr p) aLen
     {-
@@ -349,7 +345,7 @@ read = AS.concat . readArrays
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
 writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
-writeArrays h m = S.mapM_ (liftIO . writeArray h) m
+writeArrays h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
 -- specified size. The chunk size is only a maximum and the actual writes could
@@ -369,7 +365,7 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 -- @since 0.7.0
 {-# INLINE writev #-}
 writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
-writev h m = S.mapM_ (liftIO . writeIOVec h) m
+writev h = S.mapM_ (liftIO . writeIOVec h)
 
 -- XXX this is incomplete
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
