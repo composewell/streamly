@@ -7,6 +7,8 @@
 * Benchmarks are added where applicable
 * Run benchmarks locally if you suspect any regressions
 * Documentation is added for any new combinators
+  * New combinators have time and space complexity annotations
+  * New combinators have `since` annotation
 * Changelog entry is added for exposed combinators.
 * Optionally, look at hlint output if anything in that is worth fixing.
 * Merge the PR by rebasing. Note that github always creates new commits when
@@ -22,10 +24,12 @@
   be removed in this release.
 * _Documentation_:
 
-    * Update the README if needed.
-    * Make sure haddock docs are consistent with the changes in the release
-    * Make sure tutorial has been updated for new changes
-    * Make sure documents in the docs directory are consistent with new changes
+    * README is updated
+    * Haddock docs are consistent with the changes in the release
+    * Tutorial has been updated for new changes
+    * Documents in the `docs` directory are consistent with new changes
+    * All combinators have time and space complexity annotations
+    * All combinators have `since` annotation
 
 * _Benchmarks_:
 
@@ -51,18 +55,20 @@
     * Make sure any additional files are added to `extra-source-files` in cabal
       file
 
-* _Update changelog & Version_:
+* Copyrights and Contibutors
 
-    * Change the `Unreleased` section at the top of changelog file to the new
-      release version number.
     * Make sure contributors to the release are listed in
       `credits/CONTRIBUTORS.md`.
     * Make sure any third party code included in the release has been listed in
       `credits/COPYRIGHTS.md` and the license is added to the repo.
+
+* _Update changelog & Version_:
+
     * Make sure all the bug fixes being included in this release are marked
       with a target release on github. So that users can search by release if
       they want.
-    * Add "Since" notations to the new APIs introduced in this release
+    * Change the `Unreleased` section at the top of changelog file to the new
+      release version number.
     * Bump the package version in cabal file or package.yaml
 
 * _Upload_:
