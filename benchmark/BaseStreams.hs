@@ -7,7 +7,7 @@
 
 {-# LANGUAGE CPP                       #-}
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(..))
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
@@ -16,6 +16,10 @@ import qualified StreamDOps as D
 import qualified StreamKOps as K
 import qualified StreamDKOps as DK
 import qualified Data.List as List
+
+#if !MIN_VERSION_deepseq(1,4,3)
+instance NFData Ordering where rnf = (`seq` ())
+#endif
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
