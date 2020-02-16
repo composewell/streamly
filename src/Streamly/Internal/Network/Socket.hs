@@ -1,9 +1,6 @@
 {-# LANGUAGE CPP              #-}
-{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MagicHash        #-}
 {-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE UnboxedTuples    #-}
 
 #include "inline.hs"
 
@@ -78,11 +75,10 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
 import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
-import Network.Socket (sendBuf, recvBuf)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
-        setSocketOption)
+        setSocketOption, sendBuf, recvBuf)
 #if MIN_VERSION_network(3,1,0)
 import Network.Socket (withFdSocket)
 #else
@@ -160,9 +156,7 @@ listenTuples :: MonadIO m
     => Unfold m (Int, SockSpec, SockAddr) (Socket, SockAddr)
 listenTuples = Unfold step inject
     where
-    inject (listenQLen, spec, addr) = do
-        listener <- liftIO $ initListener listenQLen spec addr
-        return listener
+    inject (listenQLen, spec, addr) = liftIO $ initListener listenQLen spec addr
 
     step listener = do
         r <- liftIO $ Net.accept listener
@@ -208,8 +202,7 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 -- /Internal/
 {-# INLINE connections #-}
 connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> SerialT m Socket
-connections tcpListenQ spec addr = fmap fst $
-    recvConnectionTuplesWith tcpListenQ spec addr
+connections tcpListenQ spec addr = fst <$> recvConnectionTuplesWith tcpListenQ spec addr
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
@@ -416,7 +409,7 @@ read = UF.supplyFirst readWithBufferOf A.defaultChunkSize
 {-# INLINE fromChunks #-}
 fromChunks :: (MonadIO m, Storable a)
     => Socket -> SerialT m (Array a) -> m ()
-fromChunks h m = S.mapM_ (liftIO . writeChunk h) m
+fromChunks h = S.mapM_ (liftIO . writeChunk h)
 
 -- | Write a stream of arrays to a socket.  Each array in the stream is written
 -- to the socket as a separate IO request.

@@ -1,9 +1,5 @@
 {-# LANGUAGE CPP              #-}
-{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MagicHash        #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE UnboxedTuples    #-}
 
 #include "inline.hs"
 
@@ -359,13 +355,12 @@ writeChunks addr port = Fold step initial extract
     where
     initial = do
         skt <- liftIO (connect addr port)
-        fld <- FL.initialize (SK.writeChunks skt)
-                `MC.onException` (liftIO $ Net.close skt)
+        fld <- FL.initialize (SK.writeChunks skt) `MC.onException` liftIO (Net.close skt)
         return (fld, skt)
     step (fld, skt) x = do
-        r <- FL.runStep fld x `MC.onException` (liftIO $ Net.close skt)
+        r <- FL.runStep fld x `MC.onException` liftIO (Net.close skt)
         return (r, skt)
-    extract ((Fold _ initial1 extract1), skt) = do
+    extract (Fold _ initial1 extract1, skt) = do
         liftIO $ Net.close skt
         initial1 >>= extract1
 
