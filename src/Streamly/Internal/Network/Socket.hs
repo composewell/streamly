@@ -251,6 +251,8 @@ waitWhen0 :: Int -> Socket -> IO ()
 waitWhen0 0 s = when rtsSupportsBoundThreads $
 #if MIN_VERSION_network(3,1,0)
     withFdSocket s $ \fd -> threadWaitWrite $ fromIntegral fd
+#elif MIN_VERSION_network(3,0,0)
+    fdSocket s >>= threadWaitWrite . fromIntegral
 #else
     let fd = fdSocket s in threadWaitWrite $ fromIntegral fd
 #endif
