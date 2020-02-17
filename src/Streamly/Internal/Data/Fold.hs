@@ -348,7 +348,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 -- from the 'Foldable', the result is 'None' for empty containers.
 {-# INLINABLE _Fold1 #-}
 _Fold1 :: Monad m => (a -> a -> a) -> Fold m a (Maybe a)
-_Fold1 step = Fold step_ (return Nothing') fromStrictMaybe
+_Fold1 step = Fold step_ (return Nothing') (return . toMaybe)
   where
     step_ mx a = return $ Just' $
         case mx of
@@ -692,7 +692,7 @@ head = _Fold1 const
 -- @since 0.7.0
 {-# INLINABLE find #-}
 find :: Monad m => (a -> Bool) -> Fold m a (Maybe a)
-find predicate = Fold step (return Nothing') fromStrictMaybe
+find predicate = Fold step (return Nothing') (return . toMaybe)
   where
     step x a = return $
         case x of
@@ -707,7 +707,7 @@ find predicate = Fold step (return Nothing') fromStrictMaybe
 -- @since 0.7.0
 {-# INLINABLE lookup #-}
 lookup :: (Eq a, Monad m) => a -> Fold m (a,b) (Maybe b)
-lookup a0 = Fold step (return Nothing') fromStrictMaybe
+lookup a0 = Fold step (return Nothing') (return . toMaybe)
   where
     step x (a,b) = return $
         case x of

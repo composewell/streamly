@@ -23,7 +23,7 @@ module Streamly.Internal.Data.Strict
     , Tuple3' (..)
     , Tuple4' (..)
     , Maybe' (..)
-    , fromStrictMaybe
+    , toMaybe
     , Either' (..)
     )
 where
@@ -46,10 +46,10 @@ data Maybe' a = Just' !a | Nothing' deriving Show
 -- XXX perhaps we can use a type class having fromStrict/toStrict operations.
 --
 -- | Convert strict Maybe' to lazy Maybe
-{-# INLINABLE fromStrictMaybe #-}
-fromStrictMaybe :: Monad m => Maybe' a -> m (Maybe a)
-fromStrictMaybe  Nothing' = return $ Nothing
-fromStrictMaybe (Just' a) = return $ Just a
+{-# INLINABLE toMaybe #-}
+toMaybe :: Maybe' a -> Maybe a
+toMaybe  Nothing' = Nothing
+toMaybe (Just' a) = Just a
 
 -------------------------------------------------------------------------------
 -- Either
