@@ -10,7 +10,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-import Control.DeepSeq (NFData(..), deepseq)
+import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.Monoid (Last(..))
@@ -134,9 +134,10 @@ main = do
   when (bufValue /= value) $
     putStrLn $ "Limiting stream size to "
                ++ show defaultStreamSize
-               ++ " for buffered operations"
+               ++ " for non O(1) space operations"
 
   bufValue `seq` value `seq` runMode (mode cfg) cfg benches
+  -- Operations that can work on infinite streams using constant/O(1) space.
     [ bgroup "serially"
       [ bgroup "pure"
         [ benchPureSink value "id" id
@@ -223,8 +224,15 @@ main = do
           ]
 
         , bgroup "build"
-          [ bgroup "Identity"
-            [ benchIdentitySink value "foldrM" Ops.foldrMBuild
+          [ bgroup "IO"
+            [ benchIOSink value "foldrMElem" (Ops.foldrMElem value)
+            ]
+          , bgroup "Identity"
+            [ benchIdentitySink value "foldrMElem" (Ops.foldrMElem value)
+            , benchIdentitySink value "foldrMToStreamLength"
+                (S.length . runIdentity . Ops.foldrMToStream)
+            , benchPureSink value "foldrMToListLength"
+                (length . runIdentity . Ops.foldrMBuild)
             ]
           ]
         , benchIOSink value "uncons" Ops.uncons
@@ -480,58 +488,62 @@ main = do
             [ benchIOSink value "fmap"   $ Ops.fmap' zipSerially 1
             ]
         ]
-    -- Non-streaming operations. We keep these in a spearate group so that we
+    -- Operations that cannot work on infinite streams.
+    --
+    -- We keep these in a spearate group so that we
     -- can run these conveniently with smaller stream size.
     --
     -- These are also the operations that programmers should be aware of and
     -- should avoid using in a streaming application.
 
-    -- XXX stack dominant (upto 1M), segregate?
+    -- Operations using O(n) stack space but O(1) heap space.
+    -- Head recursive operations.
     , bgroup "iterated"
-      [ benchIOSrc serially "mapM"           Ops.iterateMapM
-      , benchIOSrc serially "scan(1/100)"    Ops.iterateScan
-      , benchIOSrc serially "scanl1(1/100)"  Ops.iterateScanl1
-      , benchIOSrc serially "filterEven"     Ops.iterateFilterEven
-      , benchIOSrc serially "takeAll"        (Ops.iterateTakeAll value)
-      , benchIOSrc serially "dropOne"        Ops.iterateDropOne
-      , benchIOSrc serially "dropWhileFalse" (Ops.iterateDropWhileFalse value)
-      , benchIOSrc serially "dropWhileTrue"  (Ops.iterateDropWhileTrue value)
-      ]
-    , bgroup "buffered"
-      [ -- Inherently non-streaming operations
+      [ benchIOSrc serially "mapMx10K"           Ops.iterateMapM
+      , benchIOSrc serially "scanx100"           Ops.iterateScan
+      , benchIOSrc serially "scanl1x100"         Ops.iterateScanl1
+      , benchIOSrc serially "filterEvenx10K"     Ops.iterateFilterEven
+      , benchIOSrc serially "takeAllx10K"        (Ops.iterateTakeAll value)
+      , benchIOSrc serially "dropOnex10K"        Ops.iterateDropOne
+      , benchIOSrc serially "dropWhileFalsex10K"
+            (Ops.iterateDropWhileFalse value)
+      , benchIOSrc serially "dropWhileTruex10K"
+            (Ops.iterateDropWhileTrue value)
 
+      , benchIOSink bufValue "tail" Ops.tail
+      , benchIOSink bufValue "nullHeadTail" Ops.nullHeadTail
+      ]
+    -- Head recursive strict right folds.
+    , bgroup "foldr"
+      [
       -- Right folds for reducing are inherently non-streaming as the
       -- expression needs to be fully built before it can be reduced.
-      -- XXX Stack dominant (up to 4MB), segregate?
         benchIOSink bufValue "foldrM/reduce/IO" Ops.foldrMReduce
       , benchIdentitySink bufValue "foldrM/reduce/Identity" Ops.foldrMReduce
 
+      -- accumulation due to strictness of IO monad
+      , benchIOSink bufValue "foldrM/build/IO" Ops.foldrMBuild
+      ]
+    -- Operations using O(1) stack space and O(n) heap space.
+    -- Tail recursive left folds
+    , bgroup "foldl"
+      [
       -- Left folds for building a structure are inherently non-streaming as
       -- the structure cannot be lazily consumed until fully built.
-      , benchIOSink bufValue "foldl'/build/IO" Ops.foldl'Build
+        benchIOSink bufValue "foldl'/build/IO" Ops.foldl'Build
       , benchIdentitySink bufValue "foldl'/build/Identity" Ops.foldl'Build
       , benchIOSink bufValue "foldlM'/build/IO" Ops.foldlM'Build
       , benchIdentitySink bufValue "foldlM'/build/Identity" Ops.foldlM'Build
 
-      -- accumulation due to strictness of IO monad
-      -- XXX Stack dominant, segregate?
-      , benchIOSink bufValue "foldrM/build/IO" Ops.foldrMBuild
-      , benchPureSinkIO bufValue "traversable/mapM" Ops.traversableMapM
-
-      -- Converting the stream to a list or pure stream
-      -- XXX Stack dominant, segregate?
-      , benchIOSink bufValue "toList" Ops.toList
-      , benchIOSink bufValue "toListRev" Ops.toListRev
-
       , benchIOSink bufValue "toStream" (S.fold IP.toStream)
       , benchIOSink bufValue "toStreamRev" (S.fold IP.toStreamRev)
 
-      , benchIOSink bufValue "folds/toList" (S.fold FL.toList)
-      , benchIOSink bufValue "folds/toListRevF" (S.fold IFL.toListRevF)
+      , benchIOSink bufValue "toList" (S.fold FL.toList)
+      , benchIOSink bufValue "toListRevF" (S.fold IFL.toListRevF)
 
       -- Converting the stream to an array
-      , benchIOSink bufValue "folds/lastN.Max" (S.fold (IA.lastN (bufValue + 1)))
-      , benchIOSink bufValue "folds/writeN" (S.fold (A.writeN bufValue))
+      , benchIOSink bufValue "lastN.Max" (S.fold (IA.lastN (bufValue + 1)))
+      , benchIOSink bufValue "writeN" (S.fold (A.writeN bufValue))
 
       -- Reversing/sorting a stream
       , benchIOSink bufValue "reverse" (Ops.reverse 1)
@@ -544,32 +556,45 @@ main = do
       , bench "minimumBy" $ nf (flip Ops.foldableMinBy 1) value
       , bench "maximumBy" $ nf (flip Ops.foldableMaxBy 1) value
       , bench "minimumByList" $ nf (flip Ops.foldableListMinBy 1) value
-
-        -- XXX can these be streaming? Can we have special read/show style type
-        -- classes supporting streaming?
-      , mkString bufValue `deepseq` (bench "readsPrec pure streams" $
-                                nf Ops.readInstance (mkString bufValue))
-      , mkString bufValue `deepseq` (bench "readsPrec Haskell lists" $
-                                nf Ops.readInstanceList (mkListString bufValue))
-      , mkList bufValue `deepseq` (bench "showPrec Haskell lists" $
-                                nf Ops.showInstanceList (mkList bufValue))
-
-      -- XXX streaming operations that can potentially be fixed
-
-      -- XXX These consume a lot of stack, fix or segregate
-      , benchIOSink bufValue "tail" Ops.tail
-      , benchIOSink bufValue "nullHeadTail" Ops.nullHeadTail
-
-      , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
-                (Ops.concatUnfoldInterleaveRepl4xN bufValue)
-      , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
-                (Ops.concatUnfoldRoundrobinRepl4xN bufValue)
       ]
+
+    -- Buffering operations using heap proportional to number of elements.
     , bgroup "traversable"
       [ -- Traversable instance
         benchPureSinkIO bufValue "traverse" Ops.traversableTraverse
       , benchPureSinkIO bufValue "sequenceA" Ops.traversableSequenceA
       , benchPureSinkIO bufValue "mapM" Ops.traversableMapM
       , benchPureSinkIO bufValue "sequence" Ops.traversableSequence
+      ]
+    , bgroup "buffering"
+      [
+        -- Buffers the output of show/read.
+        -- XXX can the outputs be streaming? Can we have special read/show
+        -- style type classes, readM/showM supporting streaming effects?
+        bench "readsPrec pure streams" $
+            nf Ops.readInstance (mkString bufValue)
+      , bench "readsPrec Haskell lists" $
+            nf Ops.readInstanceList (mkListString bufValue)
+      , bench "showPrec Haskell lists" $
+            nf Ops.showInstanceList (mkList bufValue)
+
+      -- interleave x/4 streams of 4 elements each. Needs to buffer
+      -- proportional to x/4. This is different from WSerial because WSerial
+      -- expands slowly because of binary interleave behavior and this expands
+      -- immediately because of Nary interleave behavior.
+      , benchIOSrc1 "concatUnfoldInterleaveRepl (x/4,4)"
+                (Ops.concatUnfoldInterleaveRepl4xN bufValue)
+      , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
+                (Ops.concatUnfoldRoundrobinRepl4xN bufValue)
+      ]
+    -- Both heap and stack space are O(n)
+    , bgroup "toList"
+      [
+      -- Converting the stream to a list or pure stream in a strict monad
+        benchIOSink bufValue "foldrMToList" Ops.foldrMBuild
+      , benchIOSink bufValue "toList" Ops.toList
+      , benchIOSink bufValue "toListRev" Ops.toListRev
+      -- , benchIOSink bufValue "toPure" Ops.toPure
+      -- , benchIOSink bufValue "toPureRev" Ops.toPureRev
       ]
     ]
