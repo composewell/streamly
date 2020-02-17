@@ -1,11 +1,7 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 #include "inline.hs"
@@ -40,8 +36,8 @@ import qualified GHC.ForeignPtr as GHC
 {-# INLINE mallocForeignPtrAlignedBytes #-}
 mallocForeignPtrAlignedBytes :: Int -> Int -> IO (GHC.ForeignPtr a)
 #ifdef USE_GHC_MALLOC
-mallocForeignPtrAlignedBytes size alignment = do
-    GHC.mallocPlainForeignPtrAlignedBytes size alignment
+mallocForeignPtrAlignedBytes =
+    GHC.mallocPlainForeignPtrAlignedBytes
 #else
 mallocForeignPtrAlignedBytes size _alignment = do
     p <- mallocBytes size

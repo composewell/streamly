@@ -1,9 +1,7 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE ConstraintKinds     #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE UnboxedTuples       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
