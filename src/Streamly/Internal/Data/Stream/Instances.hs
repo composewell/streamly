@@ -109,13 +109,53 @@ instance NFData a => NFData (STREAM Identity a) where {                       \
 -- Foldable
 -------------------------------------------------------------------------------
 
--- XXX the foldable instance seems to be quit slow. We can try writing
--- custom implementations of foldr and foldl'. If nothing works we can also try
--- writing a Foldable for Identity monad rather than for "Foldable m".
+-- The default Foldable instance has several issues:
+-- 1) several definitions do not have INLINE on them, so we provide
+--    re-implementations with INLINE pragmas.
+-- 2) the definitions of sum/product/maximum/minimum are inefficient as they
+--    use right folds, they cannot run in constant memory. We provide
+--    implementations using strict left folds here.
+
 #define FOLDABLE_INSTANCE(STREAM)                                             \
 instance (Foldable m, Monad m) => Foldable (STREAM m) where {                 \
-  {-# INLINE foldMap #-};                                                     \
-  foldMap f = fold . P.foldr mappend mempty . fmap f }
+                                                                              \
+    {-# INLINE foldMap #-};                                                   \
+    foldMap f = fold . P.foldr (mappend . f) mempty;                          \
+                                                                              \
+    {-# INLINE foldr #-};                                                     \
+    foldr f z t = appEndo (foldMap (Endo #. f) t) z;                          \
+                                                                              \
+    {-# INLINE foldl' #-};                                                    \
+    foldl' f z0 xs = foldr f' id xs z0                                        \
+          where { f' x k z = k $! f z x};                                     \
+                                                                              \
+    {-# INLINE length #-};                                                    \
+    length = foldl' (\n _ -> n + 1) 0;                                        \
+                                                                              \
+    {-# INLINE elem #-};                                                      \
+    elem = any . (==);                                                        \
+                                                                              \
+    {-# INLINE maximum #-};                                                   \
+    maximum =                                                                 \
+          fromMaybe (errorWithoutStackTrace $ "maximum: empty stream")        \
+        . toMaybe                                                             \
+        . foldl' getMax Nothing' where {                                      \
+            getMax Nothing' x = Just' x;                                      \
+            getMax (Just' mx) x = Just' $! max mx x };                        \
+                                                                              \
+    {-# INLINE minimum #-};                                                   \
+    minimum =                                                                 \
+          fromMaybe (errorWithoutStackTrace $ "minimum: empty stream")        \
+        . toMaybe                                                             \
+        . foldl' getMin Nothing' where {                                      \
+            getMin Nothing' x = Just' x;                                      \
+            getMin (Just' mn) x = Just' $! min mn x };                        \
+                                                                              \
+    {-# INLINE sum #-};                                                       \
+    sum = foldl' (+) 0;                                                       \
+                                                                              \
+    {-# INLINE product #-};                                                   \
+    product = foldl' (*) 1 }
 
 -------------------------------------------------------------------------------
 -- Traversable

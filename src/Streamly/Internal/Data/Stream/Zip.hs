@@ -45,8 +45,11 @@ import Control.DeepSeq (NFData(..))
 #if MIN_VERSION_deepseq(1,4,3)
 import Control.DeepSeq (NFData1(..))
 #endif
-import Data.Functor.Identity (Identity, runIdentity)
-import Data.Foldable (fold)
+import Data.Coerce (Coercible, coerce)
+import Data.Foldable (Foldable(foldl'), fold)
+import Data.Functor.Identity (Identity(..), runIdentity)
+import Data.Maybe (fromMaybe)
+import Data.Semigroup (Endo(..))
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
@@ -56,6 +59,7 @@ import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
 import Prelude hiding (map, repeat, zipWith)
 
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), Stream)
+import Streamly.Internal.Data.Strict (Maybe'(..), toMaybe)
 import Streamly.Internal.Data.SVar (MonadAsync)
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
@@ -69,6 +73,11 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 #endif
 
 #include "Instances.hs"
+
+-- XXX move this to Streamly.Internal.Data.Coerce?
+{-# INLINE (#.) #-}
+(#.) :: Coercible b c => (b -> c) -> (a -> b) -> (a -> c)
+(#.) _f = coerce
 
 -- | Like 'zipWith' but using a monadic zipping function.
 --
