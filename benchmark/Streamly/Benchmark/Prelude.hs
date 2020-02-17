@@ -136,6 +136,16 @@ sourceUnfoldrMAction value n = S.serially $ S.unfoldrM step n
         then return Nothing
         else return (Just (return cnt, cnt + 1))
 
+{-# INLINE sourceUnfoldrAction #-}
+sourceUnfoldrAction :: (S.IsStream t, Monad m, Monad m1)
+    => Int -> Int -> t m (m1 Int)
+sourceUnfoldrAction value n = S.serially $ S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + value
+        then Nothing
+        else (Just (return cnt, cnt + 1))
+
 -- fromIndices
 
 {-# INLINE sourceFromIndices #-}
@@ -274,6 +284,15 @@ toList = S.toList
 {-# INLINE toListRev #-}
 toListRev :: Monad m => Stream m Int -> m [Int]
 toListRev = Internal.toListRev
+
+{-# INLINE foldrMElem #-}
+foldrMElem :: Monad m => Int -> Stream m Int -> m Bool
+foldrMElem e m = S.foldrM (\x xs -> if x == e then return P.True else xs)
+                          (return P.False) m
+
+{-# INLINE foldrMToStream #-}
+foldrMToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
+foldrMToStream  = S.foldr S.cons S.nil
 
 foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
 foldl'Build = S.foldl' (flip (:)) []
@@ -1047,14 +1066,137 @@ readInstanceList str =
 pureFoldl' :: Stream Identity Int -> Int
 pureFoldl' = runIdentity . S.foldl' (+) 0
 
+-------------------------------------------------------------------------------
+-- Foldable Instance
+-------------------------------------------------------------------------------
+
 {-# INLINE foldableFoldl' #-}
-foldableFoldl' :: Stream Identity Int -> Int
-foldableFoldl' = F.foldl' (+) 0
+foldableFoldl' :: Int -> Int -> Int
+foldableFoldl' value n =
+    F.foldl' (+) 0 (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableFoldrElem #-}
+foldableFoldrElem :: Int -> Int -> Bool
+foldableFoldrElem value n =
+    F.foldr (\x xs -> if x == value then P.True else xs)
+            (P.False)
+            (sourceUnfoldr value n :: S.SerialT Identity Int)
 
 {-# INLINE foldableSum #-}
-foldableSum :: Stream Identity Int -> Int
-foldableSum = P.sum
+foldableSum :: Int -> Int -> Int
+foldableSum value n =
+    P.sum (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableProduct #-}
+foldableProduct :: Int -> Int -> Int
+foldableProduct value n =
+    P.product (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableNull #-}
+foldableNull :: Int -> Int -> Bool
+foldableNull value n =
+    P.null (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableElem #-}
+foldableElem :: Int -> Int -> Bool
+foldableElem value n =
+    P.elem value (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableNotElem #-}
+foldableNotElem :: Int -> Int -> Bool
+foldableNotElem value n =
+    P.notElem value (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableFind #-}
+foldableFind :: Int -> Int -> Maybe Int
+foldableFind value n =
+    F.find (== (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableAll #-}
+foldableAll :: Int -> Int -> Bool
+foldableAll value n =
+    P.all (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableAny #-}
+foldableAny :: Int -> Int -> Bool
+foldableAny value n =
+    P.any (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableAnd #-}
+foldableAnd :: Int -> Int -> Bool
+foldableAnd value n =
+    P.and $ S.map (<= (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableOr #-}
+foldableOr :: Int -> Int -> Bool
+foldableOr value n =
+    P.or $ S.map (> (value + 1)) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableLength #-}
+foldableLength :: Int -> Int -> Int
+foldableLength value n =
+    P.length (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableMin #-}
+foldableMin :: Int -> Int -> Int
+foldableMin value n =
+    P.minimum (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableMax #-}
+foldableMax :: Int -> Int -> Int
+foldableMax value n =
+    P.maximum (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableMinBy #-}
+foldableMinBy :: Int -> Int -> Int
+foldableMinBy value n =
+    F.minimumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableListMinBy #-}
+foldableListMinBy :: Int -> Int -> Int
+foldableListMinBy value n = F.minimumBy compare [1..value+n]
+
+{-# INLINE foldableMaxBy #-}
+foldableMaxBy :: Int -> Int -> Int
+foldableMaxBy value n =
+    F.maximumBy compare (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableToList #-}
+foldableToList :: Int -> Int -> [Int]
+foldableToList value n =
+    F.toList (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableMapM_ #-}
+foldableMapM_ :: Monad m => Int -> Int -> m ()
+foldableMapM_ value n =
+    F.mapM_ (\_ -> return ()) (sourceUnfoldr value n :: S.SerialT Identity Int)
+
+{-# INLINE foldableSequence_ #-}
+foldableSequence_ :: Int -> Int -> IO ()
+foldableSequence_ value n =
+    F.sequence_ (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+
+{-# INLINE foldableMsum #-}
+foldableMsum :: Int -> Int -> IO Int
+foldableMsum value n =
+    F.msum (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
+
+-------------------------------------------------------------------------------
+-- Traversable Instance
+-------------------------------------------------------------------------------
+
+{-# INLINE traversableTraverse #-}
+traversableTraverse :: Stream Identity Int -> IO (Stream Identity Int)
+traversableTraverse = P.traverse return
+
+{-# INLINE traversableSequenceA #-}
+traversableSequenceA :: Stream Identity Int -> IO (Stream Identity Int)
+traversableSequenceA = P.sequenceA . P.fmap return
 
 {-# INLINE traversableMapM #-}
 traversableMapM :: Stream Identity Int -> IO (Stream Identity Int)
 traversableMapM = P.mapM return
+
+{-# INLINE traversableSequence #-}
+traversableSequence :: Stream Identity Int -> IO (Stream Identity Int)
+traversableSequence = P.sequence . P.fmap return

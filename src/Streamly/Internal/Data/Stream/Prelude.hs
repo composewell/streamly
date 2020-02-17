@@ -52,6 +52,10 @@ module Streamly.Internal.Data.Stream.Prelude
     , eqBy
     , cmpBy
 
+    -- * Foldable instance
+    , minimum
+    , maximum
+
     -- * Nesting
     , K.concatMapBy
     , K.concatMap
@@ -64,7 +68,7 @@ module Streamly.Internal.Data.Stream.Prelude
 where
 
 import Control.Monad.Trans (MonadTrans(..))
-import Prelude hiding (foldr)
+import Prelude hiding (foldr, minimum, maximum)
 import qualified Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold (..))
@@ -249,6 +253,14 @@ cmpBy
     :: (IsStream t, Monad m)
     => (a -> b -> Ordering) -> t m a -> t m b -> m Ordering
 cmpBy f m1 m2 = D.cmpBy f (D.toStreamD m1) (D.toStreamD m2)
+
+{-# INLINE minimum #-}
+minimum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+minimum m = S.minimum (toStreamS m)
+
+{-# INLINE maximum #-}
+maximum :: (IsStream t, Monad m, Ord a) => t m a -> m (Maybe a)
+maximum m = S.maximum (toStreamS m)
 
 ------------------------------------------------------------------------------
 -- Fold Utilities

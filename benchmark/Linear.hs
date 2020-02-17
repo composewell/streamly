@@ -152,7 +152,42 @@ main = do
         , benchPureSrc "IsString.fromString" (Ops.sourceIsString value)
         , benchPureSink value "showsPrec pure streams" Ops.showInstance
         , benchPureSink value "foldl'" Ops.pureFoldl'
-        , benchPureSink value "foldable/foldl'" Ops.foldableFoldl'
+        ]
+      , bgroup "foldable"
+        [ -- Foldable instance
+          -- type class operations
+          bench "foldl'" $ nf (Ops.foldableFoldl' value) 1
+        , bench "foldrElem" $ nf (Ops.foldableFoldrElem value) 1
+        -- , bench "null" $ nf (Ops.foldableNull value) 1
+        , bench "elem" $ nf (Ops.foldableElem value) 1
+        , bench "length" $ nf (Ops.foldableLength value) 1
+        , bench "sum" $ nf (Ops.foldableSum value) 1
+        , bench "product" $ nf (Ops.foldableProduct value) 1
+        , bench "minimum" $ nf (Ops.foldableMin value) 1
+        , bench "maximum" $ nf (Ops.foldableMax value) 1
+        , bench "length . toList" $
+            nf (length . Ops.foldableToList value) 1
+
+        -- folds
+        , bench "notElem" $ nf (Ops.foldableNotElem value) 1
+        , bench "find" $ nf (Ops.foldableFind value) 1
+        , bench "all" $ nf (Ops.foldableAll value) 1
+        , bench "any" $ nf (Ops.foldableAny value) 1
+        , bench "and" $ nf (Ops.foldableAnd value) 1
+        , bench "or" $ nf (Ops.foldableOr value) 1
+
+        -- Note: minimumBy/maximumBy do not work in constant memory they are in
+        -- the O(n) group of benchmarks down below in this file.
+
+        -- Applicative and Traversable operations
+        -- TBD: traverse_
+        , benchIOSink1 "mapM_" (Ops.foldableMapM_ value)
+        -- TBD: for_
+        -- TBD: forM_
+        , benchIOSink1 "sequence_" (Ops.foldableSequence_ value)
+        -- TBD: sequenceA_
+        -- TBD: asum
+        -- , benchIOSink1 "msum" (Ops.foldableMsum value)
         ]
       , bgroup "generation"
         [ -- Most basic, barely stream continuations running
@@ -502,6 +537,14 @@ main = do
       , benchIOSink bufValue "reverse" (Ops.reverse 1)
       , benchIOSink bufValue "reverse'" (Ops.reverse' 1)
 
+      -- XXX the definitions of minimumBy and maximumBy in Data.Foldable use
+      -- foldl1 which does not work in constant memory for our implementation.
+      -- It works in constant memory for lists but even for lists it takes 15x
+      -- more time compared to our foldl' based implementation.
+      , bench "minimumBy" $ nf (flip Ops.foldableMinBy 1) value
+      , bench "maximumBy" $ nf (flip Ops.foldableMaxBy 1) value
+      , bench "minimumByList" $ nf (flip Ops.foldableListMinBy 1) value
+
         -- XXX can these be streaming? Can we have special read/show style type
         -- classes supporting streaming?
       , mkString bufValue `deepseq` (bench "readsPrec pure streams" $
@@ -514,7 +557,6 @@ main = do
       -- XXX streaming operations that can potentially be fixed
 
       -- XXX These consume a lot of stack, fix or segregate
-      , benchPureSink bufValue "foldable/sum" Ops.foldableSum
       , benchIOSink bufValue "tail" Ops.tail
       , benchIOSink bufValue "nullHeadTail" Ops.nullHeadTail
 
@@ -522,5 +564,12 @@ main = do
                 (Ops.concatUnfoldInterleaveRepl4xN bufValue)
       , benchIOSrc1 "concatUnfoldRoundrobinRepl (x/4,4)"
                 (Ops.concatUnfoldRoundrobinRepl4xN bufValue)
+      ]
+    , bgroup "traversable"
+      [ -- Traversable instance
+        benchPureSinkIO bufValue "traverse" Ops.traversableTraverse
+      , benchPureSinkIO bufValue "sequenceA" Ops.traversableSequenceA
+      , benchPureSinkIO bufValue "mapM" Ops.traversableMapM
+      , benchPureSinkIO bufValue "sequence" Ops.traversableSequence
       ]
     ]

@@ -1328,7 +1328,7 @@ minimumBy cmp m = S.minimumBy cmp (toStreamS m)
 -- @since 0.1.0
 {-# INLINE maximum #-}
 maximum :: (Monad m, Ord a) => SerialT m a -> m (Maybe a)
-maximum m = S.maximum (toStreamS m)
+maximum = P.maximum
 
 -- | Determine the maximum element in a stream using the supplied comparison
 -- function.
