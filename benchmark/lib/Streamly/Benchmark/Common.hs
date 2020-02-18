@@ -4,13 +4,13 @@
 #endif
 
 -- |
--- Module      : Main
+-- Module      : Streamly.Benchmark.Common
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-module Common
+module Streamly.Benchmark.Common
     ( parseCLIOpts
 
     , benchIOSink1

@@ -8,7 +8,7 @@
 import Control.DeepSeq (NFData)
 import System.Random (randomRIO)
 
-import Common (parseCLIOpts)
+import Streamly.Benchmark.Common (parseCLIOpts)
 
 import qualified NestedUnfoldOps as Ops
 

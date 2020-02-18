@@ -8,12 +8,11 @@
 import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
 
-import Common -- (parseCLIOpts)
-
 import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import Gauge
+import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
 --

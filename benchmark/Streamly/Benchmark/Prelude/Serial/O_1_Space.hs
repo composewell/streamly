@@ -25,7 +25,7 @@ import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Pipe as Pipe
 
 import Gauge
-import Common
+import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
 --

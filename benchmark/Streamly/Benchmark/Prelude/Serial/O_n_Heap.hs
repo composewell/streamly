@@ -21,7 +21,7 @@ import qualified Streamly.Internal.Prelude as IP
 
 import Gauge
 import Streamly
-import Common
+import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
 --

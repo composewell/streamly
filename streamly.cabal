@@ -122,11 +122,11 @@ extra-source-files:
     benchmark/streamly-benchmarks.cabal
     benchmark/README.md
     benchmark/*.hs
+    benchmark/lib/Streamly/Benchmark/*.hs
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
     benchmark/Streamly/Benchmark/FileIO/*.hs
-    benchmark/Streamly/Benchmark/*.hs
-    benchmark/exe/Prelude/Serial/*.hs
+    benchmark/Streamly/Benchmark/Prelude/Serial/*.hs
 
 extra-tmp-files:
     config.log

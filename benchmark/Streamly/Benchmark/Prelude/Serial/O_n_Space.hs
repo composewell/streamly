@@ -13,7 +13,7 @@ import qualified Streamly.Benchmark.Prelude as Ops
 
 import Streamly
 import Gauge
-import Common
+import Streamly.Benchmark.Common
 
 -------------------------------------------------------------------------------
 -- Benchmarking utilities

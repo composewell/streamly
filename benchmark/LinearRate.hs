@@ -11,7 +11,7 @@
 -- import Data.Functor.Identity (Identity, runIdentity)
 import System.Random (randomRIO)
 
-import Common (parseCLIOpts)
+import Streamly.Benchmark.Common (parseCLIOpts)
 
 import Streamly
 import Gauge
