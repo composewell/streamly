@@ -1,0 +1,392 @@
+cabal-version:      2.2
+name:               streamly-benchmarks
+version:            0.0.0
+synopsis:           Benchmarks for streamly
+description: Benchmarks are separated from the main package because we
+  want to have a library for benchmarks to reuse the code across different
+  benchmark executables. For example, we have common benchmarking code for
+  different types of streams. We need different benchmarking executables
+  for serial, async, ahead style streams, therefore, we need to use
+  the common code in several benchmarks, just changing the type of
+  the stream. It takes a long time to compile this file and it gets
+  compiled for each benchmarks once if we do not have a library.  Cabal
+  does no support internal libraries without per-component builds and
+  per-component builds are not supported with Configure, so we are not
+  left with any other choice.
+
+flag fusion-plugin
+  description: Use fusion plugin for benchmarks and executables
+  manual: True
+  default: False
+
+flag inspection
+  description: Enable inspection testing
+  manual: True
+  default: False
+
+flag debug
+  description: Debug build with asserts enabled
+  manual: True
+  default: False
+
+flag dev
+  description: Development build
+  manual: True
+  default: False
+
+flag has-llvm
+  description: Use llvm backend for better performance
+  manual: True
+  default: False
+
+flag no-charts
+  description: Disable benchmark charts in development build
+  manual: True
+  default: False
+
+-------------------------------------------------------------------------------
+-- Common stanzas
+-------------------------------------------------------------------------------
+
+common compile-options
+    default-language: Haskell2010
+
+    if flag(dev)
+      cpp-options:    -DDEVBUILD
+
+    if flag(inspection)
+      cpp-options:    -DINSPECTION
+
+    ghc-options:      -Wall
+
+    if flag(has-llvm)
+      ghc-options: -fllvm
+
+    if flag(dev)
+      ghc-options:    -Wmissed-specialisations
+                      -Wall-missed-specialisations
+
+    if flag(dev) || flag(debug)
+      ghc-options:    -fno-ignore-asserts
+
+    if impl(ghc >= 8.0)
+      ghc-options:    -Wcompat
+                      -Wunrecognised-warning-flags
+                      -Widentities
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
+                      -Wnoncanonical-monad-instances
+
+common optimization-options
+  ghc-options: -O2
+               -fdicts-strict
+               -fspec-constr-recursive=16
+               -fmax-worker-args=16
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    ghc-options: -fplugin Fusion.Plugin
+
+-- We need optimization options here to optimize internal (non-inlined)
+-- versions of functions. Also, we have some benchmarking inspection tests
+-- part of the library when built with --benchmarks flag. Thos tests fail
+-- if we do not use optimization options here. It was observed that due to
+-- -O2 here some concurrent/nested benchmarks improved and others regressed.
+-- We can investigate a bit more here why the regression occurred.
+common lib-options
+  import: compile-options, optimization-options
+
+-------------------------------------------------------------------------------
+-- Library
+-------------------------------------------------------------------------------
+
+library
+    import: lib-options
+    hs-source-dirs:    .
+    exposed-modules:
+                       Common
+
+    build-depends:
+                    -- Core libraries shipped with ghc, the min and max
+                    -- constraints of these libraries should match with
+                    -- the GHC versions we support
+                       base              >= 4.8   &&  < 5
+                     , deepseq           >= 1.4.1 && < 1.5
+
+                     -- other libraries
+                     , streamly          >= 0.7.0
+                     , gauge             >= 0.2.4 && < 0.3
+                     , random            >= 1.0   && < 2.0
+
+library lib-prelude
+    import: lib-options
+    hs-source-dirs:    .
+    exposed-modules:
+                       Streamly.Benchmark.Prelude
+    build-depends:
+                    -- Core libraries shipped with ghc, the min and max
+                    -- constraints of these libraries should match with
+                    -- the GHC versions we support
+                       base              >= 4.8   &&  < 5
+                     , deepseq           >= 1.4.1 && < 1.5
+                     , mtl               >= 2.2   && < 3
+
+                     -- other libraries
+                     , streamly          >= 0.7.0
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
+  -- Array uses a Storable constraint in dev build making several inspection
+  -- tests fail
+  if flag(dev) && flag(inspection)
+    build-depends: inspection-and-dev-flags-cannot-be-used-together
+
+-------------------------------------------------------------------------------
+-- Benchmarks
+-------------------------------------------------------------------------------
+
+common bench-depends
+  build-depends:
+    -- Core libraries shipped with ghc, the min and max
+    -- constraints of these libraries should match with
+    -- the GHC versions we support
+      base                >= 4.8   && < 5
+    , deepseq             >= 1.4.1 && < 1.5
+    , mtl                 >= 2.2   && < 3
+
+    -- other libraries
+    , streamly-benchmarks
+    , streamly            >= 0.7.0
+    , random              >= 1.0   && < 2.0
+    , gauge               >= 0.2.4 && < 0.3
+  if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
+    build-depends:
+        fusion-plugin     >= 0.2   && < 0.3
+  if impl(ghc < 8.0)
+    build-depends:
+        transformers  >= 0.4 && < 0.6
+  if flag(inspection)
+    build-depends:     template-haskell   >= 2.14  && < 2.16
+                     , inspection-testing >= 0.4   && < 0.5
+
+-- Whatever stack size below 32K we use GHC seems to report the stack size as
+-- 32K at crash. Even K0K works. Therefore it probably does not make sense to
+-- set it to lower than 32K.
+
+common bench-options
+  import: compile-options, optimization-options, bench-depends
+  ghc-options: -with-rtsopts "-T -K32K -M16M"
+
+-- Some benchmarks are threaded some are not
+common bench-options-threaded
+  import: compile-options, optimization-options, bench-depends
+  -- -threaded and -N2 is important because some GC and space leak issues
+  -- trigger only with these options.
+  ghc-options: -threaded -with-rtsopts "-T -N2 -K32K -M16M"
+
+-------------------------------------------------------------------------------
+-- Serial Streams
+-------------------------------------------------------------------------------
+
+benchmark linear
+-- benchmark serial-O-1-space
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K36K -M16M"
+  hs-source-dirs: exe
+  main-is: Prelude/Serial/O_1_Space.hs
+  build-depends:
+      lib-prelude
+
+benchmark serial-O-n-heap
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K36K -M128M"
+  hs-source-dirs: exe
+  main-is: Prelude/Serial/O_n_Heap.hs
+  build-depends:
+      lib-prelude
+
+benchmark serial-O-n-stack
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K1M -M16M"
+  hs-source-dirs: exe
+  main-is: Prelude/Serial/O_n_Stack.hs
+  build-depends:
+      lib-prelude
+
+benchmark serial-O-n-space
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K16M -M64M"
+  hs-source-dirs: exe
+  main-is: Prelude/Serial/O_n_Space.hs
+  build-depends:
+      lib-prelude
+
+benchmark nested
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K256K -M16M"
+  hs-source-dirs: .
+  main-is: Nested.hs
+  other-modules: NestedOps
+
+benchmark nested-unfold
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -K64K -M16M"
+  main-is: NestedUnfold.hs
+  other-modules: NestedUnfoldOps
+
+benchmark base
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  if flag(dev)
+      cpp-options: -DDEVBUILD
+      ghc-options: -with-rtsopts "-T -K2M -M16M"
+  else
+      ghc-options: -with-rtsopts "-T -K128K -M16M"
+  main-is: BaseStreams.hs
+  other-modules:     StreamDOps
+                   , StreamKOps
+                   , StreamDKOps
+
+executable nano-bench
+  import: bench-options
+  hs-source-dirs: .
+  main-is: NanoBenchmarks.hs
+  if flag(dev)
+    buildable: True
+  else
+    buildable: False
+
+-------------------------------------------------------------------------------
+-- Concurrent Streams
+-------------------------------------------------------------------------------
+
+benchmark linear-async
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
+  main-is: LinearAsync.hs
+  build-depends:
+      lib-prelude
+
+benchmark nested-concurrent
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  -- XXX this can be lowered once we split out the finite benchmarks
+  ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
+  main-is: NestedConcurrent.hs
+  other-modules: NestedOps
+
+benchmark parallel
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
+  main-is: Parallel.hs
+  other-modules: NestedOps
+  build-depends:
+      lib-prelude
+
+benchmark concurrent
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Concurrent.hs
+  ghc-options: -with-rtsopts "-T -N2 -K256K -M384M"
+
+benchmark adaptive
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: Adaptive.hs
+  default-language: Haskell2010
+  build-depends:
+      streamly
+    , base              >= 4.8   && < 5
+    , gauge             >= 0.2.4 && < 0.3
+    , random            >= 1.0   && < 2.0
+
+benchmark linear-rate
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: LinearRate.hs
+  build-depends:
+      lib-prelude
+
+-------------------------------------------------------------------------------
+-- Array Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark unpinned-array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -K1K -M128M"
+  main-is: Streamly/Benchmark/Data/Array.hs
+  other-modules: Streamly.Benchmark.Data.ArrayOps
+
+benchmark prim-array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -K64K -M32M"
+  main-is: Streamly/Benchmark/Data/Prim/Array.hs
+  other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
+
+benchmark small-array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -K128K -M16M"
+  main-is: Streamly/Benchmark/Data/SmallArray.hs
+  other-modules: Streamly.Benchmark.Data.SmallArrayOps
+
+benchmark array
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  ghc-options: -with-rtsopts "-T -K64K -M128M"
+  main-is: Array.hs
+  other-modules: ArrayOps
+
+-------------------------------------------------------------------------------
+-- FileIO Benchmarks
+-------------------------------------------------------------------------------
+
+benchmark fileio
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: .
+  main-is: FileIO.hs
+  other-modules: Streamly.Benchmark.FileIO.Array
+               , Streamly.Benchmark.FileIO.Stream
+  build-depends:
+                 typed-process       >= 0.2.3 && < 0.3
+
+-------------------------------------------------------------------------------
+-- benchmark comparison and presentation
+-------------------------------------------------------------------------------
+
+executable chart
+  default-language: Haskell2010
+  ghc-options: -Wall
+  hs-source-dirs: .
+  main-is: Chart.hs
+  if flag(dev) && !flag(no-charts) && !impl(ghcjs)
+    buildable: True
+    build-Depends:
+        base >= 4.8 && < 5
+      , bench-show >= 0.3 && < 0.4
+      , split
+      , transformers >= 0.4   && < 0.6
+  else
+    buildable: False
