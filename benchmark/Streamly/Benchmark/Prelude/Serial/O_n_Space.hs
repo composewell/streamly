@@ -11,6 +11,9 @@ import System.Random (randomRIO)
 
 import qualified Streamly.Benchmark.Prelude as Ops
 
+import qualified NestedOps as Nested
+import qualified NestedUnfoldOps as NestedUnfold
+
 import Streamly
 import Gauge
 import Streamly.Benchmark.Common
@@ -49,6 +52,9 @@ benchPureSinkIO
 benchPureSinkIO value name f =
     bench name $ nfIO $ randomRIO (1, 1) >>= f . Ops.sourceUnfoldr value
 
+benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -71,6 +77,18 @@ main = do
           , benchIOSink size "toListRev" Ops.toListRev
           -- , benchIOSink size "toPure" Ops.toPure
           -- , benchIOSink size "toPureRev" Ops.toPureRev
+          ]
+        , bgroup "outer-product-streams"
+          [ benchIO "toList"         $ Nested.toList size         serially
+          , benchIO "toListSome"     $ Nested.toListSome size     serially
+          ]
+        , bgroup "outer-product-unfolds"
+          [ benchIO "toList"         $ NestedUnfold.toList size
+          , benchIO "toListSome"     $ NestedUnfold.toListSome size
+          ]
+        , bgroup "outer-product-wserial"
+          [ benchIO "toList"         $ Nested.toList size         wSerially
+          , benchIO "toListSome"     $ Nested.toListSome  size    wSerially
           ]
         -- Buffering operations using heap proportional to number of elements.
         , bgroup "traversable" -- < 2MB

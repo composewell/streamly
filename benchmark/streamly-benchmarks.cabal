@@ -166,6 +166,7 @@ benchmark linear
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M16M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_1_Space.hs
+  other-modules: NestedOps, NestedUnfoldOps
 
 benchmark serial-O-n-heap
   import: bench-options
@@ -184,20 +185,7 @@ benchmark serial-O-n-space
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K16M -M64M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_n_Space.hs
-
-benchmark nested
-  import: bench-options
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K256K -M16M"
-  main-is: Nested.hs
-  other-modules: NestedOps
-
-benchmark nested-unfold
-  import: bench-options
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K64K -M16M"
-  main-is: NestedUnfold.hs
-  other-modules: NestedUnfoldOps
+  other-modules: NestedOps, NestedUnfoldOps
 
 benchmark base
   import: bench-options

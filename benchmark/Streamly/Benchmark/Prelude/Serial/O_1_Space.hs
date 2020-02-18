@@ -24,6 +24,9 @@ import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Pipe as Pipe
 
+import qualified NestedOps as Nested
+import qualified NestedUnfoldOps as NestedUnfold
+
 import Gauge
 import Streamly.Benchmark.Common
 
@@ -69,6 +72,9 @@ benchIOSrc t name f =
 {-# INLINE benchPureSink #-}
 benchPureSink :: NFData b => Int -> String -> (SerialT Identity Int -> b) -> Benchmark
 benchPureSink value name f = benchPure name (Ops.sourceUnfoldr value) f
+
+benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
 -------------------------------------------------------------------------------
 --
@@ -392,43 +398,76 @@ main = do
             , benchIOSrc1 "concatMapWithAppend (2,x/2)"
                 (Ops.concatMapWithAppend 2 (value `div` 2))
             ]
-          , bgroup "concat-interleave"
+          , bgroup "outer-product-streams"
+            [ benchIO "toNullAp"       $ Nested.toNullAp value       serially
+            , benchIO "toNull"         $ Nested.toNull value         serially
+            , benchIO "toNull3"        $ Nested.toNull3 value        serially
+            , benchIO "filterAllOut"   $ Nested.filterAllOut value   serially
+            , benchIO "filterAllIn"    $ Nested.filterAllIn value    serially
+            , benchIO "filterSome"     $ Nested.filterSome value     serially
+            , benchIO "breakAfterSome" $ Nested.breakAfterSome value serially
+            ]
+          , bgroup "outer-product-unfolds"
+            [ benchIO "toNull"         $ NestedUnfold.toNull value
+            , benchIO "toNull3"        $ NestedUnfold.toNull3 value
+            , benchIO "concat"         $ NestedUnfold.concat value
+            , benchIO "filterAllOut"   $ NestedUnfold.filterAllOut value
+            , benchIO "filterAllIn"    $ NestedUnfold.filterAllIn value
+            , benchIO "filterSome"     $ NestedUnfold.filterSome value
+            , benchIO "breakAfterSome" $ NestedUnfold.breakAfterSome value
+            ]
+          -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
+          -- library. If scan/fold followed by a map is efficient enough we may not
+          -- need monolithic implementations of these.
+          , bgroup "mixed"
+            [ benchIOSink value "scanl-map" (Ops.scanMap 1)
+            , benchIOSink value "foldl-map" Ops.foldl'ReduceMap
+            , benchIOSink value "sum-product-fold"  Ops.sumProductFold
+            , benchIOSink value "sum-product-scan"  Ops.sumProductScan
+            ]
+          , bgroup "mixedX4"
+            [ benchIOSink value "scan-map"    (Ops.scanMap 4)
+            , benchIOSink value "drop-map"    (Ops.dropMap 4)
+            , benchIOSink value "drop-scan"   (Ops.dropScan 4)
+            , benchIOSink value "take-drop"   (Ops.takeDrop value 4)
+            , benchIOSink value "take-scan"   (Ops.takeScan value 4)
+            , benchIOSink value "take-map"    (Ops.takeMap value 4)
+            , benchIOSink value "filter-drop" (Ops.filterDrop value 4)
+            , benchIOSink value "filter-take" (Ops.filterTake value 4)
+            , benchIOSink value "filter-scan" (Ops.filterScan 4)
+            , benchIOSink value "filter-scanl1" (Ops.filterScanl1 4)
+            , benchIOSink value "filter-map"  (Ops.filterMap value 4)
+            ]
+          ]
+        , bgroup "wSerially"
+          [ bgroup "transformation"
+            [ benchIOSink value "fmap"   $ Ops.fmap' wSerially 1
+            ]
+          , bgroup "concatMap"
             [ benchIOSrc1 "concatMapWithWSerial (2,x/2)"
                 (Ops.concatMapWithWSerial 2 (value `div` 2))
             , benchIOSrc1 "concatMapWithWSerial (x/2,2)"
                 (Ops.concatMapWithWSerial (value `div` 2) 2)
             ]
-        -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
-        -- library. If scan/fold followed by a map is efficient enough we may not
-        -- need monolithic implementations of these.
-        , bgroup "mixed"
-          [ benchIOSink value "scanl-map" (Ops.scanMap 1)
-          , benchIOSink value "foldl-map" Ops.foldl'ReduceMap
-          , benchIOSink value "sum-product-fold"  Ops.sumProductFold
-          , benchIOSink value "sum-product-scan"  Ops.sumProductScan
-          ]
-        , bgroup "mixedX4"
-          [ benchIOSink value "scan-map"    (Ops.scanMap 4)
-          , benchIOSink value "drop-map"    (Ops.dropMap 4)
-          , benchIOSink value "drop-scan"   (Ops.dropScan 4)
-          , benchIOSink value "take-drop"   (Ops.takeDrop value 4)
-          , benchIOSink value "take-scan"   (Ops.takeScan value 4)
-          , benchIOSink value "take-map"    (Ops.takeMap value 4)
-          , benchIOSink value "filter-drop" (Ops.filterDrop value 4)
-          , benchIOSink value "filter-take" (Ops.filterTake value 4)
-          , benchIOSink value "filter-scan" (Ops.filterScan 4)
-          , benchIOSink value "filter-scanl1" (Ops.filterScanl1 4)
-          , benchIOSink value "filter-map"  (Ops.filterMap value 4)
-          ]
-          ]
-        , bgroup "wSerially"
-            [ bgroup "transformation"
-                [ benchIOSink value "fmap"   $ Ops.fmap' wSerially 1
-                ]
+          , bgroup "outer-product"
+            [ benchIO "toNullAp"       $ Nested.toNullAp value       wSerially
+            , benchIO "toNull"         $ Nested.toNull value         wSerially
+            , benchIO "toNull3"        $ Nested.toNull3 value        wSerially
+            , benchIO "filterAllOut"   $ Nested.filterAllOut value   wSerially
+            , benchIO "filterAllIn"    $ Nested.filterAllIn value    wSerially
+            , benchIO "filterSome"     $ Nested.filterSome value     wSerially
+            , benchIO "breakAfterSome" $ Nested.breakAfterSome value wSerially
             ]
+          ]
         , bgroup "zipSerially"
-            [ bgroup "transformation"
-                [ benchIOSink value "fmap"   $ Ops.fmap' zipSerially 1
-                ]
+          [ bgroup "transformation"
+            [ benchIOSink value "fmap"   $ Ops.fmap' zipSerially 1
             ]
+            -- XXX needs fixing
+            {-
+          , bgroup "outer-product"
+            [ benchIO "toNullAp"  $ Nested.toNullAp value  zipSerially
+            ]
+            -}
+          ]
         ]
