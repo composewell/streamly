@@ -82,6 +82,12 @@
           package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Mask out the build status lines from the README
         * Upload to hackage
+          * Use a clean workspace to create source distribution
+          by freshly cloning the git repository. The reason for
+          doing this is that we use wild-cards in cabal file for
+          `extra-source-files`, these wild-cards may match additional
+          files lying around in the workspace and unintentionally ship
+          them as well.
           * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
           * `stack upload .`
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
