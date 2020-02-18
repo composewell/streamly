@@ -61,7 +61,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader.Class (MonadReader(..))
 import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Class (MonadTrans(lift))
-import Data.Coerce (Coercible, coerce)
 import Data.Foldable (Foldable(foldl'), fold)
 import Data.Functor.Identity (Identity(..), runIdentity)
 import Data.Maybe (fromMaybe)
@@ -72,8 +71,9 @@ import Data.Semigroup (Semigroup(..))
 import GHC.Exts (IsList(..), IsString(..))
 import Text.Read (Lexeme(Ident), lexP, parens, prec, readPrec, readListPrec,
                   readListPrecDefault)
-import Prelude hiding (map, mapM)
+import Prelude hiding (map, mapM, errorWithoutStackTrace)
 
+import Streamly.Internal.BaseCompat ((#.), errorWithoutStackTrace)
 import Streamly.Internal.Data.Stream.StreamK (IsStream(..), adapt, Stream, mkStream,
                                  foldStream)
 import Streamly.Internal.Data.Strict (Maybe'(..), toMaybe)
@@ -83,11 +83,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 #include "Instances.hs"
 #include "inline.hs"
-
--- XXX move this to Streamly.Internal.Data.Coerce?
-{-# INLINE (#.) #-}
-(#.) :: Coercible b c => (b -> c) -> (a -> b) -> (a -> c)
-(#.) _f = coerce
 
 ------------------------------------------------------------------------------
 -- SerialT
