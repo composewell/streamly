@@ -3,6 +3,15 @@ currently shipped with the package.  To find parts of the code where the
 original or modified code has been included please search for the copyright
 notices in the individual files.
 
+## Unreleased
+
+* For compatibility with older GHC versions portions of PrimArray and
+  SmallArray code is taken from "primitive" package.
+  * Copyright (c) 2009-2012 Roman Leshchinskiy
+  * Copyright (c) 2015 Dan Doel
+  * https://hackage.haskell.org/package/primitive-0.7.0.0
+  * See primitive-0.7.0.0.txt for the original license.
+
 ## 0.7.0
 
 * Composable folds include code from the "foldl" package.

@@ -97,6 +97,7 @@ extra-source-files:
     Changelog.md
     credits/*.md
     credits/base-4.12.0.0.txt
+    credits/primitive-0.7.0.0.txt
     credits/bjoern-2008-2009.txt
     credits/clock-0.7.2.txt
     credits/foldl-1.4.5.txt
