@@ -59,8 +59,11 @@
 
     * Make sure contributors to the release are listed in
       `credits/CONTRIBUTORS.md`.
+    * Bump the release version in `credits/CONTRIBUTORS.md`.
     * Make sure any third party code included in the release has been listed in
       `credits/COPYRIGHTS.md` and the license is added to the repo.
+    * Change the `Unreleased` section, if exists, at the top of
+      `credits/COPYRIGHTS.md` to the new release version number.
 
 * _Update changelog & Version_:
 
@@ -78,7 +81,7 @@
         * Create a git tag corresponding to the release where X.Y.Z is the new
           package version (`git tag vX.Y.Z && git push -f origin vX.Y.Z`).
         * Mask out the build status lines from the README
-        * Upload to hackage 
+        * Upload to hackage
           * `cabal v2-sdist`; `cabal upload --publish <tarpath>`
           * `stack upload .`
         * Add to stackage (`build-constraints.yaml` in Stackage repo) if needed
