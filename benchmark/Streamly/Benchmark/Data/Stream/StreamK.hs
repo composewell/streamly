@@ -1,5 +1,5 @@
 -- |
--- Module      : StreamKOps
+-- Module      : Streamly.Benchmark.Data.Stream.StreamK
 -- Copyright   : (c) 2018 Harendra Kumar
 --
 -- License     : BSD3
@@ -8,7 +8,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module StreamKOps where
+module Streamly.Benchmark.Data.Stream.StreamK where
 
 import Control.Monad (when)
 import Data.Maybe (isJust)

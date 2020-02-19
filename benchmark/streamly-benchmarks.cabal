@@ -156,49 +156,85 @@ common bench-options-threaded
   build-depends: streamly-benchmarks
   hs-source-dirs: .
 
+-- XXX the individual modules can just export a bunch of gauge Benchmark
+-- grouped by space usage and then we can combine the groups in just four
+-- different top level drivers.
+
 -------------------------------------------------------------------------------
 -- Serial Streams
 -------------------------------------------------------------------------------
 
 benchmark linear
--- benchmark serial-O-1-space
+-- benchmark serial-o-1-space
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M16M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_1_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
 
-benchmark serial-O-n-heap
+benchmark serial-o-n-heap
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M128M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_n_Heap.hs
 
-benchmark serial-O-n-stack
+benchmark serial-o-n-stack
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K1M -M16M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_n_Stack.hs
 
-benchmark serial-O-n-space
+benchmark serial-o-n-space
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K16M -M64M"
   main-is: Streamly/Benchmark/Prelude/Serial/O_n_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
 
+-------------------------------------------------------------------------------
+-- Raw Streams
+-------------------------------------------------------------------------------
+
+library lib-base
+    import: lib-options, bench-depends
+    hs-source-dirs:    ., lib
+    exposed-modules:
+                       Streamly.Benchmark.Data.Stream.StreamD
+                     , Streamly.Benchmark.Data.Stream.StreamK
+                     , Streamly.Benchmark.Data.Stream.StreamDK
+
 benchmark base
+-- benchmark base-o-1-space
   import: bench-options
   type: exitcode-stdio-1.0
-  if flag(dev)
-      cpp-options: -DDEVBUILD
-      ghc-options: -with-rtsopts "-T -K2M -M16M"
-  else
-      ghc-options: -with-rtsopts "-T -K128K -M16M"
+  cpp-options: -DO_1_SPACE
+  ghc-options: -with-rtsopts "-T -K36K -M16M"
   main-is: BaseStreams.hs
-  other-modules:     StreamDOps
-                   , StreamKOps
-                   , StreamDKOps
+  build-depends: lib-base
+
+benchmark base-o-n-heap
+  import: bench-options
+  type: exitcode-stdio-1.0
+  cpp-options: -DO_N_HEAP
+  ghc-options: -with-rtsopts "-T -K36K -M64M"
+  main-is: BaseStreams.hs
+  build-depends: lib-base
+
+benchmark base-o-n-stack
+  import: bench-options
+  type: exitcode-stdio-1.0
+  cpp-options: -DO_N_STACK
+  ghc-options: -with-rtsopts "-T -K1M -M16M"
+  main-is: BaseStreams.hs
+  build-depends: lib-base
+
+benchmark base-o-n-space
+  import: bench-options
+  type: exitcode-stdio-1.0
+  cpp-options: -DO_N_SPACE
+  ghc-options: -with-rtsopts "-T -K2M -M32M"
+  main-is: BaseStreams.hs
+  build-depends: lib-base
 
 executable nano-bench
   import: bench-options
