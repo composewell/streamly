@@ -8,20 +8,32 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.Stream.StreamK where
+module Streamly.Benchmark.Data.Stream.StreamK
+    (
+      o_1_space
+    , o_n_stack
+    , o_n_heap
+    , o_n_space
+    , o_1_space_list
+    )
+where
 
 import Control.Monad (when)
 import Data.Maybe (isJust)
 import Prelude
        (Monad, Int, (+), ($), (.), return, even, (>), (<=), div,
         subtract, undefined, Maybe(..), not, (>>=),
-        maxBound, flip, (<$>), (<*>), round, (/), (**), (<))
+        maxBound, flip, (<$>), (<*>), round, (/), (**), (<), foldr, fmap)
+import System.Random (randomRIO)
 import qualified Prelude as P
 import qualified Data.List as List
 
 import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.Prelude as SP
 import qualified Streamly.Internal.Data.SVar as S
+
+import Streamly.Benchmark.Common (benchFold)
+import Gauge (bench, nfIO, bgroup, Benchmark)
 
 value, value2, value3, value16, maxValue :: Int
 value = 100000
@@ -92,21 +104,14 @@ sourceUnfoldrMN m n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
-{-
-{-# INLINE sourceFromEnum #-}
-sourceFromEnum :: Monad m => Int -> Stream m Int
-sourceFromEnum n = S.enumFromStepN n 1 value
--}
-
 {-# INLINE sourceFromFoldable #-}
 sourceFromFoldable :: Int -> Stream m Int
 sourceFromFoldable n = S.fromFoldable [n..n+value]
 
-{-
 {-# INLINE sourceFromFoldableM #-}
 sourceFromFoldableM :: S.MonadAsync m => Int -> Stream m Int
-sourceFromFoldableM n = S.fromFoldableM (Prelude.fmap return [n..n+value])
--}
+sourceFromFoldableM n =
+    Prelude.foldr S.consM S.nil (Prelude.fmap return [n..n+value])
 
 {-# INLINE sourceFoldMapWith #-}
 sourceFoldMapWith :: Int -> Stream m Int
@@ -115,10 +120,6 @@ sourceFoldMapWith n = SP.foldMapWith S.serial S.yield [n..n+value]
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
 sourceFoldMapWithM n = SP.foldMapWith S.serial (S.yieldM . return) [n..n+value]
-
-{-# INLINE source #-}
-source :: S.MonadAsync m => Int -> Stream m Int
-source = sourceUnfoldrM
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -184,22 +185,23 @@ composeN n f =
 
 {-# INLINE scan #-}
 {-# INLINE map #-}
-{-# INLINE fmap #-}
+{-# INLINE fmapK #-}
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
-{-# INLINE takeOne #-}
+{-# INLINE _takeOne #-}
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
 {-# INLINE dropOne #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
 {-# INLINE dropWhileFalse #-}
+{-# INLINE foldrS #-}
 {-# INLINE foldlS #-}
 {-# INLINE concatMap #-}
-scan, map, fmap, filterEven, filterAllOut,
-    filterAllIn, takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
-    dropWhileTrue, dropWhileFalse, foldlS, concatMap
+scan, map, fmapK, filterEven, filterAllOut,
+    filterAllIn, _takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
+    dropWhileTrue, dropWhileFalse, foldrS, foldlS, concatMap
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -211,19 +213,20 @@ mapM, mapMSerial, intersperse
 
 scan           n = composeN n $ S.scanl' (+) 0
 map            n = composeN n $ P.fmap (+1)
-fmap           n = composeN n $ P.fmap (+1)
+fmapK          n = composeN n $ P.fmap (+1)
 mapM           n = composeN n $ S.mapM return
 mapMSerial     n = composeN n $ S.mapMSerial return
 filterEven     n = composeN n $ S.filter even
 filterAllOut   n = composeN n $ S.filter (> maxValue)
 filterAllIn    n = composeN n $ S.filter (<= maxValue)
-takeOne        n = composeN n $ S.take 1
+_takeOne       n = composeN n $ S.take 1
 takeAll        n = composeN n $ S.take maxValue
 takeWhileTrue  n = composeN n $ S.takeWhile (<= maxValue)
 dropOne        n = composeN n $ S.drop 1
 dropAll        n = composeN n $ S.drop maxValue
 dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
+foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 -- We use a (sqrt n) element stream as source and then concat the same stream
 -- for each element to produce an n element stream.
@@ -408,3 +411,199 @@ filterAllInNestedList str = do
     if s > 0
     then return s
     else []
+
+-------------------------------------------------------------------------------
+-- Benchmarks
+-------------------------------------------------------------------------------
+
+o_1_space :: [Benchmark]
+o_1_space =
+    [ bgroup "streamK"
+      [ bgroup "generation"
+        [ benchFold "unfoldr"       toNull sourceUnfoldr
+        , benchFold "unfoldrM"      toNull sourceUnfoldrM
+
+        , benchFold "fromFoldable"  toNull sourceFromFoldable
+        , benchFold "fromFoldableM" toNull sourceFromFoldableM
+
+        -- appends
+        , benchFold "foldMapWith"  toNull sourceFoldMapWith
+        , benchFold "foldMapWithM" toNull sourceFoldMapWithM
+        ]
+      , bgroup "elimination"
+        [ benchFold "toNull"   toNull   sourceUnfoldrM
+        , benchFold "mapM_"    mapM_    sourceUnfoldrM
+        , benchFold "uncons"   uncons   sourceUnfoldrM
+        , benchFold "init"   init     sourceUnfoldrM
+        , benchFold "foldl'" foldl    sourceUnfoldrM
+        , benchFold "last"   last     sourceUnfoldrM
+        ]
+      , bgroup "nested"
+        [ benchFold "toNullAp" toNullApNested (sourceUnfoldrMN value2)
+        , benchFold "toNull"   toNullNested   (sourceUnfoldrMN value2)
+        , benchFold "toNull3"  toNullNested3  (sourceUnfoldrMN value3)
+        , benchFold "filterAllIn"  filterAllInNested  (sourceUnfoldrMN value2)
+        , benchFold "filterAllOut" filterAllOutNested (sourceUnfoldrMN value2)
+        , benchFold "toNullApPure" toNullApNested (sourceUnfoldrN value2)
+        , benchFold "toNullPure"   toNullNested   (sourceUnfoldrN value2)
+        , benchFold "toNull3Pure"  toNullNested3  (sourceUnfoldrN value3)
+        , benchFold "filterAllInPure"  filterAllInNested  (sourceUnfoldrN value2)
+        , benchFold "filterAllOutPure" filterAllOutNested (sourceUnfoldrN value2)
+        ]
+      , bgroup "transformation"
+        [ benchFold "foldrS" (foldrS 1) sourceUnfoldrM
+        , benchFold "scan"   (scan 1) sourceUnfoldrM
+        , benchFold "map"    (map  1) sourceUnfoldrM
+        , benchFold "fmap"   (fmapK 1) sourceUnfoldrM
+        , benchFold "mapM"   (mapM 1) sourceUnfoldrM
+        , benchFold "mapMSerial"  (mapMSerial 1) sourceUnfoldrM
+        -- , benchFoldSrcK "concatMap" concatMap
+        , benchFold "concatMapNxN" (concatMap 1) (sourceUnfoldrMN value2)
+        , benchFold "concatMapPureNxN" (concatMap 1) (sourceUnfoldrN value2)
+        , benchFold "concatMapRepl4xN" concatMapRepl4xN
+            (sourceUnfoldrMN (value `div` 4))
+        ]
+      , bgroup "transformationX4"
+        [ benchFold "scan"   (scan 4) sourceUnfoldrM
+        , benchFold "map"    (map  4) sourceUnfoldrM
+        , benchFold "fmap"   (fmapK 4) sourceUnfoldrM
+        , benchFold "mapM"   (mapM 4) sourceUnfoldrM
+        , benchFold "mapMSerial" (mapMSerial 4) sourceUnfoldrM
+        -- XXX this is horribly slow
+        -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
+        ]
+      , bgroup "filtering"
+        [ benchFold "filter-even"     (filterEven     1) sourceUnfoldrM
+        , benchFold "filter-all-out"  (filterAllOut   1) sourceUnfoldrM
+        , benchFold "filter-all-in"   (filterAllIn    1) sourceUnfoldrM
+        , benchFold "take-all"        (takeAll        1) sourceUnfoldrM
+        , benchFold "takeWhile-true"  (takeWhileTrue  1) sourceUnfoldrM
+        , benchFold "drop-one"        (dropOne        1) sourceUnfoldrM
+        , benchFold "drop-all"        (dropAll        1) sourceUnfoldrM
+        , benchFold "dropWhile-true"  (dropWhileTrue  1) sourceUnfoldrM
+        , benchFold "dropWhile-false" (dropWhileFalse 1) sourceUnfoldrM
+        ]
+      , bgroup "filteringX4"
+        [ benchFold "filter-even"     (filterEven     4) sourceUnfoldrM
+        , benchFold "filter-all-out"  (filterAllOut   4) sourceUnfoldrM
+        , benchFold "filter-all-in"   (filterAllIn    4) sourceUnfoldrM
+        , benchFold "take-all"        (takeAll        4) sourceUnfoldrM
+        , benchFold "takeWhile-true"  (takeWhileTrue  4) sourceUnfoldrM
+        , benchFold "drop-one"        (dropOne        4) sourceUnfoldrM
+        , benchFold "drop-all"        (dropAll        4) sourceUnfoldrM
+        , benchFold "dropWhile-true"  (dropWhileTrue  4) sourceUnfoldrM
+        , benchFold "dropWhile-false" (dropWhileFalse 4) sourceUnfoldrM
+        ]
+      , bgroup "zipping"
+        [ benchFold "zip" zip sourceUnfoldrM
+        ]
+      , bgroup "mixed"
+        [ benchFold "scan-map"    (scanMap    1) sourceUnfoldrM
+        , benchFold "drop-map"    (dropMap    1) sourceUnfoldrM
+        , benchFold "drop-scan"   (dropScan   1) sourceUnfoldrM
+        , benchFold "take-drop"   (takeDrop   1) sourceUnfoldrM
+        , benchFold "take-scan"   (takeScan   1) sourceUnfoldrM
+        , benchFold "take-map"    (takeMap    1) sourceUnfoldrM
+        , benchFold "filter-drop" (filterDrop 1) sourceUnfoldrM
+        , benchFold "filter-take" (filterTake 1) sourceUnfoldrM
+        , benchFold "filter-scan" (filterScan 1) sourceUnfoldrM
+        , benchFold "filter-map"  (filterMap  1) sourceUnfoldrM
+        ]
+      , bgroup "mixedX2"
+        [ benchFold "scan-map"    (scanMap    2) sourceUnfoldrM
+        , benchFold "drop-map"    (dropMap    2) sourceUnfoldrM
+        , benchFold "drop-scan"   (dropScan   2) sourceUnfoldrM
+        , benchFold "take-drop"   (takeDrop   2) sourceUnfoldrM
+        , benchFold "take-scan"   (takeScan   2) sourceUnfoldrM
+        , benchFold "take-map"    (takeMap    2) sourceUnfoldrM
+        , benchFold "filter-drop" (filterDrop 2) sourceUnfoldrM
+        , benchFold "filter-take" (filterTake 2) sourceUnfoldrM
+        , benchFold "filter-scan" (filterScan 2) sourceUnfoldrM
+        , benchFold "filter-map"  (filterMap  2) sourceUnfoldrM
+        ]
+      , bgroup "mixedX4"
+        [ benchFold "scan-map"    (scanMap    4) sourceUnfoldrM
+        , benchFold "drop-map"    (dropMap    4) sourceUnfoldrM
+        , benchFold "drop-scan"   (dropScan   4) sourceUnfoldrM
+        , benchFold "take-drop"   (takeDrop   4) sourceUnfoldrM
+        , benchFold "take-scan"   (takeScan   4) sourceUnfoldrM
+        , benchFold "take-map"    (takeMap    4) sourceUnfoldrM
+        , benchFold "filter-drop" (filterDrop 4) sourceUnfoldrM
+        , benchFold "filter-take" (filterTake 4) sourceUnfoldrM
+        , benchFold "filter-scan" (filterScan 4) sourceUnfoldrM
+        , benchFold "filter-map"  (filterMap  4) sourceUnfoldrM
+        ]
+      ]
+    ]
+
+o_n_heap :: [Benchmark]
+o_n_heap =
+    [ bgroup "streamK"
+      [ bgroup "transformation"
+        [ benchFold "foldlS" (foldlS 1) sourceUnfoldrM
+        ]
+      ]
+    ]
+
+{-# INLINE benchK #-}
+benchK :: P.String -> (Int -> Stream P.IO Int) -> Benchmark
+benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
+
+o_n_stack :: [Benchmark]
+o_n_stack =
+    [ bgroup "streamK"
+      [ bgroup "elimination"
+        [ benchFold "tail"   tail     sourceUnfoldrM
+        , benchFold "nullTail" nullTail sourceUnfoldrM
+        , benchFold "headTail" headTail sourceUnfoldrM
+        ]
+      , bgroup "transformation"
+        [
+          -- XXX why do these need so much stack
+          benchFold "intersperse" (intersperse 1) (sourceUnfoldrMN value2)
+        , benchFold "interspersePure" (intersperse 1) (sourceUnfoldrN value2)
+        ]
+      , bgroup "transformationX4"
+        [
+          benchFold "intersperse" (intersperse 4) (sourceUnfoldrMN value16)
+        ]
+      , bgroup "iterated"
+        [ benchK "mapM"                 iterateMapM
+        , benchK "scan(1/10)"           iterateScan
+        , benchK "filterEven"           iterateFilterEven
+        , benchK "takeAll"              iterateTakeAll
+        , benchK "dropOne"              iterateDropOne
+        , benchK "dropWhileFalse(1/10)" iterateDropWhileFalse
+        , benchK "dropWhileTrue"        iterateDropWhileTrue
+        ]
+      ]
+   ]
+
+o_n_space :: [Benchmark]
+o_n_space =
+    [ bgroup "streamK"
+      [ bgroup "elimination"
+        [ benchFold "toList" toList   sourceUnfoldrM
+        ]
+      ]
+   ]
+
+{-# INLINE benchList #-}
+benchList :: P.String -> ([Int] -> [Int]) -> (Int -> [Int]) -> Benchmark
+benchList name run f = bench name $ nfIO $ randomRIO (1,1) >>= return . run . f
+
+o_1_space_list :: [Benchmark]
+o_1_space_list =
+    [ bgroup "list"
+      [ bgroup "elimination"
+        [ benchList "last" (\xs -> [List.last xs]) (sourceUnfoldrList value)
+        ]
+      , bgroup "nested"
+        [ benchList "toNullAp" toNullApNestedList (sourceUnfoldrList value2)
+        , benchList "toNull"   toNullNestedList (sourceUnfoldrList value2)
+        , benchList "toNull3"  toNullNestedList3 (sourceUnfoldrList value3)
+        , benchList "filterAllIn"  filterAllInNestedList (sourceUnfoldrList value2)
+        , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList value2)
+        ]
+      ]
+    ]

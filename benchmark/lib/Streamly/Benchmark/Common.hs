@@ -16,6 +16,7 @@ module Streamly.Benchmark.Common
     , benchIOSink1
     , benchPure
     , benchPureSink1
+    , benchFold
 
     , benchIOSrc1
     , benchPureSrc
@@ -63,6 +64,13 @@ benchIOSink1 name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 {-# INLINE benchIOSrc1 #-}
 benchIOSrc1 :: String -> (Int -> IO ()) -> Benchmark
 benchIOSrc1 name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
+-- We need a monadic bind here to make sure that the function f does not get
+-- completely optimized out by the compiler in some cases.
+{-# INLINE benchFold #-}
+benchFold :: NFData b
+    => String -> (t IO Int -> IO b) -> (Int -> t IO Int) -> Benchmark
+benchFold name f src = bench name $ nfIO $ randomRIO (1,1) >>= f . src
 
 {-# INLINE benchPure #-}
 benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark

@@ -131,7 +131,12 @@ library
     hs-source-dirs:    lib
     exposed-modules:
                        Streamly.Benchmark.Common
-                     , Streamly.Benchmark.Prelude
+
+library lib-prelude
+    import: lib-options, bench-depends
+    hs-source-dirs:    lib
+    exposed-modules:
+                       Streamly.Benchmark.Prelude
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -145,7 +150,6 @@ common bench-options
   import: compile-options, optimization-options, bench-depends
   ghc-options: -with-rtsopts "-T -K32K -M16M"
   build-depends: streamly-benchmarks
-  hs-source-dirs: .
 
 -- Some benchmarks are threaded some are not
 common bench-options-threaded
@@ -154,7 +158,6 @@ common bench-options-threaded
   -- trigger only with these options.
   ghc-options: -threaded -with-rtsopts "-T -N2 -K32K -M16M"
   build-depends: streamly-benchmarks
-  hs-source-dirs: .
 
 -- XXX the individual modules can just export a bunch of gauge Benchmark
 -- grouped by space usage and then we can combine the groups in just four
@@ -169,27 +172,35 @@ benchmark linear
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M16M"
-  main-is: Streamly/Benchmark/Prelude/Serial/O_1_Space.hs
+  hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
+  main-is: O_1_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
+  build-depends: lib-prelude
 
 benchmark serial-o-n-heap
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M128M"
-  main-is: Streamly/Benchmark/Prelude/Serial/O_n_Heap.hs
+  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
+  main-is: O_n_Heap.hs
+  build-depends: lib-prelude
 
 benchmark serial-o-n-stack
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K1M -M16M"
-  main-is: Streamly/Benchmark/Prelude/Serial/O_n_Stack.hs
+  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
+  main-is: O_n_Stack.hs
+  build-depends: lib-prelude
 
 benchmark serial-o-n-space
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K16M -M64M"
-  main-is: Streamly/Benchmark/Prelude/Serial/O_n_Space.hs
+  hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
+  main-is: O_n_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
+  build-depends: lib-prelude
 
 -------------------------------------------------------------------------------
 -- Raw Streams
@@ -197,11 +208,12 @@ benchmark serial-o-n-space
 
 library lib-base
     import: lib-options, bench-depends
-    hs-source-dirs:    ., lib
+    hs-source-dirs: .
     exposed-modules:
                        Streamly.Benchmark.Data.Stream.StreamD
                      , Streamly.Benchmark.Data.Stream.StreamK
                      , Streamly.Benchmark.Data.Stream.StreamDK
+    build-depends: streamly-benchmarks
 
 benchmark base
 -- benchmark base-o-1-space
@@ -209,6 +221,7 @@ benchmark base
   type: exitcode-stdio-1.0
   cpp-options: -DO_1_SPACE
   ghc-options: -with-rtsopts "-T -K36K -M16M"
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
   build-depends: lib-base
 
@@ -217,6 +230,7 @@ benchmark base-o-n-heap
   type: exitcode-stdio-1.0
   cpp-options: -DO_N_HEAP
   ghc-options: -with-rtsopts "-T -K36K -M64M"
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
   build-depends: lib-base
 
@@ -225,6 +239,7 @@ benchmark base-o-n-stack
   type: exitcode-stdio-1.0
   cpp-options: -DO_N_STACK
   ghc-options: -with-rtsopts "-T -K1M -M16M"
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
   build-depends: lib-base
 
@@ -232,12 +247,14 @@ benchmark base-o-n-space
   import: bench-options
   type: exitcode-stdio-1.0
   cpp-options: -DO_N_SPACE
-  ghc-options: -with-rtsopts "-T -K2M -M32M"
+  ghc-options: -with-rtsopts "-T -K32M -M32M"
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
   build-depends: lib-base
 
 executable nano-bench
   import: bench-options
+  hs-source-dirs: .
   main-is: NanoBenchmarks.hs
   if flag(dev)
     buildable: True
@@ -252,13 +269,16 @@ benchmark linear-async
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
+  hs-source-dirs: .
   main-is: LinearAsync.hs
+  build-depends: lib-prelude
 
 benchmark nested-concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   -- XXX this can be lowered once we split out the finite benchmarks
   ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
+  hs-source-dirs: .
   main-is: NestedConcurrent.hs
   other-modules: NestedOps
 
@@ -266,24 +286,30 @@ benchmark parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
+  hs-source-dirs: .
   main-is: Parallel.hs
   other-modules: NestedOps
+  build-depends: lib-prelude
 
 benchmark concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
+  hs-source-dirs: .
   main-is: Concurrent.hs
   ghc-options: -with-rtsopts "-T -N2 -K256K -M384M"
 
 benchmark adaptive
   import: bench-options-threaded
   type: exitcode-stdio-1.0
+  hs-source-dirs: .
   main-is: Adaptive.hs
 
 benchmark linear-rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0
+  hs-source-dirs: .
   main-is: LinearRate.hs
+  build-depends: lib-prelude
 
 -------------------------------------------------------------------------------
 -- Array Benchmarks
@@ -293,6 +319,7 @@ benchmark unpinned-array
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K1K -M128M"
+  hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
 
@@ -300,6 +327,7 @@ benchmark prim-array
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K64K -M32M"
+  hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Prim/Array.hs
   other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
 
@@ -307,6 +335,7 @@ benchmark small-array
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K128K -M16M"
+  hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/SmallArray.hs
   other-modules: Streamly.Benchmark.Data.SmallArrayOps
 
@@ -314,6 +343,7 @@ benchmark array
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K64K -M128M"
+  hs-source-dirs: .
   main-is: Array.hs
   other-modules: ArrayOps
 
@@ -324,6 +354,7 @@ benchmark array
 benchmark fileio
   import: bench-options
   type: exitcode-stdio-1.0
+  hs-source-dirs: .
   main-is: FileIO.hs
   other-modules: Streamly.Benchmark.FileIO.Array
                , Streamly.Benchmark.FileIO.Stream
@@ -337,6 +368,7 @@ benchmark fileio
 executable chart
   default-language: Haskell2010
   ghc-options: -Wall
+  hs-source-dirs: .
   main-is: Chart.hs
   if flag(dev) && !flag(no-charts) && !impl(ghcjs)
     buildable: True

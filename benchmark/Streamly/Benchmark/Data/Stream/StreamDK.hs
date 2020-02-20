@@ -8,26 +8,35 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.Stream.StreamDK where
+module Streamly.Benchmark.Data.Stream.StreamDK
+    (
+      o_1_space
+    )
+where
 
 -- import Control.Monad (when)
 -- import Data.Maybe (isJust)
 import Prelude
-       (Monad, Int, (+), (.), return, undefined, Maybe(..), round, (/),
-        (**), (>))
-import qualified Prelude as P
+       (Monad, Int, (+), return, Maybe(..), (>))
+-- import qualified Prelude as P
 -- import qualified Data.List as List
 
 import qualified Streamly.Internal.Data.Stream.StreamDK as S
 -- import qualified Streamly.Internal.Data.Stream.Prelude as SP
 -- import qualified Streamly.Internal.Data.SVar as S
 
-value, value2, value3, value16, maxValue :: Int
+import Streamly.Benchmark.Common (benchFold)
+import Gauge (bgroup, Benchmark)
+
+value :: Int
 value = 100000
+{-
+value2, value3, value16, maxValue :: Int
 value2 = round (P.fromIntegral value**(1/2::P.Double)) -- double nested loop
 value3 = round (P.fromIntegral value**(1/3::P.Double)) -- triple nested loop
 value16 = round (P.fromIntegral value**(1/16::P.Double)) -- triple nested loop
 maxValue = value
+-}
 
 -------------------------------------------------------------------------------
 -- Benchmark ops
@@ -48,6 +57,7 @@ sourceUnfoldr n = S.unfoldr step n
         then Nothing
         else Just (cnt, cnt + 1)
 
+{-
 {-# INLINE sourceUnfoldrN #-}
 sourceUnfoldrN :: Monad m => Int -> Int -> Stream m Int
 sourceUnfoldrN m n = S.unfoldr step n
@@ -56,6 +66,7 @@ sourceUnfoldrN m n = S.unfoldr step n
         if cnt > n + m
         then Nothing
         else Just (cnt, cnt + 1)
+-}
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: Monad m => Int -> Stream m Int
@@ -66,6 +77,7 @@ sourceUnfoldrM n = S.unfoldrM step n
         then return Nothing
         else return (Just (cnt, cnt + 1))
 
+{-
 {-# INLINE sourceUnfoldrMN #-}
 sourceUnfoldrMN :: Monad m => Int -> Int -> Stream m Int
 sourceUnfoldrMN m n = S.unfoldrM step n
@@ -74,6 +86,7 @@ sourceUnfoldrMN m n = S.unfoldrM step n
         if cnt > n + m
         then return Nothing
         else return (Just (cnt, cnt + 1))
+-}
 
 {-
 {-# INLINE sourceFromEnum #-}
@@ -102,10 +115,6 @@ sourceFoldMapWith n = SP.foldMapWith S.serial S.yield [n..n+value]
 sourceFoldMapWithM :: Monad m => Int -> Stream m Int
 sourceFoldMapWithM n = SP.foldMapWith S.serial (S.yieldM . return) [n..n+value]
 -}
-
-{-# INLINE source #-}
-source :: Monad m => Int -> Stream m Int
-source = sourceUnfoldrM
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -177,6 +186,7 @@ last   = S.last
 -- Transformation
 -------------------------------------------------------------------------------
 
+{-
 {-# INLINE transform #-}
 transform :: Monad m => Stream m a -> m ()
 transform = runStream
@@ -192,6 +202,7 @@ composeN n f =
         3 -> transform . f . f . f
         4 -> transform . f . f . f . f
         _ -> undefined
+-}
 
 {-
 {-# INLINE scan #-}
@@ -421,3 +432,21 @@ filterAllInNestedList str = do
     then return s
     else []
 -}
+
+-------------------------------------------------------------------------------
+-- Benchmarks
+-------------------------------------------------------------------------------
+
+o_1_space :: [Benchmark]
+o_1_space =
+    [ bgroup "streamDK"
+      [ bgroup "generation"
+        [ benchFold "unfoldr"       toNull sourceUnfoldr
+        , benchFold "unfoldrM"      toNull sourceUnfoldrM
+        ]
+      , bgroup "elimination"
+        [ benchFold "toNull"   toNull   sourceUnfoldrM
+        , benchFold "uncons"   uncons   sourceUnfoldrM
+        ]
+      ]
+    ]
