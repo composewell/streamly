@@ -86,7 +86,8 @@ benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq` runMode (mode cfg) cfg benches
+    value `seq` runMode (mode cfg) cfg benches $
+        Ops.o_1_space_serial_generation value ++
         [ bgroup "serially"
           [ bgroup "pure"
             [ benchPureSink value "id" id
@@ -139,6 +140,7 @@ main = do
             -- TBD: asum
             -- , benchIOSink1 "msum" (Ops.foldableMsum value)
             ]
+            {-
           , bgroup "generation"
             [ -- Most basic, barely stream continuations running
               benchIOSrc serially "unfoldr" (Ops.sourceUnfoldr value)
@@ -156,6 +158,7 @@ main = do
             , benchIOSrc serially "currentTime/0.00001s"
                 $ Ops.currentTime value 0.00001
             ]
+            -}
           , bgroup "elimination"
             [ bgroup "reduce"
               [ bgroup "IO"

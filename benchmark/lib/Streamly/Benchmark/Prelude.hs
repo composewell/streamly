@@ -35,6 +35,8 @@ import Prelude
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
         (<*>), flip)
+import System.Random (randomRIO)
+
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -53,6 +55,8 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import Streamly.Internal.Data.Time.Units
+
+import Gauge (bench, nfIO, bgroup, Benchmark)
 
 type Stream m a = S.SerialT m a
 
@@ -188,6 +192,50 @@ sourceFromFoldableM value n = S.fromFoldableM (Prelude.fmap return [n..n+value])
 currentTime :: (S.IsStream t, S.MonadAsync m)
     => Int -> Double -> Int -> t m AbsTime
 currentTime value g _ = S.take value $ Internal.currentTime g
+
+-------------------------------------------------------------------------------
+-- Generation benchmarks
+-------------------------------------------------------------------------------
+
+{-# INLINE benchIOSrc #-}
+benchIOSrc :: (t IO a -> S.SerialT IO a) -> (Int -> t IO a) -> IO ()
+benchIOSrc t f = randomRIO (1,1) >>= toNull t . f
+
+unfoldrSerial = benchIOSrc S.serially . sourceUnfoldr
+
+-- by writing the benchmark as a complete IO action we can write an inspection
+-- test for it. If it is not a complete IO action fusion may not have occured
+-- yet.
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'unfoldrSerial
+inspect $ 'unfoldrSerial `hasNoType` ''D.Step
+#endif
+
+o_1_space_serial_generation :: Int -> [Benchmark]
+o_1_space_serial_generation value =
+    [ bgroup "serially"
+      [ bgroup "generation"
+        [ bench "unfoldr" $ nfIO $ unfoldrSerial value
+          -- other generation bechmarks here
+        ]
+      ]
+    ]
+
+unfoldrAsync value = benchIOSrc S.asyncly (sourceUnfoldr value)
+
+o_1_space_async_generation :: Int -> [Benchmark]
+o_1_space_async_generation value =
+    [ bgroup "asyncly"
+      [ bgroup "generation"
+        [ bench "unfoldr" $ nfIO $ unfoldrAsync value
+            -- other generation bechmarks here
+        ]
+      ]
+    ]
+
+unfoldrWAsync value = benchIOSrc S.wAsyncly (sourceUnfoldr value)
+unfoldrAhead value = benchIOSrc S.aheadly (sourceUnfoldr value)
+unfoldrParallel value = benchIOSrc S.parallely (sourceUnfoldr value)
 
 -------------------------------------------------------------------------------
 -- Elimination
