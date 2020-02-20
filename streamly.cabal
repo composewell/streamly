@@ -131,7 +131,7 @@ source-repository head
     location: https://github.com/composewell/streamly
 
 flag fusion-plugin
-  description: Enable fusion plugin for better optimizations
+  description: Use fusion plugin for benchmarks and executables
   manual: True
   default: False
 
@@ -151,17 +151,17 @@ flag dev
   default: False
 
 flag has-llvm
-  description: Use llvm backend for better performance
+  description: Use llvm backend for code generation
   manual: True
   default: False
 
 flag no-charts
-  description: Disable chart generation
+  description: Disable benchmark charts in development build
   manual: True
   default: False
 
 flag no-fusion
-  description: Disable rewrite rules
+  description: Disable rewrite rules for stream fusion
   manual: True
   default: False
 
