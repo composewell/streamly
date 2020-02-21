@@ -234,7 +234,11 @@ library lib-base
                        Streamly.Benchmark.Data.Stream.StreamD
                      , Streamly.Benchmark.Data.Stream.StreamK
                      , Streamly.Benchmark.Data.Stream.StreamDK
-    build-depends: streamly-benchmarks
+    if impl(ghcjs)
+      buildable: False
+    else
+      build-depends: streamly-benchmarks
+      buildable: True
 
 benchmark base
 -- benchmark base-o-1-space
@@ -244,7 +248,11 @@ benchmark base
   ghc-options: -with-rtsopts "-T -K36K -M16M"
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
-  build-depends: lib-base
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-base
+    buildable: True
 
 benchmark base-o-n-heap
   import: bench-options
@@ -253,7 +261,11 @@ benchmark base-o-n-heap
   ghc-options: -with-rtsopts "-T -K36K -M64M"
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
-  build-depends: lib-base
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-base
+    buildable: True
 
 benchmark base-o-n-stack
   import: bench-options
@@ -262,7 +274,11 @@ benchmark base-o-n-stack
   ghc-options: -with-rtsopts "-T -K1M -M16M"
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
-  build-depends: lib-base
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-base
+    buildable: True
 
 benchmark base-o-n-space
   import: bench-options
@@ -271,7 +287,11 @@ benchmark base-o-n-space
   ghc-options: -with-rtsopts "-T -K32M -M32M"
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
-  build-depends: lib-base
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-base
+    buildable: True
 
 executable nano-bench
   import: bench-options
