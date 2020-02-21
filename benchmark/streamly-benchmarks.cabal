@@ -137,6 +137,11 @@ library lib-prelude
     hs-source-dirs:    lib
     exposed-modules:
                        Streamly.Benchmark.Prelude
+    -- XXX GHCJS build fails for this library.
+    if impl(ghcjs)
+      buildable: False
+    else
+      buildable: True
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -175,7 +180,11 @@ benchmark linear
   hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
   main-is: O_1_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 benchmark serial-o-n-heap
   import: bench-options
@@ -183,7 +192,11 @@ benchmark serial-o-n-heap
   ghc-options: -with-rtsopts "-T -K36K -M128M"
   hs-source-dirs: Streamly/Benchmark/Prelude/Serial
   main-is: O_n_Heap.hs
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 benchmark serial-o-n-stack
   import: bench-options
@@ -191,7 +204,11 @@ benchmark serial-o-n-stack
   ghc-options: -with-rtsopts "-T -K1M -M16M"
   hs-source-dirs: Streamly/Benchmark/Prelude/Serial
   main-is: O_n_Stack.hs
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 benchmark serial-o-n-space
   import: bench-options
@@ -200,7 +217,11 @@ benchmark serial-o-n-space
   hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
   main-is: O_n_Space.hs
   other-modules: NestedOps, NestedUnfoldOps
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 -------------------------------------------------------------------------------
 -- Raw Streams
@@ -271,7 +292,11 @@ benchmark linear-async
   ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
   hs-source-dirs: .
   main-is: LinearAsync.hs
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 benchmark nested-concurrent
   import: bench-options-threaded
@@ -289,7 +314,11 @@ benchmark parallel
   hs-source-dirs: .
   main-is: Parallel.hs
   other-modules: NestedOps
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 benchmark concurrent
   import: bench-options-threaded
@@ -303,13 +332,21 @@ benchmark adaptive
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: Adaptive.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
 
 benchmark linear-rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: .
   main-is: LinearRate.hs
-  build-depends: lib-prelude
+  if impl(ghcjs)
+    buildable: False
+  else
+    build-depends: lib-prelude
+    buildable: True
 
 -------------------------------------------------------------------------------
 -- Array Benchmarks
