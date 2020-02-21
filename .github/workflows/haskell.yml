@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: GHC ${{ matrix.ghc_version }}
+    name: GHC ${{ matrix.name }}
     env:
       CABAL_REINIT_CONFIG: y
       LC_ALL: C.UTF-8
@@ -28,23 +28,29 @@ jobs:
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+      DISABLE_DOCS: ${{ matrix.disable_docs }}
 
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        ghc_version: [8.8.1, 8.6.5, 8.6.5]
+        name: [8.8.1+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin]
         cabal_version: ["3.0"]
         include:
-          - ghc_version: 8.8.1
+          - name: 8.8.1+inspection+Werror
+            ghc_version: 8.8.1
             build: cabal-v2
             cabal_build_options: "--project-file=cabal.project.ci"
-          - ghc_version: 8.6.5
+          - name: 8.6.5+streamk
+            ghc_version: 8.6.5
             build: cabal-v2
             cabal_build_options: "--flags streamk"
-          - ghc_version: 8.6.5
+          - name: 8.6.5+fusion-plugin
+            ghc_version: 8.6.5
             build: cabal-v2
             cabal_build_options: "--flags fusion-plugin"
+            # haddock generation does not work with 8.6.5+fusion-plugin
+            disable_docs: "y"
 
     steps:
     - uses: actions/checkout@v2
