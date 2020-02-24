@@ -109,6 +109,7 @@ module Streamly.Internal.Data.Unfold
     -- * Zipping
     , zipWithM
     , zipWith
+    , teeZipWith
 
     -- * Nesting
     , concat
@@ -589,6 +590,16 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 zipWith :: Monad m
     => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
 zipWith f = zipWithM (\a b -> return (f a b))
+
+-- | Distribute the input to two unfolds and then zip the outputs to a single
+-- stream.
+--
+-- /Internal/
+--
+{-# INLINE_NORMAL teeZipWith #-}
+teeZipWith :: Monad m
+    => (a -> b -> c) -> Unfold m x a -> Unfold m x b -> Unfold m x c
+teeZipWith f unf1 unf2 = lmap (\x -> (x,x)) $ zipWith f unf1 unf2
 
 -------------------------------------------------------------------------------
 -- Nested
