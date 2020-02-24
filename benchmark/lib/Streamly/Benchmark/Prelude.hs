@@ -34,7 +34,7 @@ import Prelude
        (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+        (<*>), flip, Bounded(..), (-))
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -1221,3 +1221,45 @@ traversableMapM = P.mapM return
 {-# INLINE traversableSequence #-}
 traversableSequence :: Stream Identity Int -> IO (Stream Identity Int)
 traversableSequence = P.sequence . P.fmap return
+
+-------------------------------------------------------------------------------
+-- Bench Ops for reassembleBy
+-------------------------------------------------------------------------------
+
+newtype WholeInt = WholeInt Int
+
+instance Bounded WholeInt where
+    minBound = WholeInt 0
+    maxBound = WholeInt maxBound
+
+{-# INLINE diff #-}
+diff :: WholeInt -> WholeInt -> Int
+diff (WholeInt x) (WholeInt y) = x - y
+
+{-# INLINE benchReassembleBy #-}
+benchReassembleBy :: (Int -> S.SerialT IO WholeInt) -> Int -> IO ()
+benchReassembleBy src i = S.drain $ Internal.reassembleBy (i + 1) diff (src i)
+
+{-# INLINE srcInOrd #-}
+srcInOrd :: Int -> Int -> S.SerialT IO WholeInt
+srcInOrd value' i = S.unfoldr step i
+  where
+    step x
+        | x > value' = Nothing
+        | P.otherwise = Just (WholeInt x, x + 1)
+
+{-# INLINE srcOrd #-}
+srcOrd :: Int -> Int -> S.SerialT IO WholeInt
+srcOrd value' i = S.unfoldr step (i, 0 :: Int)
+  where
+    step (a, b)
+        | c > value' = Nothing
+        | P.otherwise =
+            Just
+                ( WholeInt c
+                , ( if a + i == 0
+                        then i
+                        else a - 2
+                  , b + 1))
+      where
+        c = a + b
