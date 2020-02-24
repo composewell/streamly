@@ -150,21 +150,12 @@ testLastN =
                         $ S.fromList list
                     assert (xs == lastN n list)
 
-testLastNLT :: Property
-testLastNLT =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                xs <- fmap A.toList $ S.fold (A.lastN 0) $ S.fromList list
-                assert (xs == lastN 0 list)
-
-testLastNGT :: Property
-testLastNGT =
-    forAll (choose (0, maxArrLen)) $ \len ->
-        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
-            monadicIO $ do
-                xs <- fmap A.toList $ S.fold (A.lastN (len + 1)) $ S.fromList list
-                assert (xs == lastN (len + 1) list)
+testLastN_LN :: Int -> Int -> IO Bool
+testLastN_LN len n = do
+    let list = [1..len]
+    l1 <- fmap A.toList $ S.fold (A.lastN n) $ S.fromList list
+    let l2 = lastN n list
+    return $ l1 == l2
 #endif
 
 main :: IO ()
@@ -190,7 +181,10 @@ main =
 #endif
 #ifdef TEST_ARRAY
         describe "Fold" $ do
-            prop "lastN : 0 <= n < len" $ testLastN
-            prop "lastN : n = 0" $ testLastNLT
-            prop "lastN : n = len + 1" $ testLastNGT
+            prop "lastN : 0 <= n <= len" $ testLastN
+            describe "lastN boundary conditions" $ do
+                it "lastN -1" (testLastN_LN 10 (-1) `shouldReturn` True)
+                it "lastN 0" (testLastN_LN 10 0 `shouldReturn` True)
+                it "lastN length" (testLastN_LN 10 10 `shouldReturn` True)
+                it "lastN (length + 1)" (testLastN_LN 10 11 `shouldReturn` True)
 #endif
