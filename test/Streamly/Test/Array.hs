@@ -149,6 +149,22 @@ testLastN =
                         $ S.fold (A.lastN n)
                         $ S.fromList list
                     assert (xs == lastN n list)
+
+testLastNLT :: Property
+testLastNLT =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            monadicIO $ do
+                xs <- fmap A.toList $ S.fold (A.lastN 0) $ S.fromList list
+                assert (xs == lastN 0 list)
+
+testLastNGT :: Property
+testLastNGT =
+    forAll (choose (0, maxArrLen)) $ \len ->
+        forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
+            monadicIO $ do
+                xs <- fmap A.toList $ S.fold (A.lastN (len + 1)) $ S.fromList list
+                assert (xs == lastN (len + 1) list)
 #endif
 
 main :: IO ()
@@ -174,5 +190,7 @@ main =
 #endif
 #ifdef TEST_ARRAY
         describe "Fold" $ do
-            prop "lastN" $ testLastN
+            prop "lastN : 0 <= n < len" $ testLastN
+            prop "lastN : n = 0" $ testLastNLT
+            prop "lastN : n = len + 1" $ testLastNGT
 #endif
