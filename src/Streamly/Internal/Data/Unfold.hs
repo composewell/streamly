@@ -105,6 +105,10 @@ module Streamly.Internal.Data.Unfold
     , filter
     , filterM
 
+    -- * Zipping
+    , zipWithM
+    , zipWith
+
     -- * Nesting
     , concat
     , concatMapM
@@ -130,7 +134,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
-import Prelude hiding (concat, map, mapM, takeWhile, take, filter, const)
+import Prelude
+       hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith)
 
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
@@ -519,6 +524,45 @@ enumerateFromToIntegral to =
 {-# INLINE enumerateFromIntegral #-}
 enumerateFromIntegral :: (Monad m, Integral a, Bounded a) => Unfold m a a
 enumerateFromIntegral = enumerateFromToIntegral maxBound
+
+-------------------------------------------------------------------------------
+-- Zipping
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL zipWithM #-}
+zipWithM :: Monad m
+    => (a -> b -> m c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
+
+    where
+
+    inject (x, y) = do
+        s1 <- inject1 x
+        s2 <- inject2 y
+        return (s1, s2, Nothing)
+
+    {-# INLINE_LATE step #-}
+    step (s1, s2, Nothing) = do
+        r <- step1 s1
+        return $
+          case r of
+            Yield x s -> Skip (s, s2, Just x)
+            Skip s    -> Skip (s, s2, Nothing)
+            Stop      -> Stop
+
+    step (s1, s2, Just x) = do
+        r <- step2 s2
+        case r of
+            Yield y s -> do
+                z <- f x y
+                return $ Yield z (s1, s, Nothing)
+            Skip s -> return $ Skip (s1, s, Just x)
+            Stop   -> return Stop
+
+{-# INLINE zipWith #-}
+zipWith :: Monad m
+    => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
+zipWith f = zipWithM (\a b -> return (f a b))
 
 -------------------------------------------------------------------------------
 -- Nested
