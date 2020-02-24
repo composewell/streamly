@@ -82,6 +82,7 @@ module Streamly.Internal.Data.Unfold
     , nilM
     , consM
     , effect
+    , singletonM
     , singleton
     , identity
     , const
@@ -158,6 +159,10 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- | Map a function on the input argument of the 'Unfold'.
 --
+-- @
+-- lmap f = concat (singleton f)
+-- @
+--
 -- /Internal/
 {-# INLINE_NORMAL lmap #-}
 lmap :: (a -> c) -> Unfold m c b -> Unfold m a b
@@ -165,11 +170,18 @@ lmap f (Unfold ustep uinject) = Unfold ustep (uinject . f)
 
 -- | Map an action on the input argument of the 'Unfold'.
 --
+-- @
+-- lmapM f = concat (singletonM f)
+-- @
+--
 -- /Internal/
 {-# INLINE_NORMAL lmapM #-}
 lmapM :: Monad m => (a -> m c) -> Unfold m c b -> Unfold m a b
 lmapM f (Unfold ustep uinject) = Unfold ustep (\x -> f x >>= uinject)
 
+-- XXX change the signature to the following?
+-- supply :: a -> Unfold m a b -> Unfold m Void b
+--
 -- | Supply the seed to an unfold closing the input end of the unfold.
 --
 -- /Internal/
@@ -178,6 +190,9 @@ lmapM f (Unfold ustep uinject) = Unfold ustep (\x -> f x >>= uinject)
 supply :: Unfold m a b -> a -> Unfold m Void b
 supply unf a = lmap (Prelude.const a) unf
 
+-- XXX change the signature to the following?
+-- supplyFirst :: a -> Unfold m (a, b) c -> Unfold m b c
+--
 -- | Supply the first component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the second component of the tuple
 -- as a seed.
@@ -188,6 +203,9 @@ supply unf a = lmap (Prelude.const a) unf
 supplyFirst :: Unfold m (a, b) c -> a -> Unfold m b c
 supplyFirst unf a = lmap (a, ) unf
 
+-- XXX change the signature to the following?
+-- supplySecond :: b -> Unfold m (a, b) c -> Unfold m a c
+--
 -- | Supply the second component of the tuple to an unfold that accepts a tuple
 -- as a seed resulting in a fold that accepts the first component of the tuple
 -- as a seed.
@@ -376,25 +394,33 @@ effect eff = Unfold step inject
     step True = eff >>= \r -> return $ Yield r False
     step False = return Stop
 
+-- XXX change it to yieldM or change yieldM in Prelude to singletonM
+--
 -- | Lift a monadic function into an unfold generating a singleton stream.
 --
-{-# INLINE singleton #-}
-singleton :: Monad m => (a -> m b) -> Unfold m a b
-singleton f = Unfold step inject
+{-# INLINE singletonM #-}
+singletonM :: Monad m => (a -> m b) -> Unfold m a b
+singletonM f = Unfold step inject
     where
     inject x = return $ Just x
     {-# INLINE_LATE step #-}
     step (Just x) = f x >>= \r -> return $ Yield r Nothing
     step Nothing = return Stop
 
+-- | Lift a pure function into an unfold generating a singleton stream.
+--
+{-# INLINE singleton #-}
+singleton :: Monad m => (a -> b) -> Unfold m a b
+singleton f = singletonM $ return . f
+
 -- | Identity unfold. Generates a singleton stream with the seed as the only
 -- element in the stream.
 --
--- > identity = singleton return
+-- > identity = singletonM return
 --
 {-# INLINE identity #-}
 identity :: Monad m => Unfold m a a
-identity = singleton return
+identity = singletonM return
 
 const :: Monad m => m b -> Unfold m a b
 const m = Unfold step inject
@@ -570,6 +596,11 @@ zipWith f = zipWithM (\a b -> return (f a b))
 
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 
+-- | Apply the second unfold to each output element of the first unfold and
+-- flatten the output in a single stream.
+--
+-- /Internal/
+--
 {-# INLINE_NORMAL concat #-}
 concat :: Monad m => Unfold m a b -> Unfold m b c -> Unfold m a c
 concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
@@ -598,6 +629,9 @@ concat (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 data OuterProductState s1 s2 sy x y =
     OuterProductOuter s1 y | OuterProductInner s1 sy s2 x
 
+-- | Create an outer product (vector product or cartesian product) of the
+-- output streams of two unfolds.
+--
 {-# INLINE_NORMAL outerProduct #-}
 outerProduct :: Monad m
     => Unfold m a b -> Unfold m c d -> Unfold m (a, c) (b, d)
@@ -628,6 +662,9 @@ outerProduct (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
 
 data ConcatMapState s1 s2 = ConcatMapOuter s1 | ConcatMapInner s1 s2
 
+-- | Map an unfold generating action to each element of an unfold and
+-- flattern the results into a single stream.
+--
 {-# INLINE_NORMAL concatMapM #-}
 concatMapM :: Monad m
     => (b -> m (Unfold m () c)) -> Unfold m a b -> Unfold m a c
