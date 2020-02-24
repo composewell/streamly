@@ -301,7 +301,7 @@ catFinallyStreamIO devNull inh =
 catHandle :: Handle -> Handle -> IO ()
 catHandle devNull inh =
     let handler (_e :: SomeException) = hClose inh >> return 10
-        readEx = IUF.handle (IUF.singleton handler) FH.read
+        readEx = IUF.handle (IUF.singletonM handler) FH.read
     in S.fold (FH.write devNull) $ S.unfold readEx inh
 
 #ifdef INSPECTION
