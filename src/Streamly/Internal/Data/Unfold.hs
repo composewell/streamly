@@ -586,6 +586,18 @@ zipWithM f (Unfold step1 inject1) (Unfold step2 inject2) = Unfold step inject
             Skip s -> return $ Skip (s1, s, Just x)
             Stop   -> return Stop
 
+-- | Divide the input into two unfolds and then zip the outputs to a single
+-- stream.
+--
+-- @
+--   S.mapM_ print
+-- $ S.concatUnfold (UF.zipWith (,) UF.identity (UF.singleton sqrt))
+-- $ S.map (\x -> (x,x))
+-- $ S.fromList [1..10]
+-- @
+--
+-- /Internal/
+--
 {-# INLINE zipWith #-}
 zipWith :: Monad m
     => (a -> b -> c) -> Unfold m x a -> Unfold m y b -> Unfold m (x, y) c
@@ -593,6 +605,10 @@ zipWith f = zipWithM (\a b -> return (f a b))
 
 -- | Distribute the input to two unfolds and then zip the outputs to a single
 -- stream.
+--
+-- @
+-- S.mapM_ print $ S.concatUnfold (UF.teeZipWith (,) UF.identity (UF.singleton sqrt)) $ S.fromList [1..10]
+-- @
 --
 -- /Internal/
 --
