@@ -420,6 +420,7 @@ module Streamly.Internal.Prelude
     , evalStateT
     , usingStateT
     , runStateT
+    , usingReaderT
 
     -- * MonadFix
     , K.mfix
@@ -4487,3 +4488,16 @@ usingStateT s f xs = evalStateT s $ f $ liftInner xs
 {-# INLINE runStateT #-}
 runStateT :: Monad m => s -> SerialT (StateT s m) a -> SerialT m (s, a)
 runStateT s xs = fromStreamD $ D.runStateT s (toStreamD xs)
+
+-- | Run a stream transformation using a given environment.
+--
+-- / Internal/
+--
+{-# INLINE usingReaderT #-}
+usingReaderT
+    :: (Monad m, IsStream t)
+    => r
+    -> (t (ReaderT r m) a -> t (ReaderT r m) a)
+    -> t m a
+    -> t m a
+usingReaderT r f xs = runReaderT r $ f $ liftInner xs
