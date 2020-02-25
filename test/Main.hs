@@ -14,7 +14,9 @@ import Control.Monad.IO.Class (MonadIO(liftIO))
 import Control.Monad.State (MonadState, get, modify, runStateT, StateT)
 import Control.Monad.Trans.Except (runExceptT, ExceptT)
 import Data.Foldable (forM_, fold)
+import Data.Function ((&))
 import Data.List (sort)
+import Data.Maybe (fromJust, isJust)
 import System.Mem (performMajorGC)
 
 import Data.IORef
@@ -147,6 +149,7 @@ main = hspec $ do
 
     describe "Parallel (<>) time order check" $ parallelCheck parallely (<>)
     describe "Parallel mappend time order check" $ parallelCheck parallely mappend
+    it "fromCallback" $ testFromCallback `shouldReturn` (50*101)
 
 checkCleanup :: IsStream t
     => Int
@@ -1150,3 +1153,28 @@ mixedOpsAheadly =
                     return (x11 + y11 + z11)
                 return (x1 + y1 + z1)
         return (x + y + z)
+
+testFromCallback :: IO Int
+testFromCallback = do
+    ref <- newIORef Nothing
+    let stream = S.map Just (IP.fromCallback (setCallback ref))
+                    `Streamly.parallel` runCallback ref
+    S.sum $ S.map fromJust $ S.takeWhile isJust stream
+
+    where
+
+    setCallback ref cb = do
+        writeIORef ref (Just cb)
+
+    runCallback ref = S.yieldM $ do
+        cb <-
+              S.repeatM (readIORef ref)
+                & IP.delayPost 0.1
+                & S.mapMaybe id
+                & S.head
+
+        S.fromList [1..100]
+            & IP.delayPost 0.001
+            & S.mapM_ (fromJust cb)
+        threadDelay 100000
+        return Nothing
