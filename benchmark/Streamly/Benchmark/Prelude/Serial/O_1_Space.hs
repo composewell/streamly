@@ -6,7 +6,7 @@
 -- Maintainer  : streamly@composewell.com
 
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Groups
+import Streamly.Benchmark.Prelude
 
 import Gauge
 

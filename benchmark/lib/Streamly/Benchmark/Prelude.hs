@@ -23,16 +23,18 @@
 
 module Streamly.Benchmark.Prelude where
 
-import Control.DeepSeq (NFData)
+import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
+import Data.Monoid (Last(..))
 import GHC.Generics (Generic)
+import System.Random (randomRIO)
 import Prelude
-       (Monad, Int, (+), ($), (.), return, fmap, even, (>), (<=), (==), (>=),
-        subtract, undefined, Maybe(..), odd, Bool, not, (>>=), mapM_, curry,
+       (Monad, String, Int, (+), ($), (.), return, even, (>), (<=), (==), (>=),
+        subtract, undefined, Maybe(..), Bool, not, (>>=), curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
         (<*>), flip)
 import qualified Prelude as P
@@ -46,6 +48,7 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
+import Streamly (SerialT, IsStream, wSerially, zipSerially, serially)
 import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
@@ -54,6 +57,19 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import Streamly.Internal.Data.Time.Units
+
+import qualified Streamly.Internal.Data.Sink as Sink
+
+import qualified Streamly.Internal.Memory.Array as IA
+import qualified Streamly.Internal.Data.Fold as IFL
+import qualified Streamly.Internal.Prelude as IP
+
+import qualified NestedOps as Nested
+import qualified NestedUnfoldOps as NestedUnfold
+
+import Gauge
+import Streamly.Benchmark.Common
+
 
 type Stream m a = S.SerialT m a
 
@@ -155,7 +171,7 @@ sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
 
 {-# INLINE sourceFromIndicesM #-}
 sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-sourceFromIndicesM value n = S.take value $ S.fromIndicesM (Prelude.fmap return (+ n))
+sourceFromIndicesM value n = S.take value $ S.fromIndicesM (P.fmap return (+ n))
 
 -- fromList
 
@@ -165,7 +181,7 @@ sourceFromList value n = S.fromList [n..n+value]
 
 {-# INLINE sourceFromListM #-}
 sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-sourceFromListM value n = S.fromListM (Prelude.fmap return [n..n+value])
+sourceFromListM value n = S.fromListM (P.fmap return [n..n+value])
 
 {-# INLINE sourceIsList #-}
 sourceIsList :: Int -> Int -> S.SerialT Identity Int
@@ -183,7 +199,7 @@ sourceFromFoldable value n = S.fromFoldable [n..n+value]
 
 {-# INLINE sourceFromFoldableM #-}
 sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
-sourceFromFoldableM value n = S.fromFoldableM (Prelude.fmap return [n..n+value])
+sourceFromFoldableM value n = S.fromFoldableM (P.fmap return [n..n+value])
 
 {-# INLINE currentTime #-}
 currentTime :: (S.IsStream t, S.MonadAsync m)
@@ -262,11 +278,11 @@ uncons s = do
 
 {-# INLINE init #-}
 init :: Monad m => Stream m a -> m ()
-init s = S.init s >>= Prelude.mapM_ S.drain
+init s = S.init s >>= P.mapM_ S.drain
 
 {-# INLINE tail #-}
 tail :: Monad m => Stream m a -> m ()
-tail s = S.tail s >>= Prelude.mapM_ tail
+tail s = S.tail s >>= P.mapM_ tail
 
 {-# INLINE nullHeadTail #-}
 nullHeadTail :: Monad m => Stream m Int -> m ()
@@ -274,7 +290,7 @@ nullHeadTail s = do
     r <- S.null s
     when (not r) $ do
         _ <- S.head s
-        S.tail s >>= Prelude.mapM_ nullHeadTail
+        S.tail s >>= P.mapM_ nullHeadTail
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m Int -> m ()
@@ -419,8 +435,8 @@ sequence :: (S.IsStream t, S.MonadAsync m)
 
 scan          n = composeN n $ S.scanl' (+) 0
 scanl1'       n = composeN n $ S.scanl1' (+)
-fmap          n = composeN n $ Prelude.fmap (+1)
-fmap' t       n = composeN' n $ t . Prelude.fmap (+1)
+fmap          n = composeN n $ P.fmap (+1)
+fmap' t       n = composeN' n $ t . P.fmap (+1)
 map           n = composeN n $ S.map (+1)
 map' t        n = composeN' n $ t . S.map (+1)
 mapM t        n = composeN' n $ t . S.mapM return
@@ -450,9 +466,9 @@ tapAsync :: S.MonadAsync m => Int -> Stream m Int -> m ()
 tapAsync n = composeN n $ Internal.tapAsync FL.sum
 
 mapMaybe      n = composeN n $ S.mapMaybe
-    (\x -> if Prelude.odd x then Nothing else Just x)
+    (\x -> if P.odd x then Nothing else Just x)
 mapMaybeM     n = composeN n $ S.mapMaybeM
-    (\x -> if Prelude.odd x then return Nothing else return $ Just x)
+    (\x -> if P.odd x then return Nothing else return $ Just x)
 sequence t    = transform . t . S.sequence
 filterEven    n = composeN n $ S.filter even
 filterAllOut value  n = composeN n $ S.filter (> (value + 1))
@@ -1221,3 +1237,762 @@ traversableMapM = P.mapM return
 {-# INLINE traversableSequence #-}
 traversableSequence :: Stream Identity Int -> IO (Stream Identity Int)
 traversableSequence = P.sequence . P.fmap return
+
+-------------------------------------------------------------------------------
+-- Benchmark groups
+-------------------------------------------------------------------------------
+
+-- We need a monadic bind here to make sure that the function f does not get
+-- completely optimized out by the compiler in some cases.
+
+-- | Takes a fold method, and uses it with a default source.
+{-# INLINE benchIOSink #-}
+benchIOSink
+    :: (IsStream t, NFData b)
+    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIOSink value name f = bench name $ nfIO $ randomRIO (1,1) >>= f . source value
+
+{-# INLINE benchHoistSink #-}
+benchHoistSink
+    :: (IsStream t, NFData b)
+    => Int -> String -> (t Identity Int -> IO b) -> Benchmark
+benchHoistSink value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f .  sourceUnfoldr value
+
+-- XXX We should be using sourceUnfoldrM for fair comparison with IO monad, but
+-- we can't use it as it requires MonadAsync constraint.
+{-# INLINE benchIdentitySink #-}
+benchIdentitySink
+    :: (IsStream t, NFData b)
+    => Int -> String -> (t Identity Int -> Identity b) -> Benchmark
+benchIdentitySink value name f = bench name $ nf (f . sourceUnfoldr value) 1
+
+-- | Takes a source, and uses it with a default drain/fold method.
+{-# INLINE benchIOSrc #-}
+benchIOSrc
+    :: (t IO a -> SerialT IO a)
+    -> String
+    -> (Int -> t IO a)
+    -> Benchmark
+benchIOSrc t name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= toNull t . f
+
+{-# INLINE benchPureSink #-}
+benchPureSink :: NFData b => Int -> String -> (SerialT Identity Int -> b) -> Benchmark
+benchPureSink value name f = benchPure name (sourceUnfoldr value) f
+
+benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
+-------------------------------------------------------------------------------
+-- Serial : O(1) Space
+-------------------------------------------------------------------------------
+
+o_1_space_serial_pure :: Int -> [Benchmark]
+o_1_space_serial_pure value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "pure"
+                [ benchPureSink value "id" P.id
+                , benchPureSink1 "eqBy" (eqByPure value)
+                , benchPureSink value "==" eqInstance
+                , benchPureSink value "/=" eqInstanceNotEq
+                , benchPureSink1 "cmpBy" (cmpByPure value)
+                , benchPureSink value "<" ordInstance
+                , benchPureSink value "min" ordInstanceMin
+                , benchPureSrc "IsList.fromList" (sourceIsList value)
+            -- length is used to check for foldr/build fusion
+                , benchPureSink
+                      value
+                      "length . IsList.toList"
+                      (P.length . GHC.toList)
+                , benchPureSrc "IsString.fromString" (sourceIsString value)
+                , benchPureSink value "showsPrec pure streams" showInstance
+                , benchPureSink value "foldl'" pureFoldl'
+                ]
+          ]
+    ]
+
+o_1_space_serial_foldable :: Int -> [Benchmark]
+o_1_space_serial_foldable value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "foldable"
+              -- Foldable instance
+              -- type class operations
+                [ bench "foldl'" $ nf (foldableFoldl' value) 1
+                , bench "foldrElem" $ nf (foldableFoldrElem value) 1
+            -- , bench "null" $ nf (foldableNull value) 1
+                , bench "elem" $ nf (foldableElem value) 1
+                , bench "length" $ nf (foldableLength value) 1
+                , bench "sum" $ nf (foldableSum value) 1
+                , bench "product" $ nf (foldableProduct value) 1
+                , bench "minimum" $ nf (foldableMin value) 1
+                , bench "maximum" $ nf (foldableMax value) 1
+                , bench "length . toList" $
+                  nf (P.length . foldableToList value) 1
+            -- folds
+                , bench "notElem" $ nf (foldableNotElem value) 1
+                , bench "find" $ nf (foldableFind value) 1
+                , bench "all" $ nf (foldableAll value) 1
+                , bench "any" $ nf (foldableAny value) 1
+                , bench "and" $ nf (foldableAnd value) 1
+                , bench "or" $ nf (foldableOr value) 1
+            -- Note: minimumBy/maximumBy do not work in constant memory they are in
+            -- the O(n) group of benchmarks down below in this file.
+            -- Applicative and Traversable operations
+            -- TBD: traverse_
+                , benchIOSink1 "mapM_" (foldableMapM_ value)
+            -- TBD: for_
+            -- TBD: forM_
+                , benchIOSink1 "sequence_" (foldableSequence_ value)
+            -- TBD: sequenceA_
+            -- TBD: asum
+            -- , benchIOSink1 "msum" (foldableMsum value)
+                ]
+          ]
+    ]
+
+o_1_space_serial_generation :: Int -> [Benchmark]
+o_1_space_serial_generation value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "generation"
+              -- Most basic, barely stream continuations running
+                [ benchIOSrc serially "unfoldr" (sourceUnfoldr value)
+                , benchIOSrc serially "unfoldrM" (sourceUnfoldrM value)
+                , benchIOSrc serially "intFromTo" (sourceIntFromTo value)
+                , benchIOSrc
+                      serially
+                      "intFromThenTo"
+                      (sourceIntFromThenTo value)
+                , benchIOSrc
+                      serially
+                      "integerFromStep"
+                      (sourceIntegerFromStep value)
+                , benchIOSrc
+                      serially
+                      "fracFromThenTo"
+                      (sourceFracFromThenTo value)
+                , benchIOSrc serially "fracFromTo" (sourceFracFromTo value)
+                , benchIOSrc serially "fromList" (sourceFromList value)
+                , benchIOSrc serially "fromListM" (sourceFromListM value)
+            -- These are essentially cons and consM
+                , benchIOSrc
+                      serially
+                      "fromFoldable"
+                      (sourceFromFoldable value)
+                , benchIOSrc
+                      serially
+                      "fromFoldableM"
+                      (sourceFromFoldableM value)
+                , benchIOSrc serially "currentTime/0.00001s" $
+                  currentTime value 0.00001
+                ]
+          ]
+    ]
+
+o_1_space_serial_elimination :: Int -> [Benchmark]
+o_1_space_serial_elimination value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "elimination"
+                [ bgroup
+                      "reduce"
+                      [ bgroup
+                            "IO"
+                            [ benchIOSink value "foldl'" foldl'Reduce
+                            , benchIOSink value "foldl1'" foldl1'Reduce
+                            , benchIOSink value "foldlM'" foldlM'Reduce
+                            ]
+                      , bgroup
+                            "Identity"
+                            [ benchIdentitySink value "foldl'" foldl'Reduce
+                            , benchIdentitySink
+                                  value
+                                  "foldl1'"
+                                  foldl1'Reduce
+                            , benchIdentitySink
+                                  value
+                                  "foldlM'"
+                                  foldlM'Reduce
+                            ]
+                      ]
+                , bgroup
+                      "build"
+                      [ bgroup
+                            "IO"
+                            [ benchIOSink
+                                  value
+                                  "foldrMElem"
+                                  (foldrMElem value)
+                            ]
+                      , bgroup
+                            "Identity"
+                            [ benchIdentitySink
+                                  value
+                                  "foldrMElem"
+                                  (foldrMElem value)
+                            , benchIdentitySink
+                                  value
+                                  "foldrMToStreamLength"
+                                  (S.length . runIdentity . foldrMToStream)
+                            , benchPureSink
+                                  value
+                                  "foldrMToListLength"
+                                  (P.length . runIdentity . foldrMBuild)
+                            ]
+                      ]
+                , benchIOSink value "uncons" uncons
+                , benchIOSink value "toNull" $ toNull serially
+                , benchIOSink value "mapM_" mapM_
+                , benchIOSink value "init" init
+            -- this is too low and causes all benchmarks reported in ns
+            -- , benchIOSink value "head" head
+                , benchIOSink value "last" last
+            -- , benchIOSink value "lookup" lookup
+                , benchIOSink value "find" (find value)
+                , benchIOSink value "findIndex" (findIndex value)
+                , benchIOSink value "elemIndex" (elemIndex value)
+            -- this is too low and causes all benchmarks reported in ns
+            -- , benchIOSink value "null" null
+                , benchIOSink value "elem" (elem value)
+                , benchIOSink value "notElem" (notElem value)
+                , benchIOSink value "all" (all value)
+                , benchIOSink value "any" (any value)
+                , benchIOSink value "and" (and value)
+                , benchIOSink value "or" (or value)
+                , benchIOSink value "length" length
+                , benchHoistSink
+                      value
+                      "length . generally"
+                      (length . IP.generally)
+                , benchIOSink value "sum" sum
+                , benchIOSink value "product" product
+                , benchIOSink value "maximumBy" maximumBy
+                , benchIOSink value "maximum" maximum
+                , benchIOSink value "minimumBy" minimumBy
+                , benchIOSink value "minimum" minimum
+                ]
+          ]
+    ]
+
+o_1_space_serial_folds :: Int -> [Benchmark]
+o_1_space_serial_folds value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "folds"
+                [ benchIOSink value "drain" (S.fold FL.drain)
+                , benchIOSink value "drainN" (S.fold (IFL.drainN value))
+                , benchIOSink
+                      value
+                      "drainWhileTrue"
+                      (S.fold (IFL.drainWhile $ (<=) (value + 1)))
+                , benchIOSink
+                      value
+                      "drainWhileFalse"
+                      (S.fold (IFL.drainWhile $ (>=) (value + 1)))
+                , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
+                , benchIOSink value "last" (S.fold FL.last)
+                , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
+                , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
+                , benchIOSink value "length" (S.fold FL.length)
+                , benchIOSink value "sum" (S.fold FL.sum)
+                , benchIOSink value "product" (S.fold FL.product)
+                , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
+                , benchIOSink value "maximum" (S.fold FL.maximum)
+                , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
+                , benchIOSink value "minimum" (S.fold FL.minimum)
+                , benchIOSink
+                      value
+                      "mean"
+                      (\s ->
+                           S.fold
+                               FL.mean
+                               (S.map (fromIntegral :: Int -> Double) s))
+                , benchIOSink
+                      value
+                      "variance"
+                      (\s ->
+                           S.fold
+                               FL.variance
+                               (S.map (fromIntegral :: Int -> Double) s))
+                , benchIOSink
+                      value
+                      "stdDev"
+                      (\s ->
+                           S.fold
+                               FL.stdDev
+                               (S.map (fromIntegral :: Int -> Double) s))
+                , benchIOSink
+                      value
+                      "mconcat"
+                      (S.fold FL.mconcat . (S.map (Last . Just)))
+                , benchIOSink
+                      value
+                      "foldMap"
+                      (S.fold (FL.foldMap (Last . Just)))
+                , benchIOSink value "index" (S.fold (FL.index (value + 1)))
+                , benchIOSink value "head" (S.fold FL.head)
+                , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
+                , benchIOSink
+                      value
+                      "findIndex"
+                      (S.fold (FL.findIndex (== (value + 1))))
+                , benchIOSink
+                      value
+                      "elemIndex"
+                      (S.fold (FL.elemIndex (value + 1)))
+                , benchIOSink value "null" (S.fold FL.null)
+                , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
+                , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
+                , benchIOSink value "all" (S.fold (FL.all (<= (value + 1))))
+                , benchIOSink value "any" (S.fold (FL.any (> (value + 1))))
+                , benchIOSink
+                      value
+                      "and"
+                      (\s -> S.fold FL.and (S.map (<= (value + 1)) s))
+                , benchIOSink
+                      value
+                      "or"
+                      (\s -> S.fold FL.or (S.map (> (value + 1)) s))
+                ]
+          ]
+    ]
+
+o_1_space_serial_foldMultiStream :: Int -> [Benchmark]
+o_1_space_serial_foldMultiStream value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "fold-multi-stream"
+                [ benchIOSink1 "eqBy" (eqBy value)
+                , benchIOSink1 "cmpBy" (cmpBy value)
+                , benchIOSink value "isPrefixOf" isPrefixOf
+                , benchIOSink value "isSubsequenceOf" isSubsequenceOf
+                , benchIOSink value "stripPrefix" stripPrefix
+                ]
+          ]
+    ]
+
+o_1_space_serial_foldsTransforms :: Int -> [Benchmark]
+o_1_space_serial_foldsTransforms value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "folds-transforms"
+                [ benchIOSink value "drain" (S.fold FL.drain)
+                , benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
+                , benchIOSink
+                      value
+                      "pipe-mapM"
+                      (S.fold
+                           (IFL.transform
+                                (Pipe.mapM (\x -> return $ x + 1))
+                                FL.drain))
+                ]
+          ]
+    ]
+
+o_1_space_serial_foldsCompositions :: Int -> [Benchmark]
+o_1_space_serial_foldsCompositions value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "folds-compositions" -- Applicative
+                [ benchIOSink
+                      value
+                      "all,any"
+                      (S.fold
+                           ((,) <$> FL.all (<= (value + 1)) <*>
+                            FL.any (> (value + 1))))
+                , benchIOSink
+                      value
+                      "sum,length"
+                      (S.fold ((,) <$> FL.sum <*> FL.length))
+                ]
+          ]
+    ]
+
+o_1_space_serial_pipes :: Int -> [Benchmark]
+o_1_space_serial_pipes value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "pipes"
+                [ benchIOSink value "mapM" (transformMapM serially 1)
+                , benchIOSink
+                      value
+                      "compose"
+                      (transformComposeMapM serially 1)
+                , benchIOSink value "tee" (transformTeeMapM serially 1)
+                , benchIOSink value "zip" (transformZipMapM serially 1)
+                ]
+          ]
+    ]
+
+o_1_space_serial_pipesX4 :: Int -> [Benchmark]
+o_1_space_serial_pipesX4 value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "pipesX4"
+                [ benchIOSink value "mapM" (transformMapM serially 4)
+                , benchIOSink
+                      value
+                      "compose"
+                      (transformComposeMapM serially 4)
+                , benchIOSink value "tee" (transformTeeMapM serially 4)
+                , benchIOSink value "zip" (transformZipMapM serially 4)
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_transformer :: Int -> [Benchmark]
+o_1_space_serial_transformer value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "transformer"
+                [ benchIOSrc serially "evalState" (evalStateT value)
+                , benchIOSrc serially "withState" (withState value)
+                ]
+          ]
+    ]
+
+o_1_space_serial_transformation :: Int -> [Benchmark]
+o_1_space_serial_transformation value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "transformation"
+                [ benchIOSink value "scanl" (scan 1)
+                , benchIOSink value "scanl1'" (scanl1' 1)
+                , benchIOSink value "map" (map 1)
+                , benchIOSink value "fmap" (fmap 1)
+                , benchIOSink value "mapM" (mapM serially 1)
+                , benchIOSink value "mapMaybe" (mapMaybe 1)
+                , benchIOSink value "mapMaybeM" (mapMaybeM 1)
+                , bench "sequence" $
+                  nfIO $
+                  randomRIO (1, 1000) >>= \n ->
+                      sequence serially (sourceUnfoldrMAction value n)
+                , benchIOSink value "findIndices" (findIndices value 1)
+                , benchIOSink value "elemIndices" (elemIndices value 1)
+                , benchIOSink value "foldrS" (foldrS 1)
+                , benchIOSink value "foldrSMap" (foldrSMap 1)
+                , benchIOSink value "foldrT" (foldrT 1)
+                , benchIOSink value "foldrTMap" (foldrTMap 1)
+                , benchIOSink value "tap" (tap 1)
+                , benchIOSink value "tapRate 1 second" (tapRate 1)
+                , benchIOSink value "pollCounts 1 second" (pollCounts 1)
+                , benchIOSink value "tapAsync" (tapAsync 1)
+                , benchIOSink value "tapAsyncS" (tapAsyncS 1)
+                ]
+          ]
+    ]
+
+o_1_space_serial_transformationX4 :: Int -> [Benchmark]
+o_1_space_serial_transformationX4 value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "transformationX4"
+                [ benchIOSink value "scan" (scan 4)
+                , benchIOSink value "scanl1'" (scanl1' 4)
+                , benchIOSink value "map" (map 4)
+                , benchIOSink value "fmap" (fmap 4)
+                , benchIOSink value "mapM" (mapM serially 4)
+                , benchIOSink value "mapMaybe" (mapMaybe 4)
+                , benchIOSink value "mapMaybeM" (mapMaybeM 4)
+            -- , bench "sequence" $ nfIO $ randomRIO (1,1000) >>= \n ->
+                -- sequence serially (sourceUnfoldrMAction n)
+                , benchIOSink value "findIndices" (findIndices value 4)
+                , benchIOSink value "elemIndices" (elemIndices value 4)
+                ]
+          ]
+    ]
+
+o_1_space_serial_filtering :: Int -> [Benchmark]
+o_1_space_serial_filtering value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "filtering"
+                [ benchIOSink value "filter-even" (filterEven 1)
+                , benchIOSink value "filter-all-out" (filterAllOut value 1)
+                , benchIOSink value "filter-all-in" (filterAllIn value 1)
+                , benchIOSink value "take-all" (takeAll value 1)
+                , benchIOSink
+                      value
+                      "takeByTime-all"
+                      (takeByTime (NanoSecond64 maxBound) 1)
+                , benchIOSink value "takeWhile-true" (takeWhileTrue value 1)
+            --, benchIOSink value "takeWhileM-true" (takeWhileMTrue 1)
+            -- "drop-one" is dual to "last"
+                , benchIOSink value "drop-one" (dropOne 1)
+                , benchIOSink value "drop-all" (dropAll value 1)
+                , benchIOSink
+                      value
+                      "dropByTime-all"
+                      (dropByTime (NanoSecond64 maxBound) 1)
+                , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
+            --, benchIOSink value "dropWhileM-true" (dropWhileMTrue 1)
+                , benchIOSink
+                      value
+                      "dropWhile-false"
+                      (dropWhileFalse value 1)
+                , benchIOSink value "deleteBy" (deleteBy value 1)
+                , benchIOSink value "intersperse" (intersperse value 1)
+                , benchIOSink value "insertBy" (insertBy value 1)
+                ]
+          ]
+    ]
+
+o_1_space_serial_filteringX4 :: Int -> [Benchmark]
+o_1_space_serial_filteringX4 value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "filteringX4"
+                [ benchIOSink value "filter-even" (filterEven 4)
+                , benchIOSink value "filter-all-out" (filterAllOut value 4)
+                , benchIOSink value "filter-all-in" (filterAllIn value 4)
+                , benchIOSink value "take-all" (takeAll value 4)
+                , benchIOSink value "takeWhile-true" (takeWhileTrue value 4)
+            --, benchIOSink value "takeWhileM-true" (takeWhileMTrue 4)
+                , benchIOSink value "drop-one" (dropOne 4)
+                , benchIOSink value "drop-all" (dropAll value 4)
+                , benchIOSink value "dropWhile-true" (dropWhileTrue value 4)
+            --, benchIOSink value "dropWhileM-true" (dropWhileMTrue 4)
+                , benchIOSink
+                      value
+                      "dropWhile-false"
+                      (dropWhileFalse value 4)
+                , benchIOSink value "deleteBy" (deleteBy value 4)
+                , benchIOSink value "intersperse" (intersperse value 4)
+                , benchIOSink value "insertBy" (insertBy value 4)
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_joining :: Int -> [Benchmark]
+o_1_space_serial_joining value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "joining"
+                [ benchIOSrc1 "zip (2,x/2)" (zip (value `div` 2))
+                , benchIOSrc1 "zipM (2,x/2)" (zipM (value `div` 2))
+                , benchIOSrc1 "mergeBy (2,x/2)" (mergeBy (value `div` 2))
+                , benchIOSrc1 "serial (2,x/2)" (serial2 (value `div` 2))
+                , benchIOSrc1 "append (2,x/2)" (append2 (value `div` 2))
+                , benchIOSrc1 "serial (2,2,x/4)" (serial4 (value `div` 4))
+                , benchIOSrc1 "append (2,2,x/4)" (append4 (value `div` 4))
+                , benchIOSrc1 "wSerial (2,x/2)" (wSerial2 value) -- XXX Move this elsewhere?
+                , benchIOSrc1 "interleave (2,x/2)" (interleave2 value)
+                , benchIOSrc1 "roundRobin (2,x/2)" (roundRobin2 value)
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_concatFoldable :: Int -> [Benchmark]
+o_1_space_serial_concatFoldable value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "concat-foldable"
+                [ benchIOSrc
+                      serially
+                      "foldMapWith"
+                      (sourceFoldMapWith value)
+                , benchIOSrc
+                      serially
+                      "foldMapWithM"
+                      (sourceFoldMapWithM value)
+                , benchIOSrc serially "foldMapM" (sourceFoldMapM value)
+                , benchIOSrc
+                      serially
+                      "foldWithConcatMapId"
+                      (sourceConcatMapId value)
+                ]
+          ]
+    ]
+
+o_1_space_serial_concatSerial :: Int -> [Benchmark]
+o_1_space_serial_concatSerial value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "concat-serial"
+                [ benchIOSrc1
+                      "concatMapPure (2,x/2)"
+                      (concatMapPure 2 (value `div` 2))
+                , benchIOSrc1
+                      "concatMap (2,x/2)"
+                      (concatMap 2 (value `div` 2))
+                , benchIOSrc1
+                      "concatMap (x/2,2)"
+                      (concatMap (value `div` 2) 2)
+                , benchIOSrc1
+                      "concatMapRepl (x/4,4)"
+                      (concatMapRepl4xN value)
+                , benchIOSrc1
+                      "concatUnfoldRepl (x/4,4)"
+                      (concatUnfoldRepl4xN value)
+                , benchIOSrc1
+                      "concatMapWithSerial (2,x/2)"
+                      (concatMapWithSerial 2 (value `div` 2))
+                , benchIOSrc1
+                      "concatMapWithSerial (x/2,2)"
+                      (concatMapWithSerial (value `div` 2) 2)
+                , benchIOSrc1
+                      "concatMapWithAppend (2,x/2)"
+                      (concatMapWithAppend 2 (value `div` 2))
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_outerProductStreams :: Int -> [Benchmark]
+o_1_space_serial_outerProductStreams value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "outer-product-streams"
+                [ benchIO "toNullAp" $ Nested.toNullAp value serially
+                , benchIO "toNull" $ Nested.toNull value serially
+                , benchIO "toNull3" $ Nested.toNull3 value serially
+                , benchIO "filterAllOut" $ Nested.filterAllOut value serially
+                , benchIO "filterAllIn" $ Nested.filterAllIn value serially
+                , benchIO "filterSome" $ Nested.filterSome value serially
+                , benchIO "breakAfterSome" $
+                  Nested.breakAfterSome value serially
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_outerProductUnfolds :: Int -> [Benchmark]
+o_1_space_serial_outerProductUnfolds value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "outer-product-unfolds"
+                [ benchIO "toNull" $ NestedUnfold.toNull value
+                , benchIO "toNull3" $ NestedUnfold.toNull3 value
+                , benchIO "concat" $ NestedUnfold.concat value
+                , benchIO "filterAllOut" $ NestedUnfold.filterAllOut value
+                , benchIO "filterAllIn" $ NestedUnfold.filterAllIn value
+                , benchIO "filterSome" $ NestedUnfold.filterSome value
+                , benchIO "breakAfterSome" $ NestedUnfold.breakAfterSome value
+                ]
+          ]
+    ]
+
+
+o_1_space_serial_mixed :: Int -> [Benchmark]
+o_1_space_serial_mixed value =
+    [ bgroup
+          "serially"
+          -- scanl-map and foldl-map are equivalent to the scan and fold in the foldl
+          -- library. If scan/fold followed by a map is efficient enough we may not
+          -- need monolithic implementations of these.
+          [ bgroup
+                "mixed"
+                [ benchIOSink value "scanl-map" (scanMap 1)
+                , benchIOSink value "foldl-map" foldl'ReduceMap
+                , benchIOSink value "sum-product-fold" sumProductFold
+                , benchIOSink value "sum-product-scan" sumProductScan
+                ]
+          ]
+    ]
+
+o_1_space_serial_mixedX4 :: Int -> [Benchmark]
+o_1_space_serial_mixedX4 value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "mixedX4"
+                [ benchIOSink value "scan-map" (scanMap 4)
+                , benchIOSink value "drop-map" (dropMap 4)
+                , benchIOSink value "drop-scan" (dropScan 4)
+                , benchIOSink value "take-drop" (takeDrop value 4)
+                , benchIOSink value "take-scan" (takeScan value 4)
+                , benchIOSink value "take-map" (takeMap value 4)
+                , benchIOSink value "filter-drop" (filterDrop value 4)
+                , benchIOSink value "filter-take" (filterTake value 4)
+                , benchIOSink value "filter-scan" (filterScan 4)
+                , benchIOSink value "filter-scanl1" (filterScanl1 4)
+                , benchIOSink value "filter-map" (filterMap value 4)
+                ]
+          ]
+    ]
+
+o_1_space_wSerial_transformation :: Int -> [Benchmark]
+o_1_space_wSerial_transformation value =
+    [ bgroup
+          "wSerially"
+          [ bgroup
+                "transformation"
+                [benchIOSink value "fmap" $ fmap' wSerially 1]
+          ]
+    ]
+
+o_1_space_wSerial_concatMap :: Int -> [Benchmark]
+o_1_space_wSerial_concatMap value =
+    [ bgroup
+          "wSerially"
+          [ bgroup
+                "concatMap"
+                [ benchIOSrc1
+                      "concatMapWithWSerial (2,x/2)"
+                      (concatMapWithWSerial 2 (value `div` 2))
+                , benchIOSrc1
+                      "concatMapWithWSerial (x/2,2)"
+                      (concatMapWithWSerial (value `div` 2) 2)
+                ]
+          ]
+    ]
+
+o_1_space_wSerial_outerProduct :: Int -> [Benchmark]
+o_1_space_wSerial_outerProduct value =
+    [ bgroup
+          "wSerially"
+          [ bgroup
+                "outer-product"
+                [ benchIO "toNullAp" $ Nested.toNullAp value wSerially
+                , benchIO "toNull" $ Nested.toNull value wSerially
+                , benchIO "toNull3" $ Nested.toNull3 value wSerially
+                , benchIO "filterAllOut" $ Nested.filterAllOut value wSerially
+                , benchIO "filterAllIn" $ Nested.filterAllIn value wSerially
+                , benchIO "filterSome" $ Nested.filterSome value wSerially
+                , benchIO "breakAfterSome" $
+                  Nested.breakAfterSome value wSerially
+                ]
+          ]
+    ]
+
+o_1_space_zipSerial_transformation :: Int -> [Benchmark]
+o_1_space_zipSerial_transformation value =
+    [ bgroup
+          "zipSerially"
+          [ bgroup
+                "transformation"
+                [benchIOSink value "fmap" $ fmap' zipSerially 1]
+            -- XXX needs fixing
+            {-
+          , bgroup "outer-product"
+            [ benchIO "toNullAp"  $ Nested.toNullAp value  zipSerially
+            ]
+            -}
+          ]
+    ]
