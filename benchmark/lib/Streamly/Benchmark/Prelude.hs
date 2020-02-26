@@ -36,7 +36,7 @@ import Prelude
        (Monad, String, Int, (+), ($), (.), return, even, (>), (<=), (==), (>=),
         subtract, undefined, Maybe(..), Bool, not, (>>=), curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip)
+        (<*>), flip, sqrt, round, (*), seq)
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -48,7 +48,22 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-import Streamly (SerialT, IsStream, wSerially, zipSerially, serially)
+import Streamly
+    ( IsStream
+    , SerialT
+    , aheadly
+    , asyncly
+    , serially
+    , wAsyncly
+    , wSerially
+    , zipSerially
+    , ahead
+    , async
+    , wAsync
+    , maxBuffer
+    , maxThreads
+    )
+
 import qualified Streamly          as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
@@ -1289,8 +1304,24 @@ benchPureSinkIO
 benchPureSinkIO value name f =
     bench name $ nfIO $ randomRIO (1, 1) >>= f . sourceUnfoldr value
 
+{-# INLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
+-- | Takes a source, and uses it with a default drain/fold method.
+{-# INLINE benchSrcIO #-}
+benchSrcIO
+    :: (t IO a -> SerialT IO a)
+    -> String
+    -> (Int -> t IO a)
+    -> Benchmark
+benchSrcIO t name f
+    = bench name $ nfIO $ randomRIO (1,1) >>= toNull t . f
+
+{-# INLINE benchMonadicSrcIO #-}
+benchMonadicSrcIO :: String -> (Int -> IO ()) -> Benchmark
+benchMonadicSrcIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
 
 -------------------------------------------------------------------------------
 -- Serial : O(1) Space
@@ -2189,6 +2220,267 @@ o_n_stack_serial_iterated value =
                       (iterateDropWhileTrue value)
                 , benchIOSink value "tail" tail
                 , benchIOSink value "nullHeadTail" nullHeadTail
+                ]
+          ]
+    ]
+
+o_1_space_async_generation :: Int -> [Benchmark]
+o_1_space_async_generation value =
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "generation"
+                [ benchSrcIO asyncly "unfoldr" (sourceUnfoldr value)
+                , benchSrcIO asyncly "unfoldrM" (sourceUnfoldrM value)
+                , benchSrcIO asyncly "fromFoldable" (sourceFromFoldable value)
+                , benchSrcIO asyncly "fromFoldableM" (sourceFromFoldableM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM maxThreads 1"
+                      (maxThreads 1 . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM maxBuffer 1 (x/10 ops)"
+                      (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+                ]
+          ]
+    ]
+
+o_1_space_async_concatFoldable :: Int -> [Benchmark]
+o_1_space_async_concatFoldable value =
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "concat-foldable"
+                [ benchSrcIO asyncly "foldMapWith" (sourceFoldMapWith value)
+                , benchSrcIO
+                      asyncly
+                      "foldMapWithM"
+                      (sourceFoldMapWithM value)
+                , benchSrcIO asyncly "foldMapM" (sourceFoldMapM value)
+                ]
+          ]
+    ]
+
+
+o_1_space_async_concatMap :: Int -> [Benchmark]
+o_1_space_async_concatMap value =
+    value2 `seq`
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "concatMap"
+                [ benchMonadicSrcIO
+                      "concatMapWith (2,x/2)"
+                      (concatStreamsWith async 2 (value `div` 2))
+                , benchMonadicSrcIO
+                      "concatMapWith (sqrt x,sqrt x)"
+                      (concatStreamsWith async value2 value2)
+                , benchMonadicSrcIO
+                      "concatMapWith (sqrt x * 2,sqrt x / 2)"
+                      (concatStreamsWith async (value2 * 2) (value2 `div` 2))
+                ]
+          ]
+    ]
+  where
+    value2 = round $ sqrt $ (fromIntegral value :: Double)
+
+
+o_1_space_async_transformation :: Int -> [Benchmark]
+o_1_space_async_transformation value =
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "transformation"
+                [ benchIOSink value "map" $ map' asyncly 1
+                , benchIOSink value "fmap" $ fmap' asyncly 1
+                , benchIOSink value "mapM" $ mapM asyncly 1
+                ]
+          ]
+    ]
+
+o_1_space_wAsync_generation :: Int -> [Benchmark]
+o_1_space_wAsync_generation value =
+    [ bgroup
+          "wAsyncly"
+          [ bgroup
+                "generation"
+                [ benchSrcIO wAsyncly "unfoldr" (sourceUnfoldr value)
+                , benchSrcIO wAsyncly "unfoldrM" (sourceUnfoldrM value)
+                , benchSrcIO wAsyncly "fromFoldable" (sourceFromFoldable value)
+                , benchSrcIO
+                      wAsyncly
+                      "fromFoldableM"
+                      (sourceFromFoldableM value)
+                , benchSrcIO
+                      wAsyncly
+                      "unfoldrM maxThreads 1"
+                      (maxThreads 1 . sourceUnfoldrM value)
+                , benchSrcIO
+                      wAsyncly
+                      "unfoldrM maxBuffer 1 (x/10 ops)"
+                      (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+                ]
+          ]
+    ]
+
+o_1_space_wAsync_concatFoldable :: Int -> [Benchmark]
+o_1_space_wAsync_concatFoldable value =
+    [ bgroup
+          "wAsyncly"
+          [ bgroup
+                "concat-foldable"
+                [ benchSrcIO wAsyncly "foldMapWith" (sourceFoldMapWith value)
+                , benchSrcIO wAsyncly "foldMapWithM" (sourceFoldMapWithM value)
+                , benchSrcIO wAsyncly "foldMapM" (sourceFoldMapM value)
+                ]
+          ]
+    ]
+
+-- When we merge streams using wAsync the size of the queue increases
+-- slowly because of the binary composition adding just one more item
+-- to the work queue only after every scheduling pass through the
+-- work queue.
+--
+-- We should see the memory consumption increasing slowly if these
+-- benchmarks are left to run on infinite number of streams of infinite
+-- sizes.
+o_1_space_wAsync_concatMap :: Int -> [Benchmark]
+o_1_space_wAsync_concatMap value =
+    value2 `seq`
+    [ bgroup
+          "wAsyncly"
+          [ benchMonadicSrcIO
+                "concatMapWith (2,x/2)"
+                (concatStreamsWith wAsync 2 (value `div` 2))
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x,sqrt x)"
+                (concatStreamsWith wAsync value2 value2)
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x * 2,sqrt x / 2)"
+                (concatStreamsWith wAsync (value2 * 2) (value2 `div` 2))
+          ]
+    ]
+  where
+    value2 = round $ sqrt $ (fromIntegral value :: Double)
+
+
+o_1_space_wAsync_transformation :: Int -> [Benchmark]
+o_1_space_wAsync_transformation value =
+    [ bgroup
+          "wAsyncly"
+          [ bgroup
+                "transformation"
+                [ benchIOSink value "map" $ map' wAsyncly 1
+                , benchIOSink value "fmap" $ fmap' wAsyncly 1
+                , benchIOSink value "mapM" $ mapM wAsyncly 1
+                ]
+          ]
+    ]
+
+-- unfoldr and fromFoldable are always serial and therefore the same for
+-- all stream types. They can be removed to reduce the number of benchmarks.
+o_1_space_ahead_generation :: Int -> [Benchmark]
+o_1_space_ahead_generation value =
+    [ bgroup
+          "aheadly"
+          [ bgroup
+                "generation"
+                [ benchSrcIO aheadly "unfoldr" (sourceUnfoldr value)
+                , benchSrcIO aheadly "unfoldrM" (sourceUnfoldrM value)
+--                , benchSrcIO aheadly "fromFoldable" (sourceFromFoldable value)
+                , benchSrcIO
+                      aheadly
+                      "fromFoldableM"
+                      (sourceFromFoldableM value)
+                , benchSrcIO
+                      aheadly
+                      "unfoldrM maxThreads 1"
+                      (maxThreads 1 . sourceUnfoldrM value)
+                , benchSrcIO
+                      aheadly
+                      "unfoldrM maxBuffer 1 (x/10 ops)"
+                      (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+                ]
+          ]
+    ]
+
+o_1_space_ahead_concatFoldable :: Int -> [Benchmark]
+o_1_space_ahead_concatFoldable value =
+    [ bgroup
+          "aheadly"
+          [ bgroup
+                "concat-foldable"
+                [ benchSrcIO aheadly "foldMapWith" (sourceFoldMapWith value)
+                , benchSrcIO aheadly "foldMapWithM" (sourceFoldMapWithM value)
+                , benchSrcIO aheadly "foldMapM" (sourceFoldMapM value)
+                ]
+          ]
+    ]
+
+o_1_space_ahead_concatMap :: Int -> [Benchmark]
+o_1_space_ahead_concatMap value =
+    value2 `seq`
+    [ bgroup
+          "aheadly"
+          [ benchMonadicSrcIO
+                "concatMapWith (2,x/2)"
+                (concatStreamsWith ahead 2 (value `div` 2))
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x,sqrt x)"
+                (concatStreamsWith ahead value2 value2)
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x * 2,sqrt x / 2)"
+                (concatStreamsWith ahead (value2 * 2) (value2 `div` 2))
+          ]
+    ]
+  where
+    value2 = round $ sqrt $ (fromIntegral value :: Double)
+
+
+o_1_space_ahead_transformation :: Int -> [Benchmark]
+o_1_space_ahead_transformation value =
+    [ bgroup
+          "aheadly"
+          [ bgroup
+                "transformation"
+                [ benchIOSink value "map" $ map' aheadly 1
+                , benchIOSink value "fmap" $ fmap' aheadly 1
+                , benchIOSink value "mapM" $ mapM aheadly 1
+                ]
+          ]
+    ]
+
+o_1_space_async_zip :: Int -> [Benchmark]
+o_1_space_async_zip value =
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "zip"
+                [ benchSrcIO
+                      serially
+                      "zipAsync (2,x/2)"
+                      (zipAsync (value `div` 2))
+                , benchSrcIO
+                      serially
+                      "zipAsyncM (2,x/2)"
+                      (zipAsyncM (value `div` 2))
+                , benchSrcIO
+                      serially
+                      "zipAsyncAp (2,x/2)"
+                      (zipAsyncAp (value `div` 2))
+                , benchIOSink value "fmap zipAsyncly" $ fmap' S.zipAsyncly 1
+                , benchSrcIO
+                      serially
+                      "mergeAsyncBy (2,x/2)"
+                      (mergeAsyncBy (value `div` 2))
+                , benchSrcIO
+                      serially
+                      "mergeAsyncByM (2,x/2)"
+                      (mergeAsyncByM (value `div` 2))
+        -- Parallel stages in a pipeline
+                , benchIOSink value "parAppMap" parAppMap
+                , benchIOSink value "parAppSum" parAppSum
                 ]
           ]
     ]
