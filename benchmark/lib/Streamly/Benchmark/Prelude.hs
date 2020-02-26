@@ -60,6 +60,7 @@ import Streamly.Internal.Data.Time.Units
 
 import qualified Streamly.Internal.Data.Sink as Sink
 
+import qualified Streamly.Memory.Array as A
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
@@ -2102,6 +2103,65 @@ o_n_space_serial_foldr value =
                 , bench "minimumBy" $ nf (flip foldableMinBy 1) value
                 , bench "maximumBy" $ nf (flip foldableMaxBy 1) value
                 , bench "minimumByList" $ nf (flip foldableListMinBy 1) value
+                ]
+          ]
+    ]
+
+
+o_n_heap_serial_foldl :: Int -> [Benchmark]
+o_n_heap_serial_foldl value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "foldl"
+          -- Left folds for building a structure are inherently non-streaming
+          -- as the structure cannot be lazily consumed until fully built.
+                [ benchIOSink value "foldl'/build/IO" foldl'Build
+                , benchIdentitySink value "foldl'/build/Identity" foldl'Build
+                , benchIOSink value "foldlM'/build/IO" foldlM'Build
+                , benchIdentitySink
+                      value
+                      "foldlM'/build/Identity"
+                      foldlM'Build
+                , benchIOSink value "toStream" (S.fold IP.toStream)
+                , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
+                , benchIOSink value "toList" (S.fold FL.toList)
+                , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
+          -- Converting the stream to an array
+                , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
+                , benchIOSink value "writeN" (S.fold (A.writeN value))
+          -- Reversing/sorting a stream
+                , benchIOSink value "reverse" (reverse 1)
+                , benchIOSink value "reverse'" (reverse' 1)
+                ]
+          ]
+    ]
+
+o_n_heap_serial_buffering :: Int -> [Benchmark]
+o_n_heap_serial_buffering value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "buffering"
+            -- Buffers the output of show/read.
+            -- XXX can the outputs be streaming? Can we have special read/show
+            -- style type classes, readM/showM supporting streaming effects?
+                [ bench "readsPrec pure streams" $
+                  nf readInstance (mkString value)
+                , bench "readsPrec Haskell lists" $
+                  nf readInstanceList (mkListString value)
+                , bench "showPrec Haskell lists" $
+                  nf showInstanceList (mkList value)
+          -- interleave x/4 streams of 4 elements each. Needs to buffer
+          -- proportional to x/4. This is different from WSerial because
+          -- WSerial expands slowly because of binary interleave behavior and
+          -- this expands immediately because of Nary interleave behavior.
+                , benchIOSrc1
+                      "concatUnfoldInterleaveRepl (x/4,4)"
+                      (concatUnfoldInterleaveRepl4xN value)
+                , benchIOSrc1
+                      "concatUnfoldRoundrobinRepl (x/4,4)"
+                      (concatUnfoldRoundrobinRepl4xN value)
                 ]
           ]
     ]
