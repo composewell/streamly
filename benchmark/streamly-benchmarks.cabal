@@ -134,9 +134,13 @@ library
 
 library lib-prelude
     import: lib-options, bench-depends
-    hs-source-dirs:    lib
+    hs-source-dirs:    lib, .
     exposed-modules:
                        Streamly.Benchmark.Prelude
+                     , Streamly.Benchmark.Groups
+    other-modules:     Streamly.Benchmark.Common
+                     , NestedOps
+                     , NestedUnfoldOps
     -- XXX GHCJS build fails for this library.
     if impl(ghcjs)
       buildable: False
