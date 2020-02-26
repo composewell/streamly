@@ -54,12 +54,14 @@ import Streamly
     , aheadly
     , asyncly
     , serially
+    , parallely
     , wAsyncly
     , wSerially
     , zipSerially
     , ahead
     , async
     , wAsync
+    , parallel
     , maxBuffer
     , maxThreads
     )
@@ -2481,6 +2483,107 @@ o_1_space_async_zip value =
         -- Parallel stages in a pipeline
                 , benchIOSink value "parAppMap" parAppMap
                 , benchIOSink value "parAppSum" parAppSum
+                ]
+          ]
+    ]
+
+o_1_space_parallel_generation :: Int -> [Benchmark]
+o_1_space_parallel_generation value =
+    [ bgroup
+          "parallely"
+          [ bgroup
+                "generation"
+                [ benchSrcIO parallely "unfoldr" (sourceUnfoldr value)
+                , benchSrcIO parallely "unfoldrM" (sourceUnfoldrM value)
+--                , benchSrcIO parallely "fromFoldable" (sourceFromFoldable value)
+                , benchSrcIO
+                      parallely
+                      "fromFoldableM"
+                      (sourceFromFoldableM value)
+                , benchSrcIO
+                      parallely
+                      "unfoldrM maxThreads 1"
+                      (maxThreads 1 . sourceUnfoldrM value)
+                , benchSrcIO
+                      parallely
+                      "unfoldrM maxBuffer 1 (x/10 ops)"
+                      (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+                ]
+          ]
+    ]
+
+o_1_space_parallel_concatFoldable :: Int -> [Benchmark]
+o_1_space_parallel_concatFoldable value =
+    [ bgroup
+          "parallely"
+          [ bgroup
+                "concat-foldable"
+                [ benchSrcIO parallely "foldMapWith" (sourceFoldMapWith value)
+                , benchSrcIO parallely "foldMapWithM" (sourceFoldMapWithM value)
+                , benchSrcIO parallely "foldMapM" (sourceFoldMapM value)
+                ]
+          ]
+    ]
+
+o_1_space_parallel_concatMap :: Int -> [Benchmark]
+o_1_space_parallel_concatMap value =
+    value2 `seq`
+    [ bgroup
+          "parallely"
+          [ benchMonadicSrcIO
+                "concatMapWith (2,x/2)"
+                (concatStreamsWith parallel 2 (value `div` 2))
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x,sqrt x)"
+                (concatStreamsWith parallel value2 value2)
+          , benchMonadicSrcIO
+                "concatMapWith (sqrt x * 2,sqrt x / 2)"
+                (concatStreamsWith parallel (value2 * 2) (value2 `div` 2))
+          ]
+    ]
+  where
+    value2 = round $ sqrt $ (fromIntegral value :: Double)
+
+
+o_1_space_parallel_transformation :: Int -> [Benchmark]
+o_1_space_parallel_transformation value =
+    [ bgroup
+          "parallely"
+          [ bgroup
+                "transformation"
+                [ benchIOSink value "map" $ map' parallely 1
+                , benchIOSink value "fmap" $ fmap' parallely 1
+                , benchIOSink value "mapM" $ mapM parallely 1
+                ]
+          ]
+    ]
+
+o_1_space_parallel_outerProductStreams :: Int -> [Benchmark]
+o_1_space_parallel_outerProductStreams value =
+    [ bgroup
+          "parallely"
+          [ bgroup
+                "outer-product-streams"
+                [ benchIO "toNullAp" $ Nested.toNullAp value parallely
+                , benchIO "toNull" $ Nested.toNull value parallely
+                , benchIO "toNull3" $ Nested.toNull3 value parallely
+                , benchIO "filterAllOut" $ Nested.filterAllOut value parallely
+                , benchIO "filterAllIn" $ Nested.filterAllIn value parallely
+                , benchIO "filterSome" $ Nested.filterSome value parallely
+                , benchIO "breakAfterSome" $
+                  Nested.breakAfterSome value parallely
+                ]
+          ]
+    ]
+
+o_n_space_parallel_outerProductStreams :: Int -> [Benchmark]
+o_n_space_parallel_outerProductStreams value =
+    [ bgroup
+          "parallely"
+          [ bgroup
+                "outer-product-streams"
+                [ benchIO "toList" $ Nested.toList value parallely
+                , benchIO "toListSome" $ Nested.toListSome value parallely
                 ]
           ]
     ]
