@@ -1281,6 +1281,13 @@ benchIOSrc t name f =
 benchPureSink :: NFData b => Int -> String -> (SerialT Identity Int -> b) -> Benchmark
 benchPureSink value name f = benchPure name (sourceUnfoldr value) f
 
+{-# INLINE benchPureSinkIO #-}
+benchPureSinkIO
+    :: NFData b
+    => Int -> String -> (SerialT Identity Int -> IO b) -> Benchmark
+benchPureSinkIO value name f =
+    bench name $ nfIO $ randomRIO (1, 1) >>= f . sourceUnfoldr value
+
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
@@ -1994,5 +2001,107 @@ o_1_space_zipSerial_transformation value =
             [ benchIO "toNullAp"  $ Nested.toNullAp value  zipSerially
             ]
             -}
+          ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Serial : O(n) Space
+-------------------------------------------------------------------------------
+
+o_n_space_serial_toList :: Int -> [Benchmark]
+o_n_space_serial_toList value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "toList" -- < 2MB
+          -- Converting the stream to a list or pure stream in a strict monad
+                [ benchIOSink value "foldrMToList" foldrMBuild
+                , benchIOSink value "toList" toList
+                , benchIOSink value "toListRev" toListRev
+          -- , benchIOSink value "toPure" toPure
+          -- , benchIOSink value "toPureRev" toPureRev
+                ]
+          ]
+    ]
+
+o_n_space_serial_outerProductStreams :: Int -> [Benchmark]
+o_n_space_serial_outerProductStreams value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "outer-product-streams"
+                [ benchIO "toList" $ Nested.toList value serially
+                , benchIO "toListSome" $ Nested.toListSome value serially
+                ]
+          ]
+    ]
+
+o_n_space_serial_outerProductUnfolds :: Int -> [Benchmark]
+o_n_space_serial_outerProductUnfolds value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "outer-product-unfolds"
+                [ benchIO "toList" $ NestedUnfold.toList value
+                , benchIO "toListSome" $ NestedUnfold.toListSome value
+                ]
+          ]
+    ]
+
+o_n_space_wSerial_outerProductStreams :: Int -> [Benchmark]
+o_n_space_wSerial_outerProductStreams value =
+    [ bgroup
+          "wSerially"
+          [ bgroup
+                "outer-product-streams"
+                [ benchIO "toList" $ Nested.toList value wSerially
+                , benchIO "toListSome" $ Nested.toListSome value wSerially
+                ]
+          ]
+    ]
+
+o_n_space_serial_traversable :: Int -> [Benchmark]
+o_n_space_serial_traversable value =
+    [ bgroup
+          "serially"
+        -- Buffering operations using heap proportional to number of elements.
+          [ bgroup
+                "traversable" -- < 2MB
+            -- Traversable instance
+                [ benchPureSinkIO value "traverse" traversableTraverse
+                , benchPureSinkIO value "sequenceA" traversableSequenceA
+                , benchPureSinkIO value "mapM" traversableMapM
+                , benchPureSinkIO value "sequence" traversableSequence
+                ]
+          ]
+    ]
+
+o_n_space_serial_foldr :: Int -> [Benchmark]
+o_n_space_serial_foldr value =
+    [ bgroup
+          "serially"
+        -- Head recursive strict right folds.
+          [ bgroup
+                "foldr"
+            -- < 2MB
+          -- accumulation due to strictness of IO monad
+                [ benchIOSink value "foldrM/build/IO" foldrMBuild
+          -- Right folds for reducing are inherently non-streaming as the
+          -- expression needs to be fully built before it can be reduced.
+                , benchIdentitySink
+                      value
+                      "foldrM/reduce/Identity"
+                      foldrMReduce
+          -- takes < 4MB
+                , benchIOSink value "foldrM/reduce/IO" foldrMReduce
+          -- XXX the definitions of minimumBy and maximumBy in Data.Foldable use
+          -- foldl1 which does not work in constant memory for our implementation.
+          -- It works in constant memory for lists but even for lists it takes 15x
+          -- more time compared to our foldl' based implementation.
+          -- XXX these take < 16M stack space
+                , bench "minimumBy" $ nf (flip foldableMinBy 1) value
+                , bench "maximumBy" $ nf (flip foldableMaxBy 1) value
+                , bench "minimumByList" $ nf (flip foldableListMinBy 1) value
+                ]
           ]
     ]
