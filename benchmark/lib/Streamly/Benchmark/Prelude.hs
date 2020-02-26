@@ -2165,3 +2165,30 @@ o_n_heap_serial_buffering value =
                 ]
           ]
     ]
+
+-- Head recursive operations.
+o_n_stack_serial_iterated :: Int -> [Benchmark]
+o_n_stack_serial_iterated value =
+    [ bgroup
+          "serially"
+          [ bgroup
+                "iterated"
+                [ benchIOSrc serially "mapMx10K" iterateMapM
+                , benchIOSrc serially "scanx100" iterateScan
+                , benchIOSrc serially "scanl1x100" iterateScanl1
+                , benchIOSrc serially "filterEvenx10K" iterateFilterEven
+                , benchIOSrc serially "takeAllx10K" (iterateTakeAll value)
+                , benchIOSrc serially "dropOnex10K" iterateDropOne
+                , benchIOSrc
+                      serially
+                      "dropWhileFalsex10K"
+                      (iterateDropWhileFalse value)
+                , benchIOSrc
+                      serially
+                      "dropWhileTruex10K"
+                      (iterateDropWhileTrue value)
+                , benchIOSink value "tail" tail
+                , benchIOSink value "nullHeadTail" nullHeadTail
+                ]
+          ]
+    ]
