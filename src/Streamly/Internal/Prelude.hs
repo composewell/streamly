@@ -159,14 +159,17 @@ module Streamly.Internal.Prelude
 
     -- finding subsequences
     , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
+    , isSuffixOf
+    , isInfixOf
     , isSubsequenceOf
 
     -- trimming sequences
     , stripPrefix
-    -- , stripSuffix
+    , stripSuffix
     -- , stripInfix
+    , dropPrefix
+    , dropInfix
+    , dropSuffix
 
     -- * Transformation
     , transform
@@ -1516,6 +1519,63 @@ elemIndex a = findIndex (== a)
 isPrefixOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
 isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 
+-- Note: isPrefixOf uses the prefix stream only once. In contrast, isSuffixOf
+-- may use the suffix stream many times. To run in optimal memory we do not
+-- want to buffer the suffix stream in memory therefore  we need an ability to
+-- clone (or consume it multiple times) the suffix stream without any side
+-- effects so that multiple potential suffix matches can proceed in parallel
+-- without buffering the suffix stream. For example, we may create the suffix
+-- stream from a file handle, however, if we evaluate the stream multiple
+-- times, once for each match, we will need a different file handle each time
+-- which may exhaust the file descriptors. Instead, we want to share the same
+-- underlying file descriptor, use pread on it to generate the stream and clone
+-- the stream for each match. Therefore the suffix stream should be built in
+-- such a way that it can be consumed multiple times without any problems.
+
+-- XXX Can be implemented with better space/time complexity.
+-- Space: @O(n)@ worst case where @n@ is the length of the suffix.
+
+-- | Returns 'True' if the first stream is a suffix of the second. A stream is
+-- considered a suffix of itself.
+--
+-- @
+-- > S.isSuffixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- Space: @O(n)@, buffers entire input stream and the suffix.
+--
+-- /Internal/
+--
+-- /Suboptimal/ - Help wanted.
+--
+{-# INLINE isSuffixOf #-}
+isSuffixOf :: (Monad m, Eq a) => SerialT m a -> SerialT m a -> m Bool
+isSuffixOf suffix stream = isPrefixOf (reverse suffix) (reverse stream)
+
+-- | Returns 'True' if the first stream is an infix of the second. A stream is
+-- considered an infix of itself.
+--
+-- @
+-- > S.isInfixOf (S.fromList "hello") (S.fromList "hello" :: SerialT IO Char)
+-- True
+-- @
+--
+-- Space: @O(n)@ worst case where @n@ is the length of the infix.
+--
+-- /Internal/
+--
+-- /Requires 'Storable' constraint/ - Help wanted.
+--
+{-# INLINE isInfixOf #-}
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a)
+    => SerialT m a -> SerialT m a -> m Bool
+isInfixOf infx stream = do
+    arr <- fold A.write infx
+    -- XXX can use breakOnSeq instead (when available)
+    r <- null $ drop 1 $ splitOnSeq arr FL.drain stream
+    return (not r)
+
 -- | Returns 'True' if all the elements of the first stream occur, in order, in
 -- the second stream. The elements do not have to occur consecutively. A stream
 -- is a subsequence of itself.
@@ -1530,9 +1590,12 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 isSubsequenceOf :: (Eq a, IsStream t, Monad m) => t m a -> t m a -> m Bool
 isSubsequenceOf m1 m2 = D.isSubsequenceOf (toStreamD m1) (toStreamD m2)
 
--- | Drops the given prefix from a stream. Returns 'Nothing' if the stream does
--- not start with the given prefix. Returns @Just nil@ when the prefix is the
--- same as the stream.
+-- | Strip prefix if present and tell whether it was stripped or not. Returns
+-- 'Nothing' if the stream does not start with the given prefix, stripped
+-- stream otherwise. Returns @Just nil@ when the prefix is the same as the
+-- stream.
+--
+-- Space: @O(1)@
 --
 -- @since 0.6.0
 {-# INLINE stripPrefix #-}
@@ -1541,6 +1604,62 @@ stripPrefix
     => t m a -> t m a -> m (Maybe (t m a))
 stripPrefix m1 m2 = fmap fromStreamD <$>
     D.stripPrefix (toStreamD m1) (toStreamD m2)
+
+-- Note: If we want to return a Maybe value to know whether the
+-- suffix/infix was present or not along with the stripped stream then
+-- we need to buffer the whole input stream.
+--
+-- | Drops the given suffix from a stream. Returns 'Nothing' if the stream does
+-- not end with the given suffix. Returns @Just nil@ when the suffix is the
+-- same as the stream.
+--
+-- It may be more efficient to convert the stream to an Array and use
+-- stripSuffix on that especially if the elements have a Storable or Prim
+-- instance.
+--
+-- Space: @O(n)@, buffers the entire input stream as well as the suffix
+--
+-- /Internal/
+{-# INLINE stripSuffix #-}
+stripSuffix
+    :: (Monad m, Eq a)
+    => SerialT m a -> SerialT m a -> m (Maybe (SerialT m a))
+stripSuffix m1 m2 = fmap reverse <$> stripPrefix (reverse m1) (reverse m2)
+
+-- | Drop prefix from the input stream if present.
+--
+-- Space: @O(1)@
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropPrefix #-}
+dropPrefix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropPrefix = error "Not implemented yet!"
+
+-- | Drop all matching infix from the input stream if present. Infix stream
+-- may be consumed multiple times.
+--
+-- Space: @O(n)@ where n is the length of the infix.
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropInfix #-}
+dropInfix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropInfix = error "Not implemented yet!"
+
+-- | Drop suffix from the input stream if present. Suffix stream may be
+-- consumed multiple times.
+--
+-- Space: @O(n)@ where n is the length of the suffix.
+--
+-- /Unimplemented/ - Help wanted.
+{-# INLINE dropSuffix #-}
+dropSuffix ::
+    -- (Eq a, IsStream t, Monad m) =>
+    t m a -> t m a -> t m a
+dropSuffix = error "Not implemented yet!"
 
 ------------------------------------------------------------------------------
 -- Map and Fold
