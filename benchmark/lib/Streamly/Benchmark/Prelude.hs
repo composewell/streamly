@@ -21,7 +21,78 @@
 {-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
 #endif
 
-module Streamly.Benchmark.Prelude where
+module Streamly.Benchmark.Prelude
+    ( o_1_space_serial_pure
+    , o_1_space_serial_foldable
+    , o_1_space_serial_generation
+    , o_1_space_serial_elimination
+    , o_1_space_serial_folds
+    , o_1_space_serial_foldMultiStream
+    , o_1_space_serial_foldsTransforms
+    , o_1_space_serial_foldsCompositions
+    , o_1_space_serial_pipes
+    , o_1_space_serial_pipesX4
+    , o_1_space_serial_transformer
+    , o_1_space_serial_transformation
+    , o_1_space_serial_transformationX4
+    , o_1_space_serial_filtering
+    , o_1_space_serial_filteringX4
+    , o_1_space_serial_joining
+    , o_1_space_serial_concatFoldable
+    , o_1_space_serial_concatSerial
+    , o_1_space_serial_outerProductStreams
+    , o_1_space_serial_outerProductUnfolds
+    , o_1_space_serial_mixed
+    , o_1_space_serial_mixedX4
+
+    , o_1_space_wSerial_transformation
+    , o_1_space_wSerial_concatMap
+    , o_1_space_wSerial_outerProduct
+
+    , o_1_space_zipSerial_transformation
+
+    , o_n_space_serial_toList
+    , o_n_space_serial_outerProductStreams
+    , o_n_space_serial_outerProductUnfolds
+
+    , o_n_space_wSerial_outerProductStreams
+
+    , o_n_space_serial_traversable
+    , o_n_space_serial_foldr
+
+    , o_n_heap_serial_foldl
+    , o_n_heap_serial_buffering
+
+    , o_n_stack_serial_iterated
+
+    , o_1_space_async_generation
+    , o_1_space_async_concatFoldable
+    , o_1_space_async_concatMap
+    , o_1_space_async_transformation
+
+    , o_1_space_wAsync_generation
+    , o_1_space_wAsync_concatFoldable
+    , o_1_space_wAsync_concatMap
+    , o_1_space_wAsync_transformation
+
+    , o_1_space_ahead_generation
+    , o_1_space_ahead_concatFoldable
+    , o_1_space_ahead_concatMap
+    , o_1_space_ahead_transformation
+
+    , o_1_space_async_zip
+
+    , o_1_space_parallel_generation
+    , o_1_space_parallel_concatFoldable
+    , o_1_space_parallel_concatMap
+    , o_1_space_parallel_transformation
+    , o_1_space_parallel_outerProductStreams
+    , o_n_space_parallel_outerProductStreams
+
+    , o_1_space_async_avgRate
+
+    , o_1_space_ahead_avgRate
+    ) where
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
