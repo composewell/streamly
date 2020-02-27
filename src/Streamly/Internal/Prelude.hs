@@ -106,7 +106,7 @@ module Streamly.Internal.Prelude
     , length
     , sum
     , product
-    -- , mconcat
+    , mconcat
 
     -- -- ** To Summary (Maybe) (Full Folds)
     , maximumBy
@@ -540,7 +540,7 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, span, splitAt, break,
-               repeat, concat)
+               repeat, concat, mconcat)
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
@@ -1386,6 +1386,13 @@ sum = foldl' (+) 0
 {-# INLINE product #-}
 product :: (Monad m, Num a) => SerialT m a -> m a
 product = foldl' (*) 1
+
+-- | Fold a stream of monoid elements by appending them.
+--
+-- /Internal/
+{-# INLINE mconcat #-}
+mconcat :: (Monad m, Monoid a) => SerialT m a -> m a
+mconcat = foldr mappend mempty
 
 -- |
 -- @
