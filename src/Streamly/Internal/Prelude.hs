@@ -90,6 +90,9 @@ module Streamly.Internal.Prelude
     , foldl1'
     , foldlM'
 
+    -- ** Composable Left Folds
+    , fold
+
     -- ** Concurrent Folds
     , foldAsync
     , (|$.)
@@ -103,7 +106,7 @@ module Streamly.Internal.Prelude
     , length
     , sum
     , product
-    , mconcat
+    -- , mconcat
 
     -- -- ** To Summary (Maybe) (Full Folds)
     , maximumBy
@@ -111,6 +114,18 @@ module Streamly.Internal.Prelude
     , minimumBy
     , minimum
     , the
+
+    -- ** Lazy Folds
+    -- -- ** To Containers (Full Folds)
+    , toList
+    , toListRev
+    , toPure
+    , toPureRev
+
+    -- ** Composable Left Folds
+
+    , toStream    -- XXX rename to write?
+    , toStreamRev -- XXX rename to writeRev?
 
     -- ** Partial Folds
 
@@ -137,17 +152,21 @@ module Streamly.Internal.Prelude
     , and
     , or
 
-    -- ** To Containers
-    , toList
-    , toListRev
-    , toPure
-    , toPureRev
+    -- ** Multi-Stream folds
+    -- Full equivalence
+    , eqBy
+    , cmpBy
 
-    -- ** Composable Left Folds
-    , fold
+    -- finding subsequences
+    , isPrefixOf
+    -- , isSuffixOf
+    -- , isInfixOf
+    , isSubsequenceOf
 
-    , toStream    -- XXX rename to write?
-    , toStreamRev -- XXX rename to writeRev?
+    -- trimming sequences
+    , stripPrefix
+    -- , stripSuffix
+    -- , stripInfix
 
     -- * Transformation
     , transform
@@ -156,7 +175,14 @@ module Streamly.Internal.Prelude
     , Serial.map
     , sequence
     , mapM
+    -- ** Special Maps
     , mapM_
+    , trace
+    , tap
+    , tapOffsetEvery
+    , tapAsync
+    , tapRate
+    , pollCounts
 
     -- ** Scanning
     -- ** Left scans
@@ -193,60 +219,24 @@ module Streamly.Internal.Prelude
     , (|$)
     , (|&)
 
-    -- ** Indexing
-    , indexed
-    , indexedR
-    -- , timestamped
-    -- , timestampedR -- timer
-
     -- ** Filtering
 
     , filter
     , filterM
 
-    -- ** Stateful Filters
-    , take
-    , takeByTime
-    -- , takeEnd
-    , takeWhile
-    , takeWhileM
-    -- , takeWhileEnd
-    , drop
-    , dropByTime
-    -- , dropEnd
-    , dropWhile
-    , dropWhileM
-    -- , dropWhileEnd
-    -- , dropAround
+    -- ** Mapping Filters
+    , mapMaybe
+    , mapMaybeM
+
+    -- ** Deleting Elements
     , deleteBy
     , uniq
     -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
     -- , uniqOn -- to remove duplicate sequences
     -- , pruneBy -- dropAround + uniqBy - like words
 
-    -- ** Mapping Filters
-    , mapMaybe
-    , mapMaybeM
+    -- ** Inserting Elements
 
-    -- ** Window map
-    , rollingMapM
-    , rollingMap
-
-    -- ** Scanning Filters
-    -- -- *** Searching Elements
-    , findIndices
-    , elemIndices
-
-    -- -- *** Searching Sequences
-    -- , seqIndices -- search a sequence in the stream
-
-    -- -- *** Searching Multiple Sequences
-    -- , seqIndicesAny -- search any of the given sequence in the stream
-
-    -- -- -- ** Searching Streams
-    -- -- | Finding a stream within another stream.
-
-    -- ** Insertion
     , insertBy
     , intersperseM
     , intersperse
@@ -261,76 +251,34 @@ module Streamly.Internal.Prelude
     , interjectSuffix
     , delayPost
 
+    -- ** Indexing
+    , indexed
+    , indexedR
+    -- , timestamped
+    -- , timestampedR -- timer
+
     -- ** Reordering
     , reverse
     , reverse'
 
-    -- * Multi-Stream Operations
+    -- ** Trimming
+    , take
+    , takeByTime
+    -- , takeEnd
+    , takeWhile
+    , takeWhileM
+    -- , takeWhileEnd
+    , drop
+    , dropByTime
+    -- , dropEnd
+    , dropWhile
+    , dropWhileM
+    -- , dropWhileEnd
+    -- , dropAround
 
-    -- ** Appending
-    , append
+    -- ** Breaking
 
-    -- ** Interleaving
-    , interleave
-    , interleaveMin
-    , interleaveSuffix
-    , interleaveInfix
-
-    , Serial.wSerialFst
-    , Serial.wSerialMin
-
-    -- ** Scheduling
-    , roundrobin
-
-    -- ** Parallel
-    , Par.parallelFst
-    , Par.parallelMin
-
-    -- ** Merging
-
-    -- , merge
-    , mergeBy
-    , mergeByM
-    , mergeAsyncBy
-    , mergeAsyncByM
-
-    -- ** Zipping
-    , Z.zipWith
-    , Z.zipWithM
-    , Z.zipAsyncWith
-    , Z.zipAsyncWithM
-
-    -- ** Flattening Nested Streams
-    , concatMapM
-    , concatM
-    , concatMap
-    -- XXX add stateful concatMapWith?
-    , concatMapWith
-    -- , bindWith
-
-    -- ** Flattening Using Unfolds
-    , concatUnfold
-    , concatUnfoldInterleave
-    , concatUnfoldRoundrobin
-
-    -- ** Feedback Loops
-    , concatMapIterateWith
-    , concatMapTreeWith
-    , concatMapLoopWith
-    , concatMapTreeYieldLeavesWith
-
-    -- ** Inserting Streams in Streams
-    , gintercalate
-    , gintercalateSuffix
-    , intercalate
-    , intercalateSuffix
-    , interpose
-    , interposeSuffix
-    -- , interposeBy
-
-    -- -- ** Breaking
-
-    -- By chunks
+    -- Binary
     , splitAt -- spanN
     -- , splitIn -- sessionN
 
@@ -347,23 +295,30 @@ module Streamly.Internal.Prelude
     -- , breakOnSeq
     -- , breakOnStream -- on a stream
 
-    -- ** Splitting
-    -- | Streams can be sliced into segments in space or in time. We use the
-    -- term @chunk@ to refer to a spatial length of the stream (spatial window)
-    -- and the term @session@ to refer to a length in time (time window).
-
-    -- In imperative terms, grouped folding can be considered as a nested loop
-    -- where we loop over the stream to group elements and then loop over
-    -- individual groups to fold them to a single value that is yielded in the
-    -- output stream.
-
-    -- , groupScan
-
-    -- -- *** Chunks
+    -- Nary
     , chunksOf
     , chunksOf2
     , arraysOf
     , intervalsOf
+
+    -- ** Searching
+    -- -- *** Searching Elements
+    , findIndices
+    , elemIndices
+
+    -- -- *** Searching Sequences
+    -- , seqIndices -- search a sequence in the stream
+
+    -- -- *** Searching Multiple Sequences
+    -- , seqIndicesAny -- search any of the given sequence in the stream
+
+    -- -- -- ** Searching Streams
+    -- -- | Finding a stream within another stream.
+
+    -- ** Splitting
+    -- | Streams can be sliced into segments in space or in time. We use the
+    -- term @chunk@ to refer to a spatial length of the stream (spatial window)
+    -- and the term @session@ to refer to a length in time (time window).
 
     -- -- *** Using Element Separators
     , splitOn
@@ -399,17 +354,20 @@ module Streamly.Internal.Prelude
     , splitInnerBySuffix
 
     -- ** Grouping
+    -- In imperative terms, grouped folding can be considered as a nested loop
+    -- where we loop over the stream to group elements and then loop over
+    -- individual groups to fold them to a single value that is yielded in the
+    -- output stream.
+
+    -- , groupScan
+
     , groups
     , groupsBy
     , groupsByRolling
 
-    -- ** Distributing
-    , trace
-    , tap
-    , tapOffsetEvery
-    , tapAsync
-    , tapRate
-    , pollCounts
+    -- ** Group map
+    , rollingMapM
+    , rollingMap
 
     -- * Windowed Classification
 
@@ -447,21 +405,75 @@ module Streamly.Internal.Prelude
     -- , slidingChunkBuffer
     -- , slidingSessionBuffer
 
-    -- ** Containers of Streams
+    -- * Combining Streams
+
+    -- ** Appending
+    , append
+
+    -- ** Interleaving
+    , interleave
+    , interleaveMin
+    , interleaveSuffix
+    , interleaveInfix
+
+    , Serial.wSerialFst
+    , Serial.wSerialMin
+
+    -- ** Scheduling
+    , roundrobin
+
+    -- ** Parallel
+    , Par.parallelFst
+    , Par.parallelMin
+
+    -- ** Merging
+
+    -- , merge
+    , mergeBy
+    , mergeByM
+    , mergeAsyncBy
+    , mergeAsyncByM
+
+    -- ** Zipping
+    , Z.zipWith
+    , Z.zipWithM
+    , Z.zipAsyncWith
+    , Z.zipAsyncWithM
+
+    -- ** Folding Containers of Streams
     , foldWith
     , foldMapWith
     , forEachWith
 
-    -- ** Folding
-    , eqBy
-    , cmpBy
-    , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
-    , isSubsequenceOf
-    , stripPrefix
-    -- , stripSuffix
-    -- , stripInfix
+    -- Flattening Nested Streams
+    -- ** Folding Streams of Streams
+    , concatMapM
+    , concatM
+    , concatMap
+    -- XXX add stateful concatMapWith?
+    , concatMapWith
+    -- , bindWith
+
+    -- ** Flattening Using Unfolds
+    , concatUnfold
+    , concatUnfoldInterleave
+    , concatUnfoldRoundrobin
+
+    -- ** Feedback Loops
+    , concatMapIterateWith
+    , concatMapTreeWith
+    , concatMapLoopWith
+    , concatMapTreeYieldLeavesWith
+    , K.mfix
+
+    -- ** Inserting Streams in Streams
+    , gintercalate
+    , gintercalateSuffix
+    , intercalate
+    , intercalateSuffix
+    , interpose
+    , interposeSuffix
+    -- , interposeBy
 
     -- * Exceptions
     , before
@@ -480,14 +492,11 @@ module Streamly.Internal.Prelude
 
     -- * Transform Inner Monad
     , liftInner
+    , usingReaderT
     , runReaderT
     , evalStateT
     , usingStateT
     , runStateT
-    , usingReaderT
-
-    -- * MonadFix
-    , K.mfix
 
     -- * Diagnostics
     , inspectMode
