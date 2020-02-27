@@ -20,6 +20,11 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
+-- This is an Internal module consisting of released, unreleased and
+-- unimplemented APIs. For stable and released APIs please see
+-- "Streamly.Prelude" module. This module provides documentation only for the
+-- unreleased and unimplemented APIs. For documentation on released APIs please
+-- see "Streamly.Prelude" module.
 
 module Streamly.Internal.Prelude
     (
@@ -98,7 +103,7 @@ module Streamly.Internal.Prelude
     , length
     , sum
     , product
-    --, mconcat
+    , mconcat
 
     -- -- ** To Summary (Maybe) (Full Folds)
     , maximumBy
@@ -168,6 +173,9 @@ module Streamly.Internal.Prelude
     , scan
     , postscan
 
+    -- XXX Once we have pipes the contravariant transformations can be
+    -- represented by attaching pipes before a transformation.
+    --
     -- , lscanl'
     -- , lscanlM'
     -- , lscanl1'
@@ -219,13 +227,24 @@ module Streamly.Internal.Prelude
     -- ** Mapping Filters
     , mapMaybe
     , mapMaybeM
+
+    -- ** Window map
     , rollingMapM
     , rollingMap
 
     -- ** Scanning Filters
+    -- -- *** Searching Elements
     , findIndices
     , elemIndices
+
+    -- -- *** Searching Sequences
     -- , seqIndices -- search a sequence in the stream
+
+    -- -- *** Searching Multiple Sequences
+    -- , seqIndicesAny -- search any of the given sequence in the stream
+
+    -- -- -- ** Searching Streams
+    -- -- | Finding a stream within another stream.
 
     -- ** Insertion
     , insertBy
@@ -234,6 +253,11 @@ module Streamly.Internal.Prelude
     , intersperseSuffix
     , intersperseSuffixBySpan
     -- , intersperseBySpan
+    -- , intersperseByIndices -- using an index function/stream
+
+    -- time domain intersperse
+    -- , intersperseByTime
+    -- , intersperseByEvent
     , interjectSuffix
     , delayPost
 
@@ -276,24 +300,33 @@ module Streamly.Internal.Prelude
     , Z.zipAsyncWith
     , Z.zipAsyncWithM
 
-    -- ** Nested Streams
+    -- ** Flattening Nested Streams
     , concatMapM
     , concatM
+    , concatMap
+    -- XXX add stateful concatMapWith?
+    , concatMapWith
+    -- , bindWith
+
+    -- ** Flattening Using Unfolds
     , concatUnfold
     , concatUnfoldInterleave
     , concatUnfoldRoundrobin
-    , concatMap
-    , concatMapWith
+
+    -- ** Feedback Loops
+    , concatMapIterateWith
+    , concatMapTreeWith
+    , concatMapLoopWith
+    , concatMapTreeYieldLeavesWith
+
+    -- ** Inserting Streams in Streams
     , gintercalate
     , gintercalateSuffix
     , intercalate
     , intercalateSuffix
     , interpose
     , interposeSuffix
-    , concatMapIterateWith
-    , concatMapTreeWith
-    , concatMapLoopWith
-    , concatMapTreeYieldLeavesWith
+    -- , interposeBy
 
     -- -- ** Breaking
 
@@ -312,8 +345,18 @@ module Streamly.Internal.Prelude
 
     -- By sequences
     -- , breakOnSeq
+    -- , breakOnStream -- on a stream
 
     -- ** Splitting
+    -- | Streams can be sliced into segments in space or in time. We use the
+    -- term @chunk@ to refer to a spatial length of the stream (spatial window)
+    -- and the term @session@ to refer to a length in time (time window).
+
+    -- In imperative terms, grouped folding can be considered as a nested loop
+    -- where we loop over the stream to group elements and then loop over
+    -- individual groups to fold them to a single value that is yielded in the
+    -- output stream.
+
     -- , groupScan
 
     -- -- *** Chunks
@@ -332,7 +375,7 @@ module Streamly.Internal.Prelude
     -- , splitByPrefix
     , wordsBy -- stripAndCompactBy
 
-    -- -- *** Using Sequence Separators
+    -- -- *** Splitting By Sequences
     , splitOnSeq
     , splitOnSuffixSeq
     -- , splitOnPrefixSeq
@@ -347,6 +390,9 @@ module Streamly.Internal.Prelude
     -- , splitOnAnySeq
     -- , splitOnAnySuffixSeq
     -- , splitOnAnyPrefixSeq
+
+    -- -- *** Splitting By Streams
+    -- | Splitting a stream using another stream as separator.
 
     -- Nested splitting
     , splitInnerBy
@@ -367,17 +413,33 @@ module Streamly.Internal.Prelude
 
     -- * Windowed Classification
 
+    -- | Split the stream into windows or chunks in space or time. Each window
+    -- can be associated with a key, all events associated with a particular
+    -- key in the window can be folded to a single result. The stream is split
+    -- into windows of specified size, the window can be terminated early if
+    -- the closing flag is specified in the input stream.
+    --
+    -- The term "chunk" is used for a space window and the term "session" is
+    -- used for a time window.
+
     -- ** Tumbling Windows
+    -- | A new window starts after the previous window is finished.
+
     -- , classifyChunksOf
     , classifySessionsBy
     , classifySessionsOf
 
     -- ** Keep Alive Windows
+    -- | The window size is extended if an event arrives within the specified
+    -- window size. This can represent sessions with idle or inactive timeout.
+
     -- , classifyKeepAliveChunks
     , classifyKeepAliveSessions
 
     {-
     -- ** Sliding Windows
+    -- | A new window starts after the specified slide from the previous
+    -- window. Therefore windows can overlap.
     , classifySlidingChunks
     , classifySlidingSessions
     -}

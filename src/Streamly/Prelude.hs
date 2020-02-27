@@ -174,8 +174,6 @@ module Streamly.Prelude
     -- ** Right Folds
     -- $rightfolds
     , foldrM
-    -- , foldrS
-    -- , foldrT
     , foldr
 
     -- ** Left Folds
@@ -199,7 +197,6 @@ module Streamly.Prelude
     , length
     , sum
     , product
-    --, mconcat
 
     -- -- ** To Summary (Maybe) (Full Folds)
     -- -- | Folds that summarize a non-empty stream to a 'Just' value and return
@@ -209,7 +206,6 @@ module Streamly.Prelude
     , minimumBy
     , minimum
     , the
-    -- , toListRev -- experimental
 
     -- ** Lazy Folds
     --
@@ -252,18 +248,12 @@ module Streamly.Prelude
     , eqBy
     , cmpBy
     , isPrefixOf
-    -- , isSuffixOf
-    -- , isInfixOf
     , isSubsequenceOf
 
     -- trimming sequences
     , stripPrefix
-    -- , stripSuffix
-    -- , stripInfix
 
     -- * Transformation
-
-    --, transform
 
     -- ** Mapping
     -- | In imperative terms a map operation can be considered as a loop over
@@ -343,24 +333,12 @@ module Streamly.Prelude
     , scanlM'
     , postscanl'
     , postscanlM'
-    -- , prescanl'
-    -- , prescanlM'
     , scanl1'
     , scanl1M'
 
     -- ** Scan Using Fold
     , scan
     , postscan
-
-    -- , lscanl'
-    -- , lscanlM'
-    -- , lscanl1'
-    -- , lscanl1M'
-    --
-    -- , lpostscanl'
-    -- , lpostscanlM'
-    -- , lprescanl'
-    -- , lprescanlM'
 
     -- ** Filtering
     -- | Remove some elements from the stream based on a predicate. In
@@ -380,9 +358,6 @@ module Streamly.Prelude
     -- | Deleting elements is a special case of de-interleaving streams.
     , deleteBy
     , uniq
-    -- , uniqBy -- by predicate e.g. to remove duplicate "/" in a path
-    -- , uniqOn -- to remove duplicate sequences
-    -- , pruneBy -- dropAround + uniqBy - like words
 
     -- ** Inserting Elements
     -- | Inserting elements is a special case of interleaving/merging streams.
@@ -390,72 +365,26 @@ module Streamly.Prelude
     , insertBy
     , intersperseM
     , intersperse
-    -- , insertAfterEach
-    -- , intersperseBySpan
-    -- , intersperseByIndices -- using an index function/stream
-    -- , intersperseByTime
-    -- , intersperseByEvent
-
-    -- -- * Inserting Streams in Streams
-    -- , interposeBy
-    -- , intercalate
 
     -- ** Indexing
     -- | Indexing can be considered as a special type of zipping where we zip a
     -- stream with an index stream.
     , indexed
     , indexedR
-    -- , timestamped
-    -- , timestampedR -- timer
 
     -- ** Reordering Elements
     , reverse
-    -- , reverse'
 
     -- ** Trimming
     -- | Take or remove elements from one or both ends of a stream.
     , take
-    -- , takeEnd
     , takeWhile
     , takeWhileM
-    -- , takeWhileEnd
     , drop
-    -- , dropEnd
     , dropWhile
     , dropWhileM
-    -- , dropWhileEnd
-    -- , dropAround
 
     -- -- ** Breaking
-
-    -- By chunks
-    -- , splitAt -- spanN
-    -- , splitIn -- sessionN
-
-    -- By elements
-    -- , span  -- spanWhile
-    -- , break -- breakBefore
-    -- , breakAfter
-    -- , breakOn
-    -- , breakAround
-    -- , spanBy
-    -- , spanByRolling
-
-    -- By sequences
-    -- breakOnSeq/breakOnArray -- on a fixed sequence
-    -- breakOnStream -- on a stream
-
-    -- ** Slicing
-    -- | Streams can be sliced into segments in space or in time. We use the
-    -- term @chunk@ to refer to a spatial length of the stream (spatial window)
-    -- and the term @session@ to refer to a length in time (time window).
-
-    -- In imperative terms, grouped folding can be considered as a nested loop
-    -- where we loop over the stream to group elements and then loop over
-    -- individual groups to fold them to a single value that is yielded in the
-    -- output stream.
-
-    -- , groupScan
 
     , chunksOf
     , intervalsOf
@@ -467,15 +396,6 @@ module Streamly.Prelude
     -- -- ** Searching Elements
     , findIndices
     , elemIndices
-
-    -- -- *** Searching Sequences
-    -- , seqIndices -- search a sequence in the stream
-
-    -- -- *** Searching Multiple Sequences
-    -- , seqIndices -- search a sequence in the stream
-
-    -- -- ** Searching Streams
-    -- -- | Finding a stream within another stream.
 
     -- ** Splitting
     -- | In general we can express splitting in terms of parser combinators.
@@ -502,31 +422,9 @@ module Streamly.Prelude
     -- -- ** Splitting By Elements
     , splitOn
     , splitOnSuffix
-    -- , splitOnPrefix
 
-    -- , splitBy
     , splitWithSuffix
-    -- , splitByPrefix
     , wordsBy -- strip, compact and split
-
-    -- -- *** Splitting By Sequences
-    -- , splitOnSeq
-    -- , splitOnSuffixSeq
-    -- , splitOnPrefixSeq
-
-    -- Keeping the delimiters
-    -- , splitBySeq
-    -- , splitBySeqSuffix
-    -- , splitBySeqPrefix
-    -- , wordsBySeq
-
-    -- Splitting By Multiple Sequences
-    -- , splitOnAnySeq
-    -- , splitOnAnySuffixSeq
-    -- , splitOnAnyPrefixSeq
-
-    -- -- ** Splitting By Streams
-    -- -- | Splitting a stream using another stream as separator.
 
     -- ** Grouping
     -- | Splitting a stream by combining multiple contiguous elements into
@@ -534,40 +432,6 @@ module Streamly.Prelude
     , groups
     , groupsBy
     , groupsByRolling
-
-    {-
-    -- * Windowed Classification
-    -- | Split the stream into windows or chunks in space or time. Each window
-    -- can be associated with a key, all events associated with a particular
-    -- key in the window can be folded to a single result. The stream is split
-    -- into windows of specified size, the window can be terminated early if
-    -- the closing flag is specified in the input stream.
-    --
-    -- The term "chunk" is used for a space window and the term "session" is
-    -- used for a time window.
-
-    -- ** Tumbling Windows
-    -- | A new window starts after the previous window is finished.
-    -- , classifyChunksOf
-    -- , classifySessionsOf
-
-    -- ** Keep Alive Windows
-    -- | The window size is extended if an event arrives within the specified
-    -- window size. This can represent sessions with idle or inactive timeout.
-    -- , classifyKeepAliveChunks
-    -- , classifyKeepAliveSessions
-
-    {-
-    -- ** Sliding Windows
-    -- | A new window starts after the specified slide from the previous
-    -- window. Therefore windows can overlap.
-    , classifySlidingChunks
-    , classifySlidingSessions
-    -}
-    -- ** Sliding Window Buffers
-    -- , slidingChunkBuffer
-    -- , slidingSessionBuffer
-    -}
 
     -- * Combining Streams
     -- | New streams can be constructed by appending, merging or zipping
@@ -660,9 +524,7 @@ module Streamly.Prelude
     -- > filter p m = S.concatMap (\x -> if p x then S.yield x else S.nil) m
     --
 
-    -- XXX add stateful concatMapWith
     , concatMapWith
-    --, bindWith
     , concatMap
     , concatMapM
     , concatUnfold
