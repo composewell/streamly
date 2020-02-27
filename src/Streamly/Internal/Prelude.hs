@@ -175,6 +175,7 @@ module Streamly.Internal.Prelude
     , Serial.map
     , sequence
     , mapM
+
     -- ** Special Maps
     , mapM_
     , trace
@@ -1074,7 +1075,7 @@ foldrM = P.foldrM
 --
 -- > foldrM f z s = runIdentityT $ foldrS (\x xs -> lift $ f x (runIdentityT xs)) (lift z) s
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE foldrS #-}
 foldrS :: IsStream t => (a -> t m b -> t m b) -> t m b -> t m a -> t m b
 foldrS = K.foldrS
@@ -1089,7 +1090,7 @@ foldrS = K.foldrS
 -- 'foldrT' can be used to translate streamly streams to other transformer
 -- monads e.g.  to a different streaming type.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE foldrT #-}
 foldrT :: (IsStream t, Monad m, Monad (s m), MonadTrans s)
     => (a -> s m b -> s m b) -> s m b -> t m a -> s m b
@@ -1779,6 +1780,9 @@ x |&. f = f |$. x
 ------------------------------------------------------------------------------
 
 -- | Use a 'Pipe' to transform a stream.
+--
+-- /Internal/
+--
 {-# INLINE transform #-}
 transform :: (IsStream t, Monad m) => Pipe m a b -> t m a -> t m b
 transform pipe xs = fromStreamD $ D.transform pipe (toStreamD xs)
@@ -1889,7 +1893,7 @@ postscanlM' step z m = fromStreamD $ D.postscanlM' step z $ toStreamD m
 --
 -- | Like scanl' but does not stream the final value of the accumulator.
 --
--- @since 0.6.0
+-- /Internal/
 {-# INLINE prescanl' #-}
 prescanl' :: (IsStream t, Monad m) => (b -> a -> b) -> b -> t m a -> t m b
 prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
@@ -1897,7 +1901,7 @@ prescanl' step z m = fromStreamD $ D.prescanl' step z $ toStreamD m
 -- XXX this needs to be concurrent
 -- | Like postscanl' but with a monadic step function.
 --
--- @since 0.6.0
+-- /Internal/
 {-# INLINE prescanlM' #-}
 prescanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> m b -> t m a -> t m b
 prescanlM' step z m = fromStreamD $ D.prescanlM' step z $ toStreamD m
@@ -2208,7 +2212,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 
 -- | Like 'reverse' but several times faster, requires a 'Storable' instance.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE reverse' #-}
 reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
@@ -2248,7 +2252,7 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 
 -- | Insert a monadic action after each element in the stream.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE intersperseSuffix #-}
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
@@ -2314,7 +2318,7 @@ intersperseBySpan _n _f _xs = undefined
 -- "h,e,l,l,o"
 -- @
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE interjectSuffix #-}
 interjectSuffix
     :: (IsStream t, MonadAsync m)
@@ -2573,7 +2577,7 @@ concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 -- but use 'concatMap' or 'concatMapWith serial' for appending @n@ streams or
 -- infinite containers of streams.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE append #-}
 append ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
@@ -2600,7 +2604,7 @@ append m1 m2 = fromStreamD $ D.append (toStreamD m1) (toStreamD m2)
 --
 -- Do not use at scale in concatMapWith.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE interleave #-}
 interleave ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
@@ -2622,7 +2626,7 @@ interleave m1 m2 = fromStreamD $ D.interleave (toStreamD m1) (toStreamD m2)
 --
 -- Do not use at scale in concatMapWith.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE interleaveSuffix #-}
 interleaveSuffix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveSuffix m1 m2 =
@@ -2645,7 +2649,7 @@ interleaveSuffix m1 m2 =
 --
 -- Do not use at scale in concatMapWith.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE interleaveInfix #-}
 interleaveInfix ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveInfix m1 m2 =
@@ -2667,7 +2671,7 @@ interleaveInfix m1 m2 =
 --
 -- Do not use at scale in concatMapWith.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE interleaveMin #-}
 interleaveMin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2)
@@ -2683,7 +2687,7 @@ interleaveMin m1 m2 = fromStreamD $ D.interleaveMin (toStreamD m1) (toStreamD m2
 --
 -- Do not use at scale in concatMapWith.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE roundrobin #-}
 roundrobin ::(IsStream t, Monad m) => t m b -> t m b -> t m b
 roundrobin m1 m2 = fromStreamD $ D.roundRobin (toStreamD m1) (toStreamD m2)
@@ -2719,7 +2723,7 @@ concatUnfold u m = fromStreamD $ D.concatMapU u (toStreamD m)
 -- | Like 'concatUnfold' but interleaves the streams in the same way as
 -- 'interleave' behaves instead of appending them.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE concatUnfoldInterleave #-}
 concatUnfoldInterleave ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
@@ -2729,7 +2733,7 @@ concatUnfoldInterleave u m =
 -- | Like 'concatUnfold' but executes the streams in the same way as
 -- 'roundrobin'.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE concatUnfoldRoundrobin #-}
 concatUnfoldRoundrobin ::(IsStream t, Monad m)
     => Unfold m a b -> t m a -> t m b
@@ -2772,6 +2776,7 @@ gintercalate unf1 str1 unf2 str2 =
 -- >>> intercalate " " UF.fromList ["abc", "def", "ghi"]
 -- > "abc def ghi"
 --
+-- /Internal/
 {-# INLINE intercalate #-}
 intercalate :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
@@ -2814,6 +2819,7 @@ gintercalateSuffix unf1 str1 unf2 str2 =
 -- >>> intercalate "\n" UF.fromList ["abc", "def", "ghi"]
 -- > "abc\ndef\nghi\n"
 --
+-- /Internal/
 {-# INLINE intercalateSuffix #-}
 intercalateSuffix :: (IsStream t, Monad m)
     => b -> Unfold m b c -> t m b -> t m c
@@ -3000,7 +3006,7 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 -- >>> splitAt_ 4 [1,2,3]
 -- > ([1,2,3],[])
 --
--- @since 0.7.0
+-- /Internal/
 
 -- This can be considered as a two-fold version of 'ltake' where we take both
 -- the segments instead of discarding the leftover.
@@ -3083,6 +3089,9 @@ chunksOf
     => Int -> Fold m a b -> t m a -> t m b
 chunksOf n f m = D.fromStreamD $ D.groupsOf n f (D.toStreamD m)
 
+-- |
+--
+-- /Internal/
 {-# INLINE chunksOf2 #-}
 chunksOf2
     :: (IsStream t, Monad m)
@@ -3096,7 +3105,7 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- > arraysOf n = S.chunksOf n (A.writeN n)
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE arraysOf #-}
 arraysOf :: (IsStream t, MonadIO m, Storable a)
     => Int -> t m a -> t m (Array a)
@@ -3130,6 +3139,8 @@ intervalsOf n f xs =
 -- | Break the input stream into two groups, the first group takes the input as
 -- long as the predicate applied to the first element of the stream and next
 -- input element holds 'True', the second group takes the rest of the input.
+--
+-- /Internal/
 --
 spanBy
     :: Monad m
@@ -3174,7 +3185,7 @@ spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- >>> span_ (< 4) [1,2,3]
 -- > ([1,2,3],[])
 --
--- @since 0.7.0
+-- /Internal/
 
 -- This can be considered as a two-fold version of 'ltakeWhile' where we take
 -- both the segments instead of discarding the leftover.
@@ -3219,7 +3230,7 @@ span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
 -- >>> break_ (< 4) [3,2,1]
 -- > ([],[3,2,1])
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE break #-}
 break
     :: Monad m
@@ -3231,6 +3242,8 @@ break p = span (not . p)
 
 -- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
 -- predicate is applied to the previous and the next input elements.
+--
+-- /Internal/
 {-# INLINE spanByRolling #-}
 spanByRolling
     :: Monad m
@@ -3589,7 +3602,7 @@ splitWithSuffix predicate f m =
 --
 -- > splitOn . intercalate == id
 --
--- @since 0.7.0
+-- /Internal/
 
 -- XXX We can use a polymorphic vector implemented by Array# to represent the
 -- sequence, that way we can avoid the Storable constraint. If we still need
@@ -3643,7 +3656,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 --
 -- > lines = splitSuffixOn "\n"
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
@@ -3694,7 +3707,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- >>> splitOn'_ "ll" "hello"
 -- > ["he","ll","o"]
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE splitBySeq #-}
 splitBySeq
     :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
@@ -3730,7 +3743,7 @@ splitBySeq patt f m =
 -- >>> splitSuffixOn'_ "." "a..b.."
 -- > ["a.",".","b.","."]
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
     :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
@@ -3763,7 +3776,7 @@ splitSuffixOnAny subseq f m = undefined
 -- CAUTION! This is not a true streaming function as the container size after
 -- the split and merge may not be bounded.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE splitInnerBy #-}
 splitInnerBy
     :: (IsStream t, Monad m)
@@ -3777,7 +3790,7 @@ splitInnerBy splitter joiner xs =
 -- | Like 'splitInnerBy' but splits assuming the separator joins the segment in
 -- a suffix style.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE splitInnerBySuffix #-}
 splitInnerBySuffix
     :: (IsStream t, Monad m, Eq (f a), Monoid (f a))
@@ -3898,7 +3911,7 @@ tapAsync f xs = D.fromStreamD $ D.tapAsync f (D.toStreamD xs)
 --
 -- Note: This may not work correctly on 32-bit machines.
 --
--- /Internal
+-- /Internal/
 --
 {-# INLINE pollCounts #-}
 pollCounts ::
@@ -3929,7 +3942,7 @@ pollCounts predicate transf f xs =
 --
 -- Note: This may not work correctly on 32-bit machines.
 --
--- /Internal
+-- /Internal/
 {-# INLINE tapRate #-}
 tapRate ::
        (IsStream t, MonadAsync m, MonadCatch m)

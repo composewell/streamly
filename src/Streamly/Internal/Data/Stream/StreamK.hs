@@ -549,6 +549,8 @@ tailPartial m = mkStream $ \st yld sng stp ->
 --
 -- Note that the function `f` must be lazy in its argument, that's why we use
 -- 'unsafeInterleaveIO' because IO monad is strict.
+--
+-- /Internal/
 
 mfix :: (IsStream t, Monad m) => (m a -> t m a) -> t m a
 mfix f = mkStream $ \st yld sng stp ->

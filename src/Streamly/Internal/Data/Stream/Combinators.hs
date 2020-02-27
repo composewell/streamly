@@ -212,6 +212,9 @@ printState st = liftIO $ do
         Nothing -> putStrLn "No SVar"
 
 -- | Print debug information about an SVar when the stream ends
+--
+-- /Internal/
+--
 inspectMode :: IsStream t => t m a -> t m a
 inspectMode m = mkStream $ \st stp sng yld ->
      foldStreamShared (setInspectMode st) stp sng yld m

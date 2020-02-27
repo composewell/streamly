@@ -226,7 +226,7 @@ parallel = joinStreamVarPar ParallelVar StopNone
 --
 -- | Like `parallel` but stops the output as soon as the first stream stops.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE parallelFst #-}
 parallelFst :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallelFst = joinStreamVarPar ParallelVar StopBy
@@ -236,7 +236,7 @@ parallelFst = joinStreamVarPar ParallelVar StopBy
 -- | Like `parallel` but stops the output as soon as any of the two streams
 -- stops.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE parallelMin #-}
 parallelMin :: (IsStream t, MonadAsync m) => t m a -> t m a -> t m a
 parallelMin = joinStreamVarPar ParallelVar StopAny
@@ -364,7 +364,7 @@ newFoldSVar stt f = do
 --
 -- Compare with 'tap'.
 --
--- @since 0.7.0
+-- /Internal/
 {-# INLINE tapAsync #-}
 tapAsync :: (IsStream t, MonadAsync m) => (t m a -> m b) -> t m a -> t m a
 tapAsync f m = mkStream $ \st yld sng stp -> do
