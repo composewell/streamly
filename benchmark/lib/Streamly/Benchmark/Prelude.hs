@@ -2587,3 +2587,54 @@ o_n_space_parallel_outerProductStreams value =
                 ]
           ]
     ]
+
+o_1_space_async_avgRate :: Int -> [Benchmark]
+o_1_space_async_avgRate value =
+    [ bgroup
+          "asyncly"
+          [ bgroup
+                "avgRate"
+          -- benchIO "unfoldr" $ toNull asyncly
+          -- benchSrcIO asyncly "unfoldrM" (sourceUnfoldrM value)
+                [ benchSrcIO
+                      asyncly
+                      "unfoldrM/Nothing"
+                      (S.rate Nothing . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM/1,000,000"
+                      (S.avgRate 1000000 . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM/3,000,000"
+                      (S.avgRate 3000000 . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM/10,000,000/maxThreads1"
+                      (maxThreads 1 .
+                       S.avgRate 10000000 . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM/10,000,000"
+                      (S.avgRate 10000000 . sourceUnfoldrM value)
+                , benchSrcIO
+                      asyncly
+                      "unfoldrM/20,000,000"
+                      (S.avgRate 20000000 . sourceUnfoldrM value)
+                ]
+          ]
+    ]
+
+o_1_space_ahead_avgRate :: Int -> [Benchmark]
+o_1_space_ahead_avgRate value =
+    [ bgroup
+          "aheadly"
+          [ bgroup
+                "avgRate"
+                [ benchSrcIO
+                      aheadly
+                      "unfoldrM/1,000,000"
+                      (S.avgRate 1000000 . sourceUnfoldrM value)
+                ]
+          ]
+    ]
