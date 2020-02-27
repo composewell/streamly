@@ -448,9 +448,10 @@ module Streamly.Internal.Prelude
 
     -- Flattening Nested Streams
     -- ** Folding Streams of Streams
-    , concatMapM
+    , concat
     , concatM
     , concatMap
+    , concatMapM
     -- XXX add stateful concatMapWith?
     , concatMapWith
     -- , bindWith
@@ -539,7 +540,7 @@ import Prelude
                notElem, maximum, minimum, head, last, tail, length, null,
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, span, splitAt, break,
-               repeat)
+               repeat, concat)
 
 import qualified Data.Heap as H
 import qualified Data.Map.Strict as Map
@@ -2567,6 +2568,17 @@ concatMapWith = K.concatMapBy
 concatMap ::(IsStream t, Monad m) => (a -> t m b) -> t m a -> t m b
 concatMap f m = fromStreamD $ D.concatMap (toStreamD . f) (toStreamD m)
 
+-- | Flatten a stream of streams to a single stream.
+--
+-- @
+-- concat = concatMap id
+-- @
+--
+-- /Internal/
+{-# INLINE concat #-}
+concat :: (IsStream t, Monad m) => t m (t m a) -> t m a
+concat = concatMap id
+
 -- | Append the outputs of two streams, yielding all the elements from the
 -- first stream and then yielding all the elements from the second stream.
 --
@@ -2705,11 +2717,13 @@ concatMapM f m = fromStreamD $ D.concatMapM (fmap toStreamD . f) (toStreamD m)
 -- | Given a stream value in the underlying monad, lift and join the underlying
 -- monad with the stream monad.
 --
+-- Compare with 'concat' and 'sequence'.
+--
 --  /Internal/
 --
 {-# INLINE concatM #-}
 concatM :: (IsStream t, Monad m) => m (t m a) -> t m a
-concatM generator = concatMapM (\() -> generator) (K.yield ())
+concatM generator = concatMapM (\() -> generator) (yield ())
 
 -- | Like 'concatMap' but uses an 'Unfold' for stream generation. Unlike
 -- 'concatMap' this can fuse the 'Unfold' code with the inner loop and
