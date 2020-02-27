@@ -254,13 +254,13 @@ sourceUnfoldrAction value n = S.serially $ S.unfoldr step n
 
 -- fromIndices
 
-{-# INLINE sourceFromIndices #-}
-sourceFromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
+{-# INLINE _sourceFromIndices #-}
+_sourceFromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+_sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
 
-{-# INLINE sourceFromIndicesM #-}
-sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
-sourceFromIndicesM value n = S.take value $ S.fromIndicesM (P.fmap return (+ n))
+{-# INLINE _sourceFromIndicesM #-}
+_sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+_sourceFromIndicesM value n = S.take value $ S.fromIndicesM (P.fmap return (+ n))
 
 -- fromList
 
@@ -306,7 +306,7 @@ runStream = S.drain
 {-# INLINE toList #-}
 toList :: Monad m => Stream m Int -> m [Int]
 
-{-# INLINE head #-}
+{-# INLINE _head #-}
 {-# INLINE last #-}
 {-# INLINE maximum #-}
 {-# INLINE minimum #-}
@@ -314,7 +314,7 @@ toList :: Monad m => Stream m Int -> m [Int]
 {-# INLINE findIndex #-}
 {-# INLINE elemIndex #-}
 {-# INLINE foldl1'Reduce #-}
-head, last, minimum, maximum, foldl1'Reduce
+_head, last, minimum, maximum, foldl1'Reduce
     :: Monad m => Stream m Int -> m (Maybe Int)
 
 find, findIndex, elemIndex
@@ -346,10 +346,10 @@ foldrMBuild, foldl'Build, foldlM'Build
 {-# INLINE any #-}
 {-# INLINE and #-}
 {-# INLINE or #-}
-{-# INLINE null #-}
+{-# INLINE _null #-}
 {-# INLINE elem #-}
 {-# INLINE notElem #-}
-null :: Monad m => Stream m Int -> m Bool
+_null :: Monad m => Stream m Int -> m Bool
 
 elem, notElem, all, any, and, or :: Monad m => Int -> Stream m Int -> m Bool
 
@@ -411,8 +411,8 @@ foldl1'Reduce = S.foldl1' (+)
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 
 last   = S.last
-null   = S.null
-head   = S.head
+_null   = S.null
+_head   = S.head
 elem value   = S.elem (value + 1)
 notElem value = S.notElem (value + 1)
 length = S.length
@@ -471,14 +471,14 @@ composeN' n f =
 {-# INLINE filterEven #-}
 {-# INLINE filterAllOut #-}
 {-# INLINE filterAllIn #-}
-{-# INLINE takeOne #-}
+{-# INLINE _takeOne #-}
 {-# INLINE takeAll #-}
 {-# INLINE takeWhileTrue #-}
-{-# INLINE takeWhileMTrue #-}
+{-# INLINE _takeWhileMTrue #-}
 {-# INLINE dropOne #-}
 {-# INLINE dropAll #-}
 {-# INLINE dropWhileTrue #-}
-{-# INLINE dropWhileMTrue #-}
+{-# INLINE _dropWhileMTrue #-}
 {-# INLINE dropWhileFalse #-}
 {-# INLINE findIndices #-}
 {-# INLINE elemIndices #-}
@@ -491,15 +491,15 @@ composeN' n f =
 {-# INLINE foldrT #-}
 {-# INLINE foldrTMap #-}
 scan, scanl1', map, fmap, mapMaybe, filterEven,
-    takeOne, dropOne,
+    _takeOne, dropOne,
     reverse, reverse',
     foldrS, foldrSMap, foldrT, foldrTMap
     :: MonadIO m
     => Int -> Stream m Int -> m ()
 
 filterAllOut,
-    filterAllIn, takeAll, takeWhileTrue, takeWhileMTrue,
-    dropAll, dropWhileTrue, dropWhileMTrue, dropWhileFalse,
+    filterAllIn, takeAll, takeWhileTrue, _takeWhileMTrue,
+    dropAll, dropWhileTrue, _dropWhileMTrue, dropWhileFalse,
     findIndices, elemIndices, insertBy, deleteBy
     :: MonadIO m
     => Int -> Int -> Stream m Int -> m ()
@@ -562,14 +562,14 @@ sequence t    = transform . t . S.sequence
 filterEven    n = composeN n $ S.filter even
 filterAllOut value  n = composeN n $ S.filter (> (value + 1))
 filterAllIn value   n = composeN n $ S.filter (<= (value + 1))
-takeOne       n = composeN n $ S.take 1
+_takeOne       n = composeN n $ S.take 1
 takeAll value       n = composeN n $ S.take (value + 1)
 takeWhileTrue value n = composeN n $ S.takeWhile (<= (value + 1))
-takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
+_takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
 dropOne        n = composeN n $ S.drop 1
 dropAll value        n = composeN n $ S.drop (value + 1)
 dropWhileTrue value  n = composeN n $ S.dropWhile (<= (value + 1))
-dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
+_dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
 dropWhileFalse value n = composeN n $ S.dropWhile (> (value + 1))
 findIndices value    n = composeN n $ S.findIndices (== (value + 1))
 elemIndices value    n = composeN n $ S.elemIndices (value + 1)
@@ -1218,9 +1218,9 @@ foldableProduct :: Int -> Int -> Int
 foldableProduct value n =
     P.product (sourceUnfoldr value n :: S.SerialT Identity Int)
 
-{-# INLINE foldableNull #-}
-foldableNull :: Int -> Int -> Bool
-foldableNull value n =
+{-# INLINE _foldableNull #-}
+_foldableNull :: Int -> Int -> Bool
+_foldableNull value n =
     P.null (sourceUnfoldr value n :: S.SerialT Identity Int)
 
 {-# INLINE foldableElem #-}
@@ -1302,9 +1302,9 @@ foldableSequence_ :: Int -> Int -> IO ()
 foldableSequence_ value n =
     F.sequence_ (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
 
-{-# INLINE foldableMsum #-}
-foldableMsum :: Int -> Int -> IO Int
-foldableMsum value n =
+{-# INLINE _foldableMsum #-}
+_foldableMsum :: Int -> Int -> IO Int
+_foldableMsum value n =
     F.msum (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
 
 -------------------------------------------------------------------------------
@@ -1436,7 +1436,7 @@ o_1_space_serial_foldable value =
               -- type class operations
                 [ bench "foldl'" $ nf (foldableFoldl' value) 1
                 , bench "foldrElem" $ nf (foldableFoldrElem value) 1
-            -- , bench "null" $ nf (foldableNull value) 1
+            -- , bench "null" $ nf (_foldableNull value) 1
                 , bench "elem" $ nf (foldableElem value) 1
                 , bench "length" $ nf (foldableLength value) 1
                 , bench "sum" $ nf (foldableSum value) 1
@@ -1462,7 +1462,7 @@ o_1_space_serial_foldable value =
                 , benchIOSink1 "sequence_" (foldableSequence_ value)
             -- TBD: sequenceA_
             -- TBD: asum
-            -- , benchIOSink1 "msum" (foldableMsum value)
+            -- , benchIOSink1 "msum" (_foldableMsum value)
                 ]
           ]
     ]
@@ -1846,7 +1846,7 @@ o_1_space_serial_filtering value =
                       "takeByTime-all"
                       (takeByTime (NanoSecond64 maxBound) 1)
                 , benchIOSink value "takeWhile-true" (takeWhileTrue value 1)
-            --, benchIOSink value "takeWhileM-true" (takeWhileMTrue 1)
+            --, benchIOSink value "takeWhileM-true" (_takeWhileMTrue 1)
             -- "drop-one" is dual to "last"
                 , benchIOSink value "drop-one" (dropOne 1)
                 , benchIOSink value "drop-all" (dropAll value 1)
@@ -1855,7 +1855,7 @@ o_1_space_serial_filtering value =
                       "dropByTime-all"
                       (dropByTime (NanoSecond64 maxBound) 1)
                 , benchIOSink value "dropWhile-true" (dropWhileTrue value 1)
-            --, benchIOSink value "dropWhileM-true" (dropWhileMTrue 1)
+            --, benchIOSink value "dropWhileM-true" (_dropWhileMTrue 1)
                 , benchIOSink
                       value
                       "dropWhile-false"
@@ -1878,11 +1878,11 @@ o_1_space_serial_filteringX4 value =
                 , benchIOSink value "filter-all-in" (filterAllIn value 4)
                 , benchIOSink value "take-all" (takeAll value 4)
                 , benchIOSink value "takeWhile-true" (takeWhileTrue value 4)
-            --, benchIOSink value "takeWhileM-true" (takeWhileMTrue 4)
+            --, benchIOSink value "takeWhileM-true" (_takeWhileMTrue 4)
                 , benchIOSink value "drop-one" (dropOne 4)
                 , benchIOSink value "drop-all" (dropAll value 4)
                 , benchIOSink value "dropWhile-true" (dropWhileTrue value 4)
-            --, benchIOSink value "dropWhileM-true" (dropWhileMTrue 4)
+            --, benchIOSink value "dropWhileM-true" (_dropWhileMTrue 4)
                 , benchIOSink
                       value
                       "dropWhile-false"
