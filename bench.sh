@@ -14,7 +14,9 @@ ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
 INFINITE_BENCHMARKS="linear linear-async linear-rate nested-concurrent"
 FINITE_BENCHMARKS="$SERIAL_O_n $ARRAY_BENCHMARKS fileio parallel concurrent adaptive"
 
-QUICK_BENCHMARKS="linear-rate concurrent adaptive"
+# Benchmarks that take long time per iteration must run fewer iterations to
+# finish in reasonable time.
+QUICK_BENCHMARKS="linear-rate concurrent adaptive fileio"
 VIRTUAL_BENCHMARKS="array-cmp"
 
 ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS"
