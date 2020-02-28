@@ -27,9 +27,7 @@ data BenchType
     = Linear
     | LinearAsync
     | LinearRate
-    | Nested
     | NestedConcurrent
-    | NestedUnfold
     | Base
     | FileIO
     | Array
@@ -77,9 +75,7 @@ parseBench = do
         Just "linear" -> setBenchType Linear
         Just "linear-async" -> setBenchType LinearAsync
         Just "linear-rate" -> setBenchType LinearRate
-        Just "nested" -> setBenchType Nested
         Just "nested-concurrent" -> setBenchType NestedConcurrent
-        Just "nested-unfold" -> setBenchType NestedUnfold
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array-cmp" -> setBenchType ArrayCmp
@@ -186,23 +182,21 @@ makeLinearGraphs cfg@Config{..} inputFile = do
         }
 
 ------------------------------------------------------------------------------
--- Nested composition charts
+-- Stream type based comparison charts
 ------------------------------------------------------------------------------
 
-makeNestedGraphs :: Config -> String -> IO ()
-makeNestedGraphs cfg inputFile =
-    ignoringErr $ graph inputFile "nested-all" $ cfg
+makeStreamComparisonGraphs :: String -> [String] -> Config -> String -> IO ()
+makeStreamComparisonGraphs outputPrefix benchPrefixes cfg inputFile =
+    ignoringErr $ graph inputFile outputPrefix $ cfg
         { presentation = Groups Absolute
         , classifyBenchmark = classifyNested
         , selectGroups = \gs ->
             groupBy ((==) `on` snd) gs
-            & fmap (\xs -> mapMaybe (\x -> (x,) <$> lookup x xs) order)
+            & fmap (\xs -> mapMaybe (\x -> (x,) <$> lookup x xs) benchPrefixes)
             & concat
         }
 
     where
-
-    order = ["serially", "asyncly", "wAsyncly", "aheadly", "parallely"]
 
     classifyNested b
         | "serially/" `isPrefixOf` b =
@@ -217,48 +211,8 @@ makeNestedGraphs cfg inputFile =
             ("parallely",) <$> stripPrefix "parallely/" b
         | otherwise = Nothing
 
-------------------------------------------------------------------------------
--- Charts for parallel streams
-------------------------------------------------------------------------------
-
-makeLinearAsyncGraphs :: Config -> String -> IO ()
-makeLinearAsyncGraphs cfg inputFile =
-    ignoringErr $ graph inputFile "linear-async" cfg
-        { presentation = Groups Absolute
-        , classifyBenchmark = classifyAsync
-        , selectGroups = \gs ->
-            groupBy ((==) `on` snd) gs
-            & fmap (\xs -> mapMaybe (\x -> (x,) <$> lookup x xs) order)
-            & concat
-        }
-
-    where
-
-    order = ["asyncly", "wAsyncly", "aheadly", "parallely"]
-
-    classifyAsync b
-        | "asyncly/" `isPrefixOf` b =
-            ("asyncly",) <$> stripPrefix "asyncly/" b
-        | "wAsyncly/" `isPrefixOf` b =
-            ("wAsyncly",) <$> stripPrefix "wAsyncly/" b
-        | "aheadly/" `isPrefixOf` b =
-            ("aheadly",) <$> stripPrefix "aheadly/" b
-        | "parallely/" `isPrefixOf` b =
-            ("parallely",) <$> stripPrefix "parallely/" b
-        | otherwise = Nothing
-
-makeLinearRateGraphs :: Config -> String -> IO ()
-makeLinearRateGraphs cfg inputFile = do
-    putStrLn "Not implemented"
-    return ()
-
-------------------------------------------------------------------------------
--- FileIO
-------------------------------------------------------------------------------
-
-makeFileIOGraphs :: Config -> String -> IO ()
-makeFileIOGraphs cfg@Config{..} inputFile =
-    ignoringErr $ graph inputFile "fileIO" cfg
+linearAsyncPrefixes = ["asyncly", "wAsyncly", "aheadly", "parallely"]
+nestedBenchPrefixes = ["serially"] ++ linearAsyncPrefixes
 
 ------------------------------------------------------------------------------
 -- Generic
@@ -383,34 +337,24 @@ main = do
                             makeLinearGraphs
                             "charts/linear/results.csv"
                             "charts/linear"
-                LinearAsync -> benchShow opts cfg
-                            { title = Just "Linear Async" }
-                            makeLinearAsyncGraphs
-                            "charts/linear-async/results.csv"
-                            "charts/linear-async"
                 LinearRate -> benchShow opts cfg
                             { title = Just "Linear Rate" }
-                            makeLinearRateGraphs
+                            (makeGraphs "linear-rate")
                             "charts/linear-rate/results.csv"
                             "charts/linear-rate"
-                Nested -> benchShow opts cfg
-                            { title = Just "Nested loops" }
-                            makeNestedGraphs
-                            "charts/nested/results.csv"
-                            "charts/nested"
+                LinearAsync -> benchShow opts cfg
+                            { title = Just "Linear Async" }
+                            (makeStreamComparisonGraphs "linear-async" linearAsyncPrefixes)
+                            "charts/linear-async/results.csv"
+                            "charts/linear-async"
                 NestedConcurrent -> benchShow opts cfg
                             { title = Just "Nested concurrent loops" }
-                            makeNestedGraphs
+                            (makeStreamComparisonGraphs "nested-concurrent" nestedBenchPrefixes)
                             "charts/nested-concurrent/results.csv"
                             "charts/nested-concurrent"
-                NestedUnfold -> benchShow opts cfg
-                            { title = Just "Nested unfold loops" }
-                            makeNestedGraphs
-                            "charts/nested-unfold/results.csv"
-                            "charts/nested-unfold"
                 FileIO -> benchShow opts cfg
                             { title = Just "File IO" }
-                            makeFileIOGraphs
+                            (makeGraphs "fileIO")
                             "charts/fileio/results.csv"
                             "charts/fileio"
                 Array -> benchShow opts cfg
