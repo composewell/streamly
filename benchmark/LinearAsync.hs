@@ -13,19 +13,15 @@ import Gauge
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    --  let value2 = round $ sqrt $ (fromIntegral value :: Double)
-    value `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-            (concat
-                 [ async value
-                 , wAsync value
-                 , ahead value
-                 , o_1_space_async_zip value
-                 ])
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
   where
+    allBenchmarks value =
+        concat
+             [ async value
+             , wAsync value
+             , ahead value
+             , zipAsync value
+             ]
     async value =
         concat
             [ o_1_space_async_generation value
@@ -47,3 +43,4 @@ main = do
             , o_1_space_ahead_concatMap value
             , o_1_space_ahead_transformation value
             ]
+    zipAsync = o_1_space_async_zip

@@ -17,16 +17,16 @@ main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     size <- limitStreamSize value
-    size `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-            (concat
-                 [ o_n_space_serial_toList size -- < 2MB
-                 , o_n_space_serial_outerProductStreams size
-                 , o_n_space_serial_outerProductUnfolds size
-                 , o_n_space_wSerial_outerProductStreams size
-                 , o_n_space_serial_traversable size -- < 2MB
-                 , o_n_space_serial_foldr size
-                 ])
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size)
+
+    where
+
+    allBenchmarks size =
+        concat
+            [ o_n_space_serial_toList size -- < 2MB
+            , o_n_space_serial_outerProductStreams size
+            , o_n_space_serial_outerProductUnfolds size
+            , o_n_space_wSerial_outerProductStreams size
+            , o_n_space_serial_traversable size -- < 2MB
+            , o_n_space_serial_foldr size
+            ]

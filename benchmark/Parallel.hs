@@ -13,14 +13,16 @@ import Gauge
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    -- let value2 = round $ sqrt $ (fromIntegral value :: Double)
-    value `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-            (concat [linear value, o_1_space_parallel_outerProductStreams value])
-  where
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+
+    where
+
+    allBenchmarks value =
+        concat
+            [ linear value
+            , nested value
+            ]
+
     linear value =
         concat
             [ o_1_space_parallel_generation value
@@ -29,3 +31,5 @@ main = do
             , o_1_space_parallel_concatMap value
             , o_1_space_parallel_transformation value
             ]
+
+    nested = o_1_space_parallel_outerProductStreams

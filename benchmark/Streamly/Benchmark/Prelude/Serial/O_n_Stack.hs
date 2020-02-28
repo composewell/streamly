@@ -17,11 +17,10 @@ main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     size <- limitStreamSize value
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size)
+
+    where
+
     -- Operations using O(n) stack space but O(1) heap space.
-    size `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-        -- Head recursive operations.
-            (o_n_stack_serial_iterated size)
+    -- Head recursive operations.
+    allBenchmarks = o_n_stack_serial_iterated

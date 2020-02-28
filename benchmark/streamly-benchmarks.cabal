@@ -183,7 +183,6 @@ benchmark linear
   ghc-options: -with-rtsopts "-T -K36K -M16M"
   hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
   main-is: O_1_Space.hs
-  other-modules: NestedOps, NestedUnfoldOps
   if impl(ghcjs)
     buildable: False
   else
@@ -220,7 +219,6 @@ benchmark serial-o-n-space
   ghc-options: -with-rtsopts "-T -K16M -M64M"
   hs-source-dirs: ., Streamly/Benchmark/Prelude/Serial
   main-is: O_n_Space.hs
-  other-modules: NestedOps, NestedUnfoldOps
   if impl(ghcjs)
     buildable: False
   else

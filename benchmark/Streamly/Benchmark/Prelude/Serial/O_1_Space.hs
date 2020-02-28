@@ -16,13 +16,17 @@ import Gauge
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-            (concat [serial value, wSerial value, zipSerial value])
-  where
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+
+    where
+
+    allBenchmarks value =
+        concat
+            [ serial value
+            , wSerial value
+            , zipSerial value
+            ]
+
     serial value =
         concat
             [ o_1_space_serial_pure value
@@ -48,10 +52,12 @@ main = do
             , o_1_space_serial_mixed value
             , o_1_space_serial_mixedX4 value
             ]
+
     wSerial value =
         concat
             [ o_1_space_wSerial_transformation value
             , o_1_space_wSerial_concatMap value
             , o_1_space_wSerial_outerProduct value
             ]
+
     zipSerial value = concat [o_1_space_zipSerial_transformation value]

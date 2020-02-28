@@ -22,6 +22,7 @@
 #endif
 
 module Streamly.Benchmark.Prelude
+    -- TODO: export a single bench group for o_1_space_serial
     ( o_1_space_serial_pure
     , o_1_space_serial_foldable
     , o_1_space_serial_generation
@@ -82,6 +83,7 @@ module Streamly.Benchmark.Prelude
 
     , o_1_space_async_zip
 
+    -- TODO: rename to o_n_*
     , o_1_space_parallel_generation
     , o_1_space_parallel_concatFoldable
     , o_1_space_parallel_concatMap
@@ -119,25 +121,7 @@ import Test.Inspection
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 #endif
 
-import Streamly
-    ( IsStream
-    , SerialT
-    , aheadly
-    , asyncly
-    , serially
-    , parallely
-    , wAsyncly
-    , wSerially
-    , zipSerially
-    , ahead
-    , async
-    , wAsync
-    , parallel
-    , maxBuffer
-    , maxThreads
-    )
-
-import qualified Streamly          as S hiding (runStream)
+import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Data.Fold as FL
@@ -157,8 +141,8 @@ import qualified NestedOps as Nested
 import qualified NestedUnfoldOps as NestedUnfold
 
 import Gauge
+import Streamly hiding (runStream)
 import Streamly.Benchmark.Common
-
 
 type Stream m a = S.SerialT m a
 
@@ -1894,7 +1878,6 @@ o_1_space_serial_filteringX4 value =
           ]
     ]
 
-
 o_1_space_serial_joining :: Int -> [Benchmark]
 o_1_space_serial_joining value =
     [ bgroup
@@ -1914,7 +1897,6 @@ o_1_space_serial_joining value =
                 ]
           ]
     ]
-
 
 o_1_space_serial_concatFoldable :: Int -> [Benchmark]
 o_1_space_serial_concatFoldable value =
@@ -1973,7 +1955,6 @@ o_1_space_serial_concatSerial value =
           ]
     ]
 
-
 o_1_space_serial_outerProductStreams :: Int -> [Benchmark]
 o_1_space_serial_outerProductStreams value =
     [ bgroup
@@ -1992,7 +1973,6 @@ o_1_space_serial_outerProductStreams value =
           ]
     ]
 
-
 o_1_space_serial_outerProductUnfolds :: Int -> [Benchmark]
 o_1_space_serial_outerProductUnfolds value =
     [ bgroup
@@ -2009,7 +1989,6 @@ o_1_space_serial_outerProductUnfolds value =
                 ]
           ]
     ]
-
 
 o_1_space_serial_mixed :: Int -> [Benchmark]
 o_1_space_serial_mixed value =
@@ -2335,7 +2314,6 @@ o_1_space_async_concatFoldable value =
           ]
     ]
 
-
 o_1_space_async_concatMap :: Int -> [Benchmark]
 o_1_space_async_concatMap value =
     value2 `seq`
@@ -2357,7 +2335,6 @@ o_1_space_async_concatMap value =
     ]
   where
     value2 = round $ sqrt $ (fromIntegral value :: Double)
-
 
 o_1_space_async_transformation :: Int -> [Benchmark]
 o_1_space_async_transformation value =
@@ -2436,7 +2413,6 @@ o_1_space_wAsync_concatMap value =
     ]
   where
     value2 = round $ sqrt $ (fromIntegral value :: Double)
-
 
 o_1_space_wAsync_transformation :: Int -> [Benchmark]
 o_1_space_wAsync_transformation value =
@@ -2659,6 +2635,7 @@ o_n_space_parallel_outerProductStreams value =
           ]
     ]
 
+-- XXX arbitrarily large rate should be the same as rate Nothing
 o_1_space_async_avgRate :: Int -> [Benchmark]
 o_1_space_async_avgRate value =
     [ bgroup

@@ -17,11 +17,14 @@ main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
     size <- limitStreamSize value
-    size `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
+    size `seq` runMode (mode cfg) cfg benches (allBenchmarks size)
+
+    where
+
     -- Operations using O(1) stack space and O(n) heap space.
     -- Tail recursive left folds
-            (concat [o_n_heap_serial_foldl size, o_n_heap_serial_buffering size])
+    allBenchmarks size =
+        concat
+            [ o_n_heap_serial_foldl size
+            , o_n_heap_serial_buffering size
+            ]

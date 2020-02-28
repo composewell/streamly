@@ -13,11 +13,12 @@ import Gauge
 main :: IO ()
 main = do
     (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-    value `seq`
-        runMode
-            (mode cfg)
-            cfg
-            benches
-      -- XXX arbitrarily large rate should be the same as rate Nothing
-            (concat
-                 [o_1_space_async_avgRate value, o_1_space_ahead_avgRate value])
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+
+    where
+
+    allBenchmarks value =
+        concat
+            [ o_1_space_async_avgRate value
+            , o_1_space_ahead_avgRate value
+            ]
