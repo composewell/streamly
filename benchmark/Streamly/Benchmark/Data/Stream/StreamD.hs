@@ -184,12 +184,12 @@ composeN n f =
 {-# INLINE _dropWhileMTrue #-}
 {-# INLINE dropWhileFalse #-}
 {-# INLINE _foldrS #-}
-{-# INLINE foldlS #-}
+{-# INLINE _foldlS #-}
 {-# INLINE concatMap #-}
 {-# INLINE intersperse #-}
 scan, map, fmapD, mapM, mapMaybe, mapMaybeM, filterEven, filterAllOut,
     filterAllIn, _takeOne, takeAll, takeWhileTrue, _takeWhileMTrue, dropOne,
-    dropAll, dropWhileTrue, _dropWhileMTrue, dropWhileFalse, _foldrS, foldlS,
+    dropAll, dropWhileTrue, _dropWhileMTrue, dropWhileFalse, _foldrS, _foldlS,
     concatMap, intersperse
     :: Monad m
     => Int -> Stream m Int -> m ()
@@ -215,7 +215,7 @@ dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 _dropWhileMTrue n = composeN n $ S.dropWhileM (return . (<= maxValue))
 dropWhileFalse n = composeN n $ S.dropWhile (> maxValue)
 _foldrS        n = composeN n $ S.foldrS S.cons S.nil
-foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
+_foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
 concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
 intersperse    n = composeN n $ S.intersperse maxValue
 
@@ -535,7 +535,7 @@ o_n_space =
         [
 
         -- This is horribly slow, never finishes
-        benchFold "foldlS"    (foldlS    1) sourceUnfoldrM
+        -- benchFold "foldlS"    (_foldlS    1) sourceUnfoldrM
         ]
       ]
     ]
