@@ -1,13 +1,18 @@
 #!/bin/bash
 
-SERIAL_BENCHMARKS="linear linear-rate nested nested-unfold base"
+SERIAL_O_1="linear base"
+SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space \
+  base-o-n-heap base-o-n-stack base-o-n-space"
+
+SERIAL_BENCHMARKS="$SERIAL_O_1 $SERIAL_O_n"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
-CONCURRENT_BENCHMARKS="linear-async nested-concurrent parallel concurrent adaptive"
+CONCURRENT_BENCHMARKS="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
 ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
 
-INFINITE_BENCHMARKS="$SERIAL_BENCHMARKS linear-async nested-concurrent"
-FINITE_BENCHMARKS="$ARRAY_BENCHMARKS fileio parallel concurrent adaptive"
+# XXX We can include SERIAL_O_1 here once "base" also supports --stream-size
+INFINITE_BENCHMARKS="linear linear-async linear-rate nested-concurrent"
+FINITE_BENCHMARKS="$SERIAL_O_n $ARRAY_BENCHMARKS fileio parallel concurrent adaptive"
 
 QUICK_BENCHMARKS="linear-rate concurrent adaptive"
 VIRTUAL_BENCHMARKS="array-cmp"
