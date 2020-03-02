@@ -287,56 +287,6 @@ currentTime value g _ = S.take value $ Internal.currentTime g
 runStream :: Monad m => Stream m a -> m ()
 runStream = S.drain
 
-{-# INLINE toList #-}
-toList :: Monad m => Stream m Int -> m [Int]
-
-{-# INLINE _head #-}
-{-# INLINE last #-}
-{-# INLINE maximum #-}
-{-# INLINE minimum #-}
-{-# INLINE find #-}
-{-# INLINE findIndex #-}
-{-# INLINE elemIndex #-}
-{-# INLINE foldl1'Reduce #-}
-_head, last, minimum, maximum, foldl1'Reduce
-    :: Monad m => Stream m Int -> m (Maybe Int)
-
-find, findIndex, elemIndex
-    :: Monad m => Int -> Stream m Int -> m (Maybe Int)
-
-{-# INLINE minimumBy #-}
-{-# INLINE maximumBy #-}
-minimumBy, maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
-
-{-# INLINE foldl'Reduce #-}
-{-# INLINE foldl'ReduceMap #-}
-{-# INLINE foldlM'Reduce #-}
-{-# INLINE foldrMReduce #-}
-{-# INLINE length #-}
-{-# INLINE sum #-}
-{-# INLINE product #-}
-foldl'Reduce, foldl'ReduceMap, foldlM'Reduce, foldrMReduce, length, sum, product
-    :: Monad m
-    => Stream m Int -> m Int
-
-{-# INLINE foldl'Build #-}
-{-# INLINE foldlM'Build #-}
-{-# INLINE foldrMBuild #-}
-foldrMBuild, foldl'Build, foldlM'Build
-    :: Monad m
-    => Stream m Int -> m [Int]
-
-{-# INLINE all #-}
-{-# INLINE any #-}
-{-# INLINE and #-}
-{-# INLINE or #-}
-{-# INLINE _null #-}
-{-# INLINE elem #-}
-{-# INLINE notElem #-}
-_null :: Monad m => Stream m Int -> m Bool
-
-elem, notElem, all, any, and, or :: Monad m => Int -> Stream m Int -> m Bool
-
 {-# INLINE toNull #-}
 toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
 toNull t = runStream . t
@@ -367,8 +317,10 @@ nullHeadTail s = do
 
 {-# INLINE mapM_ #-}
 mapM_ :: Monad m => Stream m Int -> m ()
-mapM_  = S.mapM_ (\_ -> return ())
+mapM_ = S.mapM_ (\_ -> return ())
 
+{-# INLINE toList #-}
+toList :: Monad m => Stream m Int -> m [Int]
 toList = S.toList
 
 {-# INLINE toListRev #-}
@@ -377,41 +329,125 @@ toListRev = Internal.toListRev
 
 {-# INLINE foldrMElem #-}
 foldrMElem :: Monad m => Int -> Stream m Int -> m Bool
-foldrMElem e m = S.foldrM (\x xs -> if x == e then return P.True else xs)
-                          (return P.False) m
+foldrMElem e m =
+    S.foldrM
+        (\x xs ->
+             if x == e
+                 then return P.True
+                 else xs)
+        (return P.False)
+        m
 
 {-# INLINE foldrMToStream #-}
 foldrMToStream :: Monad m => Stream m Int -> m (Stream Identity Int)
-foldrMToStream  = S.foldr S.cons S.nil
+foldrMToStream = S.foldr S.cons S.nil
 
-foldrMBuild  = S.foldrM  (\x xs -> xs >>= return . (x :)) (return [])
+{-# INLINE foldrMBuild #-}
+foldrMBuild :: Monad m => Stream m Int -> m [Int]
+foldrMBuild = S.foldrM (\x xs -> xs >>= return . (x :)) (return [])
+
+{-# INLINE foldl'Build #-}
+foldl'Build :: Monad m => Stream m Int -> m [Int]
 foldl'Build = S.foldl' (flip (:)) []
+
+{-# INLINE foldlM'Build #-}
+foldlM'Build :: Monad m => Stream m Int -> m [Int]
 foldlM'Build = S.foldlM' (\xs x -> return $ x : xs) []
 
+{-# INLINE foldrMReduce #-}
+foldrMReduce :: Monad m => Stream m Int -> m Int
 foldrMReduce = S.foldrM (\x xs -> xs >>= return . (x +)) (return 0)
+
+{-# INLINE foldl'Reduce #-}
+foldl'Reduce :: Monad m => Stream m Int -> m Int
 foldl'Reduce = S.foldl' (+) 0
-foldl'ReduceMap = P.fmap (+1) . S.foldl' (+) 0
+
+{-# INLINE foldl'ReduceMap #-}
+foldl'ReduceMap :: Monad m => Stream m Int -> m Int
+foldl'ReduceMap = P.fmap (+ 1) . S.foldl' (+) 0
+
+{-# INLINE foldl1'Reduce #-}
+foldl1'Reduce :: Monad m => Stream m Int -> m (Maybe Int)
 foldl1'Reduce = S.foldl1' (+)
+
+{-# INLINE foldlM'Reduce #-}
+foldlM'Reduce :: Monad m => Stream m Int -> m Int
 foldlM'Reduce = S.foldlM' (\xs a -> return $ a + xs) 0
 
-last   = S.last
-_null   = S.null
-_head   = S.head
-elem value   = S.elem (value + 1)
+{-# INLINE last #-}
+last :: Monad m => Stream m Int -> m (Maybe Int)
+last = S.last
+
+{-# INLINE _null #-}
+_null :: Monad m => Stream m Int -> m Bool
+_null = S.null
+
+{-# INLINE _head #-}
+_head :: Monad m => Stream m Int -> m (Maybe Int)
+_head = S.head
+
+{-# INLINE elem #-}
+elem :: Monad m => Int -> Stream m Int -> m Bool
+elem value = S.elem (value + 1)
+
+{-# INLINE notElem #-}
+notElem :: Monad m => Int -> Stream m Int -> m Bool
 notElem value = S.notElem (value + 1)
+
+{-# INLINE length #-}
+length :: Monad m => Stream m Int -> m Int
 length = S.length
-all value    = S.all (<= (value + 1))
-any value    = S.any (> (value + 1))
-and value    = S.and . S.map (<= (value + 1))
-or value     = S.or . S.map (> (value + 1))
-find value   = S.find (== (value + 1))
+
+{-# INLINE all #-}
+all :: Monad m => Int -> Stream m Int -> m Bool
+all value = S.all (<= (value + 1))
+
+{-# INLINE any #-}
+any :: Monad m => Int -> Stream m Int -> m Bool
+any value = S.any (> (value + 1))
+
+{-# INLINE and #-}
+and :: Monad m => Int -> Stream m Int -> m Bool
+and value = S.and . S.map (<= (value + 1))
+
+{-# INLINE or #-}
+or :: Monad m => Int -> Stream m Int -> m Bool
+or value = S.or . S.map (> (value + 1))
+
+{-# INLINE find #-}
+find :: Monad m => Int -> Stream m Int -> m (Maybe Int)
+find value = S.find (== (value + 1))
+
+{-# INLINE findIndex #-}
+findIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 findIndex value = S.findIndex (== (value + 1))
+
+{-# INLINE elemIndex #-}
+elemIndex :: Monad m => Int -> Stream m Int -> m (Maybe Int)
 elemIndex value = S.elemIndex (value + 1)
+
+{-# INLINE maximum #-}
+maximum :: Monad m => Stream m Int -> m (Maybe Int)
 maximum = S.maximum
+
+{-# INLINE minimum #-}
+minimum :: Monad m => Stream m Int -> m (Maybe Int)
 minimum = S.minimum
-sum    = S.sum
+
+{-# INLINE sum #-}
+sum :: Monad m => Stream m Int -> m Int
+sum = S.sum
+
+{-# INLINE product #-}
+product :: Monad m => Stream m Int -> m Int
 product = S.product
+
+{-# INLINE minimumBy #-}
+minimumBy :: Monad m => Stream m Int -> m (Maybe Int)
 minimumBy = S.minimumBy compare
+
+{-# INLINE maximumBy #-}
+maximumBy :: Monad m => Stream m Int -> m (Maybe Int)
 maximumBy = S.maximumBy compare
 
 -------------------------------------------------------------------------------
@@ -423,9 +459,12 @@ transform :: Monad m => Stream m a -> m ()
 transform = runStream
 
 {-# INLINE composeN #-}
-composeN
-    :: MonadIO m
-    => Int -> (Stream m Int -> Stream m Int) -> Stream m Int -> m ()
+composeN ::
+       MonadIO m
+    => Int
+    -> (Stream m Int -> Stream m Int)
+    -> Stream m Int
+    -> m ()
 composeN n f =
     case n of
         1 -> transform . f
@@ -436,9 +475,12 @@ composeN n f =
 
 -- polymorphic stream version of composeN
 {-# INLINE composeN' #-}
-composeN'
-    :: (S.IsStream t, Monad m)
-    => Int -> (t m Int -> Stream m Int) -> t m Int -> m ()
+composeN' ::
+       (S.IsStream t, Monad m)
+    => Int
+    -> (t m Int -> Stream m Int)
+    -> t m Int
+    -> m ()
 composeN' n f =
     case n of
         1 -> transform . f
@@ -448,71 +490,47 @@ composeN' n f =
         _ -> undefined
 
 {-# INLINE scan #-}
+scan :: MonadIO m => Int -> Stream m Int -> m ()
+scan n = composeN n $ S.scanl' (+) 0
+
 {-# INLINE scanl1' #-}
-{-# INLINE map #-}
+scanl1' :: MonadIO m => Int -> Stream m Int -> m ()
+scanl1' n = composeN n $ S.scanl1' (+)
+
 {-# INLINE fmap #-}
-{-# INLINE mapMaybe #-}
-{-# INLINE filterEven #-}
-{-# INLINE filterAllOut #-}
-{-# INLINE filterAllIn #-}
-{-# INLINE _takeOne #-}
-{-# INLINE takeAll #-}
-{-# INLINE takeWhileTrue #-}
-{-# INLINE _takeWhileMTrue #-}
-{-# INLINE dropOne #-}
-{-# INLINE dropAll #-}
-{-# INLINE dropWhileTrue #-}
-{-# INLINE _dropWhileMTrue #-}
-{-# INLINE dropWhileFalse #-}
-{-# INLINE findIndices #-}
-{-# INLINE elemIndices #-}
-{-# INLINE insertBy #-}
-{-# INLINE deleteBy #-}
-{-# INLINE reverse #-}
-{-# INLINE reverse' #-}
-{-# INLINE foldrS #-}
-{-# INLINE foldrSMap #-}
-{-# INLINE foldrT #-}
-{-# INLINE foldrTMap #-}
-scan, scanl1', map, fmap, mapMaybe, filterEven,
-    _takeOne, dropOne,
-    reverse, reverse',
-    foldrS, foldrSMap, foldrT, foldrTMap
-    :: MonadIO m
-    => Int -> Stream m Int -> m ()
+fmap :: MonadIO m => Int -> Stream m Int -> m ()
+fmap n = composeN n $ P.fmap (+ 1)
 
-filterAllOut,
-    filterAllIn, takeAll, takeWhileTrue, _takeWhileMTrue,
-    dropAll, dropWhileTrue, _dropWhileMTrue, dropWhileFalse,
-    findIndices, elemIndices, insertBy, deleteBy
-    :: MonadIO m
-    => Int -> Int -> Stream m Int -> m ()
+{-# INLINE fmap' #-}
+fmap' ::
+       (S.IsStream t, S.MonadAsync m, P.Functor (t m))
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+fmap' t n = composeN' n $ t . P.fmap (+ 1)
 
-{-# INLINE mapMaybeM #-}
-{-# INLINE intersperse #-}
-mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
-intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
+{-# INLINE map #-}
+map :: MonadIO m => Int -> Stream m Int -> m ()
+map n = composeN n $ S.map (+ 1)
+
+{-# INLINE map' #-}
+map' ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+map' t n = composeN' n $ t . S.map (+ 1)
 
 {-# INLINE mapM #-}
-{-# INLINE map' #-}
-{-# INLINE fmap' #-}
-mapM, map' :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
-
-fmap' :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
-    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
-
-{-# INLINE sequence #-}
-sequence :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> t m (m Int) -> m ()
-
-scan          n = composeN n $ S.scanl' (+) 0
-scanl1'       n = composeN n $ S.scanl1' (+)
-fmap          n = composeN n $ P.fmap (+1)
-fmap' t       n = composeN' n $ t . P.fmap (+1)
-map           n = composeN n $ S.map (+1)
-map' t        n = composeN' n $ t . S.map (+1)
-mapM t        n = composeN' n $ t . S.mapM return
+mapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+mapM t n = composeN' n $ t . S.mapM return
 
 {-# INLINE tap #-}
 tap :: MonadIO m => Int -> Stream m Int -> m ()
@@ -528,7 +546,8 @@ tapRate n str = do
 pollCounts :: Int -> Stream IO Int -> IO ()
 pollCounts n str = do
     composeN n (Internal.pollCounts (P.const P.True) f FL.drain) str
-    where f = Internal.rollingMap (P.-) . Internal.delayPost 1
+  where
+    f = Internal.rollingMap (P.-) . Internal.delayPost 1
 
 {-# INLINE tapAsyncS #-}
 tapAsyncS :: S.MonadAsync m => Int -> Stream m Int -> m ()
@@ -538,34 +557,125 @@ tapAsyncS n = composeN n $ Par.tapAsync S.sum
 tapAsync :: S.MonadAsync m => Int -> Stream m Int -> m ()
 tapAsync n = composeN n $ Internal.tapAsync FL.sum
 
-mapMaybe      n = composeN n $ S.mapMaybe
-    (\x -> if P.odd x then Nothing else Just x)
-mapMaybeM     n = composeN n $ S.mapMaybeM
-    (\x -> if P.odd x then return Nothing else return $ Just x)
-sequence t    = transform . t . S.sequence
-filterEven    n = composeN n $ S.filter even
-filterAllOut value  n = composeN n $ S.filter (> (value + 1))
-filterAllIn value   n = composeN n $ S.filter (<= (value + 1))
-_takeOne       n = composeN n $ S.take 1
-takeAll value       n = composeN n $ S.take (value + 1)
+{-# INLINE mapMaybe #-}
+mapMaybe :: MonadIO m => Int -> Stream m Int -> m ()
+mapMaybe n =
+    composeN n $
+    S.mapMaybe
+        (\x ->
+             if P.odd x
+                 then Nothing
+                 else Just x)
+
+{-# INLINE mapMaybeM #-}
+mapMaybeM :: S.MonadAsync m => Int -> Stream m Int -> m ()
+mapMaybeM n =
+    composeN n $
+    S.mapMaybeM
+        (\x ->
+             if P.odd x
+                 then return Nothing
+                 else return $ Just x)
+
+{-# INLINE sequence #-}
+sequence ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> t m (m Int)
+    -> m ()
+sequence t = transform . t . S.sequence
+
+{-# INLINE filterEven #-}
+filterEven :: MonadIO m => Int -> Stream m Int -> m ()
+filterEven n = composeN n $ S.filter even
+
+{-# INLINE filterAllOut #-}
+filterAllOut :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filterAllOut value n = composeN n $ S.filter (> (value + 1))
+
+{-# INLINE filterAllIn #-}
+filterAllIn :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filterAllIn value n = composeN n $ S.filter (<= (value + 1))
+
+{-# INLINE _takeOne #-}
+_takeOne :: MonadIO m => Int -> Stream m Int -> m ()
+_takeOne n = composeN n $ S.take 1
+
+{-# INLINE takeAll #-}
+takeAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+takeAll value n = composeN n $ S.take (value + 1)
+
+{-# INLINE takeWhileTrue #-}
+takeWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 takeWhileTrue value n = composeN n $ S.takeWhile (<= (value + 1))
+
+{-# INLINE _takeWhileMTrue #-}
+_takeWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 _takeWhileMTrue value n = composeN n $ S.takeWhileM (return . (<= (value + 1)))
-dropOne        n = composeN n $ S.drop 1
-dropAll value        n = composeN n $ S.drop (value + 1)
-dropWhileTrue value  n = composeN n $ S.dropWhile (<= (value + 1))
+
+{-# INLINE dropOne #-}
+dropOne :: MonadIO m => Int -> Stream m Int -> m ()
+dropOne n = composeN n $ S.drop 1
+
+{-# INLINE dropAll #-}
+dropAll :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+dropAll value n = composeN n $ S.drop (value + 1)
+
+{-# INLINE dropWhileTrue #-}
+dropWhileTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+dropWhileTrue value n = composeN n $ S.dropWhile (<= (value + 1))
+
+{-# INLINE _dropWhileMTrue #-}
+_dropWhileMTrue :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 _dropWhileMTrue value n = composeN n $ S.dropWhileM (return . (<= (value + 1)))
+
+{-# INLINE dropWhileFalse #-}
+dropWhileFalse :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 dropWhileFalse value n = composeN n $ S.dropWhile (> (value + 1))
-findIndices value    n = composeN n $ S.findIndices (== (value + 1))
-elemIndices value    n = composeN n $ S.elemIndices (value + 1)
-intersperse value    n = composeN n $ S.intersperse (value + 1)
-insertBy value       n = composeN n $ S.insertBy compare (value + 1)
-deleteBy value       n = composeN n $ S.deleteBy (>=) (value + 1)
-reverse        n = composeN n $ S.reverse
-reverse'       n = composeN n $ Internal.reverse'
-foldrS         n = composeN n $ Internal.foldrS S.cons S.nil
-foldrSMap      n = composeN n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
-foldrT         n = composeN n $ Internal.foldrT S.cons S.nil
-foldrTMap      n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
+
+{-# INLINE findIndices #-}
+findIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+findIndices value n = composeN n $ S.findIndices (== (value + 1))
+
+{-# INLINE elemIndices #-}
+elemIndices :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+elemIndices value n = composeN n $ S.elemIndices (value + 1)
+
+{-# INLINE intersperse #-}
+intersperse :: S.MonadAsync m => Int -> Int -> Stream m Int -> m ()
+intersperse value n = composeN n $ S.intersperse (value + 1)
+
+{-# INLINE insertBy #-}
+insertBy :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+insertBy value n = composeN n $ S.insertBy compare (value + 1)
+
+{-# INLINE deleteBy #-}
+deleteBy :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+deleteBy value n = composeN n $ S.deleteBy (>=) (value + 1)
+
+{-# INLINE reverse #-}
+reverse :: MonadIO m => Int -> Stream m Int -> m ()
+reverse n = composeN n $ S.reverse
+
+{-# INLINE reverse' #-}
+reverse' :: MonadIO m => Int -> Stream m Int -> m ()
+reverse' n = composeN n $ Internal.reverse'
+
+{-# INLINE foldrS #-}
+foldrS :: MonadIO m => Int -> Stream m Int -> m ()
+foldrS n = composeN n $ Internal.foldrS S.cons S.nil
+
+{-# INLINE foldrSMap #-}
+foldrSMap :: MonadIO m => Int -> Stream m Int -> m ()
+foldrSMap n = composeN n $ Internal.foldrS (\x xs -> x + 1 `S.cons` xs) S.nil
+
+{-# INLINE foldrT #-}
+foldrT :: MonadIO m => Int -> Stream m Int -> m ()
+foldrT n = composeN n $ Internal.foldrT S.cons S.nil
+
+{-# INLINE foldrTMap #-}
+foldrTMap :: MonadIO m => Int -> Stream m Int -> m ()
+foldrTMap n = composeN n $ Internal.foldrT (\x xs -> x + 1 `S.cons` xs) S.nil
 
 {-# INLINE takeByTime #-}
 takeByTime :: NanoSecond64 -> Int -> Stream IO Int -> IO ()
@@ -591,121 +701,183 @@ inspect $ hasNoTypeClasses 'dropByTime
 -------------------------------------------------------------------------------
 
 {-# INLINE transformMapM #-}
-{-# INLINE transformComposeMapM #-}
-{-# INLINE transformTeeMapM #-}
-{-# INLINE transformZipMapM #-}
-
-transformMapM, transformComposeMapM, transformTeeMapM,
-    transformZipMapM :: (S.IsStream t, S.MonadAsync m)
-    => (t m Int -> S.SerialT m Int) -> Int -> t m Int -> m ()
-
+transformMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
 transformMapM t n = composeN' n $ t . Internal.transform (Pipe.mapM return)
-transformComposeMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.mapM (\x -> return (x + 1))
-        `Pipe.compose` Pipe.mapM (\x -> return (x + 2)))
-transformTeeMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.mapM (\x -> return (x + 1))
-        `Pipe.tee` Pipe.mapM (\x -> return (x + 2)))
-transformZipMapM t n = composeN' n $ t . Internal.transform
-    (Pipe.zipWith (+) (Pipe.mapM (\x -> return (x + 1)))
-        (Pipe.mapM (\x -> return (x + 2))))
+
+{-# INLINE transformComposeMapM #-}
+transformComposeMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformComposeMapM t n =
+    composeN' n $
+    t .
+    Internal.transform
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE transformTeeMapM #-}
+transformTeeMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformTeeMapM t n =
+    composeN' n $
+    t .
+    Internal.transform
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.tee`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE transformZipMapM #-}
+transformZipMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformZipMapM t n =
+    composeN' n $
+    t .
+    Internal.transform
+        (Pipe.zipWith
+             (+)
+             (Pipe.mapM (\x -> return (x + 1)))
+             (Pipe.mapM (\x -> return (x + 2))))
 
 -------------------------------------------------------------------------------
 -- Mixed Transformation
 -------------------------------------------------------------------------------
 
 {-# INLINE scanMap #-}
+scanMap :: MonadIO m => Int -> Stream m Int -> m ()
+scanMap n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
+
 {-# INLINE dropMap #-}
+dropMap :: MonadIO m => Int -> Stream m Int -> m ()
+dropMap n = composeN n $ S.map (subtract 1) . S.drop 1
+
 {-# INLINE dropScan #-}
+dropScan :: MonadIO m => Int -> Stream m Int -> m ()
+dropScan n = composeN n $ S.scanl' (+) 0 . S.drop 1
+
 {-# INLINE takeDrop #-}
+takeDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+takeDrop value n = composeN n $ S.drop 1 . S.take (value + 1)
+
 {-# INLINE takeScan #-}
+takeScan :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+takeScan value n = composeN n $ S.scanl' (+) 0 . S.take (value + 1)
+
 {-# INLINE takeMap #-}
+takeMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+takeMap value n = composeN n $ S.map (subtract 1) . S.take (value + 1)
+
 {-# INLINE filterDrop #-}
-{-# INLINE filterTake #-}
-{-# INLINE filterScan #-}
-{-# INLINE filterScanl1 #-}
-{-# INLINE filterMap #-}
-scanMap, dropMap, dropScan,
-    filterScan, filterScanl1
-    :: MonadIO m => Int -> Stream m Int -> m ()
-
-takeDrop, takeScan, takeMap, filterDrop,
-    filterTake, filterMap
-    :: MonadIO m => Int -> Int -> Stream m Int -> m ()
-
-scanMap    n = composeN n $ S.map (subtract 1) . S.scanl' (+) 0
-dropMap    n = composeN n $ S.map (subtract 1) . S.drop 1
-dropScan   n = composeN n $ S.scanl' (+) 0 . S.drop 1
-takeDrop value   n = composeN n $ S.drop 1 . S.take (value + 1)
-takeScan value   n = composeN n $ S.scanl' (+) 0 . S.take (value + 1)
-takeMap value    n = composeN n $ S.map (subtract 1) . S.take (value + 1)
+filterDrop :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterDrop value n = composeN n $ S.drop 1 . S.filter (<= (value + 1))
+
+{-# INLINE filterTake #-}
+filterTake :: MonadIO m => Int -> Int -> Stream m Int -> m ()
 filterTake value n = composeN n $ S.take (value + 1) . S.filter (<= (value + 1))
+
+{-# INLINE filterScan #-}
+filterScan :: MonadIO m => Int -> Stream m Int -> m ()
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
+
+{-# INLINE filterScanl1 #-}
+filterScanl1 :: MonadIO m => Int -> Stream m Int -> m ()
 filterScanl1 n = composeN n $ S.scanl1' (+) . S.filter (<= maxBound)
-filterMap value  n = composeN n $ S.map (subtract 1) . S.filter (<= (value + 1))
+
+{-# INLINE filterMap #-}
+filterMap :: MonadIO m => Int -> Int -> Stream m Int -> m ()
+filterMap value n = composeN n $ S.map (subtract 1) . S.filter (<= (value + 1))
 
 -------------------------------------------------------------------------------
 -- Scan and fold
 -------------------------------------------------------------------------------
 
-data Pair a b = Pair !a !b deriving (Generic, NFData)
+data Pair a b =
+    Pair !a !b
+    deriving (Generic, NFData)
 
 {-# INLINE sumProductFold #-}
 sumProductFold :: Monad m => Stream m Int -> m (Int, Int)
-sumProductFold = S.foldl' (\(s,p) x -> (s + x, p P.* x)) (0,1)
+sumProductFold = S.foldl' (\(s, p) x -> (s + x, p P.* x)) (0, 1)
 
 {-# INLINE sumProductScan #-}
 sumProductScan :: Monad m => Stream m Int -> m (Pair Int Int)
-sumProductScan = S.foldl' (\(Pair _  p) (s0,x) -> Pair s0 (p P.* x)) (Pair 0 1)
-    . S.scanl' (\(s,_) x -> (s + x,x)) (0,0)
+sumProductScan =
+    S.foldl' (\(Pair _ p) (s0, x) -> Pair s0 (p P.* x)) (Pair 0 1) .
+    S.scanl' (\(s, _) x -> (s + x, x)) (0, 0)
 
 -------------------------------------------------------------------------------
 -- Iteration
 -------------------------------------------------------------------------------
 
-iterStreamLen, maxIters :: Int
+{-# INLINE iterStreamLen #-}
+iterStreamLen :: Int
 iterStreamLen = 10
+
+{-# INLINE maxIters #-}
+maxIters :: Int
 maxIters = 10000
 
 {-# INLINE iterateSource #-}
-iterateSource
-    :: S.MonadAsync m
-    => (Stream m Int -> Stream m Int) -> Int -> Int -> Stream m Int
+iterateSource ::
+       S.MonadAsync m
+    => (Stream m Int -> Stream m Int)
+    -> Int
+    -> Int
+    -> Stream m Int
 iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
-    where
-        f (0 :: Int) m = g m
-        f x m = g (f (x P.- 1) m)
-
-{-# INLINE iterateMapM #-}
-{-# INLINE iterateScan #-}
-{-# INLINE iterateScanl1 #-}
-{-# INLINE iterateFilterEven #-}
-{-# INLINE iterateTakeAll #-}
-{-# INLINE iterateDropOne #-}
-{-# INLINE iterateDropWhileFalse #-}
-{-# INLINE iterateDropWhileTrue #-}
-iterateMapM, iterateScan, iterateScanl1, iterateFilterEven,
-    iterateDropOne
-    :: S.MonadAsync m
-    => Int -> Stream m Int
-
-iterateTakeAll,
-    iterateDropWhileFalse, iterateDropWhileTrue
-    :: S.MonadAsync m
-    => Int -> Int -> Stream m Int
+  where
+    f (0 :: Int) m = g m
+    f x m = g (f (x P.- 1) m)
 
 -- this is quadratic
-iterateScan            = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
--- so is this
-iterateScanl1          = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
+{-# INLINE iterateScan #-}
+iterateScan :: S.MonadAsync m => Int -> Stream m Int
+iterateScan = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
 
-iterateMapM            = iterateSource (S.mapM return) maxIters
-iterateFilterEven      = iterateSource (S.filter even) maxIters
-iterateTakeAll value         = iterateSource (S.take (value + 1)) maxIters
-iterateDropOne         = iterateSource (S.drop 1) maxIters
-iterateDropWhileFalse value  = iterateSource (S.dropWhile (> (value + 1))) maxIters
-iterateDropWhileTrue value   = iterateSource (S.dropWhile (<= (value + 1))) maxIters
+-- this is quadratic
+{-# INLINE iterateScanl1 #-}
+iterateScanl1 :: S.MonadAsync m => Int -> Stream m Int
+iterateScanl1 = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
+
+{-# INLINE iterateMapM #-}
+iterateMapM :: S.MonadAsync m => Int -> Stream m Int
+iterateMapM = iterateSource (S.mapM return) maxIters
+
+{-# INLINE iterateFilterEven #-}
+iterateFilterEven :: S.MonadAsync m => Int -> Stream m Int
+iterateFilterEven = iterateSource (S.filter even) maxIters
+
+{-# INLINE iterateTakeAll #-}
+iterateTakeAll :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateTakeAll value = iterateSource (S.take (value + 1)) maxIters
+
+{-# INLINE iterateDropOne #-}
+iterateDropOne :: S.MonadAsync m => Int -> Stream m Int
+iterateDropOne = iterateSource (S.drop 1) maxIters
+
+{-# INLINE iterateDropWhileFalse #-}
+iterateDropWhileFalse :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateDropWhileFalse value =
+    iterateSource (S.dropWhile (> (value + 1))) maxIters
+
+{-# INLINE iterateDropWhileTrue #-}
+iterateDropWhileTrue :: S.MonadAsync m => Int -> Int -> Stream m Int
+iterateDropWhileTrue value =
+    iterateSource (S.dropWhile (<= (value + 1))) maxIters
 
 -------------------------------------------------------------------------------
 -- Combining streams
@@ -718,34 +890,35 @@ iterateDropWhileTrue value   = iterateSource (S.dropWhile (<= (value + 1))) maxI
 {-# INLINE serial2 #-}
 serial2 :: Int -> Int -> IO ()
 serial2 count n =
-    S.drain $ S.serial
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+    S.drain $ S.serial (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE serial4 #-}
 serial4 :: Int -> Int -> IO ()
 serial4 count n =
-    S.drain $ S.serial
-        ((S.serial (sourceUnfoldrMN count n)
-                   (sourceUnfoldrMN count (n + 1))))
-        ((S.serial (sourceUnfoldrMN count (n+2))
-                   (sourceUnfoldrMN count (n + 3))))
+    S.drain $
+    S.serial
+        ((S.serial (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))))
+        ((S.serial
+              (sourceUnfoldrMN count (n + 2))
+              (sourceUnfoldrMN count (n + 3))))
 
 {-# INLINE append2 #-}
 append2 :: Int -> Int -> IO ()
 append2 count n =
-    S.drain $ Internal.append
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+    S.drain $
+    Internal.append (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE append4 #-}
 append4 :: Int -> Int -> IO ()
 append4 count n =
-    S.drain $ Internal.append
-        ((Internal.append (sourceUnfoldrMN count n)
-                          (sourceUnfoldrMN count (n + 1))))
-        ((Internal.append (sourceUnfoldrMN count (n+2))
-                          (sourceUnfoldrMN count (n + 3))))
+    S.drain $
+    Internal.append
+        ((Internal.append
+              (sourceUnfoldrMN count n)
+              (sourceUnfoldrMN count (n + 1))))
+        ((Internal.append
+              (sourceUnfoldrMN count (n + 2))
+              (sourceUnfoldrMN count (n + 3))))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'append2
@@ -759,15 +932,19 @@ inspect $ 'append2 `hasNoType` ''D.AppendState
 
 {-# INLINE wSerial2 #-}
 wSerial2 :: Int -> Int -> IO ()
-wSerial2 value n = S.drain $ S.wSerial
-    (sourceUnfoldrMN (value `div` 2) n)
-    (sourceUnfoldrMN (value `div` 2) (n + 1))
+wSerial2 value n =
+    S.drain $
+    S.wSerial
+        (sourceUnfoldrMN (value `div` 2) n)
+        (sourceUnfoldrMN (value `div` 2) (n + 1))
 
 {-# INLINE interleave2 #-}
 interleave2 :: Int -> Int -> IO ()
-interleave2 value n = S.drain $ Internal.interleave
-    (sourceUnfoldrMN (value `div` 2) n)
-    (sourceUnfoldrMN (value `div` 2) (n + 1))
+interleave2 value n =
+    S.drain $
+    Internal.interleave
+        (sourceUnfoldrMN (value `div` 2) n)
+        (sourceUnfoldrMN (value `div` 2) (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'interleave2
@@ -777,9 +954,11 @@ inspect $ 'interleave2 `hasNoType` ''D.InterleaveState
 
 {-# INLINE roundRobin2 #-}
 roundRobin2 :: Int -> Int -> IO ()
-roundRobin2 value n = S.drain $ Internal.roundrobin
-    (sourceUnfoldrMN (value `div` 2) n)
-    (sourceUnfoldrMN (value `div` 2) (n + 1))
+roundRobin2 value n =
+    S.drain $
+    Internal.roundrobin
+        (sourceUnfoldrMN (value `div` 2) n)
+        (sourceUnfoldrMN (value `div` 2) (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'roundRobin2
@@ -794,7 +973,9 @@ inspect $ 'roundRobin2 `hasNoType` ''D.InterleaveState
 {-# INLINE mergeBy #-}
 mergeBy :: Int -> Int -> IO ()
 mergeBy count n =
-    S.drain $ S.mergeBy P.compare
+    S.drain $
+    S.mergeBy
+        P.compare
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
@@ -811,9 +992,8 @@ inspect $ 'mergeBy `hasNoType` ''D.Step
 {-# INLINE zip #-}
 zip :: Int -> Int -> IO ()
 zip count n =
-    S.drain $ S.zipWith (,)
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+    S.drain $
+    S.zipWith (,) (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zip
@@ -824,7 +1004,9 @@ inspect $ 'zip `hasNoType` ''D.Step
 {-# INLINE zipM #-}
 zipM :: Int -> Int -> IO ()
 zipM count n =
-    S.drain $ S.zipWithM (curry return)
+    S.drain $
+    S.zipWithM
+        (curry return)
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
@@ -837,35 +1019,35 @@ inspect $ 'zipM `hasNoType` ''D.Step
 {-# INLINE zipAsync #-}
 zipAsync :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsync count n = do
-    S.zipAsyncWith (,)
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+    S.zipAsyncWith (,) (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE zipAsyncM #-}
 zipAsyncM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsyncM count n = do
-    S.zipAsyncWithM (curry return)
+    S.zipAsyncWithM
+        (curry return)
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE zipAsyncAp #-}
 zipAsyncAp :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
-zipAsyncAp count n  = do
-    S.zipAsyncly $ (,)
-        <$> (sourceUnfoldrMN count n)
-        <*> (sourceUnfoldrMN count (n + 1))
+zipAsyncAp count n = do
+    S.zipAsyncly $
+        (,) <$> (sourceUnfoldrMN count n) <*> (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE mergeAsyncByM #-}
 mergeAsyncByM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 mergeAsyncByM count n = do
-    S.mergeAsyncByM (\a b -> return (a `compare` b))
+    S.mergeAsyncByM
+        (\a b -> return (a `compare` b))
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
 {-# INLINE mergeAsyncBy #-}
 mergeAsyncBy :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 mergeAsyncBy count n = do
-    S.mergeAsyncBy compare
+    S.mergeAsyncBy
+        compare
         (sourceUnfoldrMN count n)
         (sourceUnfoldrMN count (n + 1))
 
@@ -874,10 +1056,11 @@ mergeAsyncBy count n = do
 -------------------------------------------------------------------------------
 
 {-# INLINE isPrefixOf #-}
-{-# INLINE isSubsequenceOf #-}
-isPrefixOf, isSubsequenceOf :: Monad m => Stream m Int -> m Bool
-
+isPrefixOf :: Monad m => Stream m Int -> m Bool
 isPrefixOf src = S.isPrefixOf src src
+
+{-# INLINE isSubsequenceOf #-}
+isSubsequenceOf :: Monad m => Stream m Int -> m Bool
 isSubsequenceOf src = S.isSubsequenceOf src src
 
 {-# INLINE stripPrefix #-}
