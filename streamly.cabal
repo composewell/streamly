@@ -365,6 +365,7 @@ library
                      , Streamly.Network.Inet.TCP
 
                      , Streamly.Internal.Network.Socket
+                     , Streamly.Internal.Network.Socket.IO
                      , Streamly.Internal.Network.Inet.TCP
 
     build-depends:
