@@ -23,6 +23,8 @@ module Streamly.Internal.Network.Socket
     -- * Accept connections
     , accept
     , connections
+    , connect
+    , connectFrom
 
     -- * Read from connection
     , read
@@ -179,6 +181,41 @@ listenTuples = Unfold step inject
 {-# INLINE accept #-}
 accept :: MonadIO m => Unfold m (Int, SockSpec, SockAddr) Socket
 accept = UF.map fst listenTuples
+
+{-# INLINE connectCommon #-}
+connectCommon :: SockSpec -> Maybe SockAddr -> SockAddr -> IO Socket
+connectCommon SockSpec{..} local remote = withSocketsDo $ do
+    sock <- socket sockFamily sockType sockProto
+    use sock `onException` Net.close sock
+    return sock
+
+    where
+
+    use sock = do
+        mapM_ (\(opt, val) -> setSocketOption sock opt val) sockOpts
+        case local of
+            Nothing -> return ()
+            Just addr -> bind sock addr
+        Net.connect sock remote
+
+-- | Connect to a remote host using the given socket specification and remote
+-- address. Returns a connected socket or throws an exception.
+--
+-- /Internal/
+--
+{-# INLINE connect #-}
+connect :: SockSpec -> SockAddr -> IO Socket
+connect spec remote = connectCommon spec Nothing remote
+
+-- | Connect to a remote host using the given socket specification, a local
+-- address to bind to and a remote address to connect to. Returns a connected
+-- socket or throws an exception.
+--
+-- /Internal/
+--
+{-# INLINE connectFrom #-}
+connectFrom :: SockSpec -> SockAddr -> SockAddr -> IO Socket
+connectFrom spec local remote = connectCommon spec (Just local) remote
 
 -------------------------------------------------------------------------------
 -- Listen (Streams)
