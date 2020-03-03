@@ -96,6 +96,7 @@ module Streamly.Internal.Network.Inet.TCP
     )
 where
 
+import Control.Exception (onException)
 import Control.Monad.Catch (MonadCatch, MonadMask, bracket)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
@@ -244,13 +245,15 @@ connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 -- TCP Clients
 -------------------------------------------------------------------------------
 
--- | Connect to the specified IP address and port number.
+-- | Connect to the specified IP address and port number. Returns a connected
+-- socket or throws an exception.
 --
 -- @since 0.7.0
 connect :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
 connect addr port = do
     sock <- socket AF_INET Stream defaultProtocol
-    Net.connect sock $ SockAddrInet port (Net.tupleToHostAddress addr)
+    (Net.connect sock $ SockAddrInet port (Net.tupleToHostAddress addr))
+        `onException` Net.close sock
     return sock
 
 -- | Connect to a remote host using IP address and port and run the supplied
