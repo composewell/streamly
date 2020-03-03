@@ -66,6 +66,7 @@ module Streamly.Internal.Network.Socket
 where
 
 import Control.Concurrent (threadWaitWrite, rtsSupportsBoundThreads)
+import Control.Exception (onException)
 import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (when)
@@ -146,21 +147,26 @@ initListener :: Int -> SockSpec -> SockAddr -> IO Socket
 initListener listenQLen SockSpec{..} addr =
   withSocketsDo $ do
     sock <- socket sockFamily sockType sockProto
-    mapM_ (\(opt, val) -> setSocketOption sock opt val) sockOpts
-    bind sock addr
-    Net.listen sock listenQLen
+    use sock `onException` Net.close sock
     return sock
+
+    where
+
+    use sock = do
+        mapM_ (\(opt, val) -> setSocketOption sock opt val) sockOpts
+        bind sock addr
+        Net.listen sock listenQLen
 
 {-# INLINE listenTuples #-}
 listenTuples :: MonadIO m
     => Unfold m (Int, SockSpec, SockAddr) (Socket, SockAddr)
 listenTuples = Unfold step inject
     where
-    inject (listenQLen, spec, addr) = liftIO $ initListener listenQLen spec addr
+    inject (listenQLen, spec, addr) =
+        liftIO $ initListener listenQLen spec addr
 
     step listener = do
-        r <- liftIO $ Net.accept listener
-        -- XXX error handling
+        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
         return $ D.Yield r listener
 
 -- | Unfold a three tuple @(listenQLen, spec, addr)@ into a stream of connected
@@ -185,13 +191,11 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
     where
     step Nothing = do
         listener <- liftIO $ initListener tcpListenQ spec addr
-        r <- liftIO $ Net.accept listener
-        -- XXX error handling
+        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
         return $ Just (r, Just listener)
 
     step (Just listener) = do
-        r <- liftIO $ Net.accept listener
-        -- XXX error handling
+        r <- liftIO $ (Net.accept listener `onException` Net.close listener)
         return $ Just (r, Just listener)
 
 -- | Start a TCP stream server that listens for connections on the supplied
@@ -202,7 +206,8 @@ recvConnectionTuplesWith tcpListenQ spec addr = S.unfoldrM step Nothing
 -- /Internal/
 {-# INLINE connections #-}
 connections :: MonadAsync m => Int -> SockSpec -> SockAddr -> SerialT m Socket
-connections tcpListenQ spec addr = fst <$> recvConnectionTuplesWith tcpListenQ spec addr
+connections tcpListenQ spec addr =
+    fst <$> recvConnectionTuplesWith tcpListenQ spec addr
 
 -------------------------------------------------------------------------------
 -- Array IO (Input)
