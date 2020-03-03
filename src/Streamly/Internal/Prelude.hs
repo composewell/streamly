@@ -3682,12 +3682,14 @@ splitSuffixOnAny subseq f m = undefined
 -- Nested Split
 ------------------------------------------------------------------------------
 
--- | Consider a chunked stream of container elements e.g. a stream of @Word8@
--- chunked as a stream of arrays of @Word8@.  @splitInnerBy splitter joiner
--- stream@ splits the inner containers @f a@ using the @splitter@ function and
--- joins back the resulting fragments from splitting across multiple containers
--- using the @joiner@ function such that the transformed output stream is
--- consolidated as one container per segment of the split.
+-- | @splitInnerBy splitter joiner stream@ splits the inner containers @f a@ of
+-- an input stream @t m (f a)@ using the @splitter@ function. Container
+-- elements @f a@ are collected until a split occurs, then all the elements
+-- before the split are joined using the @joiner@ function.
+--
+-- For example, if we have a stream of @Array Word8@, we may want to split the
+-- stream into arrays representing lines separated by '\n' byte such that the
+-- resulting stream after a split would be one array for each line.
 --
 -- CAUTION! This is not a true streaming function as the container size after
 -- the split and merge may not be bounded.
