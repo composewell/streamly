@@ -142,6 +142,25 @@ module Streamly.Internal.Data.Fold
     , lsessionsOf
     , lchunksOf
 
+    -- ** Breaking
+
+    -- Binary
+    , splitAt -- spanN
+    -- , splitIn -- sessionN
+
+    -- By elements
+    , span  -- spanWhile
+    , break -- breakBefore
+    -- , breakAfter
+    -- , breakOn
+    -- , breakAround
+    , spanBy
+    , spanByRolling
+
+    -- By sequences
+    -- , breakOnSeq
+    -- , breakOnStream -- on a stream
+
     -- * Distributing
 
     , tee
@@ -802,6 +821,226 @@ and = Fold (\x a -> return $ x && a) (return True) return
 {-# INLINABLE or #-}
 or :: Monad m => Fold m Bool Bool
 or = Fold (\x a -> return $ x || a) (return False) return
+
+------------------------------------------------------------------------------
+-- Grouping/Splitting
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- Grouping without looking at elements
+------------------------------------------------------------------------------
+--
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
+--
+
+-- | @splitAt n f1 f2@ composes folds @f1@ and @f2@ such that first @n@
+-- elements of its input are consumed by fold @f1@ and the rest of the stream
+-- is consumed by fold @f2@.
+--
+-- > let splitAt_ n xs = S.fold (FL.splitAt n FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> splitAt_ 6 "Hello World!"
+-- > ("Hello ","World!")
+--
+-- >>> splitAt_ (-1) [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> splitAt_ 0 [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> splitAt_ 1 [1,2,3]
+-- > ([1],[2,3])
+--
+-- >>> splitAt_ 3 [1,2,3]
+-- > ([1,2,3],[])
+--
+-- >>> splitAt_ 4 [1,2,3]
+-- > ([1,2,3],[])
+--
+-- /Internal/
+
+-- This can be considered as a two-fold version of 'ltake' where we take both
+-- the segments instead of discarding the leftover.
+--
+{-# INLINE splitAt #-}
+splitAt
+    :: Monad m
+    => Int
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+    where
+      initial  = Tuple3' <$> return n <*> initialL <*> initialR
+
+      step (Tuple3' i xL xR) input =
+        if i > 0
+        then stepL xL input >>= (\a -> return (Tuple3' (i - 1) a xR))
+        else stepR xR input >>= (\b -> return (Tuple3' i xL b))
+
+      extract (Tuple3' _ a b) = (,) <$> extractL a <*> extractR b
+
+------------------------------------------------------------------------------
+-- Element Aware APIs
+------------------------------------------------------------------------------
+--
+------------------------------------------------------------------------------
+-- Binary APIs
+------------------------------------------------------------------------------
+
+-- | Break the input stream into two groups, the first group takes the input as
+-- long as the predicate applied to the first element of the stream and next
+-- input element holds 'True', the second group takes the rest of the input.
+--
+-- /Internal/
+--
+spanBy
+    :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+spanBy cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+      initial = Tuple3' <$> initialL <*> initialR <*> return (Tuple' Nothing True)
+
+      step (Tuple3' a b (Tuple' (Just frst) isFirstG)) input =
+        if cmp frst input && isFirstG
+        then stepL a input
+              >>= (\a' -> return (Tuple3' a' b (Tuple' (Just frst) isFirstG)))
+        else stepR b input
+              >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+
+      step (Tuple3' a b (Tuple' Nothing isFirstG)) input =
+        if isFirstG
+        then stepL a input
+              >>= (\a' -> return (Tuple3' a' b (Tuple' (Just input) isFirstG)))
+        else stepR b input
+              >>= (\a' -> return (Tuple3' a a' (Tuple' Nothing False)))
+
+      extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
+
+-- | @span p f1 f2@ composes folds @f1@ and @f2@ such that @f1@ consumes the
+-- input as long as the predicate @p@ is 'True'.  @f2@ consumes the rest of the
+-- input.
+--
+-- > let span_ p xs = S.fold (S.span p FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> span_ (< 1) [1,2,3]
+-- > ([],[1,2,3])
+--
+-- >>> span_ (< 2) [1,2,3]
+-- > ([1],[2,3])
+--
+-- >>> span_ (< 4) [1,2,3]
+-- > ([1,2,3],[])
+--
+-- /Internal/
+
+-- This can be considered as a two-fold version of 'ltakeWhile' where we take
+-- both the segments instead of discarding the leftover.
+{-# INLINE span #-}
+span
+    :: Monad m
+    => (a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+span p (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+    where
+
+    initial = Tuple3' <$> initialL <*> initialR <*> return True
+
+    step (Tuple3' a b isFirstG) input =
+        if isFirstG && p input
+        then stepL a input >>= (\a' -> return (Tuple3' a' b True))
+        else stepR b input >>= (\a' -> return (Tuple3' a a' False))
+
+    extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
+
+-- |
+-- > break p = span (not . p)
+--
+-- Break as soon as the predicate becomes 'True'. @break p f1 f2@ composes
+-- folds @f1@ and @f2@ such that @f1@ stops consuming input as soon as the
+-- predicate @p@ becomes 'True'. The rest of the input is consumed @f2@.
+--
+-- This is the binary version of 'splitBy'.
+--
+-- > let break_ p xs = S.fold (S.break p FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> break_ (< 1) [3,2,1]
+-- > ([3,2,1],[])
+--
+-- >>> break_ (< 2) [3,2,1]
+-- > ([3,2],[1])
+--
+-- >>> break_ (< 4) [3,2,1]
+-- > ([],[3,2,1])
+--
+-- /Internal/
+{-# INLINE break #-}
+break
+    :: Monad m
+    => (a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+break p = span (not . p)
+
+-- | Like 'spanBy' but applies the predicate in a rolling fashion i.e.
+-- predicate is applied to the previous and the next input elements.
+--
+-- /Internal/
+{-# INLINE spanByRolling #-}
+spanByRolling
+    :: Monad m
+    => (a -> a -> Bool)
+    -> Fold m a b
+    -> Fold m a c
+    -> Fold m a (b, c)
+spanByRolling cmp (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
+    Fold step initial extract
+
+  where
+    initial = Tuple3' <$> initialL <*> initialR <*> return Nothing
+
+    step (Tuple3' a b (Just frst)) input =
+      if cmp input frst
+      then stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
+      else stepR b input >>= (\b' -> return (Tuple3' a b' (Just input)))
+
+    step (Tuple3' a b Nothing) input =
+      stepL a input >>= (\a' -> return (Tuple3' a' b (Just input)))
+
+    extract (Tuple3' a b _) = (,) <$> extractL a <*> extractR b
+
+------------------------------------------------------------------------------
+-- Binary splitting on a separator
+------------------------------------------------------------------------------
+
+{-
+-- | Find the first occurrence of the specified sequence in the input stream
+-- and break the input stream into two parts, the first part consisting of the
+-- stream before the sequence and the second part consisting of the sequence
+-- and the rest of the stream.
+--
+-- > let breakOn_ pat xs = S.fold (S.breakOn pat FL.toList FL.toList) $ S.fromList xs
+--
+-- >>> breakOn_ "dear" "Hello dear world!"
+-- > ("Hello ","dear world!")
+--
+{-# INLINE breakOn #-}
+breakOn :: Monad m => Array a -> Fold m a b -> Fold m a c -> Fold m a (b,c)
+breakOn pat f m = undefined
+-}
 
 ------------------------------------------------------------------------------
 -- Distributing
