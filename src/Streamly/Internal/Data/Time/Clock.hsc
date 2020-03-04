@@ -299,11 +299,14 @@ getTime clock = getTimeWith $ clock_gettime_darwin (clockToOSXClockId clock)
 
 -- XXX perform error checks inside c implementation
 foreign import ccall clock_gettime_win32_monotonic :: Ptr TimeSpec -> IO ()
+foreign import ccall clock_gettime_win32_realtime :: Ptr TimeSpec -> IO ()
+foreign import ccall clock_gettime_win32_processtime :: Ptr TimeSpec -> IO ()
+foreign import ccall clock_gettime_win32_threadtime :: Ptr TimeSpec -> IO ()
 
 {-# INLINABLE getTime #-}
 getTime :: Clock -> IO AbsTime
 getTime Monotonic = getTimeWith $ clock_gettime_win32_monotonic
-getTime RealTime = getTimeWith $ clock_gettime_win32_realtime
+getTime Realtime = getTimeWith $ clock_gettime_win32_realtime
 getTime ProcessCPUTime = getTimeWith $ clock_gettime_win32_processtime
 getTime ThreadCPUTime = getTimeWith $ clock_gettime_win32_threadtime
 #endif
