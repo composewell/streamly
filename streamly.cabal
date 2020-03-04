@@ -648,14 +648,13 @@ executable SearchQuery
   hs-source-dirs:  examples
   if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
     buildable: True
-    build-Depends:
+    build-depends:
         streamly
       , base          >= 4.8   && < 5
       , http-conduit  >= 2.2.2 && < 2.4
     if impl(ghc < 8.0)
-       build-depends:
-           resourcet     < 1.2
-         , unliftio-core < 0.2
+      build-depends:
+        unliftio-core < 0.2
   else
     buildable: False
 
