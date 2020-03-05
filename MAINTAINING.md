@@ -73,6 +73,7 @@
     * Change the `Unreleased` section at the top of changelog file to the new
       release version number.
     * Bump the package version in cabal file or package.yaml
+    * Bump the package version in configure.ac and run autoreconf
 
 * _Upload_:
 
