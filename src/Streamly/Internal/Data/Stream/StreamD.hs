@@ -320,14 +320,14 @@ where
 
 import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
 import Control.Exception
-       (Exception, SomeException, AsyncException, fromException)
+       (Exception, SomeException, AsyncException, fromException, mask_)
 import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.State.Strict (StateT)
 import Control.Monad.Trans (MonadTrans(lift))
-import Control.Monad.Trans.Control (MonadBaseControl)
+import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -2951,8 +2951,10 @@ gbracketIO bef exc aft fexc fnormal =
     -- weak pointer to us.
     {-# INLINE_LATE step #-}
     step _ GBracketIOInit = do
-        r <- bef
-        ref <- newFinalizedIORef (aft r)
+        (r, ref) <- liftBaseOp_ mask_ $ do
+            r <- bef
+            ref <- newFinalizedIORef (aft r)
+            return (r, ref)
         return $ Skip $ GBracketIONormal (fnormal r) r ref
 
     step gst (GBracketIONormal (UnStream step1 st) v ref) = do

@@ -131,9 +131,9 @@ module Streamly.Internal.Data.Unfold
     )
 where
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, mask_)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Control (MonadBaseControl)
+import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Void (Void)
 import GHC.Types (SPEC(..))
 import Prelude
@@ -788,8 +788,10 @@ gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     where
 
     inject x = do
-        r <- bef x
-        ref <- D.newFinalizedIORef (aft r)
+        (r, ref) <- liftBaseOp_ mask_ $ do
+            r <- bef x
+            ref <- D.newFinalizedIORef (aft r)
+            return (r, ref)
         s <- inject1 r
         return $ Right (s, r, ref)
 
@@ -1038,9 +1040,11 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
-        r <- bef x
+        (r, ref) <- liftBaseOp_ mask_ $ do
+            r <- bef x
+            ref <- D.newFinalizedIORef (aft r)
+            return (r, ref)
         s <- inject1 r
-        ref <- D.newFinalizedIORef (aft r)
         return (s, ref)
 
     {-# INLINE_LATE step #-}
