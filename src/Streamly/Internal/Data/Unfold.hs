@@ -788,6 +788,8 @@ gbracketIO bef exc aft (Unfold estep einject) (Unfold step1 inject1) =
     where
 
     inject x = do
+        -- Mask asynchronous exceptions to make the execution of 'bef' and
+        -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef x
             ref <- D.newFinalizedIORef (aft r)
@@ -1040,6 +1042,8 @@ bracketIO bef aft (Unfold step1 inject1) = Unfold step inject
     where
 
     inject x = do
+        -- Mask asynchronous exceptions to make the execution of 'bef' and
+        -- the registration of 'aft' atomic. See comment in 'D.gbracketIO'.
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef x
             ref <- D.newFinalizedIORef (aft r)

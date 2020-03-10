@@ -2951,6 +2951,10 @@ gbracketIO bef exc aft fexc fnormal =
     -- weak pointer to us.
     {-# INLINE_LATE step #-}
     step _ GBracketIOInit = do
+        -- We mask asynchronous exceptions to make the execution
+        -- of 'bef' and the registration of 'aft' atomic.
+        -- A similar thing is done in the resourcet package: https://git.io/JvKV3
+        -- Tutorial: https://markkarpov.com/tutorial/exceptions.html
         (r, ref) <- liftBaseOp_ mask_ $ do
             r <- bef
             ref <- newFinalizedIORef (aft r)
