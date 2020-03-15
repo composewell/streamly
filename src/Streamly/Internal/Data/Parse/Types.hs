@@ -116,19 +116,28 @@ instance Monad m => Functor (Parse m a) where
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
+{-# INLINE wrap #-}
+wrap :: Monad m => b -> Parse m a b
+wrap b = Parse (\_ _ -> pure $ Halt ())    -- step
+               (pure ())                   -- initial
+               (\_ -> pure $ Right (0, b)) -- extract
+
 data SeqParseState sl f sr =
     SeqParseL sl | SeqParseR f sr | SeqParseLErr String
 
+-- XXX implement interleaved variant, parse using the first parser and then
+-- using the second parser alternately.
+--
 -- | Apply two parsing folds sequentially to an input. The input is provided to
 -- the first parser, if the parser fails then whole composition fails. If the
 -- parser succeeds, the remaining input is supplied to the second parser. If
 -- the second parser succeeds the composed parser succeeds otherwise it fails.
 --
+-- This is the opposite of the "append" operation on streams.
+--
 instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
-    pure b = Parse (\_ _ -> return $ Halt ())
-                   (return ())
-                   (\_ -> return $ Right (0, b))
+    pure = wrap
 
     {-# INLINE (<*>) #-}
     (Parse stepL initialL extractL) <*> (Parse stepR initialR extractR) =
