@@ -21,7 +21,7 @@ import Data.Monoid (Last(..))
 import System.Random (randomRIO)
 import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=))
+                compare, (>=), div)
 
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -219,8 +219,16 @@ o_1_space_serial_parse value =
               [
                 benchIOSink value "any" $ IP.parse (PR.any (> value))
               , benchIOSink value "all" $ IP.parse (PR.all (<= value))
-              , benchIOSink value "(all,any)" $
-                    IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
+              , benchIOSink value "append (all,any)"
+                          $ IP.parse
+                          $ (,)
+                        <$> PR.all (<= (value `div` 2))
+                        <*> PR.any (> value)
+              , benchIOSink value "zip (all,any)"
+                          $ IP.parse
+                          $ PR.zipWith (,)
+                            (PR.all (<= value))
+                            (PR.any (> value))
               , benchIOSink value "take" (IP.parse (FL.take value FL.drain))
               ]
           ]

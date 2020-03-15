@@ -4,6 +4,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Internal.Data.Parse
 -- Copyright   : (c) 2019 Composewell Technologies
@@ -31,11 +33,15 @@ module Streamly.Internal.Data.Parse
     , endBefore
 
     , finishBy
+    , zipWith
     )
 where
 
+import Control.Exception (assert)
 import Prelude
-       hiding (any, all, takeWhile)
+       hiding (any, all, takeWhile, zipWith)
+
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Parse.Types (Parse(..), Step(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
@@ -252,3 +258,87 @@ endBefore = undefined
 --
 finishBy :: Parse m a x -> Fold m a y -> Parse m a (x, y)
 finishBy = undefined
+
+-------------------------------------------------------------------------------
+-- Zipping Parses
+-------------------------------------------------------------------------------
+--
+
+{-# ANN type ParOne Fuse #-}
+data ParOne s a = ParStream [a] s | ParBuf [a] s [a]
+
+-- Note: strictness annotation is important for fusing the constructors
+{-# ANN type ParState Fuse #-}
+data ParState sL sR a =
+    ParPair !(Either sL (ParOne sL a)) !(Either sR (ParOne sR a))
+
+-- XXX we can write a much simpler zipWith if the types do not have Back or
+-- Hold. Perhaps we can write a simpler partial function assuming that and
+-- statically assert the assumptions with the help of the compiler.
+--
+-- zipWithMin -- end when either stream ends
+-- zipWithFst -- end when the first stream ends
+--
+-- XXX requires -funfolding-use-threshold=200 to fuse
+--
+-- | @zipWith f p1 p2@ distributes its input to both @p1@ and @p2@ and combines
+-- their output using @f@.
+--
+-- /Internal/
+--
+{-# INLINE zipWith #-}
+zipWith :: Monad m
+    => (a -> b -> c) -> Parse m x a -> Parse m x b -> Parse m x c
+zipWith zf (Parse stepL initialL extractL) (Parse stepR initialR extractR) =
+    Parse step initial extract
+
+    where
+
+    {-# INLINE_LATE initial #-}
+    initial = do
+        sL <- initialL
+        sR <- initialR
+        return $ ParPair (Right (ParStream [] sL))
+                         (Right (ParStream [] sR))
+
+    {-# INLINE_LATE step #-}
+    step (ParPair (Right (ParStream bufL sL))
+                  (Right (ParStream bufR sR))) x = do
+        l <- useStream bufL stepL sL x
+        r <- useStream bufR stepR sR x
+        return $ Keep 0 $ ParPair l r
+
+    {-# INLINE useStream #-}
+    useStream buf stp st x = do
+        r <- stp st x
+        let buf1 = x:buf
+        return $ case r of
+            Hold s -> Right $ ParStream buf1 s
+            Keep n s ->
+                 assert (n <= length buf1)
+                        (Right $ (ParStream (Prelude.take n buf1) s))
+            Back n s ->
+                let (src0, buf2) = splitAt n buf1
+                    src  = Prelude.reverse src0
+                 in assert (n <= length buf1)
+                           (Right (ParBuf buf2 s src))
+            Halt s -> Left s
+
+    {-# INLINE extractBoth #-}
+    extractBoth sL sR = do
+        rL <- extractL sL
+        case rL of
+            Left err -> return $ Left err
+            Right (_, x) -> do
+                rR <- extractR sR
+                return $ case rR of
+                    Left err -> Left err
+                    Right (_, y) -> Right (0, zf x y)
+
+    {-# INLINE_LATE extract #-}
+    extract st =
+        let (s1, s2) = case st of
+                ParPair (Right (ParStream _ sL))
+                        (Right (ParStream _ sR)) -> (sL, sR)
+                ParPair (Left sL) (Left sR) -> (sL, sR)
+        in extractBoth s1 s2
