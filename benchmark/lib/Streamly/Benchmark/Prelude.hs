@@ -27,10 +27,7 @@ module Streamly.Benchmark.Prelude
     , o_1_space_serial_foldable
     , o_1_space_serial_generation
     , o_1_space_serial_elimination
-    , o_1_space_serial_folds
     , o_1_space_serial_foldMultiStream
-    , o_1_space_serial_foldsTransforms
-    , o_1_space_serial_foldsCompositions
     , o_1_space_serial_pipes
     , o_1_space_serial_pipesX4
     , o_1_space_serial_transformer
@@ -102,7 +99,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
-import Data.Monoid (Last(..))
 import GHC.Generics (Generic)
 import System.Random (randomRIO)
 import Prelude
@@ -130,11 +126,6 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import Streamly.Internal.Data.Time.Units
 
-import qualified Streamly.Internal.Data.Sink as Sink
-
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 
 import qualified NestedOps as Nested
@@ -1760,90 +1751,6 @@ o_1_space_serial_elimination value =
           ]
     ]
 
-o_1_space_serial_folds :: Int -> [Benchmark]
-o_1_space_serial_folds value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "folds"
-                [ benchIOSink value "drain" (S.fold FL.drain)
-                , benchIOSink value "drainN" (S.fold (IFL.drainN value))
-                , benchIOSink
-                      value
-                      "drainWhileTrue"
-                      (S.fold (IFL.drainWhile $ (<=) (value + 1)))
-                , benchIOSink
-                      value
-                      "drainWhileFalse"
-                      (S.fold (IFL.drainWhile $ (>=) (value + 1)))
-                , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
-                , benchIOSink value "last" (S.fold FL.last)
-                , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
-                , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
-                , benchIOSink value "length" (S.fold FL.length)
-                , benchIOSink value "sum" (S.fold FL.sum)
-                , benchIOSink value "product" (S.fold FL.product)
-                , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
-                , benchIOSink value "maximum" (S.fold FL.maximum)
-                , benchIOSink value "minimumBy" (S.fold (FL.minimumBy compare))
-                , benchIOSink value "minimum" (S.fold FL.minimum)
-                , benchIOSink
-                      value
-                      "mean"
-                      (\s ->
-                           S.fold
-                               FL.mean
-                               (S.map (fromIntegral :: Int -> Double) s))
-                , benchIOSink
-                      value
-                      "variance"
-                      (\s ->
-                           S.fold
-                               FL.variance
-                               (S.map (fromIntegral :: Int -> Double) s))
-                , benchIOSink
-                      value
-                      "stdDev"
-                      (\s ->
-                           S.fold
-                               FL.stdDev
-                               (S.map (fromIntegral :: Int -> Double) s))
-                , benchIOSink
-                      value
-                      "mconcat"
-                      (S.fold FL.mconcat . (S.map (Last . Just)))
-                , benchIOSink
-                      value
-                      "foldMap"
-                      (S.fold (FL.foldMap (Last . Just)))
-                , benchIOSink value "index" (S.fold (FL.index (value + 1)))
-                , benchIOSink value "head" (S.fold FL.head)
-                , benchIOSink value "find" (S.fold (FL.find (== (value + 1))))
-                , benchIOSink
-                      value
-                      "findIndex"
-                      (S.fold (FL.findIndex (== (value + 1))))
-                , benchIOSink
-                      value
-                      "elemIndex"
-                      (S.fold (FL.elemIndex (value + 1)))
-                , benchIOSink value "null" (S.fold FL.null)
-                , benchIOSink value "elem" (S.fold (FL.elem (value + 1)))
-                , benchIOSink value "notElem" (S.fold (FL.notElem (value + 1)))
-                , benchIOSink value "all" (S.fold (FL.all (<= (value + 1))))
-                , benchIOSink value "any" (S.fold (FL.any (> (value + 1))))
-                , benchIOSink
-                      value
-                      "and"
-                      (\s -> S.fold FL.and (S.map (<= (value + 1)) s))
-                , benchIOSink
-                      value
-                      "or"
-                      (\s -> S.fold FL.or (S.map (> (value + 1)) s))
-                ]
-          ]
-    ]
-
 o_1_space_serial_foldMultiStream :: Int -> [Benchmark]
 o_1_space_serial_foldMultiStream value =
     [ bgroup
@@ -1855,45 +1762,6 @@ o_1_space_serial_foldMultiStream value =
                 , benchIOSink value "isPrefixOf" isPrefixOf
                 , benchIOSink value "isSubsequenceOf" isSubsequenceOf
                 , benchIOSink value "stripPrefix" stripPrefix
-                ]
-          ]
-    ]
-
-o_1_space_serial_foldsTransforms :: Int -> [Benchmark]
-o_1_space_serial_foldsTransforms value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "folds-transforms"
-                [ benchIOSink value "drain" (S.fold FL.drain)
-                , benchIOSink value "lmap" (S.fold (IFL.lmap (+ 1) FL.drain))
-                , benchIOSink
-                      value
-                      "pipe-mapM"
-                      (S.fold
-                           (IFL.transform
-                                (Pipe.mapM (\x -> return $ x + 1))
-                                FL.drain))
-                ]
-          ]
-    ]
-
-o_1_space_serial_foldsCompositions :: Int -> [Benchmark]
-o_1_space_serial_foldsCompositions value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "folds-compositions" -- Applicative
-                [ benchIOSink
-                      value
-                      "all,any"
-                      (S.fold
-                           ((,) <$> FL.all (<= (value + 1)) <*>
-                            FL.any (> (value + 1))))
-                , benchIOSink
-                      value
-                      "sum,length"
-                      (S.fold ((,) <$> FL.sum <*> FL.length))
                 ]
           ]
     ]
@@ -2389,13 +2257,6 @@ o_n_heap_serial_foldl value =
                       value
                       "foldlM'/build/Identity"
                       foldlM'Build
-                , benchIOSink value "toStream" (S.fold IP.toStream)
-                , benchIOSink value "toStreamRev" (S.fold IP.toStreamRev)
-                , benchIOSink value "toList" (S.fold FL.toList)
-                , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
-          -- Converting the stream to an array
-                , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
-                , benchIOSink value "writeN" (S.fold (A.writeN value))
           -- Reversing/sorting a stream
                 , benchIOSink value "reverse" (reverse 1)
                 , benchIOSink value "reverse'" (reverse' 1)

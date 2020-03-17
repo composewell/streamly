@@ -7,6 +7,7 @@
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
+import Streamly.Benchmark.Data.Fold
 
 import Gauge
 

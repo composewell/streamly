@@ -137,6 +137,7 @@ library lib-prelude
     hs-source-dirs:    lib, .
     exposed-modules:
                        Streamly.Benchmark.Prelude
+                     , Streamly.Benchmark.Data.Fold
     other-modules:     Streamly.Benchmark.Common
                      , NestedOps
                      , NestedUnfoldOps

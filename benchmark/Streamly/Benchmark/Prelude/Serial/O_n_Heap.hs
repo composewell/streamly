@@ -7,6 +7,7 @@
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
+import Streamly.Benchmark.Data.Fold
 
 import Gauge
 
@@ -27,4 +28,5 @@ main = do
         concat
             [ o_n_heap_serial_foldl size
             , o_n_heap_serial_buffering size
+            , o_n_heap_serial_folds size
             ]
