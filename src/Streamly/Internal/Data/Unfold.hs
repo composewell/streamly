@@ -139,6 +139,7 @@ import GHC.Types (SPEC(..))
 import Prelude
        hiding (concat, map, mapM, takeWhile, take, filter, const, zipWith)
 
+import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Stream.StreamD.Type (Stream(..), Step(..))
 #if __GLASGOW_HASKELL__ < 800
 import Streamly.Internal.Data.Stream.StreamD.Type (pattern Stream)
@@ -621,6 +622,7 @@ teeZipWith f unf1 unf2 = lmap (\x -> (x,x)) $ zipWith f unf1 unf2
 -- Nested
 -------------------------------------------------------------------------------
 
+{-# ANN type ConcatState Fuse #-}
 data ConcatState s1 s2 = ConcatOuter s1 | ConcatInner s1 s2
 
 -- | Apply the second unfold to each output element of the first unfold and
