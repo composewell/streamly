@@ -23,6 +23,7 @@ module Streamly.Internal.Data.Parse
     -- * Parsers
     , any
     , all
+    , sum
 
     , takeWhile
     , takeExact
@@ -34,12 +35,13 @@ module Streamly.Internal.Data.Parse
 
     , finishBy
     , zipWith
+    , fromFold
     )
 where
 
 import Control.Exception (assert)
 import Prelude
-       hiding (any, all, takeWhile, zipWith)
+       hiding (any, all, sum, takeWhile, zipWith)
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Parse.Types (Parse(..), Step(..))
@@ -85,6 +87,23 @@ all predicate = Parse step initial (\x -> return $ Right (0,x))
             then Keep 0 True
             else Halt False
         else Halt False
+
+{-# INLINE sum #-}
+sum :: (Monad m, Num a) => Parse m a a
+sum = Parse (\s a -> return $ Keep 0 (s + a))   -- step
+            (return 0)                          -- initial
+            (\x -> return $ Right (0,x))        -- extract
+
+{-# INLINE fromFold #-}
+fromFold :: Monad m => Fold m a b -> Parse m a b
+fromFold (Fold fstep finitial fextract) = Parse step initial extract
+    where
+
+    initial = finitial
+    step s a = Keep 0 <$> fstep s a
+    extract s = do
+        r <- fextract s
+        return $ Right (0,r)
 
 -------------------------------------------------------------------------------
 -- Taking elements
