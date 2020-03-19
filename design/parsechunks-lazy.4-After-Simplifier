@@ -1,0 +1,74 @@
+
+==================== [4] After Simplifier ====================
+  
+-- RHS size: {terms: 115, types: 165, coercions: 0, joins: 0/0}
+step_s820
+  = \ eta_a450 eta1_a451 eta_B1 ->
+      case eta_a450 of { ParPair ds2_a456 ds3_a457 ->
+      case ds2_a456 of {
+        Left ipv_a45b -> case fail_s81R void# of wild_00 { };
+        Right ds4_a45e ->
+          case ds4_a45e of {
+            ParStream bufL_a45i sL_a45j ->
+              case ds3_a457 of {
+                Left ipv_a45n -> case fail_s81R void# of wild_00 { };
+                Right ds5_a45q ->
+                  case ds5_a45q of {
+                    ParStream bufR_a45u sR_a45v ->
+                      (# eta_B1,
+                         Keep
+                           lvl_s81Y
+                           (ParPair
+                              (case sL_a45j of {
+                                 False -> Left False;
+                                 True ->
+                                   case leWord8 eta1_a451 value_s81u of {
+                                     False -> Left False;
+                                     True ->
+                                       Right
+                                         (ParStream
+                                            (build
+                                               (\ @ b1_a45X c1_a45Y nil_a45Z ->
+                                                  case ltInt lvl_s81T lvl_s81x of {
+                                                    False -> nil_a45Z;
+                                                    True ->
+                                                      foldr
+                                                        (takeFB c1_a45Y nil_a45Z)
+                                                        (flipSeqTake nil_a45Z)
+                                                        (: eta1_a451 bufL_a45i)
+                                                        lvl_s81x
+                                                  }))
+                                            True)
+                                   }
+                               })
+                              (case sR_a45v of {
+                                 False ->
+                                   case gtWord8 eta1_a451 value_s81u of {
+                                     False ->
+                                       Right
+                                         (ParStream
+                                            (build
+                                               (\ @ b1_a46M c1_a46N nil_a46O ->
+                                                  case ltInt lvl_s81W lvl_s81B of {
+                                                    False -> nil_a46O;
+                                                    True ->
+                                                      foldr
+                                                        (takeFB c1_a46N nil_a46O)
+                                                        (flipSeqTake nil_a46O)
+                                                        (: eta1_a451 bufR_a45u)
+                                                        lvl_s81B
+                                                  }))
+                                            False);
+                                     True -> Left True
+                                   };
+                                 True -> Left True
+                               })) #);
+                    ParBuf ipv_a47j ipv1_a47k ipv2_a47l ->
+                      case fail_s81R void# of wild_00 { }
+                  }
+              };
+            ParBuf ipv_a47o ipv1_a47p ipv2_a47q ->
+              case fail_s81R void# of wild_00 { }
+          }
+      }
+      }

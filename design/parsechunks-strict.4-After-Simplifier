@@ -1,0 +1,78 @@
+
+==================== [4] After Simplifier ====================
+  
+-- RHS size: {terms: 125, types: 185, coercions: 0, joins: 1/1}
+step_s82a
+  = \ eta_a452 eta1_a453 eta_B1 ->
+      case eta_a452 of { ParPair ds2_a458 ds3_a459 ->
+      case ds2_a458 of {
+        Left ipv_a45d -> case fail_s821 void# of wild_00 { };
+        Right ds4_a45g ->
+          case ds4_a45g of {
+            ParStream bufL_a45k sL_a45l ->
+              case ds3_a459 of {
+                Left ipv_a45p -> case fail_s821 void# of wild_00 { };
+                Right ds5_a45s ->
+                  case ds5_a45s of {
+                    ParStream bufR_a45w sR_a45x ->
+                      (# eta_B1,
+                         Keep
+                           lvl_s828
+                           (join {
+                              $j_s8hP dt_X43y
+                                = case sR_a45x of {
+                                    False ->
+                                      case gtWord8 eta1_a453 value_s81E of {
+                                        False ->
+                                          ParPair
+                                            dt_X43y
+                                            (Right
+                                               (ParStream
+                                                  (build
+                                                     (\ @ b1_a46O c1_a46P nil_a46Q ->
+                                                        case ltInt lvl_s826 lvl_s81L of {
+                                                          False -> nil_a46Q;
+                                                          True ->
+                                                            foldr
+                                                              (takeFB c1_a46P nil_a46Q)
+                                                              (flipSeqTake nil_a46Q)
+                                                              (: eta1_a453 bufR_a45w)
+                                                              lvl_s81L
+                                                        }))
+                                                  False));
+                                        True -> ParPair dt_X43y (Left True)
+                                      };
+                                    True -> ParPair dt_X43y (Left True)
+                                  } } in
+                            case sL_a45l of {
+                              False -> jump $j_s8hP (Left False);
+                              True ->
+                                case leWord8 eta1_a453 value_s81E of {
+                                  False -> jump $j_s8hP (Left False);
+                                  True ->
+                                    jump $j_s8hP
+                                      (Right
+                                         (ParStream
+                                            (build
+                                               (\ @ b1_a45Z c1_a460 nil_a461 ->
+                                                  case ltInt lvl_s823 lvl_s81H of {
+                                                    False -> nil_a461;
+                                                    True ->
+                                                      foldr
+                                                        (takeFB c1_a460 nil_a461)
+                                                        (flipSeqTake nil_a461)
+                                                        (: eta1_a453 bufL_a45k)
+                                                        lvl_s81H
+                                                  }))
+                                            True))
+                                }
+                            }) #);
+                    ParBuf ipv_a47l ipv1_a47m ipv2_a47n ->
+                      case fail_s821 void# of wild_00 { }
+                  }
+              };
+            ParBuf ipv_a47q ipv1_a47r ipv2_a47s ->
+              case fail_s821 void# of wild_00 { }
+          }
+      }
+      }

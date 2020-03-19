@@ -118,6 +118,39 @@ possible. In most cases it is not necessary, but in some cases it may affect
 fusion and make a difference of 10x performance or more.  For example, using
 non-strict fields can increase the code size for internal join points and
 functions created during transformations, which can affect the inlining of
-these code blocks which in turn can affect stream fusion. 
+these code blocks which in turn can affect stream fusion.
 
 See https://gitlab.haskell.org/ghc/ghc/issues/17075 .
+
+Consider this definition for zipWith parse combinator:
+
+```
+{-# ANN type ParOne Fuse #-}
+data ParOne s a = ParStream [a] s | ParBuf [a] s [a]
+
+-- Note: strictness annotation is important for fusing the constructors
+{-# ANN type ParState Fuse #-}
+data ParState sL sR a =
+    ParPair !(Either sL (ParOne sL a)) !(Either sR (ParOne sR a))
+```
+
+And this code:
+
+```
+main = do
+    name <- fmap head getArgs
+    inh <- openFile name ReadMode
+
+    let value = 255
+    S.parse (PR.zipWith (,) (PR.all (<= value)) (PR.any (> value)))
+            (S.unfold FH.read inh)
+```
+
+Without strictness the ParPair constructor is not moved by case of case
+transformations and no contification of the code occurs because GHC
+stores thunks returning Either inside ParPair. As a result the code does
+not fuse. Whereas with strictness annotation a join point gets created
+and the code fuses well.
+
+See `parsechunks-lazy.*` and `parsechunks-strict.*` for how code
+looks after initial optimization of the step function of zipWith:

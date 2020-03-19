@@ -1,0 +1,129 @@
+
+==================== [3] After Float out(FOS {Lam = Just 0,
+                         Consts = True,
+                         OverSatApps = False}) ====================
+  
+-- RHS size: {terms: 225, types: 365, coercions: 13, joins: 0/4}
+step_s82a
+  = \ eta_a452 eta1_a453 eta_B1 ->
+      ((case eta_a452 of { ParPair ds2_a458 ds3_a459 ->
+        case ds2_a458 of {
+          Left ipv_a45d -> fail_s821 void#;
+          Right ds4_a45g ->
+            case ds4_a45g of {
+              ParStream bufL_a45k sL_a45l ->
+                case ds3_a459 of {
+                  Left ipv_a45p -> fail_s821 void#;
+                  Right ds5_a45s ->
+                    case ds5_a45s of {
+                      ParStream bufR_a45w sR_a45x ->
+                        (\ s_X5qF ->
+                           case case stepL_s81K sL_a45l eta1_a453 s_X5qF of
+                                { (# ipv_X5qL, ipv1_X5qN #) ->
+                                let { buf1_s7X7 = : eta1_a453 bufL_a45k } in
+                                (# ipv_X5qL,
+                                   case ipv1_X5qN of {
+                                     Hold s2_a45H -> Right (ParStream buf1_s7X7 s2_a45H);
+                                     Keep n_a45N s2_a45O ->
+                                       assert
+                                         (leInt n_a45N (foldr lengthFB idLength buf1_s7X7 lvl_s822))
+                                         (Right
+                                            (ParStream
+                                               (build
+                                                  (\ @ b1_a45Z c1_a460 nil_a461 ->
+                                                     case ltInt lvl_s823 n_a45N of {
+                                                       False -> nil_a461;
+                                                       True ->
+                                                         foldr
+                                                           (takeFB c1_a460 nil_a461)
+                                                           (flipSeqTake nil_a461)
+                                                           buf1_s7X7
+                                                           n_a45N
+                                                     }))
+                                               s2_a45O));
+                                     Back n_a46f s2_a46g ->
+                                       let {
+                                         ds6_s7X6
+                                           = case n_a46f of wild8_a46i { I# x1_a46k ->
+                                             case <=# x1_a46k 0# of {
+                                               __DEFAULT -> splitAt_splitAt' n_a46f buf1_s7X7;
+                                               1# -> ([], buf1_s7X7)
+                                             }
+                                             } } in
+                                       assert
+                                         (leInt n_a46f (foldr lengthFB idLength buf1_s7X7 lvl_s824))
+                                         (Right
+                                            (ParBuf
+                                               (case ds6_s7X6 of { (src0_a46r, buf2_a46s) ->
+                                                buf2_a46s
+                                                })
+                                               s2_a46g
+                                               (case ds6_s7X6 of { (src0_a46x, buf2_a46y) ->
+                                                reverse1 src0_a46x []
+                                                })));
+                                     Halt s2_a46B -> Left s2_a46B
+                                   } #)
+                                }
+                           of
+                           { (# ipv_X5qL, ipv1_X5qN #) ->
+                           case case stepR_s81Q sR_a45x eta1_a453 ipv_X5qL of
+                                { (# ipv_X5qR, ipv1_X5qT #) ->
+                                let { buf1_s7Xb = : eta1_a453 bufR_a45w } in
+                                (# ipv_X5qR,
+                                   case ipv1_X5qT of {
+                                     Hold s2_a46I -> Right (ParStream buf1_s7Xb s2_a46I);
+                                     Keep n_a46L s2_a46M ->
+                                       assert
+                                         (leInt n_a46L (foldr lengthFB idLength buf1_s7Xb lvl_s825))
+                                         (Right
+                                            (ParStream
+                                               (build
+                                                  (\ @ b1_a46O c1_a46P nil_a46Q ->
+                                                     case ltInt lvl_s826 n_a46L of {
+                                                       False -> nil_a46Q;
+                                                       True ->
+                                                         foldr
+                                                           (takeFB c1_a46P nil_a46Q)
+                                                           (flipSeqTake nil_a46Q)
+                                                           buf1_s7Xb
+                                                           n_a46L
+                                                     }))
+                                               s2_a46M));
+                                     Back n_a46Y s2_a46Z ->
+                                       let {
+                                         ds6_s7Xa
+                                           = case n_a46Y of wild8_a471 { I# x1_a473 ->
+                                             case <=# x1_a473 0# of {
+                                               __DEFAULT -> splitAt_splitAt' n_a46Y buf1_s7Xb;
+                                               1# -> ([], buf1_s7Xb)
+                                             }
+                                             } } in
+                                       assert
+                                         (leInt n_a46Y (foldr lengthFB idLength buf1_s7Xb lvl_s827))
+                                         (Right
+                                            (ParBuf
+                                               (case ds6_s7Xa of { (src0_a478, buf2_a479) ->
+                                                buf2_a479
+                                                })
+                                               s2_a46Z
+                                               (case ds6_s7Xa of { (src0_a47d, buf2_a47e) ->
+                                                reverse1 src0_a47d []
+                                                })));
+                                     Halt s2_a47h -> Left s2_a47h
+                                   } #)
+                                }
+                           of
+                           { (# ipv_X5qR, ipv1_X5qT #) ->
+                           (# ipv_X5qR, Keep lvl_s828 ($WParPair ipv1_X5qN ipv1_X5qT) #)
+                           }
+                           })
+                        `cast` <Co:7>;
+                      ParBuf ipv_a47l ipv1_a47m ipv2_a47n -> fail_s821 void#
+                    }
+                };
+              ParBuf ipv_a47q ipv1_a47r ipv2_a47s -> fail_s821 void#
+            }
+        }
+        })
+       `cast` <Co:6>)
+        eta_B1
