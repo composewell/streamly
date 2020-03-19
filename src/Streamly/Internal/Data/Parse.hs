@@ -264,13 +264,11 @@ finishBy = undefined
 -------------------------------------------------------------------------------
 --
 
-{-# ANN type ParOne Fuse #-}
-data ParOne s a = ParStream [a] s | ParBuf [a] s [a]
-
+-- | State of the pair of parsers in a zip composition
 -- Note: strictness annotation is important for fusing the constructors
 {-# ANN type ParState Fuse #-}
 data ParState sL sR a =
-    ParPair !(Either sL (ParOne sL a)) !(Either sR (ParOne sR a))
+    ParPair !([a], Either sL sL, [a], [a]) !([a], Either sR sR, [a], [a])
 
 -- XXX we can write a much simpler zipWith if the types do not have Back or
 -- Hold. Perhaps we can write a simpler partial function assuming that and
@@ -298,31 +296,46 @@ zipWith zf (Parse stepL initialL extractL) (Parse stepR initialR extractR) =
     initial = do
         sL <- initialL
         sR <- initialR
-        return $ ParPair (Right (ParStream [] sL))
-                         (Right (ParStream [] sR))
+        return $ ParPair ([], Right sL, [], []) ([], Right sR, [], [])
 
     {-# INLINE_LATE step #-}
-    step (ParPair (Right (ParStream bufL sL))
-                  (Right (ParStream bufR sR))) x = do
-        l <- useStream bufL stepL sL x
-        r <- useStream bufR stepR sR x
+    step (ParPair (bufL, Right sL, inpL1, inpL2)
+                  (bufR, Right sR, inpR1, inpR2)) x = do
+        l <- useStream bufL inpL1 inpL2 stepL sL x
+        r <- useStream bufR inpR1 inpR2 stepR sR x
         return $ Keep 0 $ ParPair l r
 
+    step (ParPair (bufL, Right sL, inpL1, inpL2) r@(_, Left _, _, _)) x = do
+        l <- useStream bufL inpL1 inpL2 stepL sL x
+        return $ Keep 0 $ ParPair l r
+
+    step (ParPair l@(_, Left _, _, _) (bufR, Right sR, inpR1, inpR2)) x = do
+        r <- useStream bufR inpR1 inpR2 stepR sR x
+        return $ Keep 0 $ ParPair l r
+
+    step s _ = return $ Keep 0 s
+
+    -- consume one input item and return the next state of the fold
     {-# INLINE useStream #-}
-    useStream buf stp st x = do
+    useStream buf inp1 inp2 stp st y = do
+        let (x, inp11, inp21) =
+                case inp1 of
+                    [] -> (y, [], [])
+                    z : [] -> (z, reverse (x:inp2), [])
+                    z : zs -> (z, zs, x:inp2)
         r <- stp st x
         let buf1 = x:buf
         return $ case r of
-            Hold s -> Right $ ParStream buf1 s
+            Hold s -> (buf1, Right s, inp11, inp21)
             Keep n s ->
                  assert (n <= length buf1)
-                        (Right $ (ParStream (Prelude.take n buf1) s))
+                        (Prelude.take n buf1, Right s, inp11, inp21)
             Back n s ->
                 let (src0, buf2) = splitAt n buf1
                     src  = Prelude.reverse src0
                  in assert (n <= length buf1)
-                           (Right (ParBuf buf2 s src))
-            Halt s -> Left s
+                           (buf2, Right s, src ++ inp11, inp21)
+            Halt s -> (buf1, Left s, inp11, inp21)
 
     {-# INLINE extractBoth #-}
     extractBoth sL sR = do
@@ -338,7 +351,8 @@ zipWith zf (Parse stepL initialL extractL) (Parse stepR initialR extractR) =
     {-# INLINE_LATE extract #-}
     extract st =
         let (s1, s2) = case st of
-                ParPair (Right (ParStream _ sL))
-                        (Right (ParStream _ sR)) -> (sL, sR)
-                ParPair (Left sL) (Left sR) -> (sL, sR)
+                ParPair (_, Right sL, _, _) (_, Right sR, _, _) -> (sL, sR)
+                ParPair (_, Right sL, _, _) (_, Left sR, _, _) -> (sL, sR)
+                ParPair (_, Left sL, _, _) (_, Right sR, _, _) -> (sL, sR)
+                ParPair (_, Left sL, _, _) (_, Left sR, _, _) -> (sL, sR)
         in extractBoth s1 s2
