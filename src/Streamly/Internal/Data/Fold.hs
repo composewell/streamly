@@ -211,6 +211,7 @@ where
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
+import Data.Int (Int64)
 import Data.Map.Strict (Map)
 
 import Prelude
@@ -556,22 +557,18 @@ stdDev = sqrt variance
 --
 -- @since 0.7.0
 {-# INLINABLE rollingHashWithSalt #-}
-rollingHashWithSalt :: (Monad m, Enum a) => Int -> Fold m a Int
+rollingHashWithSalt :: (Monad m, Enum a) => Int64 -> Fold m a Int64
 rollingHashWithSalt salt = Fold step initial extract
     where
-    k = 2891336453
+    k = 2891336453 :: Int64
     initial = return salt
-    step cksum a = return $ cksum * k + fromEnum a
+    step cksum a = return $ cksum * k + fromIntegral (fromEnum a)
     extract = return
 
 -- | A default salt used in the implementation of 'rollingHash'.
 {-# INLINE defaultSalt #-}
-defaultSalt :: Int
-#if WORD_SIZE_IN_BITS == 64
-defaultSalt = 0xdc36d1615b7400a4
-#else
-defaultSalt = 0x087fc72c
-#endif
+defaultSalt :: Int64
+defaultSalt = -2578643520546668380
 
 -- | Compute an 'Int' sized polynomial rolling hash of a stream.
 --
@@ -579,7 +576,7 @@ defaultSalt = 0x087fc72c
 --
 -- @since 0.7.0
 {-# INLINABLE rollingHash #-}
-rollingHash :: (Monad m, Enum a) => Fold m a Int
+rollingHash :: (Monad m, Enum a) => Fold m a Int64
 rollingHash = rollingHashWithSalt defaultSalt
 
 -- | Compute an 'Int' sized polynomial rolling hash of the first n elements of
@@ -587,7 +584,7 @@ rollingHash = rollingHashWithSalt defaultSalt
 --
 -- > rollingHashFirstN = ltake n rollingHash
 {-# INLINABLE rollingHashFirstN #-}
-rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int
+rollingHashFirstN :: (Monad m, Enum a) => Int -> Fold m a Int64
 rollingHashFirstN n = ltake n rollingHash
 
 ------------------------------------------------------------------------------

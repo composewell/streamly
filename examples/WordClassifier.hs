@@ -27,9 +27,9 @@ import qualified Streamly.Prelude as S
 import           System.Environment (getArgs)
 
 instance (Enum a, Storable a) => Hashable (A.Array a) where
-    hash arr = runIdentity $ IUF.fold A.read IFL.rollingHash arr
-    hashWithSalt salt arr = runIdentity $
-        IUF.fold A.read (IFL.rollingHashWithSalt salt) arr
+    hash arr = fromIntegral $ runIdentity $ IUF.fold A.read IFL.rollingHash arr
+    hashWithSalt salt arr = fromIntegral $ runIdentity $
+        IUF.fold A.read (IFL.rollingHashWithSalt $ fromIntegral salt) arr
 
 {-# INLINE toLower #-}
 toLower :: Char -> Char
