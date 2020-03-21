@@ -51,6 +51,8 @@ module Streamly.Internal.Data.Parse.Types
     )
 where
 
+import Fusion.Plugin.Types (Fuse(..))
+
 -- | The return type of a fold step. A fold is driven by a fold driver one step
 -- at a time, at any time the driver may @extract@ and examine the result of
 -- the fold. The fold may backtrack at any point, therefore, the driver holds
@@ -64,6 +66,7 @@ where
 --
 -- /Internal/
 --
+{-# ANN type Step Fuse #-}
 data Step s =
       Hold s     -- ^ Hold the current input in the buffer, the input is
                  -- accepted tentatively, but the fold may later fail with the
@@ -116,6 +119,7 @@ instance Monad m => Functor (Parse m a) where
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
 
+{-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr =
     SeqParseL sl | SeqParseR f sr | SeqParseLErr String
 
