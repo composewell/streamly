@@ -22,7 +22,12 @@ module Streamly.FileSystem.IOVec
     )
 where
 
-import Data.Word (Word8, Word64)
+import Data.Word (Word8)
+#if defined(i386_HOST_ARCH)
+import Data.Word (Word32)
+#else
+import Data.Word (Word64)
+#endif
 import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr)
 import System.Posix.Types (CSsize(..))
@@ -36,7 +41,11 @@ import Foreign.Storable (Storable(..))
 
 data IOVec = IOVec
   { iovBase :: {-# UNPACK #-} !(Ptr Word8)
+#if defined(i386_HOST_ARCH)
+  , iovLen  :: {-# UNPACK #-} !Word32
+#else
   , iovLen  :: {-# UNPACK #-} !Word64
+#endif
   } deriving (Eq, Show)
 
 #if !defined(mingw32_HOST_OS)
@@ -56,7 +65,7 @@ instance Storable IOVec where
       return $ IOVec base len
   poke ptr vec = do
       let base = iovBase vec
-          len  :: #{type size_t} = iovLen  vec
+          len  :: #{type size_t} = iovLen vec
       #{poke struct iovec, iov_base} ptr base
       #{poke struct iovec, iov_len}  ptr len
 #endif
