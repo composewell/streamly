@@ -89,6 +89,8 @@ matrix:
 
   - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
+    os: linux
+    arch: amd64
 
   # GHC-8.2.2 hogs memory leading to out-of-memory when compiling benchmarks
   #- env: BUILD=cabal-v2 GHCVER=8.2.2 GHC_OPTIONS="" DISABLE_BENCH=y
@@ -96,9 +98,20 @@ matrix:
 
   - env: BUILD=cabal-v2 GHCVER=8.0.2 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-8.0.2,libsdl1.2-dev], sources: [hvr-ghc]}}
+    os: linux
+    arch: amd64
 
   - env: BUILD=cabal-v2 GHCVER=7.10.3 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flags examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,ghc-7.10.3,libsdl1.2-dev], sources: [hvr-ghc]}}
+    os: linux
+    arch: amd64
+
+
+  - env: BUILD=cabal-v2 GHCVER=8.4.4 GHC_OPTIONS="" CABAL_BUILD_OPTIONS="--flag debug"
+    addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
+    os: linux
+    arch: x86
+
 
   # You can specify build flags like this:
   #- env: BUILD=cabal-v2 CABAL_BUILD_OPTIONS="--flags=dev"
@@ -135,6 +148,13 @@ matrix:
 
   - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
     addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+    os: linux
+    arch: amd64
+
+  - env: BUILD=stack RESOLVER=lts-14.25 GHCVER=8.6 STACK_BUILD_OPTIONS="--flag streamly:examples-sdl"
+    addons: {apt: {packages: [cabal-install-2.4,libsdl1.2-dev], sources: [hvr-ghc]}}
+    os: linux
+    arch: x86
 
   #- env: BUILD=stack RESOLVER=lts-12 GHCVER=8.4
   #  addons: {apt: {packages: [cabal-install-2.4], sources: [hvr-ghc]}}
