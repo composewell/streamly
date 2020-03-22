@@ -48,6 +48,7 @@ import Streamly.Internal.Data.Strict
 -- XXX any/all should be terminating folds when we have a terminating fold
 -- type.
 --
+-- |
 -- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
 -- > Right True
 --
@@ -64,7 +65,8 @@ any predicate = Parser step initial (return . Right)
             then Stop 0 True
             else Yield 0 False
 
--- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
+-- |
+-- >>> S.parse (PR.all (== 0)) $ S.fromList [1,0,1]
 -- > Right False
 --
 {-# INLINABLE all #-}
@@ -146,7 +148,9 @@ takeAtLeast n (Fold fstep finitial fextract) = Parser step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ Skip 0 s1
+        if i1 < n
+        then return $ Skip 0 s1
+        else return $ Yield 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
