@@ -5,8 +5,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Parse
--- Copyright   : (c) 2019 Composewell Technologies
+-- Module      : Streamly.Internal.Data.Parser
+-- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
@@ -14,9 +14,9 @@
 --
 -- Parsers.
 
-module Streamly.Internal.Data.Parse
+module Streamly.Internal.Data.Parser
     (
-      Parse (..)
+      Parser (..)
 
     -- * Parsers
     , any
@@ -36,7 +36,7 @@ where
 
 import Prelude
        hiding (any, all, takeWhile)
-import Streamly.Internal.Data.Parse.Types (Parse(..), Step(..))
+import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import Streamly.Internal.Data.Strict
@@ -52,33 +52,33 @@ import Streamly.Internal.Data.Strict
 -- > Right True
 --
 {-# INLINABLE any #-}
-any :: Monad m => (a -> Bool) -> Parse m a Bool
-any predicate = Parse step initial (return . Right)
+any :: Monad m => (a -> Bool) -> Parser m a Bool
+any predicate = Parser step initial (return . Right)
     where
     initial = return False
     step s a = return $
         if s
-        then Halt 0 True
+        then Stop 0 True
         else
             if predicate a
-            then Halt 0 True
-            else Keep 0 False
+            then Stop 0 True
+            else Yield 0 False
 
 -- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
 -- > Right False
 --
 {-# INLINABLE all #-}
-all :: Monad m => (a -> Bool) -> Parse m a Bool
-all predicate = Parse step initial (return . Right)
+all :: Monad m => (a -> Bool) -> Parser m a Bool
+all predicate = Parser step initial (return . Right)
     where
     initial = return True
     step s a = return $
         if s
         then
             if predicate a
-            then Keep 0 True
-            else Halt 0 False
-        else Halt 0 False
+            then Yield 0 True
+            else Stop 0 False
+        else Stop 0 False
 
 -------------------------------------------------------------------------------
 -- Taking elements
@@ -95,8 +95,8 @@ all predicate = Parse step initial (return . Right)
 -- /Internal/
 --
 {-# INLINABLE takeExact #-}
-takeExact :: Monad m => Int -> Fold m a b -> Parse m a b
-takeExact n (Fold fstep finitial fextract) = Parse step initial extract
+takeExact :: Monad m => Int -> Fold m a b -> Parser m a b
+takeExact n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
@@ -106,7 +106,7 @@ takeExact n (Fold fstep finitial fextract) = Parse step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ if i1 < n then Back 0 s1 else Halt 0 s1
+        return $ if i1 < n then Skip 0 s1 else Stop 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
@@ -135,8 +135,8 @@ takeExact n (Fold fstep finitial fextract) = Parse step initial extract
 -- /Internal/
 --
 {-# INLINABLE takeAtLeast #-}
-takeAtLeast :: Monad m => Int -> Fold m a b -> Parse m a b
-takeAtLeast n (Fold fstep finitial fextract) = Parse step initial extract
+takeAtLeast :: Monad m => Int -> Fold m a b -> Parser m a b
+takeAtLeast n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
@@ -146,7 +146,7 @@ takeAtLeast n (Fold fstep finitial fextract) = Parse step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ Back 0 s1
+        return $ Skip 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
@@ -172,17 +172,17 @@ takeAtLeast n (Fold fstep finitial fextract) = Parse step initial extract
 -- /Internal/
 --
 {-# INLINABLE takeWhile #-}
-takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parse m a b
+takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile predicate (Fold fstep finitial fextract) =
-    Parse step initial extract
+    Parser step initial extract
 
     where
 
     initial = finitial
     step s a = do
         if predicate a
-        then Keep 0 <$> fstep s a
-        else return $ Halt 1 s
+        then Yield 0 <$> fstep s a
+        else return $ Stop 1 s
     extract s = do
         b <- fextract s
         return $ Right b
@@ -202,17 +202,17 @@ takeWhile predicate (Fold fstep finitial fextract) =
 -- /Internal/
 --
 {-# INLINABLE endOn #-}
-endOn :: Monad m => (a -> Bool) -> Fold m a b -> Parse m a b
+endOn :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 endOn predicate (Fold fstep finitial fextract) =
-    Parse step initial extract
+    Parser step initial extract
 
     where
 
     initial = finitial
     step s a = do
         if not (predicate a)
-        then Keep 0 <$> fstep s a
-        else return $ Halt 0 s
+        then Yield 0 <$> fstep s a
+        else return $ Stop 0 s
     extract s = do
         b <- fextract s
         return $ Right b
@@ -228,7 +228,7 @@ endOn predicate (Fold fstep finitial fextract) =
 {-# INLINABLE endAfter #-}
 endAfter ::
     -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parse m a b
+    (a -> Bool) -> Fold m a b -> Parser m a b
 endAfter = undefined
 
 -- | Keep taking elements until the predicate succeeds. Return the succeeding
@@ -242,7 +242,7 @@ endAfter = undefined
 {-# INLINABLE endBefore #-}
 endBefore ::
     -- Monad m =>
-    (a -> Bool) -> Fold m a b -> Parse m a b
+    (a -> Bool) -> Fold m a b -> Parser m a b
 endBefore = undefined
 
 -- | Distribute the input to a parse and a fold until the parse succeeds or
@@ -250,5 +250,5 @@ endBefore = undefined
 --
 -- /Unimplemented/
 --
-finishBy :: Parse m a x -> Fold m a y -> Parse m a (x, y)
+finishBy :: Parser m a x -> Fold m a y -> Parser m a (x, y)
 finishBy = undefined

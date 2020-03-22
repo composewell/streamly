@@ -539,7 +539,7 @@ import qualified System.IO as IO
 
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
-import Streamly.Internal.Data.Parse.Types (Parse (..))
+import Streamly.Internal.Data.Parser.Types (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -1202,8 +1202,8 @@ runSink = fold . toFold
 -- /Internal/
 --
 {-# INLINE parse #-}
-parse :: Monad m => Parse m a b -> SerialT m a -> m (Either String b)
-parse (Parse step initial extract) = P.parselMx' step initial extract
+parse :: Monad m => Parser m a b -> SerialT m a -> m (Either String b)
+parse (Parser step initial extract) = P.parselMx' step initial extract
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -3129,7 +3129,7 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 {-# INLINE parseChunks #-}
 parseChunks
     :: (IsStream t, Monad m)
-    => Parse m a b
+    => Parser m a b
     -> t m a
     -> t m b
 parseChunks f m = D.fromStreamD $ D.parseChunks f (D.toStreamD m)

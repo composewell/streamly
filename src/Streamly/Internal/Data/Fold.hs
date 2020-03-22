@@ -228,7 +228,7 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
-import Streamly.Internal.Data.Parse.Types
+import Streamly.Internal.Data.Parser.Types
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
@@ -841,8 +841,8 @@ or = Fold (\x a -> return $ x || a) (return False) return
 -- /Internal/
 --
 {-# INLINE take #-}
-take :: Monad m => Int -> Fold m a b -> Parse m a b
-take n (Fold fstep finitial fextract) = Parse step initial extract
+take :: Monad m => Int -> Fold m a b -> Parser m a b
+take n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
@@ -853,8 +853,8 @@ take n (Fold fstep finitial fextract) = Parse step initial extract
         let i1 = i + 1
             s1 = Tuple' i1 res
         if i1 < n
-        then return $ Keep 0 s1
-        else return $ Halt 0 s1
+        then return $ Yield 0 s1
+        else return $ Stop 0 s1
 
     extract (Tuple' _ r) = fmap Right (fextract r)
 
