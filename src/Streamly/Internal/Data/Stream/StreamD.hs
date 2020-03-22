@@ -974,7 +974,7 @@ parselMx'
     :: Monad m
     => (s -> a -> m (PR.Step s))
     -> m s
-    -> (s -> m (Either String (Int, b)))
+    -> (s -> m (Either String b))
     -> Stream m a
     -> m (Either String b)
 parselMx' pstep initial extract (Stream step state) = do
@@ -996,15 +996,15 @@ parselMx' pstep initial extract (Stream step state) = do
                     PR.Keep n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         go SPEC s (Prelude.take n (x:buf)) pst1
+                    -- PR.Back 0 pst1 -> go SPEC s (x:buf) pst1
                     PR.Back n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         gobuf SPEC s buf1 src pst1
-                    PR.Hold pst1 -> go SPEC s (x:buf) pst1
-                    PR.Halt pst1 -> fmap (fmap snd) (extract pst1)
+                    PR.Halt _ pst1 -> extract pst1
             Skip s -> go SPEC s buf pst
-            Stop   -> fmap (fmap snd) (extract pst)
+            Stop   -> extract pst
 
     gobuf !_ s buf [] !pst = go SPEC s buf pst
     gobuf !_ s buf (x:xs) !pst = do
@@ -1014,13 +1014,13 @@ parselMx' pstep initial extract (Stream step state) = do
             PR.Keep n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 gobuf SPEC s (Prelude.take n (x:buf)) xs pst1
+            -- PR.Back 0 pst1 -> gobuf SPEC s (x:buf) xs pst1
             PR.Back n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s buf1 src pst1
-            PR.Hold pst1 -> gobuf SPEC s (x:buf) xs pst1
-            PR.Halt pst1 -> fmap (fmap snd) (extract pst1)
+            PR.Halt _ pst1 -> extract pst1
 
 ------------------------------------------------------------------------------
 -- Repeated parsing
@@ -1069,19 +1069,19 @@ parseChunks (Parse pstep initial extract) (Stream step state) =
                         assert (n <= length (x:buf)) (return ())
                         let buf1 = Prelude.take n (x:buf)
                         return $ Skip $ ParseChunksStream s buf1 pst1
+                    -- PR.Back 0 pst1 ->
+                    --     return $ Skip $ ParseChunksStream s (x:buf) pst1
                     PR.Back n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         return $ Skip $ ParseChunksBuf src s buf1 pst1
-                    PR.Hold pst1 ->
-                        return $ Skip $ ParseChunksStream s (x:buf) pst1
-                    PR.Halt pst1 -> do
+                    -- XXX Halt 0 common case?
+                    PR.Halt n pst1 -> do
                         res <- extract pst1
                         case res of
                             Left err -> error err
-                            -- XXX (0,a) common case
-                            Right (n, a) -> do
+                            Right a -> do
                                 assert (n <= length (x:buf)) (return ())
                                 let src = Prelude.reverse (Prelude.take n (x:buf))
                                 return $ Skip $ ParseChunksYield a (ParseChunksInit src s)
@@ -1090,8 +1090,8 @@ parseChunks (Parse pstep initial extract) (Stream step state) =
                 res <- extract pst
                 case res of
                     Left err -> error err
-                    Right (n, a) -> do
-                        let src = Prelude.reverse (Prelude.take n (buf))
+                    Right a -> do
+                        let src = Prelude.reverse buf
                         return $ Skip $ ParseChunksYield a (ParseChunksInitLeftOver src)
 
     -- go back to stream processing mode
@@ -1107,19 +1107,18 @@ parseChunks (Parse pstep initial extract) (Stream step state) =
                 assert (n <= length (x:buf)) (return ())
                 let buf1 = Prelude.take n (x:buf)
                 return $ Skip $ ParseChunksBuf xs s buf1 pst1
+         -- PR.Back 0 pst1 -> return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
             PR.Back n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s buf1 pst1
-            PR.Hold pst1 ->
-                return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
-            PR.Halt pst1 -> do
+            -- XXX have 0 case
+            PR.Halt n pst1 -> do
                 res <- extract pst1
                 case res of
                     Left err -> error err
-                    -- XXX have (0,a) case
-                    Right (n, a) -> do
+                    Right a -> do
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
                         return $ Skip $ ParseChunksYield a (ParseChunksInit src s)

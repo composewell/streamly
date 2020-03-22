@@ -56,16 +56,20 @@ benchIOSink value name f =
 -- Parsers
 -------------------------------------------------------------------------------
 
+{-# INLINE any #-}
 any :: (Monad m, Ord a) => a -> SerialT m a -> m (Either String Bool)
 any value = IP.parse (PR.any (> value))
 
+{-# INLINE all #-}
 all :: (Monad m, Ord a) => a -> SerialT m a -> m (Either String Bool)
 all value = IP.parse (PR.all (<= value))
 
+{-# INLINE zipAllAny #-}
 zipAllAny :: (Monad m, Ord a)
     => a -> SerialT m a -> m (Either String (Bool, Bool))
 zipAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
 
+{-# INLINE take #-}
 take :: Monad m => Int -> SerialT m a -> m (Either String ())
 take value = IP.parse (FL.take value FL.drain)
 
@@ -80,7 +84,6 @@ o_1_space_serial_parse value =
     , benchIOSink value "(all,any)" $ zipAllAny value
     , benchIOSink value "take" $ take value
     ]
-
 
 -------------------------------------------------------------------------------
 -- Driver

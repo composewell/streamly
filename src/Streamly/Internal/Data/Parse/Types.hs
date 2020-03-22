@@ -68,10 +68,7 @@ import Fusion.Plugin.Types (Fuse(..))
 --
 {-# ANN type Step Fuse #-}
 data Step s =
-      Hold s     -- ^ Hold the current input in the buffer, the input is
-                 -- accepted tentatively, but the fold may later fail with the
-                 -- input remaining unused.
-    | Keep Int s -- ^ Keep @n@ most recent inputs, including the input of this
+      Keep Int s -- ^ Keep @n@ most recent inputs, including the input of this
                  -- step invocation, and discard the rest.  This indicates a
                  -- commit of an intermediate result of the fold. A fold cannot
                  -- fail beyond this commit point. If the fold terminates it
@@ -83,11 +80,10 @@ data Step s =
                  -- inputs from the requested point in the buffer. Note that
                  -- the driver cannot go back beyond the last commit point
                  -- created by 'Keep'.
-    | Halt s     -- ^ Halt because the result of the fold will not change after
-                 -- this point.  Once a fold halts, driving it further may
-                 -- produce undefined behavior. An @extract@ after the 'Halt'
-                 -- would return a count of unused elements which includes the
-                 -- element on which 'Halt' occurred.
+    | Halt Int s -- ^ Halt because the result of the fold will not change after
+                 -- this point.  Returns a count of unused elements which
+                 -- includes the element on which 'Halt' occurred.  Once a fold
+                 -- halts, driving it further may produce undefined behavior.
 
 -- Note: Instead of returning the unused count as part of extract, we can
 -- return it via Halt command. However, some folds may not ever halt, but they
@@ -104,17 +100,17 @@ data Step s =
 data Parse m a b =
     forall s. Parse (s -> a -> m (Step s))
                     (m s)
-                    (s -> m (Either String (Int, b)))
+                    (s -> m (Either String b))
 
 -- | Maps a function over the output of the fold.
 --
 instance Monad m => Functor (Parse m a) where
     {-# INLINE fmap #-}
-    fmap f (Parse step initial extract) = Parse step initial (fmap4 f extract)
+    fmap f (Parse step initial extract) = Parse step initial (fmap3 f extract)
 
         where
 
-        fmap4 g = fmap (fmap (fmap (fmap g)))
+        fmap3 g = fmap (fmap (fmap g))
 
     {-# INLINE (<$) #-}
     (<$) b = \_ -> pure b
@@ -130,9 +126,9 @@ data SeqParseState sl f sr =
 --
 instance Monad m => Applicative (Parse m a) where
     {-# INLINE pure #-}
-    pure b = Parse (\_ _ -> return $ Halt ())
+    pure b = Parse (\_ _ -> return $ Halt 0 ())
                    (return ())
-                   (\_ -> return $ Right (0, b))
+                   (\_ -> return $ Right b)
 
     {-# INLINE (<*>) #-}
     (Parse stepL initialL extractL) <*> (Parse stepR initialR extractR) =
@@ -148,26 +144,24 @@ instance Monad m => Applicative (Parse m a) where
             r <- stepL st a
             case r of
                 Keep n s -> return $ Keep n (SeqParseL s)
-                Hold s   -> return $ Hold (SeqParseL s)
                 Back n s -> return $ Back n (SeqParseL s)
-                Halt s   -> do
+                Halt n s -> do
                     res <- extractL s
                     case res of
-                        Left err -> return $ Halt (SeqParseLErr err)
-                        Right (n, f) -> Back n <$> (SeqParseR f <$> initialR)
+                        Left err -> return $ Halt n (SeqParseLErr err)
+                        Right f -> Back n <$> (SeqParseR f <$> initialR)
 
         step (SeqParseR f st) a = do
             r <- stepR st a
             return $ case r of
                 Keep n s -> Keep n (SeqParseR f s)
-                Hold s   -> Hold (SeqParseR f s)
                 Back n s -> Back n (SeqParseR f s)
-                Halt s   -> Halt (SeqParseR f s)
+                Halt n s -> Halt n (SeqParseR f s)
 
-        step s@(SeqParseLErr _) _ = return $ Halt s
+        step (SeqParseLErr _) _ = error "step called in SeqParseLErr"
 
         -- XXX bimap to add "<*>: Right parse failed" to the error message
-        extract (SeqParseR f s) = fmap (fmap (fmap f)) (extractR s)
+        extract (SeqParseR f s) = fmap (fmap f) (extractR s)
         extract (SeqParseL _) = return $ Left "<*>: Incomplete left parse"
         extract (SeqParseLErr err) =
             return $ Left $ "<*>: Left parse failed\n" ++ err
