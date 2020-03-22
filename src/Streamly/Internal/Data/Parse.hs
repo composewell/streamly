@@ -53,15 +53,15 @@ import Streamly.Internal.Data.Strict
 --
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Parse m a Bool
-any predicate = Parse step initial (\x -> return $ Right (0,x))
+any predicate = Parse step initial (return . Right)
     where
     initial = return False
     step s a = return $
         if s
-        then Halt True
+        then Halt 0 True
         else
             if predicate a
-            then Halt True
+            then Halt 0 True
             else Keep 0 False
 
 -- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
@@ -69,7 +69,7 @@ any predicate = Parse step initial (\x -> return $ Right (0,x))
 --
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parse m a Bool
-all predicate = Parse step initial (\x -> return $ Right (0,x))
+all predicate = Parse step initial (return . Right)
     where
     initial = return True
     step s a = return $
@@ -77,8 +77,8 @@ all predicate = Parse step initial (\x -> return $ Right (0,x))
         then
             if predicate a
             then Keep 0 True
-            else Halt False
-        else Halt False
+            else Halt 0 False
+        else Halt 0 False
 
 -------------------------------------------------------------------------------
 -- Taking elements
@@ -106,7 +106,7 @@ takeExact n (Fold fstep finitial fextract) = Parse step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ if i1 < n then Hold s1 else Halt s1
+        return $ if i1 < n then Back 0 s1 else Halt 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
@@ -118,7 +118,7 @@ takeExact n (Fold fstep finitial fextract) = Parse step initial extract
 
         f x =
             if n == i
-            then Right (0, x)
+            then Right x
             else Left err
 
 -- | Take at least @n@ input elements, but can collect more.
@@ -146,7 +146,7 @@ takeAtLeast n (Fold fstep finitial fextract) = Parse step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ Hold s1
+        return $ Back 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
@@ -158,7 +158,7 @@ takeAtLeast n (Fold fstep finitial fextract) = Parse step initial extract
 
         f x =
             if i >= n
-            then Right (0, x)
+            then Right x
             else Left err
 
 -- | Take until the predicate fails. Does not take the failing element.
@@ -182,10 +182,10 @@ takeWhile predicate (Fold fstep finitial fextract) =
     step s a = do
         if predicate a
         then Keep 0 <$> fstep s a
-        else return $ Halt s
+        else return $ Halt 1 s
     extract s = do
         b <- fextract s
-        return $ Right (1, b)
+        return $ Right b
 
 -- | Keep taking elements until the predicate succeeds. Drop the succeeding
 -- element.
@@ -212,10 +212,10 @@ endOn predicate (Fold fstep finitial fextract) =
     step s a = do
         if not (predicate a)
         then Keep 0 <$> fstep s a
-        else return $ Halt s
+        else return $ Halt 0 s
     extract s = do
         b <- fextract s
-        return $ Right (0, b)
+        return $ Right b
 
 -- | Keep taking elements until the predicate succeeds. Take the succeeding
 -- element as well.

@@ -164,7 +164,7 @@ parselMx'
     :: (IsStream t, Monad m)
     => (s -> a -> m (Step s))
     -> m s
-    -> (s -> m (Either String (Int, b)))
+    -> (s -> m (Either String b))
     -> t m a
     -> m (Either String b)
 parselMx' step initial extract m =
