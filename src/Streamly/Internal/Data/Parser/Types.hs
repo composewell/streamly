@@ -33,7 +33,7 @@
 -- 1. Buffer the input until explicitly asked to drop the input
 -- 2. Drop the input stream beyond a "point of no return" in the history
 -- because the input till that point has been consumed irrevocably.
--- 2. Go back in the buffered stream upto the point of no return.
+-- 3. Go back in the buffered stream upto the point of no return.
 --
 -- Based on application requirements it should be possible to design even a
 -- richer interface to manipulate the input stream/buffer. For example, we
@@ -106,7 +106,7 @@ data Parser m a b =
 
 -- | Maps a function over the output of the fold.
 --
-instance Monad m => Functor (Parser m a) where
+instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
     fmap f (Parser step initial extract) =
         Parser step initial (fmap3 f extract)
@@ -114,9 +114,6 @@ instance Monad m => Functor (Parser m a) where
         where
 
         fmap3 g = fmap (fmap (fmap g))
-
-    {-# INLINE (<$) #-}
-    (<$) b = \_ -> pure b
 
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr =
