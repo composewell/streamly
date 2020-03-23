@@ -80,14 +80,11 @@ simplify :: Fold2 m c a b -> c -> Fold m a b
 simplify (Fold2 step inject extract) c = Fold step (inject c) extract
 
 -- | Maps a function on the output of the fold (the type @b@).
-instance Applicative m => Functor (Fold m a) where
+instance Functor m => Functor (Fold m a) where
     {-# INLINE fmap #-}
     fmap f (Fold step start done) = Fold step start done'
         where
         done' x = fmap f $! done x
-
-    {-# INLINE (<$) #-}
-    (<$) b = \_ -> pure b
 
 -- | The fold resulting from '<*>' distributes its input to both the argument
 -- folds and combines their output using the supplied function.
@@ -101,12 +98,6 @@ instance Applicative m => Applicative (Fold m a) where
             begin = Tuple' <$> beginL <*> beginR
             done (Tuple' xL xR) = doneL xL <*> doneR xR
         in  Fold step begin done
-
-    {-# INLINE (<*) #-}
-    (<*) m = \_ -> m
-
-    {-# INLINE (*>) #-}
-    _ *> m = m
 
 -- | Combines the outputs of the folds (the type @b@) using their 'Semigroup'
 -- instances.
