@@ -1,6 +1,6 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Fold
--- Copyright   : (c) 2018 Composewell
+-- Module      : Streamly.Benchmark.Data.Parser
+-- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
