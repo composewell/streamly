@@ -48,6 +48,7 @@ module Streamly.Internal.Data.Parser.Types
     (
       Step (..)
     , Parser (..)
+    , splitWith
     )
 where
 
@@ -127,50 +128,57 @@ data SeqParseState sl f sr =
 
 -- XXX implement interleaved variant, parse using the first parser and then
 -- using the second parser alternately.
+
+-- | Apply two parsers sequentially to an input stream. The input is provided
+-- to the first parser, when it is done the remaining input is provided to the
+-- second parser. If both the parsers succeed there outputs are combined using
+-- the supplied function. The operation fails if any of the parsers fail.
 --
--- | Apply two parsing folds sequentially to an input. The input is provided to
--- the first parser, if the parser fails then whole composition fails. If the
--- parser succeeds, the remaining input is supplied to the second parser. If
--- the second parser succeeds the composed parser succeeds otherwise it fails.
+-- This undoes an "append" of two streams, it splits the streams.
 --
--- This is the opposite of the "append" operation on streams.
---
+{-# INLINE splitWith #-}
+splitWith :: Monad m
+    => (a -> b -> c) -> Parser m x a -> Parser m x b -> Parser m x c
+splitWith func (Parser stepL initialL extractL)
+               (Parser stepR initialR extractR) =
+    Parser step initial extract
+
+    where
+
+    initial = SeqParseL <$> initialL
+
+    -- Note: For the composed parse to terminate, the left parser has to be
+    -- a terminating parser returning a Stop at some point.
+    step (SeqParseL st) a = do
+        r <- stepL st a
+        case r of
+            Yield _ s -> return $ Skip 0 (SeqParseL s)
+            Skip n s -> return $ Skip n (SeqParseL s)
+            Stop n s -> do
+                res <- extractL s
+                case res of
+                    Left err -> return $ Stop n (SeqParseLErr err)
+                    Right x -> Skip n <$> (SeqParseR (func x) <$> initialR)
+
+    step (SeqParseR f st) a = do
+        r <- stepR st a
+        return $ case r of
+            Yield n s -> Yield n (SeqParseR f s)
+            Skip n s -> Skip n (SeqParseR f s)
+            Stop n s -> Stop n (SeqParseR f s)
+
+    step (SeqParseLErr _) _ = error "step called in SeqParseLErr"
+
+    -- XXX bimap to add "<*>: Right parse failed" to the error message
+    extract (SeqParseR f s) = fmap (fmap f) (extractR s)
+    extract (SeqParseL _) = return $ Left "<*>: Incomplete left parse"
+    extract (SeqParseLErr err) =
+        return $ Left $ "<*>: Left parse failed\n" ++ err
+
+-- | 'Applicative' form of 'splitWith'.
 instance Monad m => Applicative (Parser m a) where
     {-# INLINE pure #-}
     pure = wrap
 
     {-# INLINE (<*>) #-}
-    (Parser stepL initialL extractL) <*> (Parser stepR initialR extractR) =
-        Parser step initial extract
-
-        where
-
-        initial = SeqParseL <$> initialL
-
-        -- Note: For the composed parse to terminate, the left parser has to be
-        -- a terminating parser returning a Halt at some point.
-        step (SeqParseL st) a = do
-            r <- stepL st a
-            case r of
-                Yield n s -> return $ Yield n (SeqParseL s)
-                Skip n s -> return $ Skip n (SeqParseL s)
-                Stop n s -> do
-                    res <- extractL s
-                    case res of
-                        Left err -> return $ Stop n (SeqParseLErr err)
-                        Right f -> Skip n <$> (SeqParseR f <$> initialR)
-
-        step (SeqParseR f st) a = do
-            r <- stepR st a
-            return $ case r of
-                Yield n s -> Yield n (SeqParseR f s)
-                Skip n s -> Skip n (SeqParseR f s)
-                Stop n s -> Stop n (SeqParseR f s)
-
-        step (SeqParseLErr _) _ = error "step called in SeqParseLErr"
-
-        -- XXX bimap to add "<*>: Right parse failed" to the error message
-        extract (SeqParseR f s) = fmap (fmap f) (extractR s)
-        extract (SeqParseL _) = return $ Left "<*>: Incomplete left parse"
-        extract (SeqParseLErr err) =
-            return $ Left $ "<*>: Left parse failed\n" ++ err
+    (<*>) = splitWith id
