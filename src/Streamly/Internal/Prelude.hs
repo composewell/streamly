@@ -267,7 +267,7 @@ module Streamly.Internal.Prelude
     , reverse'
 
     -- ** Parsing
-    , parseChunks
+    , splitParse
 
     -- ** Trimming
     , take
@@ -3114,25 +3114,25 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 ------------------------------------------------------------------------------
 
 -- Splitting operations that take a predicate and a Fold can be
--- expressed using parseChunks. Operations like chunksOf, intervalsOf, split*,
--- can be expressed using parseChunks when used with an appropriate Parse.
+-- expressed using splitParse. Operations like chunksOf, intervalsOf, split*,
+-- can be expressed using splitParse when used with an appropriate Parse.
 --
 -- | Apply a 'Parse' repeatedly on a stream and emit the parsed values in the
 -- output stream.
 --
--- >>> S.toList $ S.parseChunks (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
+-- >>> S.toList $ S.splitParse (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
 -- > [3,7,11,15,19]
 --
--- >>> S.toList $ S.parseChunks (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- >>> S.toList $ S.splitParse (PR.line FL.toList) $ S.fromList "hello\nworld"
 -- > ["hello\n","world"]
 --
-{-# INLINE parseChunks #-}
-parseChunks
+{-# INLINE splitParse #-}
+splitParse
     :: (IsStream t, Monad m)
     => Parser m a b
     -> t m a
     -> t m b
-parseChunks f m = D.fromStreamD $ D.parseChunks f (D.toStreamD m)
+splitParse f m = D.fromStreamD $ D.splitParse f (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

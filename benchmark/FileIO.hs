@@ -212,12 +212,12 @@ main = do
             , mkBench "sumChunksOf 1" href $ do
                 Handles inh _ <- readIORef href
                 BFS.chunksOfSum 1 inh
-            , mkBench "sumChunksOf (single chunk) (parseChunks)" href $ do
+            , mkBench "sumChunksOf (single chunk) (splitParse)" href $ do
                 Handles inh _ <- readIORef href
-                BFS.parseChunksOfSum fileSize inh
-            , mkBench "sumChunksOf 1 (parseChunks)" href $ do
+                BFS.splitParseChunksOfSum fileSize inh
+            , mkBench "sumChunksOf 1 (splitParse)" href $ do
                 Handles inh _ <- readIORef href
-                BFS.parseChunksOfSum 1 inh
+                BFS.splitParseChunksOfSum 1 inh
 
             , mkBench "arraysOf 1" href $ do
                 Handles inh _ <- readIORef href
@@ -268,9 +268,9 @@ main = do
                 , mkBench "splitOnSuffix \\n (line count)" href $ do
                     Handles inh _ <- readIORef href
                     BFS.splitOnSuffix inh
-                , mkBench "splitOn \\n (line count) (parseChunks)" href $ do
+                , mkBench "splitOn \\n (line count) (splitParse)" href $ do
                     Handles inh _ <- readIORef href
-                    BFS.parseChunksSplitOn inh
+                    BFS.splitParseSepBy inh
                 , mkBench "wordsBy isSpace (word count)" href $ do
                     Handles inh _ <- readIORef href
                     BFS.wordsBy inh

@@ -227,10 +227,10 @@ takeWhile predicate (Fold fstep finitial fextract) =
 -- >>> S.parse (PR.sepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
 -- > Right [0,0]
 --
--- >>> S.toList $ S.parseChunks (PR.sepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
+-- >>> S.toList $ S.splitParse (PR.sepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
 -- > [[0,0],[0],[]]
 --
--- S.splitOn pred f = S.parseChunks (PR.sepBy pred f)
+-- S.splitOn pred f = S.splitParse (PR.sepBy pred f)
 --
 -- /Internal/
 --
@@ -256,7 +256,7 @@ sepBy predicate (Fold fstep finitial fextract) =
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- S.splitWithSuffix pred f = S.parseChunks (PR.sepWithSuffix pred f)
+-- S.splitWithSuffix pred f = S.splitParse (PR.sepWithSuffix pred f)
 --
 -- /Unimplemented/
 --
@@ -272,7 +272,7 @@ sepWithSuffix = undefined
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- S.splitWithPrefix pred f = S.parseChunks (PR.sepWithPrefix pred f)
+-- S.splitWithPrefix pred f = S.splitParse (PR.sepWithPrefix pred f)
 --
 -- /Unimplemented/
 --
@@ -316,7 +316,7 @@ sepByMax predicate count (Fold fstep finitial fextract) =
 -- * Stops - when it finds a word separator after a non-word element
 -- * Fails - never.
 --
--- S.wordsBy pred f = S.parseChunks (PR.wordBy pred f)
+-- S.wordsBy pred f = S.splitParse (PR.wordBy pred f)
 --
 -- /Unimplemented/
 --
@@ -336,7 +336,7 @@ wordBy = undefined
 -- * Stops - when the group ends.
 -- * Fails - never.
 --
--- S.groupsBy cmp f = S.parseChunks (PR.groupBy cmp f)
+-- S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)
 --
 -- /Unimplemented/
 --

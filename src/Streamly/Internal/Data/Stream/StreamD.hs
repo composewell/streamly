@@ -129,7 +129,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , runFold
 
     , parselMx'
-    , parseChunks
+    , splitParse
 
     -- ** Specialized Folds
     , tap
@@ -953,7 +953,7 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
 ------------------------------------------------------------------------------
 
 -- Inlined definition. Without the inline "serially/parser/take" benchmark
--- degrades and parseChunks does not fuse. Even using "inline" at the callsite
+-- degrades and splitParse does not fuse. Even using "inline" at the callsite
 -- does not help.
 {-# INLINE splitAt #-}
 splitAt :: Int -> [a] -> ([a],[a])
@@ -1034,13 +1034,13 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
-{-# INLINE_NORMAL parseChunks #-}
-parseChunks
+{-# INLINE_NORMAL splitParse #-}
+splitParse
     :: Monad m
     => Parser m a b
     -> Stream m a
     -> Stream m b
-parseChunks (Parser pstep initial extract) (Stream step state) =
+splitParse (Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit [] state)
 
     where
