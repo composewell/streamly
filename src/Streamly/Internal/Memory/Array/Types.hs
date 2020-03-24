@@ -88,7 +88,7 @@ where
 
 import Control.Exception (assert)
 import Control.DeepSeq (NFData(..))
-import Control.Monad (when)
+import Control.Monad (when, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (runIdentity)
 #if __GLASGOW_HASKELL__ < 808
@@ -208,7 +208,7 @@ foreign import ccall unsafe "string.h memchr" c_memchr
 
 -- XXX we are converting Int to CSize
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
-memcpy dst src len = c_memcpy dst src (fromIntegral len) >> return ()
+memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
 
 foreign import ccall unsafe "string.h memcmp" c_memcmp
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
@@ -293,16 +293,16 @@ unsafeSnoc arr@Array{..} x = do
         error "BUG: unsafeSnoc: writing beyond array bounds"
     poke aEnd x
     touchForeignPtr aStart
-    return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+    return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
 
 {-# INLINE snoc #-}
 snoc :: forall a. Storable a => Array a -> a -> IO (Array a)
-snoc arr@Array {..} x = do
-    if (aEnd == aBound)
+snoc arr@Array {..} x =
+    if aEnd == aBound
     then do
         let oldStart = unsafeForeignPtrToPtr aStart
             size = aEnd `minusPtr` oldStart
-            newSize = (size + (sizeOf (undefined :: a)))
+            newSize = size + sizeOf (undefined :: a)
         newPtr <- Malloc.mallocForeignPtrAlignedBytes
                     newSize (alignment (undefined :: a))
         withForeignPtr newPtr $ \pNew -> do
@@ -317,7 +317,7 @@ snoc arr@Array {..} x = do
     else do
         poke aEnd x
         touchForeignPtr aStart
-        return $ arr {aEnd = aEnd `plusPtr` (sizeOf (undefined :: a))}
+        return $ arr {aEnd = aEnd `plusPtr` sizeOf (undefined :: a)}
 
 -- | Reallocate the array to the specified size in bytes. If the size is less
 -- than the original array the array gets truncated.
@@ -449,7 +449,7 @@ toStreamD Array{..} =
                     r <- peek p
                     touchForeignPtr aStart
                     return r
-        return $ D.Yield x (p `plusPtr` (sizeOf (undefined :: a)))
+        return $ D.Yield x (p `plusPtr` sizeOf (undefined :: a))
 
 {-# INLINE toStreamK #-}
 toStreamK :: forall t m a. (K.IsStream t, Storable a) => Array a -> t m a
@@ -466,7 +466,7 @@ toStreamK Array{..} =
                     r <- peek p
                     touchForeignPtr aStart
                     return r
-        in x `K.cons` go (p `plusPtr` (sizeOf (undefined :: a)))
+        in x `K.cons` go (p `plusPtr` sizeOf (undefined :: a))
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: forall m a. (Monad m, Storable a) => Array a -> D.Stream m a
@@ -584,7 +584,7 @@ writeNUnsafe n = Fold step initial extract
         return $ ArrayUnsafe start end
     step (ArrayUnsafe start end) x = do
         liftIO $ poke end x
-        return $ (ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a)))
+        return $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
     extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
@@ -739,7 +739,7 @@ flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
                     touchForeignPtr startf
                     return r
         return $ D.Yield x (InnerLoop st startf
-                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+                            (p `plusPtr` sizeOf (undefined :: a)) end)
 
 {-# INLINE_NORMAL flattenArraysRev #-}
 flattenArraysRev :: forall m a. (MonadIO m, Storable a)
@@ -811,7 +811,7 @@ toListFB c n Array{..} = go (unsafeForeignPtrToPtr aStart)
                     r <- peek p
                     touchForeignPtr aStart
                     return r
-        in c x (go (p `plusPtr` (sizeOf (undefined :: a))))
+        in c x (go (p `plusPtr` sizeOf (undefined :: a)))
 
 -- | Convert an 'Array' into a list.
 --
@@ -842,9 +842,7 @@ fromList xs = unsafePerformIO $ fromStreamD $ D.fromList xs
 
 instance (Storable a, Read a, Show a) => Read (Array a) where
     {-# INLINE readPrec #-}
-    readPrec = do
-          xs <- readPrec
-          return (fromList xs)
+    readPrec = fromList <$> readPrec
     readListPrec = readListPrecDefault
 
 instance (a ~ Char) => IsString (Array a) where
@@ -1037,7 +1035,7 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
                     touchForeignPtr startf
                     return r
         return $ D.Yield x (InnerLoop st startf
-                            (p `plusPtr` (sizeOf (undefined :: a))) end)
+                            (p `plusPtr` sizeOf (undefined :: a)) end)
 
 -- Splice an array into a pre-reserved mutable array.  The user must ensure
 -- that there is enough space in the mutable array.
@@ -1048,7 +1046,7 @@ spliceWith dst@(Array _ end bound) src  = liftIO $ do
     if end `plusPtr` srcLen > bound
     then error "Bug: spliceIntoUnsafe: Not enough space in the target array"
     else
-        withForeignPtr (aStart dst) $ \_ -> do
+        withForeignPtr (aStart dst) $ \_ ->
             withForeignPtr (aStart src) $ \psrc -> do
                 let pdst = aEnd dst
                 memcpy (castPtr pdst) (castPtr psrc) srcLen
@@ -1109,7 +1107,7 @@ packArraysChunksOf n (D.Stream step state) =
                     then D.Skip (SpliceYielding arr (SpliceInitial s))
                     else D.Skip (SpliceBuffering s arr)
             D.Skip s -> return $ D.Skip (SpliceInitial s)
-            D.Stop -> return $ D.Stop
+            D.Stop -> return D.Stop
 
     step' gst (SpliceBuffering st buf) = do
         r <- step gst st
@@ -1147,22 +1145,20 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             -- XXX we can pass the module string from the higher level API
             error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
-        r1 <- initial1
-        return (Tuple' Nothing r1)
+        Tuple' Nothing <$> initial1
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
         r <- step1 r1 buf
         extract1 r
 
-    step (Tuple' Nothing r1) arr = do
+    step (Tuple' Nothing r1) arr =
             let len = byteLength arr
              in if len >= n
                 then do
                     r <- step1 r1 arr
                     extract1 r
-                    r1' <- initial1
-                    return (Tuple' Nothing r1')
+                    Tuple' Nothing <$> initial1
                 else return (Tuple' (Just arr) r1)
 
     step (Tuple' (Just buf) r1) arr = do
@@ -1176,8 +1172,7 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             then do
                 r <- step1 r1 buf''
                 extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
+                Tuple' Nothing <$> initial1
             else return (Tuple' (Just buf'') r1)
 
 #if !defined(mingw32_HOST_OS)
@@ -1222,7 +1217,7 @@ groupIOVecsOf n maxIOVLen (D.Stream step state) =
                 then return $ D.Skip (GatherYielding iov' (GatherInitial s))
                 else return $ D.Skip (GatherBuffering s iov' len)
             D.Skip s -> return $ D.Skip (GatherInitial s)
-            D.Stop -> return $ D.Stop
+            D.Stop -> return D.Stop
 
     step' gst (GatherBuffering st iov len) = do
         r <- step (adaptState gst) st
@@ -1330,7 +1325,7 @@ splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
                     Nothing   -> D.Skip (Buffering s arr1)
                     Just arr2 -> D.Skip (Yielding arr1 (Splitting s arr2))
             D.Skip s -> return $ D.Skip (Initial s)
-            D.Stop -> return $ D.Stop
+            D.Stop -> return D.Stop
 
     step' gst (Buffering st buf) = do
         r <- step gst st
@@ -1354,4 +1349,4 @@ splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
                 Just arr2 -> D.Skip $ Yielding arr1 (Splitting st arr2)
 
     step' _ (Yielding arr next) = return $ D.Yield arr next
-    step' _ Finishing = return $ D.Stop
+    step' _ Finishing = return D.Stop
