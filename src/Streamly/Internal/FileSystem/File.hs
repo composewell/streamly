@@ -1,9 +1,5 @@
 {-# LANGUAGE CPP              #-}
-{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MagicHash        #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE UnboxedTuples    #-}
 
 #include "inline.hs"
 
@@ -180,14 +176,14 @@ usingFile =
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
 writeArray :: Storable a => FilePath -> Array a -> IO ()
-writeArray file arr = SIO.withFile file WriteMode (\h -> FH.writeArray h arr)
+writeArray file arr = SIO.withFile file WriteMode (`FH.writeArray` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
 {-# INLINABLE appendArray #-}
 appendArray :: Storable a => FilePath -> Array a -> IO ()
-appendArray file arr = SIO.withFile file AppendMode (\h -> FH.writeArray h arr)
+appendArray file arr = SIO.withFile file AppendMode (`FH.writeArray` arr)
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -353,12 +349,12 @@ writeChunks path = Fold step initial extract
     initial = do
         h <- liftIO (openFile path WriteMode)
         fld <- FL.initialize (FH.writeChunks h)
-                `MC.onException` (liftIO $ hClose h)
+                `MC.onException` liftIO (hClose h)
         return (fld, h)
     step (fld, h) x = do
-        r <- FL.runStep fld x `MC.onException` (liftIO $ hClose h)
+        r <- FL.runStep fld x `MC.onException` liftIO (hClose h)
         return (r, h)
-    extract ((Fold _ initial1 extract1), h) = do
+    extract (Fold _ initial1 extract1, h) = do
         liftIO $ hClose h
         initial1 >>= extract1
 
