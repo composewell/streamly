@@ -18,6 +18,9 @@ module Streamly.Internal.Data.Parser
     (
       Parser (..)
 
+    -- * Combinators
+    , fromFold
+
     -- * Folds
     , any
     , all
@@ -45,6 +48,23 @@ import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
 import Streamly.Internal.Data.Strict
+
+-------------------------------------------------------------------------------
+-- Upgrade folds to parses
+-------------------------------------------------------------------------------
+--
+-- | The resulting parse never terminates and never errors out.
+--
+{-# INLINE fromFold #-}
+fromFold :: Monad m => Fold m a b -> Parser m a b
+fromFold (Fold fstep finitial fextract) = Parser step initial extract
+    where
+
+    initial = finitial
+    step s a = Yield 0 <$> fstep s a
+    extract s = do
+        r <- fextract s
+        return $ Right r
 
 -------------------------------------------------------------------------------
 -- Terminating folds
