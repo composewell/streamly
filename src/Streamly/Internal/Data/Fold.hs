@@ -838,6 +838,8 @@ or = Fold (\x a -> return $ x || a) (return False) return
 -- Stops after @n@ elements.
 -- Never fails.
 --
+-- S.chunksOf n f = S.parseChunks (FL.take n f)
+--
 -- /Internal/
 --
 {-# INLINE take #-}

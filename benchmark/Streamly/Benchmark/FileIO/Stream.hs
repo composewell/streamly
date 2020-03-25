@@ -612,7 +612,7 @@ inspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
 {-# INLINE parseChunksSplitOn #-}
 parseChunksSplitOn :: Handle -> IO Int
 parseChunksSplitOn inh =
-    (S.length $ IP.parseChunks (PR.endOn (== lf) FL.drain)
+    (S.length $ IP.parseChunks (PR.sepBy (== lf) FL.drain)
                                (S.unfold FH.read inh)) -- >>= print
 
 -- | Words by space
