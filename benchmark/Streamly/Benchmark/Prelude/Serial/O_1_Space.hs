@@ -7,7 +7,6 @@
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
-import Streamly.Benchmark.Data.Fold
 
 import Gauge
 
@@ -34,10 +33,7 @@ main = do
             , o_1_space_serial_foldable value
             , o_1_space_serial_generation value
             , o_1_space_serial_elimination value
-            , o_1_space_serial_folds value
             , o_1_space_serial_foldMultiStream value
-            , o_1_space_serial_foldsTransforms value
-            , o_1_space_serial_foldsCompositions value
             , o_1_space_serial_pipes value
             , o_1_space_serial_pipesX4 value
             , o_1_space_serial_transformer value
