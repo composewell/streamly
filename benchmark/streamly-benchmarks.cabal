@@ -137,7 +137,6 @@ library lib-prelude
     hs-source-dirs:    lib, .
     exposed-modules:
                        Streamly.Benchmark.Prelude
-                     , Streamly.Benchmark.Data.Fold
     other-modules:     Streamly.Benchmark.Common
                      , NestedOps
                      , NestedUnfoldOps
@@ -224,6 +223,18 @@ benchmark serial-o-n-space
     buildable: False
   else
     build-depends: lib-prelude
+    buildable: True
+
+-- XXX Default memory restriction = o-1-space
+benchmark fold
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K36K -M16M"
+  hs-source-dirs: ., Streamly/Benchmark/Data
+  main-is: Fold.hs
+  if impl(ghcjs)
+    buildable: False
+  else
     buildable: True
 
 -------------------------------------------------------------------------------

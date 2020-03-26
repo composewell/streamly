@@ -7,12 +7,7 @@
 
 {-# LANGUAGE FlexibleContexts #-}
 
-module Streamly.Benchmark.Data.Fold
-  ( o_1_space_serial_folds
-  , o_1_space_serial_foldsTransforms
-  , o_1_space_serial_foldsCompositions
-  , o_n_heap_serial_folds
-  ) where
+module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import Data.Monoid (Last(..))
@@ -20,7 +15,7 @@ import Data.Monoid (Last(..))
 import System.Random (randomRIO)
 import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
                 (<=), Monad(..), (==), Maybe(..), (.), fromIntegral,
-                compare, (>=))
+                compare, (>=), concat, seq)
 
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -36,6 +31,7 @@ import qualified Streamly.Internal.Prelude as IP
 
 import Gauge
 import Streamly hiding (runStream)
+import Streamly.Benchmark.Common
 
 -- We need a monadic bind here to make sure that the function f does not get
 -- completely optimized out by the compiler in some cases.
@@ -208,3 +204,27 @@ o_n_heap_serial_folds value =
                 ]
           ]
     ]
+
+-------------------------------------------------------------------------------
+-- Driver
+-------------------------------------------------------------------------------
+
+main :: IO ()
+main = do
+  (value, cfg, benches) <- parseCLIOpts defaultStreamSize
+  value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+  where
+    allBenchmarks value =
+      [ bgroup
+          "o-1-space"
+          [ bgroup "fold" $
+            concat
+              [ o_1_space_serial_folds value
+              , o_1_space_serial_foldsTransforms value
+              , o_1_space_serial_foldsCompositions value
+              ]
+          ]
+      , bgroup
+          "o-n-heap"
+          [bgroup "fold" $ concat [o_n_heap_serial_folds value]]
+      ]
