@@ -996,7 +996,7 @@ parselMx' pstep initial extract (Stream step state) = do
                     PR.Yield n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         go SPEC s (Prelude.take n (x:buf)) pst1
-                    -- PR.Skip 0 pst1 -> go SPEC s (x:buf) pst1
+                    PR.Skip 0 pst1 -> go SPEC s (x:buf) pst1
                     PR.Skip n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
@@ -1014,7 +1014,7 @@ parselMx' pstep initial extract (Stream step state) = do
             PR.Yield n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 gobuf SPEC s (Prelude.take n (x:buf)) xs pst1
-            -- PR.Skip 0 pst1 -> gobuf SPEC s (x:buf) xs pst1
+            PR.Skip 0 pst1 -> gobuf SPEC s (x:buf) xs pst1
             PR.Skip n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
