@@ -34,11 +34,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [8.8.1+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin]
+        name: [8.8.3+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin]
         cabal_version: ["3.0"]
         include:
-          - name: 8.8.1+inspection+Werror
-            ghc_version: 8.8.1
+          - name: 8.8.3+inspection+Werror
+            ghc_version: 8.8.3
             build: cabal-v2
             cabal_build_options: "--project-file=cabal.project.ci"
           - name: 8.6.5+streamk
