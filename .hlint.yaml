@@ -14,6 +14,9 @@
 - ignore: {name: "Use tuple-section"} # requires GHC extension
 - ignore: {name: "Use fromMaybe"} # may want to use this suggestion, but it didn't match the common idiom of the library
 - ignore: {name: "Use unless"} # low power-to-weight
+- ignore: {name: "Reduce duplication"}
+- ignore: {name: "Use <>"}
+- ignore: {name: "Use fewer imports"}
 
 
 # Specify additional command line arguments

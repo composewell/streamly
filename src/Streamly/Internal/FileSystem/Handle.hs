@@ -1,9 +1,6 @@
 {-# LANGUAGE CPP             #-}
-{-# LANGUAGE BangPatterns    #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MagicHash       #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UnboxedTuples   #-}
 
 #include "inline.hs"
 
@@ -352,7 +349,7 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 {-# INLINE fromChunks #-}
 fromChunks :: (MonadIO m, Storable a)
     => Handle -> SerialT m (Array a) -> m ()
-fromChunks h m = S.mapM_ (liftIO . writeArray h) m
+fromChunks h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of chunks to standard output.
 --

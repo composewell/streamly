@@ -1,7 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE UnboxedTuples       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -129,6 +128,7 @@ module Streamly.Internal.Memory.Array
     )
 where
 
+import  Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 -- import Data.Functor.Identity (Identity)
 import Foreign.ForeignPtr (withForeignPtr, touchForeignPtr)
@@ -173,7 +173,7 @@ newArray len = undefined
 {-# INLINE fromStreamN #-}
 fromStreamN :: (MonadIO m, Storable a) => Int -> SerialT m a -> m (Array a)
 fromStreamN n m = do
-    if n < 0 then error "writeN: negative write count specified" else return ()
+    when (n < 0) $ error "writeN: negative write count specified"
     A.fromStreamDN n $ D.toStreamD m
 
 -- | Create an 'Array' from a stream. This is useful when we want to create a
@@ -230,7 +230,7 @@ read = Unfold step inject
         return $ ReadUState (ForeignPtr end contents) (Ptr start)
 
     {-# INLINE_LATE step #-}
-    step (ReadUState fp@(ForeignPtr end _) p) | p == (Ptr end) =
+    step (ReadUState fp@(ForeignPtr end _) p) | p == Ptr end =
         let x = A.unsafeInlineIO $ touchForeignPtr fp
         in x `seq` return D.Stop
     step (ReadUState fp p) = do
@@ -242,7 +242,7 @@ read = Unfold step inject
             -- evaluated/written to before we peek at them.
             let !x = A.unsafeInlineIO $ peek p
             return $ D.Yield x
-                (ReadUState fp (p `plusPtr` (sizeOf (undefined :: a))))
+                (ReadUState fp (p `plusPtr` sizeOf (undefined :: a)))
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
@@ -274,7 +274,7 @@ unsafeRead = Unfold step inject
                         r <- peek (Ptr p)
                         touch contents
                         return r
-            let !(Ptr p1) = Ptr p `plusPtr` (sizeOf (undefined :: a))
+            let !(Ptr p1) = Ptr p `plusPtr` sizeOf (undefined :: a)
             return $ D.Yield x (ForeignPtr p1 contents)
 
     touch r = IO $ \s -> case touch# r s of s' -> (# s', () #)
@@ -402,7 +402,7 @@ readIndex arr i =
     if i < 0 || i > length arr - 1
         then Nothing
         else A.unsafeInlineIO $
-             withForeignPtr (aStart arr) $ \p -> fmap Just $ peekElemOff p i
+             withForeignPtr (aStart arr) $ \p -> Just <$> peekElemOff p i
 
 {-
 -- | @readSlice arr i count@ streams a slice of the array @arr@ starting
@@ -500,7 +500,7 @@ streamTransform f arr =
 -- /Internal/
 {-# INLINE fold #-}
 fold :: forall m a b. (MonadIO m, Storable a) => Fold m a b -> Array a -> m b
-fold f arr = P.runFold f $ (toStream arr :: Serial.SerialT m a)
+fold f arr = P.runFold f (toStream arr :: Serial.SerialT m a)
 
 -- | Fold an array using a stream fold operation.
 --

@@ -1,8 +1,5 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
-{-# LANGUAGE MagicHash           #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE UnboxedTuples       #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 #include "inline.hs"
