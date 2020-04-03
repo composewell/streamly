@@ -1145,7 +1145,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             -- XXX we can pass the module string from the higher level API
             error $ "Streamly.Internal.Memory.Array.Types.packArraysChunksOf: the size of "
                  ++ "arrays [" ++ show n ++ "] must be a natural number"
-        Tuple' Nothing <$> initial1
+        r1 <- initial1
+        return (Tuple' Nothing r1)
 
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
@@ -1158,7 +1159,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
                 then do
                     r <- step1 r1 arr
                     extract1 r
-                    Tuple' Nothing <$> initial1
+                    r1' <- initial1
+                    return (Tuple' Nothing r1')
                 else return (Tuple' (Just arr) r1)
 
     step (Tuple' (Just buf) r1) arr = do
@@ -1172,7 +1174,8 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             then do
                 r <- step1 r1 buf''
                 extract1 r
-                Tuple' Nothing <$> initial1
+                r1' <- initial1
+                return (Tuple' Nothing r1')
             else return (Tuple' (Just buf'') r1)
 
 #if !defined(mingw32_HOST_OS)
