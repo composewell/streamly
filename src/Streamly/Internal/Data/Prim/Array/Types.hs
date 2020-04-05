@@ -105,9 +105,11 @@ import qualified Data.Primitive.Types as PT
 #if MIN_VERSION_base(4,9,0) && !MIN_VERSION_base(4,11,0)
 import Data.Semigroup (Semigroup)
 #endif
-#if MIN_VERSION_base(4,9,0)
+
+#if MIN_VERSION_base(4,9,0) && MIN_VERSION_primitive(0,6,4)
 import qualified Data.Semigroup as SG
 #endif
+
 
 -- | Arrays of unboxed elements. This accepts types like 'Double', 'Char',
 -- 'Int', and 'Word', as well as their fixed-length variants ('Word8',
@@ -204,6 +206,8 @@ primArrayFromListN len vs = runST run where
 primArrayToList :: forall a. Prim a => PrimArray a -> [a]
 primArrayToList xs = build (\c n -> foldrPrimArray c n xs)
 
+#if MIN_VERSION_primitive(0,6,4)
+
 primArrayToByteArray :: PrimArray a -> PB.ByteArray
 primArrayToByteArray (PrimArray x) = PB.ByteArray x
 
@@ -225,6 +229,8 @@ instance Monoid (PrimArray a) where
   mappend x y = byteArrayToPrimArray (mappend (primArrayToByteArray x) (primArrayToByteArray y))
 #endif
   mconcat = byteArrayToPrimArray . mconcat . map primArrayToByteArray
+
+#endif
 
 -- | The empty primitive array.
 emptyPrimArray :: PrimArray a
