@@ -128,6 +128,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileIO/*.hs
+    benchmark/Streamly/Benchmark/Prelude/*.hs
     benchmark/Streamly/Benchmark/Prelude/Serial/*.hs
 
 extra-tmp-files:
