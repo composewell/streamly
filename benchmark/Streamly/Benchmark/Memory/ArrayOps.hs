@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module ArrayOps where
+module Streamly.Benchmark.Memory.ArrayOps where
 
 -- import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)

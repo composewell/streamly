@@ -123,6 +123,7 @@ extra-source-files:
     benchmark/README.md
     benchmark/*.hs
     benchmark/lib/Streamly/Benchmark/*.hs
+    benchmark/Streamly/Benchmark/Memory/*.hs
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
