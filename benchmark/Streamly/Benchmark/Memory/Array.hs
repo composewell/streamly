@@ -12,7 +12,7 @@ import System.Random (randomRIO)
 
 import qualified GHC.Exts as GHC
 
-import qualified ArrayOps as Ops
+import qualified Streamly.Benchmark.Memory.ArrayOps as Ops
 import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S

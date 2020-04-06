@@ -414,8 +414,8 @@ benchmark array
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K64K -M128M"
   hs-source-dirs: .
-  main-is: Array.hs
-  other-modules: ArrayOps
+  main-is: Streamly/Benchmark/Memory/Array.hs
+  other-modules: Streamly.Benchmark.Memory.ArrayOps
 
 -------------------------------------------------------------------------------
 -- FileIO Benchmarks
