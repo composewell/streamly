@@ -138,8 +138,8 @@ library lib-prelude
     exposed-modules:
                        Streamly.Benchmark.Prelude
     other-modules:     Streamly.Benchmark.Common
-                     , NestedOps
-                     , NestedUnfoldOps
+                     , Streamly.Benchmark.Prelude.NestedOps
+                     , Streamly.Benchmark.Data.NestedUnfoldOps
     -- XXX GHCJS build fails for this library.
     if impl(ghcjs)
       buildable: False
@@ -338,7 +338,7 @@ benchmark nested-concurrent
   ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
   hs-source-dirs: .
   main-is: NestedConcurrent.hs
-  other-modules: NestedOps
+  other-modules: Streamly.Benchmark.Prelude.NestedOps
 
 benchmark parallel
   import: bench-options-threaded
@@ -346,7 +346,6 @@ benchmark parallel
   ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
   hs-source-dirs: .
   main-is: Parallel.hs
-  other-modules: NestedOps
   if impl(ghcjs)
     buildable: False
   else

@@ -9,7 +9,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module NestedOps where
+module Streamly.Benchmark.Prelude.NestedOps where
 
 import Control.Exception (try)
 import GHC.Exception (ErrorCall)

@@ -5,7 +5,7 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
-module NestedUnfoldOps where
+module Streamly.Benchmark.Data.NestedUnfoldOps where
 
 import Control.Monad.IO.Class (MonadIO (..))
 import Streamly.Internal.Data.Unfold (Unfold)

@@ -15,7 +15,7 @@ import Streamly.Benchmark.Common (parseCLIOpts)
 import Streamly
 import Gauge
 
-import qualified NestedOps as Ops
+import qualified Streamly.Benchmark.Prelude.NestedOps as Ops
 
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f

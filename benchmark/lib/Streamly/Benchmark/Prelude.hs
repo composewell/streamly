@@ -128,8 +128,8 @@ import Streamly.Internal.Data.Time.Units
 
 import qualified Streamly.Internal.Prelude as IP
 
-import qualified NestedOps as Nested
-import qualified NestedUnfoldOps as NestedUnfold
+import qualified Streamly.Benchmark.Prelude.NestedOps as Nested
+import qualified Streamly.Benchmark.Data.NestedUnfoldOps as NestedUnfold
 
 import Gauge
 import Streamly hiding (runStream)
