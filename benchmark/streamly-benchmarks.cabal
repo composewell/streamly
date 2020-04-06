@@ -323,7 +323,7 @@ benchmark linear-async
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: LinearAsync.hs
   if impl(ghcjs)
     buildable: False
@@ -336,7 +336,7 @@ benchmark nested-concurrent
   type: exitcode-stdio-1.0
   -- XXX this can be lowered once we split out the finite benchmarks
   ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: NestedConcurrent.hs
   other-modules: Streamly.Benchmark.Prelude.NestedOps
 
@@ -344,7 +344,7 @@ benchmark parallel
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: Parallel.hs
   if impl(ghcjs)
     buildable: False
@@ -355,14 +355,14 @@ benchmark parallel
 benchmark concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: Concurrent.hs
   ghc-options: -with-rtsopts "-T -N2 -K256K -M384M"
 
 benchmark adaptive
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: Adaptive.hs
   if impl(ghcjs)
     buildable: False
@@ -372,7 +372,7 @@ benchmark adaptive
 benchmark linear-rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0
-  hs-source-dirs: .
+  hs-source-dirs: ., Streamly/Benchmark/Prelude
   main-is: LinearRate.hs
   if impl(ghcjs)
     buildable: False
