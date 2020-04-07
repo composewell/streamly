@@ -3,8 +3,9 @@
 SERIAL_O_1="linear base"
 SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space \
   base-o-n-heap base-o-n-stack base-o-n-space"
+FOLD_BENCHMARKS="fold-o-1-space fold-o-n-heap"
 
-SERIAL_BENCHMARKS="$SERIAL_O_1 $SERIAL_O_n"
+SERIAL_BENCHMARKS="$SERIAL_O_1 $SERIAL_O_n $FOLD_BENCHMARKS"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
 CONCURRENT_BENCHMARKS="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
@@ -20,6 +21,33 @@ QUICK_BENCHMARKS="linear-rate concurrent adaptive fileio"
 VIRTUAL_BENCHMARKS="array-cmp"
 
 ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS"
+
+# RTS options that go inside +RTS and -RTS while running the benchmark.
+bench_rts_opts () {
+  case "$1" in
+    "fold-o-1-space") echo -n "-T -K36K -M16M" ;;
+    "fold-o-n-heap") echo -n "-T -K36K -M128M" ;;
+    *) echo -n "" ;;
+  esac
+}
+
+# The correct executable for the given benchmark name.
+bench_exec () {
+  case "$1" in
+    "fold-o-1-space") echo -n "fold" ;;
+    "fold-o-n-heap") echo -n "fold" ;;
+    *) echo -n "$1" ;;
+  esac
+}
+
+# Specific gauge options for the given benchmark.
+bench_gauge_opts () {
+  case "$1" in
+    "fold-o-1-space") echo -n "-m prefix o-1-space" ;;
+    "fold-o-n-heap") echo -n "-m prefix o-n-heap" ;;
+    *) echo -n "" ;;
+  esac
+}
 
 list_benches ()  {
   for i in $ALL_BENCHMARKS
@@ -177,10 +205,11 @@ bench_output_file() {
 
 run_bench () {
   local bench_name=$1
+  local bench_exe=$(bench_exec $bench_name)
   local output_file=$(bench_output_file $bench_name)
   local bench_prog
   local quick_bench=0
-  bench_prog=$($GET_BENCH_PROG $bench_name) || \
+  bench_prog=$($GET_BENCH_PROG $bench_exe) || \
     die "Cannot find benchmark executable for benchmark $bench_name"
 
   mkdir -p `dirname $output_file`
@@ -217,9 +246,11 @@ run_bench () {
   fi
 
   $bench_prog $SPEED_OPTIONS \
+    +RTS $(bench_rts_opts $bench_name) -RTS \
     --csvraw=$output_file \
     -v 2 \
-    --measure-with $bench_prog $GAUGE_ARGS || die "Benchmarking failed"
+    --measure-with $bench_prog $GAUGE_ARGS \
+    $(bench_gauge_opts $bench_name) || die "Benchmarking failed"
 }
 
 run_benches() {
@@ -382,8 +413,17 @@ only_real_benchmarks () {
   done
 }
 
+proper_executables () {
+  for i in $BENCHMARKS
+  do
+    echo -n "$(bench_exec $i) "
+  done
+}
+
+
 BENCHMARKS_ORIG=$BENCHMARKS
 BENCHMARKS=$(only_real_benchmarks)
+EXECUTABLES=$(proper_executables)
 echo "Using benchmark suites [$BENCHMARKS]"
 
 has_benchmark () {
@@ -431,7 +471,7 @@ then
   then
     $BUILD_BENCH || die "build failed"
   else
-    $BUILD_BENCH $BENCHMARKS || die "build failed"
+    $BUILD_BENCH $EXECUTABLES || die "build failed"
   fi
   run_measurements "$BENCHMARKS"
 fi

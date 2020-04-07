@@ -38,6 +38,8 @@ data BenchType
     | Concurrent
     | Parallel
     | Adaptive
+    | FoldO1Space
+    | FoldOnHeap
     deriving Show
 
 data Options = Options
@@ -86,6 +88,8 @@ parseBench = do
         Just "concurrent" -> setBenchType Concurrent
         Just "parallel" -> setBenchType Parallel
         Just "adaptive" -> setBenchType Adaptive
+        Just "fold-o-1-space" -> setBenchType FoldO1Space
+        Just "fold-o-n-heap" -> setBenchType FoldOnHeap
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -409,3 +413,13 @@ main = do
                         showStreamK opts cfg'
                                 "charts/base/results.csv"
                                 "charts/base"
+                FoldO1Space -> benchShow opts cfg
+                            { title = Just "Fold O(1) Space" }
+                            (makeGraphs "fold-o-1-space")
+                            "charts/fold-o-1-space/results.csv"
+                            "charts/fold-o-1-space"
+                FoldOnHeap -> benchShow opts cfg
+                            { title = Just "Fold O(n) Heap" }
+                            (makeGraphs "fold-o-n-heap")
+                            "charts/fold-o-n-heap/results.csv"
+                            "charts/fold-o-n-heap"
