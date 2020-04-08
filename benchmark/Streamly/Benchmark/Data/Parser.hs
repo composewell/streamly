@@ -16,7 +16,7 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 -- import Data.Foldable (asum)
 import System.Random (randomRIO)
-import Prelude hiding (any, all, take, sequence, sequenceA)
+import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
 -- import qualified Data.Traversable as TR
 import qualified Control.Applicative as AP
@@ -71,6 +71,10 @@ all value = IP.parse (PR.all (<= value))
 {-# INLINE take #-}
 take :: MonadThrow m => Int -> SerialT m a -> m ()
 take value = IP.parse (PR.take value FL.drain)
+
+{-# INLINE takeWhile #-}
+takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
+takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
 {-
 -- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling this
@@ -166,6 +170,7 @@ o_1_space_serial_parse value =
     [ benchIOSink value "any" $ any value
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
+    , benchIOSink value "takeWhile" $ takeWhile value
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
