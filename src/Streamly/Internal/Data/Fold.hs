@@ -129,7 +129,6 @@ module Streamly.Internal.Data.Fold
 
     -- * Parsing
     -- ** Trimming
-    , take
     , ltake
     -- , lrunFor -- time
     , ltakeWhile
@@ -228,7 +227,6 @@ import qualified Prelude
 
 import Streamly.Internal.Data.Pipe.Types (Pipe (..), PipeState(..))
 import Streamly.Internal.Data.Fold.Types
-import Streamly.Internal.Data.Parser.Types
 import Streamly.Internal.Data.Strict
 import Streamly.Internal.Data.SVar
 
@@ -828,37 +826,6 @@ or = Fold (\x a -> return $ x || a) (return False) return
 ------------------------------------------------------------------------------
 -- Grouping without looking at elements
 ------------------------------------------------------------------------------
---
--- XXX Once we have terminating folds, this Parse should get replaced by Fold.
--- Alternatively, we can name it "chunkOf" and the corresponding time domain
--- combinator as "intervalOf" or even "chunk" and "interval".
---
--- | Take at most @n@ input elements and fold them using the supplied fold.
---
--- Stops after @n@ elements.
--- Never fails.
---
--- S.chunksOf n f = S.splitParse (FL.take n f)
---
--- /Internal/
---
-{-# INLINE take #-}
-take :: Monad m => Int -> Fold m a b -> Parser m a b
-take n (Fold fstep finitial fextract) = Parser step initial extract
-
-    where
-
-    initial = (Tuple' 0) <$> finitial
-
-    step (Tuple' i r) a = do
-        res <- fstep r a
-        let i1 = i + 1
-            s1 = Tuple' i1 res
-        if i1 < n
-        then return $ Yield 0 s1
-        else Stop 0 <$> fextract res
-
-    extract (Tuple' _ r) = fextract r
 
 ------------------------------------------------------------------------------
 -- Binary APIs

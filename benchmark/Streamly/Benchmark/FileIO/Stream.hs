@@ -448,7 +448,7 @@ inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 {-# INLINE splitParseChunksOfSum #-}
 splitParseChunksOfSum :: Int -> Handle -> IO Int
 splitParseChunksOfSum n inh =
-    S.length $ IP.splitParse (IFL.take n FL.sum) (S.unfold FH.read inh)
+    S.length $ IP.splitParse (PR.take n FL.sum) (S.unfold FH.read inh)
 
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()

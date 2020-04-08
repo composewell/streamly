@@ -511,7 +511,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, assert)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.State.Strict (StateT)
@@ -1202,7 +1202,7 @@ runSink = fold . toFold
 -- /Internal/
 --
 {-# INLINE parse #-}
-parse :: Monad m => Parser m a b -> SerialT m a -> m b
+parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
 parse (Parser step initial extract) = P.parselMx' step initial extract
 
 ------------------------------------------------------------------------------
@@ -3128,7 +3128,7 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 --
 {-# INLINE splitParse #-}
 splitParse
-    :: (IsStream t, Monad m)
+    :: (IsStream t, MonadThrow m)
     => Parser m a b
     -> t m a
     -> t m b

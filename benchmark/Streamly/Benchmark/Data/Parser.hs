@@ -13,9 +13,12 @@ module Main
   ) where
 
 import Control.DeepSeq (NFData(..))
+import Control.Monad.Catch (MonadCatch, MonadThrow)
+-- import Data.Foldable (asum)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take)
 
+import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
@@ -57,27 +60,85 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 {-# INLINE any #-}
-any :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+any :: (MonadThrow m, Ord a) => a -> SerialT m a -> m Bool
 any value = IP.parse (PR.any (> value))
 
 {-# INLINE all #-}
-all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
+all :: (MonadThrow m, Ord a) => a -> SerialT m a -> m Bool
 all value = IP.parse (PR.all (<= value))
 
 {-# INLINE take #-}
-take :: Monad m => Int -> SerialT m a -> m ()
-take value = IP.parse (FL.take value FL.drain)
+take :: MonadThrow m => Int -> SerialT m a -> m ()
+take value = IP.parse (PR.take value FL.drain)
+
+{-# INLINE many #-}
+many :: MonadCatch m => SerialT m Int -> m Int
+many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
+
+{-# INLINE manyAlt #-}
+manyAlt :: MonadCatch m => SerialT m Int -> m Int
+manyAlt xs = do
+    x <- IP.parse (AP.many (PR.satisfy (> 0))) xs
+    return $ Prelude.length x
+
+{-# INLINE some #-}
+some :: MonadCatch m => SerialT m Int -> m Int
+some = IP.parse (PR.some FL.length (PR.satisfy (> 0)))
+
+{-# INLINE someAlt #-}
+someAlt :: MonadCatch m => SerialT m Int -> m Int
+someAlt xs = do
+    x <- IP.parse (AP.some (PR.satisfy (> 0))) xs
+    return $ Prelude.length x
+
+{-# INLINE manyTill #-}
+manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
+manyTill value =
+    IP.parse (PR.manyTill FL.length (PR.satisfy (> 0)) (PR.satisfy (== value)))
+
+{-
+-- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling this
+-- We need to fix GHX so that we can have better control over that option or do
+-- not have to rely on it.
+--
+-- choice using the "Alternative" instance with direct style parser type has
+-- quadratic performance complexity.
+--
+{-# INLINE choice #-}
+choice :: MonadCatch m => Int -> SerialT m Int -> m Int
+choice value = do
+    IP.parse (asum (replicate value (PR.satisfy (< 0)))
+        AP.<|> PR.satisfy (> 0))
+-}
 
 {-# INLINE splitAllAny #-}
-splitAllAny :: (Monad m, Ord a)
+splitAllAny :: (MonadThrow m, Ord a)
     => a -> SerialT m a -> m (Bool, Bool)
 splitAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
 
 {-# INLINE teeAllAny #-}
-teeAllAny :: (Monad m, Ord a)
+teeAllAny :: (MonadThrow m, Ord a)
     => a -> SerialT m a -> m (Bool, Bool)
 teeAllAny value =
     IP.parse (PR.teeWith (,) (PR.all (<= value)) (PR.any (> value)))
+
+{-# INLINE teeFstAllAny #-}
+teeFstAllAny :: (MonadThrow m, Ord a)
+    => a -> SerialT m a -> m (Bool, Bool)
+teeFstAllAny value =
+    IP.parse (PR.teeWithFst (,) (PR.all (<= value)) (PR.any (> value)))
+
+{-# INLINE shortestAllAny #-}
+shortestAllAny :: (MonadThrow m, Ord a)
+    => a -> SerialT m a -> m Bool
+shortestAllAny value =
+    IP.parse (PR.shortest (PR.all (<= value)) (PR.any (> value)))
+
+{-# INLINE longestAllAny #-}
+longestAllAny :: (MonadCatch m, Ord a)
+    => a -> SerialT m a -> m Bool
+longestAllAny value =
+    IP.parse (PR.longest (PR.all (<= value)) (PR.any (> value)))
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -89,7 +150,16 @@ o_1_space_serial_parse value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "split (all,any)" $ splitAllAny value
+    , benchIOSink value "many" many
+    , benchIOSink value "some" some
+    , benchIOSink value "manyAlt" manyAlt
+    , benchIOSink value "someAlt" someAlt
+    , benchIOSink value "manyTill" $ manyTill value
+    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
     , benchIOSink value "tee (all,any)" $ teeAllAny value
+    , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
+    , benchIOSink value "shortest (all,any)" $ shortestAllAny value
+    , benchIOSink value "longest (all,any)" $ longestAllAny value
     ]
 
 -------------------------------------------------------------------------------

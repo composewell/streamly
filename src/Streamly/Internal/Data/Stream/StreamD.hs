@@ -325,7 +325,7 @@ import Control.Concurrent (killThread, myThreadId, takeMVar, threadDelay)
 import Control.Exception
        (assert, Exception, SomeException, AsyncException, fromException, mask_)
 import Control.Monad (void, when, forever)
-import Control.Monad.Catch (MonadCatch, throwM)
+import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.State.Strict (StateT)
@@ -362,7 +362,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Parser.Types (Parser(..))
+import Streamly.Internal.Data.Parser.Types (Parser(..), ParseError(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -971,7 +971,7 @@ splitAt n ls
 -- | Run a 'Parse' over a stream.
 {-# INLINE_NORMAL parselMx' #-}
 parselMx'
-    :: Monad m
+    :: MonadThrow m
     => (s -> a -> m (PR.Step s b))
     -> m s
     -> (s -> m b)
@@ -1003,6 +1003,7 @@ parselMx' pstep initial extract (Stream step state) = do
                             src  = Prelude.reverse src0
                         gobuf SPEC s buf1 src pst1
                     PR.Stop _ b -> return b
+                    PR.Error err -> throwM $ ParseError err
             Skip s -> go SPEC s buf pst
             Stop   -> extract pst
 
@@ -1021,6 +1022,7 @@ parselMx' pstep initial extract (Stream step state) = do
                     src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s buf1 src pst1
             PR.Stop _ b -> return b
+            PR.Error err -> throwM $ ParseError err
 
 ------------------------------------------------------------------------------
 -- Repeated parsing
@@ -1036,7 +1038,7 @@ data ParseChunksState x inpBuf st pst =
 
 {-# INLINE_NORMAL splitParse #-}
 splitParse
-    :: Monad m
+    :: MonadThrow m
     => Parser m a b
     -> Stream m a
     -> Stream m b
@@ -1076,12 +1078,13 @@ splitParse (Parser pstep initial extract) (Stream step state) =
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         return $ Skip $ ParseChunksBuf src s buf1 pst1
-                    -- XXX Halt 0 common case?
+                    -- XXX Specialize for Stop 0 common case?
                     PR.Stop n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let src = Prelude.reverse (Prelude.take n (x:buf))
                         return $ Skip $
                             ParseChunksYield b (ParseChunksInit src s)
+                    PR.Error err -> throwM $ ParseError err
             Skip s -> return $ Skip $ ParseChunksStream s buf pst
             Stop   -> do
                 b <- extract pst
@@ -1108,11 +1111,12 @@ splitParse (Parser pstep initial extract) (Stream step state) =
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s buf1 pst1
-            -- XXX have 0 case
+            -- XXX Specialize for Stop 0 common case?
             PR.Stop n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let src = Prelude.reverse (Prelude.take n (x:buf)) ++ xs
                 return $ Skip $ ParseChunksYield b (ParseChunksInit src s)
+            PR.Error err -> throwM $ ParseError err
 
     stepOuter _ (ParseChunksYield a next) = return $ Yield a next
 

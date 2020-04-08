@@ -257,6 +257,7 @@ benchmark parser
     buildable: False
   else
     buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
 
 -------------------------------------------------------------------------------
 -- Raw Streams

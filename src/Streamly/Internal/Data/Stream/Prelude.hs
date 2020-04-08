@@ -68,6 +68,7 @@ module Streamly.Internal.Data.Stream.Prelude
     )
 where
 
+import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Trans (MonadTrans(..))
 import Prelude hiding (foldr, minimum, maximum)
 import qualified Prelude
@@ -161,7 +162,7 @@ foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
 
 {-# INLINE parselMx' #-}
 parselMx'
-    :: (IsStream t, Monad m)
+    :: (IsStream t, MonadThrow m)
     => (s -> a -> m (Step s b))
     -> m s
     -> (s -> m b)

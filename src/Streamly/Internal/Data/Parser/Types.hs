@@ -1,4 +1,5 @@
 {-# LANGUAGE ExistentialQuantification          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
 -- Module      : Streamly.Parser.Types
@@ -44,11 +45,27 @@ module Streamly.Internal.Data.Parser.Types
     (
       Step (..)
     , Parser (..)
+    , ParseError (..)
+
+    , yield
+    , yieldM
     , splitWith
+
+    , die
+    , dieM
+    , splitSome
+    , splitMany
+    , alt
     )
 where
 
+import Control.Exception (assert, Exception(..))
+import Control.Applicative (Alternative(..))
+import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
+
 import Fusion.Plugin.Types (Fuse(..))
+import Streamly.Internal.Data.Fold (Fold(..), toList)
+import Streamly.Internal.Data.Strict (Tuple3'(..))
 
 -- | The return type of a 'Parser' step.
 --
@@ -58,10 +75,11 @@ import Fusion.Plugin.Types (Fuse(..))
 -- point of no return in a backtracking buffer.  The buffer grows or shrinks
 -- based on the return values of the parser step execution.
 --
--- When a parser step is executed it generates a new state of the parse result
--- along with a command to the driver. The command tells the driver whether to
--- keep the input stream for backtracking or drop it, and how much to keep. The
--- constructors of 'Step' represent the commands to the driver.
+-- When a parser step is executed it generates a new intermediate state of the
+-- parse result along with a command to the driver. The command tells the
+-- driver whether to keep the input stream for a potential backtracking later
+-- on or drop it, and how much to keep. The constructors of 'Step' represent
+-- the commands to the driver.
 --
 -- /Internal/
 --
@@ -84,31 +102,49 @@ data Step s b =
     -- point of no return created by @Yield@.
 
     | Stop Int b
-    -- ^ @Stop offset state@ asks the driver to stop driving the parser because
-    -- it has reached a fixed point and further input will not change the
-    -- result.  @offset@ is the count of unused elements which includes the
-    -- element on which 'Stop' occurred.  Once a fold stops, driving it further
-    -- may produce undefined behavior.
+    -- ^ @Stop offset result@ asks the driver to stop driving the parser
+    -- because it has reached a fixed point and further input will not change
+    -- the result.  @offset@ is the count of unused elements which includes the
+    -- element on which 'Stop' occurred.
+    | Error String
+    -- ^ An error makes the parser backtrack to the last checkpoint and try
+    -- another alternative.
 
 instance Functor (Step s) where
     {-# INLINE fmap #-}
     fmap _ (Yield n s) = Yield n s
     fmap _ (Skip n s) = Skip n s
     fmap f (Stop n b) = Stop n (f b)
+    fmap _ (Error err) = Error err
 
--- | A parsing fold is represented as @Parser step initial extract@. Before we
--- drive a parser we call the @initial@ action to retrieve the initial state of
--- the fold. The driver invokes @step@ with the state returned by the previous
--- step and the next input element. It results into a new state and a command
--- to the driver represented by 'Step' type. At any point of time the driver
--- can call @extract@ to inspect the result of the fold. It may result in an
--- error or an output value.
+-- | A parser is a fold that can fail and is represented as @Parser step
+-- initial extract@. Before we drive a parser we call the @initial@ action to
+-- retrieve the initial state of the fold. The parser driver invokes @step@
+-- with the state returned by the previous step and the next input element. It
+-- results into a new state and a command to the driver represented by 'Step'
+-- type. The driver keeps invoking the step function until it stops or fails.
+-- At any point of time the driver can call @extract@ to inspect the result of
+-- the fold. It may result in an error or an output value.
+--
+-- /Internal/
 --
 data Parser m a b =
     forall s. Parser (s -> a -> m (Step s b)) (m s) (s -> m b)
 
--- | Maps a function over the output of the fold.
+-- | This exception is used for two purposes:
 --
+-- * When a parser ultimately fails, the user of the parser is intimated via
+--    this exception.
+-- * When the "extract" function of a parser needs to throw an error.
+--
+-- /Internal/
+--
+newtype ParseError = ParseError String
+    deriving Show
+
+instance Exception ParseError where
+    displayException (ParseError err) = err
+
 instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
     fmap f (Parser step1 initial extract) =
@@ -119,11 +155,30 @@ instance Functor m => Functor (Parser m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
-{-# INLINE wrap #-}
-wrap :: Monad m => b -> Parser m a b
-wrap b = Parser (\_ _ -> pure $ Stop 0 b)  -- step
-                (pure ())                  -- initial
-                (\_ -> pure b)             -- extract
+-- This is the dual of stream "yield".
+--
+-- | A parser that always yields a pure value without consuming any input.
+--
+-- /Internal/
+--
+{-# INLINE yield #-}
+yield :: Monad m => b -> Parser m a b
+yield b = Parser (\_ _ -> pure $ Stop 1 b)  -- step
+                 (pure ())                  -- initial
+                 (\_ -> pure b)             -- extract
+
+-- This is the dual of stream "yieldM".
+--
+-- | A parser that always yields the result of an effectful action without
+-- consuming any input.
+--
+-- /Internal/
+--
+{-# INLINE yieldM #-}
+yieldM :: Monad m => m b -> Parser m a b
+yieldM b = Parser (\_ _ -> Stop 1 <$> b) -- step
+                  (pure ())              -- initial
+                  (\_ -> b)              -- extract
 
 -------------------------------------------------------------------------------
 -- Sequential applicative
@@ -132,13 +187,26 @@ wrap b = Parser (\_ _ -> pure $ Stop 0 b)  -- step
 {-# ANN type SeqParseState Fuse #-}
 data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
+-- Note: this implementation of splitWith is fast because of stream fusion but
+-- has quadratic time complexity, because each composition adds a new branch
+-- that each subsequent parse's input element has to go through, therefore, it
+-- cannot scale to a large number of compositions. After around 100
+-- compositions the performance starts dipping rapidly beyond a CPS style
+-- unfused implementation.
+--
 -- | Sequential application. Apply two parsers sequentially to an input stream.
 -- The input is provided to the first parser, when it is done the remaining
 -- input is provided to the second parser. If both the parsers succeed their
 -- outputs are combined using the supplied function. The operation fails if any
 -- of the parsers fail.
 --
--- This undoes an "append" of two streams, it splits the streams.
+-- This undoes an "append" of two streams, it splits the streams using two
+-- parsers and zips the results.
+--
+-- This implementation is strict in the second argument, therefore, the
+-- following will fail:
+--
+-- >>> S.parse (PR.satisfy (> 0) *> undefined) $ S.fromList [1]
 --
 -- /Internal/
 --
@@ -163,6 +231,7 @@ splitWith func (Parser stepL initialL extractL)
             Yield _ s -> return $ Skip 0 (SeqParseL s)
             Skip n s -> return $ Skip n (SeqParseL s)
             Stop n b -> Skip n <$> (SeqParseR (func b) <$> initialR)
+            Error err -> return $ Error err
 
     step (SeqParseR f st) a = do
         r <- stepR st a
@@ -170,6 +239,7 @@ splitWith func (Parser stepL initialL extractL)
             Yield n s -> Yield n (SeqParseR f s)
             Skip n s -> Skip n (SeqParseR f s)
             Stop n b -> Stop n (f b)
+            Error err -> Error err
 
     extract (SeqParseR f sR) = fmap f (extractR sR)
     extract (SeqParseL sL) = do
@@ -181,7 +251,220 @@ splitWith func (Parser stepL initialL extractL)
 -- | 'Applicative' form of 'splitWith'.
 instance Monad m => Applicative (Parser m a) where
     {-# INLINE pure #-}
-    pure = wrap
+    pure = yield
 
     {-# INLINE (<*>) #-}
     (<*>) = splitWith id
+
+-------------------------------------------------------------------------------
+-- Sequential Alternative
+-------------------------------------------------------------------------------
+
+{-# ANN type AltParseState Fuse #-}
+data AltParseState sl sr = AltParseL Int sl | AltParseR sr
+
+-- Note: this implementation of alt is fast because of stream fusion but has
+-- quadratic time complexity, because each composition adds a new branch that
+-- each subsequent alternative's input element has to go through, therefore, it
+-- cannot scale to a large number of compositions
+--
+-- | Sequential alternative. Apply the input to the first parser and return the
+-- result if the parser succeeds. If the first parser fails then backtrack and
+-- apply the same input to the second parser and return the result.
+--
+-- Note: This implementation is not lazy in the second argument. The following
+-- will fail:
+--
+-- >>> S.parse (PR.satisfy (> 0) `PR.alt` undefined) $ S.fromList [1..10]
+--
+-- /Internal/
+--
+{-# INLINE alt #-}
+alt :: Monad m => Parser m x a -> Parser m x a -> Parser m x a
+alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
+    Parser step initial extract
+
+    where
+
+    initial = AltParseL 0 <$> initialL
+
+    -- Once a parser yields at least one value it cannot fail.  This
+    -- restriction helps us make backtracking more efficient, as we do not need
+    -- to keep the consumed items buffered after a yield. Note that we do not
+    -- enforce this and if a misbehaving parser does not honor this then we can
+    -- get unexpected results.
+    step (AltParseL cnt st) a = do
+        r <- stepL st a
+        case r of
+            Yield n s -> return $ Yield n (AltParseL 0 s)
+            Skip n s -> do
+                assert (cnt + 1 - n >= 0) (return ())
+                return $ Skip n (AltParseL (cnt + 1 - n) s)
+            Stop n b -> return $ Stop n b
+            Error _ -> do
+                rR <- initialR
+                return $ Skip (cnt + 1) (AltParseR rR)
+
+    step (AltParseR st) a = do
+        r <- stepR st a
+        return $ case r of
+            Yield n s -> Yield n (AltParseR s)
+            Skip n s -> Skip n (AltParseR s)
+            Stop n b -> Stop n b
+            Error err -> Error err
+
+    extract (AltParseR sR) = extractR sR
+    extract (AltParseL _ sL) = extractL sL
+
+-- | See documentation of 'Streamly.Internal.Data.Parser.many'.
+--
+-- /Internal/
+--
+{-# INLINE splitMany #-}
+splitMany :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
+splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        ps <- initial1 -- parse state
+        fs <- finitial -- fold state
+        pure (Tuple3' ps 0 fs)
+
+    {-# INLINE step #-}
+    step (Tuple3' st cnt fs) a = do
+        r <- step1 st a
+        let cnt1 = cnt + 1
+        case r of
+            Yield _ s -> return $ Skip 0 (Tuple3' s cnt1 fs)
+            Skip n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Skip n (Tuple3' s (cnt1 - n) fs)
+            Stop n b -> do
+                s <- initial1
+                fs1 <- fstep fs b
+                -- XXX we need to yield and backtrack here
+                return $ Skip n (Tuple3' s 0 fs1)
+            Error _ -> do
+                xs <- fextract fs
+                return $ Stop cnt1 xs
+
+    -- XXX The "try" may impact performance if this parser is used as a scan
+    extract (Tuple3' s _ fs) = do
+        r <- try $ extract1 s
+        case r of
+            Left (_ :: ParseError) -> fextract fs
+            Right b -> fstep fs b >>= fextract
+
+-- | See documentation of 'Streamly.Internal.Data.Parser.some'.
+--
+-- /Internal/
+--
+{-# INLINE splitSome #-}
+splitSome :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
+splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
+    Parser step initial extract
+
+    where
+
+    initial = do
+        ps <- initial1 -- parse state
+        fs <- finitial -- fold state
+        pure (Tuple3' ps 0 (Left fs))
+
+    {-# INLINE step #-}
+    step (Tuple3' st _ (Left fs)) a = do
+        r <- step1 st a
+        case r of
+            Yield _ s -> return $ Skip 0 (Tuple3' s undefined (Left fs))
+            Skip  n s -> return $ Skip n (Tuple3' s undefined (Left fs))
+            Stop n b -> do
+                s <- initial1
+                fs1 <- fstep fs b
+                -- XXX this is also a yield point, we will never fail beyond
+                -- this point. If we do not yield then if an error occurs after
+                -- this then we will backtrack to the previous yield point
+                -- instead of this point which is wrong.
+                --
+                -- so we need a yield with backtrack
+                return $ Skip n (Tuple3' s 0 (Right fs1))
+            Error err -> return $ Error err
+    step (Tuple3' st cnt (Right fs)) a = do
+        r <- step1 st a
+        let cnt1 = cnt + 1
+        case r of
+            Yield _ s -> return $ Yield 0 (Tuple3' s cnt1 (Right fs))
+            Skip n s -> do
+                assert (cnt1 - n >= 0) (return ())
+                return $ Skip n (Tuple3' s (cnt1 - n) (Right fs))
+            Stop n b -> do
+                s <- initial1
+                fs1 <- fstep fs b
+                -- XXX we need to yield here but also backtrack
+                return $ Skip n (Tuple3' s 0 (Right fs1))
+            Error _ -> Stop cnt1 <$> fextract fs
+
+    -- XXX The "try" may impact performance if this parser is used as a scan
+    extract (Tuple3' s _ (Left fs)) = extract1 s >>= fstep fs >>= fextract
+    extract (Tuple3' s _ (Right fs)) = do
+        r <- try $ extract1 s
+        case r of
+            Left (_ :: ParseError) -> fextract fs
+            Right b -> fstep fs b >>= fextract
+
+-- This is the dual of "nil".
+--
+-- | A parser that always fails with an error message without consuming
+-- any input.
+--
+-- /Internal/
+--
+{-# INLINE die #-}
+die :: MonadThrow m => String -> Parser m a b
+die err =
+    Parser (\_ _ -> pure $ Error err)      -- step
+           (pure ())                       -- initial
+           (\_ -> throwM $ ParseError err) -- extract
+
+-- This is the dual of "nilM".
+--
+-- | A parser that always fails with an effectful error message and without
+-- consuming any input.
+--
+-- /Internal/
+--
+{-# INLINE dieM #-}
+dieM :: MonadThrow m => m String -> Parser m a b
+dieM err =
+    Parser (\_ _ -> Error <$> err)         -- step
+           (pure ())                       -- initial
+           (\_ -> err >>= throwM . ParseError) -- extract
+
+-- Note: The default implementations of "some" and "many" loop infinitely
+-- because of the strict pattern match on both the arguments in applicative and
+-- alternative. With the direct style parser type we cannot use the mutually
+-- recursive definitions of "some" and "many".
+--
+-- Note: With the direct style parser type, the list in "some" and "many" is
+-- accumulated strictly, it cannot be consumed lazily.
+
+-- | 'Alternative' instance using 'alt'.
+--
+-- Note: The implementation of '<|>' is not lazy in the second
+-- argument. The following code will fail:
+--
+-- >>> S.parse (PR.satisfy (> 0) `<|>` undefined) $ S.fromList [1..10]
+--
+instance MonadCatch m => Alternative (Parser m a) where
+    {-# INLINE empty #-}
+    empty = die "empty"
+
+    {-# INLINE (<|>) #-}
+    (<|>) = alt
+
+    {-# INLINE many #-}
+    many = splitMany toList
+
+    {-# INLINE some #-}
+    some = splitSome toList
