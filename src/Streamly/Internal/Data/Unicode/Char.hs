@@ -11,6 +11,9 @@
 --
 module Streamly.Internal.Data.Unicode.Char
     (
+    -- * Predicates
+      isAsciiAlpha
+
     -- * Unicode aware operations
     {-
       toCaseFold
@@ -21,7 +24,21 @@ module Streamly.Internal.Data.Unicode.Char
     )
 where
 
+import Data.Char (isAsciiUpper, isAsciiLower)
+
 -- import Streamly (IsStream)
+
+-------------------------------------------------------------------------------
+-- Unicode aware operations on strings
+-------------------------------------------------------------------------------
+
+-- | Select alphabetic characters in the ascii character set.
+--
+-- /Internal/
+--
+{-# INLINE isAsciiAlpha #-}
+isAsciiAlpha :: Char -> Bool
+isAsciiAlpha c = isAsciiUpper c || isAsciiLower c
 
 -------------------------------------------------------------------------------
 -- Unicode aware operations on strings
