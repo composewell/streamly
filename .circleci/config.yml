@@ -145,7 +145,8 @@ jobs:
         - *restore
         - run: |
               apt-get install -y ghc-8.2.2
-              apt-get install -y cabal-install-2.4
+              apt-get install -y cabal-install-3.2
+              apt-get install libtinfo-dev
               bash -c "$PACKCHECK cabal-v2"
         - *save
   cabal-ghc-8.0.2:
@@ -197,7 +198,7 @@ jobs:
         - run:
             environment:
               BUILD: cabal
-              COVERALLS_OPTIONS: "--repo-token=KlGN45lDWQkw55TNm18nkam2EXRg9lCSH --coverage-mode=StrictlyFullLines --exclude-dir=test test"
+              COVERALLS_OPTIONS: "--repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test test"
               GHC_OPTIONS: "-DCOVERAGE_BUILD"
             command: |
               apt-get install -y ghc-8.2.2
@@ -208,6 +209,28 @@ jobs:
               apt-get install libtinfo-dev
               bash -c "$PACKCHECK cabal-v1"
         - *save
+  coveralls-ghc-8.8.3:
+      <<: *env
+      steps:
+        - checkout
+        - *preinstall
+        - *restore
+        - run:
+            environment:
+              BUILD: cabal-v2
+              COVERALLS_OPTIONS: "--repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test"
+              CABAL_PROJECT: "cabal.project.coverage"
+              CABAL_BUILD_TARGETS: ""
+            command: |
+              apt-get install -y ghc-8.8.3
+              apt-get install -y cabal-install-3.0
+              # required by hpc-coveralls
+              apt-get install -y libcurl4-gnutls-dev
+              apt-get install -y git
+              apt-get install libtinfo-dev
+              bash -c "$PACKCHECK cabal-v2"
+            no_output_timeout: 25m
+        - *save
 
 workflows:
   version: 2
@@ -215,9 +238,10 @@ workflows:
     jobs:
       #- cabal-ghc-8.6.5
       #- cabal-ghc-8.4.4
-      #- cabal-ghc-8.2.2
+      - cabal-ghc-8.2.2
       #- cabal-ghc-8.0.2
       #- cabal-ghc-7.10.3
       #- stack-ghc-8.4
       #- stack-ghc-8.2
-      - coveralls-ghc-8.2.2
+      #- coveralls-ghc-8.2.2
+      #- coveralls-ghc-8.8.3
