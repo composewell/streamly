@@ -45,7 +45,6 @@ main = do
             , o_1_space_serial_concatFoldable value
             , o_1_space_serial_concatSerial value
             , o_1_space_serial_outerProductStreams value
-            , o_1_space_serial_outerProductUnfolds value
             , o_1_space_serial_mixed value
             , o_1_space_serial_mixedX4 value
             ]

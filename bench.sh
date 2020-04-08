@@ -4,6 +4,7 @@ SERIAL_O_1="linear base"
 SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space \
   base-o-n-heap base-o-n-stack base-o-n-space"
 FOLD_BENCHMARKS="fold-o-1-space fold-o-n-heap"
+UNFOLD_BENCHMARKS="unfold-o-1-space unfold-o-n-space"
 
 SERIAL_BENCHMARKS="$SERIAL_O_1 $SERIAL_O_n $FOLD_BENCHMARKS"
 # parallel benchmark-suite is separated because we run it with a higher
@@ -27,6 +28,8 @@ bench_rts_opts () {
   case "$1" in
     "fold-o-1-space") echo -n "-T -K36K -M16M" ;;
     "fold-o-n-heap") echo -n "-T -K36K -M128M" ;;
+    "unfold-o-1-space") echo -n "-T -K36K -M16M" ;;
+    "unfold-o-n-space") echo -n "-T -K32M -M64M" ;;
     *) echo -n "" ;;
   esac
 }
@@ -36,6 +39,8 @@ bench_exec () {
   case "$1" in
     "fold-o-1-space") echo -n "fold" ;;
     "fold-o-n-heap") echo -n "fold" ;;
+    "unfold-o-1-space") echo -n "unfold" ;;
+    "unfold-o-n-space") echo -n "unfold" ;;
     *) echo -n "$1" ;;
   esac
 }
@@ -45,6 +50,8 @@ bench_gauge_opts () {
   case "$1" in
     "fold-o-1-space") echo -n "-m prefix o-1-space" ;;
     "fold-o-n-heap") echo -n "-m prefix o-n-heap" ;;
+    "unfold-o-1-space") echo -n "-m prefix o-1-space" ;;
+    "unfold-o-n-space") echo -n "-m prefix o-n-space" ;;
     *) echo -n "" ;;
   esac
 }

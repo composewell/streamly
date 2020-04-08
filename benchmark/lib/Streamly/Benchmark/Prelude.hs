@@ -39,7 +39,6 @@ module Streamly.Benchmark.Prelude
     , o_1_space_serial_concatFoldable
     , o_1_space_serial_concatSerial
     , o_1_space_serial_outerProductStreams
-    , o_1_space_serial_outerProductUnfolds
     , o_1_space_serial_mixed
     , o_1_space_serial_mixedX4
 
@@ -51,7 +50,6 @@ module Streamly.Benchmark.Prelude
 
     , o_n_space_serial_toList
     , o_n_space_serial_outerProductStreams
-    , o_n_space_serial_outerProductUnfolds
 
     , o_n_space_wSerial_outerProductStreams
 
@@ -129,7 +127,6 @@ import Streamly.Internal.Data.Time.Units
 import qualified Streamly.Internal.Prelude as IP
 
 import qualified Streamly.Benchmark.Prelude.NestedOps as Nested
-import qualified Streamly.Benchmark.Data.NestedUnfoldOps as NestedUnfold
 
 import Gauge
 import Streamly hiding (runStream)
@@ -2024,23 +2021,6 @@ o_1_space_serial_outerProductStreams value =
           ]
     ]
 
-o_1_space_serial_outerProductUnfolds :: Int -> [Benchmark]
-o_1_space_serial_outerProductUnfolds value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "outer-product-unfolds"
-                [ benchIO "toNull" $ NestedUnfold.toNull value
-                , benchIO "toNull3" $ NestedUnfold.toNull3 value
-                , benchIO "concat" $ NestedUnfold.concat value
-                , benchIO "filterAllOut" $ NestedUnfold.filterAllOut value
-                , benchIO "filterAllIn" $ NestedUnfold.filterAllIn value
-                , benchIO "filterSome" $ NestedUnfold.filterSome value
-                , benchIO "breakAfterSome" $ NestedUnfold.breakAfterSome value
-                ]
-          ]
-    ]
-
 o_1_space_serial_mixed :: Int -> [Benchmark]
 o_1_space_serial_mixed value =
     [ bgroup
@@ -2167,18 +2147,6 @@ o_n_space_serial_outerProductStreams value =
                 "outer-product-streams"
                 [ benchIO "toList" $ Nested.toList value serially
                 , benchIO "toListSome" $ Nested.toListSome value serially
-                ]
-          ]
-    ]
-
-o_n_space_serial_outerProductUnfolds :: Int -> [Benchmark]
-o_n_space_serial_outerProductUnfolds value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "outer-product-unfolds"
-                [ benchIO "toList" $ NestedUnfold.toList value
-                , benchIO "toListSome" $ NestedUnfold.toListSome value
                 ]
           ]
     ]

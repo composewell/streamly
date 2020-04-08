@@ -25,7 +25,6 @@ main = do
         concat
             [ o_n_space_serial_toList size -- < 2MB
             , o_n_space_serial_outerProductStreams size
-            , o_n_space_serial_outerProductUnfolds size
             , o_n_space_wSerial_outerProductStreams size
             , o_n_space_serial_traversable size -- < 2MB
             , o_n_space_serial_foldr size

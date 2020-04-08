@@ -139,7 +139,6 @@ library lib-prelude
                        Streamly.Benchmark.Prelude
     other-modules:     Streamly.Benchmark.Common
                      , Streamly.Benchmark.Prelude.NestedOps
-                     , Streamly.Benchmark.Data.NestedUnfoldOps
     -- XXX GHCJS build fails for this library.
     if impl(ghcjs)
       buildable: False
@@ -235,6 +234,19 @@ benchmark fold
     buildable: False
   else
     buildable: True
+
+benchmark unfold
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -rtsopts
+  hs-source-dirs: ., Streamly/Benchmark/Data
+  main-is: Unfold.hs
+  other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 
 -------------------------------------------------------------------------------
 -- Raw Streams
