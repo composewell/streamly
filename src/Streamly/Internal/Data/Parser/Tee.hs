@@ -1,13 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
--- Somehow uni-pattern match using "let" produces better optimized code
--- compared to using cases and using explicit "error" messages in unreachable
--- cases.  There seem to be no way to silence individual warning so we use this
--- global option for the file.
---
--- Disabling this has the potential to mask off some legit warnings, therefore
--- we have segregated code that uses uni-pattern matches in this file.
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 #endif
@@ -22,7 +15,19 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Parsers.
+-- Parallel parsers. Distributing the input to multiple parsers at the same
+-- time.
+--
+-- For simplicity, we are using code where a particular state is unreachable
+-- but it is not prevented by types.  Somehow uni-pattern match using "let"
+-- produces better optimized code compared to using @case@ match and using
+-- explicit error messages in unreachable cases.
+--
+-- There seem to be no way to silence individual warnings so we use a global
+-- incomplete uni-pattern match warning suppression option for the file.
+-- Disabling the warning for other code as well  has the potential to mask off
+-- some legit warnings, therefore, we have segregated only the code that uses
+-- uni-pattern matches in this module.
 
 module Streamly.Internal.Data.Parser.Tee
     (

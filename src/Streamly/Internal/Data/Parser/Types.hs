@@ -11,32 +11,98 @@
 --
 -- Streaming and backtracking parsers.
 --
+-- Parsers just extend folds.  Please read the 'Fold' design notes in
+-- "Streamly.Internal.Data.Fold.Types" for background on the design.
+--
+-- = Parser Design
+--
 -- The 'Parser' type or a parsing fold is a generalization of the 'Fold' type.
--- The 'Fold' type always succeeds on each input. Therefore it does not need to
--- buffer the input. In contrast, a 'Parser' may fail and backtrack to replay
--- the input again to explore another branch of the parser. Therefore, it needs
--- to buffer the input.
+-- The 'Fold' type /always/ succeeds on each input. Therefore, it does not need
+-- to buffer the input. In contrast, a 'Parser' may fail and backtrack to
+-- replay the input again to explore another branch of the parser. Therefore,
+-- it needs to buffer the input. Therefore, a 'Parser' is a fold with some
+-- additional requirements.  To summarize, unlike a 'Fold', a 'Parser':
 --
--- The 'Parser' type is an extension of the 'Fold' type.  The 'Step' functor
--- for the 'Parser' type has been specifically designed for stream parsing
--- applications, assuming the input to be a seuqentially read stream and
--- potentially buffering a contiguous segment of the stream based on the
--- parser's need.
+-- 1. may not generate a new value of the accumulator on every input, it may
+-- generate a new accumulator only after consuming multiple input elements
+-- (e.g. takeEQ).
+-- 2. on success may return some unconsumed input (e.g. takeWhile)
+-- 3. may fail and return all input without consuming it (e.g. satisfy)
+-- 4. backtrack and start inspecting the past input again (e.g. alt)
 --
--- To provide richer communication with the input stream, the 'Step' functor of
--- a 'Parser' provides more powerful commands to manipulate the input stream
--- after each step invocation. It allows the fold driver to:
+-- These use cases require buffering and replaying of input.  To facilitate
+-- this, the step function of the 'Fold' is augmented to return the next state
+-- of the fold along with a command tag using a 'Step' functor, the tag tells
+-- the fold driver to manipulate the future input as the parser wishes. The
+-- 'Step' functor provides the following commands to the fold driver
+-- corresponding to the use cases outlined in the previous para:
 --
--- 1. Buffer the input until explicitly asked to drop the input
--- 2. Drop the input stream beyond a "point of no return" in the history
--- because the input till that point has been consumed irrevocably.
--- 3. Go back in the buffered stream upto the point of no return.
+-- 1. 'Skip': hold (buffer) the input or go back to a previous position in the stream
+-- 2. 'Yield', 'Stop': tell how much input is unconsumed
+-- 3. 'Error': indicates that the parser has failed without a result
+--
+-- = How a Parser Works?
+--
+-- A parser is just like a fold, it keeps consuming inputs from the stream and
+-- accumulating them in an accumulator. The accumulator of the parser could be
+-- a singleton value or it could be a collection of values e.g. a list.
+--
+-- The parser may build a new output value from multiple input items. When it
+-- consumes an input item but needs more input to build a complete output item
+-- it uses @Skip 0 s@, yielding the intermediate state @s@ and asking the
+-- driver to provide more input.  When the parser determines that a new output
+-- value is complete it can use a @Stop n b@ to terminate the parser with @n@
+-- items of input unused and the final value of the accumulator returned as
+-- @b@. If at any time the parser determines that the parse has failed it can
+-- return @Error err@.
+--
+-- A parser building a collection of values (e.g. a list) can use the @Yield@
+-- constructor whenever a new item in the output collection is generated. If a
+-- parser building a collection of values has yielded at least one value then
+-- it considered successful and cannot fail after that. In the current
+-- implementation, this is not automatically enforced, there is a rule that the
+-- parser MUST use only @Stop@ for termination after the first @Yield@, it
+-- cannot use @Error@. It may be possible to change the implementation so that
+-- this rule is not required, but there may be some performance cost to it.
+--
+-- 'Streamly.Internal.Data.Parser.takeWhile' and
+-- 'Streamly.Internal.Data.Parser.some' combinators are good examples of
+-- efficient implementations using all features of this representation.  It is
+-- possible to idiomatically build a collection of parsed items using a
+-- singleton parser and @Alternative@ instance instead of using a
+-- multi-yield parser.  However, this implementation is amenable to stream
+-- fusion and can therefore be much faster.
+--
+-- = Error Handling
+--
+-- When a parser's @step@ function is invoked it may iterminate by either a
+-- 'Stop' or an 'Error' return value. In an 'Alternative' composition an error
+-- return can make the composed parser backtrack and try another parser.
+--
+-- If the stream stops before a parser could terminate then we use the
+-- @extract@ function of the parser to retrieve the last yielded value of the
+-- parser. If the parser has yielded at least one value then @extract@ MUST
+-- return a value without throwing an error, otherwise it uses the 'ParseError'
+-- exception to throw an error.
+--
+-- We chose the exception throwing mechanism for @extract@ instead of using an
+-- explicit error return via an 'Either' type for keeping the interface simple
+-- as most of the time we do not need to catch the error in intermediate
+-- layers. Note that we cannot use exception throwing mechanism in @step@
+-- function because of performance reasons. 'Error' constructor in that case
+-- allows loop fusion and better performance.
+--
+-- = Future Work
+--
+-- It may make sense to move "takeWhile" type of parsers, which cannot fail but
+-- need some lookahead, to splitting folds.  This will allow such combinators
+-- to be accepted where we need an unfailing "Fold" type.
 --
 -- Based on application requirements it should be possible to design even a
 -- richer interface to manipulate the input stream/buffer. For example, we
 -- could randomly seek into the stream in the forward or reverse directions or
 -- we can even seek to the end or from the end or seek from the beginning.
-
+--
 -- We can distribute and scan/parse a stream using both folds and parsers and
 -- merge the resulting streams using different merge strategies (e.g.
 -- interleaving or serial).

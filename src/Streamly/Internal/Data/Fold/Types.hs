@@ -10,12 +10,123 @@
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC
+--
+-- = Stream Consumers
+--
+-- We can classify stream consumers in the following categories in order of
+-- increasing complexity and power:
+--
+-- == Accumulators
+--
+-- These are the simplest folds that never fail and never terminate, they
+-- accumulate the input values forever and always remain @partial@ and
+-- @complete@ at the same time. It means that we can keep adding more input to
+-- them or at any time retrieve a consistent result. A
+-- 'Streamly.Internal.Data.Fold.sum' operation is an example of an accumulator.
+--
+-- We can distribute an input stream to two or more accumulators using a @tee@
+-- style composition.  Accumulators cannot be applied on a stream one after the
+-- other, which we call a @split@ style composition, as the first one itself
+-- will never terminate, therefore, the next one will never get to run.
+--
+-- == Splitters
+--
+-- Splitters are accumulators that can terminate. When applied on a stream
+-- splitters consume part of the stream, thereby, splitting it.  Splitters can
+-- be used in a @split@ style composition where one splitter can be applied
+-- after the other on an input stream. We can apply a splitter repeatedly on an
+-- input stream splitting and consuming it in fragments.  Splitters never fail,
+-- therefore, they do not need backtracking, but they can lookahead and return
+-- unconsumed input. The 'Streamly.Internal.Data.Parser.take' operation is an
+-- example of a splitter. It terminates after consuming @n@ items. Coupled with
+-- an accumulator it can be used to split the stream into chunks of fixed size.
+--
+-- Consider the example of @takeWhile@ operation, it needs to inspect an
+-- element for termination decision. However, it does not consume the element
+-- on which it terminates. To implement @takeWhile@ a splitter will have to
+-- implement a way to return unconsumed input to the driver.
+--
+-- == Parsers
+--
+-- Parsers are splitters that can fail and backtrack. Parsers can be composed
+-- using an @alternative@ style composition where they can backtrack and apply
+-- another parser if one parser fails. 'Streamly.Internal.Data.Parser.satisfy'
+-- is a simple example of a parser, it would succeed if the condition is
+-- satisfied and it would fail otherwise, on failure an alternative parser can
+-- be used on the same input.
+--
+-- = Types for Stream Consumers
+--
+-- We use the 'Fold' type to implement the Accumulator and Splitter
+-- functionality.  Parsers are represented by the
+-- 'Streamly.Internal.Data.Parser.Parser' type.  This is a sweet spot to
+-- balance ease of use, type safety and performance.  Using separate
+-- Accumulator and Splitter types would encode more information in types but it
+-- would make ease of use, implementation, maintenance effort worse. Combining
+-- Accumulator, Splitter and Parser into a single
+-- 'Streamly.Internal.Data.Parser.Parser' type would make ease of use even
+-- better but type safety and performance worse.
+--
+-- One of the design requirements that we have placed for better ease of use
+-- and code reuse is that 'Streamly.Internal.Data.Parser.Parser' type should be
+-- a strict superset of the 'Fold' type i.e. it can do everything that a 'Fold'
+-- can do and more. Therefore, folds can be easily upgraded to parsers and we
+-- can use parser combinators on folds as well when needed.
+--
+-- = Fold Design
+--
+-- A fold is represented by a collection of "initial", "step" and "extract"
+-- functions. The "initial" action generates the initial state of the fold. The
+-- state is internal to the fold and maintains the accumulated output. The
+-- "step" function is invoked using the current state and the next input value
+-- and results in a @Yield@ or @Stop@. A @Yield@ returns the next intermediate
+-- state of the fold, a @Stop@ indicates that the fold has terminated and
+-- returns the final value of the accumulator.
+--
+-- Every @Yield@ indicates that a new accumulated output is available.  The
+-- accumulated output can be extracted from the state at any point using
+-- "extract". "extract" can never fail. A fold returns a valid output even
+-- without any input i.e. even if you call "extract" on "initial" state it
+-- provides an output. This is not true for parsers.
+--
+-- In general, "extract" is used in two cases:
+--
+-- * When the fold is used as a scan @extract@ is called on the intermediate
+-- state every time it is yielded by the fold, the resulting value is yielded
+-- as a stream.
+-- * When the fold is used as a regular fold, @extract@ is called once when
+-- we are done feeding input to the fold.
+--
+-- = Alternate Designs
+--
+-- An alternate and simpler design would be to return the intermediate output
+-- via @Yield@ along with the state, instead of using "extract" on the yielded
+-- state and remove the extract function altogether.
+--
+-- This may even facilitate more efficient implementation.  Extract from the
+-- intermediate state after each yield may be more costly compared to the fold
+-- step itself yielding the output. The fold may have more efficient ways to
+-- retrieve the output rather than stuffing it in the state and using extract
+-- on the state.
+--
+-- However, removing extract altogether may lead to less optimal code in some
+-- cases because the driver of the fold needs to thread around the intermediate
+-- output to return it if the stream stops before the fold could @Stop@.  When
+-- using this approach, the @splitParse (FL.take filesize)@ benchmark shows a
+-- 2x worse performance even after ensuring everything fuses.  So we keep the
+-- "extract" approach to ensure better perf in all cases.
+--
+-- But we could still yield both state and the output in @Yield@, the output
+-- can be used for the scan use case, instead of using extract. Extract would
+-- then be used only for the case when the stream stops before the fold
+-- completes.
 
 module Streamly.Internal.Data.Fold.Types
     ( Fold (..)
     , Fold2 (..)
     , simplify
     , toListRevF  -- experimental
+    -- $toListRevF
     , lmap
     , lmapM
     , lfilter
@@ -52,13 +163,13 @@ import Streamly.Internal.Data.SVar (MonadAsync)
 -- Monadic left folds
 ------------------------------------------------------------------------------
 
--- | Represents a left fold over an input stream of values of type @a@ to a
--- single value of type @b@ in 'Monad' @m@.
+-- | Represents a left fold over an input stream consisting of values of type
+-- @a@ to a single value of type @b@ in 'Monad' @m@.
 --
 -- The fold uses an intermediate state @s@ as accumulator. The @step@ function
--- updates the state and returns the new updated state. When the fold is done
+-- updates the state and returns the new state. When the fold is done
 -- the final result of the fold is extracted from the intermediate state
--- representation using the @extract@ function.
+-- using the @extract@ function.
 --
 -- @since 0.7.0
 
@@ -66,7 +177,7 @@ data Fold m a b =
   -- | @Fold @ @ step @ @ initial @ @ extract@
   forall s. Fold (s -> a -> m s) (m s) (s -> m b)
 
--- Experimental type to provide a side input to the fold for generating the
+-- | Experimental type to provide a side input to the fold for generating the
 -- initial state. For example, if we have to fold chunks of a stream and write
 -- each chunk to a different file, then we can generate the file name using a
 -- monadic action. This is a generalized version of 'Fold'.
@@ -208,9 +319,10 @@ instance (Monad m, Floating b) => Floating (Fold m a b) where
 -- Internal APIs
 ------------------------------------------------------------------------------
 
--- This is more efficient than 'toList'. toList is exactly the same as
--- reversing the list after toListRev.
---
+-- $toListRevF
+-- This is more efficient than 'Streamly.Internal.Data.Fold.toList'. toList is
+-- exactly the same as reversing the list after 'toListRevF'.
+
 -- | Buffers the input stream to a list in the reverse order of the input.
 --
 -- /Warning!/ working on large lists accumulated as buffers in memory could be
@@ -283,7 +395,7 @@ lcatMaybes = lfilter isJust . lmap fromJust
 
 -- XXX These should become terminating folds.
 --
--- | Take first 'n' elements from the stream and discard the rest.
+-- | Take first @n@ elements from the stream and discard the rest.
 --
 -- @since 0.7.0
 {-# INLINABLE ltake #-}
