@@ -59,8 +59,9 @@ module Streamly.Internal.Data.Parser.Types
     )
 where
 
-import Control.Exception (assert, Exception(..))
 import Control.Applicative (Alternative(..))
+import Control.Exception (assert, Exception(..))
+import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
 
 import Fusion.Plugin.Types (Fuse(..))
@@ -454,7 +455,7 @@ dieM err =
 -- Note: The implementation of '<|>' is not lazy in the second
 -- argument. The following code will fail:
 --
--- >>> S.parse (PR.satisfy (> 0) `<|>` undefined) $ S.fromList [1..10]
+-- >>> S.parse (PR.satisfy (> 0) <|> undefined) $ S.fromList [1..10]
 --
 instance MonadCatch m => Alternative (Parser m a) where
     {-# INLINE empty #-}
@@ -468,3 +469,100 @@ instance MonadCatch m => Alternative (Parser m a) where
 
     {-# INLINE some #-}
     some = splitSome toList
+
+{-# ANN type ConcatParseState Fuse #-}
+data ConcatParseState sl p = ConcatParseL sl | ConcatParseR p
+
+-- Note: The monad instance has quadratic performance complexity. It works fine
+-- for small number of compositions but for a scalable implementation we need a
+-- CPS version.
+
+-- | Monad composition can be used for lookbehind parsers, we can make the
+-- future parses depend on the previously parsed values.
+--
+-- If we have to parse "a9" or "9a" but not "99" or "aa" we can use the
+-- following parser:
+--
+-- @
+-- backtracking :: MonadCatch m => PR.Parser m Char String
+-- backtracking =
+--     sequence [PR.satisfy isDigit, PR.satisfy isAlpha]
+--     '<|>'
+--     sequence [PR.satisfy isAlpha, PR.satisfy isDigit]
+-- @
+--
+-- We know that if the first parse resulted in a digit at the first place then
+-- the second parse is going to fail.  However, we waste that information and
+-- parse the first character again in the second parse only to know that it is
+-- not an alphabetic char.  By using lookbehind in a 'Monad' composition we can
+-- avoid redundant work:
+--
+-- @
+-- data DigitOrAlpha = Digit Char | Alpha Char
+--
+-- lookbehind :: MonadCatch m => PR.Parser m Char String
+-- lookbehind = do
+--     x1 \<-    Digit '<$>' PR.satisfy isDigit
+--          '<|>' Alpha '<$>' PR.satisfy isAlpha
+--
+--     -- Note: the parse depends on what we parsed already
+--     x2 <- case x1 of
+--         Digit _ -> PR.satisfy isAlpha
+--         Alpha _ -> PR.satisfy isDigit
+--
+--     return $ case x1 of
+--         Digit x -> [x,x2]
+--         Alpha x -> [x,x2]
+-- @
+--
+instance Monad m => Monad (Parser m a) where
+    {-# INLINE return #-}
+    return = pure
+
+    -- (>>=) :: Parser m a b -> (b -> Parser m a c) -> Parser m a c
+    {-# INLINE (>>=) #-}
+    (Parser stepL initialL extractL) >>= func = Parser step initial extract
+
+        where
+
+        initial = ConcatParseL <$> initialL
+
+        step (ConcatParseL st) a = do
+            r <- stepL st a
+            return $ case r of
+                Yield _ s -> Skip 0 (ConcatParseL s)
+                Skip n s -> Skip n (ConcatParseL s)
+                Stop n b -> Skip n (ConcatParseR (func b))
+                Error err -> Error err
+
+        step (ConcatParseR (Parser stepR initialR extractR)) a = do
+            st <- initialR
+            r <- stepR st a
+            return $ case r of
+                Yield n s ->
+                    Yield n (ConcatParseR (Parser stepR (return s) extractR))
+                Skip n s ->
+                    Skip n (ConcatParseR (Parser stepR (return s) extractR))
+                Stop n b -> Stop n b
+                Error err -> Error err
+
+        extract (ConcatParseR (Parser _ initialR extractR)) =
+            initialR >>= extractR
+
+        extract (ConcatParseL sL) = extractL sL >>= f . func
+
+            where
+
+            f (Parser _ initialR extractR) = initialR >>= extractR
+
+-- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
+-- '<|>', it selects the first succeeding parser.
+--
+-- /Internal/
+--
+instance MonadCatch m => MonadPlus (Parser m a) where
+    {-# INLINE mzero #-}
+    mzero = die "mzero"
+
+    {-# INLINE mplus #-}
+    mplus = alt

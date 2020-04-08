@@ -16,8 +16,9 @@ import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 -- import Data.Foldable (asum)
 import System.Random (randomRIO)
-import Prelude hiding (any, all, take)
+import Prelude hiding (any, all, take, sequence, sequenceA)
 
+-- import qualified Data.Traversable as TR
 import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -71,6 +72,21 @@ all value = IP.parse (PR.all (<= value))
 take :: MonadThrow m => Int -> SerialT m a -> m ()
 take value = IP.parse (PR.take value FL.drain)
 
+{-
+-- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling this
+{-# INLINE sequenceA #-}
+sequenceA :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequenceA value xs = do
+    x <- IP.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+
+{-# INLINE sequence #-}
+sequence :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequence value xs = do
+    x <- IP.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+-}
+
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
 many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
@@ -112,9 +128,10 @@ choice value = do
 -}
 
 {-# INLINE splitAllAny #-}
-splitAllAny :: (MonadThrow m, Ord a)
-    => a -> SerialT m a -> m (Bool, Bool)
-splitAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
+splitAllAny :: MonadThrow m
+    => Int -> SerialT m Int -> m (Bool, Bool)
+splitAllAny value =
+    IP.parse ((,) <$> PR.all (<= (value `div` 2)) <*> PR.any (> value))
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: (MonadThrow m, Ord a)
@@ -160,6 +177,8 @@ o_1_space_serial_parse value =
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
+    -- , benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
+    -- , benchIOSink value "sequence/100" $ sequence (value `div` 100)
     ]
 
 -------------------------------------------------------------------------------
