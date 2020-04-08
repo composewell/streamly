@@ -40,6 +40,8 @@ data BenchType
     | Adaptive
     | FoldO1Space
     | FoldOnHeap
+    | UnfoldO1Space
+    | UnfoldOnSpace
     deriving Show
 
 data Options = Options
@@ -90,6 +92,8 @@ parseBench = do
         Just "adaptive" -> setBenchType Adaptive
         Just "fold-o-1-space" -> setBenchType FoldO1Space
         Just "fold-o-n-heap" -> setBenchType FoldOnHeap
+        Just "unfold-o-1-space" -> setBenchType UnfoldO1Space
+        Just "unfold-o-n-space" -> setBenchType UnfoldOnSpace
         Just str -> do
                 liftIO $ putStrLn $ "unrecognized benchmark type " <> str
                 mzero
@@ -423,3 +427,13 @@ main = do
                             (makeGraphs "fold-o-n-heap")
                             "charts/fold-o-n-heap/results.csv"
                             "charts/fold-o-n-heap"
+                UnfoldO1Space -> benchShow opts cfg
+                            { title = Just "Unfold O(1) Space" }
+                            (makeGraphs "unfold-o-1-space")
+                            "charts/unfold-o-1-space/results.csv"
+                            "charts/unfold-o-1-space"
+                UnfoldOnSpace -> benchShow opts cfg
+                            { title = Just "Unfold O(n) Space" }
+                            (makeGraphs "unfold-o-n-space")
+                            "charts/unfold-o-n-space/results.csv"
+                            "charts/unfold-o-n-space"
