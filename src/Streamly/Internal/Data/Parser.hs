@@ -67,6 +67,7 @@ module Streamly.Internal.Data.Parser
     -- Grab a sequence of input elements by inspecting them
     , takeWhile
     -- , takeWhileBetween
+    , takeWhile1
     , sepBy
     , sepByMax
     -- , sepByBetween
@@ -399,6 +400,38 @@ takeWhile predicate (Fold fstep finitial fextract) =
         if predicate a
         then Yield 0 <$> fstep s a
         else Stop 1 <$> fextract s
+
+-- | Like 'takeWhile' but takes at least one element otherwise fails.
+--
+-- /Internal/
+--
+{-# INLINE takeWhile1 #-}
+takeWhile1 :: MonadThrow m => (a -> Bool) -> Fold m a b -> Parser m a b
+takeWhile1 predicate (Fold fstep finitial fextract) =
+    Parser step initial extract
+
+    where
+
+    initial = return Nothing
+
+    step Nothing a =
+        if predicate a
+        then do
+            s <- finitial
+            r <- fstep s a
+            return $ Yield 0 (Just r)
+        else return $ Error "takeWhile1: empty"
+    step (Just s) a =
+        if predicate a
+        then do
+            r <- fstep s a
+            return $ Yield 0 (Just r)
+        else do
+            b <- fextract s
+            return $ Stop 1 b
+
+    extract Nothing = throwM $ ParseError "takeWhile1: end of input"
+    extract (Just s) = fextract s
 
 -- | Collect stream elements until an element succeeds the predicate. Drop the
 -- element on which the predicate succeeded. The succeeding element is treated
