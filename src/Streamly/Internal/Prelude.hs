@@ -1202,7 +1202,7 @@ runSink = fold . toFold
 -- /Internal/
 --
 {-# INLINE parse #-}
-parse :: Monad m => Parser m a b -> SerialT m a -> m (Either String b)
+parse :: Monad m => Parser m a b -> SerialT m a -> m b
 parse (Parser step initial extract) = P.parselMx' step initial extract
 
 ------------------------------------------------------------------------------

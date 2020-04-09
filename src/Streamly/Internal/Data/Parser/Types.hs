@@ -1,8 +1,4 @@
 {-# LANGUAGE ExistentialQuantification          #-}
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE DeriveFunctor          #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 -- |
 -- Module      : Streamly.Parser.Types
@@ -70,7 +66,7 @@ import Fusion.Plugin.Types (Fuse(..))
 -- /Internal/
 --
 {-# ANN type Step Fuse #-}
-data Step s =
+data Step s b =
       Yield Int s
       -- ^ @Yield offset state@ indicates that the parser has yielded a new
       -- result which is a point of no return. The result can be extracted
@@ -87,12 +83,18 @@ data Step s =
     -- the next input to the parser. The offset cannot be beyond the latest
     -- point of no return created by @Yield@.
 
-    | Stop Int s
+    | Stop Int b
     -- ^ @Stop offset state@ asks the driver to stop driving the parser because
     -- it has reached a fixed point and further input will not change the
     -- result.  @offset@ is the count of unused elements which includes the
     -- element on which 'Stop' occurred.  Once a fold stops, driving it further
     -- may produce undefined behavior.
+
+instance Functor (Step s) where
+    {-# INLINE fmap #-}
+    fmap _ (Yield n s) = Yield n s
+    fmap _ (Skip n s) = Skip n s
+    fmap f (Stop n b) = Stop n (f b)
 
 -- | A parsing fold is represented as @Parser step initial extract@. Before we
 -- drive a parser we call the @initial@ action to retrieve the initial state of
@@ -103,38 +105,42 @@ data Step s =
 -- error or an output value.
 --
 data Parser m a b =
-    forall s. Parser (s -> a -> m (Step s)) (m s) (s -> m (Either String b))
+    forall s. Parser (s -> a -> m (Step s b)) (m s) (s -> m b)
 
 -- | Maps a function over the output of the fold.
 --
 instance Functor m => Functor (Parser m a) where
     {-# INLINE fmap #-}
-    fmap f (Parser step initial extract) =
-        Parser step initial (fmap3 f extract)
+    fmap f (Parser step1 initial extract) =
+        Parser step initial (fmap2 f extract)
 
         where
 
-        fmap3 g = fmap (fmap (fmap g))
+        step s b = fmap2 f (step1 s b)
+        fmap2 g = fmap (fmap g)
 
 {-# INLINE wrap #-}
 wrap :: Monad m => b -> Parser m a b
-wrap b = Parser (\_ _ -> pure $ Stop 0 ())  -- step
-                (pure ())                   -- initial
-                (\_ -> pure $ Right b)      -- extract
+wrap b = Parser (\_ _ -> pure $ Stop 0 b)  -- step
+                (pure ())                  -- initial
+                (\_ -> pure b)             -- extract
+
+-------------------------------------------------------------------------------
+-- Sequential applicative
+-------------------------------------------------------------------------------
 
 {-# ANN type SeqParseState Fuse #-}
-data SeqParseState sl f sr =
-    SeqParseL sl | SeqParseR f sr | SeqParseLErr String
+data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 
--- XXX implement interleaved variant, parse using the first parser and then
--- using the second parser alternately.
-
--- | Apply two parsers sequentially to an input stream. The input is provided
--- to the first parser, when it is done the remaining input is provided to the
--- second parser. If both the parsers succeed there outputs are combined using
--- the supplied function. The operation fails if any of the parsers fail.
+-- | Sequential application. Apply two parsers sequentially to an input stream.
+-- The input is provided to the first parser, when it is done the remaining
+-- input is provided to the second parser. If both the parsers succeed their
+-- outputs are combined using the supplied function. The operation fails if any
+-- of the parsers fail.
 --
 -- This undoes an "append" of two streams, it splits the streams.
+--
+-- /Internal/
 --
 {-# INLINE splitWith #-}
 splitWith :: Monad m
@@ -152,28 +158,25 @@ splitWith func (Parser stepL initialL extractL)
     step (SeqParseL st) a = do
         r <- stepL st a
         case r of
+            -- Note: this leads to buffering even if we are not in an
+            -- Alternative composition.
             Yield _ s -> return $ Skip 0 (SeqParseL s)
             Skip n s -> return $ Skip n (SeqParseL s)
-            Stop n s -> do
-                res <- extractL s
-                case res of
-                    Left err -> return $ Stop n (SeqParseLErr err)
-                    Right x -> Skip n <$> (SeqParseR (func x) <$> initialR)
+            Stop n b -> Skip n <$> (SeqParseR (func b) <$> initialR)
 
     step (SeqParseR f st) a = do
         r <- stepR st a
         return $ case r of
             Yield n s -> Yield n (SeqParseR f s)
             Skip n s -> Skip n (SeqParseR f s)
-            Stop n s -> Stop n (SeqParseR f s)
+            Stop n b -> Stop n (f b)
 
-    step (SeqParseLErr _) _ = error "step called in SeqParseLErr"
-
-    -- XXX bimap to add "<*>: Right parse failed" to the error message
-    extract (SeqParseR f s) = fmap (fmap f) (extractR s)
-    extract (SeqParseL _) = return $ Left "<*>: Incomplete left parse"
-    extract (SeqParseLErr err) =
-        return $ Left $ "<*>: Left parse failed\n" ++ err
+    extract (SeqParseR f sR) = fmap f (extractR sR)
+    extract (SeqParseL sL) = do
+        rL <- extractL sL
+        sR <- initialR
+        rR <- extractR sR
+        return $ func rL rR
 
 -- | 'Applicative' form of 'splitWith'.
 instance Monad m => Applicative (Parser m a) where
