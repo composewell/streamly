@@ -325,6 +325,8 @@ library
                      , Streamly.Internal.Memory.ArrayStream
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
+                     , Streamly.Internal.Data.Zipper
+                     , Streamly.Internal.Data.ParserK.Types
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Parser.Types
                      , Streamly.Internal.Data.Parser.Tee

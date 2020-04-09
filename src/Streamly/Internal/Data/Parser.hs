@@ -43,6 +43,7 @@ module Streamly.Internal.Data.Parser
     -- First order parsers
     -- * Accumulators
     , fromFold
+    , toParserK
     , any
     , all
     , yield
@@ -182,6 +183,9 @@ import Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
+import qualified Streamly.Internal.Data.ParserK.Types as K
+import qualified Streamly.Internal.Data.Zipper as Z
+
 import Streamly.Internal.Data.Parser.Tee
 import Streamly.Internal.Data.Parser.Types
 import Streamly.Internal.Data.Strict
@@ -199,6 +203,16 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
     where
 
     step s a = Yield 0 <$> fstep s a
+
+-------------------------------------------------------------------------------
+-- Convert to CPS style parser representation
+-------------------------------------------------------------------------------
+
+{-# INLINE toParserK #-}
+toParserK :: MonadCatch m => Parser m a b -> K.Parser m a b
+toParserK (Parser step initial extract) =
+    K.MkParser $ \inp yieldk ->
+        Z.parse step initial extract inp >>= yieldk
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds

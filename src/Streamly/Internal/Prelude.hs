@@ -93,6 +93,7 @@ module Streamly.Internal.Prelude
     -- ** Composable Left Folds
     , fold
     , parse
+    , parseK
 
     -- ** Concurrent Folds
     , foldAsync
@@ -576,6 +577,8 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
+import qualified Streamly.Internal.Data.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Zipper as ZR
 
 ------------------------------------------------------------------------------
 -- Deconstruction
@@ -1204,6 +1207,15 @@ runSink = fold . toFold
 {-# INLINE parse #-}
 parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
 parse (Parser step initial extract) = P.parselMx' step initial extract
+
+{-# INLINE parseK #-}
+parseK :: Monad m => PRK.Parser m a b -> SerialT m a -> m b
+parseK parser xs = do
+    r <- PRK.runParser parser (ZR.fromStream $ K.toStream xs)
+                              (\(_, b) -> return b)
+    case r of
+        Left err -> error err
+        Right b -> return b
 
 ------------------------------------------------------------------------------
 -- Specialized folds

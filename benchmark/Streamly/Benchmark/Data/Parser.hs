@@ -178,13 +178,9 @@ o_1_space_serial_parse value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "takeWhile" $ takeWhile value
-    , benchIOSink value "lookAhead" $ lookAhead value
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
-    , benchIOSink value "manyAlt" manyAlt
-    , benchIOSink value "someAlt" someAlt
-    , benchIOSink value "manyTill" $ manyTill value
     , benchIOSink value "choice/100" $ choice (value `div` 100)
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
@@ -192,6 +188,14 @@ o_1_space_serial_parse value =
     , benchIOSink value "longest (all,any)" $ longestAllAny value
     , benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
     , benchIOSink value "sequence/100" $ sequence (value `div` 100)
+    ]
+
+o_1_heap_serial_parse :: Int -> [Benchmark]
+o_1_heap_serial_parse value =
+    [ benchIOSink value "lookAhead" $ lookAhead value
+    , benchIOSink value "manyAlt" manyAlt
+    , benchIOSink value "someAlt" someAlt
+    , benchIOSink value "manyTill" $ manyTill value
     ]
 
 -------------------------------------------------------------------------------
@@ -206,10 +210,16 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup "o1"
+        [ bgroup "o-1-space"
             [ bgroup "parser" $ concat
                 [
                   o_1_space_serial_parse value
+                ]
+            ]
+        , bgroup "o-n-heap"
+            [ bgroup "parser" $ concat
+                [
+                  o_1_heap_serial_parse value
                 ]
             ]
         ]

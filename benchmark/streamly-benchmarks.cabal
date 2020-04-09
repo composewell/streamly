@@ -259,6 +259,18 @@ benchmark parser
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark parserK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -with-rtsopts "-T -K128K -M32M"
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: ParserK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+    build-depends: exceptions >= 0.8   && < 0.11
+
 -------------------------------------------------------------------------------
 -- Raw Streams
 -------------------------------------------------------------------------------
