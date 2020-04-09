@@ -33,8 +33,8 @@
 -- Failing parsers in this module throw the 'ParseError' exception.
 
 -- XXX As far as possible, try that the combinators in this module and in
--- "parser-combinators/parsec/megaparsec/attoparsec" have consistent names.
--- takeP/takeWhileP?
+-- "Text.ParserCombinators.ReadP/parser-combinators/parsec/megaparsec/attoparsec"
+-- have consistent names. takeP/takeWhileP/munch?
 
 module Streamly.Internal.Data.Parser
     (
@@ -56,6 +56,16 @@ module Streamly.Internal.Data.Parser
     , satisfy
 
     -- * Sequence parsers
+    --
+    -- Parsers chained in series, if one parser terminates the composition
+    -- terminates. Currently we are using folds to collect the output of the
+    -- parsers but we can use Parsers instead of folds to make the composition
+    -- more powerful. For example, we can do:
+    --
+    -- sliceSepByMax cond n p = sliceBy cond (take n p)
+    -- sliceSepByBetween cond m n p = sliceBy cond (takeBetween m n p)
+    -- takeWhileBetween cond m n p = takeWhile cond (takeBetween m n p)
+    --
     -- Grab a sequence of input elements without inspecting them
     , take
     -- , takeBetween
@@ -67,13 +77,17 @@ module Streamly.Internal.Data.Parser
     -- Grab a sequence of input elements by inspecting them
     , lookAhead
     , takeWhile
-    -- , takeWhileBetween
     , takeWhile1
-    , sepBy
-    , sepByMax
-    -- , sepByBetween
-    , sepWithSuffix
-    , sepWithPrefix
+    , sliceSepBy
+    , sliceSepByMax
+    -- , sliceSepByBetween
+    , sliceEndWith
+    , sliceBeginWith
+    -- , sliceSepWith
+    --
+    -- , frameSepBy -- parse frames escaped by an escape char/sequence
+    -- , frameEndWith
+    --
     , wordBy
     , groupBy
     , eqBy
@@ -84,41 +98,80 @@ module Streamly.Internal.Data.Parser
     -- Second order parsers (parsers using parsers)
     -- * Binary Combinators
 
-    -- Parallel parsers
+    -- ** Sequential Applicative
+    , splitWith
+
+    -- ** Parallel Applicatives
     , teeWith
     , teeWithFst
     , teeWithMin
+    -- , teeTill -- like manyTill but parallel
 
-    -- Alternatives
+    -- ** Sequential Interleaving
+    -- Use two folds, run a primary parser, its rejected values go to the
+    -- secondary parser.
+    , deintercalate
+
+    -- ** Parallel Alternatives
     , shortest
     , longest
     -- , fastest
 
     -- * N-ary Combinators
-    -- N-ary split applicative
-    -- Run n actions in sequence
+    -- ** Sequential Collection
     , sequence
 
-    -- Repeat the same action in sequence
-    -- , splitLE
-    -- , splitEQ -- splitN/takeN/parseN = replicateM n
-    -- , splitGE -- splitEQ n, splitMany
+    -- ** Sequential Repetition
     , count
     , countBetween
-    , many -- splitMany/takeMany/parseMany
-           -- = splitGE 0 = countBetween 0 maxBound
-    , some -- splitMany1/takeMany1/parseMany1
-           -- = splitGE 1 = countBetween 1 maxBound
-
     -- , countBetweenTill
-    , manyTill -- splitBreakOn, manyTill, parseBreakOn
 
-    -- Run n actions in parallel
+    , many
+    , some
+    , manyTill
+
+    -- -- ** Special cases
+    -- XXX traditional implmentations of these may be of limited use. For
+    -- example, consider parsing lines separated by "\r\n". The main parser
+    -- will have to detect and exclude the sequence "\r\n" anyway so that we
+    -- can apply the "sep" parser.
+    --
+    -- We can instead implement these as special cases of deintercalate.
+    --
+    -- , endBy
+    -- , sepBy
+    -- , sepEndBy
+    -- , beginBy
+    -- , sepBeginBy
+    -- , sepAroundBy
+
+    -- -- * Distribution
+    --
+    -- A simple and stupid impl would be to just convert the stream to an array
+    -- and give the array reference to all consumers. The array can be grown on
+    -- demand by any consumer and truncated when nonbody needs it.
+    --
+    -- -- ** Distribute to collection
+    -- -- ** Distribute to repetition
+
+    -- -- ** Interleaved collection
+    -- Round robin
+    -- Priority based
+    -- -- ** Interleaved repetition
+    -- repeat one parser and when it fails run an error recovery parser
+    -- e.g. to find a key frame in the stream after an error
+
+    -- ** Collection of Alternatives
     -- , shortestN
     -- , longestN
     -- , fastestN -- first N successful in time
+    -- , choiceN  -- first N successful in position
     , choice   -- first successful in position
-    -- , choiceN  -- first N successful
+
+    -- -- ** Repeated Alternatives
+    -- , retryMax    -- try N times
+    -- , retryUntil  -- try until successful
+    -- , retryUntilN -- try until successful n times
     )
 where
 
@@ -449,19 +502,19 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- >>> S.parse (PR.sepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
+-- >>> S.parse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
 -- > [0,0]
 --
--- S.splitOn pred f = S.splitParse (PR.sepBy pred f)
+-- S.splitOn pred f = S.splitParse (PR.sliceSepBy pred f)
 --
--- >>> S.toList $ S.splitParse (PR.sepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
+-- >>> S.toList $ S.splitParse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
 -- > [[0,0],[0],[]]
 --
 -- /Internal/
 --
-{-# INLINABLE sepBy #-}
-sepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
-sepBy predicate (Fold fstep finitial fextract) =
+{-# INLINABLE sliceSepBy #-}
+sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
+sliceSepBy predicate (Fold fstep finitial fextract) =
     Parser step initial fextract
 
     where
@@ -479,15 +532,15 @@ sepBy predicate (Fold fstep finitial fextract) =
 -- * Stops - when the predicate succeeds.
 -- * Fails - never.
 --
--- S.splitWithSuffix pred f = S.splitParse (PR.sepWithSuffix pred f)
+-- S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)
 --
 -- /Unimplemented/
 --
-{-# INLINABLE sepWithSuffix #-}
-sepWithSuffix ::
+{-# INLINABLE sliceEndWith #-}
+sliceEndWith ::
     -- Monad m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
-sepWithSuffix = undefined
+sliceEndWith = undefined
 
 -- | Collect stream elements until an elements passes the predicate, return the
 -- last element on which the predicate succeeded back to the input stream.  If
@@ -498,15 +551,15 @@ sepWithSuffix = undefined
 -- * Stops - when the predicate succeeds in non-leading position.
 -- * Fails - never.
 --
--- S.splitWithPrefix pred f = S.splitParse (PR.sepWithPrefix pred f)
+-- S.splitWithPrefix pred f = S.splitParse (PR.sliceBeginWith pred f)
 --
 -- /Unimplemented/
 --
-{-# INLINABLE sepWithPrefix #-}
-sepWithPrefix ::
+{-# INLINABLE sliceBeginWith #-}
+sliceBeginWith ::
     -- Monad m =>
     (a -> Bool) -> Fold m a b -> Parser m a b
-sepWithPrefix = undefined
+sliceBeginWith = undefined
 
 -- | Split using a condition or a count whichever occurs first. This is a
 -- hybrid of 'splitOn' and 'take'. The element on which the condition succeeds
@@ -514,10 +567,10 @@ sepWithPrefix = undefined
 --
 -- /Internal/
 --
-{-# INLINABLE sepByMax #-}
-sepByMax :: Monad m
+{-# INLINABLE sliceSepByMax #-}
+sliceSepByMax :: Monad m
     => (a -> Bool) -> Int -> Fold m a b -> Parser m a b
-sepByMax predicate cnt (Fold fstep finitial fextract) =
+sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
     Parser step initial extract
 
     where
@@ -634,6 +687,46 @@ lookAhead (Parser step1 initial1 _) =
     extract (Tuple' n _) = throwM $ ParseError $
         "lookAhead: end of input after consuming " ++ show n ++ " elements"
 
+-------------------------------------------------------------------------------
+-- Interleaving
+-------------------------------------------------------------------------------
+--
+-- To deinterleave we can chain two parsers one behind the other. The input is
+-- given to the first parser and the input definitively rejected by the first
+-- parser is given to the second parser.
+--
+-- We can either have the parsers themselves buffer the input or use the shared
+-- global buffer to hold it until none of the parsers need it. When the first
+-- parser returns Skip (i.e. rewind) we let the second parser consume the
+-- rejected input and when it is done we move the cursor forward to the first
+-- parser again. This will require a "move forward" command as well.
+--
+-- To implement grep we can use three parsers, one to find the pattern, one
+-- to store the context behind the pattern and one to store the context in
+-- front of the pattern. When a match occurs we need to emit the accumulator of
+-- all the three parsers. One parser can count the line numbers to provide the
+-- line number info.
+--
+-- | Apply two parsers alternately to an input stream. The input stream is
+-- considered an interleaving of two patterns. The two parsers represent the
+-- two patterns.
+--
+-- This undoes a "gintercalate" of two streams.
+--
+-- /Unimplemented/
+--
+{-# INLINE deintercalate #-}
+deintercalate ::
+    -- Monad m =>
+       Fold m a y -> Parser m x a
+    -> Fold m b z -> Parser m x b
+    -> Parser m x (y, z)
+deintercalate = undefined
+
+-------------------------------------------------------------------------------
+-- Sequential Collection
+-------------------------------------------------------------------------------
+--
 -- | @sequence f t@ collects sequential parses of parsers in the container @t@
 -- using the fold @f@. Fails if the input ends or any of the parsers fail.
 --
@@ -645,6 +738,10 @@ sequence ::
     Fold m b c -> t (Parser m a b) -> Parser m a c
 sequence _f _p = undefined
 
+-------------------------------------------------------------------------------
+-- Alternative Collection
+-------------------------------------------------------------------------------
+--
 -- | @choice parsers@ applies the @parsers@ in order and returns the first
 -- successful parse.
 --
@@ -654,6 +751,10 @@ choice ::
     t (Parser m a b) -> Parser m a b
 choice _ps = undefined
 
+-------------------------------------------------------------------------------
+-- Sequential Repetition
+-------------------------------------------------------------------------------
+--
 -- XXX "many" is essentially a Fold because it cannot fail. So it can be
 -- downgraded to a Fold. Or we can make the return type a Fold instead and
 -- upgrade that to a parser when needed.
@@ -670,6 +771,7 @@ choice _ps = undefined
 {-# INLINE many #-}
 many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 many = splitMany
+-- many = countBetween 0 maxBound
 
 -- | Collect one or more parses. Apply the supplied parser repeatedly on the
 -- input stream and accumulate the parse results as long as the parser
@@ -683,6 +785,8 @@ many = splitMany
 {-# INLINE some #-}
 some :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 some = splitSome
+-- some f p = many (takeGE 1 f) p
+-- many = countBetween 1 maxBound
 
 -- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
 -- parser @p@ using the fold @f@. Stop after collecting @n@ results. Fails if
@@ -695,6 +799,7 @@ countBetween ::
     -- MonadCatch m =>
     Int -> Int -> Fold m b c -> Parser m a b -> Parser m a c
 countBetween _m _n _f = undefined
+-- countBetween m n f p = many (takeBetween m n f) p
 
 -- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
 -- the fold @f@.  Fails if the input ends or the parser fails before @n@
@@ -707,6 +812,7 @@ count ::
     -- MonadCatch m =>
     Int -> Fold m b c -> Parser m a b -> Parser m a c
 count n = countBetween n n
+-- count n f p = many (takeEQ n f) p
 
 data ManyTillState fs sr sl = ManyTillR Int fs sr | ManyTillL fs sl
 
