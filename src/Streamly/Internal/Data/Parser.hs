@@ -36,6 +36,11 @@ module Streamly.Internal.Data.Parser
     , sepWithPrefix
     -- , sepWithInfix
     , groupBy
+
+    -- Parallel parsers
+    , teeWith
+    , teeWithFst
+    , teeWithMin
     )
 where
 
@@ -43,6 +48,7 @@ import Prelude
        hiding (any, all, takeWhile)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Parser.Tee (teeWith, teeWithFst, teeWithMin)
 import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..))
 
 import Streamly.Internal.Data.Strict

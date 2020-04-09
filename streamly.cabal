@@ -326,6 +326,7 @@ library
                      , Streamly.Internal.Data.Fold
                      , Streamly.Internal.Data.Parser
                      , Streamly.Internal.Data.Parser.Types
+                     , Streamly.Internal.Data.Parser.Tee
                      , Streamly.Internal.Data.Sink.Types
                      , Streamly.Internal.Data.Sink
 
