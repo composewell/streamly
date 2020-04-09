@@ -73,6 +73,12 @@ splitAllAny :: (Monad m, Ord a)
     => a -> SerialT m a -> m (Bool, Bool)
 splitAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
 
+{-# INLINE teeAllAny #-}
+teeAllAny :: (Monad m, Ord a)
+    => a -> SerialT m a -> m (Bool, Bool)
+teeAllAny value =
+    IP.parse (PR.teeWith (,) (PR.all (<= value)) (PR.any (> value)))
+
 -------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
@@ -83,6 +89,7 @@ o_1_space_serial_parse value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "split (all,any)" $ splitAllAny value
+    , benchIOSink value "tee (all,any)" $ teeAllAny value
     ]
 
 -------------------------------------------------------------------------------
