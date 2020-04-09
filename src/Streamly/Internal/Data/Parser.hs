@@ -65,6 +65,7 @@ module Streamly.Internal.Data.Parser
     , takeGE -- takeBetween n maxBound
 
     -- Grab a sequence of input elements by inspecting them
+    , lookAhead
     , takeWhile
     -- , takeWhileBetween
     , takeWhile1
@@ -195,6 +196,10 @@ all predicate = Parser step initial return
 --
 -- >>> S.parse ((,) <$> PR.peek <*> PR.satisfy (> 0)) $ S.fromList [1]
 -- (1,1)
+--
+-- @
+-- peek = lookAhead (satisfy True)
+-- @
 --
 -- /Internal/
 --
@@ -570,6 +575,30 @@ groupBy = undefined
 -------------------------------------------------------------------------------
 -- nested parsers
 -------------------------------------------------------------------------------
+
+{-# INLINE lookAhead #-}
+lookAhead :: MonadThrow m => Parser m a b -> Parser m a b
+lookAhead (Parser step1 initial1 _) =
+    Parser step initial extract
+
+    where
+
+    initial = Tuple' 0 <$> initial1
+
+    step (Tuple' cnt st) a = do
+        r <- step1 st a
+        let cnt1 = cnt + 1
+        return $ case r of
+            Yield _ s -> Skip 0 (Tuple' cnt1 s)
+            Skip n s -> Skip n (Tuple' (cnt1 - n) s)
+            Stop _ b -> Stop cnt1 b
+            Error err -> Error err
+
+    -- XXX returning an error let's us backtrack.  To implement it in a way so
+    -- that it terminates on eof without an error then we need a way to
+    -- backtrack on eof, that will require extract to return 'Step' type.
+    extract (Tuple' n _) = throwM $ ParseError $
+        "lookAhead: end of input after consuming " ++ show n ++ " elements"
 
 -- | @sequence f t@ collects sequential parses of parsers in the container @t@
 -- using the fold @f@. Fails if the input ends or any of the parsers fail.

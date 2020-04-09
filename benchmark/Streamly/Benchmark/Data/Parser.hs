@@ -6,6 +6,7 @@
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -fspec-constr-recursive=4 #-}
 
 module Main
   (
@@ -14,11 +15,11 @@ module Main
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
--- import Data.Foldable (asum)
+import Data.Foldable (asum)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
--- import qualified Data.Traversable as TR
+import qualified Data.Traversable as TR
 import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -76,21 +77,6 @@ take value = IP.parse (PR.take value FL.drain)
 takeWhile :: MonadThrow m => Int -> SerialT m Int -> m ()
 takeWhile value = IP.parse (PR.takeWhile (<= value) FL.drain)
 
-{-
--- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling this
-{-# INLINE sequenceA #-}
-sequenceA :: MonadThrow m => Int -> SerialT m Int -> m Int
-sequenceA value xs = do
-    x <- IP.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
-    return $ length x
-
-{-# INLINE sequence #-}
-sequence :: MonadThrow m => Int -> SerialT m Int -> m Int
-sequence value xs = do
-    x <- IP.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
-    return $ length x
--}
-
 {-# INLINE many #-}
 many :: MonadCatch m => SerialT m Int -> m Int
 many = IP.parse (PR.many FL.length (PR.satisfy (> 0)))
@@ -115,21 +101,6 @@ someAlt xs = do
 manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
 manyTill value =
     IP.parse (PR.manyTill FL.length (PR.satisfy (> 0)) (PR.satisfy (== value)))
-
-{-
--- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling this
--- We need to fix GHX so that we can have better control over that option or do
--- not have to rely on it.
---
--- choice using the "Alternative" instance with direct style parser type has
--- quadratic performance complexity.
---
-{-# INLINE choice #-}
-choice :: MonadCatch m => Int -> SerialT m Int -> m Int
-choice value = do
-    IP.parse (asum (replicate value (PR.satisfy (< 0)))
-        AP.<|> PR.satisfy (> 0))
--}
 
 {-# INLINE splitAllAny #-}
 splitAllAny :: MonadThrow m
@@ -162,6 +133,42 @@ longestAllAny value =
     IP.parse (PR.longest (PR.all (<= value)) (PR.any (> value)))
 
 -------------------------------------------------------------------------------
+-- Parsers in which -fspec-constr-recursive=16 is problematic
+-------------------------------------------------------------------------------
+
+-- XXX -fspec-constr-recursive=16 makes GHC go beserk when compiling these.
+-- We need to fix GHC so that we can have better control over that option or do
+-- not have to rely on it.
+--
+{-# INLINE lookAhead #-}
+lookAhead :: MonadThrow m => Int -> SerialT m Int -> m ()
+lookAhead value =
+    IP.parse (PR.lookAhead (PR.takeWhile (<= value) FL.drain) *> pure ())
+
+-- quadratic complexity
+{-# INLINE sequenceA #-}
+sequenceA :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequenceA value xs = do
+    x <- IP.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+
+-- quadratic complexity
+{-# INLINE sequence #-}
+sequence :: MonadThrow m => Int -> SerialT m Int -> m Int
+sequence value xs = do
+    x <- IP.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
+    return $ length x
+
+-- choice using the "Alternative" instance with direct style parser type has
+-- quadratic performance complexity.
+--
+{-# INLINE choice #-}
+choice :: MonadCatch m => Int -> SerialT m Int -> m Int
+choice value = do
+    IP.parse (asum (replicate value (PR.satisfy (< 0)))
+        AP.<|> PR.satisfy (> 0))
+
+-------------------------------------------------------------------------------
 -- Benchmarks
 -------------------------------------------------------------------------------
 
@@ -171,19 +178,20 @@ o_1_space_serial_parse value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "takeWhile" $ takeWhile value
+    , benchIOSink value "lookAhead" $ lookAhead value
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
     , benchIOSink value "manyTill" $ manyTill value
-    -- , benchIOSink value "choice/100" $ choice (value `div` 100)
+    , benchIOSink value "choice/100" $ choice (value `div` 100)
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
-    -- , benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
-    -- , benchIOSink value "sequence/100" $ sequence (value `div` 100)
+    , benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
+    , benchIOSink value "sequence/100" $ sequence (value `div` 100)
     ]
 
 -------------------------------------------------------------------------------
