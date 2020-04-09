@@ -76,6 +76,10 @@ module Streamly.Internal.Data.Parser
     , sepWithPrefix
     , wordBy
     , groupBy
+    , eqBy
+    -- , prefixOf -- match any prefix of a given string
+    -- , suffixOf -- match any suffix of a given string
+    -- , infixOf -- match any substring of a given string
 
     -- Second order parsers (parsers using parsers)
     -- * Binary Combinators
@@ -571,6 +575,36 @@ groupBy ::
     -- Monad m =>
     (a -> a -> Bool) -> Fold m a b -> Parser m a b
 groupBy = undefined
+
+-- XXX use an Unfold instead of a list?
+-- XXX custom combinators for matching list, array and stream?
+--
+-- | Match the given sequence of elements using the given comparison function.
+--
+-- /Internal/
+--
+{-# INLINE eqBy #-}
+eqBy :: MonadThrow m => (a -> a -> Bool) -> [a] -> Parser m a ()
+eqBy cmp str = Parser step initial extract
+
+    where
+
+    initial = return str
+
+    step [] _ = error "Bug: unreachable"
+    step [x] a = return $
+        if x `cmp` a
+        then Stop 0 ()
+        else Error $
+            "eqBy: failed, at the last element"
+    step (x:xs) a = return $
+        if x `cmp` a
+        then Skip 0 xs
+        else Error $
+            "eqBy: failed, yet to match " ++ show (length xs) ++ " elements"
+
+    extract xs = throwM $ ParseError $
+        "eqBy: end of input, yet to match " ++ show (length xs) ++ " elements"
 
 -------------------------------------------------------------------------------
 -- nested parsers
