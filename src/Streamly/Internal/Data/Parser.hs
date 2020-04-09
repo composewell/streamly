@@ -1,7 +1,5 @@
-{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
@@ -44,8 +42,8 @@ where
 import Prelude
        hiding (any, all, takeWhile)
 
-import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..))
 
 import Streamly.Internal.Data.Strict
 
@@ -57,17 +55,14 @@ import Streamly.Internal.Data.Strict
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
-fromFold (Fold fstep finitial fextract) = Parser step initial extract
+fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
+
     where
 
-    initial = finitial
     step s a = Yield 0 <$> fstep s a
-    extract s = do
-        r <- fextract s
-        return $ Right r
 
 -------------------------------------------------------------------------------
--- Terminating folds
+-- Terminating but not failing folds
 -------------------------------------------------------------------------------
 --
 -- |
@@ -76,9 +71,12 @@ fromFold (Fold fstep finitial fextract) = Parser step initial extract
 --
 {-# INLINABLE any #-}
 any :: Monad m => (a -> Bool) -> Parser m a Bool
-any predicate = Parser step initial (return . Right)
+any predicate = Parser step initial return
+
     where
+
     initial = return False
+
     step s a = return $
         if s
         then Stop 0 True
@@ -93,9 +91,12 @@ any predicate = Parser step initial (return . Right)
 --
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parser m a Bool
-all predicate = Parser step initial (return . Right)
+all predicate = Parser step initial return
+
     where
+
     initial = return True
+
     step s a = return $
         if s
         then
@@ -108,6 +109,8 @@ all predicate = Parser step initial (return . Right)
 -- Taking elements
 -------------------------------------------------------------------------------
 --
+-- XXX can we use a "cmp" operation in a common implementation?
+--
 -- | Stops after taking exactly @n@ input elements.
 --
 -- * Stops - after @n@ elements.
@@ -118,32 +121,30 @@ all predicate = Parser step initial (return . Right)
 --
 -- /Internal/
 --
-{-# INLINABLE takeEQ #-}
+{-# INLINE takeEQ #-}
 takeEQ :: Monad m => Int -> Fold m a b -> Parser m a b
 takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    initial = (Tuple' 0) <$> finitial
+    initial = Tuple' 0 <$> finitial
 
     step (Tuple' i r) a = do
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        return $ if i1 < n then Skip 0 s1 else Stop 0 s1
+        if i1 < n then return (Skip 0 s1) else Stop 0 <$> fextract res
 
-    extract (Tuple' i r) = fmap f (fextract r)
+    extract (Tuple' i r) =
+        if n == i
+        then fextract r
+        else error err
 
         where
 
         err =
                "takeEQ: Expecting exactly " ++ show n
             ++ " elements, got " ++ show i
-
-        f x =
-            if n == i
-            then Right x
-            else Left err
 
 -- | Take at least @n@ input elements, but can collect more.
 --
@@ -158,21 +159,22 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
 --
 -- /Internal/
 --
-{-# INLINABLE takeGE #-}
+{-# INLINE takeGE #-}
 takeGE :: Monad m => Int -> Fold m a b -> Parser m a b
 takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
     where
 
-    initial = (Tuple' 0) <$> finitial
+    initial = Tuple' 0 <$> finitial
 
     step (Tuple' i r) a = do
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        if i1 < n
-        then return $ Skip 0 s1
-        else return $ Yield 0 s1
+        return $
+            if i1 < n
+            then Skip 0 s1
+            else Yield 0 s1
 
     extract (Tuple' i r) = fmap f (fextract r)
 
@@ -184,8 +186,8 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 
         f x =
             if i >= n
-            then Right x
-            else Left err
+            then x
+            else error err
 
 -- | Take until the predicate fails. The element on which the predicate fails
 -- is returned back to the input stream.
@@ -202,21 +204,19 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
 --
 -- /Internal/
 --
-{-# INLINABLE takeWhile #-}
+{-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile predicate (Fold fstep finitial fextract) =
-    Parser step initial extract
+    Parser step initial fextract
 
     where
 
     initial = finitial
-    step s a = do
+
+    step s a =
         if predicate a
         then Yield 0 <$> fstep s a
-        else return $ Stop 1 s
-    extract s = do
-        b <- fextract s
-        return $ Right b
+        else Stop 1 <$> fextract s
 
 -- | Keep taking elements until the predicate succeeds. Drop the succeeding
 -- element.
@@ -237,18 +237,15 @@ takeWhile predicate (Fold fstep finitial fextract) =
 {-# INLINABLE sepBy #-}
 sepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 sepBy predicate (Fold fstep finitial fextract) =
-    Parser step initial extract
+    Parser step initial fextract
 
     where
 
     initial = finitial
-    step s a = do
+    step s a =
         if not (predicate a)
         then Yield 0 <$> fstep s a
-        else return $ Stop 0 s
-    extract s = do
-        b <- fextract s
-        return $ Right b
+        else Stop 0 <$> fextract s
 
 -- | Keep taking elements until the predicate succeeds. Take the succeeding
 -- element as well.
@@ -303,10 +300,10 @@ sepByMax predicate count (Fold fstep finitial fextract) =
             s1 = Tuple' i1 res
         if not (predicate a) && i1 < count
         then return $ Yield 0 s1
-        else return $ Stop 0 s1
-    extract (Tuple' _ r) = do
-        b <- fextract r
-        return $ Right b
+        else do
+            b <- fextract res
+            return $ Stop 0 b
+    extract (Tuple' _ r) = fextract r
 
 -- | Like 'splitOn' after stripping leading, trailing, and repeated separators.
 -- Therefore, @".a..b."@ with '.' as the separator would be parsed as

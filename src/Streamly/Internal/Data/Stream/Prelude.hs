@@ -162,11 +162,11 @@ foldlMx' step begin done m = S.foldlMx' step begin done $ toStreamS m
 {-# INLINE parselMx' #-}
 parselMx'
     :: (IsStream t, Monad m)
-    => (s -> a -> m (Step s))
+    => (s -> a -> m (Step s b))
     -> m s
-    -> (s -> m (Either String b))
+    -> (s -> m b)
     -> t m a
-    -> m (Either String b)
+    -> m b
 parselMx' step initial extract m =
     D.parselMx' step initial extract $ D.toStreamD m
 

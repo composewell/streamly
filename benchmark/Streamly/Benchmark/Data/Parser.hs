@@ -57,21 +57,21 @@ benchIOSink value name f =
 -------------------------------------------------------------------------------
 
 {-# INLINE any #-}
-any :: (Monad m, Ord a) => a -> SerialT m a -> m (Either String Bool)
+any :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
 any value = IP.parse (PR.any (> value))
 
 {-# INLINE all #-}
-all :: (Monad m, Ord a) => a -> SerialT m a -> m (Either String Bool)
+all :: (Monad m, Ord a) => a -> SerialT m a -> m Bool
 all value = IP.parse (PR.all (<= value))
 
-{-# INLINE zipAllAny #-}
-zipAllAny :: (Monad m, Ord a)
-    => a -> SerialT m a -> m (Either String (Bool, Bool))
-zipAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
-
 {-# INLINE take #-}
-take :: Monad m => Int -> SerialT m a -> m (Either String ())
+take :: Monad m => Int -> SerialT m a -> m ()
 take value = IP.parse (FL.take value FL.drain)
+
+{-# INLINE splitAllAny #-}
+splitAllAny :: (Monad m, Ord a)
+    => a -> SerialT m a -> m (Bool, Bool)
+splitAllAny value = IP.parse ((,) <$> PR.all (<= value) <*> PR.any (> value))
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -81,8 +81,8 @@ o_1_space_serial_parse :: Int -> [Benchmark]
 o_1_space_serial_parse value =
     [ benchIOSink value "any" $ any value
     , benchIOSink value "all" $ all value
-    , benchIOSink value "(all,any)" $ zipAllAny value
     , benchIOSink value "take" $ take value
+    , benchIOSink value "split (all,any)" $ splitAllAny value
     ]
 
 -------------------------------------------------------------------------------

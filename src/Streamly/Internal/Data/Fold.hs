@@ -856,9 +856,9 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
             s1 = Tuple' i1 res
         if i1 < n
         then return $ Yield 0 s1
-        else return $ Stop 0 s1
+        else Stop 0 <$> fextract res
 
-    extract (Tuple' _ r) = fmap Right (fextract r)
+    extract (Tuple' _ r) = fextract r
 
 ------------------------------------------------------------------------------
 -- Binary APIs
