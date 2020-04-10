@@ -7,7 +7,9 @@
 --
 -- Disabling this has the potential to mask off some legit warnings, therefore
 -- we have segregated code that uses uni-pattern matches in this file.
+#if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+#endif
 
 #include "inline.hs"
 
