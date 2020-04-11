@@ -49,6 +49,7 @@ import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..), ParseError)
 -- Distribute input to two parsers and collect both results
 -------------------------------------------------------------------------------
 
+{-# ANN type StepState Fuse #-}
 data StepState s a = StepState s | StepResult a
 
 -- XXX Use a Zipper structure for buffering?
@@ -60,6 +61,7 @@ data TeeState sL sR x a b =
 -- @TeePair (past buffer, parser state, future-buffer1, future-buffer2) ...@
     TeePair !([x], StepState sL a, [x], [x]) !([x], StepState sR b, [x], [x])
 
+{-# ANN type Res Fuse #-}
 data Res = Yld Int | Stp Int | Skp | Err String
 
 -- XXX: With the current "Step" semantics, it is hard to write, and not sure
