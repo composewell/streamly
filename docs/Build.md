@@ -8,11 +8,15 @@ in many cases.
 Use the following GHC options:
 
 ```
-  -O2 
-  -fdicts-strict 
-  -fspec-constr-recursive=16 
+  -O2
+  -fdicts-strict
   -fmax-worker-args=16
+  -fspec-constr-recursive=16
 ```
+
+Important Note: In certain cases it is possible that GHC takes too long to
+compile with `-fspec-constr-recursive=16`, if that happens please reduce the
+value or remove that option.
 
 ## Using Fusion Plugin
 
