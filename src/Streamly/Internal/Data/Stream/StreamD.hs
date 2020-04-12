@@ -1684,7 +1684,7 @@ splitOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitOn patArr@Array{..} (Fold fstep initial done) (Stream step state) =
+splitOn patArr (Fold fstep initial done) (Stream step state) =
     Stream stepOuter GO_START
 
     where
@@ -1865,7 +1865,7 @@ splitSuffixOn
     -> Fold m a b
     -> Stream m a
     -> Stream m b
-splitSuffixOn withSep patArr@Array{..} (Fold fstep initial done)
+splitSuffixOn withSep patArr (Fold fstep initial done)
                 (Stream step state) =
     Stream stepOuter GO_START
 
