@@ -1,3 +1,8 @@
+## Unreleased
+### Bug Fixes
+
+* Now builds with `primitive` package version <= 0.6.4.0
+
 ## 0.7.1
 
 ### Bug Fixes
