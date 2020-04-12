@@ -2,6 +2,7 @@
 ### Bug Fixes
 
 * Now builds with `primitive` package version <= 0.6.4.0
+* Now builds with newer `QuickCheck` package version >= 2.14 && < 2.15.
 
 ## 0.7.1
 
