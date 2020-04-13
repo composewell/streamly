@@ -33,7 +33,7 @@ module Streamly.Internal.Data.Stream.Prelude
     , foldlx'
     , foldlMx'
     , foldl'
-    , runFold
+    , foldOnce
     , parselMx'
 
     -- Lazy left folds are useful only for reversing the stream
@@ -44,6 +44,8 @@ module Streamly.Internal.Data.Stream.Prelude
     , scanlMx'
     , postscanlx'
     , postscanlMx'
+    , postscanOnce
+    , scanOnce
 
     -- * Zip style operations
     , eqBy
@@ -200,9 +202,9 @@ foldlT :: (Monad m, IsStream t, Monad (s m), MonadTrans s)
     => (s m b -> a -> s m b) -> s m b -> t m a -> s m b
 foldlT f z s = S.foldlT f z (toStreamS s)
 
-{-# INLINE runFold #-}
-runFold :: (Monad m, IsStream t) => Fold m a b -> t m a -> m b
-runFold (Fold step begin done) = foldlMx' step begin done
+{-# INLINE foldOnce #-}
+foldOnce :: (Monad m, IsStream t) => Fold m a b -> t m a -> m b
+foldOnce fld m = S.foldOnce fld $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Scans
@@ -229,6 +231,17 @@ scanlMx' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
 scanlMx' step begin done m =
     D.fromStreamD $ D.scanlMx' step begin done $ D.toStreamD m
+
+{-# INLINE_NORMAL postscanOnce #-}
+postscanOnce :: (IsStream t, Monad m)
+    => Fold m a b -> t m a -> t m b
+postscanOnce fld m =
+    D.fromStreamD $ D.postscanOnce fld $ D.toStreamD m
+
+{-# INLINE scanOnce #-}
+scanOnce :: (IsStream t, Monad m)
+    => Fold m a b -> t m a -> t m b
+scanOnce fld m = D.fromStreamD $ D.scanOnce fld $ D.toStreamD m
 
 -- scanl followed by map
 --

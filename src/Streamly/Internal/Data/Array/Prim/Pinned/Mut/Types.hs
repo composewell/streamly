@@ -143,15 +143,15 @@ writeNAligned align limit = Fold step initial extract
 
     initial = do
         marr <- newAlignedArray limit align
-        return (marr, 0)
+        return $ Tuple' marr 0
 
-    step (marr, i) x
-        | i == limit = return (marr, i)
+    extract (Tuple' marr len) = shrinkArray marr len >> return marr
+
+    step s@(Tuple' marr i) x
+        | i == limit = FL.Done <$> extract s
         | otherwise = do
             unsafeWriteIndex marr i x
-            return (marr, i + 1)
-
-    extract (marr, len) = shrinkArray marr len >> return marr
+            return $ FL.Partial $ Tuple' marr (i + 1)
 
 -------------------------------------------------------------------------------
 -- Mutation with pointers

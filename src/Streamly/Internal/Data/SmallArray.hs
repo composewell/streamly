@@ -49,12 +49,15 @@ import GHC.IO (unsafePerformIO)
 import Data.Functor.Identity (runIdentity)
 
 import Streamly.Internal.Data.SmallArray.Types
+
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
@@ -104,16 +107,20 @@ foldr f z arr = runIdentity $ D.foldr f z $ toStreamD arr
 {-# INLINE_NORMAL writeN #-}
 writeN :: MonadIO m => Int -> Fold m a (SmallArray a)
 writeN limit = Fold step initial extract
-  where
+
+    where
+
     initial = do
         marr <- liftIO $ newSmallArray limit bottomElement
-        return (marr, 0)
-    step (marr, i) x
-        | i == limit = return (marr, i)
+        return (Tuple' marr 0)
+
+    step st@(Tuple' marr i) x
+        | i == limit = FL.Done <$> extract st
         | otherwise = do
             liftIO $ writeSmallArray marr i x
-            return (marr, i + 1)
-    extract (marr, len) = liftIO $ freezeSmallArray marr 0 len
+            return $ FL.Partial (Tuple' marr (i + 1))
+
+    extract (Tuple' marr len) = liftIO $ freezeSmallArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (SmallArray a)
@@ -162,7 +169,7 @@ toStreamRev = D.fromStreamD . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> SmallArray a -> m b
-fold f arr = D.runFold f (toStreamD arr)
+fold f arr = D.foldOnce f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> SmallArray a -> m b

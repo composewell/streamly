@@ -992,6 +992,8 @@ many f p = K.toParserK $ D.many f (K.fromParserK p)
 -- succeeds, stop when it fails.  This parser fails if not even one result is
 -- collected.
 --
+-- @some fld parser = many (takeGE 1 fld) parser@
+--
 -- Compare with 'Control.Applicative.some'.
 --
 -- /Internal/

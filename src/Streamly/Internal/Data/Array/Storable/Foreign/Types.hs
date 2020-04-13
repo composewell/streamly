@@ -344,6 +344,7 @@ fromStreamDN limit str = unsafeFreeze <$> MA.fromStreamDN limit str
 -- Streams of arrays
 -------------------------------------------------------------------------------
 
+-- XXX Investigare performance. fusion-plugin solves the issue though
 -- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
 -- arrays of size n.
 {-# INLINE_NORMAL fromStreamDArraysOf #-}

@@ -46,6 +46,8 @@ module Streamly.Internal.Data.Stream.StreamD.Type
     , cmpBy
     , take
     , GroupState (..) -- for inspection testing
+    , foldMany
+    , foldMany1
     , groupsOf
     , groupsOf2
     )
@@ -65,6 +67,7 @@ import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
 import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 ------------------------------------------------------------------------------
 -- The direct style stream type
@@ -583,54 +586,86 @@ take n (Stream step state) = n `seq` Stream step' (state, 0)
 ------------------------------------------------------------------------------
 
 -- s = stream state, fs = fold state
-data GroupState s fs
+{-# ANN type GroupState Fuse #-}
+data GroupState s fs b a
     = GroupStart s
-    | GroupBuffer s fs Int
-    | GroupYield fs (GroupState s fs)
+    | GroupConsume s fs a
+    | GroupBuffer s fs
+    | GroupYield b (GroupState s fs b a)
     | GroupFinish
 
-{-# INLINE_NORMAL groupsOf #-}
-groupsOf
-    :: Monad m
-    => Int
-    -> Fold m a b
-    -> Stream m a
-    -> Stream m b
-groupsOf n (Fold fstep initial extract) (Stream step state) =
-    n `seq` Stream step' (GroupStart state)
+-- XXX Remove GroupConsume
+{-# INLINE_NORMAL foldMany #-}
+foldMany :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldMany (Fold fstep initial extract) (Stream step state) =
+    Stream step' (GroupStart state)
 
     where
 
     {-# INLINE_LATE step' #-}
     step' _ (GroupStart st) = do
-        -- XXX shall we use the Natural type instead? Need to check performance
-        -- implications.
-        when (n <= 0) $
-            -- XXX we can pass the module string from the higher level API
-            error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
-                 ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
         fs <- initial
-        return $ Skip (GroupBuffer st fs 0)
+        return $ Skip (GroupBuffer st fs)
+    step' _ (GroupConsume st fs x) = do
+        fs' <- fstep fs x
+        case fs' of
+            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
+            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
+    step' gst (GroupBuffer st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> return $ Skip $ GroupConsume s fs x
+            Skip s -> return $ Skip (GroupBuffer s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (GroupYield b GroupFinish)
+    step' _ (GroupYield b next) = return $ Yield b next
+    step' _ GroupFinish = return Stop
 
-    step' gst (GroupBuffer st fs i) = do
+{-# INLINE_NORMAL foldMany1 #-}
+foldMany1 :: Monad m => Fold m a b -> Stream m a -> Stream m b
+foldMany1 (Fold fstep initial extract) (Stream step state) =
+    Stream step' (GroupStart state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (GroupStart st) = do
+        -- fs = fold state
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                !fs' <- fstep fs x
-                let i' = i + 1
-                return $
-                    if i' >= n
-                    then Skip (GroupYield fs' (GroupStart s))
-                    else Skip (GroupBuffer s fs' i')
-            Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
-
-    step' _ (GroupYield fs next) = do
-        r <- extract fs
-        return $ Yield r next
-
+                fi <- initial
+                return $ Skip $ GroupConsume s fi x
+            Skip s -> return $ Skip (GroupStart s)
+            Stop -> return $ Stop
+    step' _ (GroupConsume st fs x) = do
+        fs' <- fstep fs x
+        case fs' of
+            FL.Done b -> return $ Skip (GroupYield b (GroupStart st))
+            FL.Partial ps -> return $ Skip (GroupBuffer st ps)
+    step' gst (GroupBuffer st fs) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> return $ Skip $ GroupConsume s fs x
+            Skip s -> return $ Skip (GroupBuffer s fs)
+            Stop -> do
+                b <- extract fs
+                return $ Skip (GroupYield b GroupFinish)
+    step' _ (GroupYield b next) = return $ Yield b next
     step' _ GroupFinish = return Stop
+
+-- XXX Investigate performance
+{-# INLINE groupsOf #-}
+groupsOf :: Monad m => Int -> Fold m a b -> Stream m a -> Stream m b
+groupsOf n fld = foldMany (FL.ltake n fld)
+
+data GroupState2 s fs
+    = GroupStart2 s
+    | GroupBuffer2 s fs Int
+    | GroupYield2 fs (GroupState2 s fs)
+    | GroupFinish2
 
 {-# INLINE_NORMAL groupsOf2 #-}
 groupsOf2
@@ -641,12 +676,12 @@ groupsOf2
     -> Stream m a
     -> Stream m b
 groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
-    n `seq` Stream step' (GroupStart state)
+    n `seq` Stream step' (GroupStart2 state)
 
     where
 
     {-# INLINE_LATE step' #-}
-    step' _ (GroupStart st) = do
+    step' _ (GroupStart2 st) = do
         -- XXX shall we use the Natural type instead? Need to check performance
         -- implications.
         when (n <= 0) $
@@ -655,9 +690,9 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
         fs <- input >>= inject
-        return $ Skip (GroupBuffer st fs 0)
+        return $ Skip (GroupBuffer2 st fs 0)
 
-    step' gst (GroupBuffer st fs i) = do
+    step' gst (GroupBuffer2 st fs i) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
@@ -665,13 +700,13 @@ groupsOf2 n input (Fold2 fstep inject extract) (Stream step state) =
                 let i' = i + 1
                 return $
                     if i' >= n
-                    then Skip (GroupYield fs' (GroupStart s))
-                    else Skip (GroupBuffer s fs' i')
-            Skip s -> return $ Skip (GroupBuffer s fs i)
-            Stop -> return $ Skip (GroupYield fs GroupFinish)
+                    then Skip (GroupYield2 fs' (GroupStart2 s))
+                    else Skip (GroupBuffer2 s fs' i')
+            Skip s -> return $ Skip (GroupBuffer2 s fs i)
+            Stop -> return $ Skip (GroupYield2 fs GroupFinish2)
 
-    step' _ (GroupYield fs next) = do
+    step' _ (GroupYield2 fs next) = do
         r <- extract fs
         return $ Yield r next
 
-    step' _ GroupFinish = return Stop
+    step' _ GroupFinish2 = return Stop

@@ -55,12 +55,14 @@ import Data.Functor.Identity (runIdentity)
 import Data.Primitive.Array hiding (fromList, fromListN)
 import qualified GHC.Exts as Exts
 
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..), Tuple3'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
@@ -109,13 +111,13 @@ writeN limit = Fold step initial extract
   where
     initial = do
         marr <- liftIO $ newArray limit bottomElement
-        return (marr, 0)
-    step (marr, i) x
-        | i == limit = return (marr, i)
+        return (Tuple' marr 0)
+    step st@(Tuple' marr i) x
+        | i == limit = fmap FL.Done $ extract st
         | otherwise = do
             liftIO $ writeArray marr i x
-            return (marr, i + 1)
-    extract (marr, len) = liftIO $ freezeArray marr 0 len
+            return $ FL.Partial $ Tuple' marr (i + 1)
+    extract (Tuple' marr len) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL write #-}
 write :: MonadIO m => Fold m a (Array a)
@@ -123,18 +125,18 @@ write = Fold step initial extract
   where
     initial = do
         marr <- liftIO $ newArray 0 bottomElement
-        return (marr, 0, 0)
-    step (marr, i, capacity) x
+        return (Tuple3' marr 0 0)
+    step (Tuple3' marr i capacity) x
         | i == capacity =
             let newCapacity = max (capacity * 2) 1
              in do newMarr <- liftIO $ newArray newCapacity bottomElement
                    liftIO $ copyMutableArray newMarr 0 marr 0 i
                    liftIO $ writeArray newMarr i x
-                   return (newMarr, i + 1, newCapacity)
+                   return $ FL.Partial $ Tuple3' newMarr (i + 1) newCapacity
         | otherwise = do
             liftIO $ writeArray marr i x
-            return (marr, i + 1, capacity)
-    extract (marr, len, _) = liftIO $ freezeArray marr 0 len
+            return $ FL.Partial $ Tuple3' marr (i + 1) capacity
+    extract (Tuple3' marr len _) = liftIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (Array a)
@@ -149,7 +151,7 @@ fromStreamDN limit str = do
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
-fromStreamD = D.runFold write
+fromStreamD = D.foldOnce write
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -185,7 +187,7 @@ toStreamRev = D.fromStreamD . toStreamDRev
 
 {-# INLINE fold #-}
 fold :: Monad m => Fold m a b -> Array a -> m b
-fold f arr = D.runFold f (toStreamD arr)
+fold f arr = D.foldOnce f (toStreamD arr)
 
 {-# INLINE streamFold #-}
 streamFold :: Monad m => (SerialT m a -> m b) -> Array a -> m b
