@@ -230,6 +230,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , postscanlMx'
     , scanlMx'
     , scanlx'
+    , postscanFold
+    , scanFold
 
     -- * Filtering
     , filter
@@ -348,7 +350,7 @@ import Streamly.Internal.Data.Time.Units
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..), liftStep, liftExtract, liftInitialM)
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
@@ -1520,7 +1522,7 @@ splitSuffixBy' predicate f (Stream step state) =
                 acc <- initial
                 acc' <- fstep acc x
                 if (predicate x)
-                then done acc' >>= \val -> return $ Yield val (Just s)
+                then liftExtract done acc' >>= \val -> return $ Yield val (Just s)
                 else go SPEC s acc'
 
             Skip s    -> return $ Skip $ Just s
@@ -1532,12 +1534,12 @@ splitSuffixBy' predicate f (Stream step state) =
             res <- step (adaptState gst) stt
             case res of
                 Yield x s -> do
-                    acc' <- fstep acc x
+                    acc' <- liftStep fstep acc x
                     if (predicate x)
-                    then done acc' >>= \val -> return $ Yield val (Just s)
+                    then liftExtract done acc' >>= \val -> return $ Yield val (Just s)
                     else go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \val -> return $ Yield val Nothing
+                Stop -> liftExtract done acc >>= \val -> return $ Yield val Nothing
 
     stepOuter _ _ Nothing = return Stop
 
@@ -1571,11 +1573,11 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                 Yield x s -> do
                     if cmp x prev
                     then do
-                        acc' <- fstep acc x
+                        acc' <- liftStep fstep acc x
                         go SPEC prev s acc'
-                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                    else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC prev s acc
-                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
     stepOuter (Fold fstep initial done) gst (Just st, Just prev) = do
         acc <- initial
@@ -1591,11 +1593,11 @@ groupsBy cmp f (Stream step state) = Stream (stepOuter f) (Just state, Nothing)
                 Yield x s -> do
                     if cmp x prev
                     then do
-                        acc' <- fstep acc x
+                        acc' <- liftStep fstep acc x
                         go SPEC s acc'
-                    else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                    else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
     stepOuter _ _ (Nothing,_) = return Stop
 
@@ -1628,12 +1630,12 @@ groupsRollingBy cmp f (Stream step state) =
                   Yield x s -> do
                       if cmp prev x
                         then do
-                          acc' <- fstep acc x
+                          acc' <- liftStep fstep acc x
                           go SPEC x s acc'
                         else
-                          done acc >>= \r -> return $ Yield r (Just s, Just x)
+                          liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
                   Skip s -> go SPEC prev s acc
-                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                  Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
       stepOuter (Fold fstep initial done) gst (Just st, Just prev') = do
           acc <- initial
@@ -1647,11 +1649,11 @@ groupsRollingBy cmp f (Stream step state) =
                   Yield x s -> do
                       if cmp prevv x
                       then do
-                          acc' <- fstep acc x
+                          acc' <- liftStep fstep acc x
                           go SPEC x s acc'
-                      else done acc >>= \r -> return $ Yield r (Just s, Just x)
+                      else liftExtract done acc >>= \r -> return $ Yield r (Just s, Just x)
                   Skip s -> go SPEC prevv s acc
-                  Stop -> done acc >>= \r -> return $ Yield r (Nothing, Nothing)
+                  Stop -> liftExtract done acc >>= \r -> return $ Yield r (Nothing, Nothing)
 
       stepOuter _ _ (Nothing, _) = return Stop
 
@@ -1662,7 +1664,7 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
     where
 
     {-# INLINE_LATE step' #-}
-    step' (Fold fstep initial done) gst (Just st) = initial >>= go SPEC st
+    step' (Fold fstep initial done) gst (Just st) = liftInitialM initial >>= go SPEC st
 
         where
 
@@ -1671,12 +1673,12 @@ splitBy predicate f (Stream step state) = Stream (step' f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
+                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
+                        acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
 
     step' _ _ Nothing = return Stop
 
@@ -1710,12 +1712,12 @@ splitSuffixBy predicate f (Stream step state) = Stream (step' f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
+                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
+                        acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
 
     step' _ _ Nothing = return Stop
 
@@ -1747,12 +1749,12 @@ wordsBy predicate f (Stream step state) = Stream (stepOuter f) (Just state)
             case res of
                 Yield x s -> do
                     if predicate x
-                    then done acc >>= \r -> return $ Yield r (Just s)
+                    then liftExtract done acc >>= \r -> return $ Yield r (Just s)
                     else do
-                        acc' <- fstep acc x
+                        acc' <- liftStep fstep acc x
                         go SPEC s acc'
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r Nothing
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r Nothing
 
     stepOuter _ _ Nothing = return Stop
 
@@ -1813,7 +1815,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     (rb, rhead) <- liftIO $ RB.new patLen
                     return $ Skip $ GO_KARP_RABIN state rb rhead
 
-    stepOuter gst (GO_SINGLE_PAT stt pat) = initial >>= go SPEC stt
+    stepOuter gst (GO_SINGLE_PAT stt pat) = liftInitialM initial >>= go SPEC stt
 
         where
 
@@ -1823,13 +1825,13 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Yield x s -> do
                     if pat == x
                     then do
-                        r <- done acc
+                        r <- liftExtract done acc
                         return $ Yield r (GO_SINGLE_PAT s pat)
-                    else fstep acc x >>= go SPEC s
+                    else liftStep fstep acc x >>= go SPEC s
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r GO_DONE
 
-    stepOuter gst (GO_SHORT_PAT stt) = initial >>= go0 SPEC 0 (0 :: Word) stt
+    stepOuter gst (GO_SHORT_PAT stt) = liftInitialM initial >>= go0 SPEC 0 (0 :: Word) stt
 
         where
 
@@ -1850,7 +1852,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     then do
                         if wrd' .&. mask == patWord
                         then do
-                            r <- done acc
+                            r <- liftExtract done acc
                             return $ Yield r (GO_SHORT_PAT s)
                         else go1 SPEC wrd' s acc
                     else go0 SPEC (idx + 1) wrd' s acc
@@ -1859,7 +1861,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                     acc' <- if idx /= 0
                             then go2 wrd idx acc
                             else return acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
+                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         {-# INLINE go1 #-}
         go1 !_ wrd st !acc = do
@@ -1868,22 +1870,22 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Yield x s -> do
                     let wrd' = addToWord wrd x
                         old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
-                    acc' <- fstep acc (toEnum $ fromIntegral old)
+                    acc' <- liftStep fstep acc (toEnum $ fromIntegral old)
                     if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    then liftExtract done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                     else go1 SPEC wrd' s acc'
                 Skip s -> go1 SPEC wrd s acc
                 Stop -> do
                     acc' <- go2 wrd patLen acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
+                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !wrd !n !acc | n > 0 = do
             let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-            fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
+            liftStep fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
         go2 _ _ acc = return acc
 
     stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
-        initial >>= go0 SPEC 0 rhead stt
+        liftInitialM initial >>= go0 SPEC 0 rhead stt
 
         where
 
@@ -1913,9 +1915,9 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Skip s -> go0 SPEC idx rh s acc
                 Stop -> do
                     !acc' <- if idx /= 0
-                             then RB.unsafeFoldRingM rh fstep acc rb
+                             then RB.unsafeFoldRingM rh (liftStep fstep) acc rb
                              else return acc
-                    done acc' >>= \r -> return $ Yield r GO_DONE
+                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         -- XXX Theoretically this code can do 4 times faster if GHC generates
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
@@ -1929,7 +1931,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                 Yield x s -> do
                     old <- liftIO $ peek rh
                     let cksum' = deltaCksum cksum old x
-                    acc' <- fstep acc old
+                    acc' <- liftStep fstep acc old
 
                     if (cksum' == patHash)
                     then do
@@ -1940,13 +1942,13 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
                         go1 SPEC cksum' rh' s acc'
                 Skip s -> go1 SPEC cksum rh s acc
                 Stop -> do
-                    acc' <- RB.unsafeFoldRingFullM rh fstep acc rb
-                    done acc' >>= \r -> return $ Yield r GO_DONE
+                    acc' <- RB.unsafeFoldRingFullM rh (liftStep fstep) acc rb
+                    liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
             if RB.unsafeEqArray rb rh' patArr
             then do
-                r <- done acc'
+                r <- liftExtract done acc'
                 return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
@@ -1956,7 +1958,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
             Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
+                liftExtract done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
             Skip s -> return $ Skip (GO_EMPTY_PAT s)
             Stop -> return Stop
 
@@ -2005,8 +2007,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                 acc <- initial
                 if pat == x
                 then do
-                    acc' <- if withSep then fstep acc x else return acc
-                    done acc' >>= \r -> return $ Yield r (GO_SINGLE_PAT s pat)
+                    acc' <- if withSep then fstep acc x else FL.partialM acc
+                    liftExtract done acc' >>= \r -> return $ Yield r (GO_SINGLE_PAT s pat)
                 else fstep acc x >>= go SPEC s
             Skip s    -> return $ Skip $ (GO_SINGLE_PAT s pat)
             Stop      -> return Stop
@@ -2020,12 +2022,12 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                 Yield x s -> do
                     if pat == x
                     then do
-                        acc' <- if withSep then fstep acc x else return acc
-                        r <- done acc'
+                        acc' <- if withSep then liftStep fstep acc x else return acc
+                        r <- liftExtract done acc'
                         return $ Yield r (GO_SINGLE_PAT s pat)
-                    else fstep acc x >>= go SPEC s
+                    else liftStep fstep acc x >>= go SPEC s
                 Skip s -> go SPEC s acc
-                Stop -> done acc >>= \r -> return $ Yield r GO_DONE
+                Stop -> liftExtract done acc >>= \r -> return $ Yield r GO_DONE
 
     stepOuter gst (GO_SHORT_PAT stt) = do
 
@@ -2041,11 +2043,11 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
             Yield x s -> do
                 acc <- initial
                 let wrd' = addToWord wrd x
-                acc' <- if withSep then fstep acc x else return acc
+                acc' <- if withSep then fstep acc x else FL.partialM acc
                 if idx == maxIndex
                 then do
                     if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    then liftExtract done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                     else go0 SPEC (idx + 1) wrd' s acc'
                 else go0 SPEC (idx + 1) wrd' s acc'
             Skip s -> return $ Skip (GO_SHORT_PAT s)
@@ -2066,12 +2068,12 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
             case res of
                 Yield x s -> do
                     let wrd' = addToWord wrd x
-                    acc' <- if withSep then fstep acc x else return acc
+                    acc' <- if withSep then liftStep fstep acc x else return acc
                     if idx == maxIndex
                     then do
                         if wrd' .&. mask == patWord
                         then do
-                            r <- done acc'
+                            r <- liftExtract done acc'
                             return $ Yield r (GO_SHORT_PAT s)
                         else go1 SPEC wrd' s acc'
                     else go0 SPEC (idx + 1) wrd' s acc'
@@ -2083,7 +2085,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         acc' <- if idx /= 0 && not withSep
                                 then go2 wrd idx acc
                                 else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         {-# INLINE go1 #-}
         go1 !_ wrd st !acc = do
@@ -2093,10 +2095,10 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                     let wrd' = addToWord wrd x
                         old = (mask .&. wrd) `shiftR` (elemBits * (patLen - 1))
                     acc' <- if withSep
-                            then fstep acc x
-                            else fstep acc (toEnum $ fromIntegral old)
+                            then liftStep fstep acc x
+                            else liftStep fstep acc (toEnum $ fromIntegral old)
                     if wrd' .&. mask == patWord
-                    then done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
+                    then liftExtract done acc' >>= \r -> return $ Yield r (GO_SHORT_PAT s)
                     else go1 SPEC wrd' s acc'
                 Skip s -> go1 SPEC wrd s acc
                 Stop ->
@@ -2108,11 +2110,11 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                         acc' <- if withSep
                                 then return acc
                                 else go2 wrd patLen acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !wrd !n !acc | n > 0 = do
             let old = (mask .&. wrd) `shiftR` (elemBits * (n - 1))
-            fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
+            liftStep fstep acc (toEnum $ fromIntegral old) >>= go2 wrd (n - 1)
         go2 _ _ acc = return acc
 
     stepOuter gst (GO_KARP_RABIN stt rb rhead) = do
@@ -2121,7 +2123,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
         case res of
             Yield x s -> do
                 acc <- initial
-                acc' <- if withSep then fstep acc x else return acc
+                acc' <- if withSep then fstep acc x else FL.partialM acc
                 rh' <- liftIO (RB.unsafeInsert rb rhead x)
                 if idx == maxIndex
                 then do
@@ -2150,7 +2152,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
             res <- step (adaptState gst) st
             case res of
                 Yield x s -> do
-                    acc' <- if withSep then fstep acc x else return acc
+                    acc' <- if withSep then liftStep fstep acc x else return acc
                     rh' <- liftIO (RB.unsafeInsert rb rh x)
                     if idx == maxIndex
                     then do
@@ -2167,9 +2169,9 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                     then return Stop
                     else do
                         !acc' <- if idx /= 0 && not withSep
-                                 then RB.unsafeFoldRingM rh fstep acc rb
+                                 then RB.unsafeFoldRingM rh (liftStep fstep) acc rb
                                  else return acc
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                        liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         -- XXX Theoretically this code can do 4 times faster if GHC generates
         -- optimal code. If we use just "(cksum' == patHash)" condition it goes
@@ -2184,8 +2186,8 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                     old <- liftIO $ peek rh
                     let cksum' = deltaCksum cksum old x
                     acc' <- if withSep
-                            then fstep acc x
-                            else fstep acc old
+                            then liftStep fstep acc x
+                            else liftStep fstep acc old
 
                     if (cksum' == patHash)
                     then do
@@ -2201,13 +2203,13 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
                     else do
                         acc' <- if withSep
                                 then return acc
-                                else RB.unsafeFoldRingFullM rh fstep acc rb
-                        done acc' >>= \r -> return $ Yield r GO_DONE
+                                else RB.unsafeFoldRingFullM rh (liftStep fstep) acc rb
+                        liftExtract done acc' >>= \r -> return $ Yield r GO_DONE
 
         go2 !_ !cksum' !rh' s !acc' = do
             if RB.unsafeEqArray rb rh' patArr
             then do
-                r <- done acc'
+                r <- liftExtract done acc'
                 return $ Yield r (GO_KARP_RABIN s rb rhead)
             else go1 SPEC cksum' rh' s acc'
 
@@ -2217,7 +2219,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
             Yield x s -> do
                 acc <- initial
                 acc' <- fstep acc x
-                done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
+                liftExtract done acc' >>= \r -> return $ Yield r (GO_EMPTY_PAT s)
             Skip s -> return $ Skip (GO_EMPTY_PAT s)
             Stop -> return Stop
 
@@ -3548,6 +3550,31 @@ scanlMx' :: Monad m
 scanlMx' fstep begin done s =
     (begin >>= \x -> x `seq` done x) `consM` postscanlMx' fstep begin done s
 
+{-# INLINE_NORMAL postscanFold #-}
+postscanFold :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+postscanFold (FL.Fold fstep begin done) (Stream step state) = do
+    Stream step' (state, liftInitialM begin)
+  where
+    {-# INLINE_LATE step' #-}
+    step' gst (st, acc) = do
+        r <- step (adaptState gst) st
+        case r of
+            Yield x s -> do
+                old <- acc
+                y <- liftStep fstep old x
+                v <- liftExtract done y
+                v `seq` y `seq` return (Yield v (s, return y))
+            Skip s -> return $ Skip (s, acc)
+            Stop   -> return Stop
+
+
+{-# INLINE scanFold #-}
+scanFold :: Monad m
+    => FL.Fold m a b -> Stream m a -> Stream m b
+scanFold fld@(FL.Fold _ begin done) s =
+    (begin >>= \x -> x `seq` done x) `consM` postscanFold fld s
+
 {-# INLINE scanlx' #-}
 scanlx' :: Monad m
     => (x -> a -> x) -> x -> (x -> b) -> Stream m a -> Stream m b
@@ -3734,18 +3761,18 @@ tap (Fold fstep initial extract) (Stream step state) = Stream step' Nothing
     where
 
     step' _ Nothing = do
-        r <- initial
+        r <- liftInitialM initial
         return $ Skip (Just (r, state))
 
     step' gst (Just (acc, st)) = acc `seq` do
         r <- step gst st
         case r of
             Yield x s -> do
-                acc' <- fstep acc x
+                acc' <- liftStep fstep acc x
                 return $ Yield x (Just (acc', s))
             Skip s    -> return $ Skip (Just (acc, s))
             Stop      -> do
-                void $ extract acc
+                void $ liftExtract extract acc
                 return $ Stop
 
 {-# INLINE_NORMAL tapOffsetEvery #-}
@@ -3758,18 +3785,18 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
 
     {-# INLINE_LATE step' #-}
     step' _ Nothing = do
-        r <- initial
+        r <- liftInitialM initial
         return $ Skip (Just (r, state, offset `mod` n))
 
     step' gst (Just (acc, st, count)) | count <= 0 = do
         r <- step gst st
         case r of
             Yield x s -> do
-                !acc' <- fstep acc x
+                !acc' <- liftStep fstep acc x
                 return $ Yield x (Just (acc', s, n - 1))
             Skip s    -> return $ Skip (Just (acc, s, count))
             Stop      -> do
-                void $ extract acc
+                void $ liftExtract extract acc
                 return $ Stop
 
     step' gst (Just (acc, st, count)) = do
@@ -3778,7 +3805,7 @@ tapOffsetEvery offset n (Fold fstep initial extract) (Stream step state) =
             Yield x s -> return $ Yield x (Just (acc, s, count - 1))
             Skip s    -> return $ Skip (Just (acc, s, count))
             Stop      -> do
-                void $ extract acc
+                void $ liftExtract extract acc
                 return $ Stop
 
 {-# INLINE_NORMAL pollCounts #-}
@@ -4307,7 +4334,21 @@ the (Stream step state) = go state
 
 {-# INLINE runFold #-}
 runFold :: (Monad m) => Fold m a b -> Stream m a -> m b
-runFold (Fold step begin done) = foldlMx' step begin done
+runFold (Fold fstep begin done) (Stream step state) =
+    begin >>= \x -> go SPEC x state
+  where
+    -- XXX !acc?
+    {-# INLINE_LATE go #-}
+    go !_ acc st = acc `seq` do
+        r <- step defState st
+        case r of
+            Yield x s -> do
+                acc' <- fstep acc x
+                case acc' of
+                    FL.Done b -> return b
+                    FL.Partial acc'' -> go SPEC acc'' s
+            Skip s -> go SPEC acc s
+            Stop   -> done acc
 
 -------------------------------------------------------------------------------
 -- Concurrent application and fold
@@ -4521,7 +4562,7 @@ lastN n
   where
     step (Tuple3' rb rh i) a = do
         rh1 <- liftIO $ RB.unsafeInsert rb rh a
-        return $ Tuple3' rb rh1 (i + 1)
+        FL.partialM $ Tuple3' rb rh1 (i + 1)
     initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
         arr <- liftIO $ MA.newArray n

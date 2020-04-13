@@ -66,7 +66,7 @@ import Prelude
                reverse, iterate, init, and, or, lookup, foldr1, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip)
 
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..), Step(..))
 import Streamly.Internal.Data.Sink.Types (Sink(..))
 
 import qualified Data.Map.Strict as Map
@@ -81,7 +81,7 @@ toFold :: Monad m => Sink m a -> Fold m a ()
 toFold (Sink f) = Fold step begin done
     where
     begin = return ()
-    step _ = f
+    step _ a = Partial <$> f a
     done _ = return ()
 
 ------------------------------------------------------------------------------

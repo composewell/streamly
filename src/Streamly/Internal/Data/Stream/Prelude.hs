@@ -46,6 +46,8 @@ module Streamly.Internal.Data.Stream.Prelude
     , scanlMx'
     , postscanlx'
     , postscanlMx'
+    , postscanFold
+    , scanFold
 
     -- * Zip style operations
     , eqBy
@@ -204,7 +206,7 @@ foldlT f z s = S.foldlT f z (toStreamS s)
 
 {-# INLINE runFold #-}
 runFold :: (Monad m, IsStream t) => Fold m a b -> t m a -> m b
-runFold (Fold step begin done) = foldlMx' step begin done
+runFold fld m = S.runFold fld $ toStreamS m
 
 ------------------------------------------------------------------------------
 -- Scans
@@ -231,6 +233,17 @@ scanlMx' :: (IsStream t, Monad m)
     => (x -> a -> m x) -> m x -> (x -> m b) -> t m a -> t m b
 scanlMx' step begin done m =
     D.fromStreamD $ D.scanlMx' step begin done $ D.toStreamD m
+
+{-# INLINE_NORMAL postscanFold #-}
+postscanFold :: (IsStream t, Monad m)
+    => Fold m a b -> t m a -> t m b
+postscanFold fld m =
+    D.fromStreamD $ D.postscanFold fld $ D.toStreamD m
+
+{-# INLINE scanFold #-}
+scanFold :: (IsStream t, Monad m)
+    => Fold m a b -> t m a -> t m b
+scanFold fld m = D.fromStreamD $ D.scanFold fld $ D.toStreamD m
 
 -- scanl followed by map
 --
