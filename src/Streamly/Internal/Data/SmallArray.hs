@@ -49,12 +49,15 @@ import GHC.IO (unsafePerformIO)
 import Data.Functor.Identity (runIdentity)
 
 import Streamly.Internal.Data.SmallArray.Types
+
+import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 {-# NOINLINE bottomElement #-}
 bottomElement :: a
@@ -107,13 +110,13 @@ writeN limit = Fold step initial extract
   where
     initial = do
         marr <- liftIO $ newSmallArray limit bottomElement
-        return (marr, 0)
-    step (marr, i) x
-        | i == limit = return (marr, i)
+        return (Tuple' marr 0)
+    step (Tuple' marr i) x
+        | i == limit = fmap FL.Done $ liftIO $ freezeSmallArray marr 0 i
         | otherwise = do
             liftIO $ writeSmallArray marr i x
-            return (marr, i + 1)
-    extract (marr, len) = liftIO $ freezeSmallArray marr 0 len
+            FL.partialM (Tuple' marr (i + 1))
+    extract (Tuple' marr len) = liftIO $ freezeSmallArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (SmallArray a)

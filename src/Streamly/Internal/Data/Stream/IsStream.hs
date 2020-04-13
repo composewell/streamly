@@ -1994,7 +1994,7 @@ toHandle h = go
 -- /Internal/
 {-# INLINE toStream #-}
 toStream :: Monad m => Fold m a (SerialT Identity a)
-toStream = Fold (\f x -> return $ f . (x `K.cons`))
+toStream = Fold (\f x -> return $ FL.Partial $ f . (x `K.cons`))
                 (return id)
                 (return . ($ K.nil))
 
@@ -2012,7 +2012,7 @@ toStream = Fold (\f x -> return $ f . (x `K.cons`))
 --  xn : ... : x2 : x1 : []
 {-# INLINABLE toStreamRev #-}
 toStreamRev :: Monad m => Fold m a (SerialT Identity a)
-toStreamRev = Fold (\xs x -> return $ x `K.cons` xs) (return K.nil) return
+toStreamRev = Fold (\xs x -> return $ FL.Partial $ x `K.cons` xs) (return K.nil) return
 
 -- | Convert a stream to a pure stream.
 --
@@ -2353,14 +2353,14 @@ scanl1' step m = fromStreamD $ D.scanl1' step $ toStreamD m
 -- @since 0.7.0
 {-# INLINE scan #-}
 scan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-scan (Fold step begin done) = P.scanlMx' step begin done
+scan = P.scanFold
 
 -- | Postscan a stream using the given monadic fold.
 --
 -- @since 0.7.0
 {-# INLINE postscan #-}
 postscan :: (IsStream t, Monad m) => Fold m a b -> t m a -> t m b
-postscan (Fold step begin done) = P.postscanlMx' step begin done
+postscan = P.postscanFold
 
 ------------------------------------------------------------------------------
 -- Stateful Transformations
@@ -4758,14 +4758,14 @@ classifySessionsBy tick tmout reset ejectPred
         let curTime = max sessionEventTime timestamp
             accumulate v = do
                 old <- case v of
-                    Nothing -> initial
+                    Nothing -> FL.liftInitialM initial
                     Just (Tuple' _ acc) -> return acc
-                new <- step old value
+                new <- FL.liftStep step old value
                 return $ Tuple' timestamp new
             mOld = Map.lookup key sessionKeyValueMap
 
         acc@(Tuple' _ fres) <- accumulate mOld
-        res <- extract fres
+        res <- FL.liftExtract extract fres
         case res of
             Left x -> do
                 -- deleting a key from the heap is expensive, so we never
@@ -4843,7 +4843,7 @@ classifySessionsBy tick tmout reset ejectPred
 
     -- delete from map and output the fold accumulator
     ejectEntry hp mp out cnt acc key = do
-        sess <- extract acc
+        sess <- FL.liftExtract extract acc
         let out1 = (key, fromEither sess) `K.cons` out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)

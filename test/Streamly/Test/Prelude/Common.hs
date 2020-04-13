@@ -942,7 +942,9 @@ transformCombineOpsCommon constr desc eq t = do
         withMaxSuccess maxTestCount $
         monadicIO $ do
             cref <- run $ newIORef 0
-            let sumfoldinref = FL.Fold (\_ e -> modifyIORef' cref (e+))
+            let sumfoldinref = FL.Fold (\_ e ->
+                                            FL.Partial
+                                                  <$> modifyIORef' cref (e+))
                                        (return ())
                                        (const $ return ())
                 op = S.tap sumfoldinref . S.mapM (\x -> return (x+1))

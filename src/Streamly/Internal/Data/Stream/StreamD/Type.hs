@@ -62,7 +62,7 @@ import Prelude hiding (map, mapM, foldr, take, concatMap)
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.SVar (State(..), adaptState, defState)
-import Streamly.Internal.Data.Fold.Types (Fold(..), Fold2(..))
+import Streamly.Internal.Data.Fold.Types (Fold(..), liftInitialM, liftStep, liftExtract, Fold2(..))
 
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
@@ -465,7 +465,7 @@ foldlMx' fstep begin done (Stream step state) =
         case r of
             Yield x s -> do
                 acc' <- fstep acc x
-                go SPEC acc' s
+                go SPEC acc'  s
             Skip s -> go SPEC acc s
             Stop   -> done acc
 
@@ -610,14 +610,14 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
             error $ "Streamly.Internal.Data.Stream.StreamD.Type.groupsOf: the size of "
                  ++ "groups [" ++ show n ++ "] must be a natural number"
         -- fs = fold state
-        fs <- initial
+        fs <- liftInitialM initial
         return $ Skip (GroupBuffer st fs 0)
 
     step' gst (GroupBuffer st fs i) = do
         r <- step (adaptState gst) st
         case r of
             Yield x s -> do
-                !fs' <- fstep fs x
+                !fs' <- liftStep fstep fs x
                 let i' = i + 1
                 return $
                     if i' >= n
@@ -627,7 +627,7 @@ groupsOf n (Fold fstep initial extract) (Stream step state) =
             Stop -> return $ Skip (GroupYield fs GroupFinish)
 
     step' _ (GroupYield fs next) = do
-        r <- extract fs
+        r <- liftExtract extract fs
         return $ Yield r next
 
     step' _ GroupFinish = return Stop

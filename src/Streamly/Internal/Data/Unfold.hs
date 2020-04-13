@@ -165,6 +165,7 @@ import qualified Control.Monad.Catch as MC
 import qualified Data.Tuple as Tuple
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Streamly.Internal.Data.SVar
 import Prelude
@@ -285,7 +286,9 @@ fold (Unfold ustep inject) (Fold fstep initial extract) a =
         case r of
             Yield x s -> do
                 acc' <- fstep acc x
-                go SPEC acc' s
+                case acc' of
+                    FL.Partial acc'' -> go SPEC acc'' s
+                    FL.Done c -> return c
             Skip s -> go SPEC acc s
             Stop   -> extract acc
 
@@ -454,7 +457,7 @@ const m = Unfold step inject
 fromList :: Monad m => Unfold m [a] a
 fromList = Unfold step inject
   where
-    inject x = return x
+    inject = return
     {-# INLINE_LATE step #-}
     step (x:xs) = return $ Yield x xs
     step []     = return Stop
@@ -464,7 +467,7 @@ fromList = Unfold step inject
 fromListM :: Monad m => Unfold m [m a] a
 fromListM = Unfold step inject
   where
-    inject x = return x
+    inject = return
     {-# INLINE_LATE step #-}
     step (x:xs) = x >>= \r -> return $ Yield r xs
     step []     = return Stop
