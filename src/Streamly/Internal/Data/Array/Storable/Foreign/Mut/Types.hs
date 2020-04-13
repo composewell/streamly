@@ -122,6 +122,7 @@ import qualified Data.Foldable as F
 import qualified Streamly.Internal.Foreign.Malloc as Malloc
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
+import qualified Streamly.Internal.Data.Fold as FL
 import qualified GHC.Exts as Exts
 
 import Prelude hiding (length, foldr, read, unlines, splitAt)
@@ -675,17 +676,22 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     extract (Tuple' Nothing r1) = extract1 r1
     extract (Tuple' (Just buf) r1) = do
         r <- step1 r1 buf
-        extract1 r
+        case r of
+            FL.Partial rr -> extract1 rr
+            FL.Done _ -> return ()
 
-    step (Tuple' Nothing r1) arr = do
+    step (Tuple' Nothing r1) arr =
             let len = byteLength arr
-            if len >= n
-            then do
-                r <- step1 r1 arr
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just arr) r1)
+             in if len >= n
+                then do
+                    r <- step1 r1 arr
+                    case r of
+                        FL.Done _ -> FL.doneM ()
+                        FL.Partial s -> do
+                            extract1 s
+                            r1' <- initial1
+                            FL.partialM $ Tuple' Nothing r1'
+                else FL.partialM $ Tuple' (Just arr) r1
 
     step (Tuple' (Just buf) r1) arr = do
             let len = byteLength buf + byteLength arr
@@ -697,10 +703,13 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             if len >= n
             then do
                 r <- step1 r1 buf''
-                extract1 r
-                r1' <- initial1
-                return (Tuple' Nothing r1')
-            else return (Tuple' (Just buf'') r1)
+                case r of
+                    FL.Done _ -> FL.doneM ()
+                    FL.Partial s -> do
+                        extract1 s
+                        r1' <- initial1
+                        FL.partialM $ Tuple' Nothing r1'
+            else FL.partialM $ Tuple' (Just buf'') r1
 
 #if !defined(mingw32_HOST_OS)
 data GatherState s arr
@@ -1077,10 +1086,10 @@ writeNAllocWith alloc n = Fold step initial extract
     where
 
     initial = liftIO $ alloc (max n 0)
-    step arr@(Array _ end bound) _ | end == bound = return arr
+    step arr@(Array _ end bound) _ | end == bound = FL.doneM arr
     step (Array start end bound) x = do
         liftIO $ poke end x
-        return $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
+        FL.partialM $ Array start (end `plusPtr` sizeOf (undefined :: a)) bound
     -- XXX note that shirkToFit does not maintain alignment, in case we are
     -- using aligned allocation.
     extract = return -- liftIO . shrinkToFit
@@ -1139,7 +1148,7 @@ writeNUnsafe n = Fold step initial extract
         return $ ArrayUnsafe start end
     step (ArrayUnsafe start end) x = do
         liftIO $ poke end x
-        return $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
+        FL.partialM $ ArrayUnsafe start (end `plusPtr` sizeOf (undefined :: a))
     extract (ArrayUnsafe start end) = return $ Array start end end -- liftIO . shrinkToFit
 
 -- XXX The realloc based implementation needs to make one extra copy if we use
@@ -1158,7 +1167,7 @@ writeNUnsafe n = Fold step initial extract
 toArrayMinChunk :: forall m a. (MonadIO m, Storable a)
     => Int -> Int -> Fold m a (Array a)
 -- toArrayMinChunk n = FL.mapM spliceArrays $ toArraysOf n
-toArrayMinChunk alignSize elemCount = Fold step initial extract
+toArrayMinChunk alignSize elemCount = FL.mkAccumM step initial extract
 
     where
 

@@ -610,20 +610,25 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
     extract (Tuple3' (Just' buf) boff r1) = do
         nArr <- unsafeFreeze buf
         r <- step1 r1 (slice nArr 0 boff)
-        extract1 r
+        case r of
+            FL.Partial rr -> extract1 rr
+            FL.Done _ -> return ()
 
     step (Tuple3' Nothing' _ r1) arr =
 
             if length arr >= nElem
             then do
                 r <- step1 r1 arr
-                extract1 r
-                r1' <- initial1
-                return (Tuple3' Nothing' 0 r1')
+                case r of
+                    FL.Done _ -> FL.doneM ()
+                    FL.Partial s -> do
+                        extract1 s
+                        r1' <- initial1
+                        FL.partialM $ Tuple3' Nothing' 0 r1'
             else do
                 buf <- MA.newArray nElem
                 noff <- spliceInto buf 0 arr
-                return (Tuple3' (Just' buf) noff r1)
+                FL.partialM $ Tuple3' (Just' buf) noff r1
 
     step (Tuple3' (Just' buf) boff r1) arr = do
             noff <- spliceInto buf boff arr
@@ -632,10 +637,13 @@ lpackArraysChunksOf n (Fold step1 initial1 extract1) =
             then do
                 nArr <- unsafeFreeze buf
                 r <- step1 r1 (slice nArr 0 noff)
-                extract1 r
-                r1' <- initial1
-                return (Tuple3' Nothing' 0 r1')
-            else return (Tuple3' (Just' buf) noff r1)
+                case r of
+                    FL.Done _ -> FL.doneM ()
+                    FL.Partial s -> do
+                        extract1 s
+                        r1' <- initial1
+                        FL.partialM $ Tuple3' Nothing' 0 r1'
+            else FL.partialM $ Tuple3' (Just' buf) noff r1
 
 data SplitState s arr
     = Initial s

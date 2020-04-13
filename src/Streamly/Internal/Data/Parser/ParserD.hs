@@ -160,8 +160,11 @@ where
 
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
-import Streamly.Internal.Data.Fold.Types (Fold(..))
+import Streamly.Internal.Data.Fold.Types
+       (Fold(..), liftInitialM, liftStep, liftExtract)
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
+
+import qualified Streamly.Internal.Data.Fold.Types as FL
 
 import Prelude hiding
        (any, all, take, takeWhile, sequence, concatMap, maybe, either)
@@ -182,7 +185,12 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
 
     where
 
-    step s a = Partial 0 <$> fstep s a
+    step s a = do
+        res <- fstep s a
+        case res of
+            FL.Partial s1 -> return $ Partial 0 s1
+            FL.Done b -> return $ Done 0 b
+
 
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
@@ -311,21 +319,21 @@ either parser = Parser step initial extract
 take :: Monad m => Int -> Fold m a b -> Parser m a b
 take n (Fold fstep finitial fextract) = Parser step initial extract
 
-    where
+     where
 
-    initial = Tuple' 0 <$> finitial
+    initial = Tuple' 0 <$> liftInitialM finitial
 
     step (Tuple' i r) a
         | i < n = do
-            res <- fstep r a
+            res <- liftStep fstep r a
             let i1 = i + 1
                 s1 = Tuple' i1 res
             if i1 < n
             then return $ Partial 0 s1
-            else Done 0 <$> fextract res
-        | otherwise = Done 1 <$> fextract r
+            else Done 0 <$> liftExtract fextract res
+        | otherwise = Done 1 <$> liftExtract fextract r
 
-    extract (Tuple' _ r) = fextract r
+    extract (Tuple' _ r) = liftExtract fextract r
 
 -- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
@@ -339,21 +347,21 @@ takeEQ cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     n = max cnt 0
 
-    initial = Tuple' 0 <$> finitial
+    initial = Tuple' 0 <$> liftInitialM finitial
 
     step (Tuple' i r) a
       | i < n = do
-          res <- fstep r a
+          res <- liftStep fstep r a
           let i1 = i + 1
               s1 = Tuple' i1 res
           if i1 < n
           then return (Continue 0 s1)
-          else Done 0 <$> fextract res
-      | otherwise = Done 1 <$> fextract r
+          else Done 0 <$> liftExtract fextract res
+      | otherwise = Done 1 <$> liftExtract fextract r
 
     extract (Tuple' i r) =
         if n == i
-        then fextract r
+        then liftExtract fextract r
         else throwM $ ParseError err
 
         where
@@ -373,10 +381,10 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 
     n = max cnt 0
 
-    initial = Tuple' 0 <$> finitial
+    initial = Tuple' 0 <$> liftInitialM finitial
 
     step (Tuple' i r) a = do
-        res <- fstep r a
+        res <- liftStep fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
         return $
@@ -384,7 +392,7 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
             then Continue 0 s1
             else Partial 0 s1
 
-    extract (Tuple' i r) = fextract r >>= f
+    extract (Tuple' i r) = liftExtract fextract r >>= f
 
         where
 
@@ -404,16 +412,16 @@ takeGE cnt (Fold fstep finitial fextract) = Parser step initial extract
 {-# INLINE takeWhile #-}
 takeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 takeWhile predicate (Fold fstep finitial fextract) =
-    Parser step initial fextract
+    Parser step initial (liftExtract fextract)
 
     where
 
-    initial = finitial
+    initial = liftInitialM finitial
 
     step s a =
         if predicate a
-        then Partial 0 <$> fstep s a
-        else Done 1 <$> fextract s
+        then Partial 0 <$> liftStep fstep s a
+        else Done 1 <$> liftExtract fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
@@ -438,14 +446,14 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     step (Just s) a =
         if predicate a
         then do
-            r <- fstep s a
+            r <- liftStep fstep s a
             return $ Partial 0 (Just r)
         else do
-            b <- fextract s
+            b <- liftExtract fextract s
             return $ Done 1 b
 
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
-    extract (Just s) = fextract s
+    extract (Just s) = liftExtract fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepBy'.
 --
@@ -454,15 +462,15 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 {-# INLINABLE sliceSepBy #-}
 sliceSepBy :: Monad m => (a -> Bool) -> Fold m a b -> Parser m a b
 sliceSepBy predicate (Fold fstep finitial fextract) =
-    Parser step initial fextract
+    Parser step initial (liftExtract fextract)
 
     where
 
-    initial = finitial
+    initial = liftInitialM finitial
     step s a =
         if not (predicate a)
-        then Partial 0 <$> fstep s a
-        else Done 0 <$> fextract s
+        then Partial 0 <$> liftStep fstep s a
+        else Done 0 <$> liftExtract fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --
@@ -496,20 +504,20 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
 
     where
 
-    initial = Tuple' 0 <$> finitial
+    initial = Tuple' 0 <$> liftInitialM finitial
 
     step (Tuple' i r) a
         | not (predicate a) =
             if i < cnt
             then do
-                res <- fstep r a
+                res <- liftStep fstep r a
                 let i1 = i + 1
                     s1 = Tuple' i1 res
                 return $ Partial 0 s1
-            else Done 1 <$> fextract r
-        | otherwise = Done 0 <$> fextract r
+            else Done 1 <$> liftExtract fextract r
+        | otherwise = Done 0 <$> liftExtract fextract r
 
-    extract (Tuple' _ r) = fextract r
+    extract (Tuple' _ r) = liftExtract fextract r
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
@@ -698,7 +706,7 @@ manyTill (Fold fstep finitial fextract)
     where
 
     initial = do
-        fs <- finitial
+        fs <- liftInitialM finitial
         ManyTillR 0 fs <$> initialR
 
     step (ManyTillR cnt fs st) a = do
@@ -709,7 +717,7 @@ manyTill (Fold fstep finitial fextract)
                 assert (cnt + 1 - n >= 0) (return ())
                 return $ Continue n (ManyTillR (cnt + 1 - n) fs s)
             Done n _ -> do
-                b <- fextract fs
+                b <- liftExtract fextract fs
                 return $ Done n b
             Error _ -> do
                 rR <- initialL
@@ -721,10 +729,10 @@ manyTill (Fold fstep finitial fextract)
             Partial n s -> return $ Partial n (ManyTillL fs s)
             Continue n s -> return $ Continue n (ManyTillL fs s)
             Done n b -> do
-                fs1 <- fstep fs b
+                fs1 <- liftStep fstep fs b
                 l <- initialR
                 return $ Partial n (ManyTillR 0 fs1 l)
             Error err -> return $ Error err
 
-    extract (ManyTillL fs sR) = extractL sR >>= fstep fs >>= fextract
-    extract (ManyTillR _ fs _) = fextract fs
+    extract (ManyTillL fs sR) = extractL sR >>= liftStep fstep fs >>= liftExtract fextract
+    extract (ManyTillR _ fs _) = liftExtract fextract fs
