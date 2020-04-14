@@ -18,8 +18,8 @@ import Data.Foldable (asum)
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
-import qualified Data.Traversable as TR
 import qualified Control.Applicative as AP
+import qualified Data.Traversable as TR
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PR
@@ -35,9 +35,6 @@ import Streamly.Benchmark.Common
 -------------------------------------------------------------------------------
 
 -- XXX these can be moved to the common module
-
--- We need a monadic bind here to make sure that the function f does not get
--- completely optimized out by the compiler in some cases.
 
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
@@ -108,7 +105,7 @@ someAlt xs = do
 
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
-choice value = do
+choice value =
     IP.parseK (asum (replicate value (satisfy (< 0)))
         AP.<|> satisfy (> 0))
 

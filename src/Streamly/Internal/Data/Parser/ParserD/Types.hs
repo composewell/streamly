@@ -1,5 +1,8 @@
-{-# LANGUAGE ExistentialQuantification          #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
+#include "inline.hs"
 
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Types
@@ -116,12 +119,14 @@ module Streamly.Internal.Data.Parser.ParserD.Types
     , yield
     , yieldM
     , splitWith
+    , split_
 
     , die
     , dieM
     , splitSome
     , splitMany
     , alt
+    , concatMap
     )
 where
 
@@ -129,6 +134,7 @@ import Control.Applicative (Alternative(..))
 import Control.Exception (assert, Exception(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Catch (MonadCatch, try, throwM, MonadThrow)
+import Prelude hiding (concatMap)
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Data.Fold (Fold(..), toList)
@@ -222,22 +228,17 @@ instance Functor m => Functor (Parser m a) where
         step s b = fmap2 f (step1 s b)
         fmap2 g = fmap (fmap g)
 
--- This is the dual of stream "yield".
---
--- | A parser that always yields a pure value without consuming any input.
+-- | See 'Streamly.Internal.Data.Parser.yield'.
 --
 -- /Internal/
 --
-{-# INLINE yield #-}
+{-# INLINE_NORMAL yield #-}
 yield :: Monad m => b -> Parser m a b
 yield b = Parser (\_ _ -> pure $ Stop 1 b)  -- step
                  (pure ())                  -- initial
                  (\_ -> pure b)             -- extract
 
--- This is the dual of stream "yieldM".
---
--- | A parser that always yields the result of an effectful action without
--- consuming any input.
+-- | See 'Streamly.Internal.Data.Parser.yieldM'.
 --
 -- /Internal/
 --
@@ -261,19 +262,7 @@ data SeqParseState sl f sr = SeqParseL sl | SeqParseR f sr
 -- compositions the performance starts dipping rapidly beyond a CPS style
 -- unfused implementation.
 --
--- | Sequential application. Apply two parsers sequentially to an input stream.
--- The input is provided to the first parser, when it is done the remaining
--- input is provided to the second parser. If both the parsers succeed their
--- outputs are combined using the supplied function. The operation fails if any
--- of the parsers fail.
---
--- This undoes an "append" of two streams, it splits the streams using two
--- parsers and zips the results.
---
--- This implementation is strict in the second argument, therefore, the
--- following will fail:
---
--- >>> S.parse (PR.satisfy (> 0) *> undefined) $ S.fromList [1]
+-- | See 'Streamly.Internal.Data.Parser.splitWith'.
 --
 -- /Internal/
 --
@@ -315,6 +304,47 @@ splitWith func (Parser stepL initialL extractL)
         rR <- extractR sR
         return $ func rL rR
 
+{-# ANN type SeqAState Fuse #-}
+data SeqAState sl sr = SeqAL sl | SeqAR sr
+
+-- This turns out to be slightly faster than splitWith
+-- | See 'Streamly.Internal.Data.Parser.split_'.
+--
+-- /Internal/
+--
+{-# INLINE split_ #-}
+split_ :: Monad m => Parser m x a -> Parser m x b -> Parser m x b
+split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
+    Parser step initial extract
+
+    where
+
+    initial = SeqAL <$> initialL
+
+    -- Note: For the composed parse to terminate, the left parser has to be
+    -- a terminating parser returning a Stop at some point.
+    step (SeqAL st) a = do
+        (\r i -> case r of
+            -- Note: this leads to buffering even if we are not in an
+            -- Alternative composition.
+            Yield _ s -> Skip 0 (SeqAL s)
+            Skip n s -> Skip n (SeqAL s)
+            Stop n _ -> Skip n (SeqAR i)
+            -- XXX should we sequence initialR monadically?
+            Error err -> Error err) <$> stepL st a <*> initialR
+
+    step (SeqAR st) a = do
+        (\r -> case r of
+            Yield n s -> Yield n (SeqAR s)
+            Skip n s -> Skip n (SeqAR s)
+            Stop n b -> Stop n b
+            Error err -> Error err) <$> stepR st a
+
+    extract (SeqAR sR) = extractR sR
+    extract (SeqAL sL) = do
+        _ <- extractL sL
+        initialR >>= extractR
+
 -- | 'Applicative' form of 'splitWith'.
 instance Monad m => Applicative (Parser m a) where
     {-# INLINE pure #-}
@@ -322,6 +352,9 @@ instance Monad m => Applicative (Parser m a) where
 
     {-# INLINE (<*>) #-}
     (<*>) = splitWith id
+
+    {-# INLINE (*>) #-}
+    (*>) = split_
 
 -------------------------------------------------------------------------------
 -- Sequential Alternative
@@ -335,14 +368,7 @@ data AltParseState sl sr = AltParseL Int sl | AltParseR sr
 -- each subsequent alternative's input element has to go through, therefore, it
 -- cannot scale to a large number of compositions
 --
--- | Sequential alternative. Apply the input to the first parser and return the
--- result if the parser succeeds. If the first parser fails then backtrack and
--- apply the same input to the second parser and return the result.
---
--- Note: This implementation is not lazy in the second argument. The following
--- will fail:
---
--- >>> S.parse (PR.satisfy (> 0) `PR.alt` undefined) $ S.fromList [1..10]
+-- | See 'Streamly.Internal.Data.Parser.alt'.
 --
 -- /Internal/
 --
@@ -480,24 +506,18 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
             Left (_ :: ParseError) -> fextract fs
             Right b -> fstep fs b >>= fextract
 
--- This is the dual of "nil".
---
--- | A parser that always fails with an error message without consuming
--- any input.
+-- | See 'Streamly.Internal.Data.Parser.die'.
 --
 -- /Internal/
 --
-{-# INLINE die #-}
+{-# INLINE_NORMAL die #-}
 die :: MonadThrow m => String -> Parser m a b
 die err =
     Parser (\_ _ -> pure $ Error err)      -- step
            (pure ())                       -- initial
            (\_ -> throwM $ ParseError err) -- extract
 
--- This is the dual of "nilM".
---
--- | A parser that always fails with an effectful error message and without
--- consuming any input.
+-- | See 'Streamly.Internal.Data.Parser.dieM'.
 --
 -- /Internal/
 --
@@ -539,92 +559,60 @@ instance MonadCatch m => Alternative (Parser m a) where
 {-# ANN type ConcatParseState Fuse #-}
 data ConcatParseState sl p = ConcatParseL sl | ConcatParseR p
 
+-- | See 'Streamly.Internal.Data.Parser.concatMap'.
+--
+-- /Internal/
+--
+{-# INLINE concatMap #-}
+concatMap :: Monad m => (b -> Parser m a c) -> Parser m a b -> Parser m a c
+concatMap func (Parser stepL initialL extractL) = Parser step initial extract
+
+    where
+
+    initial = ConcatParseL <$> initialL
+
+    step (ConcatParseL st) a = do
+        r <- stepL st a
+        return $ case r of
+            Yield _ s -> Skip 0 (ConcatParseL s)
+            Skip n s -> Skip n (ConcatParseL s)
+            Stop n b -> Skip n (ConcatParseR (func b))
+            Error err -> Error err
+
+    step (ConcatParseR (Parser stepR initialR extractR)) a = do
+        st <- initialR
+        r <- stepR st a
+        return $ case r of
+            Yield n s ->
+                Yield n (ConcatParseR (Parser stepR (return s) extractR))
+            Skip n s ->
+                Skip n (ConcatParseR (Parser stepR (return s) extractR))
+            Stop n b -> Stop n b
+            Error err -> Error err
+
+    extract (ConcatParseR (Parser _ initialR extractR)) =
+        initialR >>= extractR
+
+    extract (ConcatParseL sL) = extractL sL >>= f . func
+
+        where
+
+        f (Parser _ initialR extractR) = initialR >>= extractR
+
 -- Note: The monad instance has quadratic performance complexity. It works fine
 -- for small number of compositions but for a scalable implementation we need a
 -- CPS version.
 
--- | Monad composition can be used for lookbehind parsers, we can make the
--- future parses depend on the previously parsed values.
---
--- If we have to parse "a9" or "9a" but not "99" or "aa" we can use the
--- following parser:
---
--- @
--- backtracking :: MonadCatch m => PR.Parser m Char String
--- backtracking =
---     sequence [PR.satisfy isDigit, PR.satisfy isAlpha]
---     '<|>'
---     sequence [PR.satisfy isAlpha, PR.satisfy isDigit]
--- @
---
--- We know that if the first parse resulted in a digit at the first place then
--- the second parse is going to fail.  However, we waste that information and
--- parse the first character again in the second parse only to know that it is
--- not an alphabetic char.  By using lookbehind in a 'Monad' composition we can
--- avoid redundant work:
---
--- @
--- data DigitOrAlpha = Digit Char | Alpha Char
---
--- lookbehind :: MonadCatch m => PR.Parser m Char String
--- lookbehind = do
---     x1 \<-    Digit '<$>' PR.satisfy isDigit
---          '<|>' Alpha '<$>' PR.satisfy isAlpha
---
---     -- Note: the parse depends on what we parsed already
---     x2 <- case x1 of
---         Digit _ -> PR.satisfy isAlpha
---         Alpha _ -> PR.satisfy isDigit
---
---     return $ case x1 of
---         Digit x -> [x,x2]
---         Alpha x -> [x,x2]
--- @
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Types.Parser'.
 --
 instance Monad m => Monad (Parser m a) where
     {-# INLINE return #-}
     return = pure
 
-    -- (>>=) :: Parser m a b -> (b -> Parser m a c) -> Parser m a c
     {-# INLINE (>>=) #-}
-    (Parser stepL initialL extractL) >>= func = Parser step initial extract
+    (>>=) = flip concatMap
 
-        where
-
-        initial = ConcatParseL <$> initialL
-
-        step (ConcatParseL st) a = do
-            r <- stepL st a
-            return $ case r of
-                Yield _ s -> Skip 0 (ConcatParseL s)
-                Skip n s -> Skip n (ConcatParseL s)
-                Stop n b -> Skip n (ConcatParseR (func b))
-                Error err -> Error err
-
-        step (ConcatParseR (Parser stepR initialR extractR)) a = do
-            st <- initialR
-            r <- stepR st a
-            return $ case r of
-                Yield n s ->
-                    Yield n (ConcatParseR (Parser stepR (return s) extractR))
-                Skip n s ->
-                    Skip n (ConcatParseR (Parser stepR (return s) extractR))
-                Stop n b -> Stop n b
-                Error err -> Error err
-
-        extract (ConcatParseR (Parser _ initialR extractR)) =
-            initialR >>= extractR
-
-        extract (ConcatParseL sL) = extractL sL >>= f . func
-
-            where
-
-            f (Parser _ initialR extractR) = initialR >>= extractR
-
--- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
--- '<|>', it selects the first succeeding parser.
---
--- /Internal/
+-- | See documentation of 'Streamly.Internal.Data.Parser.ParserK.Types.Parser'.
 --
 instance MonadCatch m => MonadPlus (Parser m a) where
     {-# INLINE mzero #-}

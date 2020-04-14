@@ -80,9 +80,7 @@ data Res = Yld Int | Stp Int | Skp | Err String
 -- line/column fold running in parallel with the main parser, whenever an error
 -- occurs we can zip the error with the context fold.
 --
--- | @teeWith f p1 p2@ distributes its input to both @p1@ and @p2@ until both
--- of them succeed or fail and combines their output using @f@. The parser
--- succeeds if both the parsers succeed.
+-- | See 'Streamly.Internal.Data.Parser.teeWith'.
 --
 -- /Internal/
 --
@@ -200,8 +198,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             TeePair (_, StepResult rL, _, _) (_, StepResult rR, _, _) ->
                 return $ zf rL rR
 
--- | Like 'teeWith' but ends parsing and zips the results, if available,
--- whenever the first parser ends.
+-- | See 'Streamly.Internal.Data.Parser.teeWithFst'.
 --
 -- /Internal/
 --
@@ -310,8 +307,7 @@ teeWithFst zf (Parser stepL initialL extractL)
                 return $ zf rL rR
             _ -> error "unreachable"
 
--- | Like 'teeWith' but ends parsing and zips the results, if available,
--- whenever any of the parsers ends or fails.
+-- | See 'Streamly.Internal.Data.Parser.teeWithMin'.
 --
 -- /Unimplemented/
 --
@@ -325,9 +321,7 @@ teeWithMin = undefined
 -- Distribute input to two parsers and choose one result
 -------------------------------------------------------------------------------
 
--- | Shortest alternative. Apply both parsers in parallel but choose the result
--- from the one which consumed least input i.e. take the shortest succeeding
--- parse.
+-- | See 'Streamly.Internal.Data.Parser.shortest'.
 --
 -- /Internal/
 --
@@ -403,9 +397,7 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
             TeePair (_, StepState sL, _, _) _ -> extractL sL
             _ -> error "unreachable"
 
--- | Longest alternative. Apply both parsers in parallel but choose the result
--- from the one which consumed more input i.e. take the longest succeeding
--- parse.
+-- | See 'Streamly.Internal.Data.Parser.longest'.
 --
 -- /Internal/
 --

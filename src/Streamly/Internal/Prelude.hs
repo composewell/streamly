@@ -94,6 +94,7 @@ module Streamly.Internal.Prelude
     , fold
     , parse
     , parseK
+    , parseD
 
     -- ** Concurrent Folds
     , foldAsync
@@ -540,7 +541,7 @@ import qualified System.IO as IO
 
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
-import Streamly.Internal.Data.Parser.ParserD.Types (Parser (..))
+import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -578,6 +579,7 @@ import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
 import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Data.Zipper as ZR
 
 ------------------------------------------------------------------------------
@@ -1197,16 +1199,16 @@ runSink = fold . toFold
 -}
 
 ------------------------------------------------------------------------------
--- Running a Parse
+-- Running a Parser
 ------------------------------------------------------------------------------
 
--- | Parse a stream using the supplied 'Parse'.
+-- | Parse a stream using the supplied 'Parser'.
 --
 -- /Internal/
 --
-{-# INLINE parse #-}
-parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
-parse (Parser step initial extract) = P.parselMx' step initial extract
+{-# INLINE_NORMAL parseD #-}
+parseD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m b
+parseD (PRD.Parser step initial extract) = P.parselMx' step initial extract
 
 {-# INLINE parseK #-}
 parseK :: Monad m => PRK.Parser m a b -> SerialT m a -> m b
@@ -1216,6 +1218,16 @@ parseK parser xs = do
     case r of
         Left err -> error err
         Right b -> return b
+
+-- | Parse a stream using the supplied 'Parser'.
+--
+-- /Internal/
+--
+{-# INLINE [3] parse #-}
+parse :: MonadThrow m => Parser m a b -> SerialT m a -> m b
+parse = parseD . PRD.fromParserK
+{-# RULES "parse fallback to CPS" [2]
+    forall a. parseD (PRD.fromParserK a) = parseK a #-}
 
 ------------------------------------------------------------------------------
 -- Specialized folds
@@ -3141,7 +3153,7 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 {-# INLINE splitParse #-}
 splitParse
     :: (IsStream t, MonadThrow m)
-    => Parser m a b
+    => PRD.Parser m a b
     -> t m a
     -> t m b
 splitParse f m = D.fromStreamD $ D.splitParse f (D.toStreamD m)

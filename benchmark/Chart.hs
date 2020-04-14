@@ -30,6 +30,7 @@ data BenchType
     | NestedConcurrent
     | ParserD
     | ParserK
+    | Parser
     | Base
     | FileIO
     | Array
@@ -84,6 +85,7 @@ parseBench = do
         Just "nested-concurrent" -> setBenchType NestedConcurrent
         Just "parserD" -> setBenchType ParserD
         Just "parserK" -> setBenchType ParserK
+        Just "parser" -> setBenchType Parser
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
         Just "array-cmp" -> setBenchType ArrayCmp
@@ -374,6 +376,11 @@ main = do
                             (makeGraphs "parserK")
                             "charts/parserK/results.csv"
                             "charts/parserK"
+                Parser -> benchShow opts cfg
+                            { title = Just "Parser" }
+                            (makeGraphs "parser")
+                            "charts/parser/results.csv"
+                            "charts/parser"
                 FileIO -> benchShow opts cfg
                             { title = Just "File IO" }
                             (makeGraphs "fileIO")

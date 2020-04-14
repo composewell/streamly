@@ -341,6 +341,7 @@ library
                      , Streamly.Internal.Data.Parser.ParserD.Types
                      , Streamly.Internal.Data.Parser.ParserD.Tee
                      , Streamly.Internal.Data.Parser.ParserD
+                     , Streamly.Internal.Data.Parser
 
                      -- Base streams
                      , Streamly.Internal.Data.Stream.StreamK.Type

@@ -2,6 +2,8 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+#include "inline.hs"
+
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD
 -- Copyright   : (c) 2020 Composewell Technologies
@@ -10,40 +12,19 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
--- Fast streaming parsers.
---
--- 'Applicative' and 'Alternative' type class based combinators from the
--- <http://hackage.haskell.org/package/parser-combinators parser-combinators>
--- package can also be used with the 'Parser' type. However, there are two
--- important differences between @parser-combinators@ and the equivalent ones
--- provided in this module in terms of performance:
---
--- 1) @parser-combinators@ use plain Haskell lists to collect the results, in a
--- strict Monad like IO, the results are necessarily buffered before they can
--- be consumed.  This may not perform optimally in streaming applications
--- processing large amounts of data.  Equivalent combinators in this module can
--- consume the results of parsing using a 'Fold', thus providing a scalability
--- and a generic consumer.
---
--- 2) Several combinators in this module can be many times faster because of
--- stream fusion. For example, 'Streamly.Internal.Data.Parser.many' combinator
--- in this module is much faster than the 'Control.Applicative.many' combinator
--- of 'Alternative' type class.
---
--- Failing parsers in this module throw the 'ParseError' exception.
-
--- XXX As far as possible, try that the combinators in this module and in
--- "Text.ParserCombinators.ReadP/parser-combinators/parsec/megaparsec/attoparsec"
--- have consistent names. takeP/takeWhileP/munch?
+-- Direct style parser implementation with stream fusion.
 
 module Streamly.Internal.Data.Parser.ParserD
     (
       Parser (..)
+    , ParseError (..)
+    , Step (..)
 
     -- First order parsers
     -- * Accumulators
     , fromFold
     , toParserK
+    , fromParserK
     , any
     , all
     , yield
@@ -101,6 +82,7 @@ module Streamly.Internal.Data.Parser.ParserD
 
     -- ** Sequential Applicative
     , splitWith
+    , split_
 
     -- ** Parallel Applicatives
     , teeWith
@@ -113,6 +95,9 @@ module Streamly.Internal.Data.Parser.ParserD
     -- secondary parser.
     , deintercalate
 
+    -- ** Sequential Alternative
+    , alt
+
     -- ** Parallel Alternatives
     , shortest
     , longest
@@ -121,6 +106,7 @@ module Streamly.Internal.Data.Parser.ParserD
     -- * N-ary Combinators
     -- ** Sequential Collection
     , sequence
+    , concatMap
 
     -- ** Sequential Repetition
     , count
@@ -179,7 +165,7 @@ where
 import Control.Exception (assert)
 import Control.Monad.Catch (MonadCatch, MonadThrow(..))
 import Prelude
-       hiding (any, all, take, takeWhile, sequence)
+       hiding (any, all, take, takeWhile, sequence, concatMap)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
@@ -194,7 +180,9 @@ import Streamly.Internal.Data.Strict
 -- Upgrade folds to parses
 -------------------------------------------------------------------------------
 --
--- | The resulting parse never terminates and never errors out.
+-- | See 'Streamly.Internal.Data.Parser.fromFold'.
+--
+-- /Internal/
 --
 {-# INLINE fromFold #-}
 fromFold :: Monad m => Fold m a b -> Parser m a b
@@ -205,24 +193,45 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
     step s a = Yield 0 <$> fstep s a
 
 -------------------------------------------------------------------------------
--- Convert to CPS style parser representation
+-- Convert to and from CPS style parser representation
 -------------------------------------------------------------------------------
 
-{-# INLINE toParserK #-}
+-- | Convert a direct style 'Parser' to a CPS style 'K.Parser'.
+--
+-- /Internal/
+--
+{-# INLINE_LATE toParserK #-}
 toParserK :: MonadCatch m => Parser m a b -> K.Parser m a b
 toParserK (Parser step initial extract) =
     K.MkParser $ \inp yieldk ->
         Z.parse step initial extract inp >>= yieldk
 
+-- | Convert a CPS style 'K.Parser' to a direct style 'Parser'.
+--
+-- /Unimplemented/
+--
+{-# NOINLINE fromParserK #-}
+fromParserK :: Monad m => K.Parser m a b -> Parser m a b
+fromParserK _ = Parser step initial extract
+
+    where
+
+    initial = return ()
+    step () _ = error "fromParserK: unimplemented"
+    extract () = error "fromParserK: unimplemented"
+
+#ifndef DISABLE_FUSION
+{-# RULES "fromParserK/toParserK fusion" [2]
+    forall s. toParserK (fromParserK s) = s #-}
+{-# RULES "toParserK/fromParserK fusion" [2]
+    forall s. fromParserK (toParserK s) = s #-}
+#endif
+
 -------------------------------------------------------------------------------
 -- Terminating but not failing folds
 -------------------------------------------------------------------------------
 --
--- |
--- >>> S.parse (PR.any (== 0)) $ S.fromList [1,0,1]
--- > Right True
---
-{-# INLINABLE any #-}
+{-# INLINE any #-}
 any :: Monad m => (a -> Bool) -> Parser m a Bool
 any predicate = Parser step initial return
 
@@ -238,10 +247,6 @@ any predicate = Parser step initial return
             then Stop 0 True
             else Yield 0 False
 
--- |
--- >>> S.parse (PR.all (== 0)) $ S.fromList [1,0,1]
--- > Right False
---
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parser m a Bool
 all predicate = Parser step initial return
@@ -262,15 +267,7 @@ all predicate = Parser step initial return
 -- Failing Parsers
 -------------------------------------------------------------------------------
 
--- | Peek the head element of a stream, without consuming it. Fails if it
--- encounters end of input.
---
--- >>> S.parse ((,) <$> PR.peek <*> PR.satisfy (> 0)) $ S.fromList [1]
--- (1,1)
---
--- @
--- peek = lookAhead (satisfy True)
--- @
+-- | See 'Streamly.Internal.Data.Parser.peek'.
 --
 -- /Internal/
 --
@@ -286,10 +283,7 @@ peek = Parser step initial extract
 
     extract () = throwM $ ParseError "peek: end of input"
 
--- | Succeeds if we are at the end of input, fails otherwise.
---
--- >>> S.parse ((,) <$> PR.satisfy (> 0) <*> PR.eof) $ S.fromList [1]
--- > (1,())
+-- | See 'Streamly.Internal.Data.Parser.eof'.
 --
 -- /Internal/
 --
@@ -303,10 +297,7 @@ eof = Parser step initial return
 
     step () _ = return $ Error "eof: not at end of input"
 
--- | Returns the next element if it passes the predicate, fails otherwise.
---
--- >>> S.parse (PR.satisfy (== 1)) $ S.fromList [1,0,1]
--- > 1
+-- | See 'Streamly.Internal.Data.Parser.satisfy'.
 --
 -- /Internal/
 --
@@ -329,21 +320,7 @@ satisfy predicate = Parser step initial extract
 -- Taking elements
 -------------------------------------------------------------------------------
 --
--- XXX Once we have terminating folds, this Parse should get replaced by Fold.
--- Alternatively, we can name it "chunkOf" and the corresponding time domain
--- combinator as "intervalOf" or even "chunk" and "interval".
---
--- | Take at most @n@ input elements and fold them using the supplied fold.
---
--- Stops after @n@ elements.
--- Never fails.
---
--- >>> S.parse (PR.take 1 FL.toList) $ S.fromList [1]
--- [1]
---
--- @
--- S.chunksOf n f = S.splitParse (FL.take n f)
--- @
+-- | See 'Streamly.Internal.Data.Parser.take'.
 --
 -- /Internal/
 --
@@ -365,16 +342,7 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
 
     extract (Tuple' _ r) = fextract r
 
---
--- XXX can we use a "cmp" operation in a common implementation?
---
--- | Stops after taking exactly @n@ input elements.
---
--- * Stops - after @n@ elements.
--- * Fails - if the stream ends before it can collect @n@ elements.
---
--- >>> S.parse (PR.takeEQ 4 FL.toList) $ S.fromList [1,0,1]
--- > "takeEQ: Expecting exactly 4 elements, got 3"
+-- | See 'Streamly.Internal.Data.Parser.takeEQ'.
 --
 -- /Internal/
 --
@@ -403,16 +371,7 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
                "takeEQ: Expecting exactly " ++ show n
             ++ " elements, got " ++ show i
 
--- | Take at least @n@ input elements, but can collect more.
---
--- * Stops - never.
--- * Fails - if the stream ends before producing @n@ elements.
---
--- >>> S.parse (PR.takeGE 4 FL.toList) $ S.fromList [1,0,1]
--- > "takeGE: Expecting at least 4 elements, got only 3"
---
--- >>> S.parse (PR.takeGE 4 FL.toList) $ S.fromList [1,0,1,0,1]
--- > [1,0,1,0,1]
+-- | See 'Streamly.Internal.Data.Parser.takeGE'.
 --
 -- /Internal/
 --
@@ -446,20 +405,7 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
             then return x
             else throwM $ ParseError err
 
--- | Collect stream elements until an element fails the predicate. The element
--- on which the predicate fails is returned back to the input stream.
---
--- * Stops - when the predicate fails.
--- * Fails - never.
---
--- >>> S.parse (PR.takeWhile (== 0) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [0,0]
---
--- We can implement a @breakOn@ using 'takeWhile':
---
--- @
--- breakOn p = takeWhile (not p)
--- @
+-- | See 'Streamly.Internal.Data.Parser.takeWhile'.
 --
 -- /Internal/
 --
@@ -477,7 +423,7 @@ takeWhile predicate (Fold fstep finitial fextract) =
         then Yield 0 <$> fstep s a
         else Stop 1 <$> fextract s
 
--- | Like 'takeWhile' but takes at least one element otherwise fails.
+-- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
 -- /Internal/
 --
@@ -509,20 +455,7 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
 
--- | Collect stream elements until an element succeeds the predicate. Drop the
--- element on which the predicate succeeded. The succeeding element is treated
--- as an infix separator which is dropped from the output.
---
--- * Stops - when the predicate succeeds.
--- * Fails - never.
---
--- >>> S.parse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [0,0]
---
--- S.splitOn pred f = S.splitParse (PR.sliceSepBy pred f)
---
--- >>> S.toList $ S.splitParse (PR.sliceSepBy (== 1) FL.toList) $ S.fromList [0,0,1,0,1]
--- > [[0,0],[0],[]]
+-- | See 'Streamly.Internal.Data.Parser.sliceSepBy'.
 --
 -- /Internal/
 --
@@ -539,14 +472,7 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
         then Yield 0 <$> fstep s a
         else Stop 0 <$> fextract s
 
--- | Collect stream elements until an element succeeds the predicate. Also take
--- the element on which the predicate succeeded. The succeeding element is
--- treated as a suffix separator which is kept in the output segement.
---
--- * Stops - when the predicate succeeds.
--- * Fails - never.
---
--- S.splitWithSuffix pred f = S.splitParse (PR.sliceEndWith pred f)
+-- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --
 -- /Unimplemented/
 --
@@ -556,16 +482,7 @@ sliceEndWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceEndWith = undefined
 
--- | Collect stream elements until an elements passes the predicate, return the
--- last element on which the predicate succeeded back to the input stream.  If
--- the predicate succeeds on the first element itself then it is kept in the
--- stream and we continue collecting. The succeeding element is treated as a
--- prefix separator which is kept in the output segement.
---
--- * Stops - when the predicate succeeds in non-leading position.
--- * Fails - never.
---
--- S.splitWithPrefix pred f = S.splitParse (PR.sliceBeginWith pred f)
+-- | See 'Streamly.Internal.Data.Parser.sliceBeginWith'.
 --
 -- /Unimplemented/
 --
@@ -575,9 +492,7 @@ sliceBeginWith ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 sliceBeginWith = undefined
 
--- | Split using a condition or a count whichever occurs first. This is a
--- hybrid of 'splitOn' and 'take'. The element on which the condition succeeds
--- is dropped.
+-- | See 'Streamly.Internal.Data.Parser.sliceSepByMax'.
 --
 -- /Internal/
 --
@@ -601,17 +516,7 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
             return $ Stop 0 b
     extract (Tuple' _ r) = fextract r
 
--- | Like 'splitOn' but strips leading, trailing, and repeated separators.
--- Therefore, @".a..b."@ having '.' as the separator would be parsed as
--- @["a","b"]@.  In other words, its like parsing words from whitespace
--- separated text.
---
--- * Stops - when it finds a word separator after a non-word element
--- * Fails - never.
---
--- @
--- S.wordsBy pred f = S.splitParse (PR.wordBy pred f)
--- @
+-- | See 'Streamly.Internal.Data.Parser.wordBy'.
 --
 -- /Unimplemented/
 --
@@ -621,19 +526,7 @@ wordBy ::
     (a -> Bool) -> Fold m a b -> Parser m a b
 wordBy = undefined
 
--- | @groupBy cmp f $ S.fromList [a,b,c,...]@ assigns the element @a@ to the
--- first group, then if @a \`cmp` b@ is 'True' @b@ is also assigned to the same
--- group.  If @a \`cmp` c@ is 'True' then @c@ is also assigned to the same
--- group and so on. When the comparison fails a new group is started. Each
--- group is folded using the 'Fold' @f@ and the result of the fold is emitted
--- in the output stream.
---
--- * Stops - when the comparison fails.
--- * Fails - never.
---
--- @
--- S.groupsBy cmp f = S.splitParse (PR.groupBy cmp f)
--- @
+-- | See 'Streamly.Internal.Data.Parser.groupBy'.
 --
 -- /Unimplemented/
 --
@@ -646,7 +539,7 @@ groupBy = undefined
 -- XXX use an Unfold instead of a list?
 -- XXX custom combinators for matching list, array and stream?
 --
--- | Match the given sequence of elements using the given comparison function.
+-- | See 'Streamly.Internal.Data.Parser.eqBy'.
 --
 -- /Internal/
 --
@@ -662,8 +555,7 @@ eqBy cmp str = Parser step initial extract
     step [x] a = return $
         if x `cmp` a
         then Stop 0 ()
-        else Error $
-            "eqBy: failed, at the last element"
+        else Error "eqBy: failed, at the last element"
     step (x:xs) a = return $
         if x `cmp` a
         then Skip 0 xs
@@ -677,6 +569,10 @@ eqBy cmp str = Parser step initial extract
 -- nested parsers
 -------------------------------------------------------------------------------
 
+-- | See 'Streamly.Internal.Data.Parser.lookahead'.
+--
+-- /Internal/
+--
 {-# INLINE lookAhead #-}
 lookAhead :: MonadThrow m => Parser m a b -> Parser m a b
 lookAhead (Parser step1 initial1 _) =
@@ -705,27 +601,7 @@ lookAhead (Parser step1 initial1 _) =
 -- Interleaving
 -------------------------------------------------------------------------------
 --
--- To deinterleave we can chain two parsers one behind the other. The input is
--- given to the first parser and the input definitively rejected by the first
--- parser is given to the second parser.
---
--- We can either have the parsers themselves buffer the input or use the shared
--- global buffer to hold it until none of the parsers need it. When the first
--- parser returns Skip (i.e. rewind) we let the second parser consume the
--- rejected input and when it is done we move the cursor forward to the first
--- parser again. This will require a "move forward" command as well.
---
--- To implement grep we can use three parsers, one to find the pattern, one
--- to store the context behind the pattern and one to store the context in
--- front of the pattern. When a match occurs we need to emit the accumulator of
--- all the three parsers. One parser can count the line numbers to provide the
--- line number info.
---
--- | Apply two parsers alternately to an input stream. The input stream is
--- considered an interleaving of two patterns. The two parsers represent the
--- two patterns.
---
--- This undoes a "gintercalate" of two streams.
+-- | See 'Streamly.Internal.Data.Parser.deintercalate'.
 --
 -- /Unimplemented/
 --
@@ -741,8 +617,7 @@ deintercalate = undefined
 -- Sequential Collection
 -------------------------------------------------------------------------------
 --
--- | @sequence f t@ collects sequential parses of parsers in the container @t@
--- using the fold @f@. Fails if the input ends or any of the parsers fail.
+-- | See 'Streamly.Internal.Data.Parser.sequence'.
 --
 -- /Unimplemented/
 --
@@ -756,8 +631,9 @@ sequence _f _p = undefined
 -- Alternative Collection
 -------------------------------------------------------------------------------
 --
--- | @choice parsers@ applies the @parsers@ in order and returns the first
--- successful parse.
+-- | See 'Streamly.Internal.Data.Parser.choice'.
+--
+-- /Unimplemented/
 --
 {-# INLINE choice #-}
 choice ::
@@ -769,16 +645,7 @@ choice _ps = undefined
 -- Sequential Repetition
 -------------------------------------------------------------------------------
 --
--- XXX "many" is essentially a Fold because it cannot fail. So it can be
--- downgraded to a Fold. Or we can make the return type a Fold instead and
--- upgrade that to a parser when needed.
---
--- | Collect zero or more parses. Apply the parser repeatedly on the input
--- stream, stop when the parser fails, accumulate zero or more parse results
--- using the supplied 'Fold'. This parser never fails, in case the first
--- application of parser fails it returns an empty result.
---
--- Compare with 'Control.Applicative.many'.
+-- | See 'Streamly.Internal.Data.Parser.many'.
 --
 -- /Internal/
 --
@@ -787,12 +654,7 @@ many :: MonadCatch m => Fold m b c -> Parser m a b -> Parser m a c
 many = splitMany
 -- many = countBetween 0 maxBound
 
--- | Collect one or more parses. Apply the supplied parser repeatedly on the
--- input stream and accumulate the parse results as long as the parser
--- succeeds, stop when it fails.  This parser fails if not even one result is
--- collected.
---
--- Compare with 'Control.Applicative.some'.
+-- | See 'Streamly.Internal.Data.Parser.some'.
 --
 -- /Internal/
 --
@@ -802,9 +664,7 @@ some = splitSome
 -- some f p = many (takeGE 1 f) p
 -- many = countBetween 1 maxBound
 
--- | @countBetween m n f p@ collects between @m@ and @n@ sequential parses of
--- parser @p@ using the fold @f@. Stop after collecting @n@ results. Fails if
--- the input ends or the parser fails before @m@ results are collected.
+-- | See 'Streamly.Internal.Data.Parser.countBetween'.
 --
 -- /Unimplemented/
 --
@@ -815,9 +675,7 @@ countBetween ::
 countBetween _m _n _f = undefined
 -- countBetween m n f p = many (takeBetween m n f) p
 
--- | @count n f p@ collects exactly @n@ sequential parses of parser @p@ using
--- the fold @f@.  Fails if the input ends or the parser fails before @n@
--- results are collected.
+-- | See 'Streamly.Internal.Data.Parser.count'.
 --
 -- /Unimplemented/
 --
@@ -830,11 +688,7 @@ count n = countBetween n n
 
 data ManyTillState fs sr sl = ManyTillR Int fs sr | ManyTillL fs sl
 
--- | @manyTill f collect test@ tries the parser @test@ on the input, if @test@
--- fails it backtracks and tries @collect@, after @collect@ succeeds @test@ is
--- tried again and so on. The parser stops when @test@ succeeds.  The output of
--- @test@ is discarded and the output of @collect@ is accumulated by the
--- supplied fold. The parser fails if @collect@ fails.
+-- | See 'Streamly.Internal.Data.Parser.manyTill'.
 --
 -- /Internal/
 --
