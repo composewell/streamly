@@ -22,8 +22,8 @@ import qualified Data.Traversable as TR
 import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
-import qualified Streamly.Internal.Data.ParserK.Types as PR
-import qualified Streamly.Internal.Data.Parser as PRD
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as PR
+import qualified Streamly.Internal.Data.Parser.ParserD as PRD
 import qualified Streamly.Internal.Prelude as IP
 
 import Gauge

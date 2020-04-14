@@ -8,7 +8,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Parser.Tee
+-- Module      : Streamly.Internal.Data.Parser.ParserD.Tee
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -29,7 +29,7 @@
 -- some legit warnings, therefore, we have segregated only the code that uses
 -- uni-pattern matches in this module.
 
-module Streamly.Internal.Data.Parser.Tee
+module Streamly.Internal.Data.Parser.ParserD.Tee
     (
     -- Parallel zipped
       teeWith
@@ -48,7 +48,8 @@ import Prelude
        hiding (any, all, takeWhile)
 
 import Fusion.Plugin.Types (Fuse(..))
-import Streamly.Internal.Data.Parser.Types (Parser(..), Step(..), ParseError)
+import Streamly.Internal.Data.Parser.ParserD.Types
+       (Parser(..), Step(..), ParseError)
 
 -------------------------------------------------------------------------------
 -- Distribute input to two parsers and collect both results

@@ -74,7 +74,7 @@ import Prelude hiding (foldr, minimum, maximum)
 import qualified Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold (..))
-import Streamly.Internal.Data.Parser.Types (Step)
+import Streamly.Internal.Data.Parser.ParserD.Types (Step)
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S

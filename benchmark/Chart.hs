@@ -28,7 +28,7 @@ data BenchType
     | LinearAsync
     | LinearRate
     | NestedConcurrent
-    | Parser
+    | ParserD
     | ParserK
     | Base
     | FileIO
@@ -82,7 +82,7 @@ parseBench = do
         Just "linear-async" -> setBenchType LinearAsync
         Just "linear-rate" -> setBenchType LinearRate
         Just "nested-concurrent" -> setBenchType NestedConcurrent
-        Just "parser" -> setBenchType Parser
+        Just "parserD" -> setBenchType ParserD
         Just "parserK" -> setBenchType ParserK
         Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
@@ -364,11 +364,11 @@ main = do
                             (makeStreamComparisonGraphs "nested-concurrent" nestedBenchPrefixes)
                             "charts/nested-concurrent/results.csv"
                             "charts/nested-concurrent"
-                Parser -> benchShow opts cfg
-                            { title = Just "Parsers" }
-                            (makeGraphs "parser")
-                            "charts/parser/results.csv"
-                            "charts/parser"
+                ParserD -> benchShow opts cfg
+                            { title = Just "ParserD" }
+                            (makeGraphs "parserD")
+                            "charts/parserD/results.csv"
+                            "charts/parserD"
                 ParserK -> benchShow opts cfg
                             { title = Just "ParserK" }
                             (makeGraphs "parserK")

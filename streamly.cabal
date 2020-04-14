@@ -315,6 +315,11 @@ library
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
+
+                     -- Mutable data
+                     , Streamly.Internal.Mutable.Prim.Var
+
+                     -- Arrays
                      , Streamly.Internal.Data.Array
                      , Streamly.Internal.Data.Prim.Array.Types
                      , Streamly.Internal.Data.Prim.Array
@@ -323,15 +328,19 @@ library
                      , Streamly.Internal.Memory.Array.Types
                      , Streamly.Internal.Memory.Array
                      , Streamly.Internal.Memory.ArrayStream
+
+                     -- Folds
                      , Streamly.Internal.Data.Fold.Types
                      , Streamly.Internal.Data.Fold
-                     , Streamly.Internal.Data.Zipper
-                     , Streamly.Internal.Data.ParserK.Types
-                     , Streamly.Internal.Data.Parser
-                     , Streamly.Internal.Data.Parser.Types
-                     , Streamly.Internal.Data.Parser.Tee
                      , Streamly.Internal.Data.Sink.Types
                      , Streamly.Internal.Data.Sink
+
+                     -- Parsers
+                     , Streamly.Internal.Data.Zipper
+                     , Streamly.Internal.Data.Parser.ParserK.Types
+                     , Streamly.Internal.Data.Parser.ParserD.Types
+                     , Streamly.Internal.Data.Parser.ParserD.Tee
+                     , Streamly.Internal.Data.Parser.ParserD
 
                      -- Base streams
                      , Streamly.Internal.Data.Stream.StreamK.Type
@@ -351,21 +360,26 @@ library
                      , Streamly.Internal.Data.Stream.Ahead
                      , Streamly.Internal.Data.Stream.Zip
                      , Streamly.Internal.Data.Stream.Combinators
+                     , Streamly.Internal.Data.List
+                     , Streamly.Internal.Prelude
+
+                     -- Unfolds
                      , Streamly.Internal.Data.Unfold.Types
                      , Streamly.Internal.Data.Unfold
+
+                     -- Pipes
                      , Streamly.Internal.Data.Pipe.Types
                      , Streamly.Internal.Data.Pipe
-                     , Streamly.Internal.Data.List
+
+                     -- Filesystem
                      , Streamly.Internal.FileSystem.Handle
                      , Streamly.Internal.FileSystem.Dir
                      , Streamly.Internal.FileSystem.File
+
+                     -- Text Processing
                      , Streamly.Internal.Data.Unicode.Stream
                      , Streamly.Internal.Data.Unicode.Char
                      , Streamly.Internal.Memory.Unicode.Array
-                     , Streamly.Internal.Prelude
-
-                     -- Mutable data
-                     , Streamly.Internal.Mutable.Prim.Var
 
     if !impl(ghcjs)
        exposed-modules:

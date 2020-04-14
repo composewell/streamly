@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Internal.Data.Parser
+-- Module      : Streamly.Internal.Data.Parser.ParserD
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -36,7 +36,7 @@
 -- "Text.ParserCombinators.ReadP/parser-combinators/parsec/megaparsec/attoparsec"
 -- have consistent names. takeP/takeWhileP/munch?
 
-module Streamly.Internal.Data.Parser
+module Streamly.Internal.Data.Parser.ParserD
     (
       Parser (..)
 
@@ -183,11 +183,11 @@ import Prelude
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 
-import qualified Streamly.Internal.Data.ParserK.Types as K
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
 import qualified Streamly.Internal.Data.Zipper as Z
 
-import Streamly.Internal.Data.Parser.Tee
-import Streamly.Internal.Data.Parser.Types
+import Streamly.Internal.Data.Parser.ParserD.Tee
+import Streamly.Internal.Data.Parser.ParserD.Types
 import Streamly.Internal.Data.Strict
 
 -------------------------------------------------------------------------------

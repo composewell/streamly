@@ -540,7 +540,7 @@ import qualified System.IO as IO
 
 import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enumerateTo)
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
-import Streamly.Internal.Data.Parser.Types (Parser (..))
+import Streamly.Internal.Data.Parser.ParserD.Types (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
@@ -577,7 +577,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Stream.Serial as Serial
 import qualified Streamly.Internal.Data.Stream.Parallel as Par
 import qualified Streamly.Internal.Data.Stream.Zip as Z
-import qualified Streamly.Internal.Data.ParserK.Types as PRK
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as PRK
 import qualified Streamly.Internal.Data.Zipper as ZR
 
 ------------------------------------------------------------------------------

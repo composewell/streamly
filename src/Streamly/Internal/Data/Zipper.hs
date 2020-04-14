@@ -76,7 +76,7 @@ import Prelude hiding (splitAt)
 import Streamly.Internal.Data.Stream.StreamK.Type (Stream(..))
 import Streamly.Internal.Data.SVar (defState)
 
-import qualified Streamly.Internal.Data.Parser.Types as PR
+import qualified Streamly.Internal.Data.Parser.ParserD.Types as PR
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 
 -------------------------------------------------------------------------------

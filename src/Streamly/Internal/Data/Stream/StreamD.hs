@@ -362,7 +362,7 @@ import Streamly.Internal.Data.Time.Units
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
-import Streamly.Internal.Data.Parser.Types (Parser(..), ParseError(..))
+import Streamly.Internal.Data.Parser.ParserD.Types (Parser(..), ParseError(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
 import Streamly.Internal.Data.Time.Clock (Clock(Monotonic), getTime)
 import Streamly.Internal.Data.Time.Units
@@ -379,7 +379,7 @@ import qualified Streamly.Internal.Memory.Array.Types as A
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Streamly.Internal.Data.Parser.Types as PR
+import qualified Streamly.Internal.Data.Parser.ParserD.Types as PR
 
 ------------------------------------------------------------------------------
 -- Construction

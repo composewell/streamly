@@ -1,5 +1,5 @@
 -- |
--- Module      : Streamly.Benchmark.Data.Parser
+-- Module      : Streamly.Benchmark.Data.ParserD
 -- Copyright   : (c) 2020 Composewell Technologies
 --
 -- License     : MIT
@@ -24,7 +24,7 @@ import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Parser as PR
+import qualified Streamly.Internal.Data.Parser.ParserD as PR
 import qualified Streamly.Internal.Prelude as IP
 
 import Gauge

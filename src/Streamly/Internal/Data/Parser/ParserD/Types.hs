@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
--- Module      : Streamly.Parser.Types
+-- Module      : Streamly.Internal.Data.Parser.ParserD.Types
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -107,7 +107,7 @@
 -- merge the resulting streams using different merge strategies (e.g.
 -- interleaving or serial).
 
-module Streamly.Internal.Data.Parser.Types
+module Streamly.Internal.Data.Parser.ParserD.Types
     (
       Step (..)
     , Parser (..)

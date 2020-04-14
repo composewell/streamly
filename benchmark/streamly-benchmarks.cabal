@@ -247,12 +247,12 @@ benchmark unfold
   else
     buildable: True
 
-benchmark parser
+benchmark parserD
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -with-rtsopts "-T -K36K -M16M"
   hs-source-dirs: ., Streamly/Benchmark/Data
-  main-is: Parser.hs
+  main-is: ParserD.hs
   if impl(ghcjs)
     buildable: False
   else

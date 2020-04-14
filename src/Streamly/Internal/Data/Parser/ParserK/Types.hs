@@ -6,7 +6,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.ParserK.Types
+-- Module      : Streamly.Internal.Data.Parser.ParserK.Types
 -- Copyright   : (c) 2020 Composewell Technologies
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -15,7 +15,7 @@
 --
 -- CPS style implementation of parsers.
 
-module Streamly.Internal.Data.ParserK.Types
+module Streamly.Internal.Data.Parser.ParserK.Types
     (
       Parser (..)
     )
