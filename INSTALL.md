@@ -11,21 +11,21 @@ from Hackage to your tool configuration.
 
 ## Using with `cabal`
 
-Make sure you have `cabal` version 2.4 or later installed and you have `ghc`
+Make sure you have `cabal` version 3.0 or later installed and you have `ghc`
 available in your PATH. Refresh your package list:
 
 ```
-$ cabal v2-update
+$ cabal update
 ```
 
 ### Using hackage version in repl
 
 ```
 # Run repl with the latest version from Hackage
-$ cabal v2-repl --build-depends streamly
+$ cabal repl --build-depends streamly
 
 # Run repl with a specific version from Hackage
-$ cabal v2-repl --build-depends streamly==0.6.1
+$ cabal repl --build-depends streamly==0.7.1
 ```
 
 ### Using github version in repl
@@ -55,10 +55,17 @@ library
 Run repl:
 
 ```
-$ cabal v2-repl
+$ cabal repl
 ```
 
-### Compiling with ghc
+### Using with ghc or ghci
+
+Before you can use a package with `ghc` or `ghci` directly you need to install
+the package:
+
+```
+$ cabal install streamly-0.7.1 --lib
+```
 
 ```
 $ cat hello.hs
@@ -68,8 +75,7 @@ main = S.runStream $ S.fromListM [putStrLn "hello", putStrLn "world"]
 ```
 
 ```
-$ cabal v2-install streamly-0.6.1
-$ ghc -package streamly-0.6.1 hello.hs
+$ ghc hello.hs
 ```
 
 ### Using in a Project
@@ -77,6 +83,6 @@ $ ghc -package streamly-0.6.1 hello.hs
 Add `streamly` to the `build-depends` section of your library/executable in
 your `<package>.cabal` file. Appropriate version from Hackage will be picked
 depending on the version bounds that you specify. See the `github version in
-repl` section above for a sample `<package>.cabal` file and optionally the
+repl` section above for a sample `<package>.cabal` file and optionally use the
 `cabal.project` file if you want to use the development version from github in
 your project.
