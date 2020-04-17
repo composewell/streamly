@@ -193,7 +193,7 @@ mapM f (Stream step1 state1) = Stream step state
 ```
 
 * For the input streams use numbering for `step` and `state` e.g.
-  step1/state1. For the ouput stream use `step` and `state`.
+  step1/state1. For the output stream use `step` and `state`.
 * For state argument of `step`, use `st`.
 * For result of executing a `step` use `r` or `res`
 * For the yielded element use `x`
@@ -221,7 +221,7 @@ type inference minimal and type errors can be discovered incrementally by
 increasing the scope a little bit at a time.  If you use type signatures on all
 top level declarations then you do not even need to comment out the code.  This
 organization results in a better order of type errors which makes it easier to
-fix them and when necessary use elimination method by commenting out some code.
+fix them and when necessary, use elimination method by commenting out some code.
 
 Similarly when you put modules in the cabal file in dependency order you can
 do the same there, just comment out a tail of the module list and your library
