@@ -870,7 +870,7 @@ wAsync = joinStreamVarAsync WAsyncVar
 -- every pass because one more @<>@ is broken down into two components. At this
 -- point there are no more @<>@ operations to be broken down further and the
 -- queue has reached its maximum size. Now these streams are scheduled in
--- round-robin fashion yielding @[2,7,5,3,8,8,9]@.
+-- round-robin fashion yielding @[2,7,5,3,8,6,9]@.
 --
 -- As we see above, in a right associated expression composed with @<>@, only
 -- one @<>@ operation is broken down into two components in one execution,
