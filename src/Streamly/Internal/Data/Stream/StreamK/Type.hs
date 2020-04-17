@@ -904,7 +904,7 @@ unShare x = mkStream $ \st yld sng stp ->
 {-# INLINE bindWith #-}
 bindWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m b -> t m b -> t m b)
     -> t m a
     -> (a -> t m b)
     -> t m b
@@ -935,7 +935,7 @@ bindWith par m1 f = go m1
 {-# INLINE concatMapBy #-}
 concatMapBy
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m b -> t m b -> t m b)
     -> (a -> t m b)
     -> t m a
     -> t m b

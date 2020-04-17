@@ -2675,7 +2675,7 @@ mergeAsyncByM f m1 m2 = fromStreamD $
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m b -> t m b -> t m b)
     -> (a -> t m b)
     -> t m a
     -> t m b
