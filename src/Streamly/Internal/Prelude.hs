@@ -3036,7 +3036,7 @@ mergeAsyncByM f m1 m2 = fromStreamD $
 {-# INLINE concatMapWith #-}
 concatMapWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m b -> t m b -> t m b)
     -> (a -> t m b)
     -> t m a
     -> t m b
@@ -3353,7 +3353,7 @@ interposeSuffix x unf str =
 {-# INLINE concatMapIterateWith #-}
 concatMapIterateWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m a -> t m a -> t m a)
     -> (a -> t m a)
     -> t m a
     -> t m a
@@ -3388,7 +3388,7 @@ concatMapIterateWith combine f = concatMapWith combine go
 {-# INLINE concatMapTreeWith #-}
 concatMapTreeWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m (Either a b) -> t m (Either a b) -> t m (Either a b))
     -> (a -> t m (Either a b))
     -> t m (Either a b) -- Should be t m a?
     -> t m (Either a b)
