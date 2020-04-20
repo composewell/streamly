@@ -1,8 +1,13 @@
 ## Unreleased
 ### Bug Fixes
 
+* Fix a bug in the `Applicative` and `Functor` instances of the `Fold`
+  data type.
+* Fix a bug that caused the streamly builds to fail on 32-bit machines.
+* Fix a bug that occasionally caused a build failure on windows.
 * Now builds with `primitive` package version <= 0.6.4.0
 * Now builds with newer `QuickCheck` package version >= 2.14 && < 2.15.
+* Now builds with GHC 8.10.
 
 ## 0.7.1
 
