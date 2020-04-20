@@ -1,4 +1,5 @@
-## Unreleased
+## 0.7.2
+
 ### Bug Fixes
 
 * Fix a bug in the `Applicative` and `Functor` instances of the `Fold`
