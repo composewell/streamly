@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               streamly
-version:            0.7.1
+version:            0.7.2
 synopsis:           Beautiful Streaming, Concurrent and Reactive Composition
 description:
   Streamly is a framework for writing programs in a high level, declarative
