@@ -6,7 +6,7 @@
 module Main (main) where
 
 import Control.Concurrent (threadDelay)
-import Control.Exception (Exception, try, ErrorCall(..), catch, throw)
+import Control.Exception (Exception, try, ErrorCall(..), catch)
 import Control.Monad (void)
 import Control.Monad.Catch (throwM, MonadThrow)
 import Control.Monad.Error.Class (throwError, MonadError)
@@ -669,9 +669,7 @@ checkFoldl'Strictness = do
   let s = return (1 :: Int) `S.consM` error "failure"
   catch (S.foldl' (\_ a -> if a == 1 then error "success" else "done")
                       "begin" s)
-    (\e -> case e of
-            ErrorCall err -> return err
-            _ -> throw e)
+    (\(ErrorCall err) -> return err)
     `shouldReturn` "success"
 
 #ifdef DEVBUILD
@@ -708,9 +706,7 @@ checkScanl'Strictness = do
                   s)
              >> return "finished"
         )
-        (\e -> case e of
-                ErrorCall err -> return err
-                _ -> throw e)
+        (\(ErrorCall err) -> return err)
         `shouldReturn` "success"
 
 foldlM'StrictCheck :: IORef Int -> SerialT IO Int -> IO ()
