@@ -1,8 +1,17 @@
 ## Unreleased
 ### Bug Fixes
 
-* Now builds with `primitive` package version <= 0.6.4.0
+* Fix a bug in the `Applicative` and `Functor` instances of the `Fold`
+  data type.
+
+### Build Issues
+
+* Fix a bug that occasionally caused a build failure on windows when
+  used with `stack` or `stack ghci`.
+* Now builds on 32-bit machines.
+* Now builds with `primitive` package version >= 0.5.4 && <= 0.6.4.0
 * Now builds with newer `QuickCheck` package version >= 2.14 && < 2.15.
+* Now builds with GHC 8.10.
 
 ## 0.7.1
 
