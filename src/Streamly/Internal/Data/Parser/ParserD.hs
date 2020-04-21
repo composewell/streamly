@@ -587,6 +587,7 @@ lookAhead (Parser step1 initial1 _) =
         let cnt1 = cnt + 1
         return $ case r of
             Yield _ s -> Skip 0 (Tuple' cnt1 s)
+            YieldB n s -> Skip n (Tuple' (cnt1 - n) s)
             Skip n s -> Skip n (Tuple' (cnt1 - n) s)
             Stop _ b -> Stop cnt1 b
             Error err -> Error err
@@ -710,6 +711,7 @@ manyTill (Fold fstep finitial fextract)
         r <- stepR st a
         case r of
             Yield n s -> return $ Yield n (ManyTillR 0 fs s)
+            YieldB n s -> return $ YieldB n (ManyTillR 0 fs s)
             Skip n s -> do
                 assert (cnt + 1 - n >= 0) (return ())
                 return $ Skip n (ManyTillR (cnt + 1 - n) fs s)
@@ -724,13 +726,12 @@ manyTill (Fold fstep finitial fextract)
         r <- stepL st a
         case r of
             Yield n s -> return $ Yield n (ManyTillL fs s)
+            YieldB n s -> return $ YieldB n (ManyTillL fs s)
             Skip n s -> return $ Skip n (ManyTillL fs s)
             Stop n b -> do
                 fs1 <- fstep fs b
                 l <- initialR
-                -- XXX we need a yield with backtrack here
-                -- return $ Yield n (ManyTillR 0 fs1 l)
-                return $ Skip n (ManyTillR 0 fs1 l)
+                return $ YieldB n (ManyTillR 0 fs1 l)
             Error err -> return $ Error err
 
     extract (ManyTillL fs sR) = extractL sR >>= fstep fs >>= fextract
