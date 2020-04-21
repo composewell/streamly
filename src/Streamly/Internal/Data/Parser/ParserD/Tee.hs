@@ -55,11 +55,40 @@ import Streamly.Internal.Data.Parser.ParserD.Types
 -- Distribute input to two parsers and collect both results
 -------------------------------------------------------------------------------
 
+-- When the input stream is distributed to two parsers, both the parsers can
+-- backtrack independently. Therefore, we need separate buffer state for each
+-- parser.
+--
+-- ParserK
+--
+-- We can keep the state of each parser in the zipper and pass around that
+-- zipper to the parsers. Each parser can consume from the zipper and then pass
+-- around the zipper to the other parser.
+--
+-- ParserD
+--
+-- In the approach we have taken here, the driver pushes one element at a time
+-- to the tee and each of the parsers in the tee may buffer it independently
+-- for backtracking. So they do not need to depend on the original stream
+-- source for individual parser backtracking. Problem arises when both the
+-- parsers backtrack and they do not need any input from the driver rather they
+-- must consume from their buffers. For such situation we may need a
+-- "Skip/Continue" style driver command from the tee so that the driver runs
+-- the tee without providing it any input. Or we may need a local driver loop
+-- until new input is to be demanded from the input stream.
+--
+-- When the tee errors out or stops, the tee driver may have to backtrack by
+-- the specified amount (or the tee must return the leftover input). Therefore,
+-- the tee driver also has to buffer, this leads to triple buffering.
+--
+-- When the tee stops we need to determine the backtracking amount from the
+-- leftover of both the parsers. Since both the parsers may have consumed
+-- different lengths of the stream we consider the maximum of the two as
+-- consumed.
+--
 {-# ANN type StepState Fuse #-}
 data StepState s a = StepState s | StepResult a
 
--- XXX Use a Zipper structure for buffering?
---
 -- | State of the pair of parsers in a tee composition
 -- Note: strictness annotation is important for fusing the constructors
 {-# ANN type TeeState Fuse #-}
@@ -70,19 +99,9 @@ data TeeState sL sR x a b =
 {-# ANN type Res Fuse #-}
 data Res = Yld Int | Stp Int | Skp | Err String
 
--- XXX: With the current "Step" semantics, it is hard to write, and not sure
--- how useful, an efficient teeWith that returns a correct unused input count.
---
--- XXX Teeing a parser with a Fold could be more useful and simpler to
--- implement. A fold never fails or backtracks so we do not need to buffer the
--- input for the fold. It can be useful in, for example, maintaining the line
--- and column number position to report for errors. We can always have the
--- line/column fold running in parallel with the main parser, whenever an error
--- occurs we can zip the error with the context fold.
---
 -- | See 'Streamly.Internal.Data.Parser.teeWith'.
 --
--- /Internal/
+-- /Broken/
 --
 {-# INLINE teeWith #-}
 teeWith :: Monad m
@@ -109,6 +128,10 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         let buf1 = x:buf
         return (buf1, r, inp11, inp21)
 
+    -- XXX This is currently broken, even though both the parsers need to
+    -- consume from their buffers after backtracking the driver would still be
+    -- pushing more input to the buffers.
+    --
     -- consume one input item and return the next state of the fold
     {-# INLINE useStream #-}
     useStream buf inp1 inp2 stp st y = do
@@ -116,6 +139,11 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         case r of
             Yield n s ->
                 let state = (Prelude.take n buf1, StepState s, inp11, inp21)
+                 in assert (n <= length buf1) (return (state, Yld n))
+            YieldB n s ->
+                let src0 = Prelude.take n buf1
+                    src  = Prelude.reverse src0
+                    state = ([], StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Yld n))
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
@@ -200,7 +228,7 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
 
 -- | See 'Streamly.Internal.Data.Parser.teeWithFst'.
 --
--- /Internal/
+-- /Broken/
 --
 {-# INLINE teeWithFst #-}
 teeWithFst :: Monad m
@@ -236,6 +264,7 @@ teeWithFst zf (Parser stepL initialL extractL)
             Yield n s ->
                 let state = (Prelude.take n buf1, StepState s, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Yld n))
+            YieldB _ _ -> undefined
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
@@ -323,7 +352,7 @@ teeWithMin = undefined
 
 -- | See 'Streamly.Internal.Data.Parser.shortest'.
 --
--- /Internal/
+-- /Broken/
 --
 {-# INLINE shortest #-}
 shortest :: Monad m => Parser m x a -> Parser m x a -> Parser m x a
@@ -357,6 +386,7 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
             Yield n s ->
                 let state = (Prelude.take n buf1, StepState s, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Yld n))
+            YieldB _ _ -> undefined
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
@@ -399,7 +429,7 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
 
 -- | See 'Streamly.Internal.Data.Parser.longest'.
 --
--- /Internal/
+-- /Broken/
 --
 {-# INLINE longest #-}
 longest :: MonadCatch m => Parser m x a -> Parser m x a -> Parser m x a
@@ -433,6 +463,7 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
             Yield n s ->
                 let state = (Prelude.take n buf1, StepState s, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Yld n))
+            YieldB _ _ -> undefined
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))

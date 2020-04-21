@@ -207,6 +207,7 @@ o_1_space_serial_parse value =
     , benchIOSink value "splitWith (all,any)" $ splitWithAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
+    , benchIOSink value "manyTill" $ manyTill value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
@@ -229,9 +230,6 @@ o_n_heap_serial_parse value =
     , benchIOSink value "sequenceA_" $ sequenceA_ value
     -- XXX why O(n)?
     , benchIOSink value "choice" $ choice value
-
-    -- XXX this should get better with "yield with backtrack" fix
-    , benchIOSink value "manyTill" $ manyTill value
 
     -- These show non-linear time complexity.
     -- They accumulate the results in a list.

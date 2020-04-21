@@ -224,6 +224,11 @@ parse pstep initial extract (Zipper [] ls rs stream) =
                     PR.Yield n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         go r (Prelude.take n (x:buf)) (return pst1)
+                    PR.YieldB n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        gobuf r [] src (return pst1)
                     PR.Skip 0 pst1 -> go r (x:buf) (return pst1)
                     PR.Skip n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
@@ -248,6 +253,11 @@ parse pstep initial extract (Zipper [] ls rs stream) =
             PR.Yield n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 gobuf s (Prelude.take n (x:buf)) xs (return pst1)
+            PR.YieldB n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0
+                gobuf s [] src (return pst1)
             PR.Skip 0 pst1 -> gobuf s (x:buf) xs (return pst1)
             PR.Skip n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
@@ -289,6 +299,11 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
                     PR.Yield n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         go cnt1 r (x:buf) (return pst1)
+                    PR.YieldB n pst1 -> do
+                        assert (n <= length (x:buf)) (return ())
+                        let src0 = Prelude.take n (x:buf)
+                            src  = Prelude.reverse src0
+                        gobuf (cnt1 - n) r [] src (return pst1)
                     PR.Skip 0 pst1 -> go cnt1 r (x:buf) (return pst1)
                     PR.Skip n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
@@ -320,6 +335,11 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
             PR.Yield n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 gobuf cnt1 s (x:buf) xs (return pst1)
+            PR.YieldB n pst1 -> do
+                assert (n <= length (x:buf)) (return ())
+                let src0 = Prelude.take n (x:buf)
+                    src  = Prelude.reverse src0
+                gobuf (cnt1 - n) s [] src (return pst1)
             PR.Skip 0 pst1 -> gobuf cnt1 s (x:buf) xs (return pst1)
             PR.Skip n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
