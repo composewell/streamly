@@ -658,9 +658,7 @@ checkFoldxStrictness = do
   let s = return (1 :: Int) `S.consM` error "failure"
   catch (S.foldx (\_ a -> if a == 1 then error "success" else "done")
                       "begin" id s)
-    (\e -> case e of
-            ErrorCall err -> return err
-            _ -> throw e)
+    (\(ErrorCall err) -> return err)
     `shouldReturn` "success"
 #endif
 
@@ -686,9 +684,7 @@ checkScanxStrictness = do
         )
         >> return "finished"
     )
-    (\e -> case e of
-            ErrorCall err -> return err
-            _ -> throw e)
+    (\(ErrorCall err) -> return err)
     `shouldReturn` "success"
 #endif
 
