@@ -192,14 +192,19 @@ o_1_space_serial_parse value =
     , benchIOSink value "longest (all,any)" $ longestAllAny value
     ]
 
--- These show non-linear time complexity
--- Increase in rss is 20-40% on doubling the stream size
 o_n_heap_serial_parse :: Int -> [Benchmark]
 o_n_heap_serial_parse value =
-    [ benchIOSink value "lookAhead" $ lookAhead value
+    [
+    -- lookahead benchmark holds the entire input till end
+      benchIOSink value "lookAhead" $ lookAhead value
+
+    -- XXX this should get better with "yield with backtrack" fix
+    , benchIOSink value "manyTill" $ manyTill value
+
+    -- These show non-linear time complexity
+    -- They accumulate the results in a list.
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
-    , benchIOSink value "manyTill" $ manyTill value
     ]
 
 -- accumulate results in a list in IO

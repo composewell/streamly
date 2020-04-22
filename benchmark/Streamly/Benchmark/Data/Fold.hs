@@ -10,7 +10,7 @@
 module Main (main) where
 
 import Control.DeepSeq (NFData(..))
-import Data.Monoid (Last(..))
+import Data.Monoid (Last(..), Sum(..))
 
 import System.Random (randomRIO)
 import Prelude (IO, Int, Double, String, (>), (<*>), (<$>), (+), ($),
@@ -82,6 +82,7 @@ o_1_space_serial_folds value =
                 , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
                 , benchIOSink value "length" (S.fold FL.length)
                 , benchIOSink value "sum" (S.fold FL.sum)
+                , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
                 , benchIOSink value "product" (S.fold FL.product)
                 , benchIOSink value "maximumBy" (S.fold (FL.maximumBy compare))
                 , benchIOSink value "maximum" (S.fold FL.maximum)

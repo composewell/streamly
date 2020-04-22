@@ -227,7 +227,7 @@ benchmark serial-o-n-space
 benchmark fold
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
+  ghc-options: -with-rtsopts "-T -K128K -M16M"
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Fold.hs
   if impl(ghcjs)
@@ -250,7 +250,7 @@ benchmark unfold
 benchmark parserD
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K36K -M16M"
+  ghc-options: -with-rtsopts "-T -K64K -M16M"
   hs-source-dirs: ., Streamly/Benchmark/Data
   main-is: ParserD.hs
   if impl(ghcjs)
@@ -274,7 +274,7 @@ benchmark parserK
 benchmark parser
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K36K -M32M"
+  ghc-options: -with-rtsopts "-T -K128K -M32M"
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Parser.hs
   if impl(ghcjs)

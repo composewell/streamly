@@ -60,6 +60,7 @@ module Streamly.Internal.Data.Fold
 
     -- ** Full Folds (Monoidal)
     , mconcat
+    , mconcatTo
     , foldMap
     , foldMapM
 
@@ -386,6 +387,8 @@ _Fold1 step = Fold step_ (return Nothing') (return . toMaybe)
 -- | A fold that drains all its input, running the effects and discarding the
 -- results.
 --
+-- > drain = drainBy (const (return ()))
+--
 -- @since 0.7.0
 {-# INLINABLE drain #-}
 drain :: Monad m => Fold m a ()
@@ -397,6 +400,7 @@ drain = Fold step begin done
 
 -- |
 -- > drainBy f = lmapM f drain
+-- > drainBy = FL.foldMapM (void . f)
 --
 -- Drain all input after passing it through a monadic function. This is the
 -- dual of mapM_ on stream producers.
@@ -412,6 +416,8 @@ drainBy2 f = Fold2 (const (void . f)) (\_ -> return ()) return
 
 -- | Extract the last element of the input stream, if any.
 --
+-- > last = fmap getLast $ FL.foldMap (Last . Just)
+--
 -- @since 0.7.0
 {-# INLINABLE last #-}
 last :: Monad m => Fold m a (Maybe a)
@@ -423,12 +429,16 @@ last = _Fold1 (flip const)
 
 -- | Like 'length', except with a more general 'Num' return value
 --
+-- > genericLength = fmap getSum $ foldMap (Sum . const  1)
+--
 -- @since 0.7.0
 {-# INLINABLE genericLength #-}
 genericLength :: (Monad m, Num b) => Fold m a b
 genericLength = Fold (\n _ -> return $ n + 1) (return 0) return
 
 -- | Determine the length of the input stream.
+--
+-- > length = fmap getSum $ foldMap (Sum . const  1)
 --
 -- @since 0.7.0
 {-# INLINABLE length #-}
@@ -439,13 +449,17 @@ length = genericLength
 -- identity (@0@) when the stream is empty. Note that this is not numerically
 -- stable for floating point numbers.
 --
+-- > sum = fmap getSum $ FL.foldMap Sum
+--
 -- @since 0.7.0
-{-# INLINABLE sum #-}
+{-# INLINE sum #-}
 sum :: (Monad m, Num a) => Fold m a a
 sum = Fold (\x a -> return $ x + a) (return 0) return
 
 -- | Determine the product of all elements of a stream of numbers. Returns
 -- multiplicative identity (@1@) when the stream is empty.
+--
+-- > product = fmap getProduct $ FL.foldMap Product
 --
 -- @since 0.7.0
 {-# INLINABLE product #-}
@@ -475,6 +489,8 @@ maximumBy cmp = _Fold1 max'
 --
 -- Determine the maximum element in a stream.
 --
+-- Compare with @FL.foldMap Max@.
+--
 -- @since 0.7.0
 {-# INLINABLE maximum #-}
 maximum :: (Monad m, Ord a) => Fold m a (Maybe a)
@@ -493,6 +509,12 @@ minimumBy cmp = _Fold1 min'
 
 -- | Determine the minimum element in a stream using the supplied comparison
 -- function.
+--
+-- @
+-- minimum = 'minimumBy' compare
+-- @
+--
+-- Compare with @FL.foldMap Min@.
 --
 -- @since 0.7.0
 {-# INLINABLE minimum #-}
@@ -591,18 +613,31 @@ rollingHashFirstN n = ltake n rollingHash
 -- Monoidal left folds
 ------------------------------------------------------------------------------
 
+-- | 'mappend' the elements of an input stream to a provided starting value.
+--
+-- > S.fold (FL.mconcatTo 10) (S.map Sum $ S.enumerateFromTo 1 10)
+--
+-- This could be faster than (fmap (m0 <>) FL.mconcat) especially when we have
+-- to perform the operation many times.
+--
+-- /Internal/
+--
+{-# INLINE mconcatTo #-}
+mconcatTo :: (Monad m, Monoid a) => a -> Fold m a a
+mconcatTo i = Fold (\x a -> return $ mappend x a) (return i) return
+
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
 --
 -- > S.fold FL.mconcat (S.map Sum $ S.enumerateFromTo 1 10)
 --
 -- @since 0.7.0
-{-# INLINABLE mconcat #-}
+{-# INLINE mconcat #-}
 mconcat :: (Monad m, Monoid a) => Fold m a a
-mconcat = Fold (\x a -> return $ mappend x a) (return mempty) return
+mconcat = mconcatTo mempty
 
 -- |
--- > foldMap f = map f mconcat
+-- > foldMap f = lmap f mconcat
 --
 -- Make a fold from a pure function that folds the output of the function
 -- using 'mappend' and 'mempty'.
@@ -615,7 +650,7 @@ foldMap :: (Monad m, Monoid b) => (a -> b) -> Fold m a b
 foldMap f = lmap f mconcat
 
 -- |
--- > foldMapM f = mapM f mconcat
+-- > foldMapM f = lmapM f mconcat
 --
 -- Make a fold from a monadic function that folds the output of the function
 -- using 'mappend' and 'mempty'.
@@ -698,12 +733,19 @@ index = genericIndex
 
 -- | Extract the first element of the stream, if any.
 --
+-- > head = fmap getFirst $ FL.foldMap (First . Just)
+--
 -- @since 0.7.0
 {-# INLINABLE head #-}
 head :: Monad m => Fold m a (Maybe a)
 head = _Fold1 const
 
 -- | Returns the first element that satisfies the given predicate.
+--
+-- @
+-- find p = fmap getFirst $
+--     foldMap (\x -> First (if p x then Just x else Nothing))
+-- @
 --
 -- @since 0.7.0
 {-# INLINABLE find #-}
@@ -719,6 +761,8 @@ find predicate = Fold step (return Nothing') (return . toMaybe)
 
 -- | In a stream of (key-value) pairs @(a, b)@, return the value @b@ of the
 -- first pair where the key equals the given value @a@.
+--
+-- > lookup = snd <$> find ((==) . fst)
 --
 -- @since 0.7.0
 {-# INLINABLE lookup #-}
@@ -755,6 +799,8 @@ findIndex predicate = Fold step (return $ Left' 0) (return . hush)
 
 -- | Returns the first index where a given value is found in the stream.
 --
+-- > elemIndex a = findIndex (== a)
+--
 -- @since 0.7.0
 {-# INLINABLE elemIndex #-}
 elemIndex :: (Eq a, Monad m) => a -> Fold m a (Maybe Int)
@@ -766,6 +812,8 @@ elemIndex a = findIndex (a ==)
 
 -- | Return 'True' if the input stream is empty.
 --
+-- > null = fmap isJust head
+--
 -- @since 0.7.0
 {-# INLINABLE null #-}
 null :: Monad m => Fold m a Bool
@@ -773,6 +821,7 @@ null = Fold (\_ _ -> return False) (return True) return
 
 -- |
 -- > any p = lmap p or
+-- > any p = fmap getAny . FL.foldMap (Any . p)
 --
 -- | Returns 'True' if any of the elements of a stream satisfies a predicate.
 --
@@ -783,6 +832,8 @@ any predicate = Fold (\x a -> return $ x || predicate a) (return False) return
 
 -- | Return 'True' if the given element is present in the stream.
 --
+-- > elem a = any (== a)
+--
 -- @since 0.7.0
 {-# INLINABLE elem #-}
 elem :: (Eq a, Monad m) => a -> Fold m a Bool
@@ -790,6 +841,7 @@ elem a = any (a ==)
 
 -- |
 -- > all p = lmap p and
+-- > all p = fmap getAll . FL.foldMap (All . p)
 --
 -- | Returns 'True' if all elements of a stream satisfy a predicate.
 --
@@ -800,6 +852,8 @@ all predicate = Fold (\x a -> return $ x && predicate a) (return True) return
 
 -- | Returns 'True' if the given element is not present in the stream.
 --
+-- > notElem a = all (/= a)
+--
 -- @since 0.7.0
 {-# INLINABLE notElem #-}
 notElem :: (Eq a, Monad m) => a -> Fold m a Bool
@@ -807,12 +861,18 @@ notElem a = all (a /=)
 
 -- | Returns 'True' if all elements are 'True', 'False' otherwise
 --
+-- > and = all (== True)
+-- > and = fmap getAll . FL.foldMap All
+--
 -- @since 0.7.0
 {-# INLINABLE and #-}
 and :: Monad m => Fold m Bool Bool
 and = Fold (\x a -> return $ x && a) (return True) return
 
 -- | Returns 'True' if any element is 'True', 'False' otherwise
+--
+-- > or = any (== True)
+-- > or = fmap getAny . FL.foldMap Any
 --
 -- @since 0.7.0
 {-# INLINABLE or #-}
