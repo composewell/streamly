@@ -22,6 +22,12 @@
 -- constituent folds and then combines the resulting fold outputs.  Similarly,
 -- a partitioning combinator divides the input among constituent folds.
 --
+-- = Monoids
+--
+-- Monoids allow modular folding in general.  Most of the folds in this module
+-- can be expressed using 'mconcat' and a suitable 'Monoid'. Instead of writing
+-- folds we can write Monoids instead and turn them into folds.
+--
 -- = Performance Notes
 --
 -- 'Fold' representation is more efficient than using streams when splitting

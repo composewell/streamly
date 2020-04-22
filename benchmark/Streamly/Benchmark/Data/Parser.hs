@@ -16,10 +16,12 @@ module Main
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (asum)
+import Data.Monoid (Sum(..))
 import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
 import qualified Data.Traversable as TR
+import qualified Data.Foldable as F
 import qualified Control.Applicative as AP
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -148,28 +150,48 @@ lookAhead :: MonadCatch m => Int -> SerialT m Int -> m ()
 lookAhead value =
     IP.parse (PR.lookAhead (PR.takeWhile (<= value) FL.drain) *> pure ())
 
--- quadratic complexity
 {-# INLINE sequenceA #-}
 sequenceA :: MonadCatch m => Int -> SerialT m Int -> m Int
 sequenceA value xs = do
     x <- IP.parse (TR.sequenceA (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
--- quadratic complexity
+{-# INLINE sequenceA_ #-}
+sequenceA_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+sequenceA_ value =
+    IP.parse (F.sequenceA_ $ replicate value (PR.satisfy (> 0)))
+
 {-# INLINE sequence #-}
 sequence :: MonadCatch m => Int -> SerialT m Int -> m Int
 sequence value xs = do
     x <- IP.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
--- choice using the "Alternative" instance with direct style parser type has
--- quadratic performance complexity.
---
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
 choice value =
     IP.parse (asum (replicate value (PR.satisfy (< 0)))
         AP.<|> PR.satisfy (> 0))
+
+-------------------------------------------------------------------------------
+-- Stream transformation
+-------------------------------------------------------------------------------
+
+{-# INLINE splitParse #-}
+splitParse :: MonadCatch m => SerialT m Int -> m ()
+splitParse =
+      S.drain
+    . S.map getSum
+    . IP.splitParse (PR.take 2 FL.mconcat)
+    . S.map Sum
+
+{-# INLINE concatParse #-}
+concatParse :: MonadCatch m => SerialT m Int -> m ()
+concatParse =
+      S.drain
+    . S.map getSum
+    . IP.concatParse (\b -> (PR.take 2 (FL.mconcatTo b))) (Sum 0)
+    . S.map Sum
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -185,21 +207,36 @@ o_1_space_serial_parse value =
     , benchIOSink value "splitWith (all,any)" $ splitWithAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
-    , benchIOSink value "choice" $ choice value
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
-    , benchIOSink value "sequenceA" $ sequenceA value
-    , benchIOSink value "sequence" $ sequence value
+    , benchIOSink value "splitParse" splitParse
+    , benchIOSink value "concatParse" concatParse
     ]
 
-o_1_heap_serial_parse :: Int -> [Benchmark]
-o_1_heap_serial_parse value =
-    [ benchIOSink value "lookAhead" $ lookAhead value
+o_n_heap_serial_parse :: Int -> [Benchmark]
+o_n_heap_serial_parse value =
+    [
+    -- lookahead benchmark holds the entire input till end
+      benchIOSink value "lookAhead" $ lookAhead value
+
+    -- accumulates the results in a list
+    , benchIOSink value "sequence" $ sequence value
+    , benchIOSink value "sequenceA" $ sequenceA value
+
+    -- XXX why should this take O(n) heap, it discards the results?
+    , benchIOSink value "sequenceA_" $ sequenceA_ value
+    -- XXX why O(n)?
+    , benchIOSink value "choice" $ choice value
+
+    -- XXX this should get better with "yield with backtrack" fix
+    , benchIOSink value "manyTill" $ manyTill value
+
+    -- These show non-linear time complexity.
+    -- They accumulate the results in a list.
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
-    , benchIOSink value "manyTill" $ manyTill value
     ]
 
 -------------------------------------------------------------------------------
@@ -223,7 +260,7 @@ main = do
         , bgroup "o-n-heap"
             [ bgroup "parser" $ concat
                 [
-                  o_1_heap_serial_parse value
+                  o_n_heap_serial_parse value
                 ]
             ]
         ]

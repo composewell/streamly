@@ -88,7 +88,7 @@ import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
 import qualified Streamly.Internal.Memory.Unicode.Array as IUA
 import qualified Streamly.Internal.Data.Unfold as IUF
-import qualified Streamly.Internal.Data.Parser.ParserD as PR
+import qualified Streamly.Internal.Data.Parser as PR
 import qualified Streamly.Internal.Prelude as IP
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
