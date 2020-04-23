@@ -7,7 +7,7 @@
 -- |
 -- Module      : Streamly.Internal.Data.Parser.ParserD.Types
 -- Copyright   : (c) 2020 Composewell Technologies
--- License     : BSD3
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 -- Stability   : experimental
 -- Portability : GHC

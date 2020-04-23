@@ -2,7 +2,7 @@
 -- Module      : Streamly.Benchmark.Data.Parser
 -- Copyright   : (c) 2020 Composewell Technologies
 --
--- License     : MIT
+-- License     : BSD-3-Clause
 -- Maintainer  : streamly@composewell.com
 
 {-# LANGUAGE FlexibleContexts #-}
