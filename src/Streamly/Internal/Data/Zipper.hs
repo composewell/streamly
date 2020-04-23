@@ -216,26 +216,7 @@ parse pstep initial extract (Zipper [] ls rs stream) =
                     Left (e :: PR.ParseError) ->
                         (nil, Left (displayException e))
                     Right b -> (nil, Right b)
-            single x = do
-                acc1 <- acc >>= \b -> pstep b x
-                case acc1 of
-                    -- PR.Yield 0 pst1 -> go SPEC s [] pst1
-                    PR.Yield n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        go K.nil (Prelude.take n (x:buf)) (return pst1)
-                    PR.Skip 0 pst1 -> go K.nil (x:buf) (return pst1)
-                    PR.Skip n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        gobuf K.nil buf1 src (return pst1)
-                    PR.Stop n b -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        return (Zipper [] buf1 src K.nil, Right b)
-                    PR.Error err ->
-                        return (Zipper [] (x:buf) [] K.nil, Left err)
+            single x = yieldk x K.nil
             yieldk x r = do
                 acc1 <- acc >>= \b -> pstep b x
                 case acc1 of
@@ -299,33 +280,7 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
                     Left (e :: PR.ParseError) ->
                         (nil, Left (displayException e))
                     Right b -> (nil, Right b)
-            single x = do
-                acc1 <- acc >>= \b -> pstep b x
-                let cnt1 = cnt + 1
-                case acc1 of
-                    -- PR.Yield 0 pst1 -> go SPEC s [] pst1
-                    PR.Yield n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        go cnt1 K.nil (x:buf) (return pst1)
-                    PR.Skip 0 pst1 -> go cnt1 K.nil (x:buf) (return pst1)
-                    PR.Skip n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        assert (cnt1 - n >= 0) (return ())
-                        gobuf (cnt1 - n) K.nil buf1 src (return pst1)
-                    PR.Stop n b -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let (src0, buf1) = splitAt n (x:buf)
-                            src  = Prelude.reverse src0
-                        assert (cp + cnt1 - n >= 0) (return ())
-                        return ( Zipper (cp + cnt1 - n : cps) buf1 src K.nil
-                               , Right b
-                               )
-                    PR.Error err ->
-                        return ( Zipper (cp + cnt1 : cps) (x:buf) [] K.nil
-                               , Left err
-                               )
+            single x = yieldk x K.nil
             yieldk x r = do
                 acc1 <- acc >>= \b -> pstep b x
                 let cnt1 = cnt + 1
