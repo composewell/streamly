@@ -186,22 +186,29 @@ o_1_space_serial_parse value =
     , benchIOSink value "split (all,any)" $ splitAllAny value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
-    , benchIOSink value "choice/100" $ choice (value `div` 100)
     , benchIOSink value "tee (all,any)" $ teeAllAny value
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
-    , benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
-    , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
-    , benchIOSink value "sequence/100" $ sequence (value `div` 100)
     ]
 
-o_1_heap_serial_parse :: Int -> [Benchmark]
-o_1_heap_serial_parse value =
+-- These show non-linear time complexity
+-- Increase in rss is 20-40% on doubling the stream size
+o_n_heap_serial_parse :: Int -> [Benchmark]
+o_n_heap_serial_parse value =
     [ benchIOSink value "lookAhead" $ lookAhead value
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt
     , benchIOSink value "manyTill" $ manyTill value
+    ]
+
+-- accumulate results in a list in IO
+o_n_space_serial_parse :: Int -> [Benchmark]
+o_n_space_serial_parse value =
+    [ benchIOSink value "sequenceA/100" $ sequenceA (value `div` 100)
+    , benchIOSink value "sequenceA_/100" $ sequenceA_ (value `div` 100)
+    , benchIOSink value "sequence/100" $ sequence (value `div` 100)
+    , benchIOSink value "choice/100" $ choice (value `div` 100)
     ]
 
 -------------------------------------------------------------------------------
@@ -225,7 +232,13 @@ main = do
         , bgroup "o-n-heap"
             [ bgroup "parser" $ concat
                 [
-                  o_1_heap_serial_parse value
+                  o_n_heap_serial_parse value
+                ]
+            ]
+        , bgroup "o-n-space"
+            [ bgroup "parser" $ concat
+                [
+                  o_n_space_serial_parse value
                 ]
             ]
         ]

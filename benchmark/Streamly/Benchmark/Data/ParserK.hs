@@ -19,6 +19,7 @@ import System.Random (randomRIO)
 import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
 
 import qualified Control.Applicative as AP
+import qualified Data.Foldable as F
 import qualified Data.Traversable as TR
 import qualified Streamly as S hiding (runStream)
 import qualified Streamly.Prelude  as S
@@ -83,6 +84,13 @@ sequenceA value xs = do
     x <- IP.parseK (TR.sequenceA list) xs
     return $ Prelude.length x
 
+{-# INLINE sequenceA_ #-}
+sequenceA_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+sequenceA_ value xs = do
+    let parser = satisfy (> 0)
+        list = Prelude.replicate value parser
+    IP.parseK (F.sequenceA_ list) xs
+
 {-# INLINE sequence #-}
 sequence :: MonadCatch m => Int -> SerialT m Int -> m Int
 sequence value xs = do
@@ -123,6 +131,7 @@ o_1_space_serial_parse value =
 o_n_heap_serial_parse :: Int -> [Benchmark]
 o_n_heap_serial_parse value =
     [ benchIOSink value "sequenceA" $ sequenceA value
+    , benchIOSink value "sequenceA_" $ sequenceA_ value
     , benchIOSink value "sequence" $ sequence value
     , benchIOSink value "manyAlt" manyAlt
     , benchIOSink value "someAlt" someAlt

@@ -58,7 +58,7 @@ yield b = MkParser (\_ yieldk -> yieldk (Z.nil, Right b))
 -------------------------------------------------------------------------------
 -- Sequential applicative
 -------------------------------------------------------------------------------
---
+
 -- | 'Applicative' form of 'Streamly.Internal.Data.Parser.splitWith'. Note that
 -- this operation does not fuse, use 'Streamly.Internal.Data.Parser.splitWith'
 -- when fusion is important.
@@ -69,6 +69,20 @@ instance Monad m => Applicative (Parser m a) where
 
     {-# INLINE (<*>) #-}
     (<*>) = ap
+
+    {-# INLINE (*>) #-}
+    m1 *> m2 = MkParser $ \inp yieldk ->
+        let yield1 (z, b) = case b of
+                Right _ -> runParser m2 z yieldk
+                Left err -> runParser (die err) z yieldk
+        in runParser m1 inp yield1
+
+    {-# INLINE (<*) #-}
+    m1 <* m2 = MkParser $ \inp yieldk ->
+        let yield1 (z, b) = case b of
+                Right _ -> runParser m2 z (\(z1, _) -> yieldk (z1, b))
+                Left err -> runParser (die err) z yieldk
+        in runParser m1 inp yield1
 
 -- | See 'Streamly.Internal.Data.Parser.die'.
 --
@@ -116,7 +130,7 @@ die err = MkParser (\z yieldk -> yieldk (z, Left err))
 --         Alpha x -> [x,x2]
 -- @
 --
--- Seel also 'Streamly.Internal.Data.Parser.concatMap'. This monad instance
+-- See also 'Streamly.Internal.Data.Parser.concatMap'. This monad instance
 -- does not fuse, use 'Streamly.Internal.Data.Parser.concatMap' when you need
 -- fusion.
 --
@@ -154,7 +168,25 @@ instance Monad m => Alternative (Parser m a) where
                 Right _ -> yieldk (Z.release z, b)
                 Left _ -> runParser m2 (Z.restore z) yieldk
         in runParser m1 (Z.checkpoint inp) yield1
-    -- XXX INLINE some and many?
+
+    -- some and many are implemented here instead of using default definitions
+    -- so that we can use INLINE on them. It gives 50% performance improvement.
+
+    {-# INLINE many #-}
+    many v = many_v
+
+        where
+
+        many_v = some_v <|> pure []
+        some_v = (:) <$> v <*> many_v
+
+    {-# INLINE some #-}
+    some v = some_v
+
+        where
+
+        many_v = some_v <|> pure []
+        some_v = (:) <$> v <*> many_v
 
 -- | 'mzero' is same as 'empty', it aborts the parser. 'mplus' is same as
 -- '<|>', it selects the first succeeding parser.
