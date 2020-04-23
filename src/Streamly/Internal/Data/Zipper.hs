@@ -69,7 +69,7 @@ module Streamly.Internal.Data.Zipper
 where
 
 import Control.Exception (assert, Exception(..))
-import Control.Monad.Catch (MonadCatch, try, SomeException)
+import Control.Monad.Catch (MonadCatch, try)
 -- import GHC.Types (SPEC(..))
 import Prelude hiding (splitAt)
 
@@ -90,8 +90,8 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 --
 -- @checkpoints@ is a stack of checkpoints. A new checkpoint is created by a
 -- @checkpoint@ operation. A checkpoint consists of a count that tracks how
--- many elements we have yielded after the checkpoint was taken.  We need this
--- information to backtrack to the checkpoint.  If we enter a nested
+-- many elements we have yielded after the checkpoint was created.  We need
+-- this information to backtrack to the checkpoint.  If we enter a nested
 -- alternative we add another checkpoint in the stack.  When we exit an
 -- alternative we call a @release@ on the checkpoint. The @release@ removes the
 -- checkpoint from the stack and adds its element count to the previous
@@ -140,6 +140,8 @@ checkpoint :: Zipper m a -> Zipper m a
 checkpoint (Zipper cps xs ys stream) = Zipper (0:cps) xs ys stream
 
 -- | Release the latest checkpoint, releases any values held by the checkpoint.
+-- Note that the values may still be held by other checkpoints in the stack of
+-- checkpoints.
 --
 -- /Internal/
 --
@@ -211,7 +213,7 @@ parse pstep initial extract (Zipper [] ls rs stream) =
                 pst <- acc
                 r <- try $ extract pst
                 return $ case r of
-                    Left (e :: SomeException) ->
+                    Left (e :: PR.ParseError) ->
                         (nil, Left (displayException e))
                     Right b -> (nil, Right b)
             single x = do
@@ -294,7 +296,7 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
                 pst <- acc
                 r <- try $ extract pst
                 return $ case r of
-                    Left (e :: SomeException) ->
+                    Left (e :: PR.ParseError) ->
                         (nil, Left (displayException e))
                     Right b -> (nil, Right b)
             single x = do
