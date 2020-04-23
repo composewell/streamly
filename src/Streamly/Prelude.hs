@@ -120,15 +120,31 @@ module Streamly.Prelude
     -- ** Folding
 -- | In imperative terms a fold can be considered as a loop over the stream
 -- that reduces the stream to a single value.
--- Left and right folds use a fold function @f@ and an identity element @z@
--- (@zero@) to recursively deconstruct a structure and then combine and reduce
--- the values or transform and reconstruct a new container.
+-- Left and right folds both use a fold function @f@ and an identity element
+-- @z@ (@zero@) to deconstruct a recursive data structure and reconstruct a
+-- new data structure. The new structure may be a recursive construction (a
+-- container) or a non-recursive single value reduction of the original
+-- structure.
 --
--- In general, a right fold is suitable for transforming and reconstructing a
--- right associated structure (e.g. cons lists and streamly streams) and a left
--- fold is suitable for reducing a right associated structure.  The behavior of
--- right and left folds are described in detail in the individual fold's
--- documentation.  To illustrate the two folds for cons lists:
+-- Both right and left folds are mathematical duals of each other, they are
+-- functionally equivalent.  Operationally, a left fold on a left associated
+-- structure behaves exactly in the same way as a right fold on a right
+-- associated structure. Similarly, a left fold on a right associated structure
+-- behaves in the same way as a right fold on a left associated structure.
+-- However, the behavior of a right fold on a right associated structure is
+-- operationally different (even though functionally equivalent) than a left
+-- fold on the same structure.
+--
+-- On right associated structures like Haskell @cons@ lists or Streamly
+-- streams, a lazy right fold is naturally suitable for lazy recursive
+-- reconstruction of a new structure, while a strict left fold is naturally
+-- suitable for efficient reduction. In right folds control is in the hand of
+-- the @puller@ whereas in left folds the control is in the hand of the
+-- @pusher@.
+--
+-- The behavior of right and left folds are described in detail in the
+-- individual fold's documentation.  To illustrate the two folds for right
+-- associated @cons@ lists:
 --
 -- > foldr :: (a -> b -> b) -> b -> [a] -> b
 -- > foldr f z [] = z

@@ -744,7 +744,7 @@ head = _Fold1 const
 --
 -- @
 -- find p = fmap getFirst $
---     foldMap (\x -> First (if p x then Just x else Nothing))
+--     FL.foldMap (\x -> First (if p x then Just x else Nothing))
 -- @
 --
 -- @since 0.7.0

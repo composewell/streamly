@@ -3196,9 +3196,9 @@ splitParseTill = undefined
 --
 -- | Iterate a parser generating function on a stream. The initial value @b@ is
 -- used to generate the first parser, the parser is applied on the stream and
--- the result is used generate the next parser and so on.
+-- the result is used to generate the next parser and so on.
 --
--- >>> S.toList $ S.concatParse (\b -> PR.take 2 (FL.mconcatTo b)) 0 $ S.fromList [1..10]
+-- >>> S.toList $ S.map getSum $ S.concatParse (\b -> PR.take 2 (FL.mconcatTo b)) 0 $ S.map Sum $ S.fromList [1..10]
 -- > [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
