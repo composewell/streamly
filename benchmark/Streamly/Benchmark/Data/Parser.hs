@@ -177,20 +177,20 @@ choice value =
 -- Stream transformation
 -------------------------------------------------------------------------------
 
-{-# INLINE splitParse #-}
-splitParse :: MonadCatch m => SerialT m Int -> m ()
-splitParse =
+{-# INLINE parseMany #-}
+parseMany :: MonadCatch m => SerialT m Int -> m ()
+parseMany =
       S.drain
     . S.map getSum
-    . IP.splitParse (PR.take 2 FL.mconcat)
+    . IP.parseMany (PR.take 2 FL.mconcat)
     . S.map Sum
 
-{-# INLINE concatParse #-}
-concatParse :: MonadCatch m => SerialT m Int -> m ()
-concatParse =
+{-# INLINE parseIterate #-}
+parseIterate :: MonadCatch m => SerialT m Int -> m ()
+parseIterate =
       S.drain
     . S.map getSum
-    . IP.concatParse (\b -> (PR.take 2 (FL.mconcatTo b))) (Sum 0)
+    . IP.parseIterate (\b -> (PR.take 2 (FL.mconcatTo b))) (Sum 0)
     . S.map Sum
 
 -------------------------------------------------------------------------------
@@ -211,8 +211,8 @@ o_1_space_serial_parse value =
     , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
     , benchIOSink value "shortest (all,any)" $ shortestAllAny value
     , benchIOSink value "longest (all,any)" $ longestAllAny value
-    , benchIOSink value "splitParse" splitParse
-    , benchIOSink value "concatParse" concatParse
+    , benchIOSink value "parseMany" parseMany
+    , benchIOSink value "parseIterate" parseIterate
     ]
 
 o_n_heap_serial_parse :: Int -> [Benchmark]

@@ -269,9 +269,9 @@ module Streamly.Internal.Prelude
     , reverse'
 
     -- ** Parsing
-    , splitParse
-    , splitParseTill
-    , concatParse
+    , parseMany
+    , parseManyTill
+    , parseIterate
 
     -- ** Trimming
     , take
@@ -3142,13 +3142,8 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 ------------------------------------------------------------------------------
 
 -- Splitting operations that take a predicate and a Fold can be
--- expressed using splitParse. Operations like chunksOf, intervalsOf, split*,
--- can be expressed using splitParse when used with an appropriate Parse.
---
--- The name splitParse is supposed to be opposite of concatMap.  Alternative
--- names could be "many", "parseMany" or "splitMany"? If we are going to have a
--- separate combinators for Fold and Parser then having fold/parse in the name
--- allows the distinction.
+-- expressed using parseMany. Operations like chunksOf, intervalsOf, split*,
+-- can be expressed using parseMany when used with an appropriate Parser.
 --
 -- XXX We need takeGE/takeBetween to implement "some" using "many".
 
@@ -3158,24 +3153,24 @@ concatMapTreeYieldLeavesWith combine f = concatMapLoopWith combine f yield
 -- This is the streaming equivalent of the 'Streamly.Internal.Data.Parser.many'
 -- parse combinator.
 --
--- >>> S.toList $ S.splitParse (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
+-- >>> S.toList $ S.parseMany (PR.take 2 $ PR.fromFold FL.sum) $ S.fromList [1..10]
 -- > [3,7,11,15,19]
 --
--- >>> S.toList $ S.splitParse (PR.line FL.toList) $ S.fromList "hello\nworld"
+-- >>> S.toList $ S.parseMany (PR.line FL.toList) $ S.fromList "hello\nworld"
 -- > ["hello\n","world"]
 --
 -- /Internal
 --
-{-# INLINE splitParse #-}
-splitParse
+{-# INLINE parseMany #-}
+parseMany
     :: (IsStream t, MonadThrow m)
     => Parser m a b
     -> t m a
     -> t m b
-splitParse p m =
-    D.fromStreamD $ D.splitParse (PRD.fromParserK p) (D.toStreamD m)
+parseMany p m =
+    D.fromStreamD $ D.parseMany (PRD.fromParserK p) (D.toStreamD m)
 
--- | @splitParseTill collect test stream@ tries the parser @test@ on the input,
+-- | @parseManyTill collect test stream@ tries the parser @test@ on the input,
 -- if @test@ fails it backtracks and tries @collect@, after @collect@ succeeds
 -- @test@ is tried again and so on. The parser stops when @test@ succeeds.  The
 -- output of @test@ is discarded and the output of @collect@ is emitted in the
@@ -3183,22 +3178,20 @@ splitParse p m =
 --
 -- /Unimplemented/
 --
-{-# INLINE splitParseTill #-}
-splitParseTill ::
+{-# INLINE parseManyTill #-}
+parseManyTill ::
     -- (IsStream t, MonadThrow m) =>
        Parser m a b
     -> Parser m a x
     -> t m a
     -> t m b
-splitParseTill = undefined
+parseManyTill = undefined
 
--- Rename to iterateParse?
---
 -- | Iterate a parser generating function on a stream. The initial value @b@ is
 -- used to generate the first parser, the parser is applied on the stream and
 -- the result is used generate the next parser and so on.
 --
--- >>> S.toList $ S.concatParse (\b -> PR.take 2 (FL.mconcatTo b)) 0 $ S.fromList [1..10]
+-- >>> S.toList $ S.parseIterate (\b -> PR.take 2 (FL.mconcatTo b)) 0 $ S.fromList [1..10]
 -- > [3,10,21,36,55,55]
 --
 -- This is the streaming equivalent of monad like sequenced application of
@@ -3206,15 +3199,15 @@ splitParseTill = undefined
 --
 -- /Internal/
 --
-{-# INLINE concatParse #-}
-concatParse
+{-# INLINE parseIterate #-}
+parseIterate
     :: (IsStream t, MonadThrow m)
     => (b -> Parser m a b)
     -> b
     -> t m a
     -> t m b
-concatParse f i m = D.fromStreamD $
-    D.concatParse (\b -> PRD.fromParserK $ f b) i (D.toStreamD m)
+parseIterate f i m = D.fromStreamD $
+    D.parseIterate (\b -> PRD.fromParserK $ f b) i (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

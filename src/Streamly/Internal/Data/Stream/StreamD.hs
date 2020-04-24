@@ -129,8 +129,8 @@ module Streamly.Internal.Data.Stream.StreamD
     , runFold
 
     , parselMx'
-    , splitParse
-    , concatParse
+    , parseMany
+    , parseIterate
 
     -- ** Specialized Folds
     , tap
@@ -955,7 +955,7 @@ foldlS fstep begin (Stream step state) = Stream step' (Left (state, begin))
 ------------------------------------------------------------------------------
 
 -- Inlined definition. Without the inline "serially/parser/take" benchmark
--- degrades and splitParse does not fuse. Even using "inline" at the callsite
+-- degrades and parseMany does not fuse. Even using "inline" at the callsite
 -- does not help.
 {-# INLINE splitAt #-}
 splitAt :: Int -> [a] -> ([a],[a])
@@ -1038,13 +1038,13 @@ data ParseChunksState x inpBuf st pst =
     | ParseChunksBuf inpBuf st inpBuf pst
     | ParseChunksYield x (ParseChunksState x inpBuf st pst)
 
-{-# INLINE_NORMAL splitParse #-}
-splitParse
+{-# INLINE_NORMAL parseMany #-}
+parseMany
     :: MonadThrow m
     => PRD.Parser m a b
     -> Stream m a
     -> Stream m b
-splitParse (PRD.Parser pstep initial extract) (Stream step state) =
+parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     Stream stepOuter (ParseChunksInit [] state)
 
     where
@@ -1130,14 +1130,14 @@ data ConcatParseState x inpBuf st p =
     | ConcatParseBuf inpBuf st inpBuf p
     | ConcatParseYield x (ConcatParseState x inpBuf st p)
 
-{-# INLINE_NORMAL concatParse #-}
-concatParse
+{-# INLINE_NORMAL parseIterate #-}
+parseIterate
     :: MonadThrow m
     => (b -> PRD.Parser m a b)
     -> b
     -> Stream m a
     -> Stream m b
-concatParse func seed (Stream step state) =
+parseIterate func seed (Stream step state) =
     Stream stepOuter (ConcatParseInit [] state (func seed))
 
     where
