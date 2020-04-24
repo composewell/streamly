@@ -57,12 +57,12 @@ module Streamly.Benchmark.FileIO.Stream
     , decodeUtf8Lax
     , copyCodecUtf8Lenient
     , chunksOfSum
-    , splitParseChunksOfSum
+    , parseManyChunksOfSum
     , chunksOf
     , chunksOfD
     , splitOn
     , splitOnSuffix
-    , splitParseSepBy
+    , parseManySepBy
     , wordsBy
     , splitOnSeq
     , splitOnSeqUtf8
@@ -445,10 +445,10 @@ inspect $ 'chunksOfD `hasNoType` ''AT.FlattenState
 inspect $ 'chunksOfD `hasNoType` ''D.ConcatMapUState
 #endif
 
-{-# INLINE splitParseChunksOfSum #-}
-splitParseChunksOfSum :: Int -> Handle -> IO Int
-splitParseChunksOfSum n inh =
-    S.length $ IP.splitParse (PR.take n FL.sum) (S.unfold FH.read inh)
+{-# INLINE parseManyChunksOfSum #-}
+parseManyChunksOfSum :: Int -> Handle -> IO Int
+parseManyChunksOfSum n inh =
+    S.length $ IP.parseMany (PR.take n FL.sum) (S.unfold FH.read inh)
 
 {-# INLINE linesUnlinesCopy #-}
 linesUnlinesCopy :: Handle -> Handle -> IO ()
@@ -609,11 +609,11 @@ inspect $ 'splitOnSuffix `hasNoType` ''D.ConcatMapUState
 #endif
 
 -- | Split on line feed.
-{-# INLINE splitParseSepBy #-}
-splitParseSepBy :: Handle -> IO Int
-splitParseSepBy inh =
-    (S.length $ IP.splitParse (PR.sliceSepBy (== lf) FL.drain)
-                              (S.unfold FH.read inh)) -- >>= print
+{-# INLINE parseManySepBy #-}
+parseManySepBy :: Handle -> IO Int
+parseManySepBy inh =
+    (S.length $ IP.parseMany (PR.sliceSepBy (== lf) FL.drain)
+                             (S.unfold FH.read inh)) -- >>= print
 
 -- | Words by space
 {-# INLINE wordsBy #-}
