@@ -18,7 +18,8 @@ import Control.Monad.Catch (MonadCatch)
 import Data.Foldable (asum)
 import Data.Monoid (Sum(..))
 import System.Random (randomRIO)
-import Prelude hiding (any, all, take, sequence, sequenceA, takeWhile)
+import Prelude
+       hiding (any, all, take, sequence, sequence_, sequenceA, takeWhile)
 
 import qualified Data.Traversable as TR
 import qualified Data.Foldable as F
@@ -101,17 +102,35 @@ manyTill :: MonadCatch m => Int -> SerialT m Int -> m Int
 manyTill value =
     IP.parse (PR.manyTill FL.length (PR.satisfy (> 0)) (PR.satisfy (== value)))
 
-{-# INLINE splitAllAny #-}
-splitAllAny :: MonadCatch m
+{-# INLINE splitAp #-}
+splitAp :: MonadCatch m
     => Int -> SerialT m Int -> m (Bool, Bool)
-splitAllAny value =
+splitAp value =
     IP.parse ((,) <$> PR.all (<= (value `div` 2)) <*> PR.any (> value))
 
-{-# INLINE splitWithAllAny #-}
-splitWithAllAny :: MonadCatch m
+{-# INLINE splitApBefore #-}
+splitApBefore :: MonadCatch m
+    => Int -> SerialT m Int -> m Bool
+splitApBefore value =
+    IP.parse (PR.all (<= (value `div` 2)) *> PR.any (> value))
+
+{-# INLINE splitApAfter #-}
+splitApAfter :: MonadCatch m
+    => Int -> SerialT m Int -> m Bool
+splitApAfter value =
+    IP.parse (PR.all (<= (value `div` 2)) <* PR.any (> value))
+
+{-# INLINE splitWith #-}
+splitWith :: MonadCatch m
     => Int -> SerialT m Int -> m (Bool, Bool)
-splitWithAllAny value =
+splitWith value =
     IP.parse (PR.splitWith (,) (PR.all (<= (value `div` 2))) (PR.any (> value)))
+
+{-# INLINE split_ #-}
+split_ :: MonadCatch m
+    => Int -> SerialT m Int -> m Bool
+split_ value =
+    IP.parse (PR.split_ (PR.all (<= (value `div` 2))) (PR.any (> value)))
 
 {-# INLINE teeAllAny #-}
 teeAllAny :: (MonadCatch m, Ord a)
@@ -167,6 +186,11 @@ sequence value xs = do
     x <- IP.parse (TR.sequence (replicate value (PR.satisfy (> 0)))) xs
     return $ length x
 
+{-# INLINE sequence_ #-}
+sequence_ :: MonadCatch m => Int -> SerialT m Int -> m ()
+sequence_ value =
+    IP.parse (F.sequence_ $ replicate value (PR.satisfy (> 0)))
+
 {-# INLINE choice #-}
 choice :: MonadCatch m => Int -> SerialT m Int -> m Int
 choice value =
@@ -203,15 +227,17 @@ o_1_space_serial_parse value =
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
     , benchIOSink value "takeWhile" $ takeWhile value
-    , benchIOSink value "split (all,any)" $ splitAllAny value
-    , benchIOSink value "splitWith (all,any)" $ splitWithAllAny value
+    , benchIOSink value "splitAp" $ splitAp value
+    , benchIOSink value "splitApBefore" $ splitApBefore value
+    , benchIOSink value "splitApAfter" $ splitApAfter value
+    , benchIOSink value "splitWith" $ splitWith value
     , benchIOSink value "many" many
     , benchIOSink value "some" some
     , benchIOSink value "manyTill" $ manyTill value
-    , benchIOSink value "tee (all,any)" $ teeAllAny value
-    , benchIOSink value "teeFst (all,any)" $ teeFstAllAny value
-    , benchIOSink value "shortest (all,any)" $ shortestAllAny value
-    , benchIOSink value "longest (all,any)" $ longestAllAny value
+    , benchIOSink value "tee" $ teeAllAny value
+    , benchIOSink value "teeFst" $ teeFstAllAny value
+    , benchIOSink value "shortest" $ shortestAllAny value
+    , benchIOSink value "longest" $ longestAllAny value
     , benchIOSink value "parseMany" parseMany
     , benchIOSink value "parseIterate" parseIterate
     ]
@@ -227,8 +253,11 @@ o_n_heap_serial_parse value =
     , benchIOSink value "sequenceA" $ sequenceA value
 
     -- XXX why should this take O(n) heap, it discards the results?
+    , benchIOSink value "sequence_" $ sequence_ value
     , benchIOSink value "sequenceA_" $ sequenceA_ value
-    -- XXX why O(n)?
+    -- non-linear time complexity (parserD)
+    , benchIOSink value "split_" $ split_ value
+    -- XXX why O(n) heap?
     , benchIOSink value "choice" $ choice value
 
     -- These show non-linear time complexity.
