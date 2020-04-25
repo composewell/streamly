@@ -2991,7 +2991,7 @@ interposeSuffix x unf str =
 {-# INLINE concatMapIterateWith #-}
 concatMapIterateWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m a -> t m a -> t m a)
     -> (a -> t m a)
     -> t m a
     -> t m a
@@ -3026,7 +3026,7 @@ concatMapIterateWith combine f xs = concatMapWith combine go xs
 {-# INLINE concatMapTreeWith #-}
 concatMapTreeWith
     :: IsStream t
-    => (forall c. t m c -> t m c -> t m c)
+    => (t m (Either a b) -> t m (Either a b) -> t m (Either a b))
     -> (a -> t m (Either a b))
     -> t m (Either a b) -- Should be t m a?
     -> t m (Either a b)
