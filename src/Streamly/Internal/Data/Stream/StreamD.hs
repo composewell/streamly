@@ -1025,7 +1025,7 @@ parselMx' pstep initial extract (Stream step state) = do
             PR.YieldB n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
+                    src  = Prelude.reverse src0 ++ xs
                 gobuf SPEC s [] src pst1
             PR.Skip 0 pst1 -> gobuf SPEC s (x:buf) xs pst1
             PR.Skip n pst1 -> do
@@ -1125,7 +1125,7 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
             PR.YieldB n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
+                    src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ParseChunksBuf src s [] pst1
          -- PR.Skip 0 pst1 -> return $ Skip $ ParseChunksBuf xs s (x:buf) pst1
             PR.Skip n pst1 -> do
@@ -1240,7 +1240,7 @@ parseIterate func seed (Stream step state) =
             PR.YieldB n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
-                    src  = Prelude.reverse src0
+                    src  = Prelude.reverse src0 ++ xs
                 return $ Skip $ ConcatParseBuf src s []
                             (PRD.Parser pstep (return pst1) extract)
          -- PR.Skip 0 pst1 -> return $ Skip $ ConcatParseBuf xs s (x:buf) pst1

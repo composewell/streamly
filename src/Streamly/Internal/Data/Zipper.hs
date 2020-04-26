@@ -84,9 +84,10 @@ import qualified Streamly.Internal.Data.Stream.StreamK as K
 -------------------------------------------------------------------------------
 
 -- | @Zipper checkpoints lefts rights tail@.  The focus is on the first element
--- of @rights@.  @lefts@ is buffered data on the right of the cursor.  @tail@
--- is a stream that is used to generate more data if the cursor moves past
--- @rights@.
+-- of @rights@.  @lefts@ is buffered data on the right of the cursor. Note that
+-- @lefts@ is stored as a reversed list, this helps is adding more items to the
+-- list quickly. @tail@ is a stream that is used to generate more data if the
+-- cursor moves past @rights@.
 --
 -- @checkpoints@ is a stack of checkpoints. A new checkpoint is created by a
 -- @checkpoint@ operation. A checkpoint consists of a count that tracks how
@@ -257,7 +258,7 @@ parse pstep initial extract (Zipper [] ls rs stream) =
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
-                gobuf s [] src (return pst1)
+                gobuf s [] (src ++ xs) (return pst1)
             PR.Skip 0 pst1 -> gobuf s (x:buf) xs (return pst1)
             PR.Skip n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
@@ -339,7 +340,7 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
-                gobuf (cnt1 - n) s [] src (return pst1)
+                gobuf (cnt1 - n) s [] (src ++ xs) (return pst1)
             PR.Skip 0 pst1 -> gobuf cnt1 s (x:buf) xs (return pst1)
             PR.Skip n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
