@@ -529,6 +529,10 @@ library
 
                      , heaps             >= 0.3     && < 0.4
 
+                     , hashable
+                     , unordered-containers
+                     , scientific
+
                     -- concurrency
                      , atomic-primops    >= 0.8   && < 0.9
                      , lockfree-queue    >= 0.2.3 && < 0.3

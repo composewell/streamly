@@ -22,6 +22,7 @@ module Streamly.Internal.Data.Array
 
     , writeN
     , write
+    , unsafeWrite
 
     , toStreamD
     , toStreamDRev
@@ -135,6 +136,26 @@ write = Fold step initial extract
             liftIO $ writeArray marr i x
             return (marr, i + 1, capacity)
     extract (marr, len, _) = liftIO $ freezeArray marr 0 len
+
+{-# INLINE_NORMAL unsafeWrite #-}
+unsafeWrite :: Monad m => Fold m a (Array a)
+unsafeWrite = Fold step initial extract
+  where
+    initial = do
+        let marr = unsafePerformIO $ newArray 0 bottomElement
+        return (marr, 0, 0)
+    step (marr, i, capacity) x
+        | i == capacity =
+            let newCapacity = max (capacity * 2) 1
+             in return $ unsafePerformIO $
+                do newMarr <- newArray newCapacity bottomElement
+                   copyMutableArray newMarr 0 marr 0 i
+                   writeArray newMarr i x
+                   return (newMarr, i + 1, newCapacity)
+        | otherwise = return $ unsafePerformIO $ do
+            writeArray marr i x
+            return (marr, i + 1, capacity)
+    extract (marr, len, _) = return $ unsafePerformIO $ freezeArray marr 0 len
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN :: MonadIO m => Int -> D.Stream m a -> m (Array a)
