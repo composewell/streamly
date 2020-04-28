@@ -30,6 +30,10 @@ bench_rts_opts () {
     "fold-o-n-heap") echo -n "-T -K36K -M128M" ;;
     "unfold-o-1-space") echo -n "-T -K36K -M16M" ;;
     "unfold-o-n-space") echo -n "-T -K32M -M64M" ;;
+    "linear") echo -n "-T -K36K -M16M" ;;
+    "serial-o-n-stack") echo -n "-T -K1M -M16M" ;;
+    "serial-o-n-heap") echo -n "-T -K36K -M128M" ;;
+    "serial-o-n-space") echo -n "-T -K16M -M64M" ;;
     *) echo -n "" ;;
   esac
 }
@@ -41,6 +45,10 @@ bench_exec () {
     "fold-o-n-heap") echo -n "fold" ;;
     "unfold-o-1-space") echo -n "unfold" ;;
     "unfold-o-n-space") echo -n "unfold" ;;
+    "linear") echo -n "serial" ;;
+    "serial-o-n-stack") echo -n "serial" ;;
+    "serial-o-n-heap") echo -n "serial" ;;
+    "serial-o-n-space") echo -n "serial" ;;
     *) echo -n "$1" ;;
   esac
 }
@@ -52,6 +60,10 @@ bench_gauge_opts () {
     "fold-o-n-heap") echo -n "-m prefix o-n-heap" ;;
     "unfold-o-1-space") echo -n "-m prefix o-1-space" ;;
     "unfold-o-n-space") echo -n "-m prefix o-n-space" ;;
+    "linear") echo -n "-m prefix o-1-space" ;;
+    "serial-o-n-stack") echo -n "-m prefix o-n-stack" ;;
+    "serial-o-n-heap") echo -n "-m prefix o-n-heap" ;;
+    "serial-o-n-space") echo -n "-m prefix o-n-space" ;;
     *) echo -n "" ;;
   esac
 }

@@ -156,7 +156,6 @@ library lib-prelude
 
 common bench-options
   import: compile-options, optimization-options, bench-depends
-  ghc-options: -with-rtsopts "-T -K32K -M16M"
   build-depends: streamly-benchmarks
 
 -- Some benchmarks are threaded some are not
@@ -175,49 +174,12 @@ common bench-options-threaded
 -- Serial Streams
 -------------------------------------------------------------------------------
 
-benchmark linear
--- benchmark serial-o-1-space
+benchmark serial
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K36K -M16M"
-  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
-  main-is: O_1_Space.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-prelude
-    buildable: True
-
-benchmark serial-o-n-heap
-  import: bench-options
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K36K -M128M"
-  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
-  main-is: O_n_Heap.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-prelude
-    buildable: True
-
-benchmark serial-o-n-stack
-  import: bench-options
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K1M -M16M"
-  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
-  main-is: O_n_Stack.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-prelude
-    buildable: True
-
-benchmark serial-o-n-space
-  import: bench-options
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K16M -M64M"
-  hs-source-dirs: Streamly/Benchmark/Prelude/Serial
-  main-is: O_n_Space.hs
+  ghc-options: -rtsopts
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Serial.hs
   if impl(ghcjs)
     buildable: False
   else
