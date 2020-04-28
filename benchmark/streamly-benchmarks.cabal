@@ -263,50 +263,9 @@ library lib-base
       buildable: True
 
 benchmark base
--- benchmark base-o-1-space
   import: bench-options
   type: exitcode-stdio-1.0
-  cpp-options: -DO_1_SPACE
-  ghc-options: -with-rtsopts "-T -K36K -M16M"
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: BaseStreams.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-base
-    buildable: True
-
-benchmark base-o-n-heap
-  import: bench-options
-  type: exitcode-stdio-1.0
-  cpp-options: -DO_N_HEAP
-  ghc-options: -with-rtsopts "-T -K36K -M64M"
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: BaseStreams.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-base
-    buildable: True
-
-benchmark base-o-n-stack
-  import: bench-options
-  type: exitcode-stdio-1.0
-  cpp-options: -DO_N_STACK
-  ghc-options: -with-rtsopts "-T -K1M -M16M"
-  hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: BaseStreams.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-base
-    buildable: True
-
-benchmark base-o-n-space
-  import: bench-options
-  type: exitcode-stdio-1.0
-  cpp-options: -DO_N_SPACE
-  ghc-options: -with-rtsopts "-T -K32M -M32M"
+  ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: BaseStreams.hs
   if impl(ghcjs)

@@ -34,6 +34,11 @@ bench_rts_opts () {
     "serial-o-n-stack") echo -n "-T -K1M -M16M" ;;
     "serial-o-n-heap") echo -n "-T -K36K -M128M" ;;
     "serial-o-n-space") echo -n "-T -K16M -M64M" ;;
+    "base") echo -n "-T -K36K -M16M" ;;
+    "base-o-n-stack") echo -n "-T -K1M -M16M" ;;
+    "base-o-n-heap") echo -n "-T -K36K -M64M" ;;
+    "base-o-n-space") echo -n "-T -K32M -M32M" ;;
+
     *) echo -n "" ;;
   esac
 }
@@ -49,6 +54,10 @@ bench_exec () {
     "serial-o-n-stack") echo -n "serial" ;;
     "serial-o-n-heap") echo -n "serial" ;;
     "serial-o-n-space") echo -n "serial" ;;
+    "base") echo -n "base" ;;
+    "base-o-n-stack") echo -n "base" ;;
+    "base-o-n-heap") echo -n "base" ;;
+    "base-o-n-space") echo -n "base" ;;
     *) echo -n "$1" ;;
   esac
 }
@@ -64,6 +73,10 @@ bench_gauge_opts () {
     "serial-o-n-stack") echo -n "-m prefix o-n-stack" ;;
     "serial-o-n-heap") echo -n "-m prefix o-n-heap" ;;
     "serial-o-n-space") echo -n "-m prefix o-n-space" ;;
+    "base") echo -n "-m prefix o-1-space" ;;
+    "base-o-n-stack") echo -n "-m prefix o-n-stack" ;;
+    "base-o-n-heap") echo -n "-m prefix o-n-heap" ;;
+    "base-o-n-space") echo -n "-m prefix o-n-space" ;;
     *) echo -n "" ;;
   esac
 }
