@@ -45,6 +45,7 @@ data BenchType
     | FoldOnHeap
     | UnfoldO1Space
     | UnfoldOnSpace
+    | Standard String
     deriving Show
 
 data Options = Options
@@ -100,9 +101,7 @@ parseBench = do
         Just "fold-o-n-heap" -> setBenchType FoldOnHeap
         Just "unfold-o-1-space" -> setBenchType UnfoldO1Space
         Just "unfold-o-n-space" -> setBenchType UnfoldOnSpace
-        Just str -> do
-                liftIO $ putStrLn $ "unrecognized benchmark type " <> str
-                mzero
+        Just str -> setBenchType (Standard str)
         Nothing -> do
                 liftIO $ putStrLn "please provide a benchmark type "
                 mzero
@@ -458,3 +457,8 @@ main = do
                             (makeGraphs "unfold-o-n-space")
                             "charts/unfold-o-n-space/results.csv"
                             "charts/unfold-o-n-space"
+                Standard str -> benchShow opts cfg
+                            { title = Just str }
+                            (makeGraphs str)
+                            ("charts/" ++ str ++ "/results.csv")
+                            ("charts/" ++ str)
