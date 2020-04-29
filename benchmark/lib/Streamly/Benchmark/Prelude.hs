@@ -79,13 +79,12 @@ module Streamly.Benchmark.Prelude
 
     , o_1_space_async_zip
 
-    -- TODO: rename to o_n_*
-    , o_1_space_parallel_generation
-    , o_1_space_parallel_concatFoldable
-    , o_1_space_parallel_concatMap
-    , o_1_space_parallel_transformation
-    , o_1_space_parallel_outerProductStreams
+    , o_n_space_parallel_generation
+    , o_n_space_parallel_concatFoldable
+    , o_n_space_parallel_concatMap
+    , o_n_space_parallel_transformation
     , o_n_space_parallel_outerProductStreams
+    , o_n_space_parallel_outerProductStreams2
 
     , o_1_space_async_avgRate
 
@@ -2563,8 +2562,8 @@ o_1_space_async_zip value =
           ]
     ]
 
-o_1_space_parallel_generation :: Int -> [Benchmark]
-o_1_space_parallel_generation value =
+o_n_space_parallel_generation :: Int -> [Benchmark]
+o_n_space_parallel_generation value =
     [ bgroup
           "parallely"
           [ bgroup
@@ -2588,8 +2587,8 @@ o_1_space_parallel_generation value =
           ]
     ]
 
-o_1_space_parallel_concatFoldable :: Int -> [Benchmark]
-o_1_space_parallel_concatFoldable value =
+o_n_space_parallel_concatFoldable :: Int -> [Benchmark]
+o_n_space_parallel_concatFoldable value =
     [ bgroup
           "parallely"
           [ bgroup
@@ -2601,8 +2600,8 @@ o_1_space_parallel_concatFoldable value =
           ]
     ]
 
-o_1_space_parallel_concatMap :: Int -> [Benchmark]
-o_1_space_parallel_concatMap value =
+o_n_space_parallel_concatMap :: Int -> [Benchmark]
+o_n_space_parallel_concatMap value =
     value2 `seq`
     [ bgroup
           "parallely"
@@ -2621,8 +2620,8 @@ o_1_space_parallel_concatMap value =
     value2 = round $ sqrt $ (fromIntegral value :: Double)
 
 
-o_1_space_parallel_transformation :: Int -> [Benchmark]
-o_1_space_parallel_transformation value =
+o_n_space_parallel_transformation :: Int -> [Benchmark]
+o_n_space_parallel_transformation value =
     [ bgroup
           "parallely"
           [ bgroup
@@ -2634,8 +2633,8 @@ o_1_space_parallel_transformation value =
           ]
     ]
 
-o_1_space_parallel_outerProductStreams :: Int -> [Benchmark]
-o_1_space_parallel_outerProductStreams value =
+o_n_space_parallel_outerProductStreams :: Int -> [Benchmark]
+o_n_space_parallel_outerProductStreams value =
     [ bgroup
           "parallely"
           [ bgroup
@@ -2652,8 +2651,8 @@ o_1_space_parallel_outerProductStreams value =
           ]
     ]
 
-o_n_space_parallel_outerProductStreams :: Int -> [Benchmark]
-o_n_space_parallel_outerProductStreams value =
+o_n_space_parallel_outerProductStreams2 :: Int -> [Benchmark]
+o_n_space_parallel_outerProductStreams2 value =
     [ bgroup
           "parallely"
           [ bgroup

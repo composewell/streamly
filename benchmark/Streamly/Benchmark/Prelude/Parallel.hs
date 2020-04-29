@@ -25,11 +25,11 @@ main = do
 
     linear value =
         concat
-            [ o_1_space_parallel_generation value
-            , o_1_space_parallel_concatFoldable value
-            -- , o_n_space_parallel_outerProductStreams
-            , o_1_space_parallel_concatMap value
-            , o_1_space_parallel_transformation value
+            [ o_n_space_parallel_generation value
+            , o_n_space_parallel_concatFoldable value
+            -- , o_n_space_parallel_outerProductStreams2
+            , o_n_space_parallel_concatMap value
+            , o_n_space_parallel_transformation value
             ]
 
-    nested = o_1_space_parallel_outerProductStreams
+    nested = o_n_space_parallel_outerProductStreams
