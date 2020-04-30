@@ -139,6 +139,10 @@ library lib-prelude
                        Streamly.Benchmark.Prelude
     other-modules:     Streamly.Benchmark.Common
                      , Streamly.Benchmark.Prelude.NestedOps
+                     , Streamly.Benchmark.Prelude.Generation
+                     , Streamly.Benchmark.Prelude.Elimination
+                     , Streamly.Benchmark.Prelude.Transformation
+
     -- XXX GHCJS build fails for this library.
     if impl(ghcjs)
       buildable: False
