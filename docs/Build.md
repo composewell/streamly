@@ -18,6 +18,8 @@ Important Note: In certain cases it is possible that GHC takes too long to
 compile with `-fspec-constr-recursive=16`, if that happens please reduce the
 value or remove that option.
 
+See [Explanation](#explanation) for details about these flags.
+
 ## Using Fusion Plugin
 
 In many cases `fusion-plugin` can improve performance by better stream
@@ -54,7 +56,9 @@ issue](https://gitlab.haskell.org/ghc/ghc/issues/17745) leading to
 memory leak in some cases.
 
 * `-fspec-constr-recursive` is needed for better stream fusion by enabling
-the `SpecConstr` optimization in more cases.
+the `SpecConstr` optimization in more cases. Large values used with this flag
+may lead to huge compilation times and code bloat, if that happens please avoid
+it or use a lower value (e.g. 3 or 4).
 
 * `-fmax-worker-args` is needed for better stream fusion by enabling the
 `SpecConstr` optimization in some important cases.
@@ -62,7 +66,7 @@ the `SpecConstr` optimization in more cases.
 * `-fplugin=Fusion.Plugin` enables predictable stream fusion
 optimization in certain cases by helping the compiler inline internal
 bindings and therefore enabling case-of-case optimization. In some
-cases, especially in some fileio benchmarks, it can make a difference of
+cases, especially in some file IO benchmarks, it can make a difference of
 5-10x better performance.
 
 # Multi-core Parallelism
