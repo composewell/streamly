@@ -3,7 +3,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE RecordWildCards           #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 -- |
@@ -208,7 +207,7 @@ module Streamly.Internal.Data.Fold
     )
 where
 
-import Control.Monad (void)
+import Control.Monad (join, void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
@@ -307,9 +306,7 @@ generally = hoist (return . runIdentity)
 sequence :: Monad m => Fold m a (m b) -> Fold m a b
 sequence (Fold step initial extract) = Fold step initial extract'
   where
-    extract' x = do
-        act <- extract x
-        act >>= return
+    extract' x = join (extract x)
 
 -- | Map a monadic function on the output of a fold.
 --
@@ -877,7 +874,7 @@ splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
       step (Tuple3' i xL xR) input =
         if i > 0
         then stepL xL input >>= (\a -> return (Tuple3' (i - 1) a xR))
-        else stepR xR input >>= (\b -> return (Tuple3' i xL b))
+        else stepR xR input >>= (return . Tuple3' i xL)
 
       extract (Tuple3' _ a b) = (,) <$> extractL a <*> extractR b
 
@@ -1075,7 +1072,7 @@ foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 
     begin = Tuple' <$> beginL <*> beginR
     step (Tuple' xL xR) a = Tuple' <$> stepL xL a <*> stepR xR a
-    done (Tuple' xL xR) = (:) <$> (doneL xL) <*> (doneR xR)
+    done (Tuple' xL xR) = (:) <$> doneL xL <*> doneR xR
 
 -- XXX use "List" instead of "[]"?, use Array for output to scale it to a large
 -- number of consumers? For polymorphic case a vector could be helpful. For
@@ -1114,7 +1111,7 @@ distribute_ fs = Fold step initial extract
     initial    = Prelude.mapM (\(Fold s i e) ->
         i >>= \r -> return (Fold s (return r) e)) fs
     step ss a  = do
-        Prelude.mapM_ (\(Fold s i _) -> i >>= \r -> s r a >> return ()) ss
+        Prelude.mapM_ (\(Fold s i _) -> i >>= \r -> void (s r a)) ss
         return ss
     extract ss = do
         Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
@@ -1353,7 +1350,7 @@ demuxWith_ f kv = Fold step initial extract
 
     where
 
-    initial = do
+    initial =
         Prelude.mapM (\(Fold s i e) ->
             i >>= \r -> return (Fold s (return r) e)) kv
     step mp a
@@ -1366,7 +1363,7 @@ demuxWith_ f kv = Fold step initial extract
             Just (Fold step' acc _) -> do
                 _ <- acc >>= \x -> step' x a'
                 return mp
-    extract mp = Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e) mp
+    extract = Prelude.mapM_ (\(Fold _ acc e) -> acc >>= e)
 
 -- | Given a stream of key value pairs and a map from keys to folds, fold the
 -- values for each key using the corresponding folds, discarding the outputs.
@@ -1562,7 +1559,7 @@ toParallelSVar svar winfo = Fold step initial extract
         decrementBufferLimit svar
         void $ send svar (ChildYield x)
 
-    extract () = liftIO $ do
+    extract () = liftIO $
         sendStop svar winfo
 
 {-# INLINE toParallelSVarLimited #-}
