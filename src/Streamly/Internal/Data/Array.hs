@@ -77,11 +77,11 @@ toStreamD arr = D.Stream step 0
     step _ (I# i) =
         return $
         case Exts.indexArray# (array# arr) i of
-            (# x #) -> D.Yield x ((I# i) + 1)
+            (# x #) -> D.Yield x (I# i + 1)
 
 {-# INLINE length #-}
 length :: Array a -> Int
-length arr = sizeofArray arr
+length = sizeofArray
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: Monad m => Array a -> D.Stream m a
@@ -93,7 +93,7 @@ toStreamDRev arr = D.Stream step (length arr - 1)
     step _ (I# i) =
         return $
         case Exts.indexArray# (array# arr) i of
-            (# x #) -> D.Yield x ((I# i) - 1)
+            (# x #) -> D.Yield x (I# i - 1)
 
 {-# INLINE_NORMAL foldl' #-}
 foldl' :: (b -> a -> b) -> b -> Array a -> b
@@ -143,14 +143,14 @@ fromStreamDN limit str = do
     marr <- liftIO $ newArray (max limit 0) bottomElement
     i <-
         D.foldlM'
-            (\i x -> i `seq` (liftIO $ writeArray marr i x) >> return (i + 1))
+            (\i x -> i `seq` liftIO $ writeArray marr i x >> return (i + 1))
             0 $
         D.take limit str
     liftIO $ freezeArray marr 0 i
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: MonadIO m => D.Stream m a -> m (Array a)
-fromStreamD str = D.runFold write str
+fromStreamD = D.runFold write
 
 {-# INLINABLE fromListN #-}
 fromListN :: Int -> [a] -> Array a
@@ -197,7 +197,7 @@ read = Unfold step inject
     inject arr = return (arr, 0)
     step (arr, i)
         | i == length arr = return D.Stop
-    step (arr, (I# i)) =
+    step (arr, I# i) =
         return $
         case Exts.indexArray# (array# arr) i of
             (# x #) -> D.Yield x (arr, I# i + 1)
