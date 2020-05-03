@@ -1575,7 +1575,7 @@ isPrefixOf m1 m2 = D.isPrefixOf (toStreamD m1) (toStreamD m2)
 --
 {-# INLINE isSuffixOf #-}
 isSuffixOf :: (Monad m, Eq a) => SerialT m a -> SerialT m a -> m Bool
-isSuffixOf suffix stream = isPrefixOf (reverse suffix) (reverse stream)
+isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
 
 -- | Returns 'True' if the first stream is an infix of the second. A stream is
 -- considered an infix of itself.
@@ -1749,7 +1749,7 @@ toListRev = D.toListRev . toStreamD
 {-# DEPRECATED toHandle
    "Please use Streamly.FileSystem.Handle module (see the changelog)" #-}
 toHandle :: MonadIO m => IO.Handle -> SerialT m String -> m ()
-toHandle h m = go m
+toHandle h = go
     where
     go m1 =
         let stop = return ()
@@ -3019,7 +3019,7 @@ concatMapIterateWith
     -> (a -> t m a)
     -> t m a
     -> t m a
-concatMapIterateWith combine f xs = concatMapWith combine go xs
+concatMapIterateWith combine f = concatMapWith combine go
     where
     go x = yield x `combine` concatMapWith combine go (f x)
 
@@ -3054,7 +3054,7 @@ concatMapTreeWith
     -> (a -> t m (Either a b))
     -> t m (Either a b) -- Should be t m a?
     -> t m (Either a b)
-concatMapTreeWith combine f xs = concatMapWith combine go xs
+concatMapTreeWith combine f = concatMapWith combine go
     where
     go (Left tree)  = yield (Left tree) `combine` concatMapWith combine go (f tree)
     go (Right leaf) = yield $ Right leaf
@@ -3908,7 +3908,7 @@ pollCounts ::
 pollCounts predicate transf f xs =
       D.fromStreamD
     $ D.pollCounts predicate (D.toStreamD . transf . D.fromStreamD) f
-    $ (D.toStreamD xs)
+    $ D.toStreamD xs
 
 -- | Calls the supplied function with the number of elements consumed
 -- every @n@ seconds. The given function is run in a separate thread
@@ -3934,7 +3934,7 @@ tapRate ::
     -> (Int -> m b)
     -> t m a
     -> t m a
-tapRate n f xs = D.fromStreamD $ D.tapRate n f $ (D.toStreamD xs)
+tapRate n f xs = D.fromStreamD $ D.tapRate n f $ D.toStreamD xs
 
 -- | Apply a monadic function to each element flowing through the stream and
 -- discard the results.
@@ -4135,7 +4135,7 @@ classifySessionsBy
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick timeout reset ejectPred
     (Fold step initial extract) str =
-      concatMap (\session -> sessionOutputStream session)
+      concatMap sessionOutputStream
     $ scanlM' sstep szero stream
 
     where
@@ -4162,7 +4162,7 @@ classifySessionsBy tick timeout reset ejectPred
     -- We use the first strategy as of now.
 
     -- Got a new stream input element
-    sstep (session@SessionState{..}) (Just (key, value, timestamp)) = do
+    sstep session@SessionState{..} (Just (key, value, timestamp)) = do
         -- XXX we should use a heap in pinned memory to scale it to a large
         -- size
         --
@@ -4222,7 +4222,7 @@ classifySessionsBy tick timeout reset ejectPred
                                 -- Insert the new session in heap
                                 let expiry = addToAbsTime timestamp timeoutMs
                                     hp' = H.insert (Entry expiry key) hp
-                                 in return $ (hp', mp, out, (cnt + 1))
+                                 in return (hp', mp, out, cnt + 1)
                             -- updating old entry
                             Just _ -> return vars
 
@@ -4237,7 +4237,7 @@ classifySessionsBy tick timeout reset ejectPred
                     }
 
     -- Got a timer tick event
-    sstep (sessionState@SessionState{..}) Nothing =
+    sstep sessionState@SessionState{..} Nothing =
         let curTime = addToAbsTime sessionCurTime tickMs
         in ejectExpired sessionState curTime
 
@@ -4251,12 +4251,12 @@ classifySessionsBy tick timeout reset ejectPred
         sess <- extract acc
         let out1 = (key, fromEither sess) `K.cons` out
         let mp1 = Map.delete key mp
-        return (hp, mp1, out1, (cnt - 1))
+        return (hp, mp1, out1, cnt - 1)
 
     ejectOne (hp, mp, out, !cnt) = do
         let hres = H.uncons hp
         case hres of
-            Just (Entry expiry key, hp1) -> do
+            Just (Entry expiry key, hp1) ->
                 case Map.lookup key mp of
                     Nothing -> ejectOne (hp1, mp, out, cnt)
                     Just (Tuple' latestTS acc) -> do
@@ -4271,7 +4271,7 @@ classifySessionsBy tick timeout reset ejectPred
                 assert (Map.null mp) (return ())
                 return (hp, mp, out, cnt)
 
-    ejectExpired (session@SessionState{..}) curTime = do
+    ejectExpired session@SessionState{..} curTime = do
         (hp', mp', out, count) <-
             ejectLoop sessionTimerHeap sessionKeyValueMap K.nil sessionCount
         return $ session
@@ -4288,14 +4288,14 @@ classifySessionsBy tick timeout reset ejectPred
             let hres = H.uncons hp
             case hres of
                 Just (Entry expiry key, hp1) -> do
-                    (eject, force) <- do
+                    (eject, force) <-
                         if curTime >= expiry
                         then return (True, False)
                         else do
                             r <- ejectPred cnt
                             return (r, r)
                     if eject
-                    then do
+                    then
                         case Map.lookup key mp of
                             Nothing -> ejectLoop hp1 mp out cnt
                             Just (Tuple' latestTS acc) -> do
@@ -4341,8 +4341,8 @@ classifyKeepAliveSessions
     -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifyKeepAliveSessions timeout ejectPred =
-    classifySessionsBy 1 timeout True ejectPred
+classifyKeepAliveSessions timeout =
+    classifySessionsBy 1 timeout True
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows
@@ -4399,8 +4399,8 @@ classifySessionsOf
     -> Fold m a (Either b b) -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifySessionsOf interval ejectPred =
-    classifySessionsBy 1 interval False ejectPred
+classifySessionsOf interval =
+    classifySessionsBy 1 interval False
 
 ------------------------------------------------------------------------------
 -- Exceptions
@@ -4475,7 +4475,7 @@ finallyIO action xs = D.fromStreamD $ D.finallyIO action $ D.toStreamD xs
 bracket :: (IsStream t, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
 bracket bef aft bet = D.fromStreamD $
-    D.bracket bef aft (\x -> toStreamD $ bet x)
+    D.bracket bef aft (toStreamD . bet)
 
 -- | Run the first action before the stream starts and remember its output,
 -- generate a stream using the output, run the second action using the
@@ -4488,7 +4488,7 @@ bracket bef aft bet = D.fromStreamD $
 bracketIO :: (IsStream t, MonadAsync m, MonadCatch m)
     => m b -> (b -> m c) -> (b -> t m a) -> t m a
 bracketIO bef aft bet = D.fromStreamD $
-    D.bracketIO bef aft (\x -> toStreamD $ bet x)
+    D.bracketIO bef aft (toStreamD . bet)
 
 -- | When evaluating a stream if an exception occurs, stream evaluation aborts
 -- and the specified exception handler is run with the exception as argument.
@@ -4498,7 +4498,7 @@ bracketIO bef aft bet = D.fromStreamD $
 handle :: (IsStream t, MonadCatch m, Exception e)
     => (e -> t m a) -> t m a -> t m a
 handle handler xs =
-    D.fromStreamD $ D.handle (\e -> D.toStreamD $ handler e) $ D.toStreamD xs
+    D.fromStreamD $ D.handle (D.toStreamD . handler) $ D.toStreamD xs
 
 ------------------------------------------------------------------------------
 -- Generalize the underlying monad
