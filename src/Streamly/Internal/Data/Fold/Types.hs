@@ -403,7 +403,7 @@ ltake :: Monad m => Int -> Fold m a b -> Fold m a b
 ltake n (Fold step initial done) = Fold step' initial' done'
     where
     initial' = fmap (Tuple' 0) initial
-    step' (Tuple' i r) a = do
+    step' (Tuple' i r) a =
         if i < n
         then do
             res <- step r a
@@ -419,9 +419,9 @@ ltakeWhile :: Monad m => (a -> Bool) -> Fold m a b -> Fold m a b
 ltakeWhile predicate (Fold step initial done) = Fold step' initial' done'
     where
     initial' = fmap Left' initial
-    step' (Left' r) a = do
+    step' (Left' r) a =
         if predicate a
-        then fmap Left' $ step r a
+        then Left' <$> step r a
         else return (Right' r)
     step' r _ = return r
     done' (Left' r) = done r
@@ -464,7 +464,7 @@ runStep :: Monad m => Fold m a b -> a -> m (Fold m a b)
 runStep (Fold step initial extract) a = do
     i <- initial
     r <- step i a
-    return $ (Fold step (return r) extract)
+    return $ Fold step (return r) extract
 
 ------------------------------------------------------------------------------
 -- Parsing
@@ -483,8 +483,8 @@ lchunksOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
 
     where
 
-    initial' = (Tuple3' 0) <$> initial1 <*> initial2
-    step' (Tuple3' i r1 r2) a = do
+    initial' = Tuple3' 0 <$> initial1 <*> initial2
+    step' (Tuple3' i r1 r2) a =
         if i < n
         then do
             res <- step1 r1 a
@@ -508,8 +508,8 @@ lchunksOf2 n (Fold step1 initial1 extract1) (Fold2 step2 inject2 extract2) =
 
     where
 
-    inject' x = (Tuple3' 0) <$> initial1 <*> inject2 x
-    step' (Tuple3' i r1 r2) a = do
+    inject' x = Tuple3' 0 <$> initial1 <*> inject2 x
+    step' (Tuple3' i r1 r2) a =
         if i < n
         then do
             res <- step1 r1 a
@@ -580,7 +580,7 @@ lsessionsOf n (Fold step1 initial1 extract1) (Fold step2 initial2 extract2) =
         r2 <- liftIO $ takeMVar mv2
         res <- case r2 of
                     Left _ -> return r2
-                    Right x -> fmap Right $ step2 x res1
+                    Right x -> Right <$> step2 x res1
         liftIO $ putMVar mv2 res
         timerThread mv1 mv2
 
