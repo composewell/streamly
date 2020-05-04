@@ -207,8 +207,9 @@ matrix:
   #   and then you can use any version of ghc.
   # --------------------------------------------------------------------------
 
-  #- env: BUILD=cabal-v1 COVERALLS_OPTIONS="--coverage-mode=StrictlyFullLines --exclude-dir=test test"
-  #  addons: {apt: {packages: [cabal-install-2.4,ghc-8.2.2], sources: [hvr-ghc]}}
+  - name: "GHC 8.10.1+inspection+Werror+coverage"
+    env: BUILD=cabal-v2 COVERALLS_OPTIONS=" --repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test" CABAL_PROJECT="cabal.project.coverage" GHC_OPTIONS=""
+    addons: {apt: {packages: [cabal-install-3.2,ghc-8.10.1], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
   # Builds that are allowed to fail

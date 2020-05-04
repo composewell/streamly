@@ -28,6 +28,7 @@ jobs:
       BUILD: ${{ matrix.build }}
       GHCVER: ${{ matrix.ghc_version }}
       CABAL_BUILD_OPTIONS: ${{ matrix.cabal_build_options }}
+      CABAL_PROJECT: ${{ matrix.cabal_project }}
       DISABLE_DOCS: ${{ matrix.disable_docs }}
 
     runs-on: ubuntu-latest
@@ -40,11 +41,11 @@ jobs:
           - name: 8.10.1+inspection+Werror
             ghc_version: 8.10.1
             build: cabal-v2
-            cabal_build_options: "--project-file=cabal.project.ci"
+            cabal_project: cabal.project.ci
           - name: 8.8.3+inspection+Werror
             ghc_version: 8.8.3
             build: cabal-v2
-            cabal_build_options: "--project-file=cabal.project.ci"
+            cabal_project: cabal.project.ci
           - name: 8.6.5+streamk
             ghc_version: 8.6.5
             build: cabal-v2
