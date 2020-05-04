@@ -1,3 +1,10 @@
+## 0.8.0
+
+### Breaking changes
+
+* Change the signature of `concatMapWith` to ensure that it can be
+  used with a wide variety of combining functions.
+
 ## 0.7.2
 
 ### Bug Fixes
