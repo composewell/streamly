@@ -1263,8 +1263,8 @@ import Control.Monad.Trans.Class   (MonadTrans (lift))
 -- main = (S.'toList' $ fmap show $ S.'fromFoldable' [1..10]) >>= print
 -- @
 --
--- Also see the 'mapM' and 'sequence' functions for mapping actions, in the
--- "Streamly.Prelude" module.
+-- Also see functions 'mapM' and 'sequence' from "Streamly.Prelude" module
+-- which can map actions concurrently depending on the type of the input stream.
 
 -- $applicative
 --
