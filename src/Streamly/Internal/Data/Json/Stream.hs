@@ -35,6 +35,7 @@ import qualified Streamly.Internal.Data.Parser.ParserD as P
 import qualified Streamly.Internal.Data.Array as A
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Data.Unfold as IUF
+import qualified Streamly.Internal.Data.Unicode.Stream as Uni
 import qualified Streamly.Data.Fold as FL
 
 #define BACKSLASH 92
@@ -44,9 +45,10 @@ import qualified Streamly.Data.Fold as FL
 #define DOUBLE_QUOTE 34
 #define OPEN_CURLY 123
 #define OPEN_SQUARE 91
-#define SEMI_COLON 58
+#define COLON 58
 #define C_0 48
 #define C_9 57
+#define MINUS 45
 #define C_A 65
 #define C_F 70
 #define C_a 97
@@ -61,7 +63,7 @@ comma = 44 :: Word8
 double_quote = 34 :: Word8
 open_curly = 123 :: Word8
 open_square = 91 :: Word8
-semi_colon = 58 :: Word8
+colon = 58 :: Word8
 c_0 = 48 :: Word8
 c_9 = 57 :: Word8
 c_A = 65 :: Word8
@@ -124,13 +126,14 @@ sepBy :: MonadCatch m
 sepBy fl @ (Fold _ initial extract) p sep = 
     sepBy1 fl p sep `P.alt` P.yieldM (initial >>= extract)
 
-
+{-# INLINE skipSpace #-}
 skipSpace :: MonadCatch m => Parser m Word8 ()
 skipSpace =
     P.takeWhile
         (\w -> w == 0x20 || w == 0x0a || w == 0x0d || w == 0x09)
         FL.drain
 
+{-# INLINE spaceAround #-}
 spaceAround :: MonadCatch m => Parser m Word8 b -> Parser m Word8 b
 spaceAround parseInBetween = do
     skipSpace
@@ -138,9 +141,11 @@ spaceAround parseInBetween = do
     skipSpace
     return between
 
+{-# INLINE skip #-}
 skip :: MonadCatch m => Int -> Parser m a ()
 skip n = P.take n FL.drain
 
+{-# INLINE string #-}
 string :: MonadCatch m => String -> Parser m Word8 ()
 string = P.eqBy (==) . map (fromIntegral . ord)
 
@@ -158,6 +163,7 @@ foldToInteger = Fold step initial extract
 
     extract = return
 
+{-# INLINE parseDecimal0 #-}
 parseDecimal0 :: MonadCatch m => Parser m Word8 Integer
 parseDecimal0 = do
     h <- P.peek
@@ -165,6 +171,7 @@ parseDecimal0 = do
     when (h == zero && n - 48 > 9) $ error "Leading zero in a number is not accepted in JSON."
     P.takeWhile1 (\w -> w - 48 <= 9) foldToInteger
 
+{-# INLINE parseJsonNumber #-}
 parseJsonNumber :: MonadCatch m => Parser m Word8 Scientific
 parseJsonNumber = do
     sign <- P.peek
@@ -174,37 +181,57 @@ parseJsonNumber = do
     let signedCoeff = if positive then n else (-n)
     return (Sci.scientific signedCoeff 0)
 
+{-# INLINE parseJsonString #-}
 parseJsonString :: MonadCatch m => Parser m Word8 JsonString
 parseJsonString = do
     match DOUBLE_QUOTE
-    s <- P.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH && not (testBit w 7)) A.unsafeWrite
+    s <- P.takeWhile (\w -> w /= DOUBLE_QUOTE && w /= BACKSLASH) (Uni.foldUtf8With A.unsafeWrite)
     w <- P.peek
     case w of
-        DOUBLE_QUOTE -> skip 1 >> return (fmap (chr . fromIntegral) s)
+        DOUBLE_QUOTE -> skip 1 >> return s
         _ -> do
             chars40 <- P.take 40 FL.toList
             error (fmap (chr . fromIntegral) chars40 ++ " Not yet implemented to handle escape sequences in String.")
 
-
+{-# INLINE parseJsonValue #-}
 parseJsonValue :: MonadCatch m => Parser m Word8 Value
-parseJsonValue = skipSpace >>
+{- parseJsonValue = skipSpace >>
             (Object <$> parseJsonObject)
     `P.alt` (Array  <$> parseJsonArray)
     `P.alt` (String <$> parseJsonString)
     `P.alt` (Number <$> parseJsonNumber)
     `P.alt` (Bool True <$ string "true")
     `P.alt` (Bool False <$ string "false")
-    `P.alt` (Null <$ string "null")
+    `P.alt` (Null <$ string "null") -}
+parseJsonValue = do
+    skipSpace
+    w <- P.peek
+    case w of
+        OPEN_CURLY -> Object <$> parseJsonObject
+        OPEN_SQUARE -> Array <$> parseJsonArray
+        DOUBLE_QUOTE -> String <$> parseJsonString
+        C_t -> Bool True <$ string "true"
+        C_f -> Bool False <$ string "false"
+        C_n -> Null <$ string "null"
+        CLOSE_CURLY -> return $ Object HM.empty
+        CLOSE_SQUARE -> return $ Array mempty
+        _  | w >= C_0 && w <= C_9 || w == MINUS -> Number <$> parseJsonNumber
+           | otherwise ->  do
+            chars40 <- P.take 40 FL.toList
+            error $ "Encountered " ++ fmap (chr . fromIntegral) chars40 ++ " when expecting one of [, {, \", f(alse), t(rue), n(ull)."
 
+{-# INLINE parseJsonMember #-}
 parseJsonMember :: MonadCatch m => Parser m Word8 (JsonString, Value)
 parseJsonMember = do
     skipSpace
     jsonString <- parseJsonString
     skipSpace
-    match SEMI_COLON
+    match COLON
     jsonValue <- parseJsonValue
     return (jsonString, jsonValue)
 
+
+{-# INLINE parseJsonObject #-}
 parseJsonObject :: MonadCatch m => Parser m Word8 Object
 parseJsonObject = do
     skipSpace
@@ -215,6 +242,7 @@ parseJsonObject = do
     match CLOSE_CURLY
     return object
 
+{-# INLINE parseJsonArray #-}
 parseJsonArray :: MonadCatch m => Parser m Word8 JsonArray
 parseJsonArray = do
     skipSpace
@@ -225,24 +253,13 @@ parseJsonArray = do
     match CLOSE_SQUARE
     return jsonValues
 
+{-# INLINE parseJson #-}
 parseJson :: MonadCatch m => PR.Parser m Word8 Value
-parseJson = P.toParserK (spaceAround $ (Object <$> parseJsonObject) `P.alt` (Array <$> parseJsonArray))
-
-{-
-
+-- parseJson = P.toParserK (spaceAround $ (Object <$> parseJsonObject) `P.alt` (Array <$> parseJsonArray))
+parseJson = P.toParserK $ do
+    skipSpace
     w <- P.peek
     case w of
-        OPEN_CURLY -> do
-            skip 1
-            return Null
-        C_f -> do
-            string "false"
-            return $ Bool False
-        C_t -> do
-            string "true"
-            return $ Bool True
-        C_n -> do
-            string "null"
-            return Null
-
--}
+        OPEN_CURLY  -> Object <$> parseJsonObject
+        OPEN_SQUARE -> Array <$> parseJsonArray
+        _           -> error $ "Encountered " ++ [chr . fromIntegral $ w] ++ " when expection [ or {."
