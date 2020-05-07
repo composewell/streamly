@@ -107,25 +107,6 @@ pushToFold (Fold step initial extract) a = Fold step initial' extract
         s <- initial
         step s a
 
-{-# INLINE sepBy1 #-}
-sepBy1 :: MonadCatch m
-       => Fold m a c
-       -> Parser m Word8 a
-       -> Parser m Word8 sep
-       -> Parser m Word8 c
-sepBy1 fl p sep = do 
-    a <- p
-    P.many (pushToFold fl a) (sep >> p)
-
-{-# INLINE sepBy #-}
-sepBy :: MonadCatch m
-      => Fold m a c
-      -> Parser m Word8 a
-      -> Parser m Word8 sep
-      -> Parser m Word8 c
-sepBy fl @ (Fold _ initial extract) p sep = 
-    sepBy1 fl p sep `P.alt` P.yieldM (initial >>= extract)
-
 {-# INLINE skipSpace #-}
 skipSpace :: MonadCatch m => Parser m Word8 ()
 skipSpace =
@@ -237,7 +218,7 @@ parseJsonObject = do
     skipSpace
     match OPEN_CURLY
     skipSpace
-    object <- sepBy (Fold (\h (k, v) -> return $ HM.insert k v h) (return HM.empty) return) parseJsonMember (skipSpace >> match COMMA)
+    object <- P.sepBy (Fold (\h (k, v) -> return $ HM.insert k v h) (return HM.empty) return) parseJsonMember (skipSpace >> match COMMA)
     skipSpace
     match CLOSE_CURLY
     return object
@@ -248,7 +229,7 @@ parseJsonArray = do
     skipSpace
     match OPEN_SQUARE
     skipSpace
-    jsonValues <- sepBy A.unsafeWrite parseJsonValue (skipSpace >> match COMMA)
+    jsonValues <- P.sepBy A.unsafeWrite parseJsonValue (skipSpace >> match COMMA)
     skipSpace
     match CLOSE_SQUARE
     return jsonValues
