@@ -56,6 +56,7 @@ module Streamly.Internal.Data.Parser.ParserD
     , lookAhead
     , takeWhile
     , takeWhile1
+    , sepBy
     , sliceSepBy
     , sliceSepByMax
     -- , sliceSepByBetween
@@ -159,12 +160,17 @@ module Streamly.Internal.Data.Parser.ParserD
 where
 
 import Control.Exception (assert)
-import Control.Monad.Catch (MonadCatch, MonadThrow(..))
+import Control.Monad.Catch (MonadCatch, MonadThrow(..), try)
+import Prelude hiding
+       ( any, all, take, takeWhile, sequence, concatMap, maybe, either)
+
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import Prelude hiding
-       (any, all, take, takeWhile, sequence, concatMap, maybe, either)
+import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
+
+import Fusion.Plugin.Types (Fuse(..))
+
 import Streamly.Internal.Data.Parser.ParserD.Tee
 import Streamly.Internal.Data.Parser.ParserD.Types
 
@@ -446,6 +452,61 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
 
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
+
+{-# ANN type SepParseState Fuse #-}
+data SepParseState seps sa fs = SepParseA !Int fs sa | SepParseSep !Int fs seps
+
+-- | See 'Streamly.Internal.Data.Parser.sepBy'.
+--
+-- /Internal/
+--
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m
+      => Fold m b c
+      -> Parser m a b
+      -> Parser m a sep
+      -> Parser m a c
+sepBy (Fold fstep finitial fextract) (Parser pstep pinitial pextract)
+    (Parser psepstep psepinitial _) = Parser step initial extract
+
+    where
+
+    initial = do
+        fs <- finitial
+        ps <- pinitial
+        return $ SepParseA 0 fs ps
+
+    step (SepParseA cnt fstate pst) a = do
+        ps <- pstep pst a
+        case ps of
+            Partial n s -> return $ Partial n (SepParseA 0 fstate s)
+            Continue n s -> return $ Continue n (SepParseA (cnt + 1 - n) fstate s)
+            Done n b -> do
+                pseps <- psepinitial
+                fs <- fstep fstate b
+                return $ Continue n (SepParseSep 0 fs pseps)
+            Error _ -> do
+                c <- fextract fstate
+                return $ Done (cnt + 1) c
+
+    step (SepParseSep cnt fstate psepst) a = do
+        pseps <- psepstep psepst a
+        case pseps of
+            Partial n s -> return $ Continue n (SepParseSep (cnt + 1 - n) fstate s)
+            Continue n s -> return $ Continue n (SepParseSep (cnt + 1 - n) fstate s)
+            Done n _ -> do
+                ps <- pinitial
+                return $ Continue n (SepParseA (cnt + 1) fstate ps)
+            Error _ -> do
+                c <- fextract fstate
+                return $ Done (cnt + 1) c
+
+    extract (SepParseA _ fs sa) = do
+        r <- try $ pextract sa
+        case r of
+            Left (_ :: ParseError) -> fextract fs
+            Right b -> fstep fs b >>= fextract
+    extract (SepParseSep _ fs _) = fextract fs
 
 -- | See 'Streamly.Internal.Data.Parser.sliceSepBy'.
 --

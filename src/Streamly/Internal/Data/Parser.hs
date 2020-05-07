@@ -509,6 +509,24 @@ sliceSepByP :: -- MonadCatch m =>
     (a -> Bool) -> Parser m a b -> Parser m a b
 sliceSepByP _cond = undefined -- K.toParserK . D.sliceSepByP cond
 
+-- | @sepBy fl p sep@ collects zero or more stream elements separated by @sep@.
+--
+-- * Stops - when either of @p@ or @sep@ fails
+-- * Fails - never
+--
+-- >>> S.parse (PR.sepBy FL.toList (PR.satisfy (< 7)) (PR.satisfy (> 8))) $ S.fromList [0,9,3,10]
+-- > [0,3]
+--
+-- /Internal/
+--
+{-# INLINE sepBy #-}
+sepBy :: MonadCatch m
+      => Fold m b c
+      -> Parser m a b
+      -> Parser m a sep
+      -> Parser m a c
+sepBy fl pa = D.toParserK . D.sepBy fl (D.fromParserK pa) . D.fromParserK
+
 -- Note: Keep this consistent with S.splitOn. In fact we should eliminate
 -- S.splitOn in favor of the parser.
 --
