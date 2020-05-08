@@ -30,6 +30,8 @@ module Streamly.Internal.Memory.Array.Types
     , spliceWithDoubling
     , spliceTwo
 
+    , fromAddr#
+    , fromString#
     , fromList
     , fromListN
     , fromStreamDN
@@ -355,18 +357,74 @@ shrinkToFit arr@Array{..} = do
     then realloc used arr
     else return arr
 
--- XXX when converting an array of Word8 from a literal string we can simply
--- refer to the literal string. Is it possible to write rules such that
--- fromList Word8 can be rewritten so that GHC does not first convert the
--- literal to [Char] and then we convert it back to an Array Word8?
+-- See also: https://gitlab.haskell.org/ghc/ghc/issues/5218 (Add
+-- unpackCStringLen# to create Strings from string literals)
 --
--- Note that the address must be a read-only address (meant to be used for
--- read-only string literals) because we are sharing it, any modification to
--- the original address would change our array. That's why this function is
--- unsafe.
-{-# INLINE _fromCStringAddrUnsafe #-}
-_fromCStringAddrUnsafe :: Addr# -> IO (Array Word8)
-_fromCStringAddrUnsafe addr# = do
+-- TBD: We can also add template haskell quasiquotes to specify arrays of other
+-- literal types. TH will encode them into a string literal and we read that as
+-- an array of the required type. With template Haskell we can provide a safe
+-- version of fromString#.
+--
+-- | Create an @Array Word8@ of the given length from a machine address
+-- 'Addr#'. This API is unsafe for the following reasons:
+--
+-- 1. The address must point to pinned memory or foreign memory.
+-- 2. The address must be legally accessible upto the given length.
+-- 3. To guarantee that the array is immutable, the contents of the address
+-- must be guaranteed to not change.
+--
+-- A common use case for this API is to create an array from a static unboxed
+-- string literal. GHC string literals are of type 'Addr#', and must contain
+-- characters that can be encoded in a byte i.e. characters or literal bytes in
+-- the range from 0-255.
+--
+-- >>> fromAddr# 5 "hello world!"#
+-- > [104,101,108,108,111]
+--
+-- >>> fromAddr# 3 "\255\NUL\255"#
+-- > [255,0,255]
+--
+-- /See also: 'fromString#'/
+--
+-- /Unsafe/
+--
+-- /Time complexity: O(1)/
+--
+{-# INLINE fromAddr# #-}
+fromAddr# :: Int -> Addr# -> IO (Array Word8)
+fromAddr# n addr# = do
+    ptr <- newForeignPtr_ (castPtr $ Ptr addr#)
+    let p = unsafeForeignPtrToPtr ptr
+    let end = p `plusPtr` n
+    return $ Array
+        { aStart = ptr
+        , aEnd   = end
+        , aBound = end
+        }
+
+-- | Like 'fromAddr#' but determines the length of the array upto and excluding
+-- the first @0@ byte. The address must be legally accessible up to the first
+-- NUL byte.
+--
+-- A common use case for this API is to create an array from an unboxed string
+-- literal. Unboxed string literals are guaranteed to be terminated by a NUL
+-- byte.
+--
+-- >>> fromString# "hello world!"#
+-- > [104,101,108,108,111,32,119,111,114,108,100,33]
+--
+-- >>> fromString# "\255\NUL\255"#
+-- > [255]
+--
+-- /See also: 'fromAddr#', 'fromString'/
+--
+-- /Unsafe/
+--
+-- /Time complexity: O(n) (computes the length of the string)/
+--
+{-# INLINE fromString# #-}
+fromString# :: Addr# -> IO (Array Word8)
+fromString# addr# = do
     ptr <- newForeignPtr_ (castPtr cstr)
     len <- c_strlen cstr
     let n = fromIntegral len
