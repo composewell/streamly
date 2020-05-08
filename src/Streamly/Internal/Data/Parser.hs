@@ -88,6 +88,7 @@ module Streamly.Internal.Data.Parser
     , takeWhile1
 
     , sliceSepByP
+    , sepBy
     , sliceSepBy
     , sliceSepByMax
     , sliceEndWith

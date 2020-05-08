@@ -167,8 +167,6 @@ import Prelude hiding
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Tuple.Strict (Tuple'(..))
 
-import qualified Streamly.Internal.Data.Parser.ParserK.Types as K
-
 import Fusion.Plugin.Types (Fuse(..))
 
 import Streamly.Internal.Data.Parser.ParserD.Tee

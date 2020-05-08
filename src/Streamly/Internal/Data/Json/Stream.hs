@@ -194,12 +194,9 @@ parseJsonValue = do
         C_t -> Bool True <$ string "true"
         C_f -> Bool False <$ string "false"
         C_n -> Null <$ string "null"
-        CLOSE_CURLY -> return $ Object HM.empty
-        CLOSE_SQUARE -> return $ Array mempty
         _  | w >= C_0 && w <= C_9 || w == MINUS -> Number <$> parseJsonNumber
            | otherwise ->  do
-            chars40 <- P.take 40 FL.toList
-            error $ "Encountered " ++ fmap (chr . fromIntegral) chars40 ++ " when expecting one of [, {, \", f(alse), t(rue), n(ull)."
+            P.die $ "Encountered " ++ [(chr . fromIntegral) w] ++ " when expecting one of [, {, \", f(alse), t(rue), n(ull)."
 
 {-# INLINE parseJsonMember #-}
 parseJsonMember :: MonadCatch m => Parser m Word8 (JsonString, Value)
@@ -243,4 +240,4 @@ parseJson = P.toParserK $ do
     case w of
         OPEN_CURLY  -> Object <$> parseJsonObject
         OPEN_SQUARE -> Array <$> parseJsonArray
-        _           -> error $ "Encountered " ++ [chr . fromIntegral $ w] ++ " when expection [ or {."
+        _           -> P.die $ "Encountered " ++ [chr . fromIntegral $ w] ++ " when expection [ or {."
