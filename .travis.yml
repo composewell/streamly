@@ -62,7 +62,7 @@ env:
   # If you have not committed packcheck.sh in your repo at PACKCHECK_LOCAL_PATH
   # then it is automatically pulled from this URL.
   - PACKCHECK_GITHUB_URL="https://raw.githubusercontent.com/harendra-kumar/packcheck"
-  - PACKCHECK_GITHUB_COMMIT="b8d39c9cf336e4627e12eb4b1f5827bb7b6afc91"
+  - PACKCHECK_GITHUB_COMMIT="b92970febc2d66e0ed0202254c97c13392461821"
 
 notifications:
   email:
@@ -193,7 +193,8 @@ matrix:
   # Lint e.g. HLINT_COMMANDS="hlint lint src; hlint lint test"
   # --------------------------------------------------------------------------
 
-  - env: BUILD=stack RESOLVER=lts-14.25 HLINT_COMMANDS="hlint lint ."
+  - env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="src"
+  - env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="test benchmarks"
 
   # --------------------------------------------------------------------------
   # Build and send coverage report to coveralls.io using hpc-coveralls.  Add
@@ -216,7 +217,7 @@ matrix:
   allow_failures:
   - env: BUILD=cabal-v2 GHCVER=head GHC_OPTIONS=""
   - env: BUILD=stack RESOLVER=nightly DISABLE_SDIST_BUILD=y DISABLE_DIST_CHECKS=y
-  - env: BUILD=stack RESOLVER=lts-14.25 HLINT_COMMANDS="hlint lint ."
+  - env: BUILD=cabal-v2 HLINT_OPTIONS="lint" HLINT_TARGETS="test benchmarks"
 
 # ------------------------------------------------------------------------
 #  Settings beyond this point are advanced and normally not tweaked
