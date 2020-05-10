@@ -141,39 +141,11 @@ $ stack haddock --no-haddock-deps
 
 For design documentation see the `design` directory.
 
-## Coding
+## Coding Guidelines
 
-### Style
+### Coding Style
 
-As long as possible please try to match the style of the file or the
-surrounding code. For haskell coding style guidelines, please [see this style
-guide](https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md).
-Specifically,
-
-* Please use 4 spaces for indentation.
-* Do not let the code go beyond 80 columns
-
-Indent the `where` clause as follows:
-
-```
-f x = ...
-    where
-
-    f1 = ...
-```
-
-In general, we avoid using a prime on the variable names, e.g. we use `step1`
-instead of `step'`. Numbered indexing is better because it is easier on the
-eyes and we can represent multiple generations of the variables without adding
-more characters e.g. we can write `step2` instead of `step''`.
-
-Use shorter variable names for shorter scopes, use longer variable names for
-bigger scopes.
-
-Imports:
-
-* Import symbols explicitly by names as long as possible
-* Import qualified is there are too many symbols to be imported
+Please see [the Haskell coding style guide](https://github.com/composewell/haskell-dev/blob/master/coding-style.rst).
 
 ### StreamD coding style
 
@@ -204,35 +176,6 @@ name can be. For example, `s` has the shortest scope in the above code, `st`
 has a bigger scope and `state` has the biggest scope.
 
 For better fusion we try to keep a single yield point in the state machine.
-
-### Organization
-
-Use this simple rule to organize functions in a file: `Define before first
-use`. In other words, use the `bottom up style` to organize functions.
-
-One big benefit of this rule is easier type error debugging. Using a single
-block comment, at any point in the file up to the end of the file, you can cut
-the tail and still cleanly compile the remaining head portion of the file.
-
-It is very helpful when we make significant changes to the file. We can start
-compiling a minimal head portion of the file and keep expanding the head by
-just moving the start of commented block further down. This keeps the scope of
-type inference minimal and type errors can be discovered incrementally by
-increasing the scope a little bit at a time.  If you use type signatures on all
-top level declarations then you do not even need to comment out the code.  This
-organization results in a better order of type errors which makes it easier to
-fix them and when necessary, use elimination method by commenting out some code.
-
-Similarly when you put modules in the cabal file in dependency order you can
-do the same there, just comment out a tail of the module list and your library
-will still compile.
-
-Note that this rule does not apply in choosing `let` vs `where` clauses. Use of
-`let`s  leads to bottom up and use of `where`s leads to top down style. But we
-do not encourage `let` over `where`, you can freely use `where` clauses.
-
-Also note that this is not possible in mutually recursive code. The mutually
-recursive code has to be considered a single block.
 
 ### Tricky Parts
 
