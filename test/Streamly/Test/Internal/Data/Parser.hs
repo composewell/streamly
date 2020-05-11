@@ -1,13 +1,15 @@
 module Main (main) where
 
-import Streamly.Internal.Data.Parser as P hiding(die, dieM)
-import Streamly.Internal.Data.Parser.ParserD(die, dieM)
+import Streamly.Internal.Data.Parser as P (fromFold, any, all, yield, yieldM)
+import Streamly.Internal.Data.Parser.ParserD(die, dieM, peek, eof)
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 
 import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, chooseInt, Property, property, listOf)
+import Test.QuickCheck (forAll, chooseInt, Property, property, listOf, vectorOf, (.&&.))
+
+-- Accumulator Tests
 
 testFromFold :: Property
 testFromFold =
@@ -58,6 +60,34 @@ testDieM =
         Right _ -> False
         Left _ -> True
 
+-- Element Parser Tests
+
+testPeek :: Property
+testPeek = 
+    forAll (chooseInt (1, 100)) $ \list_length ->
+        forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
+            case S.parseD peek (S.fromList ls) of
+                Right head_value -> case ls of
+                    head_ls : _ -> head_value == head_ls
+                    _ -> False
+                Left _ -> False
+    .&&.
+    property (case S.parseD peek (S.fromList []) of
+        Right _ -> False
+        Left _ -> True)
+
+testEof :: Property
+testEof = 
+    forAll (chooseInt (1, 100)) $ \list_length ->
+        forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
+            case S.parseD eof (S.fromList ls) of
+                Right _ -> False
+                Left _ -> True
+    .&&.
+    property (case S.parseD eof (S.fromList []) of
+        Right _ -> True
+        Left _ -> False)
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -68,3 +98,7 @@ main = hspec $ do
         prop "test yieldM function" testYieldM
         prop "test die function" testDie
         prop "test dieM function" testDieM
+    
+    describe "test for element parser" $ do
+        prop "test for peek function" testPeek
+        prop "test for eof function" testEof
