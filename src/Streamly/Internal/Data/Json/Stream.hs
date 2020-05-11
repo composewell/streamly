@@ -149,7 +149,7 @@ parseDecimal0 :: MonadCatch m => Parser m Word8 Integer
 parseDecimal0 = do
     h <- P.peek
     n <- P.peek
-    when (h == zero && n - 48 > 9) $ error "Leading zero in a number is not accepted in JSON."
+    when (h == zero && n - 48 > 9) $ P.die "Leading zero in a number is not accepted in JSON."
     P.takeWhile1 (\w -> w - 48 <= 9) foldToInteger
 
 {-# INLINE parseJsonNumber #-}
@@ -171,8 +171,7 @@ parseJsonString = do
     case w of
         DOUBLE_QUOTE -> skip 1 >> return s
         _ -> do
-            chars40 <- P.take 40 FL.toList
-            error (fmap (chr . fromIntegral) chars40 ++ " Not yet implemented to handle escape sequences in String.")
+            P.die $ [(chr . fromIntegral) w] ++ " Not yet implemented to handle escape sequences in String."
 
 {-# INLINE parseJsonValue #-}
 parseJsonValue :: MonadCatch m => Parser m Word8 Value
