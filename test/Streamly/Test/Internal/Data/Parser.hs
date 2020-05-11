@@ -1,12 +1,26 @@
 module Main (main) where
 
-import Streamly.Internal.Data.Parser hiding (die, dieM)
+import Streamly.Internal.Data.Parser as P hiding(die, dieM)
 import Streamly.Internal.Data.Parser.ParserD(die, dieM)
 import qualified Streamly.Internal.Prelude as S
 
 import Test.Hspec(hspec)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, chooseInt, Property, property)
+import Test.QuickCheck (forAll, chooseInt, Property, property, listOf)
+
+testAny :: Property
+testAny =
+    forAll (listOf $ chooseInt (0, 10000)) $ \ls ->
+        case S.parse (P.any (> 5000)) (S.fromList ls) of
+            Right r -> r == (Prelude.any (> 5000) ls)
+            Left _ -> False
+
+testAll :: Property
+testAll =
+    forAll (listOf $ chooseInt (0, 10000)) $ \ls ->
+        case S.parse (P.all (> 5000)) (S.fromList ls) of
+            Right r -> r == (Prelude.all (> 5000) ls)
+            Left _ -> False
 
 testYield :: Property
 testYield = 
@@ -38,6 +52,8 @@ testDieM =
 
 main :: IO ()
 main = hspec $ do
+    prop "test any function" testAny
+    prop "test all function" testAll
     prop "test yield function" testYield
     prop "test yieldM function" testYieldM
     prop "test die function" testDie
