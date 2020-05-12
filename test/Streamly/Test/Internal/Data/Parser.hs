@@ -1,7 +1,6 @@
 module Main (main) where
 
-import Streamly.Internal.Data.Parser as P (fromFold, any, all, yield, yieldM)
-import Streamly.Internal.Data.Parser.ParserD(die, dieM, peek, eof)
+import Streamly.Internal.Data.Parser as P (fromFold, any, all, yield, yieldM, die, dieM, peek, eof)
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 
@@ -49,14 +48,14 @@ testYieldM =
 testDie :: Property
 testDie =
     property $
-    case S.parseD (die "die test") (S.fromList [0 :: Int]) of
+    case S.parse (die "die test") (S.fromList [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
 testDieM :: Property
 testDieM =
     property $
-    case S.parseD (dieM (Right "die test")) (S.fromList [0 :: Int]) of
+    case S.parse (dieM (Right "die test")) (S.fromList [0 :: Int]) of
         Right _ -> False
         Left _ -> True
 
@@ -66,13 +65,13 @@ testPeek :: Property
 testPeek = 
     forAll (chooseInt (1, 100)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
-            case S.parseD peek (S.fromList ls) of
+            case S.parse peek (S.fromList ls) of
                 Right head_value -> case ls of
                     head_ls : _ -> head_value == head_ls
                     _ -> False
                 Left _ -> False
     .&&.
-    property (case S.parseD peek (S.fromList []) of
+    property (case S.parse peek (S.fromList []) of
         Right _ -> False
         Left _ -> True)
 
@@ -80,11 +79,11 @@ testEof :: Property
 testEof = 
     forAll (chooseInt (1, 100)) $ \list_length ->
         forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
-            case S.parseD eof (S.fromList ls) of
+            case S.parse eof (S.fromList ls) of
                 Right _ -> False
                 Left _ -> True
     .&&.
-    property (case S.parseD eof (S.fromList []) of
+    property (case S.parse eof (S.fromList []) of
         Right _ -> True
         Left _ -> False)
 
