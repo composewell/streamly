@@ -1,3 +1,11 @@
+## Unreleased
+
+### Bug Fixes
+
+* `accept*` and `connect` APIs in `Streamly.Network.Inet.TCP` and the `accept`
+  API in `Streamly.Network.Socket` now close the socket if an exception is
+  thrown.
+
 ## 0.7.2
 
 ### Bug Fixes
