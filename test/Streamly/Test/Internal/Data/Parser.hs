@@ -1,6 +1,6 @@
 module Main (main) where
 
-import Streamly.Internal.Data.Parser as P (fromFold, any, all, yield, yieldM, die, dieM, peek, eof)
+import Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 
@@ -87,6 +87,19 @@ testEof =
         Right _ -> True
         Left _ -> False)
 
+testSatisfy :: Property
+testSatisfy = 
+    forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+        case S.parse (satisfy predicate) (S.fromList ls) of
+            Right r -> case ls of
+                [] -> False
+                (x : _) -> predicate x && (r == x)
+            Left _ -> case ls of
+                [] -> True
+                (x : _) -> not $ predicate x
+        where
+            predicate = (>= 5000)
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -101,3 +114,4 @@ main = hspec $ do
     describe "test for element parser" $ do
         prop "test for peek function" testPeek
         prop "test for eof function" testEof
+        prop "test for satisfy function" testSatisfy
