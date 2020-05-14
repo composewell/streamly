@@ -517,7 +517,7 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Exception (Exception, assert)
 import Control.Monad (void)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
+import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Reader (ReaderT)
 import Control.Monad.State.Strict (StateT)
@@ -1215,12 +1215,12 @@ parseD :: MonadThrow m => PRD.Parser m a b -> SerialT m a -> m b
 parseD (PRD.Parser step initial extract) = P.parselMx' step initial extract
 
 {-# INLINE parseK #-}
-parseK :: Monad m => PRK.Parser m a b -> SerialT m a -> m b
+parseK :: MonadThrow m => PRK.Parser m a b -> SerialT m a -> m b
 parseK parser xs = do
     r <- PRK.runParser parser (ZR.fromStream $ K.toStream xs)
                               (\(_, b) -> return b)
     case r of
-        Left err -> error err
+        Left err -> throwM (PRD.ParseError err)
         Right b -> return b
 
 -- | Parse a stream using the supplied 'Parser'.
