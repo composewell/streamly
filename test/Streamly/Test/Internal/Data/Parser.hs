@@ -121,6 +121,39 @@ testTakeEQ =
                     Right parsed_list -> (n <= list_length) && (parsed_list == Prelude.take n ls)
                     Left _ -> n > list_length
 
+testTakeGE :: Property
+testTakeGE =
+    forAll (chooseInt (0, 10000)) $ \n ->
+        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+            let 
+                list_length = Prelude.length ls
+            in
+                case S.parse (P.takeGE n FL.toList) (S.fromList ls) of
+                    Right parsed_list -> (n <= list_length) && (parsed_list == ls)
+                    Left _ -> n > list_length
+
+testTakeWhile :: Property
+testTakeWhile =
+    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
+        case S.parse (P.takeWhile predicate  FL.toList) (S.fromList ls) of
+            Right parsed_list -> parsed_list == Prelude.takeWhile predicate ls
+            Left _ -> False
+        where
+            predicate = (== 0)
+
+testTakeWhile1 :: Property
+testTakeWhile1 =
+    forAll (listOf (chooseInt (0, 1))) $ \ ls ->
+        case S.parse (P.takeWhile1 predicate  FL.toList) (S.fromList ls) of
+            Right parsed_list -> case ls of
+                [] -> False
+                (x : _) -> predicate x && (parsed_list == Prelude.takeWhile predicate ls)
+            Left _ -> case ls of
+                [] -> True
+                (x : _) -> not $ predicate x
+        where
+            predicate = (== 0)
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -140,3 +173,6 @@ main = hspec $ do
     describe "test for sequence parser" $ do
         prop "test for take function" testTake
         prop "test for takeEq function" testTakeEQ
+        prop "test for takeGE function" testTakeGE
+        prop "test for takeWhile function" testTakeWhile
+        prop "test for takeWhile1 function" testTakeWhile1
