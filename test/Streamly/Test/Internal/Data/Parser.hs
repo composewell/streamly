@@ -100,6 +100,27 @@ testSatisfy =
         where
             predicate = (>= 5000)
 
+-- Sequence Parsers Tests
+
+testTake :: Property
+testTake = 
+    forAll (chooseInt (0, 10000)) $ \n ->
+        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+            case S.parse (P.take n FL.toList) (S.fromList ls) of
+                Right parsed_list -> parsed_list == Prelude.take n ls
+                Left _ -> False
+
+testTakeEQ :: Property
+testTakeEQ =
+    forAll (chooseInt (0, 10000)) $ \n ->
+        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+            let 
+                list_length = Prelude.length ls
+            in
+                case S.parse (P.takeEQ n FL.toList) (S.fromList ls) of
+                    Right parsed_list -> (n <= list_length) && (parsed_list == Prelude.take n ls)
+                    Left _ -> n > list_length
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -115,3 +136,7 @@ main = hspec $ do
         prop "test for peek function" testPeek
         prop "test for eof function" testEof
         prop "test for satisfy function" testSatisfy
+
+    describe "test for sequence parser" $ do
+        prop "test for take function" testTake
+        prop "test for takeEq function" testTakeEQ
