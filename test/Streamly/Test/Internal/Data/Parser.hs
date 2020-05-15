@@ -132,6 +132,23 @@ testTakeGE =
                     Right parsed_list -> (n <= list_length) && (parsed_list == ls)
                     Left _ -> n > list_length
 
+testLookAhead :: Property
+testLookAhead =
+    forAll (chooseInt (0, 10000)) $ \n -> 
+        let
+            takeWithoutConsume = lookAhead $ P.take n FL.toList
+            parseTwice = do
+                parsed_list_1 <- takeWithoutConsume
+                parsed_list_2 <- takeWithoutConsume
+                return (parsed_list_1, parsed_list_2)
+        in
+            forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+                case S.parse parseTwice (S.fromList ls) of
+                    Right (ls_1, ls_2) -> (ls_1 == ls_2) && (ls_1 == Prelude.take n ls)
+                    Left _ -> (list_length < n) || (list_length == n && n == 0)
+                        where
+                            list_length = Prelude.length ls
+
 testTakeWhile :: Property
 testTakeWhile =
     forAll (listOf (chooseInt (0, 1))) $ \ ls ->
@@ -174,5 +191,6 @@ main = hspec $ do
         prop "test for take function" testTake
         prop "test for takeEq function" testTakeEQ
         prop "test for takeGE function" testTakeGE
+        prop "test for LookAhead function" testLookAhead
         prop "test for takeWhile function" testTakeWhile
         prop "test for takeWhile1 function" testTakeWhile1

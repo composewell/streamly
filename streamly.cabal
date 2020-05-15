@@ -551,6 +551,7 @@ test-suite internal-data-fold-test
 
 test-suite internal-data-parser-test
   import: test-options
+  ghc-options: -O2
   type: exitcode-stdio-1.0
   main-is: Streamly/Test/Internal/Data/Parser.hs
   js-sources: jsbits/clock.js
