@@ -214,7 +214,7 @@ parseIterate :: MonadCatch m => SerialT m Int -> m ()
 parseIterate =
       S.drain
     . S.map getSum
-    . IP.parseIterate (\b -> (PR.take 2 (FL.mconcatTo b))) (Sum 0)
+    . IP.parseIterate (\b -> (PR.take 2 (FL.sconcat b))) (Sum 0)
     . S.map Sum
 
 -------------------------------------------------------------------------------

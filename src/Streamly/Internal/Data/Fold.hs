@@ -57,9 +57,11 @@ module Streamly.Internal.Data.Fold
     , rollingHashFirstN
     -- , rollingHashLastN
 
+    -- ** Fold Semigroups
+    , sconcat
+
     -- ** Full Folds (Monoidal)
     , mconcat
-    , mconcatTo
     , foldMap
     , foldMapM
 
@@ -610,18 +612,15 @@ rollingHashFirstN n = ltake n rollingHash
 -- Monoidal left folds
 ------------------------------------------------------------------------------
 
--- | 'mappend' the elements of an input stream to a provided starting value.
+-- | Append the elements of an input stream to a provided starting value.
 --
--- > S.fold (FL.mconcatTo 10) (S.map Sum $ S.enumerateFromTo 1 10)
---
--- This could be faster than (fmap (m0 <>) FL.mconcat) especially when we have
--- to perform the operation many times.
+-- > S.fold (FL.sconcat 10) (S.map Sum $ S.enumerateFromTo 1 10)
 --
 -- /Internal/
 --
-{-# INLINE mconcatTo #-}
-mconcatTo :: (Monad m, Monoid a) => a -> Fold m a a
-mconcatTo i = Fold (\x a -> return $ mappend x a) (return i) return
+{-# INLINE sconcat #-}
+sconcat :: (Monad m, Semigroup a) => a -> Fold m a a
+sconcat i = Fold (\x a -> return $ x <> a) (return i) return
 
 -- | Fold an input stream consisting of monoidal elements using 'mappend'
 -- and 'mempty'.
@@ -631,7 +630,7 @@ mconcatTo i = Fold (\x a -> return $ mappend x a) (return i) return
 -- @since 0.7.0
 {-# INLINE mconcat #-}
 mconcat :: (Monad m, Monoid a) => Fold m a a
-mconcat = mconcatTo mempty
+mconcat = sconcat mempty
 
 -- |
 -- > foldMap f = lmap f mconcat
