@@ -3207,7 +3207,7 @@ parseIterate
     -> t m a
     -> t m b
 parseIterate f i m = D.fromStreamD $
-    D.parseIterate (\b -> PRD.fromParserK $ f b) i (D.toStreamD m)
+    D.parseIterate (PRD.fromParserK . f) i (D.toStreamD m)
 
 ------------------------------------------------------------------------------
 -- Grouping/Splitting

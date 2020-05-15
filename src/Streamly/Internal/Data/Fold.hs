@@ -215,10 +215,10 @@ import Data.Int (Int64)
 import Data.Map.Strict (Map)
 
 import Prelude
-       hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
+       hiding (filter, drop, dropWhile, take, takeWhile, zipWith,
                foldl, map, mapM_, sequence, all, any, sum, product, elem,
                notElem, maximum, minimum, head, last, tail, length, null,
-               reverse, iterate, init, and, or, lookup, foldr1, (!!),
+               reverse, iterate, init, and, or, lookup, (!!),
                scanl, scanl1, replicate, concatMap, mconcat, foldMap, unzip,
                span, splitAt, break, mapM)
 
@@ -332,7 +332,7 @@ transform (Pipe pstep1 pstep2 pinitial) (Fold fstep finitial fextract) =
 
     where
 
-    initial = Tuple' <$> return pinitial <*> finitial
+    initial = Tuple' pinitial <$> finitial
     step (Tuple' ps fs) x = do
         r <- pstep1 ps x
         go fs r
@@ -929,7 +929,7 @@ splitAt
 splitAt n (Fold stepL initialL extractL) (Fold stepR initialR extractR) =
     Fold step initial extract
     where
-      initial  = Tuple3' <$> return n <*> initialL <*> initialR
+      initial  = Tuple3' n <$> initialL <*> initialR
 
       step (Tuple3' i xL xR) input =
         if i > 0
@@ -1158,8 +1158,7 @@ foldCons (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
 -- @since 0.7.0
 {-# INLINE distribute #-}
 distribute :: Monad m => [Fold m a b] -> Fold m a [b]
-distribute [] = foldNil
-distribute (x:xs) = foldCons x (distribute xs)
+distribute = foldr foldCons foldNil
 
 -- | Like 'distribute' but for folds that return (), this can be more efficient
 -- than 'distribute' as it does not need to maintain state.
@@ -1173,9 +1172,8 @@ distribute_ fs = Fold step initial extract
     step ss a  = do
         Prelude.mapM_ (\(Fold s i _) -> i >>= \r -> void (s r a)) ss
         return ss
-    extract ss = do
+    extract ss =
         Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
-        return ()
 
 ------------------------------------------------------------------------------
 -- Partitioning
@@ -1235,7 +1233,7 @@ partitionByM f (Fold stepL beginL doneL) (Fold stepR beginR doneR) =
         r <- f a
         case r of
             Left b -> Tuple' <$> stepL xL b <*> return xR
-            Right c -> Tuple' <$> return xL <*> stepR xR c
+            Right c -> Tuple' xL <$> stepR xR c
     done (Tuple' xL xR) = (,) <$> doneL xL <*> doneR xR
 
 -- Note: we could use (a -> Bool) instead of (a -> Either b c), but the latter
@@ -1369,8 +1367,8 @@ demuxWithDefault_ f kv (Fold dstep dinitial dextract) =
     initFold (Fold s i e) = i >>= \r -> return (Fold s (return r) e)
     initial = do
         mp <- Prelude.mapM initFold kv
-        dacc <- dinitial
-        return (Tuple' mp dacc)
+        Tuple' mp <$> dinitial
+
     step (Tuple' mp dacc) a
       | (k, a') <- f a
       = case Map.lookup k mp of

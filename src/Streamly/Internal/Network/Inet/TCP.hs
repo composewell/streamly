@@ -252,7 +252,7 @@ connectionsOnLocalHost = connectionsOnAddr (127,0,0,1)
 connect :: (Word8, Word8, Word8, Word8) -> PortNumber -> IO Socket
 connect addr port = do
     sock <- socket AF_INET Stream defaultProtocol
-    (Net.connect sock $ SockAddrInet port (Net.tupleToHostAddress addr))
+    Net.connect sock (SockAddrInet port (Net.tupleToHostAddress addr))
         `onException` Net.close sock
     return sock
 
