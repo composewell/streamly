@@ -170,6 +170,15 @@ testTakeWhile1 =
                 (x : _) -> not $ predicate x
         where
             predicate = (== 0)
+    
+testSliceSepBy :: Property
+testSliceSepBy =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (sliceSepBy predicate FL.toList) (S.fromList ls) of
+            Right parsed_list -> parsed_list == Prelude.takeWhile (not . predicate) ls
+            Left _ -> False
+        where
+            predicate = (== 1)
 
 main :: IO ()
 main = hspec $ do
@@ -194,3 +203,4 @@ main = hspec $ do
         prop "test for LookAhead function" testLookAhead
         prop "test for takeWhile function" testTakeWhile
         prop "test for takeWhile1 function" testTakeWhile1
+        prop "test for sliceSepBy function" testSliceSepBy
