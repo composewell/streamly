@@ -300,6 +300,16 @@ benchmark Data.Parser
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
+benchmark Data.Builder
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Builder.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
 -------------------------------------------------------------------------------
 -- Raw Streams
 -------------------------------------------------------------------------------

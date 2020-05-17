@@ -412,6 +412,8 @@ library
                      , Streamly.Internal.Data.Time.Units
                      , Streamly.Internal.Data.Time.Clock
                      , Streamly.Internal.Data.SVar
+                     , Streamly.Internal.Data.Builder
+                     , Streamly.Internal.Data.Consable
 
                      -- Memory storage
                      ,  Streamly.Internal.Foreign.Malloc
