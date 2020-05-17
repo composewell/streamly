@@ -1,5 +1,7 @@
 # Internal vs External Modules
 
+## Exposing Internal Modules
+
 We keep all modules exposed to facilitate convenient exposure of experimental
 APIs and constructors to users. It allows users of the library to experiment
 much more easily and carry a caveat that these APIs can change in future
@@ -7,25 +9,31 @@ without notice.  Since everything is exposed, maintainers do not have to think
 about what to expose as experimental and what remains completely hidden every
 time something is added to the library.
 
-We expose the internal modules via `Streamly.Internal` namespace to keep all
+## Internal module Namespace
+
+We expose the internal modules via `Streamly.Internal.*` namespace to keep all
 the internal modules together under one module tree and to have their
 documentation also separated under one head in haddock docs.
 
+## Exposed Modules as Wrappers
+
 Another decision point is about two choices:
 
-1) Keep the implementation of all the APIs in an internal module and just
+* Keep the implementation of all the APIs in an internal module and just
 reexport selected APIs through the external module. The disadvantages of this
 are:
-a) users may not be able to easily figure out what unexposed APIs are available
-other than the ones exposed through the external module. To avoid this problem
-we can mark the unexposed APIs in the docs with a special comment.
-b) In tests and benchmarks we will be using internal modules to test internal
-and unexposed APIs. Since exposed APIs are exported via both internal and
-external modules we will have to be careful in not using the internal module
-for testing accidentally, instead we should always be using the exposed module
-so that we are always testing exactly the way users will be using the APIs.
 
-2) Keep the implementations of unexposed modules in the internal module file
+  1) users may not be able to easily figure out what unexposed APIs are available
+  other than the ones exposed through the external module. To avoid this problem
+  we can mark the unexposed APIs in the docs with a special comment.
+
+  2) In tests and benchmarks we will be using internal modules to test internal
+  and unexposed APIs. Since exposed APIs are exported via both internal and
+  external modules we will have to be careful in not using the internal module
+  for testing accidentally, instead we should always be using the exposed module
+  so that we are always testing exactly the way users will be using the APIs.
+
+* Keep the implementations of unexposed modules in the internal module file
 and exposed module in the external module file. In this approach, users can
 easily figure out the unexposed vs exposed APIs. But maintaining this would
 require us to move the APIs from internal to external module file whenever we
@@ -33,93 +41,104 @@ expose an API.
 
 We choose the first approach.
 
-# Module Name Spaces
-
-We use the "Streamly" prefix to all the module names so that they do not
-conflict with any other module on Hackage.
-
-We have the following module hierarchy under Streamly:
-
-* Data: All the data structures that make use of the unpinned GC memory to
-  store data.  These data structures are suitable for stream processing but
-  may not be suitable for storing large amounts of data in memory for longer
-  durations. These are suitable for short lived and smaller structures
-  because they can be moved by the GC to defragment the heap.
-
-* Memory: This name space is for data structures that make use of the memory as
-  a persistent storage device. The memory may be allocated by foreign
-  allocators or pinned memory allocated by GHC. Because the memory is pinned it
-  can be used for interfacing with the system/kernel. These structures are
-  efficient for storing large amounts of data for longer durations because it
-  does not have to be copied by the GC. These structures may not be suitable
-  for small, short lived data because that is likely to fragment the heap.
-
-* FileSystem: This name space is for data structures that reside in files
-  provided by a file system interface on top of storage devices.
-
-* Network: This name space is for APIs that access data from remote computers
-  over the network.
-
-## Data and Memory
-
-As explained above, we distinguish two types of data structures under "Data"
-and "Memory".  Alternatively, we could have used a "Memory" namespace under
-each data structure e.g.  "Streamly.Data.Array.Memory" instead of using a top
-level "Streamly.Memory", however, we chose to distinguish such data structures
-using a top level "Memory" name space because it enforces consistent naming by
-fitting all such data structures under this top level hierarchy. It also makes
-it easier to find out what all data structures fall in this category.
-
 # Module Types and Naming
 
 ## Abstract modules
 
-Abstract modules are meant to represent an abstract interface (e.g. a type
-class).  Concrete modules can make use of this interface and possibly
-extend it to provide concrete functionality.
+An abstract module represents an abstract interface using a type
+class.  Multiple concrete modules can make use of this interface and possibly
+extend it.
 
-The general convention in the Haskell ecosystem for naming an abstract
-interface module is to name it as "Module.Class" (e.g. Control.Monad.IO.Class).
-An alternative name could be "Module.Interface".
+For example we have an `IsStream` type class that all stream types
+implement.  The concrete stream types are `SerialT`, `AsyncT`
+etc. Assuming `Streamly.Data.Stream` is the containing name space for
+all stream modules, there are multiple ways to organize abstract and
+concrete modules. The `IsStream` type class can be placed in:
 
-In some other cases such modules are named after the class name (e.g. see the
-array package for an example). This is more appropriate when there is no single
-hierarchy where we can place the ".Class" module. For example, we have arrays
-in Data.Array, Memory.Array, we have to choose one over the other to place the
-".Class" module for an array abstraction. Alternatively, we can choose
-"Data.IsArray" instead.
+* `Streamly.Data.Stream.Class` or `Streamly.Data.Stream.Interface`
+* `Streamly.Data.Stream.IsStream`
+* `Streamly.Data.Stream`
 
-Yet another way could be to use the parent module as an interface module and
-the child modules as concrete modules. For example, "Streamly.Data.Stream"
-module could provide the common "Stream" type and the "IsStream" type class.
-The submodule "Streamly.Data.Stream.Serial" can provide a concrete "Serial"
-stream type importing the "Streamly.Data.Stream" abstract module.
+Using `Streamly.Data.Stream.IsStream` is preferred over `.Class` because it
+conveys more information by the class name. We can place it in
+`Streamly.Data.Stream` as well.
 
-## Common Modules
+Concrete modules depend on the abstract module `IsStream` to implement
+that interface.
 
-Some modules represent common types or utility functions that are shared across
-multiple modules. The general convention is to name such modules as
-"Module.Types", "Module.Common", or "Module.Core".
+Polymorphic operations utilizing the abstract interface can go in the
+parent module `Streamly.Data.Stream`.
+
+Concrete/monomorphic pure stream modules would be placed in:
+
+* `Streamly.Data.Stream.Serial`
+* `Streamly.Data.Stream.WSerial`
+* `Streamly.Data.Stream.ZipSerial`
+* ...
+
+Monadic/effectful streams could go in:
+
+* `Streamly.Data.StreamM.Serial`
+* `Streamly.Data.StreamM.WSerial`
+* `Streamly.Data.StreamM.Async`
+* ...
+
+Pure streams are just a special case of monadic streams.
+
+We could possibly use the same type named `Stream` for all stream types, as we
+also have all the operation names also same and we distinguish only by the
+module name.
 
 ## Constrained Modules
 
 Some modules represent operations on a type which constrain a type using a type
-class or a specific instance of a general type.  For example, we may have a
-module representing operations on a stream of any type and another module that
-specifically deals with operations on a Char stream. There are two ways to deal
-with this.
+class or a specific instance of a general type. For example, we may have Arrays
+that operate on a `Storable` or a `Prim` type.
 
-First is to use a submodule for the constrained type. For example,
-`Streamly.Data.Stream` represents a general stream type whereas
-`Streamly.Data.Stream.Char` represents operations on a stream of Char type.
-This makes sense where the type we are constraining to is a specific type
-rather than a type constrained using a type class.
+One possible way to organize such module is to have a `Storable` or `Prim`
+hierarchy and all data structures using that type constraint are bundled under
+it. However, in general, a data structure may have multiple such
+constraints or may have to be organized based on some other dimension
+like an abstract interface it is implementing.
 
-Second is to use a separate hierarchy for the constrained type. For example, we
-could use `Streamly.Data.Array` for a general array and `Streamly.Prim.Array`
-for an array that works on `Prim` types. This makes sense when the type is
-constrained by a type class, we may have more data structures for that
-constrained type to be bundled under that hierarchy.
+General purpose constraints like `Prim` can be defined in their own module
+hierarchy and can be used everywhere. For example, we can have the following
+Array types, here we have organized the types under the `Array` hierarchy
+rather than putting the `PrimArray` under a `Prim` hierarchy.
+
+```
+Streamly.Internal.Data.Array.Boxed
+Streamly.Internal.Data.Array.Prim
+Streamly.Internal.Data.Array.Prim.Pinned
+
+Streamly.Internal.Data.ArrayM.Boxed
+Streamly.Internal.Data.ArrayM.Prim
+Streamly.Internal.Data.ArrayM.Prim.Pinned
+```
+
+Pure arrays are just a special case of mutable arrays.
+
+We use the name `ArrayM` insted of `MArray` consistent with the naming
+of monadic operations like `mapM` and also because `Array` and `ArrayM`
+are listed together in alphabetical listing, plus camel case naming of the
+latter is clearer to read.
+
+We could use an `IsArray` type class, like `IsStream`, but it will
+require the `Prim` constraint on all polymorphic operations, rendering
+it of little use. So the `Array` module, unlike in streams, is just a
+name space placeholder here. We could assign the `Array` module to the
+Boxed array module but, having an explicit `Boxed` module along with
+other types of arrays keeps naming explicit and clearer.
+
+## Common Modules
+
+Some modules represent common types or utility functions that are shared across
+multiple higher level modules. Possible naming for such modules are:
+
+* `Module.Types`
+* `Module.Common`
+* `Module.Core`
+* `Module.Shared`
 
 ## Aggregate modules
 
@@ -132,3 +151,45 @@ the child modules and exposes the functionality from the constituent modules.
 
 In some cases a parent module is just a placeholder in the namespace and does
 not export any functionality.
+
+# Polymorphic vs Monomorphic Modules
+
+In general we can just provide a polymorphic stream API and let the user use it
+at the type he/she wants to use it. However, it has some disadvantages:
+
+* Some constraints e.g. "MonadAsync" are unnecessarily imposed on all APIs even
+  though they are needed by only concurrent types.
+* type errors could be harder to resolve when using polymorphic types
+* combinators like `asyncly` can make all the combinators concurrent in one go
+  which is usually problematic. If we use monorphic combinators it encourages
+  to pick the required concurrent combinators one at a time which is
+  usually better for performance.
+
+Keeping this in mind our plan is to provide monomoprhic modules for each stream
+type, keep the combinators that are specific to that stream type in the
+monomorphic module and combinators that are exactly the same for all stream
+types can be kept in the polymorphic module or in both the modules. Having
+complete set of operations available in the monomorphic module has the
+advantage that if we want we can just import a `Serial` module and get
+everything if we just want to use the Serial stream.
+
+# Streamly Modules
+
+We use the "Streamly" prefix to all the module names so that they do not
+conflict with any other module on Hackage.
+
+We have the following module hierarchy under Streamly:
+
+* Data: This is a generic bucket for basic data structures a la the `base`
+  package's `Data` hierarchy.
+
+* Unicode: Unicode text processing:
+    * Streamly.Unicode.Char
+    * Streamly.Unicode.Stream
+    * Streamly.Unicode.Array
+
+* FileSystem: This name space is for data structures that reside in files
+  provided by a file system interface on top of storage devices.
+
+* Network: This name space is for APIs that access data from remote computers
+  over the network.
