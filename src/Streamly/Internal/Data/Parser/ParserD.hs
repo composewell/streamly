@@ -505,15 +505,17 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
     where
 
     initial = Tuple' 0 <$> finitial
-    step (Tuple' i r) a = do
-        res <- fstep r a
-        let i1 = i + 1
-            s1 = Tuple' i1 res
-        if not (predicate a) && i1 < cnt
-        then return $ Yield 0 s1
-        else do
-            b <- fextract res
-            return $ Stop 0 b
+    step (Tuple' i r) a
+        | not (predicate a) = do
+            res <- fstep r a
+            let i1 = i + 1
+                s1 = Tuple' i1 res
+            if i1 < cnt
+            then return $ Yield 0 s1
+            else do
+                b <- fextract res
+                return $ Stop 0 b
+        | otherwise = Stop 0 <$> fextract r
     extract (Tuple' _ r) = fextract r
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
