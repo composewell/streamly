@@ -182,15 +182,15 @@ sliceSepBy =
         where
             predicate = (== 1)
 
-sliceSepByMax :: Property
-sliceSepByMax = 
-    forAll (chooseInt (0, 10000)) $ \n ->
-        forAll (listOf (chooseInt (0, 1))) $ \ls ->
-            case S.parseD (D.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
-                Right parsed_list -> parsed_list == Prelude.take n (Prelude.takeWhile (not . predicate) ls)
-                Left _ -> False
-            where
-                predicate = (== 1)
+-- sliceSepByMax :: Property
+-- sliceSepByMax = 
+--     forAll (chooseInt (0, 10000)) $ \n ->
+--         forAll (listOf (chooseInt (0, 1))) $ \ls ->
+--             case S.parseD (D.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
+--                 Right parsed_list -> parsed_list == Prelude.take n (Prelude.takeWhile (not . predicate) ls)
+--                 Left _ -> False
+--             where
+--                 predicate = (== 1)
 
 splitWith :: Property
 splitWith =
@@ -238,17 +238,17 @@ teeWith =
         Right _ -> False
         Left _ -> True)
 
-deintercalate :: Property
-deintercalate = 
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        case S.parseD (D.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
-            Right parsed_list_tuple -> parsed_list_tuple == partition (== 0) ls
-            Left _ -> False
+-- deintercalate :: Property
+-- deintercalate = 
+--     forAll (listOf (chooseInt (0, 1))) $ \ls ->
+--         case S.parseD (D.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
+--             Right parsed_list_tuple -> parsed_list_tuple == partition (== 0) ls
+--             Left _ -> False
 
-        where
-            prsr_1 = (D.takeWhile (== 0) FL.toList)
-            prsr_2 = (D.takeWhile (== 1) FL.toList)
-            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+--         where
+--             prsr_1 = (D.takeWhile (== 0) FL.toList)
+--             prsr_2 = (D.takeWhile (== 1) FL.toList)
+--             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
 
 main :: IO ()
 main = hspec $ do
