@@ -250,6 +250,30 @@ sliceSepBy =
 --             prsr_2 = (P.takeWhile (== 1) FL.toList)
 --             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
 
+-- shortest :: Property
+-- shortest =
+--     forAll (listOf (chooseInt(0, 10000))) $ \ls ->
+--         let
+--             prsr_1 = P.takeWhile (<= 2500) FL.toList
+--             prsr_2 = P.takeWhile (<= 5000) FL.toList
+--             prsr_shortest = P.shortest prsr_1 prsr_2
+--         in
+--             case S.parse prsr_shortest (S.fromList ls) of
+--                 Right short_list -> short_list == Prelude.takeWhile (<= 2500) ls
+--                 Left _ -> False
+--     .&&.
+--     property (case S.parse (P.shortest (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+--     .&&.
+--     property (case S.parse (P.shortest (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right r -> r == 1
+--         Left _ -> False)
+--     .&&.
+--     property (case S.parse (P.shortest (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -278,3 +302,4 @@ main = hspec $ do
         -- prop "test for splitWith function" splitWith
         -- prop "test for teeWith function" teeWith
         -- prop "test for deintercalate function" deintercalate
+        -- prop "test for shortest function" shortest
