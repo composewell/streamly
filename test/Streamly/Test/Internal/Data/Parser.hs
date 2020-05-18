@@ -4,6 +4,8 @@ import qualified Streamly.Internal.Data.Parser as P
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 
+import Data.List (partition)
+
 import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, chooseInt, Property, property, listOf, vectorOf, (.&&.))
@@ -180,6 +182,74 @@ sliceSepBy =
         where
             predicate = (== 1)
 
+sliceSepByMax :: Property
+sliceSepByMax = 
+    forAll (chooseInt (0, 10000)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            case S.parse (P.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
+                Right parsed_list -> parsed_list == Prelude.take n (Prelude.takeWhile (not . predicate) ls)
+                Left _ -> False
+            where
+                predicate = (== 1)
+
+splitWith :: Property
+splitWith =
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
+            Right (result_first, result_second) -> case ls of
+                0 : 1 : _ -> (result_first == 0) && (result_second == 1)
+                _ -> False
+            Left _ -> case ls of
+                0 : 1 : _ -> False
+                _ -> True
+    .&&.
+    property (case S.parse (P.splitWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+    .&&.
+    property (case S.parse (P.splitWith (,) (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+    .&&.
+    property (case S.parse (P.splitWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+teeWith :: Property
+teeWith = 
+    forAll (chooseInt (0, 10000)) $ \n ->
+        forAll (listOf (chooseInt (0, 1))) $ \ls ->
+            let
+                prsr = P.take n FL.toList
+            in
+                case S.parse (P.teeWith (,) prsr prsr) (S.fromList ls) of
+                    Right (ls_1, ls_2) -> (Prelude.take n ls == ls_1) && (ls_1 == ls_2)
+                    Left _ -> False
+    .&&.
+    property (case S.parse (P.teeWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+    .&&.
+    property (case S.parse (P.teeWith (,) (P.yield (1 :: Int)) (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+    .&&.
+    property (case S.parse (P.teeWith (,) (P.die "die") (P.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
+
+deintercalate :: Property
+deintercalate = 
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        case S.parse (P.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
+            Right parsed_list_tuple -> parsed_list_tuple == partition (== 0) ls
+            Left _ -> False
+
+        where
+            prsr_1 = (P.takeWhile (== 0) FL.toList)
+            prsr_2 = (P.takeWhile (== 1) FL.toList)
+            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -204,3 +274,7 @@ main = hspec $ do
         prop "test for takeWhile function" Main.takeWhile
         prop "test for takeWhile1 function" takeWhile1
         prop "test for sliceSepBy function" sliceSepBy
+        -- prop "test for sliceSepByMax function" sliceSepByMax
+        -- prop "test for splitWith function" splitWith
+        -- prop "test for teeWith function" teeWith
+        -- prop "test for deintercalate function" deintercalate
