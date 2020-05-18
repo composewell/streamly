@@ -284,6 +284,36 @@ longest =
         Right _ -> False
         Left _ -> True)
 
+many :: Property
+many = 
+    forAll (listOf (chooseInt (0, 1))) $ \ls ->
+        let
+            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+            prsr = D.many concatFold $ D.sliceSepBy (== 1) FL.toList
+        in
+            case S.parseD prsr (S.fromList ls) of
+                Right res_list -> res_list == Prelude.filter (== 0) ls
+                Left _ -> False
+    .&&.
+    property (case S.parseD (D.many FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
+        Right res_list -> res_list == ([] :: [Int])
+        Left _ -> False)
+
+-- some :: Property
+-- some = 
+--     forAll (listOf (chooseInt (0, 1))) $ \ls ->
+--         let
+--             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+--             prsr = D.some concatFold $ D.sliceSepBy (== 1) FL.toList
+--         in
+--             case S.parseD prsr (S.fromList ls) of
+--                 Right res_list -> res_list == Prelude.filter (== 0) ls
+--                 Left _ -> False
+--     .&&.
+--     property (case S.parseD (D.some FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
+
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
@@ -313,3 +343,5 @@ main = hspec $ do
         prop "test for teeWith function" teeWith
         prop "test for shortest function" shortest
         prop "test for longest function" longest
+        prop "test for many function" many
+        -- prop "test for some function" some
