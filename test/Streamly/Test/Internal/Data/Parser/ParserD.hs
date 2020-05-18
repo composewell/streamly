@@ -4,8 +4,6 @@ import qualified Streamly.Internal.Data.Parser.ParserD as D
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Fold as FL
 
-import Data.List (partition)
-
 import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, chooseInt, Property, property, listOf, vectorOf, (.&&.))
@@ -238,17 +236,53 @@ teeWith =
         Right _ -> False
         Left _ -> True)
 
--- deintercalate :: Property
--- deintercalate = 
---     forAll (listOf (chooseInt (0, 1))) $ \ls ->
---         case S.parseD (D.deintercalate concatFold prsr_1 concatFold prsr_2) (S.fromList ls) of
---             Right parsed_list_tuple -> parsed_list_tuple == partition (== 0) ls
---             Left _ -> False
+shortest :: Property
+shortest =
+    forAll (listOf (chooseInt(0, 10000))) $ \ls ->
+        let
+            prsr_1 = D.takeWhile (<= 2500) FL.toList
+            prsr_2 = D.takeWhile (<= 5000) FL.toList
+            prsr_shortest = D.shortest prsr_1 prsr_2
+        in
+            case S.parseD prsr_shortest (S.fromList ls) of
+                Right short_list -> short_list == Prelude.takeWhile (<= 2500) ls
+                Left _ -> False
+    .&&.
+    property (case S.parseD (D.shortest (D.die "die") (D.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+    .&&.
+    property (case S.parseD (D.shortest (D.yield (1 :: Int)) (D.die "die")) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+    .&&.
+    property (case S.parseD (D.shortest (D.die "die") (D.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
 
---         where
---             prsr_1 = (D.takeWhile (== 0) FL.toList)
---             prsr_2 = (D.takeWhile (== 1) FL.toList)
---             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+longest :: Property
+longest =
+    forAll (listOf (chooseInt(0, 10000))) $ \ls ->
+        let
+            prsr_1 = D.takeWhile (<= 2500) FL.toList
+            prsr_2 = D.takeWhile (<= 5000) FL.toList
+            prsr_longest = D.longest prsr_1 prsr_2
+        in
+            case S.parseD prsr_longest (S.fromList ls) of
+                Right long_list -> long_list == Prelude.takeWhile (<= 5000) ls
+                Left _ -> False
+    .&&.
+    property (case S.parseD (D.shortest (D.die "die") (D.yield (1 :: Int))) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+    .&&.
+    property (case S.parseD (D.shortest (D.yield (1 :: Int)) (D.die "die")) (S.fromList [1 :: Int]) of
+        Right r -> r == 1
+        Left _ -> False)
+    .&&.
+    property (case S.parseD (D.shortest (D.die "die") (D.die "die")) (S.fromList [1 :: Int]) of
+        Right _ -> False
+        Left _ -> True)
 
 main :: IO ()
 main = hspec $ do
@@ -277,4 +311,5 @@ main = hspec $ do
         -- prop "test for sliceSepByMax function" sliceSepByMax
         prop "test for splitWith function" splitWith
         prop "test for teeWith function" teeWith
-        -- prop "test for deintercalate function" deintercalate
+        prop "test for shortest function" shortest
+        prop "test for longest function" longest
