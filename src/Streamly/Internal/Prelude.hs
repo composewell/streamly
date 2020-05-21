@@ -51,6 +51,15 @@ module Streamly.Internal.Prelude
     , enumerate
     , enumerateTo
 
+    -- ** Time Enumeration
+    , times
+    , absTimes
+    , relTimes
+    , durations
+    , ticks
+    , timeout
+    , currentTime
+
     -- ** From Generators
     , unfoldr
     , unfoldrM
@@ -67,9 +76,6 @@ module Streamly.Internal.Prelude
     , fromFoldableM
     , fromPrimVar
     , fromCallback
-
-    -- ** Time related
-    , currentTime
 
     -- * Elimination
 
@@ -261,7 +267,7 @@ module Streamly.Internal.Prelude
     -- ** Indexing
     , indexed
     , indexedR
-    -- , timestamped
+    , timestamped
     -- , timestampedR -- timer
 
     -- ** Reordering
@@ -549,7 +555,7 @@ import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
 import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
 -- import Streamly.Memory.Ring (Ring)
-import Streamly.Internal.Data.SVar (MonadAsync, defState)
+import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
 import Streamly.Internal.Data.Stream.Prelude
        (fromStreamS, toStreamS, foldWith, foldMapWith, forEachWith)
@@ -560,7 +566,7 @@ import Streamly.Internal.Data.Stream.Zip (ZipSerialM)
 import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, toRelTime,
-       toAbsTime, TimeUnit64)
+       toAbsTime, TimeUnit64, RelTime64, addToAbsTime64)
 import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
 
 import Streamly.Internal.Data.Strict
@@ -997,29 +1003,98 @@ fromCallback setCallback = concatM $ do
 -- Time related
 ------------------------------------------------------------------------------
 
--- XXX Some related/interesting combinators:
+-- | @times g@ returns a stream of time value tuples. The first component of
+-- the tuple is an absolute time reference denoting the start of the stream
+-- and the second component is a time relative to the reference.
 --
--- 1) emit the relative time elapsed since last evaluation. That would just be
--- a rollingMap on the currentTime stream.
---
--- 2) Generate ticks at specified interval. Drop ticks when blocked.
--- ticks :: Double -> t m ()
---
--- 3) Emit relative time at specified tick interval. If a tick is dropped
--- combine the interval with the next tick.
--- ticks :: Double -> t m RelTime
---
--- | @currentTime g@ returns a stream of absolute timestamps using a clock of
--- granularity @g@ specified in seconds. A low granularity clock is more
--- expensive in terms of CPU usage.
+-- The argument @g@ specifies the granularity of the relative time in seconds.
+-- A lower granularity clock gives higher precision but is more expensive in
+-- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
 --
 -- Note: This API is not safe on 32-bit machines.
 --
 -- /Internal/
 --
+{-# INLINE times #-}
+times :: (IsStream t, MonadAsync m) => Double -> t m (AbsTime, RelTime64)
+times g = fromStreamD $ D.times g
+
+-- TBD: rename to clock/absTimes?
+--
+-- | @absTimes g@ returns a stream of absolute timestamps using a clock of
+-- granularity @g@ specified in seconds. A low granularity clock is more
+-- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
+-- as 1 ms.
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE absTimes #-}
+absTimes :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m AbsTime
+absTimes = fmap (uncurry addToAbsTime64) . times
+
+{-# DEPRECATED currentTime "Please use absTimes instead" #-}
 {-# INLINE currentTime #-}
-currentTime :: (IsStream t, MonadAsync m) => Double -> t m AbsTime
-currentTime g = fromStreamD $ D.currentTime g
+currentTime :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m AbsTime
+currentTime = absTimes
+
+-- | @relTimes g@ returns a stream of relative time values starting from 0,
+-- using a clock of granularity @g@ specified in seconds. A low granularity
+-- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
+-- ms is treated as 1 ms.
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE relTimes #-}
+relTimes :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m RelTime64
+relTimes = fmap snd . times
+
+-- | @durations g@ returns a stream of relative time values measuring the time
+-- elapsed since the immediate predecessor element of the stream was generated.
+-- The first element of the stream is always 0. @durations@ uses a clock of
+-- granularity @g@ specified in seconds. A low granularity clock is more
+-- expensive in terms of CPU usage. The minimum granularity is 1 millisecond.
+-- Durations lower than 1 ms will be 0.
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Unimplemented/
+--
+{-# INLINE durations #-}
+durations :: -- (IsStream t, MonadAsync m) =>
+    Double -> t m RelTime64
+durations = undefined
+
+-- | Generate ticks at the specified rate. The rate is adaptive, the tick
+-- generation speed can be increased or decreased at different times to achieve
+-- the specified rate.  The specific behavior for different styles of 'Rate'
+-- specifications is documented under 'Rate'.  The effective maximum rate
+-- achieved by a stream is governed by the processor speed.
+--
+-- /Unimplemented/
+--
+{-# INLINE ticks #-}
+ticks :: -- (IsStream t, MonadAsync m) =>
+    Rate -> t m ()
+ticks = undefined
+
+-- | Generate a singleton event at or after the specified absolute time. Note
+-- that this is different from a threadDelay, a threadDelay starts from the
+-- time when the action is evaluated, whereas if we use AbsTime based timeout
+-- it will immediately expire if the action is evaluated too late.
+--
+-- /Unimplemented/
+--
+{-# INLINE timeout #-}
+timeout :: -- (IsStream t, MonadAsync m) =>
+    AbsTime -> t m ()
+timeout = undefined
 
 ------------------------------------------------------------------------------
 -- Elimination by Folding
@@ -2105,8 +2180,13 @@ postscan (Fold step begin done) = P.postscanlMx' step begin done
 -- Stateful Transformations
 ------------------------------------------------------------------------------
 
+-- XXX this is not a one-to-one map so calling it map may not be right.
+-- We can perhaps call it zipWithTail or rollWith.
+--
 -- | Apply a function on every two successive elements of a stream. If the
 -- stream consists of a single element the output is an empty stream.
+--
+-- This is the stream equivalent of the list idiom @zipWith f xs (tail xs)@.
 --
 -- /Internal/
 --
@@ -2552,6 +2632,17 @@ indexed = fromStreamD . D.indexed . toStreamD
 {-# INLINE indexedR #-}
 indexedR :: (IsStream t, Monad m) => Int -> t m a -> t m (Int, a)
 indexedR n = fromStreamD . D.indexedR n . toStreamD
+
+-- TBD: check performance vs a custom implementation without using zipWith.
+--
+-- | Pair each element in a stream with the current wall clock timestamp.
+--
+-- /Internal/
+--
+{-# INLINE timestamped #-}
+timestamped :: (IsStream t, MonadAsync m)
+    => Double -> t m a -> t m (AbsTime, a)
+timestamped g = Z.zipWith (,) (absTimes g)
 
 ------------------------------------------------------------------------------
 -- Comparison
@@ -4184,14 +4275,14 @@ classifySessionsBy
     -> Fold m a (Either b b) -- ^ Fold to be applied to session events
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b) -- ^ session key, fold result
-classifySessionsBy tick timeout reset ejectPred
+classifySessionsBy tick tmout reset ejectPred
     (Fold step initial extract) str =
       concatMap sessionOutputStream
     $ scanlM' sstep szero stream
 
     where
 
-    timeoutMs = toRelTime (round (timeout * 1000) :: MilliSecond64)
+    timeoutMs = toRelTime (round (tmout * 1000) :: MilliSecond64)
     tickMs = toRelTime (round (tick * 1000) :: MilliSecond64)
     szero = SessionState
         { sessionCurTime = toAbsTime (0 :: MilliSecond64)
@@ -4392,8 +4483,8 @@ classifyKeepAliveSessions
     -> Fold m a (Either b b) -- ^ Fold to be applied to session payload data
     -> t m (k, a, AbsTime) -- ^ session key, data, timestamp
     -> t m (k, b)
-classifyKeepAliveSessions timeout =
-    classifySessionsBy 1 timeout True
+classifyKeepAliveSessions tmout =
+    classifySessionsBy 1 tmout True
 
 ------------------------------------------------------------------------------
 -- Keyed tumbling windows

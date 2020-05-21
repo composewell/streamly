@@ -94,7 +94,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , enumerateFromThenToFractional
 
     -- ** Time
-    , currentTime
+    , times
 
     -- ** Conversions
     -- | Transform an input structure into a stream.
@@ -358,7 +358,7 @@ import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Mutable.Prim.Var
        (Prim, Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
-       (TimeUnit64, toRelTime64, diffAbsTime64)
+       (TimeUnit64, toRelTime64, diffAbsTime64, RelTime64)
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
 import Streamly.Internal.Memory.Array.Types (Array(..))
@@ -4583,27 +4583,39 @@ dropByTime duration (Stream step1 state1) = Stream step (DropByTimeInit state1)
              Skip s -> Skip (DropByTimeYield s)
              Stop -> Stop
 
--- XXX we should move this to stream generation section of this file. Also, the
--- take/drop combinators above should be moved to filtering section.
-{-# INLINE_NORMAL currentTime #-}
-currentTime :: MonadAsync m => Double -> Stream m AbsTime
-currentTime g = Stream step Nothing
+{-# INLINE updateTimeVar #-}
+updateTimeVar :: Var IO Int64 -> IO ()
+updateTimeVar timeVar = do
+    MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
+    modifyVar' timeVar (const t)
+
+{-# INLINE updateWithDelay #-}
+updateWithDelay :: RealFrac a => a -> Var IO Int64 -> IO ()
+updateWithDelay precision timeVar = do
+    threadDelay (delayTime precision)
+    updateTimeVar timeVar
 
     where
 
-    g' = g * 10 ^ (6 :: Int)
-
-    -- XXX should have a minimum granularity to avoid high CPU usage?
+    -- Keep the minimum at least a millisecond to avoid high CPU usage
     {-# INLINE delayTime #-}
-    delayTime =
-        if g' >= fromIntegral (maxBound :: Int)
-        then maxBound
-        else round g'
+    delayTime g
+        | g' >= fromIntegral (maxBound :: Int) = maxBound
+        | g' < 1000 = 1000
+        | otherwise =  round g'
 
-    updateTimeVar timeVar = do
-        threadDelay $ delayTime
-        MicroSecond64 t <- fromAbsTime <$> getTime Monotonic
-        modifyVar' timeVar (const t)
+        where
+
+        g' = g * 10 ^ (6 :: Int)
+
+-- XXX we should move this to stream generation section of this file. Also, the
+-- take/drop combinators above should be moved to filtering section.
+
+{-# INLINE_NORMAL times #-}
+times :: MonadAsync m => Double -> Stream m (AbsTime, RelTime64)
+times g = Stream step Nothing
+
+    where
 
     {-# INLINE_LATE step #-}
     step _ Nothing = do
@@ -4611,12 +4623,15 @@ currentTime g = Stream step Nothing
         -- machine a 64-bit 'Var' cannot be read consistently without a lock
         -- while another thread is writing to it.
         timeVar <- liftIO $ newVar (0 :: Int64)
-        tid <- forkManaged $ liftIO $ forever (updateTimeVar timeVar)
-        return $ Skip $ Just (timeVar, tid)
+        liftIO $ updateTimeVar timeVar
+        tid <- forkManaged $ liftIO $ forever (updateWithDelay g timeVar)
+        a <- liftIO $ readVar timeVar
+        return $ Skip $ Just (timeVar, tid, a)
 
-    step _ s@(Just (timeVar, _)) = do
+    step _ s@(Just (timeVar, _, t0)) = do
         a <- liftIO $ readVar timeVar
         -- XXX we can perhaps use an AbsTime64 using a 64 bit Int for
         -- efficiency.  or maybe we can use a representation using Double for
         -- floating precision time
-        return $ Yield (toAbsTime (MicroSecond64 a)) s
+        return $ Yield (toAbsTime (MicroSecond64 t0),
+            (toRelTime64 (MicroSecond64 (a - t0)))) s
