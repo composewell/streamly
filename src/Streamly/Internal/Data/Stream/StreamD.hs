@@ -269,8 +269,10 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- * Inserting
     , intersperseM
+    , intersperseM_
     , intersperse
     , intersperseSuffix
+    , intersperseSuffix_
     , intersperseSuffixBySpan
     , insertBy
 
@@ -4023,6 +4025,20 @@ intersperseM m (Stream step state) = Stream step' (FirstYield state)
 
     step' _ (YieldAndCarry x st) = return $ Yield x (InterspersingYield st)
 
+{-# INLINE_NORMAL intersperseM_ #-}
+intersperseM_ :: Monad m => m b -> Stream m a -> Stream m a
+intersperseM_ m (Stream step1 state1) = Stream step (Left (pure (), state1))
+  where
+    {-# INLINE_LATE step #-}
+    step gst (Left (eff, st)) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> eff >> return (Yield x (Right s))
+            Skip s -> return $ Skip (Left (eff, s))
+            Stop -> return Stop
+
+    step _ (Right st) = return $ Skip $ Left (void m, st)
+
 data SuffixState s a
     = SuffixElem s
     | SuffixSuffix s
@@ -4044,6 +4060,20 @@ intersperseSuffix action (Stream step state) = Stream step' (SuffixElem state)
         action >>= \r -> return $ Skip (SuffixYield r (SuffixElem st))
 
     step' _ (SuffixYield x next) = return $ Yield x next
+
+{-# INLINE_NORMAL intersperseSuffix_ #-}
+intersperseSuffix_ :: Monad m => m b -> Stream m a -> Stream m a
+intersperseSuffix_ m (Stream step1 state1) = Stream step (Left state1)
+  where
+    {-# INLINE_LATE step #-}
+    step gst (Left st) = do
+        r <- step1 gst st
+        case r of
+            Yield x s -> return $ Yield x (Right s)
+            Skip s -> return $ Skip $ Left s
+            Stop -> m >> return Stop
+
+    step _ (Right st) = m >> return (Skip (Left st))
 
 data SuffixSpanState s a
     = SuffixSpanElem s Int

@@ -191,6 +191,7 @@ module Streamly.Internal.Prelude
     -- ** Special Maps
     , mapM_
     , trace
+    , trace_
     , tap
     , tapOffsetEvery
     , tapAsync
@@ -252,8 +253,10 @@ module Streamly.Internal.Prelude
 
     , insertBy
     , intersperseM
+    , intersperseM_
     , intersperse
     , intersperseSuffix
+    , interspersePrefix_
     , intersperseSuffixBySpan
     -- , intersperseBySpan
     -- , intersperseByIndices -- using an index function/stream
@@ -263,6 +266,7 @@ module Streamly.Internal.Prelude
     -- , intersperseByEvent
     , interjectSuffix
     , delayPost
+    , delayPre
 
     -- ** Indexing
     , indexed
@@ -2458,13 +2462,21 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 -- intersperseM = intersperseBySpan 1
 
--- | Generate a stream by inserting the result of a monadic action between
--- consecutive elements of the given stream. Note that the monadic action is
--- performed after the stream action before which its result is inserted.
+-- | Insert the result of an effectful action between consecutive elements of
+-- the stream.
 --
 -- @
--- > S.toList $ S.intersperseM (return ',') $ S.fromList "hello"
--- "h,e,l,l,o"
+-- >>> S.toList $ S.trace putChar $ S.intersperseM (putChar '.' >> return ',') $ S.fromList "hello"
+-- > h.,e.,l.,l.,o"h,e,l,l,o"
+-- @
+--
+-- After yielding the first element, for every next element the effectful
+-- action is evaluated /after/ generating the element, however, its result is
+-- yielded /before/ the element.
+--
+-- @
+-- > S.toList $ S.intersperseM (putChar '.' >> return ',') $ S.trace putChar $ S.fromList "hello"
+-- he.l.l.o."h,e,l,l,o"
 -- @
 --
 -- @since 0.5.0
@@ -2472,8 +2484,27 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 
--- | Generate a stream by inserting a given element between consecutive
--- elements of the given stream.
+-- | Insert a side effect between consecutive elements of the stream.
+--
+-- @
+-- >>> S.drain $ S.trace putChar $ S.intersperseM_ (putChar '.') $ S.fromList "hello"
+-- > h.e.l.l.o
+-- @
+--
+-- After yielding the first element, for every next element the effect
+-- is evaluated after generating the element but before yielding it.
+--
+-- @
+-- >>> S.drain $ S.intersperseM_ (putChar '.') $ S.trace putChar $ S.fromList "hello"
+-- > he.l.l.o.
+-- @
+--
+-- /Internal/
+{-# INLINE intersperseM_ #-}
+intersperseM_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
+intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
+
+-- | Insert a pure value between successive elements of a stream.
 --
 -- @
 -- > S.toList $ S.intersperse ',' $ S.fromList "hello"
@@ -2485,16 +2516,19 @@ intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
 intersperse a = fromStreamS . S.intersperse a . toStreamS
 
--- | Insert a monadic action after each element in the stream.
+-- | Insert an effectful action after each element of a stream.
+--
+-- @
+-- >>> S.toList $ S.trace putChar $ S.intersperseSuffix (putChar '.' >> return ',') $ S.fromList "hello"
+-- > h.,e.,l.,l.,o.,"h,e,l,l,o,"
+-- @
 --
 -- /Internal/
 {-# INLINE intersperseSuffix #-}
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 
--- | Perform a side effect after each element of a stream. The output of the
--- effectful action is discarded, therefore, the input stream remains
--- unchanged.
+-- | Insert a side effect after each element of a stream.
 --
 -- @
 -- > S.mapM_ putChar $ S.intersperseSuffix_ (threadDelay 1000000) $ S.fromList "hello"
@@ -2504,9 +2538,28 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 --
 {-# INLINE intersperseSuffix_ #-}
 intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
-intersperseSuffix_ m = Serial.mapM (\x -> void m >> return x)
+intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 
--- | Introduces a delay of specified seconds after each element of a stream.
+-- | Insert a side effect before each element of a stream.
+--
+-- @
+-- >>> S.toList $ S.trace putChar $ S.interspersePrefix_ (putChar '.' >> return ',') $ S.fromList "hello"
+-- > .h.e.l.l.o"hello"
+-- @
+--
+-- See also: 'trace_'
+--
+-- /Concurrent/
+--
+-- /Internal/
+--
+{-# INLINE interspersePrefix_ #-}
+interspersePrefix_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
+interspersePrefix_ m = mapM (\x -> void m >> return x)
+
+-- Note: delay must be serial.
+--
+-- | Introduce a delay of specified seconds after each element of a stream.
 --
 -- /Internal/
 --
@@ -2514,8 +2567,18 @@ intersperseSuffix_ m = Serial.mapM (\x -> void m >> return x)
 delayPost :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
 delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 
--- | Like 'intersperseSuffix' but intersperses a monadic action into the input
--- stream after every @n@ elements and after the last element.
+-- Note: delay must be serial, that's why 'trace_' is used.
+--
+-- | Introduce a delay of specified seconds before each element of a stream.
+--
+-- /Internal/
+--
+{-# INLINE delayPre #-}
+delayPre :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
+delayPre n = trace_ $ liftIO $ threadDelay $ round $ n * 1000000
+
+-- | Like 'intersperseSuffix' but intersperses an effectful action into the
+-- input stream after every @n@ elements and after the last element.
 --
 -- @
 -- > S.toList $ S.intersperseSuffixBySpan 2 (return ',') $ S.fromList "hello"
@@ -4093,6 +4156,22 @@ tapRate n f xs = D.fromStreamD $ D.tapRate n f $ D.toStreamD xs
 {-# INLINE trace #-}
 trace :: (IsStream t, MonadAsync m) => (a -> m b) -> t m a -> t m a
 trace f = mapM (\x -> void (f x) >> return x)
+
+-- | Perform a side effect before yielding each element of the stream and
+-- discard the results.
+--
+-- @
+-- > S.drain $ S.trace_ (print "got here") (S.enumerateFromTo 1 2)
+-- "got here"
+-- "got here"
+-- @
+--
+-- See also: 'trace', 'interspersePrefix_'
+--
+-- /Internal/
+{-# INLINE trace_ #-}
+trace_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
+trace_ eff = Serial.mapM (\x -> eff >> return x)
 
 ------------------------------------------------------------------------------
 -- Windowed classification
