@@ -280,34 +280,38 @@ instance TimeUnit64 NanoSecond64 where
 
 instance TimeUnit MicroSecond64 where
     {-# INLINE toTimeSpec #-}
-    toTimeSpec (MicroSecond64 t) = TimeSpec s us
+    toTimeSpec (MicroSecond64 t) = TimeSpec s (us * tenPower3)
         where (s, us) = t `divMod` tenPower6
 
     {-# INLINE fromTimeSpec #-}
-    fromTimeSpec (TimeSpec s us) =
-        MicroSecond64 $ s * tenPower6 + us
+    fromTimeSpec (TimeSpec s ns) =
+        -- XXX round ns to nearest microsecond?
+        MicroSecond64 $ s * tenPower6 + (ns `div` tenPower3)
 
 instance TimeUnit64 MicroSecond64 where
     {-# INLINE toNanoSecond64 #-}
     toNanoSecond64 (MicroSecond64 us) = NanoSecond64 $ us * tenPower3
 
     {-# INLINE fromNanoSecond64 #-}
+    -- XXX round ns to nearest microsecond?
     fromNanoSecond64 (NanoSecond64 ns) = MicroSecond64 $ ns `div` tenPower3
 
 instance TimeUnit MilliSecond64 where
     {-# INLINE toTimeSpec #-}
-    toTimeSpec (MilliSecond64 t) = TimeSpec s us
-        where (s, us) = t `divMod` tenPower3
+    toTimeSpec (MilliSecond64 t) = TimeSpec s (ms * tenPower6)
+        where (s, ms) = t `divMod` tenPower3
 
     {-# INLINE fromTimeSpec #-}
-    fromTimeSpec (TimeSpec s us) =
-        MilliSecond64 $ s * tenPower3 + us
+    fromTimeSpec (TimeSpec s ns) =
+        -- XXX round ns to nearest millisecond?
+        MilliSecond64 $ s * tenPower3 + (ns `div` tenPower6)
 
 instance TimeUnit64 MilliSecond64 where
     {-# INLINE toNanoSecond64 #-}
-    toNanoSecond64 (MilliSecond64 us) = NanoSecond64 $ us * tenPower6
+    toNanoSecond64 (MilliSecond64 ms) = NanoSecond64 $ ms * tenPower6
 
     {-# INLINE fromNanoSecond64 #-}
+    -- XXX round ns to nearest millisecond?
     fromNanoSecond64 (NanoSecond64 ns) = MilliSecond64 $ ns `div` tenPower6
 
 -------------------------------------------------------------------------------
