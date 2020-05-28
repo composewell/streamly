@@ -4687,7 +4687,7 @@ classifySessionsBy tick tmout reset ejectPred
                     return (hp, mp, out, cnt)
 
     -- merge timer events in the stream
-    stream = Serial.map Just str `Par.parallel` repeatM timer
+    stream = Serial.map Just str `Par.parallelFst` repeatM timer
     timer = do
         liftIO $ threadDelay (round $ tick * 1000000)
         return Nothing
@@ -4759,6 +4759,15 @@ classifyChunksOf wsize = classifyChunksBy wsize False
 --
 -- @
 -- classifySessionsOf interval pred = classifySessionsBy 1 interval False pred
+-- @
+--
+-- @
+-- >>> S.mapM_ print
+--   $ S.classifySessionsOf 3 (const (return False)) (fmap Right FL.toList)
+--   $ S.map (\(ts,(k,a)) -> (k, a, ts))
+--   $ S.timestamped
+--   $ S.delay 1
+--   $ (,) <$> S.fromList [1,2,3] <*> S.fromList [1,2,3]
 -- @
 --
 -- /Internal/
