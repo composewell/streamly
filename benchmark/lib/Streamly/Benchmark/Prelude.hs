@@ -11,6 +11,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 
 #ifdef __HADDOCK_VERSION__
 #undef INSPECTION
@@ -48,7 +49,7 @@ module Streamly.Benchmark.Prelude
 
     , o_1_space_zipSerial_transformation
 
-    , o_n_space_serial_toList
+    , o_n_space_serial_toContainers
     , o_n_space_serial_outerProductStreams
 
     , o_n_space_wSerial_outerProductStreams
@@ -101,9 +102,9 @@ import GHC.Generics (Generic)
 import System.Random (randomRIO)
 import Prelude
        (Monad, String, Int, (+), ($), (.), return, even, (>), (<=), (==), (>=),
-        subtract, undefined, Maybe(..), Bool, not, (>>=), curry,
+        subtract, undefined, Maybe(..), Bool(..), not, (>>=), curry,
         maxBound, div, IO, compare, Double, fromIntegral, Integer, (<$>),
-        (<*>), flip, sqrt, round, (*), seq)
+        (<*>), flip, sqrt, round, (*), seq, const, Either(..))
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -548,6 +549,15 @@ tapAsync n = composeN n $ Internal.tapAsync FL.sum
 {-# INLINE timestamped #-}
 timestamped :: (S.MonadAsync m) => Stream m Int -> m ()
 timestamped = transform . Internal.timestamped
+
+{-# INLINE classifySessionsOf #-}
+classifySessionsOf :: (S.MonadAsync m) => Stream m Int -> m ()
+classifySessionsOf =
+      transform
+    . IP.classifySessionsOf 3 (const (return False)) (P.fmap Right FL.drain)
+    . S.map (\(ts,(k,a)) -> (k, a, ts))
+    . IP.timestamped
+    . S.concatMap (\x -> S.map (x,) (S.enumerateFromTo 1 (10 :: Int)))
 
 {-# INLINE mapMaybe #-}
 mapMaybe :: MonadIO m => Int -> Stream m Int -> m ()
@@ -2128,8 +2138,8 @@ o_1_space_zipSerial_transformation value =
 -- Serial : O(n) Space
 -------------------------------------------------------------------------------
 
-o_n_space_serial_toList :: Int -> [Benchmark]
-o_n_space_serial_toList value =
+o_n_space_serial_toContainers :: Int -> [Benchmark]
+o_n_space_serial_toContainers value =
     [ bgroup
           "serially"
           [ bgroup
@@ -2141,6 +2151,8 @@ o_n_space_serial_toList value =
           -- , benchIOSink value "toPure" toPure
           -- , benchIOSink value "toPureRev" toPureRev
                 ]
+          , benchIOSink (value `div` 10) "classifySessionsOf"
+              classifySessionsOf
           ]
     ]
 
