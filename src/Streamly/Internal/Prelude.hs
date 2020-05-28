@@ -256,6 +256,7 @@ module Streamly.Internal.Prelude
     , intersperseM_
     , intersperse
     , intersperseSuffix
+    , intersperseSuffix_
     , interspersePrefix_
     , intersperseSuffixBySpan
     -- , intersperseBySpan
@@ -265,6 +266,7 @@ module Streamly.Internal.Prelude
     -- , intersperseByTime
     -- , intersperseByEvent
     , interjectSuffix
+    , delay
     , delayPost
     , delayPre
 
@@ -272,6 +274,7 @@ module Streamly.Internal.Prelude
     , indexed
     , indexedR
     , timestamped
+    , timeIndexed
     -- , timestampedR -- timer
 
     -- ** Reordering
@@ -1007,57 +1010,123 @@ fromCallback setCallback = concatM $ do
 -- Time related
 ------------------------------------------------------------------------------
 
--- | @times g@ returns a stream of time value tuples. The first component of
--- the tuple is an absolute time reference denoting the start of the stream
--- and the second component is a time relative to the reference.
+-- | @timesWith g@ returns a stream of time value tuples. The first component
+-- of the tuple is an absolute time reference (epoch) denoting the start of the
+-- stream and the second component is a time relative to the reference.
 --
 -- The argument @g@ specifies the granularity of the relative time in seconds.
 -- A lower granularity clock gives higher precision but is more expensive in
 -- terms of CPU usage. Any granularity lower than 1 ms is treated as 1 ms.
+--
+-- @
+-- >>> S.mapM_ (\x -> print x >> threadDelay 1000000) $ S.timesWith 0.01
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 0))
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1002028000))
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1996656000))
+-- @
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE timesWith #-}
+timesWith :: (IsStream t, MonadAsync m) => Double -> t m (AbsTime, RelTime64)
+timesWith g = fromStreamD $ D.times g
+
+-- | @times@ returns a stream of time value tuples with clock of 10 ms
+-- granularity. The first component of the tuple is an absolute time reference
+-- (epoch) denoting the start of the stream and the second component is a time
+-- relative to the reference.
+--
+-- @
+-- >>> S.mapM_ (\x -> print x >> threadDelay 1000000) $ S.times
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 0))
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1002028000))
+-- > (AbsTime (TimeSpec {sec = 2496295, nsec = 536223000}),RelTime64 (NanoSecond64 1996656000))
+-- @
 --
 -- Note: This API is not safe on 32-bit machines.
 --
 -- /Internal/
 --
 {-# INLINE times #-}
-times :: (IsStream t, MonadAsync m) => Double -> t m (AbsTime, RelTime64)
-times g = fromStreamD $ D.times g
+times :: (IsStream t, MonadAsync m) => t m (AbsTime, RelTime64)
+times = timesWith 0.01
 
--- TBD: rename to clock/absTimes?
---
--- | @absTimes g@ returns a stream of absolute timestamps using a clock of
+-- | @absTimesWith g@ returns a stream of absolute timestamps using a clock of
 -- granularity @g@ specified in seconds. A low granularity clock is more
 -- expensive in terms of CPU usage.  Any granularity lower than 1 ms is treated
 -- as 1 ms.
+--
+-- @
+-- >>> S.mapM_ print $ S.delayPre 1 $ S.absTimesWith 0.01
+-- @
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE absTimesWith #-}
+absTimesWith :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m AbsTime
+absTimesWith = fmap (uncurry addToAbsTime64) . timesWith
+
+-- | @absTimes@ returns a stream of absolute timestamps using a clock of 10 ms
+-- granularity.
+--
+-- @
+-- >>> S.mapM_ print $ S.delayPre 1 $ S.absTimes
+-- @
 --
 -- Note: This API is not safe on 32-bit machines.
 --
 -- /Internal/
 --
 {-# INLINE absTimes #-}
-absTimes :: (IsStream t, MonadAsync m, Functor (t m))
-    => Double -> t m AbsTime
-absTimes = fmap (uncurry addToAbsTime64) . times
+absTimes :: (IsStream t, MonadAsync m, Functor (t m)) => t m AbsTime
+absTimes = fmap (uncurry addToAbsTime64) times
 
 {-# DEPRECATED currentTime "Please use absTimes instead" #-}
 {-# INLINE currentTime #-}
 currentTime :: (IsStream t, MonadAsync m, Functor (t m))
     => Double -> t m AbsTime
-currentTime = absTimes
+currentTime = absTimesWith
 
--- | @relTimes g@ returns a stream of relative time values starting from 0,
+-- | @relTimesWith g@ returns a stream of relative time values starting from 0,
 -- using a clock of granularity @g@ specified in seconds. A low granularity
 -- clock is more expensive in terms of CPU usage.  Any granularity lower than 1
 -- ms is treated as 1 ms.
+--
+-- @
+-- >>> S.mapM_ print $ S.delayPre 1 $ S.relTimesWith 0.01
+-- > RelTime64 (NanoSecond64 0)
+-- > RelTime64 (NanoSecond64 91139000)
+-- > RelTime64 (NanoSecond64 204052000)
+-- @
+--
+-- Note: This API is not safe on 32-bit machines.
+--
+-- /Internal/
+--
+{-# INLINE relTimesWith #-}
+relTimesWith :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m RelTime64
+relTimesWith = fmap snd . timesWith
+
+-- | @relTimes@ returns a stream of relative time values starting from 0,
+-- using a clock of granularity 10 ms.
+--
+-- @
+-- >>> S.mapM_ print $ S.delayPre 1 $ S.relTimes
+-- @
 --
 -- Note: This API is not safe on 32-bit machines.
 --
 -- /Internal/
 --
 {-# INLINE relTimes #-}
-relTimes :: (IsStream t, MonadAsync m, Functor (t m))
-    => Double -> t m RelTime64
-relTimes = fmap snd . times
+relTimes :: (IsStream t, MonadAsync m, Functor (t m)) => t m RelTime64
+relTimes = fmap snd times
 
 -- | @durations g@ returns a stream of relative time values measuring the time
 -- elapsed since the immediate predecessor element of the stream was generated.
@@ -2462,21 +2531,12 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 -- intersperseM = intersperseBySpan 1
 
--- | Insert the result of an effectful action between consecutive elements of
--- the stream.
+-- | Insert an effect and its output before consuming an element of a stream
+-- except the first one.
 --
 -- @
 -- >>> S.toList $ S.trace putChar $ S.intersperseM (putChar '.' >> return ',') $ S.fromList "hello"
 -- > h.,e.,l.,l.,o"h,e,l,l,o"
--- @
---
--- After yielding the first element, for every next element the effectful
--- action is evaluated /after/ generating the element, however, its result is
--- yielded /before/ the element.
---
--- @
--- > S.toList $ S.intersperseM (putChar '.' >> return ',') $ S.trace putChar $ S.fromList "hello"
--- he.l.l.o."h,e,l,l,o"
 -- @
 --
 -- @since 0.5.0
@@ -2484,24 +2544,17 @@ reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 intersperseM :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseM m = fromStreamS . S.intersperseM m . toStreamS
 
--- | Insert a side effect between consecutive elements of the stream.
+-- | Insert a side effect before consuming an element of a stream except the
+-- first one.
 --
 -- @
 -- >>> S.drain $ S.trace putChar $ S.intersperseM_ (putChar '.') $ S.fromList "hello"
 -- > h.e.l.l.o
 -- @
 --
--- After yielding the first element, for every next element the effect
--- is evaluated after generating the element but before yielding it.
---
--- @
--- >>> S.drain $ S.intersperseM_ (putChar '.') $ S.trace putChar $ S.fromList "hello"
--- > he.l.l.o.
--- @
---
 -- /Internal/
 {-# INLINE intersperseM_ #-}
-intersperseM_ :: (IsStream t, MonadAsync m) => m b -> t m a -> t m a
+intersperseM_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 
 -- | Insert a pure value between successive elements of a stream.
@@ -2516,7 +2569,7 @@ intersperseM_ m = fromStreamD . D.intersperseM_ m . toStreamD
 intersperse :: (IsStream t, MonadAsync m) => a -> t m a -> t m a
 intersperse a = fromStreamS . S.intersperse a . toStreamS
 
--- | Insert an effectful action after each element of a stream.
+-- | Insert an effect and its output after consuming an element of a stream.
 --
 -- @
 -- >>> S.toList $ S.trace putChar $ S.intersperseSuffix (putChar '.' >> return ',') $ S.fromList "hello"
@@ -2528,7 +2581,7 @@ intersperse a = fromStreamS . S.intersperse a . toStreamS
 intersperseSuffix :: (IsStream t, MonadAsync m) => m a -> t m a -> t m a
 intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 
--- | Insert a side effect after each element of a stream.
+-- | Insert a side effect after consuming an element of a stream.
 --
 -- @
 -- > S.mapM_ putChar $ S.intersperseSuffix_ (threadDelay 1000000) $ S.fromList "hello"
@@ -2540,7 +2593,7 @@ intersperseSuffix m = fromStreamD . D.intersperseSuffix m . toStreamD
 intersperseSuffix_ :: (IsStream t, Monad m) => m b -> t m a -> t m a
 intersperseSuffix_ m = fromStreamD . D.intersperseSuffix_ m . toStreamD
 
--- | Insert a side effect before each element of a stream.
+-- | Insert a side effect before consuming an element of a stream.
 --
 -- @
 -- >>> S.toList $ S.trace putChar $ S.interspersePrefix_ (putChar '.' >> return ',') $ S.fromList "hello"
@@ -2559,7 +2612,33 @@ interspersePrefix_ m = mapM (\x -> void m >> return x)
 
 -- Note: delay must be serial.
 --
--- | Introduce a delay of specified seconds after each element of a stream.
+-- | Introduce a delay of specified seconds before consuming an element of the
+-- stream except the first one.
+--
+-- @
+-- >>> S.mapM_ print $ S.timestamped $ S.delay 1 $ S.enumerateFromTo 1 3
+-- > (AbsTime (TimeSpec {sec = 2502706, nsec = 751137000}),1)
+-- > (AbsTime (TimeSpec {sec = 2502707, nsec = 743535000}),2)
+-- > (AbsTime (TimeSpec {sec = 2502708, nsec = 749758000}),3)
+-- @
+--
+-- /Internal/
+--
+{-# INLINE delay #-}
+delay :: (IsStream t, MonadIO m) => Double -> t m a -> t m a
+delay n = intersperseM_ $ liftIO $ threadDelay $ round $ n * 1000000
+
+-- Note: delay must be serial.
+--
+-- | Introduce a delay of specified seconds after consuming an element of a
+-- stream.
+--
+-- @
+-- >>> S.mapM_ print $ S.timestamped $ S.delayPost 1 $ S.enumerateFromTo 1 3
+-- > (AbsTime (TimeSpec {sec = 2502826, nsec = 119030000}),1)
+-- > (AbsTime (TimeSpec {sec = 2502827, nsec = 111393000}),2)
+-- > (AbsTime (TimeSpec {sec = 2502828, nsec = 112221000}),3)
+-- @
 --
 -- /Internal/
 --
@@ -2569,7 +2648,15 @@ delayPost n = intersperseSuffix_ $ liftIO $ threadDelay $ round $ n * 1000000
 
 -- Note: delay must be serial, that's why 'trace_' is used.
 --
--- | Introduce a delay of specified seconds before each element of a stream.
+-- | Introduce a delay of specified seconds before consuming an element of a
+-- stream.
+--
+-- @
+-- >>> S.mapM_ print $ S.timestamped $ S.delayPre 1 $ S.enumerateFromTo 1 3
+-- > (AbsTime (TimeSpec {sec = 2502207, nsec = 533177000}),1)
+-- > (AbsTime (TimeSpec {sec = 2502208, nsec = 530859000}),2)
+-- > (AbsTime (TimeSpec {sec = 2502209, nsec = 531619000}),3)
+-- @
 --
 -- /Internal/
 --
@@ -2696,16 +2783,80 @@ indexed = fromStreamD . D.indexed . toStreamD
 indexedR :: (IsStream t, Monad m) => Int -> t m a -> t m (Int, a)
 indexedR n = fromStreamD . D.indexedR n . toStreamD
 
+-- Note: The timestamp stream must be the second stream in the zip so that the
+-- timestamp is generated after generating the stream element and not before.
+-- If we do not do that then the following example will generate the same
+-- timestamp for first two elements:
+--
+-- S.mapM_ print $ S.timestamped $ S.delay $ S.enumerateFromTo 1 3
+--
+-- | Pair each element in a stream with an absolute timestamp, using a clock of
+-- specified granularity.  The timestamp is generated just before the element
+-- is consumed.
+--
+-- @
+-- >>> S.mapM_ print $ S.timestampWith 0.01 $ S.delay 1 $ S.enumerateFromTo 1 3
+-- @
+--
+-- /Internal/
+--
+{-# INLINE timestampWith #-}
+timestampWith :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m a -> t m (AbsTime, a)
+timestampWith g stream = Z.zipWith (flip (,)) stream (absTimesWith g)
+
 -- TBD: check performance vs a custom implementation without using zipWith.
 --
--- | Pair each element in a stream with the current wall clock timestamp.
+-- | Pair each element in a stream with an absolute timestamp, using a clock of
+-- 10 ms granularity.  The timestamp is generated just before the element is
+-- consumed.
+--
+-- @
+-- >>> S.mapM_ print $ S.timestamped $ S.delay 1 $ S.enumerateFromTo 1 3
+-- (AbsTime (TimeSpec {sec = 2460689, nsec = 641121000}),1)
+-- (AbsTime (TimeSpec {sec = 2460690, nsec = 639334000}),2)
+-- (AbsTime (TimeSpec {sec = 2460691, nsec = 644479000}),3)
+-- @
 --
 -- /Internal/
 --
 {-# INLINE timestamped #-}
-timestamped :: (IsStream t, MonadAsync m)
-    => Double -> t m a -> t m (AbsTime, a)
-timestamped g = Z.zipWith (,) (absTimes g)
+timestamped :: (IsStream t, MonadAsync m, Functor (t m))
+    => t m a -> t m (AbsTime, a)
+timestamped = timestampWith 0.01
+
+-- | Pair each element in a stream with relative times starting from 0, using a
+-- clock with the specified granularity. The time is measured just before the
+-- element is consumed.
+--
+-- @
+-- >>> S.mapM_ print $ S.timeIndexWith 0.01 $ S.delay 1 $ S.enumerateFromTo 1 3
+-- @
+--
+-- /Internal/
+--
+{-# INLINE timeIndexWith #-}
+timeIndexWith :: (IsStream t, MonadAsync m, Functor (t m))
+    => Double -> t m a -> t m (RelTime64, a)
+timeIndexWith g stream = Z.zipWith (flip (,)) stream (relTimesWith g)
+
+-- | Pair each element in a stream with relative times starting from 0, using a
+-- 10 ms granularity clock. The time is measured just before the element is
+-- consumed.
+--
+-- @
+-- >>> S.mapM_ print $ S.timeIndexed $ S.delay 1 $ S.enumerateFromTo 1 3
+-- (RelTime64 (NanoSecond64 0),1)
+-- (RelTime64 (NanoSecond64 996239000),2)
+-- (RelTime64 (NanoSecond64 1996712000),3)
+-- @
+--
+-- /Internal/
+--
+{-# INLINE timeIndexed #-}
+timeIndexed :: (IsStream t, MonadAsync m, Functor (t m))
+    => t m a -> t m (RelTime64, a)
+timeIndexed = timeIndexWith 0.01
 
 ------------------------------------------------------------------------------
 -- Comparison

@@ -4071,7 +4071,7 @@ intersperseSuffix_ m (Stream step1 state1) = Stream step (Left state1)
         case r of
             Yield x s -> return $ Yield x (Right s)
             Skip s -> return $ Skip $ Left s
-            Stop -> m >> return Stop
+            Stop -> return Stop
 
     step _ (Right st) = m >> return (Skip (Left st))
 

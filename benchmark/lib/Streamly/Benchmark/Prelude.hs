@@ -262,12 +262,10 @@ sourceFromFoldable value n = S.fromFoldable [n..n+value]
 sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceFromFoldableM value n = S.fromFoldableM (P.fmap return [n..n+value])
 
-{-# INLINE times #-}
-times :: (S.IsStream t, S.MonadAsync m)
-    => Int -> Double -> Int -> t m AbsTime
-times value g _ = S.take value
-    $ S.map (\(a,r) -> addToAbsTime64 a r)
-    $ Internal.times g
+{-# INLINE absTimes #-}
+absTimes :: (S.IsStream t, S.MonadAsync m)
+    => Int -> Int -> t m AbsTime
+absTimes value _ = S.take value $ Internal.absTimes
 
 -------------------------------------------------------------------------------
 -- Elimination
@@ -548,8 +546,8 @@ tapAsync :: S.MonadAsync m => Int -> Stream m Int -> m ()
 tapAsync n = composeN n $ Internal.tapAsync FL.sum
 
 {-# INLINE timestamped #-}
-timestamped :: (S.MonadAsync m) => Double -> Stream m Int -> m ()
-timestamped g = transform . Internal.timestamped g
+timestamped :: (S.MonadAsync m) => Stream m Int -> m ()
+timestamped = transform . Internal.timestamped
 
 {-# INLINE mapMaybe #-}
 mapMaybe :: MonadIO m => Int -> Stream m Int -> m ()
@@ -1662,8 +1660,8 @@ o_1_space_serial_generation value =
                       serially
                       "fromFoldableM"
                       (sourceFromFoldableM value)
-                , benchIOSrc serially "times/0.001s" $
-                  times value 0.001
+                , benchIOSrc serially "absTimes" $
+                  absTimes value
                 ]
           ]
     ]
@@ -1844,7 +1842,7 @@ o_1_space_serial_transformation value =
                 , benchIOSink value "pollCounts 1 second" (pollCounts 1)
                 , benchIOSink value "tapAsync" (tapAsync 1)
                 , benchIOSink value "tapAsyncS" (tapAsyncS 1)
-                , benchIOSink value "timestamped/0.001s" (timestamped 0.001)
+                , benchIOSink value "timestamped" timestamped
                 ]
           ]
     ]
