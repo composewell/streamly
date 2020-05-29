@@ -585,6 +585,7 @@ import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Unfold as UF
 
 #ifdef USE_STREAMK_ONLY
 import qualified Streamly.Internal.Data.Stream.StreamK as S
@@ -4478,7 +4479,7 @@ data SessionState t m k a b = SessionState
     , sessionCount :: !Int -- ^ total number sessions in progress
     , sessionTimerHeap :: H.Heap (H.Entry AbsTime k) -- ^ heap for timeouts
     , sessionKeyValueMap :: Map.Map k a -- ^ Stored sessions for keys
-    , sessionOutputStream :: t (m :: Type -> Type) (k, b) -- ^ Completed sessions
+    , sessionOutputStream :: K.Stream (m :: Type -> Type) (k, b) -- ^ Completed sessions
     }
 
 #undef Type
@@ -4526,7 +4527,8 @@ classifySessionsBy
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick tmout reset ejectPred
     (Fold step initial extract) str =
-    concatMap sessionOutputStream $
+    -- concatMap sessionOutputStream $
+    concatUnfold (UF.lmap sessionOutputStream UF.fromStreamK) $
         scanlMAfter' sstep (return szero) flush stream
 
     where
