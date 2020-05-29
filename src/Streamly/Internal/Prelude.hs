@@ -4479,7 +4479,7 @@ data SessionState t m k a b = SessionState
     , sessionCount :: !Int -- ^ total number sessions in progress
     , sessionTimerHeap :: H.Heap (H.Entry AbsTime k) -- ^ heap for timeouts
     , sessionKeyValueMap :: Map.Map k a -- ^ Stored sessions for keys
-    , sessionOutputStream :: K.Stream (m :: Type -> Type) (k, b) -- ^ Completed sessions
+    , sessionOutputStream :: [(k, b)] -- ^ Completed sessions
     }
 
 #undef Type
@@ -4527,8 +4527,7 @@ classifySessionsBy
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick tmout reset ejectPred
     (Fold step initial extract) str =
-    -- concatMap sessionOutputStream $
-    concatUnfold (UF.lmap sessionOutputStream UF.fromStreamK) $
+    concatUnfold (UF.lmap sessionOutputStream UF.fromList) $
         scanlMAfter' sstep (return szero) flush stream
 
     where
@@ -4541,7 +4540,7 @@ classifySessionsBy tick tmout reset ejectPred
         , sessionCount = 0
         , sessionTimerHeap = H.empty
         , sessionKeyValueMap = Map.empty
-        , sessionOutputStream = K.nil
+        , sessionOutputStream = []
         }
 
     -- We can eject sessions based on the current session count to limit
@@ -4596,12 +4595,12 @@ classifySessionsBy tick tmout reset ejectPred
                     , sessionEventTime = curTime
                     , sessionCount = cnt
                     , sessionKeyValueMap = mp
-                    , sessionOutputStream = yield (key, x)
+                    , sessionOutputStream = [(key, x)]
                     }
             Right _ -> do
                 (hp1, mp1, out1, cnt1) <- do
                         let vars = (sessionTimerHeap, sessionKeyValueMap,
-                                           K.nil, sessionCount)
+                                           [], sessionCount)
                         case mOld of
                             -- inserting new entry
                             Nothing -> do
@@ -4639,7 +4638,7 @@ classifySessionsBy tick tmout reset ejectPred
             ejectAll
                 ( sessionTimerHeap
                 , sessionKeyValueMap
-                , K.nil
+                , []
                 , sessionCount
                 )
         return $ session
@@ -4657,7 +4656,7 @@ classifySessionsBy tick tmout reset ejectPred
     -- delete from map and output the fold accumulator
     ejectEntry hp mp out cnt acc key = do
         sess <- extract acc
-        let out1 = (key, fromEither sess) `K.cons` out
+        let out1 = (key, fromEither sess) : out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)
 
@@ -4693,7 +4692,7 @@ classifySessionsBy tick tmout reset ejectPred
 
     ejectExpired session@SessionState{..} curTime = do
         (hp', mp', out, count) <-
-            ejectLoop sessionTimerHeap sessionKeyValueMap K.nil sessionCount
+            ejectLoop sessionTimerHeap sessionKeyValueMap [] sessionCount
         return $ session
             { sessionCurTime = curTime
             , sessionCount = count
