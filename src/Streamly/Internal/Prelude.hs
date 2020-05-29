@@ -202,6 +202,7 @@ module Streamly.Internal.Prelude
     -- ** Left scans
     , scanl'
     , scanlM'
+    , scanlMAfter'
     , postscanl'
     , postscanlM'
     , prescanl'
@@ -2124,6 +2125,23 @@ scanx = P.scanlx'
 {-# INLINE scanlM' #-}
 scanlM' :: (IsStream t, Monad m) => (b -> a -> m b) -> b -> t m a -> t m b
 scanlM' step begin m = fromStreamD $ D.scanlM' step begin $ toStreamD m
+
+-- | @scanlMAfter' accumulate initial done stream@ is like 'scanlM'' except
+-- that it provides an additional @done@ function to be applied on the
+-- accumulator when the stream stops. The result of @done@ is also emitted in
+-- the stream.
+--
+-- This function can be used to allocate a resource in the beginning of the
+-- scan and release it when the stream ends or to flush the internal state of
+-- the scan at the end.
+--
+-- /Internal/
+--
+{-# INLINE scanlMAfter' #-}
+scanlMAfter' :: (IsStream t, Monad m)
+    => (b -> a -> m b) -> m b -> (b -> m b) -> t m a -> t m b
+scanlMAfter' step initial done stream =
+    fromStreamD $ D.scanlMAfter' step initial done $ toStreamD stream
 
 -- | Strict left scan. Like 'map', 'scanl'' too is a one to one transformation,
 -- however it adds an extra element.
@@ -4507,8 +4525,8 @@ classifySessionsBy
     -> t m (k, b) -- ^ session key, fold result
 classifySessionsBy tick tmout reset ejectPred
     (Fold step initial extract) str =
-      concatMap sessionOutputStream
-    $ scanlM' sstep szero stream
+    concatMap sessionOutputStream $
+        scanlMAfter' sstep (return szero) flush stream
 
     where
 
@@ -4613,6 +4631,21 @@ classifySessionsBy tick tmout reset ejectPred
         let curTime = addToAbsTime sessionCurTime tickMs
         in ejectExpired sessionState curTime
 
+    flush session@SessionState{..} = do
+        (hp', mp', out, count) <-
+            ejectAll
+                ( sessionTimerHeap
+                , sessionKeyValueMap
+                , K.nil
+                , sessionCount
+                )
+        return $ session
+            { sessionCount = count
+            , sessionTimerHeap = hp'
+            , sessionKeyValueMap = mp'
+            , sessionOutputStream = out
+            }
+
     fromEither e =
         case e of
             Left  x -> x
@@ -4624,6 +4657,18 @@ classifySessionsBy tick tmout reset ejectPred
         let out1 = (key, fromEither sess) `K.cons` out
         let mp1 = Map.delete key mp
         return (hp, mp1, out1, cnt - 1)
+
+    ejectAll (hp, mp, out, !cnt) = do
+        let hres = H.uncons hp
+        case hres of
+            Just (Entry _ key, hp1) -> do
+                r <- case Map.lookup key mp of
+                    Nothing -> return (hp1, mp, out, cnt)
+                    Just (Tuple' _ acc) -> ejectEntry hp1 mp out cnt acc key
+                ejectAll r
+            Nothing -> do
+                assert (Map.null mp) (return ())
+                return (hp, mp, out, cnt)
 
     ejectOne (hp, mp, out, !cnt) = do
         let hres = H.uncons hp

@@ -226,6 +226,7 @@ module Streamly.Internal.Data.Stream.StreamD
 
     -- ** By folding (scans)
     , scanlM'
+    , scanlMAfter'
     , scanl'
     , scanlM
     , scanl
@@ -241,6 +242,7 @@ module Streamly.Internal.Data.Stream.StreamD
     , postscanlM
     , postscanl'
     , postscanlM'
+    , postscanlMAfter'
 
     , postscanlx'
     , postscanlMx'
@@ -3609,6 +3611,31 @@ postscanlM' fstep begin (Stream step state) =
 postscanl' :: Monad m => (a -> b -> a) -> a -> Stream m b -> Stream m a
 postscanl' f = postscanlM' (\a b -> return (f a b))
 
+-- We can possibly have the "done" function as a Maybe to provide an option to
+-- emit or not emit the accumulator when the stream stops.
+--
+-- TBD: use a single Yield point
+--
+{-# INLINE_NORMAL postscanlMAfter' #-}
+postscanlMAfter' :: Monad m
+    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+postscanlMAfter' fstep initial done (Stream step1 state1) = do
+    Stream step (Just (state1, initial))
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Just (st, acc)) = do
+        r <- step1 (adaptState gst) st
+        case r of
+            Yield x s -> do
+                old <- acc
+                y <- fstep old x
+                y `seq` return (Yield y (Just (s, return y)))
+            Skip s -> return $ Skip $ Just (s, acc)
+            Stop -> acc >>= done >>= \res -> return (Yield res Nothing)
+    step _ Nothing = return Stop
+
 {-# INLINE_NORMAL postscanlM #-}
 postscanlM :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 postscanlM fstep begin (Stream step state) = Stream step' (state, begin)
@@ -3630,6 +3657,13 @@ postscanl f = postscanlM (\a b -> return (f a b))
 {-# INLINE_NORMAL scanlM' #-}
 scanlM' :: Monad m => (b -> a -> m b) -> b -> Stream m a -> Stream m b
 scanlM' fstep begin s = begin `seq` (begin `cons` postscanlM' fstep begin s)
+
+{-# INLINE scanlMAfter' #-}
+scanlMAfter' :: Monad m
+    => (b -> a -> m b) -> m b -> (b -> m b) -> Stream m a -> Stream m b
+scanlMAfter' fstep initial done s =
+    (initial >>= \x -> x `seq` return x) `consM`
+        postscanlMAfter' fstep initial done s
 
 {-# INLINE scanl' #-}
 scanl' :: Monad m => (b -> a -> b) -> b -> Stream m a -> Stream m b
