@@ -3038,6 +3038,7 @@ concatMapWith = K.concatMapBy
 -- @
 -- concatMap = 'concatMapWith' 'Serial.serial'
 -- concatMap f = 'concatMapM' (return . f)
+-- concatMap f = 'concatUnfold' (UF.lmap f UF.fromStream)
 -- @
 --
 -- @since 0.6.0
