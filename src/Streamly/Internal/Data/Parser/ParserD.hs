@@ -553,16 +553,16 @@ eqBy cmp str = Parser step initial extract
 
     initial = return str
 
-    step [] _ = error "Bug: unreachable"
+    step [] _ = return $ Stop 0 ()
     step [x] a = return $
         if x `cmp` a
         then Stop 0 ()
-        else Error "eqBy: failed, at the last element"
+        else Error "eqBy: failed, yet to match the last element"
     step (x:xs) a = return $
         if x `cmp` a
         then Skip 0 xs
         else Error $
-            "eqBy: failed, yet to match " ++ show (length xs) ++ " elements"
+            "eqBy: failed, yet to match " ++ show (length xs + 1) ++ " elements"
 
     extract xs = throwM $ ParseError $
         "eqBy: end of input, yet to match " ++ show (length xs) ++ " elements"

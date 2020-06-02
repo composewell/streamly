@@ -570,6 +570,11 @@ groupBy = undefined
 
 -- | Match the given sequence of elements using the given comparison function.
 --
+-- >>> S.parse $ S.eqBy (==) "string" $ S.fromList "string"
+--
+-- >>> S.parse $ S.eqBy (==) "mismatch" $ S.fromList "match"
+-- > *** Exception: ParseError "eqBy: failed, yet to match 7 elements"
+--
 -- /Internal/
 --
 {-# INLINE eqBy #-}
