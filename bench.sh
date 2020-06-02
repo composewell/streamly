@@ -1,12 +1,17 @@
 #!/bin/bash
 
-SERIAL_O_1="linear base"
-SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space \
-  base-o-n-heap base-o-n-stack base-o-n-space"
+SERIAL_O_1="linear"
+SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space"
 FOLD_BENCHMARKS="fold-o-1-space fold-o-n-heap"
 UNFOLD_BENCHMARKS="unfold-o-1-space unfold-o-n-space"
 
-SERIAL_BENCHMARKS="$SERIAL_O_1 $SERIAL_O_n $FOLD_BENCHMARKS"
+SERIAL_BENCHMARKS="\
+    Data.Stream.StreamD \
+    Data.Stream.StreamK \
+    Data.Stream.StreamDK \
+    $SERIAL_O_1 \
+    $SERIAL_O_n \
+    $FOLD_BENCHMARKS"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
 CONCURRENT_BENCHMARKS="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
@@ -34,10 +39,10 @@ bench_rts_opts () {
     "serial-o-n-stack") echo -n "-T -K1M -M16M" ;;
     "serial-o-n-heap") echo -n "-T -K36K -M128M" ;;
     "serial-o-n-space") echo -n "-T -K16M -M64M" ;;
-    "base") echo -n "-T -K36K -M16M" ;;
-    "base-o-n-stack") echo -n "-T -K1M -M16M" ;;
-    "base-o-n-heap") echo -n "-T -K36K -M64M" ;;
-    "base-o-n-space") echo -n "-T -K32M -M32M" ;;
+    */o-1-sp*) echo -n "-T -K36K -M16M" ;;
+    */o-n-h*) echo -n "-T -K36K -M32M" ;;
+    */o-n-st*) echo -n "-T -K1M -M16M" ;;
+    */o-n-sp*) echo -n "-T -K1M -M32M" ;;
 
     *) echo -n "" ;;
   esac
@@ -54,10 +59,6 @@ bench_exec () {
     "serial-o-n-stack") echo -n "serial" ;;
     "serial-o-n-heap") echo -n "serial" ;;
     "serial-o-n-space") echo -n "serial" ;;
-    "base") echo -n "base" ;;
-    "base-o-n-stack") echo -n "base" ;;
-    "base-o-n-heap") echo -n "base" ;;
-    "base-o-n-space") echo -n "base" ;;
     *) echo -n "$1" ;;
   esac
 }
@@ -73,10 +74,6 @@ bench_gauge_opts () {
     "serial-o-n-stack") echo -n "-m prefix o-n-stack" ;;
     "serial-o-n-heap") echo -n "-m prefix o-n-heap" ;;
     "serial-o-n-space") echo -n "-m prefix o-n-space" ;;
-    "base") echo -n "-m prefix o-1-space" ;;
-    "base-o-n-stack") echo -n "-m prefix o-n-stack" ;;
-    "base-o-n-heap") echo -n "-m prefix o-n-heap" ;;
-    "base-o-n-space") echo -n "-m prefix o-n-space" ;;
     *) echo -n "" ;;
   esac
 }
@@ -222,6 +219,12 @@ bench_output_file() {
     echo "charts/$bench_name/results.csv"
 }
 
+# $1: command
+function run_verbose() {
+  echo "$*"
+  bash -c "$*"
+}
+
 # --min-duration 0 means exactly one iteration per sample. We use a million
 # iterations in the benchmarking code explicitly and do not use the iterations
 # done by the benchmarking tool.
@@ -277,8 +280,8 @@ run_bench () {
       SPEED_OPTIONS="--stream-size 10000000 $QUICK_OPTS --include-first-iter"
   fi
 
-  $bench_prog $SPEED_OPTIONS \
-    +RTS $(bench_rts_opts $bench_name) -RTS \
+  run_verbose $bench_prog $SPEED_OPTIONS \
+    +RTS $(bench_rts_opts $GAUGE_ARGS) -RTS \
     --csvraw=$output_file \
     -v 2 \
     --measure-with $bench_prog $GAUGE_ARGS \

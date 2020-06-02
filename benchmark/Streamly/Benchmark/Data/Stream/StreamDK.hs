@@ -8,16 +8,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.Stream.StreamDK
-    (
-      o_1_space
-    )
-where
+module Main (main) where
 
 -- import Control.Monad (when)
 -- import Data.Maybe (isJust)
-import Prelude
-       (Monad, Int, (+), return, Maybe(..), (>))
+import Prelude hiding ()
 -- import qualified Prelude as P
 -- import qualified Data.List as List
 
@@ -25,8 +20,8 @@ import qualified Streamly.Internal.Data.Stream.StreamDK as S
 -- import qualified Streamly.Internal.Data.Stream.Prelude as SP
 -- import qualified Streamly.Internal.Data.SVar as S
 
-import Streamly.Benchmark.Common (benchFold)
-import Gauge (bgroup, Benchmark)
+import Streamly.Benchmark.Common
+import Gauge (bgroup, Benchmark, defaultMain)
 
 value :: Int
 value = 100000
@@ -437,9 +432,12 @@ filterAllInNestedList str = do
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+moduleName :: String
+moduleName = "Data.Stream.StreamDK"
+
 o_1_space :: [Benchmark]
 o_1_space =
-    [ bgroup "streamDK"
+    [ bgroup (o_1_space_prefix moduleName)
       [ bgroup "generation"
         [ benchFold "unfoldr"       toNull sourceUnfoldr
         , benchFold "unfoldrM"      toNull sourceUnfoldrM
@@ -450,3 +448,6 @@ o_1_space =
         ]
       ]
     ]
+
+main :: IO ()
+main = defaultMain $ concat [o_1_space]

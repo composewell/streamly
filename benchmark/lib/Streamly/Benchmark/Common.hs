@@ -11,7 +11,12 @@
 -- Maintainer  : streamly@composewell.com
 
 module Streamly.Benchmark.Common
-    ( parseCLIOpts
+    ( o_1_space_prefix
+    , o_n_space_prefix
+    , o_n_heap_prefix
+    , o_n_stack_prefix
+
+    , parseCLIOpts
 
     , benchIOSink1
     , benchPure
@@ -46,6 +51,22 @@ import qualified Streamly.Prelude as S
 
 import Streamly
 import Gauge
+
+-------------------------------------------------------------------------------
+-- Benchmark Prefixes
+-------------------------------------------------------------------------------
+
+o_1_space_prefix :: String -> String
+o_1_space_prefix name = name ++ "/o-1-space"
+
+o_n_space_prefix :: String -> String
+o_n_space_prefix name = name ++ "/o-n-space"
+
+o_n_heap_prefix :: String -> String
+o_n_heap_prefix name = name ++ "/o-n-heap"
+
+o_n_stack_prefix :: String -> String
+o_n_stack_prefix name = name ++ "/o-n-stack"
 
 -------------------------------------------------------------------------------
 -- Benchmarking utilities

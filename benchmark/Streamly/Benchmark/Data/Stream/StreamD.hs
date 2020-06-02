@@ -8,30 +8,19 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.Stream.StreamD
-    (
-      o_1_space
-    , o_n_stack
-    , o_n_space
-    )
-where
+module Main (main) where
 
 import Control.Monad (when)
 import Data.Maybe (isJust)
-import Prelude
-        (Monad, Int, (+), ($), (.), return, (>), even, (<=), div,
-         subtract, undefined, Maybe(..), not, (>>=),
-         maxBound, fmap, odd, (==), flip, (<$>), (<*>), round, (/), (**), (<))
+import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
 import System.Random (randomRIO)
+import Prelude hiding (tail, mapM_, foldl, last, map, mapM, concatMap, zip)
 
 import qualified Prelude as P
-
 import qualified Streamly.Internal.Data.Stream.StreamD as S
 import qualified Streamly.Internal.Data.Unfold as UF
 
-import Streamly.Benchmark.Common (benchFold)
-import Gauge (bench, nfIO, bgroup, Benchmark)
-
+import Streamly.Benchmark.Common
 
 -- We try to keep the total number of iterations same irrespective of nesting
 -- of the loops so that the overhead is easy to compare.
@@ -368,9 +357,12 @@ filterAllInNested str = runStream $ do
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+moduleName :: String
+moduleName = "Data.Stream.StreamD"
+
 o_1_space :: [Benchmark]
 o_1_space =
-    [ bgroup "streamD"
+    [ bgroup (o_1_space_prefix moduleName)
       [ bgroup "generation"
         [ benchFold "unfoldr"      toNull sourceUnfoldr
         , benchFold "unfoldrM"     toNull sourceUnfoldrM
@@ -494,7 +486,7 @@ benchD name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
 
 o_n_stack :: [Benchmark]
 o_n_stack =
-    [ bgroup "streamD"
+    [ bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "tail"   tail     sourceUnfoldrM
         , benchFold "nullTail" nullTail sourceUnfoldrM
@@ -527,7 +519,7 @@ o_n_stack =
 
 o_n_space :: [Benchmark]
 o_n_space =
-    [ bgroup "streamD"
+    [ bgroup (o_n_space_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "toList" toList   sourceUnfoldrM
         ]
@@ -539,3 +531,6 @@ o_n_space =
         ]
       ]
     ]
+
+main :: IO ()
+main = defaultMain $ concat [o_1_space, o_n_stack, o_n_space]

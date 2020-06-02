@@ -8,23 +8,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Streamly.Benchmark.Data.Stream.StreamK
-    (
-      o_1_space
-    , o_n_stack
-    , o_n_heap
-    , o_n_space
-    , o_1_space_list
-    )
-where
+module Main (main) where
 
 import Control.Monad (when)
 import Data.Maybe (isJust)
-import Prelude
-       (Monad, Int, (+), ($), (.), return, even, (>), (<=), div,
-        subtract, undefined, Maybe(..), not, (>>=),
-        maxBound, flip, (<$>), (<*>), round, (/), (**), (<), foldr, fmap)
 import System.Random (randomRIO)
+import Prelude hiding
+    (tail, mapM_, foldl, last, map, mapM, concatMap, zip, init)
+
 import qualified Prelude as P
 import qualified Data.List as List
 
@@ -32,8 +23,9 @@ import qualified Streamly.Internal.Data.Stream.StreamK as S
 import qualified Streamly.Internal.Data.Stream.Prelude as SP
 import qualified Streamly.Internal.Data.SVar as S
 
-import Streamly.Benchmark.Common (benchFold)
-import Gauge (bench, nfIO, bgroup, Benchmark)
+import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
+
+import Streamly.Benchmark.Common
 
 value, value2, value3, value16, maxValue :: Int
 value = 100000
@@ -416,9 +408,12 @@ filterAllInNestedList str = do
 -- Benchmarks
 -------------------------------------------------------------------------------
 
+moduleName :: String
+moduleName = "Data.Stream.StreamK"
+
 o_1_space :: [Benchmark]
 o_1_space =
-    [ bgroup "streamK"
+    [ bgroup (o_1_space_prefix moduleName)
       [ bgroup "generation"
         [ benchFold "unfoldr"       toNull sourceUnfoldr
         , benchFold "unfoldrM"      toNull sourceUnfoldrM
@@ -538,7 +533,7 @@ o_1_space =
 
 o_n_heap :: [Benchmark]
 o_n_heap =
-    [ bgroup "streamK"
+    [ bgroup (o_n_heap_prefix moduleName)
       [ bgroup "transformation"
         [ benchFold "foldlS" (foldlS 1) sourceUnfoldrM
         ]
@@ -551,7 +546,7 @@ benchK name f = bench name $ nfIO $ randomRIO (1,1) >>= toNull . f
 
 o_n_stack :: [Benchmark]
 o_n_stack =
-    [ bgroup "streamK"
+    [ bgroup (o_n_stack_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "tail"   tail     sourceUnfoldrM
         , benchFold "nullTail" nullTail sourceUnfoldrM
@@ -581,7 +576,7 @@ o_n_stack =
 
 o_n_space :: [Benchmark]
 o_n_space =
-    [ bgroup "streamK"
+    [ bgroup (o_n_space_prefix moduleName)
       [ bgroup "elimination"
         [ benchFold "toList" toList   sourceUnfoldrM
         ]
@@ -606,4 +601,13 @@ o_1_space_list =
         , benchList "filterAllOut"  filterAllOutNestedList (sourceUnfoldrList value2)
         ]
       ]
+    ]
+
+main :: IO ()
+main = defaultMain $ concat
+    [ o_1_space
+    , [bgroup (o_1_space_prefix moduleName) o_1_space_list]
+    , o_n_stack
+    , o_n_heap
+    , o_n_space
     ]

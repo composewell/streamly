@@ -253,29 +253,37 @@ benchmark parser
 -- Raw Streams
 -------------------------------------------------------------------------------
 
-library lib-base
-    import: lib-options, bench-depends
-    hs-source-dirs: .
-    exposed-modules:
-                       Streamly.Benchmark.Data.Stream.StreamD
-                     , Streamly.Benchmark.Data.Stream.StreamK
-                     , Streamly.Benchmark.Data.Stream.StreamDK
-    if impl(ghcjs)
-      buildable: False
-    else
-      build-depends: streamly-benchmarks
-      buildable: True
-
-benchmark base
+benchmark Data.Stream.StreamD
   import: bench-options
   type: exitcode-stdio-1.0
   ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Data/Stream
-  main-is: BaseStreams.hs
+  main-is: StreamD.hs
   if impl(ghcjs)
     buildable: False
   else
-    build-depends: lib-base
+    buildable: True
+
+benchmark Data.Stream.StreamK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -rtsopts
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Stream.StreamDK
+  import: bench-options
+  type: exitcode-stdio-1.0
+  ghc-options: -rtsopts
+  hs-source-dirs: Streamly/Benchmark/Data/Stream
+  main-is: StreamDK.hs
+  if impl(ghcjs)
+    buildable: False
+  else
     buildable: True
 
 executable nano-bench
