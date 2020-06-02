@@ -160,6 +160,7 @@ library lib-prelude
 
 common bench-options
   import: compile-options, optimization-options, bench-depends
+  ghc-options: -rtsopts
   build-depends: streamly-benchmarks
 
 -- Some benchmarks are threaded some are not
@@ -181,7 +182,6 @@ common bench-options-threaded
 benchmark serial
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Serial.hs
   if impl(ghcjs)
@@ -204,7 +204,6 @@ benchmark fold
 benchmark unfold
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
   hs-source-dirs: ., Streamly/Benchmark/Data
   main-is: Unfold.hs
   other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
@@ -256,7 +255,6 @@ benchmark parser
 benchmark Data.Stream.StreamD
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: StreamD.hs
   if impl(ghcjs)
@@ -267,7 +265,6 @@ benchmark Data.Stream.StreamD
 benchmark Data.Stream.StreamK
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: StreamK.hs
   if impl(ghcjs)
@@ -278,7 +275,6 @@ benchmark Data.Stream.StreamK
 benchmark Data.Stream.StreamDK
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -rtsopts
   hs-source-dirs: Streamly/Benchmark/Data/Stream
   main-is: StreamDK.hs
   if impl(ghcjs)
@@ -364,34 +360,30 @@ benchmark linear-rate
 -- Array Benchmarks
 -------------------------------------------------------------------------------
 
-benchmark unpinned-array
+benchmark Data.Array
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K1K -M128M"
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Array.hs
   other-modules: Streamly.Benchmark.Data.ArrayOps
 
-benchmark prim-array
+benchmark Data.Prim.Array
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K64K -M32M"
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/Prim/Array.hs
   other-modules: Streamly.Benchmark.Data.Prim.ArrayOps
 
-benchmark small-array
+benchmark Data.SmallArray
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K128K -M16M"
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Data/SmallArray.hs
   other-modules: Streamly.Benchmark.Data.SmallArrayOps
 
-benchmark array
+benchmark Memory.Array
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K64K -M128M"
   hs-source-dirs: .
   main-is: Streamly/Benchmark/Memory/Array.hs
   other-modules: Streamly.Benchmark.Memory.ArrayOps

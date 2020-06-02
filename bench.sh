@@ -15,7 +15,7 @@ SERIAL_BENCHMARKS="\
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
 CONCURRENT_BENCHMARKS="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
-ARRAY_BENCHMARKS="array unpinned-array prim-array small-array"
+ARRAY_BENCHMARKS="Memory.Array Data.Array Data.Prim.Array Data.SmallArray"
 
 # XXX We can include SERIAL_O_1 here once "base" also supports --stream-size
 INFINITE_BENCHMARKS="linear linear-async linear-rate nested-concurrent"
@@ -39,6 +39,7 @@ bench_rts_opts () {
     "serial-o-n-stack") echo -n "-T -K1M -M16M" ;;
     "serial-o-n-heap") echo -n "-T -K36K -M128M" ;;
     "serial-o-n-space") echo -n "-T -K16M -M64M" ;;
+    Data.SmallArray/o-1-sp*) echo -n "-T -K128K -M16M" ;;
     */o-1-sp*) echo -n "-T -K36K -M16M" ;;
     */o-n-h*) echo -n "-T -K36K -M32M" ;;
     */o-n-st*) echo -n "-T -K1M -M16M" ;;
@@ -520,9 +521,9 @@ if test "$(has_benchmark 'array-cmp')" = "array-cmp"
 then
   VIRTUAL_REPORTS="$VIRTUAL_REPORTS array-cmp"
   mkdir -p "charts/array-cmp"
-  cat "charts/array/results.csv" \
-      "charts/prim-array/results.csv" \
-      "charts/unpinned-array/results.csv" > "charts/array-cmp/results.csv"
+  cat "charts/Memory.Array/results.csv" \
+      "charts/Data.Prim.Array/results.csv" \
+      "charts/Data.Array/results.csv" > "charts/array-cmp/results.csv"
 fi
 
 if test "$RAW" = "0"

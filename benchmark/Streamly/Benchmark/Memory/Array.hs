@@ -17,16 +17,12 @@ import qualified Streamly.Internal.Memory.Array as IA
 import qualified Streamly.Memory.Array as A
 import qualified Streamly.Prelude as S
 
+import Streamly.Benchmark.Common hiding (benchPureSrc)
 import Gauge
 
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
-
-{-# INLINE benchPure #-}
-benchPure :: NFData b => String -> (Int -> a) -> (a -> b) -> Benchmark
-benchPure name src f = bench name $ nfIO $
-    randomRIO (1,1) >>= return . f . src
 
 -- Drain a source that generates a pure array
 {-# INLINE benchPureSrc #-}
@@ -58,13 +54,15 @@ benchIO' name src f = bench name $ nfIO $
 benchIOSink :: NFData b => String -> (Ops.Stream Int -> IO b) -> Benchmark
 benchIOSink name f = benchIO' name Ops.sourceIntFromTo f
 
-mkString :: String
-mkString = "[1" ++ concat (replicate Ops.value ",1") ++ "]"
+testStr :: String
+testStr = mkListString Ops.value
 
-main :: IO ()
-main =
-  defaultMain
-    [ bgroup "array"
+moduleName :: String
+moduleName = "Memory.Array"
+
+o_1_space :: [Benchmark]
+o_1_space =
+    [ bgroup (o_1_space_prefix moduleName)
      [  bgroup "generation"
         [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
         , benchIOSrc "write . intFromTo" Ops.sourceIntFromToFromStream
@@ -73,7 +71,7 @@ main =
         , benchIOSrc "writeN . fromList" Ops.sourceFromList
         , benchPureSrc "writeN . IsList.fromList" Ops.sourceIsList
         , benchPureSrc "writeN . IsString.fromString" Ops.sourceIsString
-        , mkString `deepseq` (bench "read" $ nf Ops.readInstance mkString)
+        , testStr `deepseq` (bench "read" $ nf Ops.readInstance testStr)
         , benchPureSink "show" Ops.showInstance
         ]
       , bgroup "elimination"
@@ -249,3 +247,6 @@ main =
       -}
     ]
     ]
+
+main :: IO ()
+main = defaultMain $ concat [o_1_space]

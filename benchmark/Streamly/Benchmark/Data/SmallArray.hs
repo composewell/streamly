@@ -18,6 +18,7 @@ import qualified Streamly.Benchmark.Data.SmallArrayOps as Ops
 import qualified Streamly.Internal.Data.SmallArray as A
 import qualified Streamly.Prelude as S
 
+import Streamly.Benchmark.Common hiding (mkString)
 import Gauge
 
 -------------------------------------------------------------------------------
@@ -53,10 +54,12 @@ mkString =
     "fromListN " ++
     show (Ops.value + 1) ++ " [1" ++ concat (replicate Ops.value ",1") ++ "]"
 
-main :: IO ()
-main =
-  defaultMain
-    [ bgroup "SmallArray"
+moduleName :: String
+moduleName = "Data.SmallArray"
+
+o_1_space :: [Benchmark]
+o_1_space =
+    [ bgroup (o_1_space_prefix moduleName)
      [  bgroup "generation"
         [ benchIOSrc "writeN . intFromTo" Ops.sourceIntFromTo
         , benchIOSrc "fromList . intFromTo" Ops.sourceIntFromToFromList
@@ -93,3 +96,6 @@ main =
         ]
     ]
     ]
+
+main :: IO ()
+main = defaultMain $ concat [o_1_space]
