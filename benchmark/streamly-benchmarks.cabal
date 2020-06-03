@@ -190,11 +190,11 @@ benchmark serial
     build-depends: lib-prelude
     buildable: True
 
-benchmark unfold
+benchmark Data.Unfold
   import: bench-options
   type: exitcode-stdio-1.0
-  hs-source-dirs: ., Streamly/Benchmark/Data
-  main-is: Unfold.hs
+  hs-source-dirs: .
+  main-is: Streamly/Benchmark/Data/Unfold.hs
   other-modules: Streamly.Benchmark.Data.NestedUnfoldOps
   if impl(ghcjs)
     buildable: False

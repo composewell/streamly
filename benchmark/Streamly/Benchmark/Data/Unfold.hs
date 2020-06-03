@@ -17,6 +17,8 @@ import Gauge
 
 import Prelude hiding (concat)
 
+import qualified Prelude
+
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Data.NestedUnfoldOps
 
@@ -25,37 +27,31 @@ benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
 -------------------------------------------------------------------------------
--- Stream folds
+-- Outer product
 -------------------------------------------------------------------------------
 
-o_1_space_serial_outerProductUnfolds :: Int -> [Benchmark]
-o_1_space_serial_outerProductUnfolds value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "outer-product-unfolds"
-                [ benchIO "toNull" $ toNull value
-                , benchIO "toNull3" $ toNull3 value
-                , benchIO "concat" $ concat value
-                , benchIO "filterAllOut" $ filterAllOut value
-                , benchIO "filterAllIn" $ filterAllIn value
-                , benchIO "filterSome" $ filterSome value
-                , benchIO "breakAfterSome" $ breakAfterSome value
-                ]
-          ]
+moduleName :: String
+moduleName = "Data.Unfold"
+
+o_1_space_serial :: Int -> [Benchmark]
+o_1_space_serial value =
+    [ bgroup "outer-product"
+        [ benchIO "toNull" $ toNull value
+        , benchIO "toNull3" $ toNull3 value
+        , benchIO "concat" $ concat value
+        , benchIO "filterAllOut" $ filterAllOut value
+        , benchIO "filterAllIn" $ filterAllIn value
+        , benchIO "filterSome" $ filterSome value
+        , benchIO "breakAfterSome" $ breakAfterSome value
+        ]
     ]
 
-
-o_n_space_serial_outerProductUnfolds :: Int -> [Benchmark]
-o_n_space_serial_outerProductUnfolds value =
-    [ bgroup
-          "serially"
-          [ bgroup
-                "outer-product-unfolds"
-                [ benchIO "toList" $ toList value
-                , benchIO "toListSome" $ toListSome value
-                ]
-          ]
+o_n_space_serial :: Int -> [Benchmark]
+o_n_space_serial value =
+    [ bgroup "outer-product"
+        [ benchIO "toList" $ toList value
+        , benchIO "toListSome" $ toListSome value
+        ]
     ]
 
 -------------------------------------------------------------------------------
@@ -64,14 +60,14 @@ o_n_space_serial_outerProductUnfolds value =
 
 main :: IO ()
 main = do
-  (value, cfg, benches) <- parseCLIOpts defaultStreamSize
-  value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
-  where
+    (value, cfg, benches) <- parseCLIOpts defaultStreamSize
+    value `seq` runMode (mode cfg) cfg benches (allBenchmarks value)
+
+    where
+
     allBenchmarks value =
-      [ bgroup
-          "o-1-space"
-          [bgroup "unfold" (o_1_space_serial_outerProductUnfolds value)]
-      , bgroup
-          "o-n-space"
-          [bgroup "unfold" (o_n_space_serial_outerProductUnfolds value)]
-      ]
+        [ bgroup (o_1_space_prefix moduleName) $ Prelude.concat
+            [o_1_space_serial value]
+        , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
+            [o_n_space_serial value]
+        ]
