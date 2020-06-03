@@ -190,16 +190,6 @@ benchmark serial
     build-depends: lib-prelude
     buildable: True
 
-benchmark Data.Fold
-  import: bench-options
-  type: exitcode-stdio-1.0
-  hs-source-dirs: Streamly/Benchmark/Data
-  main-is: Fold.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    buildable: True
-
 benchmark unfold
   import: bench-options
   type: exitcode-stdio-1.0
@@ -211,11 +201,20 @@ benchmark unfold
   else
     buildable: True
 
-benchmark parserD
+benchmark Data.Fold
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K64K -M16M"
-  hs-source-dirs: ., Streamly/Benchmark/Data
+  hs-source-dirs: Streamly/Benchmark/Data
+  main-is: Fold.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Data.Parser.ParserD
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserD.hs
   if impl(ghcjs)
     buildable: False
@@ -223,11 +222,10 @@ benchmark parserD
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
-benchmark parserK
+benchmark Data.Parser.ParserK
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K128K -M32M"
-  hs-source-dirs: Streamly/Benchmark/Data
+  hs-source-dirs: Streamly/Benchmark/Data/Parser
   main-is: ParserK.hs
   if impl(ghcjs)
     buildable: False
@@ -235,10 +233,9 @@ benchmark parserK
     buildable: True
     build-depends: exceptions >= 0.8   && < 0.11
 
-benchmark parser
+benchmark Data.Parser
   import: bench-options
   type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -K128K -M32M"
   hs-source-dirs: Streamly/Benchmark/Data
   main-is: Parser.hs
   if impl(ghcjs)

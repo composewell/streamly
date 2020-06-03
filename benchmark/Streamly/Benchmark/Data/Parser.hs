@@ -221,8 +221,11 @@ parseIterate =
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-o_1_space_serial_parse :: Int -> [Benchmark]
-o_1_space_serial_parse value =
+moduleName :: String
+moduleName = "Data.Parser"
+
+o_1_space_serial :: Int -> [Benchmark]
+o_1_space_serial value =
     [ benchIOSink value "any" $ any value
     , benchIOSink value "all" $ all value
     , benchIOSink value "take" $ take value
@@ -242,8 +245,8 @@ o_1_space_serial_parse value =
     , benchIOSink value "parseIterate" parseIterate
     ]
 
-o_n_heap_serial_parse :: Int -> [Benchmark]
-o_n_heap_serial_parse value =
+o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial value =
     [
     -- lookahead benchmark holds the entire input till end
       benchIOSink value "lookAhead" $ lookAhead value
@@ -278,16 +281,12 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup "o-1-space"
-            [ bgroup "parser" $ concat
-                [
-                  o_1_space_serial_parse value
-                ]
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [
+              o_1_space_serial value
             ]
-        , bgroup "o-n-heap"
-            [ bgroup "parser" $ concat
-                [
-                  o_n_heap_serial_parse value
-                ]
+        , bgroup (o_n_heap_prefix moduleName) $ concat
+            [
+              o_n_heap_serial value
             ]
         ]

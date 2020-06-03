@@ -28,9 +28,6 @@ data BenchType
     | LinearAsync
     | LinearRate
     | NestedConcurrent
-    | ParserD
-    | ParserK
-    | Parser
     | FileIO
     | Concurrent
     | Parallel
@@ -44,7 +41,7 @@ data Options = Options
     , benchType :: BenchType
     } deriving Show
 
-defaultOptions = Options False False Linear
+defaultOptions = Options False Linear
 
 setGenGraphs val = do
     (args, opts) <- get
@@ -70,9 +67,6 @@ parseBench = do
         Just "linear-async" -> setBenchType LinearAsync
         Just "linear-rate" -> setBenchType LinearRate
         Just "nested-concurrent" -> setBenchType NestedConcurrent
-        Just "parserD" -> setBenchType ParserD
-        Just "parserK" -> setBenchType ParserK
-        Just "parser" -> setBenchType Parser
         Just "fileio" -> setBenchType FileIO
         Just "concurrent" -> setBenchType Concurrent
         Just "parallel" -> setBenchType Parallel
@@ -226,9 +220,11 @@ showComparisons Options{..} cfg inp out =
 
     where
 
+    dropComponent = dropWhile (== '/') . dropWhile (/= '/')
+
     classifyComparison b = Just $
         ( takeWhile (/= '/') b
-        , dropWhile (== '/') $ dropWhile (/= '/') b
+        , dropComponent b
         )
 
 ------------------------------------------------------------------------------
@@ -291,21 +287,6 @@ main = do
                             (makeStreamComparisonGraphs "nested-concurrent" nestedBenchPrefixes)
                             "charts/nested-concurrent/results.csv"
                             "charts/nested-concurrent"
-                ParserD -> benchShow opts cfg
-                            { title = Just "ParserD" }
-                            (makeGraphs "parserD")
-                            "charts/parserD/results.csv"
-                            "charts/parserD"
-                ParserK -> benchShow opts cfg
-                            { title = Just "ParserK" }
-                            (makeGraphs "parserK")
-                            "charts/parserK/results.csv"
-                            "charts/parserK"
-                Parser -> benchShow opts cfg
-                            { title = Just "Parser" }
-                            (makeGraphs "parser")
-                            "charts/parser/results.csv"
-                            "charts/parser"
                 FileIO -> benchShow opts cfg
                             { title = Just "File IO" }
                             (makeGraphs "fileIO")

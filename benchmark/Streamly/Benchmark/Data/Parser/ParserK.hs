@@ -121,15 +121,18 @@ choice value =
 -- Benchmarks
 -------------------------------------------------------------------------------
 
-o_1_space_serial_parse :: Int -> [Benchmark]
-o_1_space_serial_parse value =
+moduleName :: String
+moduleName = "Data.Parser.ParserK"
+
+o_1_space_serial :: Int -> [Benchmark]
+o_1_space_serial value =
     [ benchIOSink value "any" $ anyK value
     , benchIOSink value "splitApp" $ splitApp value
     ]
 
 -- O(n) heap beacuse of accumulation of the list in strict IO monad?
-o_n_heap_serial_parse :: Int -> [Benchmark]
-o_n_heap_serial_parse value =
+o_n_heap_serial :: Int -> [Benchmark]
+o_n_heap_serial value =
     [ benchIOSink value "sequenceA" $ sequenceA value
     , benchIOSink value "sequenceA_" $ sequenceA_ value
     , benchIOSink value "sequence" $ sequence value
@@ -150,14 +153,10 @@ main = do
     where
 
     allBenchmarks value =
-        [ bgroup "o-1-space"
-            [ bgroup "parserK" $ concat
-                [ o_1_space_serial_parse value
-                ]
+        [ bgroup (o_1_space_prefix moduleName) $ concat
+            [ o_1_space_serial value
             ]
-        , bgroup "o-n-heap"
-            [ bgroup "parserK" $ concat
-                [ o_n_heap_serial_parse value
-                ]
+        , bgroup (o_n_heap_prefix moduleName) $ concat
+            [ o_n_heap_serial value
             ]
         ]

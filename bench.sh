@@ -1,21 +1,24 @@
 #!/bin/bash
 
-base_grp="\
+# Note "_grp" and "_cmp" suffixes are special, do not rename them to something
+# else.
+
+base_stream_grp="\
     Data.Stream.StreamD \
     Data.Stream.StreamK \
     Data.Stream.StreamDK"
 SERIAL_O_1="linear"
 SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space"
 UNFOLD_BENCHMARKS="unfold-o-1-space unfold-o-n-space"
-serial_grp="\
-    $SERIAL_O_1 \
-    $SERIAL_O_n \
-    Data.Fold"
-
+serial_grp="$SERIAL_O_1 $SERIAL_O_n"
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
 concurrent_grp="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
+
 array_grp="Memory.Array Data.Array Data.Prim.Array Data.SmallArray"
+
+base_parser_grp="Data.Parser.ParserD Data.Parser.ParserK"
+parser_grp="Data.Fold Data.Parser"
 
 # XXX We can include SERIAL_O_1 here once "base" also supports --stream-size
 infinite_grp="linear linear-async linear-rate nested-concurrent"
@@ -28,14 +31,16 @@ QUICK_BENCHMARKS="linear-rate concurrent adaptive fileio"
 # *_cmp denotes a comparison benchmarks, the benchmarks provided in *_cmp
 # variables are compared with each other
 array_cmp="Memory.Array Data.Prim.Array Data.Array"
-base_cmp="Data.Stream.StreamD Data.Stream.StreamK"
-COMPARISONS="array_cmp base_cmp"
+base_stream_cmp="Data.Stream.StreamD Data.Stream.StreamK"
+base_parser_cmp=$base_parser_grp
+COMPARISONS="array_cmp base_stream_cmp base_parser_cmp"
 
+# All high level benchmarks
 all_grp="\
-    $base_grp \
     $serial_grp \
     $concurrent_grp \
-    $array_grp"
+    $array_grp \
+    $parser_grp"
 
 ALL_BENCH_GROUPS="\
     all_grp \
@@ -43,7 +48,9 @@ ALL_BENCH_GROUPS="\
     concurrent_grp \
     array_grp \
     infinite_grp \
-    finite_grp"
+    finite_grp \
+    base_stream_grp \
+    base_parser_grp"
 
 # RTS options that go inside +RTS and -RTS while running the benchmark.
 bench_rts_opts () {
@@ -146,6 +153,11 @@ print_help () {
   echo "--slow: Slightly more accurate results at the expense of speed"
   echo "--quick: Faster results, useful for longer benchmarks"
   echo "--cabal-build-flags: Pass any cabal builds flags to be used for build"
+  echo
+  echo "When specific space complexity group is chosen then (and only then) "
+  echo "RTS memory restrictions are used accordingly. For example, "
+  echo "bench.sh --benchmarks Data.Parser -- Data.Parser/o-1-space "
+  echo "restricts Heap/Stack space for O(1) characterstics"
   echo
   echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
   echo "commit is generated, in the 'charts' directory."
