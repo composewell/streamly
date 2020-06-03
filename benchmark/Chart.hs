@@ -31,26 +31,16 @@ data BenchType
     | ParserD
     | ParserK
     | Parser
-    | Base
     | FileIO
-    | Array
-    | ArrayCmp
-    | UnpinnedArray
-    | SmallArray
-    | PrimArray
     | Concurrent
     | Parallel
     | Adaptive
-    | FoldO1Space
-    | FoldOnHeap
-    | UnfoldO1Space
-    | UnfoldOnSpace
+    | Compare String
     | Standard String
     deriving Show
 
 data Options = Options
     { genGraphs :: Bool
-    , groupDiff :: Bool
     , benchType :: BenchType
     } deriving Show
 
@@ -59,10 +49,6 @@ defaultOptions = Options False False Linear
 setGenGraphs val = do
     (args, opts) <- get
     put (args, opts { genGraphs = val })
-
-setGroupDiff val = do
-    (args, opts) <- get
-    put (args, opts { groupDiff = val })
 
 setBenchType val = do
     (args, opts) <- get
@@ -87,20 +73,11 @@ parseBench = do
         Just "parserD" -> setBenchType ParserD
         Just "parserK" -> setBenchType ParserK
         Just "parser" -> setBenchType Parser
-        Just "base" -> setBenchType Base
         Just "fileio" -> setBenchType FileIO
-        Just "array-cmp" -> setBenchType ArrayCmp
-        Just "array" -> setBenchType Array
-        Just "unpinned-array" -> setBenchType UnpinnedArray
-        Just "small-array" -> setBenchType SmallArray
-        Just "prim-array" -> setBenchType PrimArray
         Just "concurrent" -> setBenchType Concurrent
         Just "parallel" -> setBenchType Parallel
         Just "adaptive" -> setBenchType Adaptive
-        Just "fold-o-1-space" -> setBenchType FoldO1Space
-        Just "fold-o-n-heap" -> setBenchType FoldOnHeap
-        Just "unfold-o-1-space" -> setBenchType UnfoldO1Space
-        Just "unfold-o-n-space" -> setBenchType UnfoldOnSpace
+        Just str | "_cmp" `isSuffixOf` str -> setBenchType (Compare str)
         Just str -> setBenchType (Standard str)
         Nothing -> do
                 liftIO $ putStrLn "please provide a benchmark type "
@@ -119,7 +96,6 @@ parseOptions = do
     parseOpt opt =
         case opt of
             "--graphs"     -> setGenGraphs True
-            "--group-diff" -> setGroupDiff True
             "--benchmark"  -> parseBench
             str -> do
                 liftIO $ putStrLn $ "Unrecognized option " <> str
@@ -239,71 +215,21 @@ makeGraphs name cfg@Config{..} inputFile =
 -- Arrays
 ------------------------------------------------------------------------------
 
-showArrayComparisons Options{..} cfg inp out =
-    let cfg' = cfg { classifyBenchmark = classifyArray }
-    in if genGraphs
-       then ignoringErr $ graph inp "Arrays Comparison"
-                cfg' { outputDir = Just out
+showComparisons Options{..} cfg inp out =
+    let cfg1 = cfg { classifyBenchmark = classifyComparison }
+     in if genGraphs
+        then ignoringErr $ graph inp "comparison"
+                cfg1 { outputDir = Just out
                      , presentation = Groups Absolute
                      }
-       else ignoringErr $ report inp Nothing cfg'
+        else ignoringErr $ report inp Nothing cfg1
 
     where
 
-    classifyArray b
-        -- SmallArray uses a small number of elements therefore cannot be
-        -- compared
-        -- | "SmallArray/" `isPrefixOf` b = ("SmallArray",) <$> stripPrefix "SmallArray/" b
-        | "Data.Prim.Array/" `isPrefixOf` b = ("Data.Prim.Array",) <$> stripPrefix "Data.Prim.Array/" b
-        | "Data.Array/" `isPrefixOf` b = ("Data.Array",) <$> stripPrefix "Data.Array/" b
-        | "array/" `isPrefixOf` b = ("array",) <$> stripPrefix "array/" b
-        | otherwise = Nothing
-
-------------------------------------------------------------------------------
--- Reports/Charts for base streams
-------------------------------------------------------------------------------
-
-showStreamDVsK Options{..} cfg inp out =
-    let cfg' = cfg { classifyBenchmark = classifyBase }
-    in if genGraphs
-       then ignoringErr $ graph inp "streamD-vs-streamK"
-                cfg' { outputDir = Just out
-                     , presentation = Groups Absolute
-                     }
-       else ignoringErr $ report inp Nothing cfg'
-
-    where
-
-    classifyBase b
-        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
-        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
-        | otherwise = Nothing
-
-showStreamD Options{..} cfg inp out =
-    let cfg' = cfg { classifyBenchmark = classifyStreamD }
-    in if genGraphs
-       then ignoringErr $ graph inp "streamD"
-                cfg' {outputDir = Just out}
-       else ignoringErr $ report inp Nothing cfg'
-
-    where
-
-    classifyStreamD b
-        | "streamD/" `isPrefixOf` b = ("streamD",) <$> stripPrefix "streamD/" b
-        | otherwise = Nothing
-
-showStreamK Options{..} cfg inp out =
-    let cfg' = cfg { classifyBenchmark = classifyStreamK }
-    in if genGraphs
-       then ignoringErr $ graph inp "streamK"
-                cfg' {outputDir = Just out}
-       else ignoringErr $ report inp Nothing cfg'
-
-    where
-
-    classifyStreamK b
-        | "streamK/" `isPrefixOf` b = ("streamK",) <$> stripPrefix "streamK/" b
-        | otherwise = Nothing
+    classifyComparison b = Just $
+        ( takeWhile (/= '/') b
+        , dropWhile (== '/') $ dropWhile (/= '/') b
+        )
 
 ------------------------------------------------------------------------------
 -- text reports
@@ -385,30 +311,6 @@ main = do
                             (makeGraphs "fileIO")
                             "charts/fileio/results.csv"
                             "charts/fileio"
-                Array -> benchShow opts cfg
-                            { title = Just "Array" }
-                            (makeGraphs "array")
-                            "charts/array/results.csv"
-                            "charts/array"
-                UnpinnedArray -> benchShow opts cfg
-                            { title = Just "Unpinned Array" }
-                            (makeGraphs "unpinned-array")
-                            "charts/unpinned-array/results.csv"
-                            "charts/unpinned-array"
-                SmallArray -> benchShow opts cfg
-                            { title = Just "Small Array" }
-                            (makeGraphs "small-array")
-                            "charts/small-array/results.csv"
-                            "charts/small-array"
-                PrimArray -> benchShow opts cfg
-                            { title = Just "Prim Array" }
-                            (makeGraphs "prim-array")
-                            "charts/prim-array/results.csv"
-                            "charts/prim-array"
-                ArrayCmp -> showArrayComparisons opts cfg
-                            { title = Just "Arrays Comparison" }
-                            "charts/array-cmp/results.csv"
-                            "charts/array-cmp"
                 Concurrent -> benchShow opts cfg
                             { title = Just "Concurrent Ops" }
                             (makeGraphs "Concurrent")
@@ -424,39 +326,10 @@ main = do
                             (makeGraphs "adaptive")
                             "charts/adaptive/results.csv"
                             "charts/adaptive"
-                Base -> do
-                    let cfg' = cfg { title = Just "Base stream" }
-                    if groupDiff
-                    then showStreamDVsK opts cfg'
-                                "charts/base/results.csv"
-                                "charts/base"
-                    else do
-                        showStreamD opts cfg'
-                                "charts/base/results.csv"
-                                "charts/base"
-                        showStreamK opts cfg'
-                                "charts/base/results.csv"
-                                "charts/base"
-                FoldO1Space -> benchShow opts cfg
-                            { title = Just "Fold O(1) Space" }
-                            (makeGraphs "fold-o-1-space")
-                            "charts/fold-o-1-space/results.csv"
-                            "charts/fold-o-1-space"
-                FoldOnHeap -> benchShow opts cfg
-                            { title = Just "Fold O(n) Heap" }
-                            (makeGraphs "fold-o-n-heap")
-                            "charts/fold-o-n-heap/results.csv"
-                            "charts/fold-o-n-heap"
-                UnfoldO1Space -> benchShow opts cfg
-                            { title = Just "Unfold O(1) Space" }
-                            (makeGraphs "unfold-o-1-space")
-                            "charts/unfold-o-1-space/results.csv"
-                            "charts/unfold-o-1-space"
-                UnfoldOnSpace -> benchShow opts cfg
-                            { title = Just "Unfold O(n) Space" }
-                            (makeGraphs "unfold-o-n-space")
-                            "charts/unfold-o-n-space/results.csv"
-                            "charts/unfold-o-n-space"
+                Compare str -> showComparisons opts cfg
+                            { title = Just $ str }
+                            ("charts/" ++ str ++ "/results.csv")
+                            ("charts/" ++ str)
                 Standard str -> benchShow opts cfg
                             { title = Just str }
                             (makeGraphs str)

@@ -1,38 +1,53 @@
 #!/bin/bash
 
-SERIAL_O_1="linear"
-SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space"
-FOLD_BENCHMARKS="fold-o-1-space fold-o-n-heap"
-UNFOLD_BENCHMARKS="unfold-o-1-space unfold-o-n-space"
-
-SERIAL_BENCHMARKS="\
+base_grp="\
     Data.Stream.StreamD \
     Data.Stream.StreamK \
-    Data.Stream.StreamDK \
+    Data.Stream.StreamDK"
+SERIAL_O_1="linear"
+SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space"
+UNFOLD_BENCHMARKS="unfold-o-1-space unfold-o-n-space"
+serial_grp="\
     $SERIAL_O_1 \
     $SERIAL_O_n \
-    $FOLD_BENCHMARKS"
+    Data.Fold"
+
 # parallel benchmark-suite is separated because we run it with a higher
 # heap size limit.
-CONCURRENT_BENCHMARKS="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
-ARRAY_BENCHMARKS="Memory.Array Data.Array Data.Prim.Array Data.SmallArray"
+concurrent_grp="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
+array_grp="Memory.Array Data.Array Data.Prim.Array Data.SmallArray"
 
 # XXX We can include SERIAL_O_1 here once "base" also supports --stream-size
-INFINITE_BENCHMARKS="linear linear-async linear-rate nested-concurrent"
-FINITE_BENCHMARKS="$SERIAL_O_n $ARRAY_BENCHMARKS fileio parallel concurrent adaptive"
+infinite_grp="linear linear-async linear-rate nested-concurrent"
+finite_grp="$SERIAL_O_n $array_grp fileio parallel concurrent adaptive"
 
 # Benchmarks that take long time per iteration must run fewer iterations to
 # finish in reasonable time.
 QUICK_BENCHMARKS="linear-rate concurrent adaptive fileio"
-VIRTUAL_BENCHMARKS="array-cmp"
 
-ALL_BENCHMARKS="$SERIAL_BENCHMARKS $CONCURRENT_BENCHMARKS $ARRAY_BENCHMARKS $VIRTUAL_BENCHMARKS"
+# *_cmp denotes a comparison benchmarks, the benchmarks provided in *_cmp
+# variables are compared with each other
+array_cmp="Memory.Array Data.Prim.Array Data.Array"
+base_cmp="Data.Stream.StreamD Data.Stream.StreamK"
+COMPARISONS="array_cmp base_cmp"
+
+all_grp="\
+    $base_grp \
+    $serial_grp \
+    $concurrent_grp \
+    $array_grp"
+
+ALL_BENCH_GROUPS="\
+    all_grp \
+    serial_grp \
+    concurrent_grp \
+    array_grp \
+    infinite_grp \
+    finite_grp"
 
 # RTS options that go inside +RTS and -RTS while running the benchmark.
 bench_rts_opts () {
   case "$1" in
-    "fold-o-1-space") echo -n "-T -K36K -M16M" ;;
-    "fold-o-n-heap") echo -n "-T -K36K -M128M" ;;
     "unfold-o-1-space") echo -n "-T -K36K -M16M" ;;
     "unfold-o-n-space") echo -n "-T -K32M -M64M" ;;
     "linear") echo -n "-T -K36K -M16M" ;;
@@ -80,31 +95,57 @@ bench_gauge_opts () {
 }
 
 list_benches ()  {
-  for i in $ALL_BENCHMARKS
+  echo "Individual benchmarks:"
+  for i in $all_grp
   do
-    echo -n "|$i"
+    echo "$i"
   done
+  echo
+}
+
+list_bench_groups ()  {
+  echo "Benchmark groups:"
+  for i in $ALL_BENCH_GROUPS
+  do
+    echo -n "$i ["
+    eval "echo -n \$$i"
+    echo "]"
+  done
+  echo
+}
+
+list_comparisons ()  {
+  echo "Comparison groups:"
+  for i in $COMPARISONS
+  do
+    echo -n "$i ["
+    eval "echo -n \$$i"
+    echo "]"
+  done
+  echo
 }
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <ALL|SERIAL|CONCURRENT|ARRAY|INFINITE|FINITE|DEV$(list_benches)>]"
-  echo "       [--group-diff]"
+  echo "       [--benchmarks <"bench1 bench2 ..." | ?>]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
   echo "       [--append]"
   echo "       [--long]"
   echo "       [--slow]"
   echo "       [--quick]"
-  echo "       [--compare] [--base commit] [--candidate commit]"
-  echo "       [--cabal-build-flags]"
+  echo "       [--cabal-build-flags <flag>]"
+  echo "       [--compare] [--base <commit>] [--candidate <commit>]"
   echo "       -- <gauge options or benchmarks>"
   echo
-  echo "Multiple benchmarks can be specified as a space separated list"
-  echo " e.g. --benchmarks \"linear nested\""
-  echo
-  echo "--group-diff is used to compare groups within a single benchmark"
-  echo " e.g. StreamD vs StreamK in base benchmark."
+  echo "--benchmarks: benchmarks to run, use '?' for list of benchmarks"
+  echo "--graphs: Generate graphical reports"
+  echo "--no-measure: Don't run benchmarks, run reports from previous results"
+  echo "--append: Don't overwrite previous results, append for comparison"
+  echo "--long: Use much longer stream size for infinite stream benchmarks"
+  echo "--slow: Slightly more accurate results at the expense of speed"
+  echo "--quick: Faster results, useful for longer benchmarks"
+  echo "--cabal-build-flags: Pass any cabal builds flags to be used for build"
   echo
   echo "When using --compare, by default comparative chart of HEAD^ vs HEAD"
   echo "commit is generated, in the 'charts' directory."
@@ -128,13 +169,8 @@ set_benchmarks() {
     for i in $(echo $BENCHMARKS)
     do
         case $i in
-          ALL) echo -n $ALL_BENCHMARKS ;;
-          SERIAL) echo -n $SERIAL_BENCHMARKS ;;
-          CONCURRENT) echo -n $CONCURRENT_BENCHMARKS ;;
-          ARRAY) echo -n $ARRAY_BENCHMARKS ;;
-          INFINITE) echo -n $INFINITE_BENCHMARKS ;;
-          FINITE) echo -n $FINITE_BENCHMARKS ;;
-          array-cmp) echo -n "$ARRAY_BENCHMARKS array-cmp" ;;
+          *_grp) eval "echo -n \$${i}" ;;
+          *_cmp) eval "echo -n \$${i} $i" ;;
           *) echo -n $i ;;
         esac
         echo -n " "
@@ -360,7 +396,6 @@ run_reports() {
     do
         echo "Generating reports for ${i}..."
         $prog $(test "$GRAPH" = 1 && echo "--graphs") \
-              $(test "$GROUP_DIFF" = 1 && echo "--group-diff") \
               --benchmark $i
     done
 }
@@ -370,7 +405,6 @@ run_reports() {
 #-----------------------------------------------------------------------------
 
 DEFAULT_BENCHMARKS="linear"
-GROUP_DIFF=0
 
 COMPARE=0
 BASE=
@@ -415,7 +449,6 @@ do
     --raw) RAW=1; shift ;;
     --append) APPEND=1; shift ;;
     --long) LONG=1; shift ;;
-    --group-diff) GROUP_DIFF=1; shift ;;
     --graphs) GRAPH=1; shift ;;
     --no-measure) MEASURE=0; shift ;;
     --) shift; break ;;
@@ -425,17 +458,11 @@ do
 done
 GAUGE_ARGS=$*
 
-BENCHMARKS=$(set_benchmarks)
-if test "$LONG" -ne 0
-then
-  BENCHMARKS=$INFINITE_BENCHMARKS
-fi
-
 only_real_benchmarks () {
   for i in $BENCHMARKS
   do
     local SKIP=0
-    for j in $VIRTUAL_BENCHMARKS
+    for j in $COMPARISONS
     do
       if test $i == $j
       then
@@ -456,12 +483,6 @@ proper_executables () {
   done
 }
 
-
-BENCHMARKS_ORIG=$BENCHMARKS
-BENCHMARKS=$(only_real_benchmarks)
-EXECUTABLES=$(proper_executables)
-echo "Using benchmark suites [$BENCHMARKS]"
-
 has_benchmark () {
   for i in $BENCHMARKS_ORIG
   do
@@ -472,6 +493,32 @@ has_benchmark () {
     fi
   done
 }
+
+BENCHMARKS_ORIG=$BENCHMARKS
+if test "$(has_benchmark help)" = "help"
+then
+  list_bench_groups
+  list_comparisons
+  list_benches
+  exit
+fi
+
+if test "$LONG" -ne 0
+then
+  if test -n "$BENCHMARKS"
+  then
+    echo "Cannot specify benchmarks [$BENCHMARKS] with --long"
+    exit
+  fi
+  BENCHMARKS=$infinite_grp
+fi
+
+BENCHMARKS=$(set_benchmarks)
+BENCHMARKS_ORIG=$BENCHMARKS
+BENCHMARKS=$(only_real_benchmarks)
+EXECUTABLES=$(proper_executables)
+
+echo "Using benchmark suites [$BENCHMARKS]"
 
 if test "$USE_STACK" = "1"
 then
@@ -516,18 +563,25 @@ fi
 # Run reports
 #-----------------------------------------------------------------------------
 
-VIRTUAL_REPORTS=""
-if test "$(has_benchmark 'array-cmp')" = "array-cmp"
-then
-  VIRTUAL_REPORTS="$VIRTUAL_REPORTS array-cmp"
-  mkdir -p "charts/array-cmp"
-  cat "charts/Memory.Array/results.csv" \
-      "charts/Data.Prim.Array/results.csv" \
-      "charts/Data.Array/results.csv" > "charts/array-cmp/results.csv"
-fi
+COMPARISON_REPORTS=""
+for i in $COMPARISONS
+do
+  if test "$(has_benchmark $i)" = $i
+  then
+    COMPARISON_REPORTS="$COMPARISON_REPORTS $i"
+    mkdir -p "charts/$i"
+    constituents=$(eval "echo -n \$${i}")
+    dest_file="charts/$i/results.csv"
+    : > $dest_file
+    for j in $constituents
+    do
+      cat "charts/$j/results.csv" >> $dest_file
+    done
+  fi
+done
 
 if test "$RAW" = "0"
 then
   run_reports "$BENCHMARKS"
-  run_reports "$VIRTUAL_REPORTS"
+  run_reports "$COMPARISON_REPORTS"
 fi
