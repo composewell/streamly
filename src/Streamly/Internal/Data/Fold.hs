@@ -215,6 +215,9 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.Map.Strict (Map)
+#if __GLASGOW_HASKELL__ < 804
+import Data.Semigroup (Semigroup((<>)))
+#endif
 
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith,
@@ -629,7 +632,11 @@ sconcat i = Fold (\x a -> return $ x <> a) (return i) return
 --
 -- @since 0.7.0
 {-# INLINE mconcat #-}
-mconcat :: (Monad m, Monoid a) => Fold m a a
+mconcat :: (Monad m, Monoid a
+#if __GLASGOW_HASKELL__ < 804
+    , Semigroup a
+#endif
+    ) => Fold m a a
 mconcat = sconcat mempty
 
 -- |
@@ -642,7 +649,11 @@ mconcat = sconcat mempty
 --
 -- @since 0.7.0
 {-# INLINABLE foldMap #-}
-foldMap :: (Monad m, Monoid b) => (a -> b) -> Fold m a b
+foldMap :: (Monad m, Monoid b
+#if __GLASGOW_HASKELL__ < 804
+    , Semigroup b
+#endif
+    ) => (a -> b) -> Fold m a b
 foldMap f = lmap f mconcat
 
 -- |

@@ -264,7 +264,7 @@ sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceFromFoldableM value n = S.fromFoldableM (P.fmap return [n..n+value])
 
 {-# INLINE absTimes #-}
-absTimes :: (S.IsStream t, S.MonadAsync m)
+absTimes :: (S.IsStream t, S.MonadAsync m, P.Functor (t m))
     => Int -> Int -> t m AbsTime
 absTimes value _ = S.take value $ Internal.absTimes
 
