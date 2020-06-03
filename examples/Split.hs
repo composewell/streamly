@@ -1,18 +1,12 @@
 import qualified Streamly.Internal.Prelude as S
-import qualified Streamly.Data.Fold as FL
--- import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
 import qualified Streamly.Internal.FileSystem.Handle as IFH
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
--- import qualified Streamly.FileSystem.FD as FH
--- import qualified Streamly.Data.Unicode.Stream as US
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (StateT(..), get, put)
-import Data.Char (ord)
 import System.Environment (getArgs)
-import System.IO (IOMode(..), hSeek, SeekMode(..))
+import System.IO (IOMode(..))
 import Data.Function ((&))
 
 newHandle :: StateT (Maybe (FH.Handle, Int)) IO FH.Handle
