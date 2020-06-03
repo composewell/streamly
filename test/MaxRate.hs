@@ -3,20 +3,22 @@
 
 import Streamly
 import qualified Streamly.Prelude as S
+import Streamly.Internal.Data.Time.Clock (getTime, Clock(..))
+import Streamly.Internal.Data.Time.Units
+    (NanoSecond64, diffAbsTime64, fromRelTime64)
+
 import Control.Concurrent
 import Control.Monad
-import System.Clock
-import Test.Hspec
 import System.Random
+import Test.Hspec
 
 durationShouldBe :: (Double, Double) -> IO () -> Expectation
 durationShouldBe d@(tMin, tMax) action = do
         t0 <- getTime Monotonic
         action
         t1 <- getTime Monotonic
-        let t = fromIntegral (toNanoSecs (t1 - t0)) / 1e9
-            -- tMax = fromNanoSecs (round $ d*10^9*1.2)
-            -- tMin = fromNanoSecs (round $ d*10^9*0.8)
+        let diff = fromRelTime64 (diffAbsTime64 t1 t0) :: NanoSecond64
+        let t = fromIntegral diff / 1e9
         putStrLn $ "Expected: " <> show d <> " Took: " <> show t
         (t <= tMax && t >= tMin) `shouldBe` True
 
@@ -50,7 +52,7 @@ measureRate' desc t buffers threads rval consumerDelay producerDelay expectedRan
              <> ", consumer latency: " <> show consumerDelay
              <> ", producer latency: " <> show producerDelay)
         $ durationShouldBe expectedRange $
-            runStream
+            S.drain
                 $ (if consumerDelay > 0
                   then S.mapM $ \x ->
                             threadDelay (toMicroSecs consumerDelay) >> return x
