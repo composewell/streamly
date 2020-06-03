@@ -95,7 +95,16 @@ stability:           Experimental
 build-type:          Configure
 
 extra-source-files:
+    .circleci/config.yml
+    .github/workflows/haskell.yml
+    .gitignore
+    .hlint.ignore
+    .hlint.yaml
+    .travis.yml
+    appveyor.yml
+    cabal.project.ci
     Changelog.md
+    charts-0/streamly-vs-list-time.svg
     credits/*.md
     credits/base-4.12.0.0.txt
     credits/primitive-0.7.0.0.txt
@@ -106,13 +115,18 @@ extra-source-files:
     credits/transient-0.5.5.txt
     credits/vector-0.12.0.2.txt
     credits/Yampa-0.10.6.2.txt
+    CONTRIBUTING.md
     README.md
+    INSTALL.md
+    MAINTAINING.md
     docs/streamly-vs-async.md
     docs/streamly-vs-lists.md
     docs/transformers.md
     docs/Build.md
     design/*.md
     design/*.png
+    design/*.rst
+    examples/README.md
     bench.sh
     stack.yaml
     src/Streamly/Internal/Data/Stream/Instances.hs
