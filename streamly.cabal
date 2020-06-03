@@ -864,3 +864,15 @@ executable CamelCase
       , base                 >= 4.8   && < 5
   else
     buildable: False
+
+executable Rate
+  import: exe-options
+  main-is: Rate.hs
+  hs-source-dirs:  examples
+  if (flag(examples) || flag(examples-sdl)) && !impl(ghcjs)
+    buildable: True
+    build-Depends:
+        streamly
+      , base                 >= 4.8   && < 5
+  else
+    buildable: False
