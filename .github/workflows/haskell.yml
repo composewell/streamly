@@ -35,13 +35,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [8.10.1+inspection+Werror, 8.8.3+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin]
+        name: [8.8.3+inspection+Werror, 8.6.5+streamk, 8.6.5+fusion-plugin, 8.4.4+debug]
         cabal_version: ["3.2"]
         include:
-          - name: 8.10.1+inspection+Werror
-            ghc_version: 8.10.1
-            build: cabal-v2
-            cabal_project: cabal.project.ci
           - name: 8.8.3+inspection+Werror
             ghc_version: 8.8.3
             build: cabal-v2
@@ -56,6 +52,10 @@ jobs:
             cabal_build_options: "--flags fusion-plugin"
             # haddock generation does not work with 8.6.5+fusion-plugin
             disable_docs: "y"
+          - name: 8.4.4+debug
+            ghc_version: 8.4.4
+            build: cabal-v2
+            cabal_build_options: "--flag debug"
 
     steps:
     - uses: actions/checkout@v2
