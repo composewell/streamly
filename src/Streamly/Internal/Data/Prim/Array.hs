@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 {-# LANGUAGE CPP           #-}
-{-# LANGUAGE MagicHash     #-}
-{-# LANGUAGE UnboxedTuples #-}
 
 #include "inline.hs"
 
@@ -80,7 +78,7 @@ toStreamD arr = D.Stream step 0
 
 {-# INLINE length #-}
 length :: Prim a => PrimArray a -> Int
-length arr = sizeofPrimArray arr
+length = sizeofPrimArray
 
 {-# INLINE_NORMAL toStreamDRev #-}
 toStreamDRev :: (Prim a, Monad m) => PrimArray a -> D.Stream m a
@@ -139,14 +137,14 @@ fromStreamDN limit str = do
     marr <- liftIO $ newPrimArray (max limit 0)
     _ <-
         D.foldlM'
-            (\i x -> i `seq` (liftIO $ writePrimArray marr i x) >> return (i + 1))
+            (\i x -> i `seq` liftIO (writePrimArray marr i x) >> return (i + 1))
             0 $
         D.take limit str
     liftIO $ unsafeFreezePrimArray marr
 
 {-# INLINE fromStreamD #-}
 fromStreamD :: (MonadIO m, Prim a) => D.Stream m a -> m (PrimArray a)
-fromStreamD str = D.runFold write str
+fromStreamD = D.runFold write
 
 {-# INLINABLE fromListN #-}
 fromListN :: Prim a => Int -> [a] -> PrimArray a

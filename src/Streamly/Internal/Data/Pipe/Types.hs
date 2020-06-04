@@ -158,18 +158,18 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             where
 
             {-# INLINE drive #-}
-            drive st res queue fConsume fProduce val = do
+            drive st res queue fConsume fProduce val =
                 case res of
                     Nothing -> goConsume st queue val fConsume fProduce
                     Just x -> return $
                         case queue of
-                            Nothing -> (st, Just x, Just $ (Deque [val] []))
+                            Nothing -> (st, Just x, Just $ Deque [val] [])
                             Just q  -> (st, Just x, Just $ snoc val q)
 
             {-# INLINE goConsume #-}
-            goConsume stt queue val fConsume stp2 = do
+            goConsume stt queue val fConsume stp2 =
                 case stt of
-                    Consume st -> do
+                    Consume st ->
                         case queue of
                             Nothing -> do
                                 r <- fConsume st val
@@ -200,15 +200,15 @@ zipWith f (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
             where
 
             {-# INLINE drive #-}
-            drive stt res q fConsume fProduce = do
+            drive stt res q fConsume fProduce =
                 case res of
                     Nothing -> goProduce stt q fConsume fProduce
                     Just x -> return (stt, Just x, q)
 
             {-# INLINE goProduce #-}
-            goProduce stt queue fConsume fProduce = do
+            goProduce stt queue fConsume fProduce =
                 case stt of
-                    Consume st -> do
+                    Consume st ->
                         case queue of
                             -- See yieldOutput. We enter produce mode only when
                             -- each pipe is either in Produce state or the
@@ -269,7 +269,7 @@ tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 
     state = Tuple' (Consume stateL) (Consume stateR)
 
-    consume (Tuple' sL sR) a = do
+    consume (Tuple' sL sR) a =
         case sL of
             Consume st -> do
                 r <- consumeL st a
@@ -286,9 +286,9 @@ tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
                     Continue s -> Continue (Right (Tuple3' (Just a) s sR))
                 -}
 
-    produce (Tuple3' (Just a) sL sR) = do
+    produce (Tuple3' (Just a) sL sR) =
         case sL of
-            Consume _ -> do
+            Consume _ ->
                 case sR of
                     Consume st -> do
                         r <- consumeR st a
@@ -309,7 +309,7 @@ tee (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
                     Yield x s -> Yield x (next s)
                     Continue s -> Continue (next s)
 
-    produce (Tuple3' Nothing sL sR) = do
+    produce (Tuple3' Nothing sL sR) =
         case sR of
             Consume _ -> undefined -- should never occur
             Produce st -> do
@@ -359,7 +359,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 
     state = Tuple' (Consume stateL) (Consume stateR)
 
-    consume (Tuple' sL sR) a = do
+    consume (Tuple' sL sR) a =
         case sL of
             Consume stt ->
                 case sR of
@@ -392,7 +392,7 @@ compose (Pipe consumeL produceL stateL) (Pipe consumeR produceR stateR) =
 
     -- XXX we need to write the code in mor optimized fashion. Use Continue
     -- more and less yield points.
-    produce (Tuple' sL sR) = do
+    produce (Tuple' sL sR) =
         case sL of
             Produce st -> do
                 r <- produceL st

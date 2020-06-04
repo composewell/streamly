@@ -1182,8 +1182,8 @@ distribute_ fs = Fold step initial extract
     step ss a  = do
         Prelude.mapM_ (\(Fold s i _) -> i >>= \r -> void (s r a)) ss
         return ss
-    extract ss =
-        Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r) ss
+    extract =
+        Prelude.mapM_ (\(Fold _ i e) -> i >>= \r -> e r)
 
 ------------------------------------------------------------------------------
 -- Partitioning
