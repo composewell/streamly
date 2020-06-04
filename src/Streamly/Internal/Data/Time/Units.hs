@@ -168,7 +168,7 @@ instance Ord TimeSpec where
 addWithOverflow :: TimeSpec -> TimeSpec -> TimeSpec
 addWithOverflow (TimeSpec s1 ns1) (TimeSpec s2 ns2) =
     let nsum = ns1 + ns2
-        (s', ns) = if (nsum > tenPower9 || nsum < negate tenPower9)
+        (s', ns) = if nsum > tenPower9 || nsum < negate tenPower9
                     then nsum `divMod` tenPower9
                     else (0, nsum)
     in TimeSpec (s1 + s2 + s') ns
@@ -176,12 +176,10 @@ addWithOverflow (TimeSpec s1 ns1) (TimeSpec s2 ns2) =
 -- make sure both sec and nsec have the same sign
 {-# INLINE adjustSign #-}
 adjustSign :: TimeSpec -> TimeSpec
-adjustSign (t@(TimeSpec s ns)) =
-    if (s > 0 && ns < 0)
-    then TimeSpec (s - 1) (ns + tenPower9)
-    else if (s < 0 && ns > 0)
-    then TimeSpec (s + 1) (ns - tenPower9)
-    else t
+adjustSign t@(TimeSpec s ns)
+    | s > 0 && ns < 0 = TimeSpec (s - 1) (ns + tenPower9)
+    | s < 0 && ns > 0 = TimeSpec (s + 1) (ns - tenPower9)
+    | otherwise = t
 
 {-# INLINE timeSpecToInteger #-}
 timeSpecToInteger :: TimeSpec -> Integer
@@ -193,7 +191,7 @@ instance Num TimeSpec where
 
     -- XXX will this be more optimal if imlemented without "negate"?
     {-# INLINE (-) #-}
-    t1 - t2 = t1 + (negate t2)
+    t1 - t2 = t1 + negate t2
     t1 * t2 = fromInteger $ timeSpecToInteger t1 * timeSpecToInteger t2
 
     {-# INLINE negate #-}

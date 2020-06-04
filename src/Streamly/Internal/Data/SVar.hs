@@ -143,7 +143,7 @@ import Data.Kind (Type)
 #endif
 import Data.IORef
        (IORef, modifyIORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup ((<>))
 #endif
@@ -704,7 +704,7 @@ collectWorkerPendingLatency cur col = do
     assert (latCount == 0 || latTime /= 0) (return ())
     let latPair =
             if latCount > 0 && latTime > 0
-            then Just $ (latCount, latTime)
+            then Just (latCount, latTime)
             else Nothing
     return (totalCount, latPair)
 
@@ -748,7 +748,7 @@ collectLatency sv yinfo drain = do
     case newLatPair of
         Nothing -> retWith prevLat
         Just (count, time) -> do
-            let newLat = time `div` (fromIntegral count)
+            let newLat = time `div` fromIntegral count
             when (svarInspectMode sv) $ recordMinMaxLatency sv newLat
             -- When we have collected a significant sized batch we compute the
             -- new latency using that batch and return the new latency,
@@ -1102,7 +1102,7 @@ sendWithDoorBell q bell msg = do
 -- | This function is used by the producer threads to queue output for the
 -- consumer thread to consume. Returns whether the queue has more space.
 send :: SVar t m a -> ChildEvent a -> IO Int
-send sv msg = sendWithDoorBell (outputQueue sv) (outputDoorBell sv) msg
+send sv = sendWithDoorBell (outputQueue sv) (outputDoorBell sv)
 
 -- There is no bound implemented on the buffer, this is assumed to be low
 -- traffic.
@@ -1856,10 +1856,7 @@ dispatchWorkerPaced sv = do
         let elapsed = fromRelTime64 $ diffAbsTime64 now baseTime
         let latency =
                 if lat == 0
-                then
-                    case workerBootstrapLatency yinfo of
-                        Nothing -> lat
-                        Just t -> t
+                then fromMaybe lat (workerBootstrapLatency yinfo)
                 else lat
 
         return (yieldCount, elapsed, latency)
@@ -2349,7 +2346,7 @@ getParallelSVar ss st mrun = do
     let bufLim =
             case getMaxBuffer st of
                 Unlimited -> undefined
-                Limited x -> (fromIntegral x)
+                Limited x -> fromIntegral x
     remBuf <- newIORef bufLim
     pbMVar <- newMVar ()
 

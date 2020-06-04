@@ -300,7 +300,7 @@ traverseSmallArrayP
   => (a -> m b)
   -> SmallArray a
   -> m (SmallArray b)
-traverseSmallArrayP f = \ !ary ->
+traverseSmallArrayP f !ary =
   let
     !sz = sizeofSmallArray ary
     go !i !mary
@@ -442,7 +442,7 @@ instance Ord1 SmallArray where
 
 -- | Lexicographic ordering. Subject to change between major versions.
 instance Ord a => Ord (SmallArray a) where
-  compare sa1 sa2 = smallArrayLiftCompare compare sa1 sa2
+  compare = smallArrayLiftCompare compare
 
 instance Foldable SmallArray where
   -- Note: we perform the array lookups eagerly so we won't
@@ -757,7 +757,7 @@ listLiftShowsPrec :: (Int -> a -> ShowS) -> ([a] -> ShowS) -> Int -> [a] -> Show
 listLiftShowsPrec _ sl _ = sl
 
 instance Show a => Show (SmallArray a) where
-  showsPrec p sa = smallArrayLiftShowsPrec showsPrec showList p sa
+  showsPrec = smallArrayLiftShowsPrec showsPrec showList
 
 #if MIN_VERSION_base(4,9,0) || MIN_VERSION_transformers(0,4,0)
 -- | @since 0.6.4.0

@@ -65,7 +65,7 @@ bottomElement = undefined
 
 {-# INLINE length #-}
 length :: SmallArray a -> Int
-length arr = sizeofSmallArray arr
+length = sizeofSmallArray
 
 {-# INLINE_NORMAL toStreamD #-}
 toStreamD :: Monad m => SmallArray a -> D.Stream m a
@@ -124,7 +124,7 @@ fromStreamDN limit str = do
     marr <- liftIO $ newSmallArray (max limit 0) bottomElement
     i <-
         D.foldlM'
-            (\i x -> i `seq` (liftIO $ writeSmallArray marr i x) >> return (i + 1))
+            (\i x -> i `seq` liftIO (writeSmallArray marr i x) >> return (i + 1))
             0 $
         D.take limit str
     liftIO $ freezeSmallArray marr 0 i

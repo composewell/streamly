@@ -21,4 +21,4 @@ where
 -- bit more efficient than a 'Fold' with '()' as the state, especially when
 -- 'Sink's are composed with other operations. A Sink can be upgraded to a
 -- 'Fold', but a 'Fold' cannot be converted into a Sink.
-data Sink m a = Sink (a -> m ())
+newtype Sink m a = Sink (a -> m ())
