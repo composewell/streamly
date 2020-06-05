@@ -208,7 +208,7 @@ matrix:
   # --------------------------------------------------------------------------
 
   - name: "GHC 8.10.1+inspection+Werror+coverage"
-    env: BUILD=cabal-v2 COVERALLS_OPTIONS=" --repo-token=\"$REPO_TOKEN\" --coverage-mode=StrictlyFullLines --exclude-dir=test" CABAL_PROJECT="cabal.project.coverage" GHC_OPTIONS=""
+    env: BUILD=cabal-v2 COVERALLS_OPTIONS=" --repo-token=9ezA743hCAcmzX3Ic273LhNlIXVdl7D1l --coverage-mode=StrictlyFullLines --exclude-dir=test" CABAL_PROJECT="cabal.project.coverage" GHC_OPTIONS=""
     addons: {apt: {packages: [cabal-install-3.2,ghc-8.10.1], sources: [hvr-ghc]}}
 
   # --------------------------------------------------------------------------
