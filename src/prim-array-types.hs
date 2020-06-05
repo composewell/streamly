@@ -28,7 +28,12 @@ import Prelude hiding (length, unlines, foldr)
 -- Array Data Type
 -------------------------------------------------------------------------------
 
-data Array a = Array ByteArray# Int Int
+data Array a =
+    Array
+    { _arr# :: ByteArray#
+    , _offset :: {-# UNPACK #-} !Int
+    , _length :: {-# UNPACK #-} !Int
+    }
 
 -------------------------------------------------------------------------------
 -- Utilities

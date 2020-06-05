@@ -24,6 +24,7 @@
 
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
+import Control.Monad.Primitive (PrimMonad(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put, MonadState)
 import qualified Control.Monad.State.Strict as State
@@ -1145,7 +1146,7 @@ reverse :: MonadIO m => Int -> SerialT m Int -> m ()
 reverse n = composeN n S.reverse
 
 {-# INLINE reverse' #-}
-reverse' :: MonadIO m => Int -> SerialT m Int -> m ()
+reverse' :: (MonadIO m, PrimMonad m) => Int -> SerialT m Int -> m ()
 reverse' n = composeN n Internal.reverse'
 
 o_n_heap_reordering :: Int -> [Benchmark]

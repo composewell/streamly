@@ -149,7 +149,7 @@ testArraysOf =
 
 #endif
 
-#ifdef TEST_ARRAY
+#ifdef TEST_PRIM_PINNED_ARRAY
 
 lastN :: Int -> [a] -> [a]
 lastN n l = drop (length l - n) l
@@ -199,7 +199,7 @@ main =
             prop "arraysOf concats to original" testArraysOf
 #endif
 
-#ifdef TEST_ARRAY
+#ifdef TEST_PRIM_PINNED_ARRAY
         describe "Fold" $ do
             prop "lastN : 0 <= n <= len" $ testLastN
             describe "lastN boundary conditions" $ do

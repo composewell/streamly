@@ -94,7 +94,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array
     , fold
 
     -- * Folds with Array as the container
---  , D.lastN
+    , D.lastN
 
     -- * Streaming array operations
 

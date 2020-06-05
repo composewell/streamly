@@ -24,8 +24,7 @@ import qualified Streamly.Internal.Data.Pipe as Pipe
 
 import qualified Streamly.Internal.Data.Sink as Sink
 
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array as IA
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Data.Fold as IFL
 import qualified Streamly.Internal.Prelude as IP
 
@@ -79,8 +78,8 @@ o_1_space_serial_elimination value =
                   (S.fold (IFL.drainWhile $ (>=) (value + 1)))
             , benchIOSink value "sink" (S.fold $ Sink.toFold Sink.drain)
             , benchIOSink value "last" (S.fold FL.last)
-            , benchIOSink value "lastN.1" (S.fold (IA.lastN 1))
-            , benchIOSink value "lastN.10" (S.fold (IA.lastN 10))
+            , benchIOSink value "lastN.1" (S.fold (A.lastN 1))
+            , benchIOSink value "lastN.10" (S.fold (A.lastN 10))
             , benchIOSink value "length" (S.fold FL.length)
             , benchIOSink value "sum" (S.fold FL.sum)
             , benchIOSink value "sum (foldMap)" (S.fold (FL.foldMap Sum))
@@ -192,7 +191,7 @@ o_n_heap_serial value =
                 , benchIOSink value "toList" (S.fold FL.toList)
                 , benchIOSink value "toListRevF" (S.fold IFL.toListRevF)
           -- Converting the stream to an array
-                , benchIOSink value "lastN.Max" (S.fold (IA.lastN (value + 1)))
+                , benchIOSink value "lastN.Max" (S.fold (A.lastN (value + 1)))
                 , benchIOSink value "writeN" (S.fold (A.writeN value))
                 ]
           ]
