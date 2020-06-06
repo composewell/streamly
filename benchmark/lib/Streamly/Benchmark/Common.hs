@@ -31,7 +31,6 @@ module Streamly.Benchmark.Common
     , mkListString
 
     , defaultStreamSize
-    , limitStreamSize
     )
 where
 
@@ -40,7 +39,7 @@ import Control.Exception (evaluate)
 import Control.Monad (when)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.List (scanl')
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import System.Console.GetOpt
        (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt')
 import System.Environment (getArgs, lookupEnv, setEnv)
@@ -131,20 +130,11 @@ mkList value = [1..value]
 defaultStreamSize :: Int
 defaultStreamSize = 100000
 
-limitStreamSize :: Int -> IO Int
-limitStreamSize value = do
-    let val = min value defaultStreamSize
-    when (val /= value) $
-        putStrLn $ "Limiting stream size to "
-                   ++ show defaultStreamSize
-                   ++ " for non O(1) space operations"
-    return val
-
 -------------------------------------------------------------------------------
 -- Parse custom CLI options
 -------------------------------------------------------------------------------
 
-data BenchOpts = StreamSize Int deriving Show
+newtype BenchOpts = StreamSize Int deriving Show
 
 getStreamSize :: String -> Int
 getStreamSize size =
@@ -186,6 +176,7 @@ parseCLIOpts defStreamSize = do
     (streamSize, args') <-
         case opts of
             StreamSize x : _ -> do
+                putStrLn $ "Stream size: " ++ show x
                 -- When using the gauge "--measure-with" option we need to make
                 -- sure that we pass the stream size to child process forked by
                 -- gauge. So we use this env var for that purpose.
@@ -195,8 +186,7 @@ parseCLIOpts defStreamSize = do
                 -- correct order.
                 newArgs <-
                           evaluate
-                        $ catMaybes
-                        $ map snd
+                        $ mapMaybe snd
                         $ scanl' deleteOptArgs (Nothing, Nothing) args
                 return (x, newArgs)
             _ -> do
@@ -205,7 +195,9 @@ parseCLIOpts defStreamSize = do
                     Just x -> do
                         s <- evaluate $ getStreamSize x
                         return (s, args)
-                    Nothing -> return (defStreamSize, args)
+                    Nothing -> do
+                        setEnv "STREAM_SIZE" (show defStreamSize)
+                        return (defStreamSize, args)
 
     -- Parse gauge options
     let config = defaultConfig

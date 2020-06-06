@@ -1,14 +1,181 @@
 -- |
 -- Module      : Main
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
+
+{-# LANGUAGE FlexibleContexts #-}
+
+import Prelude hiding (mapM)
+
+import Streamly (SerialT, parallely, parallel, serially, maxBuffer, maxThreads)
+
+import qualified Streamly as S
+import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Data.Fold as FL
+import qualified Streamly.Internal.Data.Stream.Parallel as Par
+import qualified Streamly.Internal.Prelude as Internal
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
 
 import Gauge
+
+moduleName :: String
+moduleName = "Prelude.Parallel"
+
+-------------------------------------------------------------------------------
+-- Merging
+-------------------------------------------------------------------------------
+
+{-# INLINE mergeAsyncByM #-}
+mergeAsyncByM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+mergeAsyncByM count n =
+    S.mergeAsyncByM
+        (\a b -> return (a `compare` b))
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+{-# INLINE mergeAsyncBy #-}
+mergeAsyncBy :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+mergeAsyncBy count n =
+    S.mergeAsyncBy
+        compare
+        (sourceUnfoldrMN count n)
+        (sourceUnfoldrMN count (n + 1))
+
+-------------------------------------------------------------------------------
+-- Application/fold
+-------------------------------------------------------------------------------
+
+{-# INLINE parAppMap #-}
+parAppMap :: S.MonadAsync m => SerialT m Int -> m ()
+parAppMap src = S.drain $ S.map (+1) S.|$ src
+
+{-# INLINE parAppSum #-}
+parAppSum :: S.MonadAsync m => SerialT m Int -> m ()
+parAppSum src = (S.sum S.|$. src) >>= \x -> seq x (return ())
+
+-------------------------------------------------------------------------------
+-- Tapping
+-------------------------------------------------------------------------------
+
+{-# INLINE tapAsyncS #-}
+tapAsyncS :: S.MonadAsync m => Int -> SerialT m Int -> m ()
+tapAsyncS n = composeN n $ Par.tapAsync S.sum
+
+{-# INLINE tapAsync #-}
+tapAsync :: S.MonadAsync m => Int -> SerialT m Int -> m ()
+tapAsync n = composeN n $ Internal.tapAsync FL.sum
+
+o_1_space_merge_app_tap :: Int -> [Benchmark]
+o_1_space_merge_app_tap value =
+    [ bgroup "merge-app-tap"
+        [ benchIOSrc serially "mergeAsyncBy (2,x/2)"
+              (mergeAsyncBy (value `div` 2))
+        , benchIOSrc serially "mergeAsyncByM (2,x/2)"
+              (mergeAsyncByM (value `div` 2))
+        -- Parallel stages in a pipeline
+        , benchIOSink value "parAppMap" parAppMap
+        , benchIOSink value "parAppSum" parAppSum
+        , benchIOSink value "tapAsync" (tapAsync 1)
+        , benchIOSink value "tapAsyncS" (tapAsyncS 1)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Generation
+-------------------------------------------------------------------------------
+
+o_n_heap_generation :: Int -> [Benchmark]
+o_n_heap_generation value =
+    [ bgroup
+        "generation"
+        [ benchIOSrc parallely "unfoldr" (sourceUnfoldr value)
+        , benchIOSrc parallely "unfoldrM" (sourceUnfoldrM value)
+        , benchIOSrc parallely "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc parallely "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc parallely "unfoldrM maxThreads 1"
+              (maxThreads 1 . sourceUnfoldrM value)
+        , benchIOSrc parallely "unfoldrM maxBuffer 1 (x/10 ops)"
+              (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Mapping
+-------------------------------------------------------------------------------
+
+o_n_heap_mapping :: Int -> [Benchmark]
+o_n_heap_mapping value =
+    [ bgroup "mapping"
+        [ benchIOSink value "map" $ mapN parallely 1
+        , benchIOSink value "fmap" $ fmapN parallely 1
+        , benchIOSink value "mapM" $ mapM parallely 1
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Concat
+-------------------------------------------------------------------------------
+
+o_n_heap_concatFoldable :: Int -> [Benchmark]
+o_n_heap_concatFoldable value =
+    [ bgroup
+        "concat-foldable"
+        [ benchIOSrc parallely "foldMapWith" (sourceFoldMapWith value)
+        , benchIOSrc parallely "foldMapWithM" (sourceFoldMapWithM value)
+        , benchIOSrc parallely "foldMapM" (sourceFoldMapM value)
+        ]
+    ]
+
+o_n_heap_concat :: Int -> [Benchmark]
+o_n_heap_concat value =
+    value2 `seq`
+        [ bgroup "concat"
+            [ benchIO "concatMapWith (2,x/2)"
+                (concatStreamsWith parallel 2 (value `div` 2))
+            , benchIO "concatMapWith (sqrt x,sqrt x)"
+                (concatStreamsWith parallel value2 value2)
+            , benchIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
+                (concatStreamsWith parallel (value2 * 2) (value2 `div` 2))
+            ]
+        ]
+
+    where
+
+    value2 = round $ sqrt (fromIntegral value :: Double)
+
+-------------------------------------------------------------------------------
+-- Monadic outer product
+-------------------------------------------------------------------------------
+
+o_n_heap_outerProduct :: Int -> [Benchmark]
+o_n_heap_outerProduct value =
+    [ bgroup "monad-outer-product"
+        [ benchIO "toNullAp" $ toNullAp value parallely
+        , benchIO "toNull" $ toNullM value parallely
+        , benchIO "toNull3" $ toNullM3 value parallely
+        , benchIO "filterAllOut" $ filterAllOutM value parallely
+        , benchIO "filterAllIn" $ filterAllInM value parallely
+        , benchIO "filterSome" $ filterSome value parallely
+        , benchIO "breakAfterSome" $ breakAfterSome value parallely
+        ]
+    ]
+
+o_n_space_outerProduct :: Int -> [Benchmark]
+o_n_space_outerProduct value =
+    [ bgroup "monad-outer-product"
+        [ benchIO "toList" $ toListM value parallely
+        -- XXX disabled due to a bug for now
+        -- , benchIO "toListSome" $ toListSome value parallely
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Main
+-------------------------------------------------------------------------------
 
 main :: IO ()
 main = do
@@ -18,18 +185,13 @@ main = do
     where
 
     allBenchmarks value =
-        concat
-            [ linear value
-            , nested value
+        [ bgroup (o_1_space_prefix moduleName) (o_1_space_merge_app_tap value)
+        , bgroup (o_n_heap_prefix moduleName) $ concat
+            [ o_n_heap_generation value
+            , o_n_heap_mapping value
+            , o_n_heap_concatFoldable value
+            , o_n_heap_concat value
+            , o_n_heap_outerProduct value
             ]
-
-    linear value =
-        concat
-            [ o_n_space_parallel_generation value
-            , o_n_space_parallel_concatFoldable value
-            -- , o_n_space_parallel_outerProductStreams2
-            , o_n_space_parallel_concatMap value
-            , o_n_space_parallel_transformation value
-            ]
-
-    nested = o_n_space_parallel_outerProductStreams
+        , bgroup (o_n_space_prefix moduleName) (o_n_space_outerProduct value)
+        ]

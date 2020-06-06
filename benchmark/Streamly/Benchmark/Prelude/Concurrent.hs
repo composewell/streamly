@@ -1,7 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 -- |
 -- Module      : Main
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
@@ -30,7 +30,7 @@ append buflen tcount d t =
         $ t
         $ maxBuffer buflen
         $ maxThreads (-1)
-        $ S.fromFoldableM $ map work [1..tcount]
+        $ S.fromFoldableM $ fmap work [1..tcount]
 
 -- | Run @threads@ concurrently, each producing streams of @elems@ elements
 -- with a delay of @d@ microseconds between successive elements, and merge
@@ -46,8 +46,7 @@ concated
     -> (forall a. SerialT IO a -> SerialT IO a -> SerialT IO a)
     -> IO ()
 concated buflen threads d elems t =
-    let work = \i -> S.replicateM i
-                        ((when (d /= 0) (threadDelay d)) >> return i)
+    let work = \i -> S.replicateM i (when (d /= 0) (threadDelay d) >> return i)
     in S.drain
         $ adapt
         $ maxThreads (-1)
@@ -74,7 +73,7 @@ concatGroup buflen threads delay n =
     ]
 
 main :: IO ()
-main = do
+main =
   defaultMainWith (defaultConfig
     { timeLimit = Just 0
     , minSamples = Just 1

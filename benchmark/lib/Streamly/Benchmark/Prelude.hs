@@ -1,16 +1,467 @@
 -- |
 -- Module      : Streamly.Benchmark.Prelude
--- Copyright   : (c) 2018 Harendra Kumar
+-- Copyright   : (c) 2018 Composewell Technologies
 --
 -- License     : MIT
 -- Maintainer  : streamly@composewell.com
 
-module Streamly.Benchmark.Prelude
-    ( module Streamly.Benchmark.Prelude.Generation
-    , module Streamly.Benchmark.Prelude.Elimination
-    , module Streamly.Benchmark.Prelude.Transformation
-    ) where
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 
-import Streamly.Benchmark.Prelude.Generation
-import Streamly.Benchmark.Prelude.Elimination
-import Streamly.Benchmark.Prelude.Transformation
+module Streamly.Benchmark.Prelude where
+
+import Control.DeepSeq (NFData(..))
+import Control.Exception (try)
+import GHC.Exception (ErrorCall)
+import System.Random (randomRIO)
+
+import qualified Data.Foldable as F
+import qualified Streamly as S
+import qualified Streamly.Prelude  as S
+import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Pipe as Pipe
+
+import Gauge
+import Streamly.Internal.Data.Time.Units
+
+-- Common polymorphic stream APIs used across multiple stream modules
+
+-------------------------------------------------------------------------------
+-- Generation
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- enumerate
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceIntFromTo #-}
+sourceIntFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceIntFromTo value n = S.enumerateFromTo n (n + value)
+
+{-# INLINE sourceIntFromThenTo #-}
+sourceIntFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceIntFromThenTo value n = S.enumerateFromThenTo n (n + 1) (n + value)
+
+{-# INLINE sourceFracFromTo #-}
+sourceFracFromTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Double
+sourceFracFromTo value n =
+    S.enumerateFromTo (fromIntegral n) (fromIntegral (n + value))
+
+{-# INLINE sourceFracFromThenTo #-}
+sourceFracFromThenTo :: (Monad m, S.IsStream t) => Int -> Int -> t m Double
+sourceFracFromThenTo value n = S.enumerateFromThenTo (fromIntegral n)
+    (fromIntegral n + 1.0001) (fromIntegral (n + value))
+
+{-# INLINE sourceIntegerFromStep #-}
+sourceIntegerFromStep :: (Monad m, S.IsStream t) => Int -> Int -> t m Integer
+sourceIntegerFromStep value n =
+    S.take value $ S.enumerateFromThen (fromIntegral n) (fromIntegral n + 1)
+
+-------------------------------------------------------------------------------
+-- unfold
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceUnfoldr #-}
+sourceUnfoldr :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceUnfoldr count start = S.unfoldr step start
+    where
+    step cnt =
+        if cnt > start + count
+        then Nothing
+        else Just (cnt, cnt + 1)
+
+{-# INLINE sourceUnfoldrN #-}
+sourceUnfoldrN :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceUnfoldrN count start = S.unfoldr step start
+    where
+    step cnt =
+        if cnt > start + count
+        then Nothing
+        else Just (cnt, cnt + 1)
+
+{-# INLINE sourceUnfoldrM #-}
+sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrM count start = S.unfoldrM step start
+    where
+    step cnt =
+        if cnt > start + count
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldrMN #-}
+sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrMN count start = S.unfoldrM step start
+    where
+    step cnt =
+        if cnt > start + count
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+-------------------------------------------------------------------------------
+-- fromIndices
+-------------------------------------------------------------------------------
+
+{-# INLINE _sourceFromIndices #-}
+_sourceFromIndices :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+_sourceFromIndices value n = S.take value $ S.fromIndices (+ n)
+
+{-# INLINE _sourceFromIndicesM #-}
+_sourceFromIndicesM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+_sourceFromIndicesM value n = S.take value $ S.fromIndicesM (fmap return (+ n))
+
+-------------------------------------------------------------------------------
+-- fromList
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceFromList #-}
+sourceFromList :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromList value n = S.fromList [n..n+value]
+
+{-# INLINE sourceFromListM #-}
+sourceFromListM :: (S.MonadAsync m, S.IsStream t) => Int -> Int -> t m Int
+sourceFromListM value n = S.fromListM (fmap return [n..n+value])
+
+-------------------------------------------------------------------------------
+-- fromFoldable
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceFromFoldable #-}
+sourceFromFoldable :: S.IsStream t => Int -> Int -> t m Int
+sourceFromFoldable value n = S.fromFoldable [n..n+value]
+
+{-# INLINE sourceFromFoldableM #-}
+sourceFromFoldableM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceFromFoldableM value n = S.fromFoldableM (fmap return [n..n+value])
+
+-------------------------------------------------------------------------------
+-- Time enumeration
+-------------------------------------------------------------------------------
+
+{-# INLINE absTimes #-}
+absTimes :: (S.IsStream t, S.MonadAsync m, Functor (t m))
+    => Int -> Int -> t m AbsTime
+absTimes value _ = S.take value Internal.absTimes
+
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+{-# INLINE toNull #-}
+toNull :: Monad m => (t m a -> S.SerialT m a) -> t m a -> m ()
+toNull t = S.drain . t
+
+-- We need a monadic bind here to make sure that the function f does not get
+-- completely optimized out by the compiler in some cases.
+
+-- | Takes a fold method, and uses it with a default source.
+{-# INLINE benchIOSink #-}
+benchIOSink
+    :: (S.IsStream t, NFData b)
+    => Int -> String -> (t IO Int -> IO b) -> Benchmark
+benchIOSink value name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= f . sourceUnfoldrM value
+
+-- | Takes a source, and uses it with a default drain/fold method.
+{-# INLINE benchIOSrc #-}
+benchIOSrc
+    :: (t IO a -> S.SerialT IO a)
+    -> String
+    -> (Int -> t IO a)
+    -> Benchmark
+benchIOSrc t name f =
+    bench name $ nfIO $ randomRIO (1,1) >>= toNull t . f
+
+{-# INLINE benchIO #-}
+benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
+benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
+
+-------------------------------------------------------------------------------
+-- Mapping
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceUnfoldrAction #-}
+sourceUnfoldrAction :: (S.IsStream t, Monad m, Monad m1)
+    => Int -> Int -> t m (m1 Int)
+sourceUnfoldrAction value n = S.serially $ S.unfoldr step n
+    where
+    step cnt =
+        if cnt > n + value
+        then Nothing
+        else Just (return cnt, cnt + 1)
+
+{-# INLINE composeN #-}
+composeN ::
+       (S.IsStream t, Monad m)
+    => Int
+    -> (t m Int -> S.SerialT m Int)
+    -> t m Int
+    -> m ()
+composeN n f =
+    case n of
+        1 -> S.drain . f
+        2 -> S.drain . f . S.adapt . f
+        3 -> S.drain . f . S.adapt . f . S.adapt . f
+        4 -> S.drain . f . S.adapt . f . S.adapt . f . S.adapt . f
+        _ -> undefined
+
+{-# INLINE fmapN #-}
+fmapN ::
+       (S.IsStream t, S.MonadAsync m, Functor (t m))
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+fmapN t n = composeN n $ t . fmap (+ 1)
+
+{-# INLINE mapN #-}
+mapN ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+mapN t n = composeN n $ t . S.map (+ 1)
+
+{-# INLINE mapM #-}
+mapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+mapM t n = composeN n $ t . S.mapM return
+
+-------------------------------------------------------------------------------
+-- Pipes
+-------------------------------------------------------------------------------
+
+{-# INLINE transformMapM #-}
+transformMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformMapM t n = composeN n $ t . Internal.transform (Pipe.mapM return)
+
+{-# INLINE transformComposeMapM #-}
+transformComposeMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformComposeMapM t n =
+    composeN n $
+    t .
+    Internal.transform
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.compose`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE transformTeeMapM #-}
+transformTeeMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformTeeMapM t n =
+    composeN n $
+    t .
+    Internal.transform
+        (Pipe.mapM (\x -> return (x + 1)) `Pipe.tee`
+         Pipe.mapM (\x -> return (x + 2)))
+
+{-# INLINE transformZipMapM #-}
+transformZipMapM ::
+       (S.IsStream t, S.MonadAsync m)
+    => (t m Int -> S.SerialT m Int)
+    -> Int
+    -> t m Int
+    -> m ()
+transformZipMapM t n =
+    composeN n $
+    t .
+    Internal.transform
+        (Pipe.zipWith
+             (+)
+             (Pipe.mapM (\x -> return (x + 1)))
+             (Pipe.mapM (\x -> return (x + 2))))
+
+-------------------------------------------------------------------------------
+-- Streams of streams
+-------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+-- Concat foldable
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceFoldMapWith #-}
+sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
+    => Int -> Int -> t m Int
+sourceFoldMapWith value n = S.foldMapWith (S.<>) S.yield [n..n+value]
+
+{-# INLINE sourceFoldMapWithM #-}
+sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
+    => Int -> Int -> t m Int
+sourceFoldMapWithM value n =
+    S.foldMapWith (S.<>) (S.yieldM . return) [n..n+value]
+
+{-# INLINE sourceFoldMapM #-}
+sourceFoldMapM :: (S.IsStream t, Monad m, Monoid (t m Int))
+    => Int -> Int -> t m Int
+sourceFoldMapM value n = F.foldMap (S.yieldM . return) [n..n+value]
+
+-------------------------------------------------------------------------------
+-- Concat
+-------------------------------------------------------------------------------
+
+{-# INLINE sourceConcatMapId #-}
+sourceConcatMapId :: (S.IsStream t, Monad m)
+    => Int -> Int -> t m Int
+sourceConcatMapId value n =
+    S.concatMap id $ S.fromFoldable $ fmap (S.yieldM . return) [n..n+value]
+
+-- concatMapWith
+
+{-# INLINE concatStreamsWith #-}
+concatStreamsWith
+    :: (forall c. S.SerialT IO c -> S.SerialT IO c -> S.SerialT IO c)
+    -> Int
+    -> Int
+    -> Int
+    -> IO ()
+concatStreamsWith op outer inner n =
+    S.drain $ S.concatMapWith op
+        (sourceUnfoldrMN inner)
+        (sourceUnfoldrMN outer n)
+
+-------------------------------------------------------------------------------
+-- Monadic outer product
+-------------------------------------------------------------------------------
+
+{-# INLINE runToList #-}
+runToList :: Monad m => S.SerialT m a -> m [a]
+runToList = S.toList
+
+{-# INLINE toNullAp #-}
+toNullAp
+    :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+toNullAp linearCount t start = S.drain . t $
+    (+) <$> sourceUnfoldrM nestedCount2 start
+        <*> sourceUnfoldrM nestedCount2 start
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE toNullM #-}
+toNullM
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+toNullM linearCount t start = S.drain . t $ do
+    x <- sourceUnfoldrM nestedCount2 start
+    y <- sourceUnfoldrM nestedCount2 start
+    return $ x + y
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE toNullM3 #-}
+toNullM3
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+toNullM3 linearCount t start = S.drain . t $ do
+    x <- sourceUnfoldrM nestedCount3 start
+    y <- sourceUnfoldrM nestedCount3 start
+    z <- sourceUnfoldrM nestedCount3 start
+    return $ x + y + z
+  where
+    nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
+
+{-# INLINE toListM #-}
+toListM
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+toListM linearCount t start = runToList . t $ do
+    x <- sourceUnfoldrM nestedCount2 start
+    y <- sourceUnfoldrM nestedCount2 start
+    return $ x + y
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+-- Taking a specified number of elements is very expensive in logict so we have
+-- a test to measure the same.
+{-# INLINE toListSome #-}
+toListSome
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
+toListSome linearCount t start =
+    runToList . t $ S.take 10000 $ do
+        x <- sourceUnfoldrM nestedCount2 start
+        y <- sourceUnfoldrM nestedCount2 start
+        return $ x + y
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE filterAllOutM #-}
+filterAllOutM
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+filterAllOutM linearCount t start = S.drain . t $ do
+    x <- sourceUnfoldrM nestedCount2 start
+    y <- sourceUnfoldrM nestedCount2 start
+    let s = x + y
+    if s < 0
+    then return s
+    else S.nil
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE filterAllInM #-}
+filterAllInM
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+filterAllInM linearCount t start = S.drain . t $ do
+    x <- sourceUnfoldrM nestedCount2 start
+    y <- sourceUnfoldrM nestedCount2 start
+    let s = x + y
+    if s > 0
+    then return s
+    else S.nil
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE filterSome #-}
+filterSome
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+filterSome linearCount t start = S.drain . t $ do
+    x <- sourceUnfoldrM nestedCount2 start
+    y <- sourceUnfoldrM nestedCount2 start
+    let s = x + y
+    if s > 1100000
+    then return s
+    else S.nil
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE breakAfterSome #-}
+breakAfterSome
+    :: (S.IsStream t, Monad (t IO))
+    => Int -> (t IO Int -> S.SerialT IO Int) -> Int -> IO ()
+breakAfterSome linearCount t start = do
+    (_ :: Either ErrorCall ()) <- try $ S.drain . t $ do
+        x <- sourceUnfoldrM nestedCount2 start
+        y <- sourceUnfoldrM nestedCount2 start
+        let s = x + y
+        if s > 1100000
+        then error "break"
+        else return s
+    return ()
+  where
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))

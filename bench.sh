@@ -3,94 +3,91 @@
 # Note "_grp" and "_cmp" suffixes are special, do not rename them to something
 # else.
 
+#------------------------------------------------------------------------------
+# Benchmark groups
+#------------------------------------------------------------------------------
 base_stream_grp="\
     Data.Stream.StreamD \
     Data.Stream.StreamK \
     Data.Stream.StreamDK"
-SERIAL_O_1="linear"
-SERIAL_O_n="serial-o-n-heap serial-o-n-stack serial-o-n-space"
-serial_grp="$SERIAL_O_1 $SERIAL_O_n"
 
-# parallel benchmark-suite is separated because we run it with a higher
-# heap size limit.
-concurrent_grp="linear-async linear-rate nested-concurrent parallel concurrent adaptive"
+prelude_serial_grp="\
+  Prelude.Serial \
+  Prelude.WSerial \
+  Prelude.ZipSerial"
+
+prelude_concurrent_grp="\
+  Prelude.Async \
+  Prelude.WAsync \
+  Prelude.Ahead \
+  Prelude.Parallel \
+  Prelude.ZipAsync"
+
+prelude_other_grp="\
+  Prelude.Rate \
+  Prelude.Concurrent \
+  Prelude.Adaptive"
 
 array_grp="Memory.Array Data.Array Data.Prim.Array Data.SmallArray"
 
 base_parser_grp="Data.Parser.ParserD Data.Parser.ParserK"
 parser_grp="Data.Fold Data.Parser"
 
-# XXX We can include SERIAL_O_1 here once "base" also supports --stream-size
-infinite_grp="linear linear-async linear-rate nested-concurrent"
-finite_grp="$SERIAL_O_n $array_grp fileio parallel concurrent adaptive"
+#------------------------------------------------------------------------------
+# Streaming vs non-streaming
+#------------------------------------------------------------------------------
+# The "o-1-space" groups of these benchmarks are run with long stream
+# sizes when --long option is used.
 
-# Benchmarks that take long time per iteration must run fewer iterations to
-# finish in reasonable time.
-QUICK_BENCHMARKS="linear-rate concurrent adaptive fileio"
+infinite_grp="\
+  $prelude_serial_grp \
+  $prelude_concurrent_grp \
+  Prelude.Rate"
 
+#------------------------------------------------------------------------------
+# Comparison groups
+#------------------------------------------------------------------------------
 # *_cmp denotes a comparison benchmarks, the benchmarks provided in *_cmp
 # variables are compared with each other
-array_cmp="Memory.Array Data.Prim.Array Data.Array"
 base_stream_cmp="Data.Stream.StreamD Data.Stream.StreamK"
+serial_wserial_cmp="Prelude.Serial Prelude.WSerial"
+serial_async_cmp="Prelude.Serial Prelude.Async"
+concurrent_cmp="Prelude.Async Prelude.WAsync Prelude.Ahead Prelude.Parallel"
+array_cmp="Memory.Array Data.Prim.Array Data.Array"
 base_parser_cmp=$base_parser_grp
-COMPARISONS="array_cmp base_stream_cmp base_parser_cmp"
+COMPARISONS="\
+  base_stream_cmp \
+  serial_wserial_cmp \
+  serial_async_cmp \
+  concurrent_cmp \
+  array_cmp \
+  base_parser_cmp"
 
+#------------------------------------------------------------------------------
+# All
+#------------------------------------------------------------------------------
 # All high level benchmarks
 all_grp="\
-    $serial_grp \
-    $concurrent_grp \
+    $prelude_serial_grp \
+    $prelude_concurrent_grp \
     $array_grp \
     $parser_grp \
     Data.Unfold"
 
 ALL_BENCH_GROUPS="\
     all_grp \
-    serial_grp \
-    concurrent_grp \
+    prelude_serial_grp \
+    prelude_concurrent_grp \
     array_grp \
     infinite_grp \
-    finite_grp \
     base_stream_grp \
     base_parser_grp"
 
-# RTS options that go inside +RTS and -RTS while running the benchmark.
-bench_rts_opts () {
-  case "$1" in
-    "linear") echo -n "-T -K36K -M16M" ;;
-    "serial-o-n-stack") echo -n "-T -K1M -M16M" ;;
-    "serial-o-n-heap") echo -n "-T -K36K -M128M" ;;
-    "serial-o-n-space") echo -n "-T -K16M -M64M" ;;
-    Data.SmallArray/o-1-sp*) echo -n "-T -K128K -M16M" ;;
-    */o-1-sp*) echo -n "-T -K36K -M16M" ;;
-    */o-n-h*) echo -n "-T -K36K -M32M" ;;
-    */o-n-st*) echo -n "-T -K1M -M16M" ;;
-    */o-n-sp*) echo -n "-T -K1M -M32M" ;;
+#------------------------------------------------------------------------------
+# Script
+#------------------------------------------------------------------------------
 
-    *) echo -n "" ;;
-  esac
-}
-
-# The correct executable for the given benchmark name.
-bench_exec () {
-  case "$1" in
-    "linear") echo -n "serial" ;;
-    "serial-o-n-stack") echo -n "serial" ;;
-    "serial-o-n-heap") echo -n "serial" ;;
-    "serial-o-n-space") echo -n "serial" ;;
-    *) echo -n "$1" ;;
-  esac
-}
-
-# Specific gauge options for the given benchmark.
-bench_gauge_opts () {
-  case "$1" in
-    "linear") echo -n "-m prefix o-1-space" ;;
-    "serial-o-n-stack") echo -n "-m prefix o-n-stack" ;;
-    "serial-o-n-heap") echo -n "-m prefix o-n-heap" ;;
-    "serial-o-n-space") echo -n "-m prefix o-n-space" ;;
-    *) echo -n "" ;;
-  esac
-}
+BENCH_SH_DIR=$(dirname $0)
 
 list_benches ()  {
   echo "Individual benchmarks:"
@@ -125,7 +122,7 @@ list_comparisons ()  {
 
 print_help () {
   echo "Usage: $0 "
-  echo "       [--benchmarks <"bench1 bench2 ..." | ?>]"
+  echo "       [--benchmarks <"bench1 bench2 ..." | help>]"
   echo "       [--graphs]"
   echo "       [--no-measure]"
   echo "       [--append]"
@@ -136,7 +133,7 @@ print_help () {
   echo "       [--compare] [--base <commit>] [--candidate <commit>]"
   echo "       -- <gauge options or benchmarks>"
   echo
-  echo "--benchmarks: benchmarks to run, use '?' for list of benchmarks"
+  echo "--benchmarks: benchmarks to run, use 'help' for list of benchmarks"
   echo "--graphs: Generate graphical reports"
   echo "--no-measure: Don't run benchmarks, run reports from previous results"
   echo "--append: Don't overwrite previous results, append for comparison"
@@ -280,10 +277,9 @@ function run_verbose() {
 
 run_bench () {
   local bench_name=$1
-  local bench_exe=$(bench_exec $bench_name)
+  local bench_exe=$bench_name
   local output_file=$(bench_output_file $bench_name)
   local bench_prog
-  local quick_bench=0
   bench_prog=$($GET_BENCH_PROG $bench_exe) || \
     die "Cannot find benchmark executable for benchmark $bench_name"
 
@@ -291,41 +287,38 @@ run_bench () {
 
   echo "Running benchmark $bench_name ..."
 
-  for i in $QUICK_BENCHMARKS
-  do
-    if test "$(has_benchmark $i)" = "$bench_name"
-    then
-      quick_bench=1
-    fi
-  done
-
   local QUICK_OPTS="--quick --time-limit 1 --min-duration 0"
   local SPEED_OPTIONS
   if test "$LONG" -eq 0
   then
     if test "$SLOW" -eq 0
     then
-        if test "$QUICK" -eq 0 -a "$quick_bench" -eq 0
+        export QUICK_MODE
+        if test "$QUICK_MODE" -eq 0
         then
-          # reasonably quick
+          # default mode, not super quick, not slow
           SPEED_OPTIONS="$QUICK_OPTS --min-samples 10"
         else
           # super quick but less accurate
           SPEED_OPTIONS="$QUICK_OPTS --include-first-iter"
         fi
     else
+      # Slow but more accurate mode
       SPEED_OPTIONS="--min-duration 0"
     fi
   else
+      # large stream size, always super quick
+      GAUGE_ARGS="$GAUGE_ARGS $bench_name/o-1-space"
       SPEED_OPTIONS="--stream-size 10000000 $QUICK_OPTS --include-first-iter"
   fi
 
+  export BENCH_EXEC_PATH=$bench_prog
+  export RTS_OPTIONS
   run_verbose $bench_prog $SPEED_OPTIONS \
-    +RTS $(bench_rts_opts $GAUGE_ARGS) -RTS \
     --csvraw=$output_file \
     -v 2 \
-    --measure-with $bench_prog $GAUGE_ARGS \
-    $(bench_gauge_opts $bench_name) || die "Benchmarking failed"
+    --measure-with "$BENCH_SH_DIR/bin/bench-exec-one.sh" \
+    $GAUGE_ARGS || die "Benchmarking failed"
 }
 
 run_benches() {
@@ -407,7 +400,7 @@ run_reports() {
 # Execution starts here
 #-----------------------------------------------------------------------------
 
-DEFAULT_BENCHMARKS="linear"
+DEFAULT_BENCHMARKS="$all_grp"
 
 COMPARE=0
 BASE=
@@ -415,13 +408,14 @@ CANDIDATE=
 
 APPEND=0
 SLOW=0
-QUICK=0
+QUICK_MODE=0
 LONG=0
 RAW=0
 GRAPH=0
 MEASURE=1
 
 GAUGE_ARGS=
+RTS_OPTIONS=
 BUILD_ONCE=0
 USE_STACK=0
 CABAL_BUILD_FLAGS=""
@@ -445,9 +439,10 @@ do
     --base) shift; BASE=$1; shift ;;
     --candidate) shift; CANDIDATE=$1; shift ;;
     --cabal-build-flags) shift; CABAL_BUILD_FLAGS=$1; shift ;;
+    --rtsopts) shift; RTS_OPTIONS=$1; shift ;;
     # flags
     --slow) SLOW=1; shift ;;
-    --quick) QUICK=1; shift ;;
+    --quick) QUICK_MODE=1; shift ;;
     --compare) COMPARE=1; shift ;;
     --raw) RAW=1; shift ;;
     --append) APPEND=1; shift ;;
@@ -476,13 +471,6 @@ only_real_benchmarks () {
     then
       echo -n "$i "
     fi
-  done
-}
-
-proper_executables () {
-  for i in $BENCHMARKS
-  do
-    echo -n "$(bench_exec $i) "
   done
 }
 
@@ -519,7 +507,7 @@ fi
 BENCHMARKS=$(set_benchmarks)
 BENCHMARKS_ORIG=$BENCHMARKS
 BENCHMARKS=$(only_real_benchmarks)
-EXECUTABLES=$(proper_executables)
+EXECUTABLES=$BENCHMARKS
 
 echo "Using benchmark suites [$BENCHMARKS]"
 

@@ -17,6 +17,7 @@
 - ignore: {name: "Reduce duplication"}
 - ignore: {name: "Use <>"}
 - ignore: {name: "Use fewer imports"}
+- ignore: {name: "Use camelCase"}
 
 
 # Specify additional command line arguments

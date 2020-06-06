@@ -128,27 +128,9 @@ common bench-depends
 
 library
     import: lib-options, bench-depends
-    hs-source-dirs:    lib
-    exposed-modules:
-                       Streamly.Benchmark.Common
-
-library lib-prelude
-    import: lib-options, bench-depends
-    hs-source-dirs:    lib, .
-    exposed-modules:
-                       Streamly.Benchmark.Prelude
-    other-modules:     Streamly.Benchmark.Common
-                     , Streamly.Benchmark.Prelude.NestedOps
-                     , Streamly.Benchmark.Prelude.Generation
-                     , Streamly.Benchmark.Prelude.Elimination
-                     , Streamly.Benchmark.Prelude.Transformation
-
-    -- XXX GHCJS build fails for this library.
-    if impl(ghcjs)
-      buildable: False
-    else
-      build-depends: ghc-prim
-      buildable: True
+    hs-source-dirs: lib
+    exposed-modules: Streamly.Benchmark.Common
+                   , Streamly.Benchmark.Prelude
 
 -------------------------------------------------------------------------------
 -- Benchmarks
@@ -161,25 +143,21 @@ library lib-prelude
 common bench-options
   import: compile-options, optimization-options, bench-depends
   ghc-options: -rtsopts
-  build-depends: streamly-benchmarks
+  build-depends: streamly-benchmarks == 0.0.0
 
 -- Some benchmarks are threaded some are not
 common bench-options-threaded
   import: compile-options, optimization-options, bench-depends
   -- -threaded and -N2 is important because some GC and space leak issues
   -- trigger only with these options.
-  ghc-options: -threaded -with-rtsopts "-T -N2 -K32K -M16M"
-  build-depends: streamly-benchmarks
-
--- XXX the individual modules can just export a bunch of gauge Benchmark
--- grouped by space usage and then we can combine the groups in just four
--- different top level drivers.
+  ghc-options: -threaded -rtsopts -with-rtsopts "-N2"
+  build-depends: streamly-benchmarks == 0.0.0
 
 -------------------------------------------------------------------------------
 -- Serial Streams
 -------------------------------------------------------------------------------
 
-benchmark serial
+benchmark Prelude.Serial
   import: bench-options
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
@@ -187,7 +165,76 @@ benchmark serial
   if impl(ghcjs)
     buildable: False
   else
-    build-depends: lib-prelude
+    buildable: True
+
+benchmark Prelude.WSerial
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: WSerial.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.ZipSerial
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: ZipSerial.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.ZipAsync
+  import: bench-options
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: ZipAsync.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.Ahead
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Ahead.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.Async
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Async.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.WAsync
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: WAsync.hs
+  if impl(ghcjs)
+    buildable: False
+  else
+    buildable: True
+
+benchmark Prelude.Parallel
+  import: bench-options-threaded
+  type: exitcode-stdio-1.0
+  hs-source-dirs: Streamly/Benchmark/Prelude
+  main-is: Parallel.hs
+  if impl(ghcjs)
+    buildable: False
+  else
     buildable: True
 
 benchmark Data.Unfold
@@ -291,47 +338,13 @@ executable nano-bench
 -- Concurrent Streams
 -------------------------------------------------------------------------------
 
-benchmark linear-async
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -N2 -K64K -M16M"
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: LinearAsync.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-prelude
-    buildable: True
-
-benchmark nested-concurrent
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  -- XXX this can be lowered once we split out the finite benchmarks
-  ghc-options: -with-rtsopts "-T -N2 -K256K -M128M"
-  hs-source-dirs: ., Streamly/Benchmark/Prelude
-  main-is: NestedConcurrent.hs
-  other-modules: Streamly.Benchmark.Prelude.NestedOps
-
-benchmark parallel
-  import: bench-options-threaded
-  type: exitcode-stdio-1.0
-  ghc-options: -with-rtsopts "-T -N2 -K128K -M256M"
-  hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: Parallel.hs
-  if impl(ghcjs)
-    buildable: False
-  else
-    build-depends: lib-prelude
-    buildable: True
-
-benchmark concurrent
+benchmark Prelude.Concurrent
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
   main-is: Concurrent.hs
-  ghc-options: -with-rtsopts "-T -N2 -K256K -M384M"
 
-benchmark adaptive
+benchmark Prelude.Adaptive
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
@@ -341,15 +354,14 @@ benchmark adaptive
   else
     buildable: True
 
-benchmark linear-rate
+benchmark Prelude.Rate
   import: bench-options-threaded
   type: exitcode-stdio-1.0
   hs-source-dirs: Streamly/Benchmark/Prelude
-  main-is: LinearRate.hs
+  main-is: Rate.hs
   if impl(ghcjs)
     buildable: False
   else
-    build-depends: lib-prelude
     buildable: True
 
 -------------------------------------------------------------------------------
@@ -412,7 +424,6 @@ executable chart
     build-Depends:
         base >= 4.8 && < 5
       , bench-show >= 0.3 && < 0.4
-      , split
       , transformers >= 0.4   && < 0.6
   else
     buildable: False
