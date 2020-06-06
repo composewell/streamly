@@ -101,51 +101,51 @@ extra-source-files:
     .hlint.ignore
     .hlint.yaml
     .travis.yml
-    appveyor.yml
-    bin/bench-exec-one.sh
-    cabal.project.ci
-    Changelog.md
-    charts-0/streamly-vs-list-time.svg
-    credits/*.md
-    credits/base-4.12.0.0.txt
-    credits/primitive-0.7.0.0.txt
-    credits/bjoern-2008-2009.txt
-    credits/clock-0.7.2.txt
-    credits/foldl-1.4.5.txt
-    credits/pipes-concurrency-2.0.8.txt
-    credits/transient-0.5.5.txt
-    credits/vector-0.12.0.2.txt
-    credits/Yampa-0.10.6.2.txt
     CONTRIBUTING.md
-    README.md
+    Changelog.md
     INSTALL.md
     MAINTAINING.md
-    docs/streamly-vs-async.md
-    docs/streamly-vs-lists.md
-    docs/transformers.md
-    docs/Build.md
-    design/*.md
-    design/*.png
-    design/*.rst
-    examples/README.md
+    README.md
+    appveyor.yml
     bench.sh
-    stack.yaml
-    src/Streamly/Internal/Data/Stream/Instances.hs
-    src/inline.hs
-    configure.ac
-    configure
-    src/Streamly/Internal/Data/Time/config.h.in
-    benchmark/streamly-benchmarks.cabal
-    benchmark/README.md
     benchmark/*.hs
-    benchmark/lib/Streamly/Benchmark/*.hs
-    benchmark/Streamly/Benchmark/Memory/*.hs
+    benchmark/README.md
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileIO/*.hs
+    benchmark/Streamly/Benchmark/Memory/*.hs
     benchmark/Streamly/Benchmark/Prelude/*.hs
+    benchmark/lib/Streamly/Benchmark/*.hs
+    benchmark/streamly-benchmarks.cabal
+    bin/bench-exec-one.sh
+    cabal.project.ci
+    charts-0/streamly-vs-list-time.svg
+    configure
+    configure.ac
+    credits/*.md
+    credits/Yampa-0.10.6.2.txt
+    credits/base-4.12.0.0.txt
+    credits/bjoern-2008-2009.txt
+    credits/clock-0.7.2.txt
+    credits/foldl-1.4.5.txt
+    credits/pipes-concurrency-2.0.8.txt
+    credits/primitive-0.7.0.0.txt
+    credits/transient-0.5.5.txt
+    credits/vector-0.12.0.2.txt
+    design/*.md
+    design/*.png
+    design/*.rst
+    docs/Build.md
+    docs/streamly-vs-async.md
+    docs/streamly-vs-lists.md
+    docs/transformers.md
+    examples/README.md
+    src/Streamly/Internal/Data/Stream/Instances.hs
+    src/Streamly/Internal/Data/Time/config.h.in
+    src/inline.hs
+    stack.yaml
 
 extra-tmp-files:
     config.log
