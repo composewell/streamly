@@ -24,8 +24,10 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
 
     -- * Construction
     , newArray
+    , writeArray
 
     , spliceTwo
+    , unsafeCopy
 
     , fromListM
     , fromListNM
@@ -34,9 +36,6 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
 
     -- * Streams of arrays
     , fromStreamDArraysOf
-    , FlattenState (..) -- for inspection testing
-    , flattenArrays
-    , flattenArraysRev
 
     , packArraysChunksOf
     , lpackArraysChunksOf
@@ -64,7 +63,7 @@ import GHC.Exts
 import Control.Monad.Primitive
 import Data.Primitive.Types
 
-import Prelude hiding (length)
+import Prelude hiding (length, unlines)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
@@ -292,68 +291,6 @@ unsafeIndexM ::
 unsafeIndexM (Array arr#) (I# i#) =
     primitive (\s# -> case indexByteArray# (unsafeCoerce# arr#) i# of
                         a -> (# s#, a #))
-
--- Move this to Immutable Data Array?
-data FlattenState s t a =
-      OuterLoop s
-    | InnerLoop s !(Array t a) !Int !Int
-
-{-# INLINE_NORMAL flattenArrays #-}
-flattenArrays ::
-       forall m a. (PrimMonad m, Prim a)
-    => D.Stream m (Array (PrimState m) a)
-    -> D.Stream m a
-flattenArrays (D.Stream step state) = D.Stream step' (OuterLoop state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst (OuterLoop st) = do
-        r <- step (adaptState gst) st
-        return $ case r of
-            D.Yield arr s ->
-                let len = length arr
-                in if len == 0
-                   then D.Skip (OuterLoop s)
-                   else D.Skip (InnerLoop s arr len 0)
-            D.Skip s -> D.Skip (OuterLoop s)
-            D.Stop -> D.Stop
-
-    step' _ (InnerLoop st _ len i) | i == len =
-        return $ D.Skip $ OuterLoop st
-
-    step' _ (InnerLoop st arr len i) = do
-        x <- unsafeIndexM arr i
-        return $ D.Yield x (InnerLoop st arr len (i + 1))
-
--- Move this to Immutable Data Array?
-{-# INLINE_NORMAL flattenArraysRev #-}
-flattenArraysRev ::
-       forall m a. (PrimMonad m, Prim a)
-    => D.Stream m (Array (PrimState m) a)
-    -> D.Stream m a
-flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
-
-    where
-
-    {-# INLINE_LATE step' #-}
-    step' gst (OuterLoop st) = do
-        r <- step (adaptState gst) st
-        return $ case r of
-            D.Yield arr s ->
-                let len = length arr
-                in if len == 0
-                   then D.Skip (OuterLoop s)
-                   else D.Skip (InnerLoop s arr len (len - 1))
-            D.Skip s -> D.Skip (OuterLoop s)
-            D.Stop -> D.Stop
-
-    step' _ (InnerLoop st _ _ i) | i == -1 =
-        return $ D.Skip $ OuterLoop st
-
-    step' _ (InnerLoop st arr len i) = do
-        x <- unsafeIndexM arr i
-        return $ D.Yield x (InnerLoop st arr len (i - 1))
 
 {-# INLINE byteLength #-}
 byteLength :: Array s a -> Int
