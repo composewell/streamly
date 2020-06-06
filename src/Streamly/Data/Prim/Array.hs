@@ -8,8 +8,7 @@
 -- Portability : GHC
 --
 module Streamly.Data.Prim.Array
-    ( PrimArray
-    , Prim
+    ( Array
 
     -- * Construction
     , A.fromListN
@@ -39,6 +38,6 @@ module Streamly.Data.Prim.Array
     )
 where
 
-import Streamly.Internal.Data.Prim.Array (PrimArray, Prim)
+import Streamly.Internal.Data.Prim.Array (Array)
 
 import qualified Streamly.Internal.Data.Prim.Array as A
