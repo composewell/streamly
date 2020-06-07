@@ -249,9 +249,9 @@ foldableSequence_ :: Int -> Int -> IO ()
 foldableSequence_ value n =
     F.sequence_ (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
 
-{-# INLINE foldableMsum #-}
-foldableMsum :: Int -> Int -> IO Int
-foldableMsum value n =
+{-# INLINE _foldableMsum #-}
+_foldableMsum :: Int -> Int -> IO Int
+_foldableMsum value n =
     F.msum (sourceUnfoldrAction value n :: S.SerialT Identity (IO Int))
 
 {-# INLINE showInstance #-}
@@ -288,7 +288,8 @@ o_1_space_elimination_foldable value =
         , benchIOSink1 "sequence_" (foldableSequence_ value)
         -- TBD: sequenceA_
         -- TBD: asum
-        , benchIOSink1 "msum" (foldableMsum value)
+        -- XXX needs to be fixed, results are in ns
+        -- , benchIOSink1 "msum" (foldableMsum value)
         ]
     ]
 

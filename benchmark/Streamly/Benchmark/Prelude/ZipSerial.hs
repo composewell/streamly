@@ -93,6 +93,7 @@ o_1_space_mapping value =
 -- Monad outer product
 -------------------------------------------------------------------------------
 
+{-
 o_1_space_outerProduct :: Int -> [Benchmark]
 o_1_space_outerProduct value =
     [ bgroup "monad-outer-product"
@@ -100,6 +101,7 @@ o_1_space_outerProduct value =
         [ benchIO "toNullAp" $ toNullAp value zipSerially
         ]
     ]
+-}
 
 -------------------------------------------------------------------------------
 -- Main
@@ -119,7 +121,8 @@ main = do
         [ bgroup (o_1_space_prefix moduleName) $ concat
             [ o_1_space_joining size
             , o_1_space_mapping size
-            , o_1_space_outerProduct size
+            -- XXX need to fix, timing in ns
+            -- , o_1_space_outerProduct size
             ]
         ]
 
