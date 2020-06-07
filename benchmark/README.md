@@ -7,34 +7,52 @@ options to run it.
 
 ## Quick start
 
-Run these commands from the root of the repo.
+You must be in the repo root directory to run these commands.
 
-To run the default benchmarks:
-
-```
-$ ./bench.sh
-```
-
-To run all benchmarks:
+Run the default benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks all
+$ ./bench.sh --quick
 ```
 
-To run `linear` and `linear-async` benchmarks:
+You can remove the `--quick` option to run benchmark with lower speed but
+better accuracy, or use `--slow` to even further lower the speed and increase
+the accuracy a bit.
+
+Show available benchmark suites:
 
 ```
-$ ./bench.sh --benchmarks "linear linear-async"
+$ ./bench.sh --benchmarks help
 ```
 
-To run only the base benchmark and only the benchmarks prefixed with
-`StreamD` in that (anything after a `--` is passed to gauge):
+Run all benchmark suites in the `serial_grp` group:
 
 ```
-$ ./bench.sh --benchmarks base -- StreamD
+$ ./bench.sh --benchmarks serial_grp
 ```
 
-## Comparing benchmarks
+Run `Prelude.Serial` and `Data.Parser` benchmark suites:
+
+```
+$ ./bench.sh --benchmarks "Prelude.Serial Data.Parser"
+```
+
+Run all O(1) space complexity benchmarks in `Prelude.Serial` suite:
+
+```
+$ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space
+```
+
+Anything after a `--` is passed to gauge, it basically selects all benchmarks
+starting with `Prelude.Serial/o-1-space` prefix.
+
+Run a specific benchmark in `Prelude.Serial` suite:
+
+```
+$ ./bench.sh --benchmarks Prelude.Serial -- Prelude.Serial/o-1-space/generation/unfoldr
+```
+
+## Comparing results for regression
 
 To compare two sets of results, first run the benchmarks at the baseline
 commit:
@@ -75,26 +93,30 @@ Note that the above may not always work because the script and the benchmarks
 themselves might have changed across the commits. The `--append` method is more
 reliable to compare.
 
-## Available Benchmarks
+## Comparing benchmark suites
 
-The benchmark names that you can use when running `bench.sh`:
+First see the available benchmark suites:
 
-* `base`: a benchmark that measures the raw operations of the basic streams
-  `StreamD` and `StreamK`.
+```
+$ ./bench.sh --benchmarks help
+```
 
-* `linear`: measures the non-monadic operations of serial streams
-* `linear-async`: measures the non-monadic operations of concurrent streams
-* `linear-rate`: measures the rate limiting operations
-* `nested`: measures the monadic operations of all streams
-* `all`: runs all of the above benchmarks
+You will see some benchmark suites end with `_cmp`, these are comparison
+groups. If you run a comparsion group benchmark, comparison of all the
+benchmark suites in that group will be shown in the end. For example to compare
+all array benchmark suites:
+
+```
+$ ./bench.sh --benchmarks array_cmp
+```
 
 ## Reporting without measuring
 
 You can use the `--no-measure` option to report the already measured results in
 the benchmarks results file. A results file may collect an arbitrary number of
 results by running with `--append` multiple times. Each benchmark has its own
-results file, for example the `linear` benchmark has the results file at
-`charts/linear/results.csv`.
+results file, for example the `Prelude.Serial` benchmark has the results file at
+`charts/Prelude.Serial/results.csv`.
 
 You can also manually edit the file to remove a set of results if you like or
 to append results from previously saved results or from some other results
