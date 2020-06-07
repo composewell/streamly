@@ -29,6 +29,13 @@ import Streamly.Benchmark.Prelude
 
 import Gauge
 
+#ifdef INSPECTION
+import GHC.Types (SPEC(..))
+import Test.Inspection
+
+import qualified Streamly.Internal.Data.Stream.StreamD as D
+#endif
+
 moduleName :: String
 moduleName = "Prelude.ZipSerial"
 
