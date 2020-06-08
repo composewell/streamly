@@ -22,10 +22,11 @@
 import Prelude hiding (zip)
 
 import Streamly (zipSerially)
+import qualified Streamly as S
 import qualified Streamly.Prelude  as S
 
 import Streamly.Benchmark.Common
-import Streamly.Benchmark.Prelude
+import Streamly.Benchmark.Prelude hiding (sourceUnfoldrMN)
 
 import Gauge
 
@@ -43,11 +44,22 @@ moduleName = "Prelude.ZipSerial"
 -- Zipping
 -------------------------------------------------------------------------------
 
+-- XXX somehow copying this definition here instead of importing it performs
+-- better. Need to investigate why.
+{-# INLINE sourceUnfoldrMN #-}
+sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
+sourceUnfoldrMN count start = S.unfoldrM step start
+    where
+    step cnt =
+        if cnt > start + count
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
 {-# INLINE zip #-}
 zip :: Int -> Int -> IO ()
 zip count n =
     S.drain $
-    S.zipWith (,) (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
+    S.zipWith (,) (S.serially $ sourceUnfoldrMN count n) (S.serially $ sourceUnfoldrMN count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'zip
