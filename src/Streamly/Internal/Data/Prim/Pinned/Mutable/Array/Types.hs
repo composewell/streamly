@@ -10,7 +10,7 @@
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Prim.Mutable.Array.Types
+-- Module      : Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -18,7 +18,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Prim.Mutable.Array.Types
+module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
     (
       Array (..)
 
@@ -57,5 +57,7 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
     , shrinkArray
     )
 where
+
+#define PINNED 1
 
 #include "mutable-prim-array-types.hs"
