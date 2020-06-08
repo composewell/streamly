@@ -173,7 +173,7 @@ benchIOSrc
 benchIOSrc t name f =
     bench name $ nfIO $ randomRIO (1,1) >>= toNull t . f
 
-{-# INLINE benchIO #-}
+{-# NOINLINE benchIO #-}
 benchIO :: (NFData b) => String -> (Int -> IO b) -> Benchmark
 benchIO name f = bench name $ nfIO $ randomRIO (1,1) >>= f
 
@@ -351,8 +351,8 @@ toNullAp
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNullAp linearCount t start = S.drain . t $
-    (+) <$> sourceUnfoldrM nestedCount2 start
-        <*> sourceUnfoldrM nestedCount2 start
+    (+) <$> S.serially (sourceUnfoldrM nestedCount2 start)
+        <*> S.serially (sourceUnfoldrM nestedCount2 start)
 
     where
 
@@ -363,8 +363,8 @@ toNullM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNullM linearCount t start = S.drain . t $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+    x <- S.serially $ sourceUnfoldrM nestedCount2 start
+    y <- S.serially $ sourceUnfoldrM nestedCount2 start
     return $ x + y
 
     where
@@ -376,9 +376,9 @@ toNullM3
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 toNullM3 linearCount t start = S.drain . t $ do
-    x <- sourceUnfoldrM nestedCount3 start
-    y <- sourceUnfoldrM nestedCount3 start
-    z <- sourceUnfoldrM nestedCount3 start
+    x <- S.serially $ sourceUnfoldrM nestedCount3 start
+    y <- S.serially $ sourceUnfoldrM nestedCount3 start
+    z <- S.serially $ sourceUnfoldrM nestedCount3 start
     return $ x + y + z
   where
     nestedCount3 = round (fromIntegral linearCount**(1/3::Double))
@@ -388,8 +388,8 @@ toListM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toListM linearCount t start = runToList . t $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+    x <- S.serially $ sourceUnfoldrM nestedCount2 start
+    y <- S.serially $ sourceUnfoldrM nestedCount2 start
     return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
@@ -402,8 +402,8 @@ toListSome
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m [Int]
 toListSome linearCount t start =
     runToList . t $ S.take 10000 $ do
-        x <- sourceUnfoldrM nestedCount2 start
-        y <- sourceUnfoldrM nestedCount2 start
+        x <- S.serially $ sourceUnfoldrM nestedCount2 start
+        y <- S.serially $ sourceUnfoldrM nestedCount2 start
         return $ x + y
   where
     nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
@@ -413,8 +413,8 @@ filterAllOutM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllOutM linearCount t start = S.drain . t $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+    x <- S.serially $ sourceUnfoldrM nestedCount2 start
+    y <- S.serially $ sourceUnfoldrM nestedCount2 start
     let s = x + y
     if s < 0
     then return s
@@ -427,8 +427,8 @@ filterAllInM
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterAllInM linearCount t start = S.drain . t $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+    x <- S.serially $ sourceUnfoldrM nestedCount2 start
+    y <- S.serially $ sourceUnfoldrM nestedCount2 start
     let s = x + y
     if s > 0
     then return s
@@ -441,8 +441,8 @@ filterSome
     :: (S.IsStream t, S.MonadAsync m, Monad (t m))
     => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
 filterSome linearCount t start = S.drain . t $ do
-    x <- sourceUnfoldrM nestedCount2 start
-    y <- sourceUnfoldrM nestedCount2 start
+    x <- S.serially $ sourceUnfoldrM nestedCount2 start
+    y <- S.serially $ sourceUnfoldrM nestedCount2 start
     let s = x + y
     if s > 1100000
     then return s
@@ -456,8 +456,8 @@ breakAfterSome
     => Int -> (t IO Int -> S.SerialT IO Int) -> Int -> IO ()
 breakAfterSome linearCount t start = do
     (_ :: Either ErrorCall ()) <- try $ S.drain . t $ do
-        x <- sourceUnfoldrM nestedCount2 start
-        y <- sourceUnfoldrM nestedCount2 start
+        x <- S.serially $ sourceUnfoldrM nestedCount2 start
+        y <- S.serially $ sourceUnfoldrM nestedCount2 start
         let s = x + y
         if s > 1100000
         then error "break"
