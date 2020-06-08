@@ -8,7 +8,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 
 import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, choose, Property, property, listOf, vectorOf, counterexample, (.&&.), Gen)
+import Test.QuickCheck (forAll, choose, Property, property, listOf, vectorOf, counterexample, Gen)
 
 import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -217,21 +217,21 @@ takeGE =
                             property False
                     Left _ -> property (n > list_length)
 
-lookAheadPass :: Property
-lookAheadPass =
-    forAll (chooseInt (min_value + 1, max_value)) $ \n -> 
-        let
-            takeWithoutConsume = P.lookAhead $ P.take n FL.toList
-            parseTwice = do
-                parsed_list_1 <- takeWithoutConsume
-                parsed_list_2 <- takeWithoutConsume
-                return (parsed_list_1, parsed_list_2)
-        in
-            forAll (chooseInt (n, max_value)) $ \list_length ->
-                forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
-                    case S.parse parseTwice (S.fromList ls) of
-                        Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
-                        Left _ -> property $ False
+-- lookAheadPass :: Property
+-- lookAheadPass =
+--     forAll (chooseInt (min_value + 1, max_value)) $ \n -> 
+--         let
+--             takeWithoutConsume = P.lookAhead $ P.take n FL.toList
+--             parseTwice = do
+--                 parsed_list_1 <- takeWithoutConsume
+--                 parsed_list_2 <- takeWithoutConsume
+--                 return (parsed_list_1, parsed_list_2)
+--         in
+--             forAll (chooseInt (n, max_value)) $ \list_length ->
+--                 forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+--                     case S.parse parseTwice (S.fromList ls) of
+--                         Right (ls_1, ls_2) -> checkListEqual ls_1 ls_2 .&&. checkListEqual ls_1 (Prelude.take n ls)
+--                         Left _ -> property $ False
 
 -- lookAheadFail :: Property
 -- lookAheadFail =
@@ -436,7 +436,7 @@ main = hspec $ do
         prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
         prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
-        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
+        -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
         -- prop "Fail when stream length exceeded" lookAheadFail
         -- prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
