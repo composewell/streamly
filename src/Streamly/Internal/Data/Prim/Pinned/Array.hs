@@ -1,9 +1,13 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE UnboxedTuples       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 #include "inline.hs"
 
 -- |
--- Module      : Streamly.Internal.Data.Prim.Array
+-- Module      : Streamly.Internal.Data.Prim.Pinned.Array
 -- Copyright   : (c) 2019 Composewell Technologies
 --
 -- License     : BSD3
@@ -11,7 +15,7 @@
 -- Stability   : experimental
 -- Portability : GHC
 --
-module Streamly.Internal.Data.Prim.Array
+module Streamly.Internal.Data.Prim.Pinned.Array
     (
       Array
 
