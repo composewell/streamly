@@ -411,34 +411,34 @@ sliceSepBy =
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
-        prop "sum after parsing = sum after folding" fromFold
-        prop "compare parser any with prelude any on predicate: list > mid_value" Main.any
-        prop "compare parser all with prelude all on predicate: list > mid_value" Main.all
+        prop "P.fromFold FL.sum = FL.sum" fromFold
+        prop "P.any = Prelude.any" Main.any
+        prop "P.all = Prelude.all" Main.all
         prop "yield value provided" yield
         prop "yield monadic value provided" yieldM
         prop "always fail" die
         prop "always fail but monadic" dieM
     
     describe "test for element parser" $ do
-        prop "parsed value = head list when length list >= 1" peekPass
-        prop "peek fail on empty list" peekFail
-        prop "eof pass on empty list" eofPass
+        prop "peek = head with list length > 0" peekPass
+        prop "peek fail on []" peekFail
+        prop "eof pass on []" eofPass
         prop "eof fail on non-empty list" eofFail
         prop "first element exists and >= mid_value" satisfyPass
         prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
-        prop "compare parser take with prelude take with value n and list" Main.take
-        prop "takeEQ on list of length >= n" takeEQPass
-        prop "takeEQ on arbitrary sized list and n" Main.takeEQ
-        prop "takeGE on list of length >= n" takeGEPass
-        prop "takeGE on arbitrary sized list and n" Main.takeGE
-        prop "parse stream twice without exceeding length of list, then check eq of lists" lookAheadPass
-        prop "parse stream and exceed the length of stream while parsing" lookAheadFail
-        prop "parse stream twice, then check eq of lists if not failed, else check why failed" lookAhead
-        prop "compare takeWhile of parser and prelude on list and predicate" Main.takeWhile
-        prop "compare with prelude.takeWhile if taken something, else check why failed" takeWhile1
-        prop "collect zeros until we see one, do not include one" sliceSepBy
+        prop "P.take = Prelude.take" Main.take
+        prop "P.takeEQ = Prelude.take when len >= n" takeEQPass
+        prop "P.takeEQ = Prelude.take when len >= n and fail otherwise" Main.takeEQ
+        prop "P.takeGE n ls = ls when len >= n" takeGEPass
+        prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
+        prop "exceed the length of stream" lookAheadFail
+        prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
+        prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
+        prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "P.sliceSepBy = Prelude.takeWhile (not . predicate)" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
