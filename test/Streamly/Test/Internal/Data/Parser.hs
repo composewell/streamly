@@ -10,39 +10,51 @@ import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
 import Test.QuickCheck (forAll, chooseInt, Property, property, listOf, vectorOf, (.&&.))
 
+min_value :: Int
+min_value = 0
+
+mid_value :: Int
+mid_value = 5000
+
+max_value :: Int
+max_value = 10000
+
+max_length :: Int
+max_length = 1000
+
 -- Accumulator Tests
 
 fromFold :: Property
 fromFold =
-    forAll (listOf $ chooseInt (0, 10000)) $ \ls ->
+    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
         case (==) <$> (S.parse (P.fromFold FL.sum) (S.fromList ls)) <*> (S.fold FL.sum (S.fromList ls)) of
             Right is_equal -> is_equal
             Left _ -> False
 
 any :: Property
 any =
-    forAll (listOf $ chooseInt (0, 10000)) $ \ls ->
-        case S.parse (P.any (> 5000)) (S.fromList ls) of
-            Right r -> r == (Prelude.any (> 5000) ls)
+    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
+        case S.parse (P.any (> mid_value)) (S.fromList ls) of
+            Right r -> r == (Prelude.any (> mid_value) ls)
             Left _ -> False
 
 all :: Property
 all =
-    forAll (listOf $ chooseInt (0, 10000)) $ \ls ->
-        case S.parse (P.all (> 5000)) (S.fromList ls) of
-            Right r -> r == (Prelude.all (> 5000) ls)
+    forAll (listOf $ chooseInt (min_value, max_value)) $ \ls ->
+        case S.parse (P.all (> mid_value)) (S.fromList ls) of
+            Right r -> r == (Prelude.all (> mid_value) ls)
             Left _ -> False
 
 yield :: Property
 yield = 
-    forAll (chooseInt (0, 10000)) $ \x ->
+    forAll (chooseInt (min_value, max_value)) $ \x ->
         case S.parse (P.yield x) (S.fromList [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
 
 yieldM :: Property
 yieldM =
-    forAll (chooseInt (0, 10000)) $ \x ->
+    forAll (chooseInt (min_value, max_value)) $ \x ->
         case S.parse (P.yieldM $ return x) (S.fromList [1 :: Int]) of
             Right r -> r == x
             Left _ -> False
@@ -63,24 +75,26 @@ dieM =
 
 -- Element Parser Tests
 
-peek :: Property
-peek = 
-    forAll (chooseInt (1, 100)) $ \list_length ->
-        forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
+peekPass :: Property
+peekPass = 
+    forAll (chooseInt (1, max_length)) $ \list_length ->
+        forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse P.peek (S.fromList ls) of
                 Right head_value -> case ls of
                     head_ls : _ -> head_value == head_ls
                     _ -> False
                 Left _ -> False
-    .&&.
+
+peekFail :: Property
+peekFail =
     property (case S.parse P.peek (S.fromList []) of
         Right _ -> False
         Left _ -> True)
 
 eof :: Property
 eof = 
-    forAll (chooseInt (1, 100)) $ \list_length ->
-        forAll (vectorOf list_length (chooseInt (0, 10000))) $ \ls ->
+    forAll (chooseInt (1, max_length)) $ \list_length ->
+        forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse P.eof (S.fromList ls) of
                 Right _ -> False
                 Left _ -> True
@@ -91,7 +105,7 @@ eof =
 
 satisfy :: Property
 satisfy = 
-    forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+    forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
         case S.parse (P.satisfy predicate) (S.fromList ls) of
             Right r -> case ls of
                 [] -> False
@@ -100,22 +114,22 @@ satisfy =
                 [] -> True
                 (x : _) -> not $ predicate x
         where
-            predicate = (>= 5000)
+            predicate = (>= mid_value)
 
 -- Sequence Parsers Tests
 
 take :: Property
 take = 
-    forAll (chooseInt (0, 10000)) $ \n ->
-        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             case S.parse (P.take n FL.toList) (S.fromList ls) of
                 Right parsed_list -> parsed_list == Prelude.take n ls
                 Left _ -> False
 
 takeEQ :: Property
 takeEQ =
-    forAll (chooseInt (0, 10000)) $ \n ->
-        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             let 
                 list_length = Prelude.length ls
             in
@@ -125,8 +139,8 @@ takeEQ =
 
 takeGE :: Property
 takeGE =
-    forAll (chooseInt (0, 10000)) $ \n ->
-        forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+    forAll (chooseInt (min_value, max_value)) $ \n ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
             let 
                 list_length = Prelude.length ls
             in
@@ -136,7 +150,7 @@ takeGE =
 
 lookAhead :: Property
 lookAhead =
-    forAll (chooseInt (0, 10000)) $ \n -> 
+    forAll (chooseInt (min_value, max_value)) $ \n -> 
         let
             takeWithoutConsume = P.lookAhead $ P.take n FL.toList
             parseTwice = do
@@ -144,7 +158,7 @@ lookAhead =
                 parsed_list_2 <- takeWithoutConsume
                 return (parsed_list_1, parsed_list_2)
         in
-            forAll (listOf (chooseInt (0, 10000))) $ \ls ->
+            forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
                 case S.parse parseTwice (S.fromList ls) of
                     Right (ls_1, ls_2) -> (ls_1 == ls_2) && (ls_1 == Prelude.take n ls)
                     Left _ -> (list_length < n) || (list_length == n && n == 0)
@@ -184,7 +198,7 @@ sliceSepBy =
 
 -- sliceSepByMax :: Property
 -- sliceSepByMax = 
---     forAll (chooseInt (0, 10000)) $ \n ->
+--     forAll (chooseInt (min_value, max_value)) $ \n ->
 --         forAll (listOf (chooseInt (0, 1))) $ \ls ->
 --             case S.parse (P.sliceSepByMax predicate n FL.toList) (S.fromList ls) of
 --                 Right parsed_list -> parsed_list == Prelude.take n (Prelude.takeWhile (not . predicate) ls)
@@ -192,8 +206,8 @@ sliceSepBy =
 --             where
 --                 predicate = (== 1)
 
--- splitWith :: Property
--- splitWith =
+-- splitWithPass :: Property
+-- splitWithPass =
 --     forAll (listOf (chooseInt (0, 1))) $ \ls ->
 --         case S.parse (P.splitWith (,) (P.satisfy (== 0)) (P.satisfy (== 1))) (S.fromList ls) of
 --             Right (result_first, result_second) -> case ls of
@@ -202,7 +216,9 @@ sliceSepBy =
 --             Left _ -> case ls of
 --                 0 : 1 : _ -> False
 --                 _ -> True
---     .&&.
+
+-- splitWithFail :: Property
+-- splitWithFail =
 --     property (case S.parse (P.splitWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
@@ -215,8 +231,8 @@ sliceSepBy =
 --         Right _ -> False
 --         Left _ -> True)
 
--- teeWith :: Property
--- teeWith = 
+-- teeWithPass :: Property
+-- teeWithPass = 
 --     forAll (chooseInt (0, 10000)) $ \n ->
 --         forAll (listOf (chooseInt (0, 1))) $ \ls ->
 --             let
@@ -225,7 +241,9 @@ sliceSepBy =
 --                 case S.parse (P.teeWith (,) prsr prsr) (S.fromList ls) of
 --                     Right (ls_1, ls_2) -> (Prelude.take n ls == ls_1) && (ls_1 == ls_2)
 --                     Left _ -> False
---     .&&.
+
+-- teeWithFail :: Property
+-- teeWithFail = 
 --     property (case S.parse (P.teeWith (,) (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
 --         Right _ -> False
 --         Left _ -> True)
@@ -250,18 +268,20 @@ sliceSepBy =
 --             prsr_2 = (P.takeWhile (== 1) FL.toList)
 --             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
 
--- shortest :: Property
--- shortest =
---     forAll (listOf (chooseInt(0, 10000))) $ \ls ->
+-- shortestPass :: Property
+-- shortestPass =
+--     forAll (listOf (chooseInt(min_value, max_value))) $ \ls ->
 --         let
---             prsr_1 = P.takeWhile (<= 2500) FL.toList
---             prsr_2 = P.takeWhile (<= 5000) FL.toList
+--             prsr_1 = P.takeWhile (<= (mid_value `Prelude.div` 2)) FL.toList
+--             prsr_2 = P.takeWhile (<= mid_value) FL.toList
 --             prsr_shortest = P.shortest prsr_1 prsr_2
 --         in
 --             case S.parse prsr_shortest (S.fromList ls) of
 --                 Right short_list -> short_list == Prelude.takeWhile (<= 2500) ls
 --                 Left _ -> False
---     .&&.
+
+-- shortestFail :: Property
+-- shortestFail =
 --     property (case S.parse (P.shortest (P.die "die") (P.yield (1 :: Int))) (S.fromList [1 :: Int]) of
 --         Right r -> r == 1
 --         Left _ -> False)
@@ -286,7 +306,8 @@ main = hspec $ do
         prop "test dieM function" dieM
     
     describe "test for element parser" $ do
-        prop "test for peek function" peek
+        prop "test for peek function" peekPass
+        prop "test for peek function" peekFail
         prop "test for eof function" eof
         prop "test for satisfy function" satisfy
 
@@ -299,7 +320,10 @@ main = hspec $ do
         prop "test for takeWhile1 function" takeWhile1
         prop "test for sliceSepBy function" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
-        -- prop "test for splitWith function" splitWith
-        -- prop "test for teeWith function" teeWith
+        -- prop "test for splitWithPass function" splitWithPass
+        -- prop "test for splitWithFail function" splitWithFail
+        -- prop "test for teeWithPass function" teeWithPass
+        -- prop "test for teeWithFail function" teeWithFail
         -- prop "test for deintercalate function" deintercalate
-        -- prop "test for shortest function" shortest
+        -- prop "test for shortestPass function" shortestPass
+        -- prop "test for shortestFail function" shortestFail
