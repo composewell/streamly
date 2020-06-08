@@ -105,6 +105,18 @@ eofFail =
                 Right _ -> False
                 Left _ -> True
 
+satisfyPass :: Property
+satisfyPass = 
+    forAll (chooseInt (mid_value, max_value)) $ \first_element ->
+        forAll (listOf (chooseInt (min_value, max_value))) $ \ls_tail ->
+            let
+                ls = first_element : ls_tail
+                predicate = (>= mid_value)
+            in
+                case S.parse (P.satisfy predicate) (S.fromList ls) of
+                    Right r -> r == first_element
+                    Left _ -> False
+
 satisfy :: Property
 satisfy = 
     forAll (listOf (chooseInt (min_value, max_value))) $ \ls ->
@@ -345,32 +357,33 @@ sliceSepBy =
 main :: IO ()
 main = hspec $ do
     describe "test for accumulator" $ do
-        prop "test fromFold function" fromFold
-        prop "test any function" Main.any
-        prop "test all function" Main.all
-        prop "test yield function" yield
-        prop "test yieldM function" yieldM
-        prop "test die function" die
-        prop "test dieM function" dieM
+        prop "sum after parsing = sum after folding" fromFold
+        prop "compare parser any with prelude any on predicate: list > mid_value" Main.any
+        prop "compare parser all with prelude all on predicate: list > mid_value" Main.all
+        prop "yield value provided" yield
+        prop "yield monadic value provided" yieldM
+        prop "always fail" die
+        prop "always fail but monadic" dieM
     
     describe "test for element parser" $ do
-        prop "pass test for peek function" peekPass
-        prop "fail test for peek function" peekFail
-        prop "pass test for eof function" eofPass
-        prop "fail test for eof function" eofFail
-        prop "test for satisfy function" satisfy
+        prop "parsed value = head list when length list >= 1" peekPass
+        prop "peek fail on empty list" peekFail
+        prop "eof pass on empty list" eofPass
+        prop "eof fail on non-empty list" eofFail
+        prop "first element exists and >= mid_value" satisfyPass
+        prop "check first element exists and satisfies predicate" satisfy
 
     describe "test for sequence parser" $ do
-        prop "test for take function" Main.take
-        prop "pass test for takeEq function" takeEQPass
-        prop "test for takeEq function" Main.takeEQ
-        prop "pass test for takeGE function" takeGEPass
-        prop "test for takeGE function" Main.takeGE
-        prop "pass test for LookAhead function" lookAheadPass
-        prop "test for LookAhead function" lookAhead
-        prop "test for takeWhile function" Main.takeWhile
-        prop "test for takeWhile1 function" takeWhile1
-        prop "test for sliceSepBy function" sliceSepBy
+        prop "compare parser take with prelude take with value n and list" Main.take
+        prop "takeEQ on list of length >= n" takeEQPass
+        prop "takeEQ on arbitrary sized list and n" Main.takeEQ
+        prop "takeGE on list of length >= n" takeGEPass
+        prop "takeGE on arbitrary sized list and n" Main.takeGE
+        prop "parse stream twice without exceeding length of list, then check eq of lists" lookAheadPass
+        prop "parse stream twice, then check eq of lists if not failed, else check why failed" lookAhead
+        prop "compare takeWhile of parser and prelude on list and predicate" Main.takeWhile
+        prop "compare with prelude.takeWhile if taken something, else check why failed" takeWhile1
+        prop "collect zeros until we see one, do not include one" sliceSepBy
         -- prop "test for sliceSepByMax function" sliceSepByMax
         -- prop "pass test for splitWith function" splitWithPass
         -- prop "left fail test for splitWith function" splitWithFailLeft
