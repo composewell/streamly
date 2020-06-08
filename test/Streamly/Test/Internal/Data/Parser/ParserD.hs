@@ -441,25 +441,29 @@ many =
             case S.parseD prsr (S.fromList ls) of
                 Right res_list -> checkListEqual res_list (Prelude.filter (== 0) ls)
                 Left _ -> property False
-    .&&.
+
+many_empty :: Property
+many_empty = 
     property (case S.parseD (D.many FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
         Right res_list -> checkListEqual res_list ([] :: [Int])
         Left _ -> property False)
 
-some :: Property
-some = 
-    forAll (listOf (chooseInt (0, 1))) $ \ls ->
-        let
-            concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
-            prsr = D.some concatFold $ D.sliceSepBy (== 1) FL.toList
-        in
-            case S.parseD prsr (S.fromList ls) of
-                Right res_list -> res_list == Prelude.filter (== 0) ls
-                Left _ -> False
-    .&&.
-    property (case S.parseD (D.some FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
-        Right _ -> False
-        Left _ -> True)
+-- some :: Property
+-- some = 
+--     forAll (listOf (chooseInt (0, 1))) $ \ls ->
+--         let
+--             concatFold = FL.Fold (\concatList curr_list -> return $ concatList ++ curr_list) (return []) return
+--             prsr = D.some concatFold $ D.sliceSepBy (== 1) FL.toList
+--         in
+--             case S.parseD prsr (S.fromList ls) of
+--                 Right res_list -> res_list == Prelude.filter (== 0) ls
+--                 Left _ -> False
+
+-- someFail :: Property
+-- someFail = 
+--     property (case S.parseD (D.some FL.toList (D.die "die")) (S.fromList [1 :: Int]) of
+--         Right _ -> False
+--         Left _ -> True)
 
 main :: IO ()
 main = hspec $ do
@@ -499,7 +503,7 @@ main = hspec $ do
         prop "fail due to die as both parsers" splitWithFailBoth
         prop "parsed two lists should be equal" teeWithPass
         prop "fail due to die as left parser" teeWithFailLeft
-        prop "fail due to die as right parsern" teeWithFailRight
+        prop "fail due to die as right parser" teeWithFailRight
         prop "fail due to die as both parsers" teeWithFailBoth
         prop "D.takeWhile (<= half_mid_value) = Prelude.takeWhile half_mid_value" shortestPass
         prop "pass even if die is left parser" shortestPassLeft
@@ -509,5 +513,7 @@ main = hspec $ do
         prop "pass even if die is left parser" longestPassLeft
         prop "pass even if die is right parser" longestPassRight
         prop "fail due to die as both parsers" longestFailBoth
-        prop "" many ------------
-        prop "" some ------------
+        prop "D.many concatFold $ D.sliceSepBy (== 1) FL.toList = Prelude.filter (== 0)" many
+        prop "[] due to parser being die" many_empty
+        -- prop "" some
+        -- prop "fail due to parser being die" someFail
