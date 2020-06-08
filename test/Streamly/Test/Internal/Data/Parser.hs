@@ -8,7 +8,7 @@ import qualified Streamly.Internal.Data.Fold as FL
 
 import Test.Hspec(hspec, describe)
 import Test.Hspec.QuickCheck
-import Test.QuickCheck (forAll, chooseInt, Property, property, listOf, vectorOf, counterexample, (.&&.))
+import Test.QuickCheck (forAll, choose, Property, property, listOf, vectorOf, counterexample, (.&&.), Gen)
 
 import Test.QuickCheck.Monadic (monadicIO, PropertyM, assert, monitor)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -47,6 +47,9 @@ listEquals eq parsed_list list = do
 
 checkListEqual :: (Show a, Eq a) => [a] -> [a] -> Property
 checkListEqual ls_1 ls_2 = monadicIO (listEquals (==) ls_1 ls_2)
+
+chooseInt :: (Int, Int) -> Gen Int
+chooseInt = choose
 
 -- Accumulator Tests
 
@@ -434,7 +437,7 @@ main = hspec $ do
         prop "P.takeGE n ls = ls when len >= n" takeGEPass
         prop "P.takeGE n ls = ls when len >= n and fail otherwise" Main.takeGE
         prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n" lookAheadPass
-        prop "exceed the length of stream" lookAheadFail
+        prop "Fail when stream length exceeded" lookAheadFail
         prop "lookAhead . take n >> lookAhead . take n = lookAhead . take n, else fail" lookAhead
         prop "P.takeWhile = Prelude.takeWhile" Main.takeWhile
         prop "P.takeWhile = Prelude.takeWhile if taken something, else check why failed" takeWhile1
