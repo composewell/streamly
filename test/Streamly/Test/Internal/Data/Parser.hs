@@ -196,6 +196,22 @@ lookAheadPass =
                         Right (ls_1, ls_2) -> (ls_1 == ls_2) && (ls_1 == Prelude.take n ls)
                         Left _ -> False
 
+lookAheadFail :: Property
+lookAheadFail =
+    forAll (chooseInt (min_value + 1, max_value)) $ \n -> 
+        let
+            takeWithoutConsume = P.lookAhead $ P.take n FL.toList
+            parseTwice = do
+                parsed_list_1 <- takeWithoutConsume
+                parsed_list_2 <- takeWithoutConsume
+                return (parsed_list_1, parsed_list_2)
+        in
+            forAll (chooseInt (min_value, n - 1)) $ \list_length ->
+                forAll (vectorOf list_length (chooseInt (min_value, max_value))) $ \ls ->
+                    case S.parse parseTwice (S.fromList ls) of
+                        Right _ -> False
+                        Left _ -> True
+
 lookAhead :: Property
 lookAhead =
     forAll (chooseInt (min_value, max_value)) $ \n -> 
@@ -380,6 +396,7 @@ main = hspec $ do
         prop "takeGE on list of length >= n" takeGEPass
         prop "takeGE on arbitrary sized list and n" Main.takeGE
         prop "parse stream twice without exceeding length of list, then check eq of lists" lookAheadPass
+        prop "parse stream and exceed the length of stream while parsing" lookAheadFail
         prop "parse stream twice, then check eq of lists if not failed, else check why failed" lookAhead
         prop "compare takeWhile of parser and prelude on list and predicate" Main.takeWhile
         prop "compare with prelude.takeWhile if taken something, else check why failed" takeWhile1
