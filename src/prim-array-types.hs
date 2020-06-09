@@ -10,11 +10,13 @@ import Data.Word (Word8)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 
+import Control.DeepSeq (NFData(..))
+
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-
+import qualified Data.Primitive.ByteArray as PB
 #ifdef PINNED
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 #else
@@ -26,6 +28,59 @@ import qualified Streamly.Internal.Data.Prim.Mutable.Array.Types as MA
 -------------------------------------------------------------------------------
 
 data Array a = Array ByteArray#
+
+sameByteArray :: ByteArray# -> ByteArray# -> Bool
+sameByteArray ba1 ba2 =
+    case reallyUnsafePtrEquality# (unsafeCoerce# ba1 :: ()) (unsafeCoerce# ba2 :: ()) of
+#if __GLASGOW_HASKELL__ >= 708
+      r -> isTrue# r
+#else
+      1# -> True
+      _ -> False
+#endif
+
+-- | @since 0.6.4.0
+instance (Eq a, Prim a) => Eq (Array a) where
+  a1@(Array ba1#) == a2@(Array ba2#)
+    | sameByteArray ba1# ba2# = True
+    | sz1 /= sz2 = False
+    | otherwise = loop (quot sz1 (sizeOf (undefined :: a)) - 1)
+    where
+    -- Here, we take the size in bytes, not in elements. We do this
+    -- since it allows us to defer performing the division to
+    -- calculate the size in elements.
+    sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
+    sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
+    loop !i
+      | i < 0 = True
+      | otherwise = unsafeIndex a1 i == unsafeIndex a2 i && loop (i-1)
+  {-# INLINE (==) #-}
+
+-- | Lexicographic ordering. Subject to change between major versions.
+--
+--   @since 0.6.4.0
+instance (Ord a, Prim a) => Ord (Array a) where
+  compare a1@(Array ba1#) a2@(Array ba2#)
+    | sameByteArray ba1# ba2# = EQ
+    | otherwise = loop 0
+    where
+    sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
+    sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
+    sz = quot (min sz1 sz2) (sizeOf (undefined :: a))
+    loop !i
+      | i < sz = compare (unsafeIndex a1 i) (unsafeIndex a2 i) <> loop (i+1)
+      | otherwise = compare sz1 sz2
+  {-# INLINE compare #-}
+
+instance Prim a => NFData (Array a) where
+    {-# INLINE rnf #-}
+    rnf = foldl' (\_ _ -> ()) ()
+
+-- | @since 0.6.4.0
+instance (Show a, Prim a) => Show (Array a) where
+  showsPrec p a = showParen (p > 10) $
+    showString "fromListN " . shows (length a) . showString " "
+      . shows (toList a)
 
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: PrimMonad m => MA.Array (PrimState m) a -> m (Array a)
