@@ -101,8 +101,8 @@ nth :: Int -> [a] -> Maybe a
 nth idx (x:xs) = if idx == 0
                  then Just x
                  else if idx < 0
-                 then Nothing
-                 else nth (idx - 1) xs
+                      then Nothing
+                      else nth (idx - 1) xs
 nth _ [] = Nothing
 
 
