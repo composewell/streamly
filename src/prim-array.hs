@@ -94,7 +94,7 @@ read = Unfold step inject
     step (ReadUState _ len i) | i == len = return D.Stop
     step (ReadUState arr len i) = do
             let !x = A.unsafeIndex arr i
-            return $ D.Yield x (ReadUState arr len i)
+            return $ D.Yield x (ReadUState arr len (i + 1))
 
 -- | Unfold an array into a stream, does not check the end of the array, the
 -- user is responsible for terminating the stream within the array bounds. For
