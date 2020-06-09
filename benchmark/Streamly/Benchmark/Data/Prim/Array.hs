@@ -13,6 +13,7 @@ module Main (main) where
 
 import Control.DeepSeq (NFData(..))
 import System.Random (randomRIO)
+import Data.Primitive.Types (Prim)
 
 import qualified Streamly.Benchmark.Data.Prim.ArrayOps as Ops
 import qualified Streamly.Internal.Data.Prim.Array as A
@@ -32,7 +33,7 @@ benchIO name src f = bench name $ nfIO $
 
 -- Drain a source that generates an array in the IO monad
 {-# INLINE benchIOSrc #-}
-benchIOSrc :: A.Prim a => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
+benchIOSrc :: Prim a => String -> (Int -> IO (Ops.Stream a)) -> Benchmark
 benchIOSrc name src = benchIO name src id
 
 {-# INLINE benchPureSink #-}
