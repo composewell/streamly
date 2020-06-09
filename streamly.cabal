@@ -145,6 +145,12 @@ extra-source-files:
     examples/README.md
     src/Streamly/Internal/Data/Stream/Instances.hs
     src/Streamly/Internal/Data/Time/config-clock.h
+    src/inline.hs
+    src/prim-array.hs
+    src/prim-array-types.hs
+    src/mutable-prim-array-types.hs
+    configure.ac
+    configure
     src/Streamly/Internal/Data/Time/config.h.in
     src/inline.hs
     stack.yaml
