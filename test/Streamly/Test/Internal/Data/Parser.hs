@@ -31,17 +31,17 @@ listEquals :: (Show a, Eq a, MonadIO m)
     => ([a] -> [a] -> Bool) -> [a] -> [a] -> PropertyM m ()
 listEquals eq parsed_list list = do
     when (not $ parsed_list `eq` list) $ liftIO $ putStrLn $
-                  "parsed list " <> show parsed_list
-             <> "\nlist   " <> show list
-             <> "\nparsed list \\\\ list " <> show (parsed_list \\ list)
-             <> "\nlist \\\\ parsed list " <> show (list \\ parsed_list)
+                  "parsed list " ++ show parsed_list
+             ++ "\nlist   " ++ show list
+             ++ "\nparsed list \\\\ list " ++ show (parsed_list \\ list)
+             ++ "\nlist \\\\ parsed list " ++ show (list \\ parsed_list)
     when (not $ parsed_list `eq` list) $
         monitor
             (counterexample $
-                  "parsed list " <> show parsed_list
-             <> "\nlist   " <> show list
-             <> "\nparsed list \\\\ list " <> show (parsed_list \\ list)
-             <> "\nlist \\\\ parsed list " <> show (list \\ parsed_list)
+                  "parsed list " ++ show parsed_list
+             ++ "\nlist   " ++ show list
+             ++ "\nparsed list \\\\ list " ++ show (parsed_list \\ list)
+             ++ "\nlist \\\\ parsed list " ++ show (list \\ parsed_list)
              )
     assert (parsed_list `eq` list)
 
