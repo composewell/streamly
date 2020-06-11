@@ -14,20 +14,25 @@ import Control.DeepSeq (NFData(..))
 
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
 import qualified Data.Primitive.ByteArray as PB
-#ifdef PINNED
-import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
-#else
-import qualified Streamly.Internal.Data.Prim.Mutable.Array.Types as MA
-#endif
 
 -------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
 
 data Array a = Array ByteArray#
+
+mkChunkSizeKB :: Int -> Int
+mkChunkSizeKB n = n * k
+   where k = 1024
+
+-- | Default maximum buffer size in bytes, for reading from and writing to IO
+-- devices, the value is 32KB minus GHC allocation overhead, which is a few
+-- bytes, so that the actual allocation is 32KB.
+defaultChunkSize :: Int
+defaultChunkSize = mkChunkSizeKB 32
 
 sameByteArray :: ByteArray# -> ByteArray# -> Bool
 sameByteArray ba1 ba2 =

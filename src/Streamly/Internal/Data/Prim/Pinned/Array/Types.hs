@@ -23,6 +23,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
       Array (..)
     , unsafeFreeze
     , unsafeThaw
+    , defaultChunkSize
 
     -- * Construction
     , spliceTwo
@@ -66,9 +67,32 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , write
 
     , unlines
+
+    , toPtr
+    , memcmp
+    , unsafeInlineIO
     )
 where
 
-#define PINNED 1
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
+
+import Foreign.Ptr (Ptr(..))
+import Foreign.C.Types (CSize(..), CInt(..))
+import Control.Exception (assert)
 
 #include "prim-array-types.hs"
+
+-- Check if this is safe
+foreign import ccall unsafe "string.h memcmp" c_memcmp
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO CInt
+
+{-# INLINE memcmp #-}
+memcmp :: Ptr Word8 -> Ptr Word8 -> Int -> IO Bool
+memcmp p1 p2 len = do
+    r <- c_memcmp p1 p2 (fromIntegral len)
+    return $ r == 0
+
+{-# INLINE toPtr #-}
+toPtr :: Array a -> Ptr a
+toPtr (Array arr#) =
+    assert (I# (isByteArrayPinned# arr#) == 1) (Ptr (byteArrayContents# arr#))

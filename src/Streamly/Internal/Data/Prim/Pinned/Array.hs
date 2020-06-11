@@ -102,4 +102,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array
     )
 where
 
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..), length)
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+
 #include "prim-array.hs"

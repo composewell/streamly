@@ -59,3 +59,24 @@ module Streamly.Internal.Data.Prim.Mutable.Array.Types
 where
 
 #include "mutable-prim-array-types.hs"
+
+{-# INLINE newArray #-}
+newArray ::
+       forall m a. (PrimMonad m, Prim a)
+    => Int
+    -> m (Array (PrimState m) a)
+newArray (I# n#)
+  = primitive (\s# ->
+      case newByteArray# (n# *# sizeOf# (undefined :: a)) s# of
+        (# s'#, arr# #) -> (# s'#, Array arr# #)
+    )
+
+{-# INLINE resizeArray #-}
+resizeArray ::
+       forall m a. (PrimMonad m, Prim a)
+    => Array (PrimState m) a
+    -> Int -- ^ new size
+    -> m (Array (PrimState m) a)
+resizeArray (Array arr#) (I# n#)
+  = primitive (\s# -> case resizeMutableByteArray# arr# (n# *# sizeOf# (undefined :: a)) s# of
+                        (# s'#, arr'# #) -> (# s'#, Array arr'# #))

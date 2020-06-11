@@ -14,6 +14,7 @@ module Streamly.Internal.Data.Prim.Array.Types
       Array (..)
     , unsafeFreeze
     , unsafeThaw
+    , defaultChunkSize
 
     -- * Construction
     , spliceTwo
@@ -59,5 +60,7 @@ module Streamly.Internal.Data.Prim.Array.Types
     , unlines
     )
 where
+
+import qualified Streamly.Internal.Data.Prim.Mutable.Array.Types as MA
 
 #include "prim-array-types.hs"

@@ -6,15 +6,8 @@ import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Data.Prim.Array.Types (Array(..), length)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
-
-#ifdef PINNED
-import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
-#else
-import qualified Streamly.Internal.Data.Prim.Array.Types as A
-#endif
 
 import qualified Streamly.Internal.Data.Stream.Prelude as P
 import qualified Streamly.Internal.Data.Stream.Serial as Serial

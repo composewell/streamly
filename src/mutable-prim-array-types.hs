@@ -13,7 +13,7 @@ import Control.Monad (when)
 import Streamly.Internal.Data.Strict (Tuple'(..))
 
 
-import qualified Streamly.Internal.Data.Stream.StreamD as D
+import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -21,30 +21,6 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 
 -- This is not supposed to be used
 data Array s a = Array (MutableByteArray# s)
-
-#ifdef PINNED
-{-# INLINE newArray #-}
-newArray ::
-       forall m a. (PrimMonad m, Prim a)
-    => Int
-    -> m (Array (PrimState m) a)
-newArray (I# n#)
-  = primitive (\s# ->
-      case newPinnedByteArray# (n# *# sizeOf# (undefined :: a)) s# of
-        (# s'#, arr# #) -> (# s'#, Array arr# #)
-    )
-#else
-{-# INLINE newArray #-}
-newArray ::
-       forall m a. (PrimMonad m, Prim a)
-    => Int
-    -> m (Array (PrimState m) a)
-newArray (I# n#)
-  = primitive (\s# ->
-      case newByteArray# (n# *# sizeOf# (undefined :: a)) s# of
-        (# s'#, arr# #) -> (# s'#, Array arr# #)
-    )
-#endif
 
 {-# INLINE unsafeCopy #-}
 unsafeCopy ::
@@ -95,36 +71,6 @@ writeArray ::
     -> m ()
 writeArray (Array arr#) (I# i#) x
   = primitive_ (writeByteArray# arr# i# x)
-
-#ifdef PINNED
-{-# INLINE resizeArray #-}
-resizeArray ::
-       forall m a. (PrimMonad m, Prim a)
-    => Array (PrimState m) a
-    -> Int -- ^ new size
-    -> m (Array (PrimState m) a)
-resizeArray arr i =
-    if len == i
-    then return arr
-    else if len < i
-         then shrinkArray arr i >> return arr
-         else do
-             nArr <- newArray i
-             unsafeCopy nArr 0 arr 0 len
-             return nArr
-  where
-    len = length arr
-#else
-{-# INLINE resizeArray #-}
-resizeArray ::
-       forall m a. (PrimMonad m, Prim a)
-    => Array (PrimState m) a
-    -> Int -- ^ new size
-    -> m (Array (PrimState m) a)
-resizeArray (Array arr#) (I# n#)
-  = primitive (\s# -> case resizeMutableByteArray# arr# (n# *# sizeOf# (undefined :: a)) s# of
-                        (# s'#, arr'# #) -> (# s'#, Array arr'# #))
-#endif
 
 {-# INLINE shrinkArray #-}
 shrinkArray ::
@@ -189,12 +135,16 @@ fromStreamDN limit str = do
         D.take limit str
     return marr
 
+{-# INLINE runFold #-}
+runFold :: (Monad m) => Fold m a b -> D.Stream m a -> m b
+runFold (Fold step begin done) = D.foldlMx' step begin done
+
 {-# INLINE fromStreamD #-}
 fromStreamD ::
        forall m a. (PrimMonad m, Prim a)
     => D.Stream m a
     -> m (Array (PrimState m) a)
-fromStreamD str = D.runFold write str
+fromStreamD str = runFold write str
 
 {-# INLINABLE fromListNM #-}
 fromListNM ::
