@@ -4,6 +4,11 @@ import Control.Monad.Primitive
 import Control.Monad.ST
 import Data.Primitive.Types
 
+#if __GLASGOW_HASKELL__ < 808
+import Data.Semigroup (Semigroup(..))
+#endif
+
+
 import Prelude hiding (length, unlines, foldr)
 
 import Data.Word (Word8)
@@ -23,6 +28,14 @@ import qualified Data.Primitive.ByteArray as PB
 -------------------------------------------------------------------------------
 
 data Array a = Array ByteArray#
+
+empty :: forall a. Prim a => Array a
+empty = runST run where
+  run :: forall s. ST s (Array a)
+  run = do
+    arr <- MA.newArray 0
+    unsafeFreeze arr
+
 
 mkChunkSizeKB :: Int -> Int
 mkChunkSizeKB n = n * k
@@ -76,6 +89,13 @@ instance (Ord a, Prim a) => Ord (Array a) where
       | i < sz = compare (unsafeIndex a1 i) (unsafeIndex a2 i) <> loop (i+1)
       | otherwise = compare sz1 sz2
   {-# INLINE compare #-}
+
+instance Prim a => Semigroup (Array a) where
+  a <> b = unsafeInlineIO (spliceTwo a b :: IO (Array a))
+
+instance Prim a => Monoid (Array a) where
+  mempty = empty
+  mappend = (<>)
 
 instance Prim a => NFData (Array a) where
     {-# INLINE rnf #-}

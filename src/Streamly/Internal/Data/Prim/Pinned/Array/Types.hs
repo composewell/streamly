@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , unsafeFreeze
     , unsafeThaw
     , defaultChunkSize
+    , empty
 
     -- * Construction
     , spliceTwo
@@ -70,17 +71,41 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
 
     , toPtr
     , memcmp
+    , memcpy
     , unsafeInlineIO
+
+    , touchArray
+    , withArrayAsPtr
     )
 where
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
 import Foreign.Ptr (Ptr(..))
+import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Control.Exception (assert)
+import Control.Monad (void)
+import GHC.IO (IO(..))
 
 #include "prim-array-types.hs"
+
+-------------------------------------------------------------------------------
+-- Utility functions
+-------------------------------------------------------------------------------
+
+foreign import ccall unsafe "string.h memcpy" c_memcpy
+    :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
+
+foreign import ccall unsafe "string.h strlen" c_strlen
+    :: CString -> IO CSize
+
+foreign import ccall unsafe "string.h memchr" c_memchr
+    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
+
+-- XXX we are converting Int to CSize
+memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()
+memcpy dst src len = void (c_memcpy dst src (fromIntegral len))
 
 -- Check if this is safe
 foreign import ccall unsafe "string.h memcmp" c_memcmp
@@ -92,7 +117,19 @@ memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
 
+-- Change name later.
 {-# INLINE toPtr #-}
 toPtr :: Array a -> Ptr a
 toPtr (Array arr#) =
     assert (I# (isByteArrayPinned# arr#) == 1) (Ptr (byteArrayContents# arr#))
+
+{-# INLINE touchArray #-}
+touchArray :: Array a -> IO ()
+touchArray arr = IO $ \s -> case touch# arr s of s' -> (# s', () #)
+
+{-# INLINE withArrayAsPtr #-}
+withArrayAsPtr :: Array a -> (Ptr a -> IO b) -> IO b
+withArrayAsPtr arr f = do
+    r <- f (toPtr arr)
+    touchArray arr
+    return r

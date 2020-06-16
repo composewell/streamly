@@ -24,6 +24,7 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
 
     -- * Construction
     , newArray
+    , newAlignedArray
     , writeArray
 
     , spliceTwo
@@ -50,13 +51,24 @@ module Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types
     , byteLength
 
     , writeN
+    , writeNAligned
     , write
 
     -- * Utilities
     , resizeArray
     , shrinkArray
+
+    , fPlainPtrToW8Array
+    , touchArray
+    , withArrayAsPtr
     )
 where
+
+import Data.Word (Word8)
+import GHC.ForeignPtr
+import GHC.IO (IO(..))
+import Foreign.Ptr (Ptr(..))
+import Control.Exception (assert)
 
 #include "mutable-prim-array-types.hs"
 
@@ -70,6 +82,38 @@ newArray (I# n#)
       case newPinnedByteArray# (n# *# sizeOf# (undefined :: a)) s# of
         (# s'#, arr# #) -> (# s'#, Array arr# #)
     )
+
+-- Change order of args?
+{-# INLINE newAlignedArray #-}
+newAlignedArray ::
+       forall m a. (PrimMonad m, Prim a)
+    => Int
+    -> Int
+    -> m (Array (PrimState m) a)
+newAlignedArray (I# n#) (I# a#)
+  = primitive (\s# ->
+      case newAlignedPinnedByteArray# (n# *# sizeOf# (undefined :: a)) a# s# of
+        (# s'#, arr# #) -> (# s'#, Array arr# #)
+    )
+
+{-# INLINE_NORMAL writeNAligned #-}
+writeNAligned ::
+       forall m a. (PrimMonad m, Prim a)
+    => Int
+    -> Int
+    -> Fold m a (Array (PrimState m) a)
+writeNAligned align limit = Fold step initial extract
+  where
+    initial = do
+        marr <- newAlignedArray limit align
+        return (marr, 0)
+    step (marr, i) x
+        | i == limit = return (marr, i)
+        | otherwise = do
+            writeArray marr i x
+            return (marr, i + 1)
+    extract (marr, _) = return marr
+
 
 {-# INLINE resizeArray #-}
 resizeArray ::
@@ -88,3 +132,24 @@ resizeArray arr i =
              return nArr
   where
     len = length arr
+
+-- Change name later.
+{-# INLINE toPtr #-}
+toPtr :: Array s a -> Ptr a
+toPtr (Array arr#) =
+    assert (I# (isMutableByteArrayPinned# arr#) == 1) (Ptr (byteArrayContents# (unsafeCoerce# arr#)))
+
+fPlainPtrToW8Array :: ForeignPtr a -> Array RealWorld Word8
+fPlainPtrToW8Array (ForeignPtr _ (PlainPtr mb)) = Array mb
+fPlainPtrToW8Array _ = error "fPlainPtrToW8Array can only be used when the ForeignPtr does not have finalizers."
+
+{-# INLINE touchArray #-}
+touchArray :: Array s a -> IO ()
+touchArray arr = IO $ \s -> case touch# arr s of s' -> (# s', () #)
+
+{-# INLINE withArrayAsPtr #-}
+withArrayAsPtr :: Array s a -> (Ptr a -> IO b) -> IO b
+withArrayAsPtr arr f = do
+    r <- f (toPtr arr)
+    touchArray arr
+    return r
