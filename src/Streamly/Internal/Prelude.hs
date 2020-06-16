@@ -527,6 +527,7 @@ import Control.Exception (Exception, assert)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Primitive (PrimMonad(..))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(..))
@@ -538,6 +539,7 @@ import Data.Kind (Type)
 import Data.Heap (Entry(..))
 import Data.Maybe (isJust, fromJust, isNothing)
 import Data.Void (Void)
+import Data.Primitive.Types (Prim(..))
 import Foreign.Storable (Storable)
 import Prelude
        hiding (filter, drop, dropWhile, take, takeWhile, zipWith, foldr,
@@ -556,7 +558,7 @@ import Streamly.Internal.Data.Stream.Enumeration (Enumerable(..), enumerate, enu
 import Streamly.Internal.Data.Fold.Types (Fold (..), Fold2 (..))
 import Streamly.Internal.Data.Parser (Parser (..))
 import Streamly.Internal.Data.Unfold.Types (Unfold)
-import Streamly.Internal.Memory.Array.Types (Array, writeNUnsafe)
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array, writeN)
 -- import Streamly.Memory.Ring (Ring)
 import Streamly.Internal.Data.SVar (MonadAsync, defState, Rate)
 import Streamly.Internal.Data.Stream.Combinators (inspectMode, maxYields)
@@ -570,11 +572,11 @@ import Streamly.Internal.Data.Pipe.Types (Pipe (..))
 import Streamly.Internal.Data.Time.Units
        (AbsTime, MilliSecond64(..), addToAbsTime, toRelTime,
        toAbsTime, TimeUnit64, RelTime64, addToAbsTime64)
-import Streamly.Internal.Mutable.Prim.Var (Prim, Var)
+import Streamly.Internal.Mutable.Prim.Var (Var)
 
 import Streamly.Internal.Data.Strict
 
-import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Stream.Prelude as P
@@ -1747,7 +1749,7 @@ isSuffixOf suffix stream = reverse suffix `isPrefixOf` reverse stream
 -- /Requires 'Storable' constraint/ - Help wanted.
 --
 {-# INLINE isInfixOf #-}
-isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a)
+isInfixOf :: (MonadIO m, Eq a, Enum a, Storable a, PrimMonad m, Prim a)
     => SerialT m a -> SerialT m a -> m Bool
 isInfixOf infx stream = do
     arr <- fold A.write infx
@@ -2550,7 +2552,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 --
 -- /Internal/
 {-# INLINE reverse' #-}
-reverse' :: (IsStream t, MonadIO m, Storable a) => t m a -> t m a
+reverse' :: (IsStream t, MonadIO m, Storable a, PrimMonad m, Prim a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------
@@ -3633,9 +3635,9 @@ chunksOf2 n action f m = D.fromStreamD $ D.groupsOf2 n action f (D.toStreamD m)
 --
 -- /Internal/
 {-# INLINE arraysOf #-}
-arraysOf :: (IsStream t, MonadIO m, Storable a)
+arraysOf :: (IsStream t, PrimMonad m, Prim a)
     => Int -> t m a -> t m (Array a)
-arraysOf n = chunksOf n (writeNUnsafe n)
+arraysOf n = chunksOf n (writeN n)
 
 -- XXX we can implement this by repeatedly applying the 'lrunFor' fold.
 -- XXX add this example after fixing the serial stream rate control
@@ -3978,7 +3980,7 @@ splitWithSuffix predicate f m =
 -- that we can search files in files for example.
 {-# INLINE splitOnSeq #-}
 splitOnSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
 
@@ -4026,7 +4028,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- /Internal/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
@@ -4077,7 +4079,7 @@ wordsOn subseq f m = undefined -- D.fromStreamD $ D.wordsOn f subseq (D.toStream
 -- /Internal/
 {-# INLINE splitBySeq #-}
 splitBySeq
-    :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadAsync m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitBySeq patt f m =
     intersperseM (fold f (A.toStream patt)) $ splitOnSeq patt f m
@@ -4113,7 +4115,7 @@ splitBySeq patt f m =
 -- /Internal/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)

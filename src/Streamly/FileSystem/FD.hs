@@ -117,12 +117,12 @@ module Streamly.FileSystem.FD
 where
 
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Primitive (PrimMonad(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
+-- import Foreign.ForeignPtr (withForeignPtr)
 -- import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, castPtr)
-import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import Data.Primitive.Types (Prim)
 -- import System.IO (Handle, hGetBufSome, hPutBuf)
 import System.IO (IOMode)
 import Prelude hiding (read)
@@ -130,12 +130,12 @@ import Prelude hiding (read)
 import qualified GHC.IO.FD as FD
 import qualified GHC.IO.Device as RawIO
 
-import Streamly.Internal.Memory.Array.Types (Array(..), byteLength, defaultChunkSize)
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..), byteLength, defaultChunkSize)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 
 #if !defined(mingw32_HOST_OS)
-import Streamly.Internal.Memory.Array.Types (groupIOVecsOf)
+-- import Streamly.Internal.Data.Prim.Pinned.Array.Types (groupIOVecsOf)
 import Streamly.Internal.Data.Stream.StreamD (toStreamD)
 import Streamly.Internal.Data.Stream.StreamD.Type (fromStreamD)
 import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
@@ -143,8 +143,9 @@ import qualified Streamly.FileSystem.FDIO as RawIO hiding (write)
 -- import Streamly.Data.Fold (Fold)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -208,22 +209,17 @@ openFile path mode = Handle . fst <$> FD.openFile path mode True
 -- handle it blocks until some data becomes available. If data is available
 -- then it immediately returns that data without blocking. It reads a maximum
 -- of up to the size requested.
+-- XXX Do we need `withForeignPtr` here?
 {-# INLINABLE readArrayUpto #-}
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size (Handle fd) = do
-    ptr <- mallocPlainForeignPtrBytes size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    arr <- MA.newArray size
+    MA.withArrayAsPtr arr $ \p -> do
         -- n <- hGetBufSome h p size
         n <- RawIO.read fd p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
-        -- XXX shrink only if the diff is significant
-        -- A.shrinkToFit v
-        return v
+        MA.shrinkArray arr n
+        A.unsafeFreeze arr
 
 -------------------------------------------------------------------------------
 -- Array IO (output)
@@ -233,11 +229,12 @@ readArrayUpto size (Handle fd) = do
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: Storable a => Handle -> Array a -> IO ()
+writeArray :: Prim a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
+writeArray (Handle fd) arr =
     -- RawIO.writeAll fd (castPtr p) aLen
-    RawIO.write fd (castPtr p) aLen
+    A.withArrayAsPtr arr $ \p ->
+        RawIO.write fd (castPtr p) aLen
     {-
     -- Experiment to compare "writev" based IO with "write" based IO.
     iov <- A.newArray 1
@@ -248,6 +245,7 @@ writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
     where
     aLen = byteLength arr
 
+{-
 #if !defined(mingw32_HOST_OS)
 -- | Write an array of 'IOVec' to a file handle.
 --
@@ -255,10 +253,9 @@ writeArray (Handle fd) arr = withForeignPtr (aStart arr) $ \p ->
 {-# INLINABLE writeIOVec #-}
 writeIOVec :: Handle -> Array RawIO.IOVec -> IO ()
 writeIOVec _ iov | A.length iov == 0 = return ()
-writeIOVec (Handle fd) iov =
-    withForeignPtr (aStart iov) $ \p ->
-        RawIO.writevAll fd p (A.length iov)
+writeIOVec (Handle fd) iov = RawIO.writevAll fd (A.toPtr iov) (A.length iov)
 #endif
+-}
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -319,11 +316,11 @@ readArrays = readArraysOfUpto defaultChunkSize
 -- as EOF is encountered.
 --
 {-# INLINE readInChunksOf #-}
-readInChunksOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+readInChunksOf :: (IsStream t, MonadIO m, PrimMonad m) => Int -> Handle -> t m Word8
 readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 
 -- TODO
--- read :: (IsStream t, MonadIO m, Storable a) => Handle -> t m a
+-- read :: (IsStream t, MonadIO m, Prim a) => Handle -> t m a
 --
 -- > read = 'readByChunks' A.defaultChunkSize
 -- | Generate a stream of elements of the given type from a file 'Handle'. The
@@ -331,7 +328,7 @@ readInChunksOf chunkSize h = AS.concat $ readArraysOfUpto chunkSize h
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (IsStream t, MonadIO m) => Handle -> t m Word8
+read :: (IsStream t, MonadIO m, PrimMonad m) => Handle -> t m Word8
 read = AS.concat . readArrays
 
 -------------------------------------------------------------------------------
@@ -342,7 +339,7 @@ read = AS.concat . readArrays
 --
 -- @since 0.7.0
 {-# INLINE writeArrays #-}
-writeArrays :: (MonadIO m, Storable a) => Handle -> SerialT m (Array a) -> m ()
+writeArrays :: (MonadIO m, Prim a) => Handle -> SerialT m (Array a) -> m ()
 writeArrays h = S.mapM_ (liftIO . writeArray h)
 
 -- | Write a stream of arrays to a handle after coalescing them in chunks of
@@ -352,10 +349,11 @@ writeArrays h = S.mapM_ (liftIO . writeArray h)
 --
 -- @since 0.7.0
 {-# INLINE writeArraysPackedUpto #-}
-writeArraysPackedUpto :: (MonadIO m, Storable a)
+writeArraysPackedUpto :: (PrimMonad m, Prim a, MonadIO m)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 
+{-
 #if !defined(mingw32_HOST_OS)
 -- XXX this is incomplete
 -- | Write a stream of 'IOVec' arrays to a handle.
@@ -365,6 +363,8 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
 writev h = S.mapM_ (liftIO . writeIOVec h)
 
+{-
+-- XXX UNCOMMENT THIS ONCE groupIOVecsOf IS ADDED
 -- XXX this is incomplete
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
 -- of up to a maximum total size. Writes are performed using gather IO via
@@ -378,6 +378,8 @@ _writevArraysPackedUpto :: MonadIO m
 _writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
 #endif
+-}
+-}
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -393,7 +395,7 @@ _writevArraysPackedUpto n h xs =
 --
 -- @since 0.7.0
 {-# INLINE writeInChunksOf #-}
-writeInChunksOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+writeInChunksOf :: (PrimMonad m, MonadIO m) => Int -> Handle -> SerialT m Word8 -> m ()
 writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 
 -- > write = 'writeInChunksOf' A.defaultChunkSize
@@ -404,12 +406,12 @@ writeInChunksOf n h m = writeArrays h $ AS.arraysOf n m
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+write :: (MonadIO m, PrimMonad m) => Handle -> SerialT m Word8 -> m ()
 write = writeInChunksOf defaultChunkSize
 
 {-
 {-# INLINE write #-}
-write :: (MonadIO m, Storable a) => Handle -> SerialT m a -> m ()
+write :: (MonadIO m, Prim a) => Handle -> SerialT m a -> m ()
 write = toHandleWith A.defaultChunkSize
 -}
 
@@ -468,7 +470,7 @@ readLines h f = foldLines (readUtf8 h) f
 --
 -- @since 0.7.0
 {-# INLINE readFrames #-}
-readFrames :: (IsStream t, MonadIO m, Storable a)
+readFrames :: (IsStream t, MonadIO m, Prim a)
     => Array a -> Handle -> Fold m a b -> t m b
 readFrames = undefined -- foldFrames . read
 
@@ -477,7 +479,7 @@ readFrames = undefined -- foldFrames . read
 --
 -- @since 0.7.0
 {-# INLINE writeByFrames #-}
-writeByFrames :: (IsStream t, MonadIO m, Storable a)
+writeByFrames :: (IsStream t, MonadIO m, Prim a)
     => Array a -> Handle -> t m a -> m ()
 writeByFrames = undefined
 
@@ -495,7 +497,7 @@ writeByFrames = undefined
 --
 -- @since 0.7.0
 {-# INLINE readIndex #-}
-readIndex :: Storable a => Handle -> Int -> Maybe a
+readIndex :: Prim a => Handle -> Int -> Maybe a
 readIndex arr i = undefined
 
 -- NOTE: To represent a range to read we have chosen (start, size) instead of
@@ -515,7 +517,7 @@ readIndex arr i = undefined
 -- chunk is aligned with @chunkSize@ from second chunk onwards.
 --
 {-# INLINE readSliceWith #-}
-readSliceWith :: (IsStream t, MonadIO m, Storable a)
+readSliceWith :: (IsStream t, MonadIO m, Prim a)
     => Int -> Handle -> Int -> Int -> t m a
 readSliceWith chunkSize h pos len = undefined
 
@@ -525,7 +527,7 @@ readSliceWith chunkSize h pos len = undefined
 --
 -- @since 0.7.0
 {-# INLINE readSlice #-}
-readSlice :: (IsStream t, MonadIO m, Storable a)
+readSlice :: (IsStream t, MonadIO m, Prim a)
     => Handle -> Int -> Int -> t m a
 readSlice = readSliceWith defaultChunkSize
 
@@ -535,7 +537,7 @@ readSlice = readSliceWith defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readSliceRev #-}
-readSliceRev :: (IsStream t, MonadIO m, Storable a)
+readSliceRev :: (IsStream t, MonadIO m, Prim a)
     => Handle -> Int -> Int -> t m a
 readSliceRev h i count = undefined
 
@@ -543,7 +545,7 @@ readSliceRev h i count = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeIndex #-}
-writeIndex :: (MonadIO m, Storable a) => Handle -> Int -> a -> m ()
+writeIndex :: (MonadIO m, Prim a) => Handle -> Int -> a -> m ()
 writeIndex h i a = undefined
 
 -- | @writeSlice h i count stream@ writes a stream to the file handle @h@
@@ -552,7 +554,7 @@ writeIndex h i a = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSlice #-}
-writeSlice :: (IsStream t, Monad m, Storable a)
+writeSlice :: (IsStream t, Monad m, Prim a)
     => Handle -> Int -> Int -> t m a -> m ()
 writeSlice h i len s = undefined
 
@@ -562,7 +564,7 @@ writeSlice h i len s = undefined
 --
 -- @since 0.7.0
 {-# INLINE writeSliceRev #-}
-writeSliceRev :: (IsStream t, Monad m, Storable a)
+writeSliceRev :: (IsStream t, Monad m, Prim a)
     => Handle -> Int -> Int -> t m a -> m ()
 writeSliceRev arr i len s = undefined
 -}

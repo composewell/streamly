@@ -69,7 +69,7 @@ import System.IO.Unsafe (unsafePerformIO)
 
 import Streamly (IsStream)
 import Streamly.Data.Fold (Fold)
-import Streamly.Memory.Array (Array)
+import Streamly.Internal.Data.Prim.Pinned.Array (Array)
 import Streamly.Internal.Data.Unfold (Unfold)
 import Streamly.Internal.Data.SVar (adaptState)
 import Streamly.Internal.Data.Stream.StreamD (Stream(..), Step (..))
@@ -79,7 +79,8 @@ import Streamly.Internal.Data.Strict (Tuple'(..))
 import Streamly.Internal.Data.Stream.StreamD (pattern Stream)
 #endif
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
 
@@ -163,8 +164,9 @@ utf8d =
       unsafePerformIO
     -- Aligning to cacheline makes a barely noticeable difference
     -- XXX currently alignment is not implemented for unmanaged allocation
-    $ D.runFold (A.writeNAlignedUnmanaged 64 (length decodeTable))
-              (D.fromList decodeTable)
+    $ A.unsafeFreeze
+    =<< D.runFold (MA.writeNAligned 64 (length decodeTable))
+                (D.fromList decodeTable)
 
 -- | Return element at the specified index without checking the bounds.
 -- and without touching the foreign ptr.
@@ -178,28 +180,24 @@ unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
 --
 -- When the state is 0
 {-# INLINE decode0 #-}
-decode0 :: Ptr Word8 -> Word8 -> Tuple' DecodeState CodePoint
+decode0 :: A.Array Word8 -> Word8 -> Tuple' DecodeState CodePoint
 decode0 table byte =
-    let !t = table `unsafePeekElemOff` fromIntegral byte
-        !codep' = (0xff `shiftR` fromIntegral t) .&. fromIntegral byte
-        !state' = table `unsafePeekElemOff` (256 + fromIntegral t)
+    let !t = A.unsafeIndex table (fromIntegral byte)
+        !codep' = (0xff `shiftR` (fromIntegral t)) .&. fromIntegral byte
+        !state' = A.unsafeIndex table (256 + fromIntegral t)
      in assert ((byte > 0x7f || error showByte)
                 && (state' /= 0 || error (showByte ++ showTable)))
                (Tuple' state' codep')
 
     where
 
-    utf8table =
-        let !(Ptr addr) = table
-            end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
     showByte = "Streamly: decode0: byte: " ++ show byte
-    showTable = " table: " ++ show utf8table
+    showTable = " table: " ++ show table
 
 -- When the state is not 0
 {-# INLINE decode1 #-}
 decode1
-    :: Ptr Word8
+    :: A.Array Word8
     -> DecodeState
     -> CodePoint
     -> Word8
@@ -207,24 +205,19 @@ decode1
 decode1 table state codep byte =
     -- Remember codep is Int type!
     -- Can it be unsafe to convert the resulting Int to Char?
-    let !t = table `unsafePeekElemOff` fromIntegral byte
+    let !t = A.unsafeIndex table (fromIntegral byte)
         !codep' = (fromIntegral byte .&. 0x3f) .|. (codep `shiftL` 6)
-        !state' = table `unsafePeekElemOff`
-                    (256 + fromIntegral state + fromIntegral t)
+        !state' = A.unsafeIndex table (256 + fromIntegral state + fromIntegral t)
      in assert (codep' <= 0x10FFFF
                     || error (showByte ++ showState state codep))
                (Tuple' state' codep')
     where
 
-    utf8table =
-        let !(Ptr addr) = table
-            end = table `plusPtr` 364
-        in A.Array (ForeignPtr addr undefined) end end :: A.Array Word8
     showByte = "Streamly: decode1: byte: " ++ show byte
     showState st cp =
         " state: " ++ show st ++
         " codepoint: " ++ show cp ++
-        " table: " ++ show utf8table
+        " table: " ++ show table
 
 -- We can divide the errors in three general categories:
 -- * A non-starter was encountered in a begin state
@@ -246,9 +239,7 @@ data FreshPoint s a
 {-# INLINE_NORMAL decodeUtf8WithD #-}
 decodeUtf8WithD :: Monad m => CodingFailureMode -> Stream m Word8 -> Stream m Char
 decodeUtf8WithD cfm (Stream step state) =
-    let A.Array p _ _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
-    in Stream (step' ptr) (FreshPointDecodeInit state)
+  Stream (step' utf8d) (FreshPointDecodeInit state)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -337,13 +328,11 @@ resumeDecodeUtf8EitherD
     -> Stream m Word8
     -> Stream m (Either DecodeError Char)
 resumeDecodeUtf8EitherD dst codep (Stream step state) =
-    let A.Array p _ _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
-        stt =
+    let stt =
             if dst == 0
             then FreshPointDecodeInit state
             else FreshPointDecoding state dst codep
-    in Stream (step' ptr) stt
+    in Stream (step' utf8d) stt
   where
     {-# INLINE_LATE step' #-}
     step' _ gst (FreshPointDecodeInit st) = do
@@ -408,9 +397,9 @@ decodeUtf8EitherD = resumeDecodeUtf8EitherD 0 0
 
 data FlattenState s a
     = OuterLoop s !(Maybe (DecodeState, CodePoint))
-    | InnerLoopDecodeInit s (ForeignPtr a) !(Ptr a) !(Ptr a)
-    | InnerLoopDecodeFirst s (ForeignPtr a) !(Ptr a) !(Ptr a) Word8
-    | InnerLoopDecoding s (ForeignPtr a) !(Ptr a) !(Ptr a)
+    | InnerLoopDecodeInit s (A.Array a) !Int !Int
+    | InnerLoopDecodeFirst s (A.Array a) !Int !Int Word8
+    | InnerLoopDecoding s (A.Array a) !Int !Int
         !DecodeState !CodePoint
     | YAndC !Char (FlattenState s a) -- These constructors can be
                                      -- encoded in the FreshPoint
@@ -431,9 +420,7 @@ decodeUtf8ArraysWithD ::
     -> Stream m (A.Array Word8)
     -> Stream m Char
 decodeUtf8ArraysWithD cfm (Stream step state) =
-    let A.Array p _ _ = utf8d
-        !ptr = unsafeForeignPtrToPtr p
-    in Stream (step' ptr) (OuterLoop state Nothing)
+    Stream (step' utf8d) (OuterLoop state Nothing)
   where
     {-# INLINE transliterateOrError #-}
     transliterateOrError e s =
@@ -452,26 +439,22 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
         r <- step (adaptState gst) st
         return $
             case r of
-                Yield A.Array {..} s ->
-                    let p = unsafeForeignPtrToPtr aStart
-                     in Skip (InnerLoopDecodeInit s aStart p aEnd)
+                Yield arr s ->
+                    Skip (InnerLoopDecodeInit s arr 0 (A.length arr))
                 Skip s -> Skip (OuterLoop s Nothing)
                 Stop -> Skip D
     step' _ gst (OuterLoop st dst@(Just (ds, cp))) = do
         r <- step (adaptState gst) st
         return $
             case r of
-                Yield A.Array {..} s ->
-                    let p = unsafeForeignPtrToPtr aStart
-                     in Skip (InnerLoopDecoding s aStart p aEnd ds cp)
+                Yield arr s ->
+                    Skip (InnerLoopDecoding s arr 0 (A.length arr) ds cp)
                 Skip s -> Skip (OuterLoop s dst)
                 Stop -> Skip inputUnderflow
-    step' _ _ (InnerLoopDecodeInit st startf p end)
-        | p == end = do
-            liftIO $ touchForeignPtr startf
-            return $ Skip $ OuterLoop st Nothing
-    step' _ _ (InnerLoopDecodeInit st startf p end) = do
-        x <- liftIO $ peek p
+    step' _ _ (InnerLoopDecodeInit st arr i len)
+        | i == len = return $ Skip $ OuterLoop st Nothing
+    step' _ _ (InnerLoopDecodeInit st arr i len) = do
+        let x = A.unsafeIndex arr i
         -- Note: It is important to use a ">" instead of a "<=" test here for
         -- GHC to generate code layout for default branch prediction for the
         -- common case. This is fragile and might change with the compiler
@@ -481,13 +464,13 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
             False ->
                 return $ Skip $ YAndC
                     (unsafeChr (fromIntegral x))
-                    (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                    (InnerLoopDecodeInit st arr (i + 1) len)
             -- Using a separate state here generates a jump to a separate code
             -- block in the core which seems to perform slightly better for the
             -- non-ascii case.
-            True -> return $ Skip $ InnerLoopDecodeFirst st startf p end x
+            True -> return $ Skip $ InnerLoopDecodeFirst st arr i len x
 
-    step' table _ (InnerLoopDecodeFirst st startf p end x) = do
+    step' table _ (InnerLoopDecodeFirst st arr i len x) = do
         let (Tuple' sv cp) = decode0 table x
         return $
             case sv of
@@ -495,29 +478,27 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                     Skip $
                     transliterateOrError
                         "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                        (InnerLoopDecodeInit st arr (i + 1) len)
                 0 -> error "unreachable state"
-                _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
-    step' _ _ (InnerLoopDecoding st startf p end sv cp)
-        | p == end = do
-            liftIO $ touchForeignPtr startf
-            return $ Skip $ OuterLoop st (Just (sv, cp))
-    step' table _ (InnerLoopDecoding st startf p end statePtr codepointPtr) = do
-        x <- liftIO $ peek p
-        let (Tuple' sv cp) = decode1 table statePtr codepointPtr x
+                _ -> Skip (InnerLoopDecoding st arr (i + 1) len sv cp)
+    step' _ _ (InnerLoopDecoding st arr i len sv cp)
+        | i == len = return $ Skip $ OuterLoop st (Just (sv, cp))
+    step' table _ (InnerLoopDecoding st arr i len statePtr codepointPtr) = do
+        let x = A.unsafeIndex arr i
+            (Tuple' sv cp) = decode1 table statePtr codepointPtr x
         return $
             case sv of
                 0 ->
                     Skip $
                     YAndC
                         (unsafeChr cp)
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
+                        (InnerLoopDecodeInit st arr (i + 1) len)
                 12 ->
                     Skip $
                     transliterateOrError
                         "Streamly.Internal.Data.Stream.StreamD.decodeUtf8ArraysWith: Invalid UTF8 codepoint encountered"
-                        (InnerLoopDecodeInit st startf (p `plusPtr` 1) end)
-                _ -> Skip (InnerLoopDecoding st startf (p `plusPtr` 1) end sv cp)
+                        (InnerLoopDecodeInit st arr (i + 1) len)
+                _ -> Skip (InnerLoopDecoding st arr (i + 1) len sv cp)
     step' _ _ (YAndC c s) = return $ Yield c s
     step' _ _ D = return Stop
 

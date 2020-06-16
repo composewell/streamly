@@ -69,7 +69,7 @@ import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
+-- import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
 import Foreign.Storable (Storable(..))
@@ -87,9 +87,12 @@ import Prelude hiding (read)
 
 import qualified Network.Socket as Net
 
+import Data.Primitive.Types (Prim)
+import Control.Monad.Primitive (PrimMonad(..))
+
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types (Array(..), lpackArraysChunksOf)
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..), lpackArraysChunksOf)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 import Streamly.Data.Fold (Fold)
@@ -98,10 +101,10 @@ import Streamly.Data.Fold (Fold)
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
@@ -251,18 +254,12 @@ readArrayUptoWith
     -> h
     -> IO (Array Word8)
 readArrayUptoWith f size h = do
-    ptr <- mallocPlainForeignPtrBytes size
+    arr <- MA.newArray size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    MA.withArrayAsPtr arr $ \p -> do
         n <- f h p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
-        -- XXX shrink only if the diff is significant
-        -- A.shrinkToFit v
-        return v
+        MA.shrinkArray arr n
+        A.unsafeFreeze arr
 
 -- | Read a 'ByteArray' from a file handle. If no data is available on the
 -- handle it blocks until some data becomes available. If data is available
@@ -295,25 +292,25 @@ sendAll s p len = do
     -- assert (sent <= len)
     when (sent >= 0) $ sendAll s (p `plusPtr` sent) (len - sent)
 
+-- Should we touch the array at the end?
+--  Probably yes
 {-# INLINABLE writeArrayWith #-}
-writeArrayWith :: Storable a
+writeArrayWith :: Prim a
     => (h -> Ptr Word8 -> Int -> IO ())
     -> h
     -> Array a
     -> IO ()
 writeArrayWith _ _ arr | A.length arr == 0 = return ()
-writeArrayWith f h Array{..} = withForeignPtr aStart $ \p ->
+writeArrayWith f h arr = A.withArrayAsPtr arr $ \p ->
     f h (castPtr p) aLen
     where
-    aLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
+    aLen = A.byteLength arr
 
 -- | Write an Array to a file handle.
 --
 -- @since 0.7.0
 {-# INLINABLE writeChunk #-}
-writeChunk :: Storable a => Socket -> Array a -> IO ()
+writeChunk :: Prim a => Socket -> Array a -> IO ()
 writeChunk = writeArrayWith sendAll
 
 -------------------------------------------------------------------------------
@@ -417,7 +414,7 @@ readWithBufferOf chunkSize h = A.flattenArrays $ readChunksUpto chunkSize h
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadIO m) => Socket -> t m Word8
+toBytes :: (IsStream t, PrimMonad m, MonadIO m) => Socket -> t m Word8
 toBytes = AS.concat . toChunks
 
 -- | Unfolds the tuple @(bufsize, socket)@ into a byte stream, read requests
@@ -425,7 +422,7 @@ toBytes = AS.concat . toChunks
 --
 -- @since 0.7.0
 {-# INLINE readWithBufferOf #-}
-readWithBufferOf :: MonadIO m => Unfold m (Int, Socket) Word8
+readWithBufferOf :: (PrimMonad m, MonadIO m) => Unfold m (Int, Socket) Word8
 readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
 -- | Unfolds a 'Socket' into a byte stream.  IO requests to the socket are
@@ -434,7 +431,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: MonadIO m => Unfold m Socket Word8
+read :: (PrimMonad m, MonadIO m) => Unfold m Socket Word8
 read = UF.supplyFirst readWithBufferOf A.defaultChunkSize
 
 -------------------------------------------------------------------------------
@@ -445,7 +442,7 @@ read = UF.supplyFirst readWithBufferOf A.defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, Storable a)
+fromChunks :: (MonadIO m, Prim a)
     => Socket -> SerialT m (Array a) -> m ()
 fromChunks h = S.mapM_ (liftIO . writeChunk h)
 
@@ -454,7 +451,7 @@ fromChunks h = S.mapM_ (liftIO . writeChunk h)
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, Storable a) => Socket -> Fold m (Array a) ()
+writeChunks :: (MonadIO m, Prim a) => Socket -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeChunk h)
 
 -- | @writeChunksWithBufferOf bufsize socket@ writes a stream of arrays
@@ -465,7 +462,7 @@ writeChunks h = FL.drainBy (liftIO . writeChunk h)
 --
 -- @since 0.7.0
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Storable a)
+writeChunksWithBufferOf :: (PrimMonad m, Prim a, MonadIO m)
     => Int -> Socket -> Fold m (Array a) ()
 writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 
@@ -475,10 +472,10 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 -- /Internal/
 --
 {-# INLINE writeStrings #-}
-writeStrings :: MonadIO m
+writeStrings :: (PrimMonad m, MonadIO m)
     => (SerialT m Char -> SerialT m Word8) -> Socket -> Fold m String ()
 writeStrings encode h =
-    FL.lmapM (IA.fromStream . encode . S.fromList) (writeChunks h)
+    FL.lmapM (A.fromStream . encode . S.fromList) (writeChunks h)
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
 --
@@ -494,7 +491,7 @@ writeStrings encode h =
 --
 -- @since 0.7.0
 {-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf :: MonadIO m => Int -> Socket -> SerialT m Word8 -> m ()
+fromBytesWithBufferOf :: (PrimMonad m, MonadIO m) => Int -> Socket -> SerialT m Word8 -> m ()
 fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
@@ -502,8 +499,8 @@ fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 --
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
-writeWithBufferOf :: MonadIO m => Int -> Socket -> Fold m Word8 ()
-writeWithBufferOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
+writeWithBufferOf :: (PrimMonad m, MonadIO m) => Int -> Socket -> Fold m Word8 ()
+writeWithBufferOf n h = FL.lchunksOf n (A.writeN n) (writeChunks h)
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
@@ -513,7 +510,7 @@ writeWithBufferOf n h = FL.lchunksOf n (A.writeNUnsafe n) (writeChunks h)
 --
 -- @since 0.7.0
 {-# INLINE fromBytes #-}
-fromBytes :: MonadIO m => Socket -> SerialT m Word8 -> m ()
+fromBytes :: (MonadIO m, PrimMonad m) => Socket -> SerialT m Word8 -> m ()
 fromBytes = fromBytesWithBufferOf A.defaultChunkSize
 
 -- | Write a byte stream to a socket. Accumulates the input in chunks of
@@ -525,7 +522,7 @@ fromBytes = fromBytesWithBufferOf A.defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Socket -> Fold m Word8 ()
+write :: (MonadIO m, PrimMonad m) => Socket -> Fold m Word8 ()
 write = writeWithBufferOf A.defaultChunkSize
 
 {-

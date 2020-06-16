@@ -103,21 +103,25 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
+import Data.Primitive.Types (Prim)
+import Control.Monad.Primitive (PrimMonad(..))
+
 import Streamly (MonadAsync)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (fork)
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
 import Streamly.Internal.Network.Socket (SockSpec(..), accept, connections)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
-import Streamly.Internal.Memory.Array.Types (Array(..), defaultChunkSize, writeNUnsafe)
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..), defaultChunkSize, writeN)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Control.Monad.Catch as MC
 import qualified Network.Socket as Net
 
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK
@@ -311,7 +315,7 @@ withConnection addr port =
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: (MonadCatch m, MonadIO m)
+read :: (MonadCatch m, MonadIO m, PrimMonad m)
     => Unfold m ((Word8, Word8, Word8, Word8), PortNumber) Word8
 read = UF.concat (usingConnection ISK.readChunks) A.read
 
@@ -319,7 +323,7 @@ read = UF.concat (usingConnection ISK.readChunks) A.read
 --
 -- @since 0.7.0
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadCatch m, MonadIO m)
+toBytes :: (IsStream t, MonadCatch m, MonadIO m, PrimMonad m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> t m Word8
 toBytes addr port = AS.concat $ withConnection addr port ISK.toChunks
 
@@ -371,7 +375,7 @@ writeChunks addr port = Fold step initial extract
 -- @since 0.7.0
 {-# INLINE fromBytesWithBufferOf #-}
 fromBytesWithBufferOf
-    :: (MonadCatch m, MonadAsync m)
+    :: (MonadCatch m, MonadAsync m, PrimMonad m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
@@ -386,19 +390,19 @@ fromBytesWithBufferOf n addr port m = fromChunks addr port $ AS.arraysOf n m
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
 writeWithBufferOf
-    :: (MonadAsync m, MonadCatch m)
+    :: (MonadAsync m, MonadCatch m, PrimMonad m)
     => Int
     -> (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> Fold m Word8 ()
 writeWithBufferOf n addr port =
-    FL.lchunksOf n (writeNUnsafe n) (writeChunks addr port)
+    FL.lchunksOf n (writeN n) (writeChunks addr port)
 
 -- | Write a stream to the supplied IPv4 host address and port number.
 --
 -- @since 0.7.0
 {-# INLINE fromBytes #-}
-fromBytes :: (MonadCatch m, MonadAsync m)
+fromBytes :: (MonadCatch m, MonadAsync m, PrimMonad m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> SerialT m Word8 -> m ()
 fromBytes = fromBytesWithBufferOf defaultChunkSize
 
@@ -406,7 +410,7 @@ fromBytes = fromBytesWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: (MonadAsync m, MonadCatch m)
+write :: (MonadAsync m, MonadCatch m, PrimMonad m)
     => (Word8, Word8, Word8, Word8) -> PortNumber -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
@@ -416,7 +420,7 @@ write = writeWithBufferOf defaultChunkSize
 
 {-# INLINABLE withInputConnect #-}
 withInputConnect
-    :: (IsStream t, MonadCatch m, MonadAsync m)
+    :: (IsStream t, MonadCatch m, MonadAsync m, PrimMonad m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8
@@ -444,7 +448,7 @@ withInputConnect addr port input f = S.bracket pre post handler
 --
 {-# INLINABLE transformBytesWith #-}
 transformBytesWith
-    :: (IsStream t, MonadAsync m, MonadCatch m)
+    :: (IsStream t, MonadAsync m, MonadCatch m, PrimMonad m)
     => (Word8, Word8, Word8, Word8)
     -> PortNumber
     -> SerialT m Word8

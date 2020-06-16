@@ -314,6 +314,7 @@ import Control.Exception
 import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Primitive (PrimMonad(..))
 import Control.Monad.Trans.Reader (ReaderT)
 import Control.Monad.Trans.State.Strict (StateT)
 import Control.Monad.Trans.Class (MonadTrans(lift))
@@ -323,6 +324,7 @@ import Data.Functor.Identity (Identity(..))
 import Data.Int (Int64)
 import Data.IORef (newIORef, readIORef, mkWeakIORef, writeIORef, IORef)
 import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Primitive.Types (Prim(..))
 import Data.Word (Word32)
 import Foreign.Ptr (Ptr)
 import Foreign.Storable (Storable(..))
@@ -347,7 +349,7 @@ import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64, RelTime64)
 
 import Streamly.Internal.Data.Atomics (atomicModifyIORefCAS_)
-import Streamly.Internal.Memory.Array.Types (Array(..))
+import Streamly.Internal.Data.Prim.Pinned.Array.Types (Array(..))
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.Parser (ParseError(..))
 import Streamly.Internal.Data.Pipe.Types (Pipe(..), PipeState(..))
@@ -362,7 +364,8 @@ import Streamly.Internal.Data.SVar
 import Streamly.Internal.Data.Stream.SVar (fromConsumer, pushToFold)
 
 import qualified Streamly.Internal.Data.Pipe.Types as Pipe
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Memory.Ring as RB
 import qualified Streamly.Internal.Data.Stream.StreamK as K
@@ -1462,7 +1465,7 @@ reverse m = Stream step Nothing
 
 -- Much faster reverse for Storables
 {-# INLINE_NORMAL reverse' #-}
-reverse' :: forall m a. (MonadIO m, Storable a) => Stream m a -> Stream m a
+reverse' :: forall m a. (PrimMonad m, Storable a, Prim a) => Stream m a -> Stream m a
 {-
 -- This commented implementation copies the whole stream into one single array
 -- and then streams from that array, this is 3-4x faster than the chunked code
@@ -1783,7 +1786,7 @@ data SplitOnState s a =
 
 {-# INLINE_NORMAL splitOn #-}
 splitOn
-    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a, Prim a)
     => Array a
     -> Fold m a b
     -> Stream m a
@@ -1803,7 +1806,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
             then do
-                r <- liftIO $ (A.unsafeIndexIO patArr 0)
+                let r = A.unsafeIndex patArr 0
                 return $ Skip $ GO_SINGLE_PAT state r
             else if sizeOf (undefined :: a) * patLen
                     <= sizeOf (undefined :: Word)
@@ -1963,7 +1966,7 @@ splitOn patArr (Fold fstep initial done) (Stream step state) =
 
 {-# INLINE_NORMAL splitSuffixOn #-}
 splitSuffixOn
-    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a)
+    :: forall m a b. (MonadIO m, Storable a, Enum a, Eq a, Prim a)
     => Bool
     -> Array a
     -> Fold m a b
@@ -1985,7 +1988,7 @@ splitSuffixOn withSep patArr (Fold fstep initial done)
         then return $ Skip $ GO_EMPTY_PAT state
         else if patLen == 1
              then do
-                r <- liftIO $ (A.unsafeIndexIO patArr 0)
+                let r = A.unsafeIndex patArr 0
                 return $ Skip $ GO_SINGLE_PAT state r
              else if sizeOf (undefined :: a) * patLen
                     <= sizeOf (undefined :: Word)
@@ -4513,9 +4516,9 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
 -- XXX Exported from Array again as this fold is specific to Array
 -- | Take last 'n' elements from the stream and discard the rest.
 {-# INLINE lastN #-}
-lastN :: (Storable a, MonadIO m) => Int -> Fold m a (Array a)
+lastN :: (Storable a, MonadIO m, Prim a, PrimMonad m) => Int -> Fold m a (Array a)
 lastN n
-    | n <= 0 = fmap (const mempty) FL.drain
+    | n <= 0 = error "n should be greater than 0"
     | otherwise = Fold step initial done
   where
     step (Tuple3' rb rh i) a = do
@@ -4523,9 +4526,10 @@ lastN n
         return $ Tuple3' rb rh1 (i + 1)
     initial = fmap (\(a, b) -> Tuple3' a b (0 :: Int)) $ liftIO $ RB.new n
     done (Tuple3' rb rh i) = do
-        arr <- liftIO $ A.newArray n
-        foldFunc i rh snoc' arr rb
-    snoc' b a = liftIO $ A.unsafeSnoc b a
+        arr <- MA.newArray n
+        let insertFunc b a = MA.writeArray arr b a >> return (b + 1)
+        foldFunc i rh insertFunc 0 rb
+        A.unsafeFreeze arr
     foldFunc i
         | i < n = RB.unsafeFoldRingM
         | otherwise = RB.unsafeFoldRingFullM

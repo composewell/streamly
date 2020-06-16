@@ -27,6 +27,7 @@ module Streamly.Memory.Ring
     ) where
 
 import Control.Exception (assert)
+import Data.Primitive.Types (Prim(..))
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (plusPtr, minusPtr, castPtr)
@@ -37,7 +38,7 @@ import Prelude hiding (length, concat)
 
 import Control.Monad.IO.Class (MonadIO(..))
 
-import qualified Streamly.Internal.Memory.Array.Types as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as A
 
 -- | A ring buffer is a mutable array of fixed size. Initially the array is
 -- empty, with ringStart pointing at the start of allocated memory. We call the
@@ -96,12 +97,13 @@ unsafeInsert rb ringHead newVal = do
 -- the ring buffer. This is unsafe because the ringHead Ptr is not checked to
 -- be in range.
 {-# INLINE unsafeEqArrayN #-}
-unsafeEqArrayN :: Ring a -> Ptr a -> A.Array a -> Int -> Bool
-unsafeEqArrayN Ring{..} rh A.Array{..} n =
+unsafeEqArrayN :: Prim a => Ring a -> Ptr a -> A.Array a -> Int -> Bool
+unsafeEqArrayN Ring{..} rh arr n =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
-                as = unsafeForeignPtrToPtr aStart
-            assert (aBound `minusPtr` as >= ringBound `minusPtr` rs) (return ())
+                aLen = A.length arr
+                as = A.toPtr arr
+            assert (aLen >= ringBound `minusPtr` rs) (return ())
             let len = ringBound `minusPtr` rh
             r1 <- A.memcmp (castPtr rh) (castPtr as) (min len n)
             r2 <- if n > len
@@ -122,12 +124,13 @@ unsafeEqArrayN Ring{..} rh A.Array{..} n =
 -- supplied array must be equal to or bigger than the ringBuffer, ARRAY BOUNDS
 -- ARE NOT CHECKED.
 {-# INLINE unsafeEqArray #-}
-unsafeEqArray :: Ring a -> Ptr a -> A.Array a -> Bool
-unsafeEqArray Ring{..} rh A.Array{..} =
+unsafeEqArray :: Prim a => Ring a -> Ptr a -> A.Array a -> Bool
+unsafeEqArray Ring{..} rh arr =
     let !res = A.unsafeInlineIO $ do
             let rs = unsafeForeignPtrToPtr ringStart
-            let as = unsafeForeignPtrToPtr aStart
-            assert (aBound `minusPtr` as >= ringBound `minusPtr` rs)
+                aLen = A.length arr
+                as = A.toPtr arr
+            assert (aLen >= ringBound `minusPtr` rs)
                    (return ())
             let len = ringBound `minusPtr` rh
             r1 <- A.memcmp (castPtr rh) (castPtr as) len

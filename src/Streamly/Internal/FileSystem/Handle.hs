@@ -113,20 +113,25 @@ import Streamly (MonadAsync)
 import Streamly.Data.Fold (Fold)
 import Streamly.Internal.Data.Fold.Types (Fold2(..))
 import Streamly.Internal.Data.Unfold.Types (Unfold(..))
-import Streamly.Internal.Memory.Array.Types
-       (Array(..), writeNUnsafe, defaultChunkSize, shrinkToFit,
+import Streamly.Internal.Data.Prim.Pinned.Array.Types
+       (Array(..), writeN, defaultChunkSize,
         lpackArraysChunksOf)
 import Streamly.Internal.Data.Stream.Serial (SerialT)
 import Streamly.Internal.Data.Stream.StreamK.Type (IsStream, mkStream)
 -- import Streamly.String (encodeUtf8, decodeUtf8, foldLines)
 
+import Data.Primitive.Types (Prim)
+import Control.Monad.Primitive (PrimMonad(..))
+
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Internal.Data.Unfold as UF
-import qualified Streamly.Internal.Memory.Array as IA
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as IA
+import qualified Streamly.Internal.Data.Prim.Pinned.Array.Types as IA
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 
 -------------------------------------------------------------------------------
@@ -153,17 +158,12 @@ import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 {-# INLINABLE readArrayUpto #-}
 readArrayUpto :: Int -> Handle -> IO (Array Word8)
 readArrayUpto size h = do
-    ptr <- mallocPlainForeignPtrBytes size
+    arr <- MA.newArray size
     -- ptr <- mallocPlainForeignPtrAlignedBytes size (alignment (undefined :: Word8))
-    withForeignPtr ptr $ \p -> do
+    MA.withArrayAsPtr arr $ \p -> do
         n <- hGetBufSome h p size
-        let v = Array
-                { aStart = ptr
-                , aEnd   = p `plusPtr` n
-                , aBound = p `plusPtr` size
-                }
-        -- XXX shrink only if the diff is significant
-        shrinkToFit v
+        MA.shrinkArray arr n
+        IA.unsafeFreeze arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -252,14 +252,14 @@ getChunks = toChunks stdin
 -- /Internal/
 --
 {-# INLINE getBytes #-}
-getBytes :: (IsStream t, MonadIO m) => t m Word8
+getBytes :: (IsStream t, MonadIO m, PrimMonad m) => t m Word8
 getBytes = toBytes stdin
 
 -- | Unfolds a handle into a stream of 'Word8' arrays. Requests to the IO
 -- device are performed using a buffer of size
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'. The
+-- 'Streamly.Internal.Data.Prim.Pinned.Array.Types.defaultChunkSize'. The
 -- size of arrays in the resulting stream are therefore less than or equal to
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Prim.Pinned.Array.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE readChunks #-}
@@ -279,7 +279,7 @@ readChunks = UF.supplyFirst readChunksWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE readWithBufferOf #-}
-readWithBufferOf :: MonadIO m => Unfold m (Int, Handle) Word8
+readWithBufferOf :: (MonadIO m, PrimMonad m) => Unfold m (Int, Handle) Word8
 readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 
 -- | @toBytesWithBufferOf bufsize handle@ reads a byte stream from a file
@@ -287,7 +287,7 @@ readWithBufferOf = UF.concat readChunksWithBufferOf A.read
 --
 -- /Internal/
 {-# INLINE toBytesWithBufferOf #-}
-toBytesWithBufferOf :: (IsStream t, MonadIO m) => Int -> Handle -> t m Word8
+toBytesWithBufferOf :: (IsStream t, MonadIO m, PrimMonad m) => Int -> Handle -> t m Word8
 toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 
 -- TODO
@@ -296,18 +296,18 @@ toBytesWithBufferOf chunkSize h = AS.concat $ toChunksWithBufferOf chunkSize h
 --
 -- | Unfolds a file handle into a byte stream. IO requests to the device are
 -- performed in sizes of
--- 'Streamly.Internal.Memory.Array.Types.defaultChunkSize'.
+-- 'Streamly.Internal.Data.Prim.Pinned.Array.Types.defaultChunkSize'.
 --
 -- @since 0.7.0
 {-# INLINE read #-}
-read :: MonadIO m => Unfold m Handle Word8
+read :: (MonadIO m, PrimMonad m) => Unfold m Handle Word8
 read = UF.supplyFirst readWithBufferOf defaultChunkSize
 
 -- | Generate a byte stream from a file 'Handle'.
 --
 -- /Internal/
 {-# INLINE toBytes #-}
-toBytes :: (IsStream t, MonadIO m) => Handle -> t m Word8
+toBytes :: (IsStream t, MonadIO m, PrimMonad m) => Handle -> t m Word8
 toBytes = AS.concat . toChunks
 
 -------------------------------------------------------------------------------
@@ -322,13 +322,11 @@ toBytes = AS.concat . toChunks
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: Storable a => Handle -> Array a -> IO ()
+writeArray :: (Storable a, Prim a) => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
-writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
+writeArray h arr = IA.withArrayAsPtr arr $ \p -> hPutBuf h p aLen
     where
-    aLen =
-        let p = unsafeForeignPtrToPtr aStart
-        in aEnd `minusPtr` p
+    aLen = IA.byteLength arr
 
 -------------------------------------------------------------------------------
 -- Stream of Arrays IO
@@ -343,7 +341,7 @@ writeArray h Array{..} = withForeignPtr aStart $ \p -> hPutBuf h p aLen
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, Storable a)
+fromChunks :: (MonadIO m, Storable a, Prim a)
     => Handle -> SerialT m (Array a) -> m ()
 fromChunks h = S.mapM_ (liftIO . writeArray h)
 
@@ -352,7 +350,7 @@ fromChunks h = S.mapM_ (liftIO . writeArray h)
 -- /Internal/
 --
 {-# INLINE putChunks #-}
-putChunks :: (MonadIO m, Storable a) => SerialT m (Array a) -> m ()
+putChunks :: (MonadIO m, Storable a, Prim a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
 
 -- XXX use an unfold so that we can put any type of strings.
@@ -362,7 +360,7 @@ putChunks = fromChunks stdout
 -- /Internal/
 --
 {-# INLINE putStrings #-}
-putStrings :: MonadAsync m
+putStrings :: (MonadAsync m, PrimMonad m)
     => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
 putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
 
@@ -374,7 +372,7 @@ putStrings encode = putChunks . S.mapM (IA.fromStream . encode . S.fromList)
 -- /Internal/
 --
 {-# INLINE putLines #-}
-putLines :: MonadAsync m
+putLines :: (MonadAsync m, PrimMonad m)
     => (SerialT m Char -> SerialT m Word8) -> SerialT m String -> m ()
 putLines encode = putChunks . S.mapM
     (\xs -> IA.fromStream $ encode (S.fromList (xs ++ "\n")))
@@ -386,7 +384,7 @@ putLines encode = putChunks . S.mapM
 -- /Internal/
 --
 {-# INLINE putBytes #-}
-putBytes :: MonadIO m => SerialT m Word8 -> m ()
+putBytes :: (MonadIO m, PrimMonad m) => SerialT m Word8 -> m ()
 putBytes = fromBytes stdout
 
 -- | @fromChunksWithBufferOf bufsize handle stream@ writes a stream of arrays
@@ -396,7 +394,7 @@ putBytes = fromBytes stdout
 --
 -- @since 0.7.0
 {-# INLINE fromChunksWithBufferOf #-}
-fromChunksWithBufferOf :: (MonadIO m, Storable a)
+fromChunksWithBufferOf :: (MonadIO m, Storable a, PrimMonad m, Prim a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 
@@ -406,21 +404,21 @@ fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 --
 -- @since 0.7.0
 {-# INLINE fromBytesWithBufferOf #-}
-fromBytesWithBufferOf :: MonadIO m => Int -> Handle -> SerialT m Word8 -> m ()
+fromBytesWithBufferOf :: (MonadIO m, PrimMonad m) => Int -> Handle -> SerialT m Word8 -> m ()
 fromBytesWithBufferOf n h m = fromChunks h $ S.arraysOf n m
 -- fromBytesWithBufferOf n h m = fromChunks h $ AS.arraysOf n m
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' before writing.
+-- up to 'Streamly.Internal.Data.Prim.Pinned.Array.Types.defaultChunkSize' before writing.
 --
 -- NOTE: This may perform better than the 'write' fold, you can try this if you
 -- need some extra perf boost.
 --
 -- @since 0.7.0
 {-# INLINE fromBytes #-}
-fromBytes :: MonadIO m => Handle -> SerialT m Word8 -> m ()
+fromBytes :: (MonadIO m, PrimMonad m) => Handle -> SerialT m Word8 -> m ()
 fromBytes = fromBytesWithBufferOf defaultChunkSize
 
 -- | Write a stream of arrays to a handle. Each array in the stream is written
@@ -428,11 +426,11 @@ fromBytes = fromBytesWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, Storable a) => Handle -> Fold m (Array a) ()
+writeChunks :: (MonadIO m, Storable a, Prim a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeArray h)
 
 {-# INLINE writeChunks2 #-}
-writeChunks2 :: (MonadIO m, Storable a) => Fold2 m Handle (Array a) ()
+writeChunks2 :: (MonadIO m, Storable a, Prim a) => Fold2 m Handle (Array a) ()
 writeChunks2 = Fold2 (\h arr -> liftIO $ writeArray h arr >> return h) return (\_ -> return ())
 
 -- | @writeChunksWithBufferOf bufsize handle@ writes a stream of arrays
@@ -443,7 +441,7 @@ writeChunks2 = Fold2 (\h arr -> liftIO $ writeArray h arr >> return h) return (\
 --
 -- @since 0.7.0
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Storable a)
+writeChunksWithBufferOf :: (MonadIO m, Storable a, PrimMonad m, Prim a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 
@@ -461,26 +459,26 @@ writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 --
 -- @since 0.7.0
 {-# INLINE writeWithBufferOf #-}
-writeWithBufferOf :: MonadIO m => Int -> Handle -> Fold m Word8 ()
-writeWithBufferOf n h = FL.lchunksOf n (writeNUnsafe n) (writeChunks h)
+writeWithBufferOf :: (MonadIO m, PrimMonad m) => Int -> Handle -> Fold m Word8 ()
+writeWithBufferOf n h = FL.lchunksOf n (writeN n) (writeChunks h)
 
 {-# INLINE writeWithBufferOf2 #-}
-writeWithBufferOf2 :: MonadIO m => Int -> Fold2 m Handle Word8 ()
-writeWithBufferOf2 n = FL.lchunksOf2 n (writeNUnsafe n) writeChunks2
+writeWithBufferOf2 :: (MonadIO m, PrimMonad m) => Int -> Fold2 m Handle Word8 ()
+writeWithBufferOf2 n = FL.lchunksOf2 n (writeN n) writeChunks2
 
 -- > write = 'writeWithBufferOf' A.defaultChunkSize
 --
 -- | Write a byte stream to a file handle. Accumulates the input in chunks of
--- up to 'Streamly.Internal.Memory.Array.Types.defaultChunkSize' before writing
+-- up to 'Streamly.Internal.Data.Prim.Pinned.Array.Types.defaultChunkSize' before writing
 -- to the IO device.
 --
 -- @since 0.7.0
 {-# INLINE write #-}
-write :: MonadIO m => Handle -> Fold m Word8 ()
+write :: (MonadIO m, PrimMonad m) => Handle -> Fold m Word8 ()
 write = writeWithBufferOf defaultChunkSize
 
 {-# INLINE write2 #-}
-write2 :: MonadIO m => Fold2 m Handle Word8 ()
+write2 :: (MonadIO m, PrimMonad m) => Fold2 m Handle Word8 ()
 write2 = writeWithBufferOf2 defaultChunkSize
 
 {-
