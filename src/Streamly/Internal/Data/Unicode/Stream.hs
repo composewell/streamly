@@ -53,17 +53,14 @@ module Streamly.Internal.Data.Unicode.Stream
     )
 where
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Char (ord)
 import Data.Word (Word8)
-import Foreign.ForeignPtr (touchForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Storable (Storable(..))
 import GHC.Base (assert, unsafeChr)
-import GHC.ForeignPtr (ForeignPtr (..))
 import GHC.IO.Encoding.Failure (isSurrogate)
-import GHC.Ptr (Ptr (..), plusPtr)
+import GHC.Ptr (Ptr (..))
 import Prelude hiding (String, lines, words, unlines, unwords)
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -170,9 +167,9 @@ utf8d =
 
 -- | Return element at the specified index without checking the bounds.
 -- and without touching the foreign ptr.
-{-# INLINE_NORMAL unsafePeekElemOff #-}
-unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
-unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
+{-# INLINE_NORMAL _unsafePeekElemOff #-}
+_unsafePeekElemOff :: forall a. Storable a => Ptr a -> Int -> a
+_unsafePeekElemOff p i = let !x = A.unsafeInlineIO $ peekElemOff p i in x
 
 -- decode is split into two separate cases to avoid branching instructions.
 -- From the higher level flow we already know which case we are in so we can
@@ -451,7 +448,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                     Skip (InnerLoopDecoding s arr 0 (A.length arr) ds cp)
                 Skip s -> Skip (OuterLoop s dst)
                 Stop -> Skip inputUnderflow
-    step' _ _ (InnerLoopDecodeInit st arr i len)
+    step' _ _ (InnerLoopDecodeInit st _ i len)
         | i == len = return $ Skip $ OuterLoop st Nothing
     step' _ _ (InnerLoopDecodeInit st arr i len) = do
         let x = A.unsafeIndex arr i
@@ -481,7 +478,7 @@ decodeUtf8ArraysWithD cfm (Stream step state) =
                         (InnerLoopDecodeInit st arr (i + 1) len)
                 0 -> error "unreachable state"
                 _ -> Skip (InnerLoopDecoding st arr (i + 1) len sv cp)
-    step' _ _ (InnerLoopDecoding st arr i len sv cp)
+    step' _ _ (InnerLoopDecoding st _ i len sv cp)
         | i == len = return $ Skip $ OuterLoop st (Just (sv, cp))
     step' table _ (InnerLoopDecoding st arr i len statePtr codepointPtr) = do
         let x = A.unsafeIndex arr i

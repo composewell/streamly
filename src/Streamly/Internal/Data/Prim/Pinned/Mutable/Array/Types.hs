@@ -67,7 +67,6 @@ where
 import Data.Word (Word8)
 import GHC.ForeignPtr
 import GHC.IO (IO(..))
-import Foreign.Ptr (Ptr(..))
 import Control.Exception (assert)
 
 #include "mutable-prim-array-types.hs"

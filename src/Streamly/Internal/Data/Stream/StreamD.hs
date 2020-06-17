@@ -344,7 +344,7 @@ import qualified Prelude
 
 import Fusion.Plugin.Types (Fuse(..))
 import Streamly.Internal.Mutable.Prim.Var
-       (Prim, Var, readVar, newVar, modifyVar')
+       (Var, readVar, newVar, modifyVar')
 import Streamly.Internal.Data.Time.Units
        (TimeUnit64, toRelTime64, diffAbsTime64, RelTime64)
 
@@ -1465,7 +1465,7 @@ reverse m = Stream step Nothing
 
 -- Much faster reverse for Storables
 {-# INLINE_NORMAL reverse' #-}
-reverse' :: forall m a. (PrimMonad m, Storable a, Prim a) => Stream m a -> Stream m a
+reverse' :: forall m a. (PrimMonad m, Prim a) => Stream m a -> Stream m a
 {-
 -- This commented implementation copies the whole stream into one single array
 -- and then streams from that array, this is 3-4x faster than the chunked code
@@ -4528,7 +4528,7 @@ lastN n
     done (Tuple3' rb rh i) = do
         arr <- MA.newArray n
         let insertFunc b a = MA.writeArray arr b a >> return (b + 1)
-        foldFunc i rh insertFunc 0 rb
+        _ <- foldFunc i rh insertFunc 0 rb
         A.unsafeFreeze arr
     foldFunc i
         | i < n = RB.unsafeFoldRingM

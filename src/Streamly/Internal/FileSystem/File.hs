@@ -88,7 +88,6 @@ where
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.Storable (Storable(..))
 import System.IO (Handle, openFile, IOMode(..), hClose)
 import Prelude hiding (read)
 
@@ -113,7 +112,6 @@ import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.FileSystem.Handle as FH
 import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
-import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Prelude as S
 
 -------------------------------------------------------------------------------
@@ -176,14 +174,14 @@ usingFile =
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: (Storable a, Prim a) => FilePath -> Array a -> IO ()
+writeArray :: Prim a => FilePath -> Array a -> IO ()
 writeArray file arr = SIO.withFile file WriteMode (`FH.writeArray` arr)
 
 -- | append an array to a file.
 --
 -- @since 0.7.0
 {-# INLINABLE appendArray #-}
-appendArray :: (Storable a, Prim a) => FilePath -> Array a -> IO ()
+appendArray :: Prim a => FilePath -> Array a -> IO ()
 appendArray file arr = SIO.withFile file AppendMode (`FH.writeArray` arr)
 
 -------------------------------------------------------------------------------
@@ -289,7 +287,7 @@ readTailForever = undefined
 -------------------------------------------------------------------------------
 
 {-# INLINE fromChunksMode #-}
-fromChunksMode :: (MonadAsync m, MonadCatch m, Storable a, Prim a)
+fromChunksMode :: (MonadAsync m, MonadCatch m, Prim a)
     => IOMode -> FilePath -> SerialT m (Array a) -> m ()
 fromChunksMode mode file xs = S.drain $
     withFile file mode (\h -> S.mapM (liftIO . FH.writeArray h) xs)
@@ -298,7 +296,7 @@ fromChunksMode mode file xs = S.drain $
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadAsync m, MonadCatch m, Storable a, Prim a)
+fromChunks :: (MonadAsync m, MonadCatch m, Prim a)
     => FilePath -> SerialT m (Array a) -> m ()
 fromChunks = fromChunksMode WriteMode
 
@@ -343,7 +341,7 @@ write = toHandleWith A.defaultChunkSize
 --
 -- /Internal/
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, MonadCatch m, Storable a, Prim a)
+writeChunks :: (MonadIO m, MonadCatch m, Prim a)
     => FilePath -> Fold m (Array a) ()
 writeChunks path = Fold step initial extract
     where
@@ -386,7 +384,7 @@ write = writeWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE appendChunks #-}
-appendChunks :: (MonadAsync m, MonadCatch m, Storable a, Prim a)
+appendChunks :: (MonadAsync m, MonadCatch m, Prim a)
     => FilePath -> SerialT m (Array a) -> m ()
 appendChunks = fromChunksMode AppendMode
 

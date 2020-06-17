@@ -81,8 +81,6 @@ where
 
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
-import Foreign.Ptr (Ptr(..))
-import Foreign.C.String (CString)
 import Foreign.C.Types (CSize(..), CInt(..))
 import Control.Exception (assert)
 import Control.Monad (void)
@@ -96,12 +94,6 @@ import GHC.IO (IO(..))
 
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
-
-foreign import ccall unsafe "string.h strlen" c_strlen
-    :: CString -> IO CSize
-
-foreign import ccall unsafe "string.h memchr" c_memchr
-    :: Ptr Word8 -> Word8 -> CSize -> IO (Ptr Word8)
 
 -- XXX we are converting Int to CSize
 memcpy :: Ptr Word8 -> Ptr Word8 -> Int -> IO ()

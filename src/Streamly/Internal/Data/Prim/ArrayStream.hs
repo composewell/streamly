@@ -37,10 +37,9 @@ module Streamly.Internal.Data.Prim.ArrayStream
     )
 where
 
-import Streamly.Internal.Data.Prim.Array.Types (Array(..), length)
+import Streamly.Internal.Data.Prim.Array.Types (Array(..))
 import qualified Streamly.Internal.Data.Prim.Array as A
 import qualified Streamly.Internal.Data.Prim.Array.Types as A
-import qualified Streamly.Internal.Data.Prim.Mutable.Array.Types as MA
 
 #include "prim-array-stream.hs"
 

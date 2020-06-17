@@ -69,11 +69,7 @@ import Control.Monad.Catch (MonadCatch, finally, MonadMask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM_, when)
 import Data.Word (Word8)
--- import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (minusPtr, plusPtr, Ptr, castPtr)
-import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
+import Foreign.Ptr (plusPtr, Ptr, castPtr)
 import Network.Socket
        (Socket, SocketOption(..), Family(..), SockAddr(..),
         ProtocolNumber, withSocketsDo, SocketType(..), socket, bind,
@@ -284,6 +280,7 @@ waitWhen0 0 s = when rtsSupportsBoundThreads $
 #endif
 waitWhen0 _ _ = return ()
 
+-- Change implementation to use Array directly?
 sendAll :: Socket -> Ptr Word8 -> Int -> IO ()
 sendAll _ _ len | len <= 0 = return ()
 sendAll s p len = do

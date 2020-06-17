@@ -2552,7 +2552,7 @@ reverse s = fromStreamS $ S.reverse $ toStreamS s
 --
 -- /Internal/
 {-# INLINE reverse' #-}
-reverse' :: (IsStream t, MonadIO m, Storable a, PrimMonad m, Prim a) => t m a -> t m a
+reverse' :: (IsStream t, MonadIO m, PrimMonad m, Prim a) => t m a -> t m a
 reverse' s = fromStreamD $ D.reverse' $ toStreamD s
 
 ------------------------------------------------------------------------------
@@ -3980,7 +3980,7 @@ splitWithSuffix predicate f m =
 -- that we can search files in files for example.
 {-# INLINE splitOnSeq #-}
 splitOnSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSeq patt f m = D.fromStreamD $ D.splitOn patt f (D.toStreamD m)
 
@@ -4028,7 +4028,7 @@ splitOnAny subseq f m = undefined -- D.fromStreamD $ D.splitOnAny f subseq (D.to
 -- /Internal/
 {-# INLINE splitOnSuffixSeq #-}
 splitOnSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitOnSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn False patt f (D.toStreamD m)
@@ -4115,7 +4115,7 @@ splitBySeq patt f m =
 -- /Internal/
 {-# INLINE splitWithSuffixSeq #-}
 splitWithSuffixSeq
-    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, PrimMonad m, Prim a)
+    :: (IsStream t, MonadIO m, Storable a, Enum a, Eq a, Prim a)
     => Array a -> Fold m a b -> t m a -> t m b
 splitWithSuffixSeq patt f m =
     D.fromStreamD $ D.splitSuffixOn True patt f (D.toStreamD m)

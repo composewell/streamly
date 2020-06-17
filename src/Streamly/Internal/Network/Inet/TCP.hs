@@ -103,7 +103,6 @@ import Network.Socket
         socket)
 import Prelude hiding (read)
 
-import Data.Primitive.Types (Prim)
 import Control.Monad.Primitive (PrimMonad(..))
 
 import Streamly (MonadAsync)
@@ -121,7 +120,6 @@ import qualified Network.Socket as Net
 import qualified Streamly.Internal.Data.Unfold as UF
 import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
-import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 import qualified Streamly.Internal.Data.Fold.Types as FL
 import qualified Streamly.Prelude as S
 import qualified Streamly.Network.Socket as SK

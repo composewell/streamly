@@ -101,11 +101,6 @@ where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Foreign.Ptr (minusPtr, plusPtr)
-import Foreign.Storable (Storable(..))
-import GHC.ForeignPtr (mallocPlainForeignPtrBytes)
 import System.IO (Handle, hGetBufSome, hPutBuf, stdin, stdout)
 import Prelude hiding (read)
 
@@ -322,7 +317,7 @@ toBytes = AS.concat . toChunks
 --
 -- @since 0.7.0
 {-# INLINABLE writeArray #-}
-writeArray :: (Storable a, Prim a) => Handle -> Array a -> IO ()
+writeArray :: Prim a => Handle -> Array a -> IO ()
 writeArray _ arr | A.length arr == 0 = return ()
 writeArray h arr = IA.withArrayAsPtr arr $ \p -> hPutBuf h p aLen
     where
@@ -341,7 +336,7 @@ writeArray h arr = IA.withArrayAsPtr arr $ \p -> hPutBuf h p aLen
 --
 -- @since 0.7.0
 {-# INLINE fromChunks #-}
-fromChunks :: (MonadIO m, Storable a, Prim a)
+fromChunks :: (MonadIO m, Prim a)
     => Handle -> SerialT m (Array a) -> m ()
 fromChunks h = S.mapM_ (liftIO . writeArray h)
 
@@ -350,7 +345,7 @@ fromChunks h = S.mapM_ (liftIO . writeArray h)
 -- /Internal/
 --
 {-# INLINE putChunks #-}
-putChunks :: (MonadIO m, Storable a, Prim a) => SerialT m (Array a) -> m ()
+putChunks :: (MonadIO m, Prim a) => SerialT m (Array a) -> m ()
 putChunks = fromChunks stdout
 
 -- XXX use an unfold so that we can put any type of strings.
@@ -394,7 +389,7 @@ putBytes = fromBytes stdout
 --
 -- @since 0.7.0
 {-# INLINE fromChunksWithBufferOf #-}
-fromChunksWithBufferOf :: (MonadIO m, Storable a, PrimMonad m, Prim a)
+fromChunksWithBufferOf :: (MonadIO m, PrimMonad m, Prim a)
     => Int -> Handle -> SerialT m (Array a) -> m ()
 fromChunksWithBufferOf n h xs = fromChunks h $ AS.compact n xs
 
@@ -426,11 +421,11 @@ fromBytes = fromBytesWithBufferOf defaultChunkSize
 --
 -- @since 0.7.0
 {-# INLINE writeChunks #-}
-writeChunks :: (MonadIO m, Storable a, Prim a) => Handle -> Fold m (Array a) ()
+writeChunks :: (MonadIO m, Prim a) => Handle -> Fold m (Array a) ()
 writeChunks h = FL.drainBy (liftIO . writeArray h)
 
 {-# INLINE writeChunks2 #-}
-writeChunks2 :: (MonadIO m, Storable a, Prim a) => Fold2 m Handle (Array a) ()
+writeChunks2 :: (MonadIO m, Prim a) => Fold2 m Handle (Array a) ()
 writeChunks2 = Fold2 (\h arr -> liftIO $ writeArray h arr >> return h) return (\_ -> return ())
 
 -- | @writeChunksWithBufferOf bufsize handle@ writes a stream of arrays
@@ -441,7 +436,7 @@ writeChunks2 = Fold2 (\h arr -> liftIO $ writeArray h arr >> return h) return (\
 --
 -- @since 0.7.0
 {-# INLINE writeChunksWithBufferOf #-}
-writeChunksWithBufferOf :: (MonadIO m, Storable a, PrimMonad m, Prim a)
+writeChunksWithBufferOf :: (MonadIO m, PrimMonad m, Prim a)
     => Int -> Handle -> Fold m (Array a) ()
 writeChunksWithBufferOf n h = lpackArraysChunksOf n (writeChunks h)
 

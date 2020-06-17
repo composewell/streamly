@@ -1,8 +1,6 @@
 import Control.Monad.Primitive (PrimMonad(..))
 import Data.Primitive.Types (Prim(..))
 import Data.Word (Word8)
-import Foreign.ForeignPtr (withForeignPtr)
-import Foreign.Ptr (minusPtr, plusPtr, castPtr)
 import Prelude hiding (length, null, last, map, (!!), read, concat)
 
 import Streamly.Internal.Data.Stream.Serial (SerialT)
@@ -10,7 +8,6 @@ import Streamly.Internal.Data.Stream.StreamK.Type (IsStream)
 
 import qualified Streamly.Internal.Prelude as S
 import qualified Streamly.Internal.Data.Stream.StreamD as D
-import qualified Streamly.Internal.Data.Stream.Prelude as P
 
 -- XXX efficiently compare two streams of arrays. Two streams can have chunks
 -- of different sizes, we can handle that in the stream comparison abstraction.
