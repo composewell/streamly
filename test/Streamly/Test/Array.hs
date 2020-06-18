@@ -25,8 +25,7 @@ import qualified Streamly.Prelude as S
 import qualified Streamly.Internal.Data.SmallArray as A
 type Array = A.SmallArray
 #elif defined(TEST_ARRAY)
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Internal.Prelude as IP
 type Array = A.Array
 #elif defined(TEST_PRIM_ARRAY)
@@ -128,7 +127,8 @@ testArraysOf =
     forAll (choose (0, maxArrLen)) $ \len ->
         forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
             monadicIO $ do
-                xs <- S.toList
+                xs <- run
+                    $ S.toList
                     $ S.concatUnfold A.read
                     $ IP.arraysOf 240
                     $ S.fromList list
@@ -143,7 +143,8 @@ testLastN =
         forAll (choose (0, len)) $ \n ->
             forAll (vectorOf len (arbitrary :: Gen Int)) $ \list ->
                 monadicIO $ do
-                    xs <- fmap A.toList
+                    xs <- run
+                        $ fmap A.toList
                         $ S.fold (A.lastN n)
                         $ S.fromList list
                     assert (xs == lastN n list)
