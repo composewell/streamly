@@ -116,7 +116,7 @@ writeN limit = Fold step initial extract
         | otherwise = do
             writeArray marr i x
             return (marr, i + 1)
-    extract (marr, _) = return marr
+    extract (marr, len) = shrinkArray marr len >> return marr
 
 
 

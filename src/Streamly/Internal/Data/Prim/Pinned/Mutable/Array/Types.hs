@@ -123,7 +123,7 @@ resizeArray ::
 resizeArray arr i =
     if len == i
     then return arr
-    else if len < i
+    else if i < len
          then shrinkArray arr i >> return arr
          else do
              nArr <- newArray i
