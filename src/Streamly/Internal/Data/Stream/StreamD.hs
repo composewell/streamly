@@ -4518,7 +4518,7 @@ tapAsync f (Stream step1 state1) = Stream step TapInit
 {-# INLINE lastN #-}
 lastN :: (Storable a, MonadIO m, Prim a, PrimMonad m) => Int -> Fold m a (Array a)
 lastN n
-    | n <= 0 = error "n should be greater than 0"
+    | n <= 0 = fmap (const mempty) FL.drain
     | otherwise = Fold step initial done
   where
     step (Tuple3' rb rh i) a = do
@@ -4528,7 +4528,8 @@ lastN n
     done (Tuple3' rb rh i) = do
         arr <- MA.newArray n
         let insertFunc b a = MA.writeArray arr b a >> return (b + 1)
-        _ <- foldFunc i rh insertFunc 0 rb
+        n' <- foldFunc i rh insertFunc 0 rb
+        when (n' < n) $ MA.shrinkArray arr n'
         A.unsafeFreeze arr
     foldFunc i
         | i < n = RB.unsafeFoldRingM
