@@ -113,6 +113,7 @@ extra-source-files:
     benchmark/Streamly/Benchmark/Data/*.hs
     benchmark/Streamly/Benchmark/Data/Parser/*.hs
     benchmark/Streamly/Benchmark/Data/Prim/*.hs
+    benchmark/Streamly/Benchmark/Data/Prim/Pinned/*.hs
     benchmark/Streamly/Benchmark/Data/Stream/*.hs
     benchmark/Streamly/Benchmark/FileSystem/*.hs
     benchmark/Streamly/Benchmark/FileSystem/Handle/*.hs
