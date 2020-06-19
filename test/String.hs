@@ -9,12 +9,12 @@ import Test.QuickCheck.Monadic (run, monadicIO, assert)
 
 import           Test.Hspec as H
 
-import qualified Streamly.Memory.Array as A
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Unicode.Stream as SS
 import qualified Streamly.Internal.Data.Unicode.Stream as IUS
-import qualified Streamly.Internal.Memory.Unicode.Array as IUA
+import qualified Streamly.Internal.Data.Prim.Pinned.Unicode.Array as IUA
 
 -- Coverage build takes too long with default number of tests
 {-
@@ -55,15 +55,18 @@ propDecodeEncodeIdArrays =
     forAll genUnicode $ \list ->
         monadicIO $ do
             let wrds = SS.encodeUtf8 $ S.fromList list
-            chrs <- S.toList $ IUS.decodeUtf8ArraysLenient
-                                    (S.fold A.write wrds)
+            chrs <- run
+                    $ S.toList
+                    $ IUS.decodeUtf8ArraysLenient
+                    $ S.yieldM $ S.fold A.write wrds
             assert (chrs == list)
 
 testLines :: Property
 testLines =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            xs <- S.toList
+            xs <- run
+                $ S.toList
                 $ S.map A.toList
                 $ IUA.lines
                 $ S.fromList list
@@ -73,7 +76,8 @@ testLinesArray :: Property
 testLinesArray =
     forAll genWord8 $ \list ->
         monadicIO $ do
-            xs <- S.toList
+            xs <- run
+                    $ S.toList
                     $ S.map A.toList
                     $ AS.splitOnSuffix 10
                     $ S.yield (A.fromList list)
@@ -84,7 +88,8 @@ testWords :: Property
 testWords =
     forAll genUnicode $ \list ->
         monadicIO $ do
-            xs <- S.toList
+            xs <- run
+                $ S.toList
                 $ S.map A.toList
                 $ IUA.words
                 $ S.fromList list
@@ -94,7 +99,8 @@ testUnlines :: Property
 testUnlines =
   forAll genUnicode $ \list ->
       monadicIO $ do
-          xs <- S.toList
+          xs <- run
+              $ S.toList
               $ IUA.unlines
               $ IUA.lines
               $ S.fromList list
