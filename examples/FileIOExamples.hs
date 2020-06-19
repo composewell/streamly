@@ -1,6 +1,6 @@
 import qualified Streamly.Prelude as S
 import qualified Streamly.Data.Fold as FL
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Prelude as IP

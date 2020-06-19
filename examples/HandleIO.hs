@@ -5,13 +5,13 @@ import System.IO (IOMode(..), hSeek, SeekMode(..))
 import qualified Streamly.Data.Fold as FL
 import qualified Streamly.FileSystem.Handle as FH
 import qualified System.IO as FH
-import qualified Streamly.Memory.Array as A
+import qualified Streamly.Internal.Data.Prim.Pinned.Array as A
 import qualified Streamly.Prelude as S
 -- import qualified Streamly.FileSystem.FD as FH
 
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Unicode.Stream as US
-import qualified Streamly.Internal.Memory.ArrayStream as AS
+import qualified Streamly.Internal.Data.Prim.Pinned.ArrayStream as AS
 import qualified Streamly.Internal.Prelude as S
 
 -- Read the contents of a file to stdout.
