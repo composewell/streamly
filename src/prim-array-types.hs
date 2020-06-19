@@ -1,4 +1,5 @@
-import GHC.Exts hiding (toList, fromListN, fromList)
+import GHC.Exts hiding (fromListN, fromList, toList)
+import qualified GHC.Exts as Exts
 
 import Control.Monad.Primitive
 import Control.Monad.ST
@@ -14,6 +15,7 @@ import Prelude hiding (length, unlines, foldr)
 import Data.Word (Word8)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
+import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
 import Control.DeepSeq (NFData(..))
 
@@ -107,6 +109,25 @@ instance (Show a, Prim a) => Show (Array a) where
     showString "fromListN " . shows (length a) . showString " "
       . shows (toList a)
 
+instance (a ~ Char) => IsString (Array a) where
+    {-# INLINE fromString #-}
+    fromString = fromList
+
+-- GHC versions 8.0 and below cannot derive IsList
+instance Prim a => IsList (Array a) where
+    type (Item (Array a)) = a
+    {-# INLINE fromList #-}
+    fromList = fromList
+    {-# INLINE fromListN #-}
+    fromListN = fromListN
+    {-# INLINE toList #-}
+    toList = toList
+
+instance (Prim a, Read a, Show a) => Read (Array a) where
+    {-# INLINE readPrec #-}
+    readPrec = fromList <$> readPrec
+    readListPrec = readListPrecDefault
+
 {-# INLINE unsafeFreeze #-}
 unsafeFreeze :: PrimMonad m => MA.Array (PrimState m) a -> m (Array a)
 unsafeFreeze (MA.Array arr#)
@@ -151,9 +172,11 @@ fromStreamD ::
        (PrimMonad m, Prim a) => D.Stream m a -> m (Array a)
 fromStreamD str = MA.fromStreamD str >>= unsafeFreeze
 
+{-# INLINE fromList #-}
 fromList :: Prim a => [a] -> Array a
 fromList vs = fromListN (P.length vs) vs
 
+{-# INLINE fromListN #-}
 fromListN :: forall a. Prim a => Int -> [a] -> Array a
 fromListN len vs = runST run where
   run :: forall s. ST s (Array a)
