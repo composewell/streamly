@@ -363,7 +363,6 @@ writeArraysPackedUpto n h xs = writeArrays h $ AS.compact n xs
 writev :: MonadIO m => Handle -> SerialT m (Array RawIO.IOVec) -> m ()
 writev h = S.mapM_ (liftIO . writeIOVec h)
 
-{-
 -- XXX UNCOMMENT THIS ONCE groupIOVecsOf IS ADDED
 -- XXX this is incomplete
 -- | Write a stream of arrays to a handle after grouping them in 'IOVec' arrays
@@ -378,7 +377,6 @@ _writevArraysPackedUpto :: MonadIO m
 _writevArraysPackedUpto n h xs =
     writev h $ fromStreamD $ groupIOVecsOf n 512 (toStreamD xs)
 #endif
--}
 -}
 
 -- GHC buffer size dEFAULT_FD_BUFFER_SIZE=8192 bytes.
