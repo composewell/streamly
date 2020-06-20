@@ -1216,7 +1216,7 @@ iterateSource ::
     -> Int
     -> Int
     -> SerialT m Int
-iterateSource g i n = f i (sourceUnfoldrMN iterStreamLen n)
+iterateSource g i n = f i (sourceUnfoldrM iterStreamLen n)
   where
     f (0 :: Int) m = g m
     f x m = g (f (x P.- 1) m)
@@ -1324,23 +1324,23 @@ o_1_space_pipesX4 value =
 serial2 :: Int -> Int -> IO ()
 serial2 count n =
     S.drain $
-        S.serial (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
+        S.serial (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE serial4 #-}
 serial4 :: Int -> Int -> IO ()
 serial4 count n =
     S.drain $
     S.serial
-        (S.serial (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1)))
+        (S.serial (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1)))
         (S.serial
-              (sourceUnfoldrMN count (n + 2))
-              (sourceUnfoldrMN count (n + 3)))
+              (sourceUnfoldrM count (n + 2))
+              (sourceUnfoldrM count (n + 3)))
 
 {-# INLINE append2 #-}
 append2 :: Int -> Int -> IO ()
 append2 count n =
     S.drain $
-    Internal.append (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
+    Internal.append (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE append4 #-}
 append4 :: Int -> Int -> IO ()
@@ -1348,11 +1348,11 @@ append4 count n =
     S.drain $
     Internal.append
         (Internal.append
-              (sourceUnfoldrMN count n)
-              (sourceUnfoldrMN count (n + 1)))
+              (sourceUnfoldrM count n)
+              (sourceUnfoldrM count (n + 1)))
         (Internal.append
-              (sourceUnfoldrMN count (n + 2))
-              (sourceUnfoldrMN count (n + 3)))
+              (sourceUnfoldrM count (n + 2))
+              (sourceUnfoldrM count (n + 3)))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'append2
@@ -1370,8 +1370,8 @@ mergeBy count n =
     S.drain $
     S.mergeBy
         P.compare
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'mergeBy
@@ -1397,10 +1397,13 @@ o_1_space_joining value =
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc serially "foldMapWith" (sourceFoldMapWith value)
-        , benchIOSrc serially "foldMapWithM" (sourceFoldMapWithM value)
-        , benchIOSrc serially "foldMapM" (sourceFoldMapM value)
-        , benchIOSrc serially "foldWithConcatMapId" (sourceConcatMapId value)
+        [ benchIOSrc serially "foldMapWith (<>) (List)"
+            (sourceFoldMapWith value)
+        , benchIOSrc serially "foldMapWith (<>) (Stream)"
+            (sourceFoldMapWithStream value)
+        , benchIOSrc serially "foldMapWithM (<>) (List)"
+            (sourceFoldMapWithM value)
+        , benchIOSrc serially "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -1414,8 +1417,8 @@ o_1_space_concatFoldable value =
 concatMap :: Int -> Int -> Int -> IO ()
 concatMap outer inner n =
     S.drain $ S.concatMap
-        (\_ -> sourceUnfoldrMN inner n)
-        (sourceUnfoldrMN outer n)
+        (\_ -> sourceUnfoldrM inner n)
+        (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMap
@@ -1428,8 +1431,8 @@ inspect $ 'concatMap `hasNoType` ''SPEC
 concatMapPure :: Int -> Int -> Int -> IO ()
 concatMapPure outer inner n =
     S.drain $ S.concatMap
-        (\_ -> sourceUnfoldrN inner n)
-        (sourceUnfoldrN outer n)
+        (\_ -> sourceUnfoldr inner n)
+        (sourceUnfoldr outer n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatMapPure
@@ -1438,14 +1441,14 @@ inspect $ 'concatMapPure `hasNoType` ''SPEC
 
 -- concatMap replicate/unfoldrM
 
-{-# INLINE concatMapRepl4xN #-}
-concatMapRepl4xN :: Int -> Int -> IO ()
-concatMapRepl4xN value n = S.drain $ S.concatMap (S.replicate 4)
-                          (sourceUnfoldrMN (value `div` 4) n)
+{-# INLINE concatMapRepl #-}
+concatMapRepl :: Int -> Int -> Int -> IO ()
+concatMapRepl outer inner n =
+    S.drain $ S.concatMap (S.replicate inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatMapRepl4xN
-inspect $ 'concatMapRepl4xN `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'concatMapRepl
+inspect $ 'concatMapRepl `hasNoType` ''SPEC
 #endif
 
 -- concatMapWith
@@ -1472,40 +1475,64 @@ inspect $ 'concatMapWithAppend `hasNoType` ''SPEC
 
 -- concatUnfold replicate/unfoldrM
 
-{-# INLINE concatUnfoldRepl4xN #-}
-concatUnfoldRepl4xN :: Int -> Int -> IO ()
-concatUnfoldRepl4xN value n =
-    S.drain $ S.concatUnfold
-        (UF.replicateM 4)
-        (sourceUnfoldrMN (value `div` 4) n)
+{-# INLINE concatUnfoldRepl #-}
+concatUnfoldRepl :: Int -> Int -> Int -> IO ()
+concatUnfoldRepl outer inner n =
+    S.drain $ S.concatUnfold (UF.replicateM inner) (sourceUnfoldrM outer n)
 
 #ifdef INSPECTION
-inspect $ hasNoTypeClasses 'concatUnfoldRepl4xN
-inspect $ 'concatUnfoldRepl4xN `hasNoType` ''D.ConcatMapUState
-inspect $ 'concatUnfoldRepl4xN `hasNoType` ''SPEC
+inspect $ hasNoTypeClasses 'concatUnfoldRepl
+inspect $ 'concatUnfoldRepl `hasNoType` ''D.ConcatMapUState
+inspect $ 'concatUnfoldRepl `hasNoType` ''SPEC
 #endif
 
 o_1_space_concat :: Int -> [Benchmark]
-o_1_space_concat value =
+o_1_space_concat value = sqrtVal `seq`
     [ bgroup "concat"
-        [ benchIOSrc1 "concatMapPure (2,x/2)"
-            (concatMapPure 2 (value `div` 2))
-        , benchIOSrc1 "concatMap (2,x/2)"
-            (concatMap 2 (value `div` 2))
-        , benchIOSrc1 "concatMap (x/2,2)"
-            (concatMap (value `div` 2) 2)
-        , benchIOSrc1 "concatMapRepl (x/4,4)"
-            (concatMapRepl4xN value)
-        , benchIOSrc1 "concatUnfoldRepl (x/4,4)"
-            (concatUnfoldRepl4xN value)
-        , benchIOSrc1 "concatMapWithSerial (2,x/2)"
-            (concatMapWithSerial 2 (value `div` 2))
-        , benchIOSrc1 "concatMapWithSerial (x/2,2)"
-            (concatMapWithSerial (value `div` 2) 2)
-        , benchIOSrc1 "concatMapWithAppend (2,x/2)"
+        [ benchIOSrc1 "concatMapPure (n of 1)"
+            (concatMapPure value 1)
+        , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
+            (concatMapPure sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapPure (1 of n)"
+            (concatMapPure 1 value)
+
+        -- This is for comparison with foldMapWith
+        , benchIOSrc serially "concatMapId (n of 1) (fromFoldable)"
+            (S.concatMap id . sourceConcatMapId value)
+
+        , benchIOSrc1 "concatMap (n of 1)"
+            (concatMap value 1)
+        , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
+            (concatMap sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMap (1 of n)"
+            (concatMap 1 value)
+
+        -- This is for comparison with foldMapWith
+        , benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+            (S.concatMapWith serial id . sourceConcatMapId value)
+
+        , benchIOSrc1 "concatMapWith (n of 1)"
+            (concatMapWithSerial value 1)
+        , benchIOSrc1 "concatMapWith (sqrt n of sqrt n)"
+            (concatMapWithSerial sqrtVal sqrtVal)
+        , benchIOSrc1 "concatMapWith (1 of n)"
+            (concatMapWithSerial 1 value)
+
+        -- quadratic with number of outer streams
+        , benchIOSrc1 "concatMapWithAppend (2 of n/2)"
             (concatMapWithAppend 2 (value `div` 2))
+
+        -- concatMap vs concatUnfold
+        , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
+            (concatMapRepl sqrtVal sqrtVal)
+        , benchIOSrc1 "concatUnfoldRepl (sqrt n of sqrt n)"
+            (concatUnfoldRepl sqrtVal sqrtVal)
         ]
     ]
+
+    where
+
+    sqrtVal = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
 -- Monad

@@ -7,7 +7,8 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (aheadly, ahead, maxBuffer, maxThreads)
+import Streamly (aheadly, serially, ahead, maxBuffer, maxThreads)
+import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
@@ -28,12 +29,12 @@ o_1_space_generation value =
     [ bgroup "generation"
         [ benchIOSrc aheadly "unfoldr" (sourceUnfoldr value)
         , benchIOSrc aheadly "unfoldrM" (sourceUnfoldrM value)
-    --  , benchIOSrc aheadly "fromFoldable" (sourceFromFoldable value)
+        , benchIOSrc aheadly "fromFoldable" (sourceFromFoldable value)
         , benchIOSrc aheadly "fromFoldableM" (sourceFromFoldableM value)
         , benchIOSrc aheadly "unfoldrM maxThreads 1"
             (maxThreads 1 . sourceUnfoldrM value)
         , benchIOSrc aheadly "unfoldrM maxBuffer 1 (x/10 ops)"
-            (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+            (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
 
@@ -42,7 +43,7 @@ o_1_space_mapping value =
     [ bgroup "mapping"
         [ benchIOSink value "map" $ mapN aheadly 1
         , benchIOSink value "fmap" $ fmapN aheadly 1
-        , benchIOSink value "mapM" $ mapM aheadly 1
+        , benchIOSink value "mapM" $ mapM aheadly 1 . serially
         ]
     ]
 
@@ -50,9 +51,13 @@ o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup
         "concat-foldable"
-        [ benchIOSrc aheadly "foldMapWith" (sourceFoldMapWith value)
-        , benchIOSrc aheadly "foldMapWithM" (sourceFoldMapWithM value)
-        , benchIOSrc aheadly "foldMapM" (sourceFoldMapM value)
+        [ benchIOSrc aheadly "foldMapWith (<>) (List)"
+            (sourceFoldMapWith value)
+        , benchIOSrc aheadly "foldMapWith (<>) (Stream)"
+            (sourceFoldMapWithStream value)
+        , benchIOSrc aheadly "foldMapWithM (<>) (List)"
+            (sourceFoldMapWithM value)
+        , benchIOSrc aheadly "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -60,13 +65,17 @@ o_1_space_concatMap :: Int -> [Benchmark]
 o_1_space_concatMap value =
     value2 `seq`
         [ bgroup "concat"
-              [ benchIO "concatMapWith (2,x/2)"
-                    (concatStreamsWith ahead 2 (value `div` 2))
-              , benchIO "concatMapWith (sqrt x,sqrt x)"
-                    (concatStreamsWith ahead value2 value2)
-              , benchIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
-                    (concatStreamsWith ahead (value2 * 2) (value2 `div` 2))
-              ]
+            -- This is for comparison with foldMapWith
+            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+                (S.concatMapWith ahead id . sourceConcatMapId value)
+
+            , benchIO "concatMapWith (n of 1)"
+                  (concatStreamsWith ahead value 1)
+            , benchIO "concatMapWith (sqrt x of sqrt x)"
+                  (concatStreamsWith ahead value2 value2)
+            , benchIO "concatMapWith (1 of n)"
+                  (concatStreamsWith ahead 1 value)
+            ]
         ]
 
     where

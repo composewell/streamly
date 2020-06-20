@@ -14,6 +14,7 @@ module Streamly.Benchmark.Prelude where
 
 import Control.DeepSeq (NFData(..))
 import Control.Exception (try)
+import Data.Functor.Identity (Identity)
 import GHC.Exception (ErrorCall)
 import System.Random (randomRIO)
 
@@ -72,27 +73,9 @@ sourceUnfoldr count start = S.unfoldr step start
         then Nothing
         else Just (cnt, cnt + 1)
 
-{-# INLINE sourceUnfoldrN #-}
-sourceUnfoldrN :: (Monad m, S.IsStream t) => Int -> Int -> t m Int
-sourceUnfoldrN count start = S.unfoldr step start
-    where
-    step cnt =
-        if cnt > start + count
-        then Nothing
-        else Just (cnt, cnt + 1)
-
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceUnfoldrM count start = S.unfoldrM step start
-    where
-    step cnt =
-        if cnt > start + count
-        then return Nothing
-        else return (Just (cnt, cnt + 1))
-
-{-# INLINE sourceUnfoldrMN #-}
-sourceUnfoldrMN :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
-sourceUnfoldrMN count start = S.unfoldrM step start
     where
     step cnt =
         if cnt > start + count
@@ -303,6 +286,12 @@ sourceFoldMapWith :: (S.IsStream t, S.Semigroup (t m Int))
     => Int -> Int -> t m Int
 sourceFoldMapWith value n = S.foldMapWith (S.<>) S.yield [n..n+value]
 
+{-# INLINE sourceFoldMapWithStream #-}
+sourceFoldMapWithStream :: (S.IsStream t, S.Semigroup (t m Int))
+    => Int -> Int -> t m Int
+sourceFoldMapWithStream value n = S.foldMapWith (S.<>) S.yield
+    $ (S.enumerateFromTo n (n + value) :: S.SerialT Identity Int)
+
 {-# INLINE sourceFoldMapWithM #-}
 sourceFoldMapWithM :: (S.IsStream t, Monad m, S.Semigroup (t m Int))
     => Int -> Int -> t m Int
@@ -320,9 +309,9 @@ sourceFoldMapM value n = F.foldMap (S.yieldM . return) [n..n+value]
 
 {-# INLINE sourceConcatMapId #-}
 sourceConcatMapId :: (S.IsStream t, Monad m)
-    => Int -> Int -> t m Int
+    => Int -> Int -> t m (t m Int)
 sourceConcatMapId value n =
-    S.concatMap id $ S.fromFoldable $ fmap (S.yieldM . return) [n..n+value]
+    S.fromFoldable $ fmap (S.yieldM . return) [n..n+value]
 
 -- concatMapWith
 
@@ -335,8 +324,8 @@ concatStreamsWith
     -> IO ()
 concatStreamsWith op outer inner n =
     S.drain $ S.concatMapWith op
-        (sourceUnfoldrMN inner)
-        (sourceUnfoldrMN outer n)
+        (S.serially . sourceUnfoldrM inner)
+        (S.serially $ sourceUnfoldrM outer n)
 
 -------------------------------------------------------------------------------
 -- Monadic outer product

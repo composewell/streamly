@@ -26,21 +26,21 @@ moduleName = "Prelude.ZipAsync"
 {-# INLINE zipAsync #-}
 zipAsync :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsync count n =
-    S.zipAsyncWith (,) (sourceUnfoldrMN count n) (sourceUnfoldrMN count (n + 1))
+    S.zipAsyncWith (,) (sourceUnfoldrM count n) (sourceUnfoldrM count (n + 1))
 
 {-# INLINE zipAsyncM #-}
 zipAsyncM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsyncM count n =
     S.zipAsyncWithM
         (curry return)
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 {-# INLINE zipAsyncAp #-}
 zipAsyncAp :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m (Int, Int)
 zipAsyncAp count n =
     S.zipAsyncly $
-        (,) <$> sourceUnfoldrMN count n <*> sourceUnfoldrMN count (n + 1)
+        (,) <$> sourceUnfoldrM count n <*> sourceUnfoldrM count (n + 1)
 
 o_1_space_joining :: Int -> [Benchmark]
 o_1_space_joining value =

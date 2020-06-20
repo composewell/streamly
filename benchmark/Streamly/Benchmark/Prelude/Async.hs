@@ -7,7 +7,9 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (asyncly, async, maxBuffer, maxThreads)
+import Streamly (asyncly, async, maxBuffer, maxThreads, serially)
+import qualified Streamly.Prelude as S
+import qualified Streamly.Internal.Prelude as Internal
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
@@ -23,15 +25,17 @@ moduleName = "Prelude.Async"
 
 o_1_space_generation :: Int -> [Benchmark]
 o_1_space_generation value =
+    -- These basically test the performance of consMAsync
     [ bgroup "generation"
         [ benchIOSrc asyncly "unfoldr" (sourceUnfoldr value)
         , benchIOSrc asyncly "unfoldrM" (sourceUnfoldrM value)
-        , benchIOSrc asyncly "fromFoldable" (sourceFromFoldable value)
-        , benchIOSrc asyncly "fromFoldableM" (sourceFromFoldableM value)
+        , benchIOSrc asyncly "fromListM" (sourceFromListM value)
+        , benchIOSrc asyncly "fromFoldable (List)" (sourceFromFoldable value)
+        , benchIOSrc asyncly "fromFoldableM (List)" (sourceFromFoldableM value)
         , benchIOSrc asyncly "unfoldrM maxThreads 1"
             (maxThreads 1 . sourceUnfoldrM value)
         , benchIOSrc asyncly "unfoldrM maxBuffer 1 (x/10 ops)"
-            (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+            (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
 
@@ -39,12 +43,69 @@ o_1_space_generation value =
 -- Mapping
 -------------------------------------------------------------------------------
 
+-- XXX this should be same as mapM return
+-- XXX this has quadratic slowdown with async, but works well on serial
+-- streams.
+{-# INLINE foldrS #-}
+foldrS :: Int -> Int -> IO ()
+foldrS count n =
+      S.drain
+    $ asyncly
+    $ Internal.foldrS (\x xs -> S.consM (return x) xs) S.nil
+    $ serially
+    $ sourceUnfoldrM count n
+
 o_1_space_mapping :: Int -> [Benchmark]
 o_1_space_mapping value =
     [ bgroup "mapping"
         [ benchIOSink value "map" $ mapN asyncly 1
         , benchIOSink value "fmap" $ fmapN asyncly 1
-        , benchIOSink value "mapM" $ mapM asyncly 1
+        -- This basically tests the performance of consMAsync
+        , benchIOSink value "mapM" $ mapM asyncly 1 . serially
+        ]
+    ]
+
+o_n_heap_mapping :: Int -> [Benchmark]
+o_n_heap_mapping _value =
+    [ bgroup "mapping"
+        [ benchIOSrc1 "foldrS (600)" (foldrS 600)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Joining
+-------------------------------------------------------------------------------
+
+{-# INLINE async2 #-}
+async2 :: Int -> Int -> IO ()
+async2 count n =
+    S.drain $
+        (sourceUnfoldrM count n) `async` (sourceUnfoldrM count (n + 1))
+
+{-# INLINE async4 #-}
+async4 :: Int -> Int -> IO ()
+async4 count n =
+    S.drain $
+                  (sourceUnfoldrM count (n + 0))
+        `async` (sourceUnfoldrM count (n + 1))
+        `async` (sourceUnfoldrM count (n + 2))
+        `async` (sourceUnfoldrM count (n + 3))
+
+{-# INLINE async2n2 #-}
+async2n2 :: Int -> Int -> IO ()
+async2n2 count n =
+    S.drain $
+        ((sourceUnfoldrM count (n + 0))
+            `async` (sourceUnfoldrM count (n + 1)))
+        `async` ((sourceUnfoldrM count (n + 2))
+            `async` (sourceUnfoldrM count (n + 3)))
+
+o_1_space_joining :: Int -> [Benchmark]
+o_1_space_joining value =
+    [ bgroup "joining"
+        [ benchIOSrc1 "async (2 of n/2)" (async2 (value `div` 2))
+        , benchIOSrc1 "async (4 of n/4)" (async4 (value `div` 4))
+        , benchIOSrc1 "async (2 of (2 of n/4)" (async2n2 (value `div` 4))
         ]
     ]
 
@@ -52,25 +113,35 @@ o_1_space_mapping value =
 -- Concat
 -------------------------------------------------------------------------------
 
+-- These basically test the performance of folding streams with `async`
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc asyncly "foldMapWith" (sourceFoldMapWith value)
-        , benchIOSrc asyncly "foldMapWithM" (sourceFoldMapWithM value)
-        , benchIOSrc asyncly "foldMapM" (sourceFoldMapM value)
+        [ benchIOSrc asyncly "foldMapWith (<>) (List)"
+            (sourceFoldMapWith value)
+        , benchIOSrc asyncly "foldMapWith (<>) (Stream)"
+            (sourceFoldMapWithStream value)
+        , benchIOSrc asyncly "foldMapWithM (<>) (List)"
+            (sourceFoldMapWithM value)
+        , benchIOSrc asyncly "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
+-- These basically test the performance of concating streams with `async`
 o_1_space_concatMap :: Int -> [Benchmark]
 o_1_space_concatMap value =
     value2 `seq`
-        [ bgroup "concatMap"
-            [ benchIO "concatMapWith (2,x/2)"
-                  (concatStreamsWith async 2 (value `div` 2))
-            , benchIO "concatMapWith (sqrt x,sqrt x)"
+        [ bgroup "concat"
+            -- This is for comparison with foldMapWith
+            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+                (S.concatMapWith async id . sourceConcatMapId value)
+
+            , benchIO "concatMapWith (n of 1)"
+                  (concatStreamsWith async value 1)
+            , benchIO "concatMapWith (sqrt x of sqrt x)"
                   (concatStreamsWith async value2 value2)
-            , benchIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
-                  (concatStreamsWith async (value2 * 2) (value2 `div` 2))
+            , benchIO "concatMapWith (1 of n)"
+                  (concatStreamsWith async 1 value)
             ]
         ]
 
@@ -122,6 +193,8 @@ main = do
             , o_1_space_concatFoldable value
             , o_1_space_concatMap value
             , o_1_space_outerProduct value
+            , o_1_space_joining value
             ]
+        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_mapping value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_outerProduct value)
         ]

@@ -7,7 +7,8 @@
 
 import Prelude hiding (mapM)
 
-import Streamly (wAsyncly, wAsync, maxBuffer, maxThreads)
+import Streamly (wAsyncly, serially, wAsync, maxBuffer, maxThreads)
+import qualified Streamly.Prelude as S
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
@@ -31,7 +32,7 @@ o_1_space_generation value =
         , benchIOSrc wAsyncly "unfoldrM maxThreads 1"
             (maxThreads 1 . sourceUnfoldrM value)
         , benchIOSrc wAsyncly "unfoldrM maxBuffer 1 (x/10 ops)"
-            (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+            (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
 
@@ -44,7 +45,7 @@ o_1_space_mapping value =
     [ bgroup "mapping"
         [ benchIOSink value "map" $ mapN wAsyncly 1
         , benchIOSink value "fmap" $ fmapN wAsyncly 1
-        , benchIOSink value "mapM" $ mapM wAsyncly 1
+        , benchIOSink value "mapM" $ mapM wAsyncly 1 . serially
         ]
     ]
 
@@ -55,9 +56,13 @@ o_1_space_mapping value =
 o_1_space_concatFoldable :: Int -> [Benchmark]
 o_1_space_concatFoldable value =
     [ bgroup "concat-foldable"
-        [ benchIOSrc wAsyncly "foldMapWith" (sourceFoldMapWith value)
-        , benchIOSrc wAsyncly "foldMapWithM" (sourceFoldMapWithM value)
-        , benchIOSrc wAsyncly "foldMapM" (sourceFoldMapM value)
+        [ benchIOSrc wAsyncly "foldMapWith (<>) (List)"
+            (sourceFoldMapWith value)
+        , benchIOSrc wAsyncly "foldMapWith (<>) (Stream)"
+            (sourceFoldMapWithStream value)
+        , benchIOSrc wAsyncly "foldMapWithM (<>) (List)"
+            (sourceFoldMapWithM value)
+        , benchIOSrc wAsyncly "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -73,13 +78,17 @@ o_1_space_concatMap :: Int -> [Benchmark]
 o_1_space_concatMap value =
     value2 `seq`
         [ bgroup "concat"
-              [ benchIO "concatMapWith (2,x/2)"
-                    (concatStreamsWith wAsync 2 (value `div` 2))
-              , benchIO "concatMapWith (sqrt x,sqrt x)"
-                    (concatStreamsWith wAsync value2 value2)
-              , benchIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
-                    (concatStreamsWith wAsync (value2 * 2) (value2 `div` 2))
-              ]
+            -- This is for comparison with foldMapWith
+            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+                (S.concatMapWith wAsync id . sourceConcatMapId value)
+
+            , benchIO "concatMapWith (n of 1)"
+                  (concatStreamsWith wAsync value 1)
+            , benchIO "concatMapWith (sqrt x of sqrt x)"
+                  (concatStreamsWith wAsync value2 value2)
+            , benchIO "concatMapWith (1 of n)"
+                  (concatStreamsWith wAsync 1 value)
+            ]
         ]
 
     where

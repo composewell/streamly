@@ -57,16 +57,16 @@ o_1_space_mapping value =
 wSerial2 :: Int -> Int -> IO ()
 wSerial2 value n =
     S.drain $ wSerial
-        (sourceUnfoldrMN (value `div` 2) n)
-        (sourceUnfoldrMN (value `div` 2) (n + 1))
+        (sourceUnfoldrM (value `div` 2) n)
+        (sourceUnfoldrM (value `div` 2) (n + 1))
 
 {-# INLINE interleave2 #-}
 interleave2 :: Int -> Int -> IO ()
 interleave2 value n =
     S.drain $
     Internal.interleave
-        (sourceUnfoldrMN (value `div` 2) n)
-        (sourceUnfoldrMN (value `div` 2) (n + 1))
+        (sourceUnfoldrM (value `div` 2) n)
+        (sourceUnfoldrM (value `div` 2) (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'interleave2
@@ -79,8 +79,8 @@ roundRobin2 :: Int -> Int -> IO ()
 roundRobin2 value n =
     S.drain $
     Internal.roundrobin
-        (sourceUnfoldrMN (value `div` 2) n)
-        (sourceUnfoldrMN (value `div` 2) (n + 1))
+        (sourceUnfoldrM (value `div` 2) n)
+        (sourceUnfoldrM (value `div` 2) (n + 1))
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'roundRobin2
@@ -127,7 +127,7 @@ concatUnfoldInterleaveRepl4xN :: Int -> Int -> IO ()
 concatUnfoldInterleaveRepl4xN value n =
     S.drain $ Internal.concatUnfoldInterleave
         (UF.replicateM 4)
-        (sourceUnfoldrMN (value `div` 4) n)
+        (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatUnfoldInterleaveRepl4xN
@@ -141,7 +141,7 @@ concatUnfoldRoundrobinRepl4xN :: Int -> Int -> IO ()
 concatUnfoldRoundrobinRepl4xN value n =
     S.drain $ Internal.concatUnfoldRoundrobin
         (UF.replicateM 4)
-        (sourceUnfoldrMN (value `div` 4) n)
+        (sourceUnfoldrM (value `div` 4) n)
 
 #ifdef INSPECTION
 inspect $ hasNoTypeClasses 'concatUnfoldRoundrobinRepl4xN

@@ -5,8 +5,18 @@
 -- License     : BSD3
 -- Maintainer  : streamly@composewell.com
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+
+#ifdef __HADDOCK_VERSION__
+#undef INSPECTION
+#endif
+
+#ifdef INSPECTION
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fplugin Test.Inspection.Plugin #-}
+#endif
 
 module Main (main) where
 
@@ -26,6 +36,10 @@ import qualified Streamly.Internal.Data.SVar as S
 import Gauge (bench, nfIO, bgroup, Benchmark, defaultMain)
 
 import Streamly.Benchmark.Common
+
+#ifdef INSPECTION
+import Test.Inspection
+#endif
 
 value, value2, value3, value16, maxValue :: Int
 value = 100000
@@ -190,10 +204,9 @@ composeN n f =
 {-# INLINE dropWhileFalse #-}
 {-# INLINE foldrS #-}
 {-# INLINE foldlS #-}
-{-# INLINE concatMap #-}
 scan, map, fmapK, filterEven, filterAllOut,
     filterAllIn, _takeOne, takeAll, takeWhileTrue, dropAll, dropOne,
-    dropWhileTrue, dropWhileFalse, foldrS, foldlS, concatMap
+    dropWhileTrue, dropWhileFalse, foldrS, foldlS
     :: Monad m
     => Int -> Stream m Int -> m ()
 
@@ -220,9 +233,6 @@ dropWhileTrue  n = composeN n $ S.dropWhile (<= maxValue)
 dropWhileFalse n = composeN n $ S.dropWhile (<= 1)
 foldrS         n = composeN n $ S.foldrS S.cons S.nil
 foldlS         n = composeN n $ S.foldlS (flip S.cons) S.nil
--- We use a (sqrt n) element stream as source and then concat the same stream
--- for each element to produce an n element stream.
-concatMap      n = composeN n $ (\s -> S.concatMap (\_ -> s) s)
 intersperse    n = composeN n $ S.intersperse maxValue
 
 -------------------------------------------------------------------------------
@@ -266,14 +276,10 @@ iterateDropOne         = iterateSource (S.drop 1) maxIters
 iterateDropWhileTrue   = iterateSource (S.dropWhile (<= maxValue)) maxIters
 
 -------------------------------------------------------------------------------
--- Zipping and concat
+-- Zipping
 -------------------------------------------------------------------------------
 
 zip src       = transform $ S.zipWith (,) src src
-
-{-# INLINE concatMapRepl4xN #-}
-concatMapRepl4xN :: Monad m => Stream m Int -> m ()
-concatMapRepl4xN src = transform $ (S.concatMap (S.replicate 4) src)
 
 -------------------------------------------------------------------------------
 -- Mixed Composition
@@ -303,6 +309,62 @@ filterDrop n = composeN n $ S.drop 1 . S.filter (<= maxValue)
 filterTake n = composeN n $ S.take maxValue . S.filter (<= maxValue)
 filterScan n = composeN n $ S.scanl' (+) 0 . S.filter (<= maxBound)
 filterMap  n = composeN n $ S.map (subtract 1) . S.filter (<= maxValue)
+
+-------------------------------------------------------------------------------
+-- ConcatMap
+-------------------------------------------------------------------------------
+
+-- concatMap unfoldrM/unfoldrM
+
+{-# INLINE concatMap #-}
+concatMap :: Int -> Int -> Int -> IO ()
+concatMap outer inner n =
+    S.drain $ S.concatMap
+        (\_ -> sourceUnfoldrMN inner n)
+        (sourceUnfoldrMN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMap
+#endif
+
+-- concatMap unfoldr/unfoldr
+
+{-# INLINE concatMapPure #-}
+concatMapPure :: Int -> Int -> Int -> IO ()
+concatMapPure outer inner n =
+    S.drain $ S.concatMap
+        (\_ -> sourceUnfoldrN inner n)
+        (sourceUnfoldrN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapPure
+#endif
+
+-- concatMap replicate/unfoldrM
+
+{-# INLINE concatMapRepl #-}
+concatMapRepl :: Int -> Int -> Int -> IO ()
+concatMapRepl outer inner n =
+    S.drain $ S.concatMap (S.replicate inner) (sourceUnfoldrMN outer n)
+
+#ifdef INSPECTION
+inspect $ hasNoTypeClasses 'concatMapRepl
+#endif
+
+-- concatMapWith
+
+{-# INLINE sourceConcatMapId #-}
+sourceConcatMapId :: Monad m
+    => Int -> Int -> Stream m (Stream m Int)
+sourceConcatMapId val n =
+    S.fromFoldable $ fmap (S.yieldM . return) [n..n+val]
+
+{-# INLINE concatStreamsWith #-}
+concatStreamsWith :: Int -> Int -> Int -> IO ()
+concatStreamsWith outer inner n =
+    S.drain $ S.concatMapBy S.serial
+        (sourceUnfoldrMN inner)
+        (sourceUnfoldrMN outer n)
 
 -------------------------------------------------------------------------------
 -- Nested Composition
@@ -452,11 +514,6 @@ o_1_space =
         , benchFold "fmap"   (fmapK 1) sourceUnfoldrM
         , benchFold "mapM"   (mapM 1) sourceUnfoldrM
         , benchFold "mapMSerial"  (mapMSerial 1) sourceUnfoldrM
-        -- , benchFoldSrcK "concatMap" concatMap
-        , benchFold "concatMapNxN" (concatMap 1) (sourceUnfoldrMN value2)
-        , benchFold "concatMapPureNxN" (concatMap 1) (sourceUnfoldrN value2)
-        , benchFold "concatMapRepl4xN" concatMapRepl4xN
-            (sourceUnfoldrMN (value `div` 4))
         ]
       , bgroup "transformationX4"
         [ benchFold "scan"   (scan 4) sourceUnfoldrM
@@ -466,6 +523,35 @@ o_1_space =
         , benchFold "mapMSerial" (mapMSerial 4) sourceUnfoldrM
         -- XXX this is horribly slow
         -- , benchFold "concatMap" (concatMap 4) (sourceUnfoldrMN value16)
+        ]
+      , bgroup "concat"
+        [ benchIOSrc1 "concatMapPure (n of 1)"
+            (concatMapPure value 1)
+        , benchIOSrc1 "concatMapPure (sqrt n of sqrt n)"
+            (concatMapPure value2 value2)
+        , benchIOSrc1 "concatMapPure (1 of n)"
+            (concatMapPure 1 value)
+
+        , benchIOSrc1 "concatMap (n of 1)"
+            (concatMap value 1)
+        , benchIOSrc1 "concatMap (sqrt n of sqrt n)"
+            (concatMap value2 value2)
+        , benchIOSrc1 "concatMap (1 of n)"
+            (concatMap 1 value)
+
+        , benchIOSrc1 "concatMapRepl (sqrt n of sqrt n)"
+            (concatMapRepl value2 value2)
+
+        -- This is for comparison with foldMapWith
+        , benchIOSrc1 "concatMapWithId (n of 1) (fromFoldable)"
+            (S.drain . S.concatMapBy S.serial id . sourceConcatMapId value)
+
+        , benchIOSrc1 "concatMapWith (n of 1)"
+            (concatStreamsWith value 1)
+        , benchIOSrc1 "concatMapWith (sqrt n of sqrt n)"
+            (concatStreamsWith value2 value2)
+        , benchIOSrc1 "concatMapWith (1 of n)"
+            (concatStreamsWith 1 value)
         ]
       , bgroup "filtering"
         [ benchFold "filter-even"     (filterEven     1) sourceUnfoldrM

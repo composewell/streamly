@@ -34,16 +34,16 @@ mergeAsyncByM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 mergeAsyncByM count n =
     S.mergeAsyncByM
         (\a b -> return (a `compare` b))
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 {-# INLINE mergeAsyncBy #-}
 mergeAsyncBy :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 mergeAsyncBy count n =
     S.mergeAsyncBy
         compare
-        (sourceUnfoldrMN count n)
-        (sourceUnfoldrMN count (n + 1))
+        (sourceUnfoldrM count n)
+        (sourceUnfoldrM count (n + 1))
 
 -------------------------------------------------------------------------------
 -- Application/fold
@@ -99,7 +99,7 @@ o_n_heap_generation value =
         , benchIOSrc parallely "unfoldrM maxThreads 1"
               (maxThreads 1 . sourceUnfoldrM value)
         , benchIOSrc parallely "unfoldrM maxBuffer 1 (x/10 ops)"
-              (maxBuffer 1 . sourceUnfoldrMN (value `div` 10))
+              (maxBuffer 1 . sourceUnfoldrM (value `div` 10))
         ]
     ]
 
@@ -112,7 +112,7 @@ o_n_heap_mapping value =
     [ bgroup "mapping"
         [ benchIOSink value "map" $ mapN parallely 1
         , benchIOSink value "fmap" $ fmapN parallely 1
-        , benchIOSink value "mapM" $ mapM parallely 1
+        , benchIOSink value "mapM" $ mapM parallely 1 . serially
         ]
     ]
 
@@ -124,9 +124,13 @@ o_n_heap_concatFoldable :: Int -> [Benchmark]
 o_n_heap_concatFoldable value =
     [ bgroup
         "concat-foldable"
-        [ benchIOSrc parallely "foldMapWith" (sourceFoldMapWith value)
-        , benchIOSrc parallely "foldMapWithM" (sourceFoldMapWithM value)
-        , benchIOSrc parallely "foldMapM" (sourceFoldMapM value)
+        [ benchIOSrc parallely "foldMapWith (<>) (List)"
+            (sourceFoldMapWith value)
+        , benchIOSrc parallely "foldMapWith (<>) (Stream)"
+            (sourceFoldMapWithStream value)
+        , benchIOSrc parallely "foldMapWithM (<>) (List)"
+            (sourceFoldMapWithM value)
+        , benchIOSrc parallely "foldMapM (List)" (sourceFoldMapM value)
         ]
     ]
 
@@ -134,12 +138,16 @@ o_n_heap_concat :: Int -> [Benchmark]
 o_n_heap_concat value =
     value2 `seq`
         [ bgroup "concat"
-            [ benchIO "concatMapWith (2,x/2)"
-                (concatStreamsWith parallel 2 (value `div` 2))
-            , benchIO "concatMapWith (sqrt x,sqrt x)"
-                (concatStreamsWith parallel value2 value2)
-            , benchIO "concatMapWith (sqrt x * 2,sqrt x / 2)"
-                (concatStreamsWith parallel (value2 * 2) (value2 `div` 2))
+            -- This is for comparison with foldMapWith
+            [ benchIOSrc serially "concatMapWithId (n of 1) (fromFoldable)"
+                (S.concatMapWith parallel id . sourceConcatMapId value)
+
+            , benchIO "concatMapWith (n of 1)"
+                  (concatStreamsWith parallel value 1)
+            , benchIO "concatMapWith (sqrt x of sqrt x)"
+                  (concatStreamsWith parallel value2 value2)
+            , benchIO "concatMapWith (1 of n)"
+                  (concatStreamsWith parallel 1 value)
             ]
         ]
 
