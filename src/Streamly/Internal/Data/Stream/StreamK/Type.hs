@@ -51,6 +51,7 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     -- * foldr/build
     , foldrM
     , foldrS
+    , foldrSShared
     , foldrSM
     , build
     , buildS

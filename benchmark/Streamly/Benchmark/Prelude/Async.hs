@@ -9,7 +9,7 @@ import Prelude hiding (mapM)
 
 import Streamly (asyncly, async, maxBuffer, maxThreads, serially)
 import qualified Streamly.Prelude as S
-import qualified Streamly.Internal.Prelude as Internal
+import qualified Streamly.Internal.Data.Stream.StreamK.Type as Internal
 
 import Streamly.Benchmark.Common
 import Streamly.Benchmark.Prelude
@@ -43,15 +43,12 @@ o_1_space_generation value =
 -- Mapping
 -------------------------------------------------------------------------------
 
--- XXX this should be same as mapM return
--- XXX this has quadratic slowdown with async, but works well on serial
--- streams.
-{-# INLINE foldrS #-}
-foldrS :: Int -> Int -> IO ()
-foldrS count n =
+{-# INLINE foldrSShared #-}
+foldrSShared :: Int -> Int -> IO ()
+foldrSShared count n =
       S.drain
     $ asyncly
-    $ Internal.foldrS (\x xs -> S.consM (return x) xs) S.nil
+    $ Internal.foldrSShared (\x xs -> S.consM (return x) xs) S.nil
     $ serially
     $ sourceUnfoldrM count n
 
@@ -60,15 +57,9 @@ o_1_space_mapping value =
     [ bgroup "mapping"
         [ benchIOSink value "map" $ mapN asyncly 1
         , benchIOSink value "fmap" $ fmapN asyncly 1
+        , benchIOSrc1 "foldrSShared" (foldrSShared value)
         -- This basically tests the performance of consMAsync
         , benchIOSink value "mapM" $ mapM asyncly 1 . serially
-        ]
-    ]
-
-o_n_heap_mapping :: Int -> [Benchmark]
-o_n_heap_mapping _value =
-    [ bgroup "mapping"
-        [ benchIOSrc1 "foldrS (600)" (foldrS 600)
         ]
     ]
 
@@ -195,6 +186,5 @@ main = do
             , o_1_space_outerProduct value
             , o_1_space_joining value
             ]
-        , bgroup (o_n_heap_prefix moduleName) (o_n_heap_mapping value)
         , bgroup (o_n_space_prefix moduleName) (o_n_space_outerProduct value)
         ]
