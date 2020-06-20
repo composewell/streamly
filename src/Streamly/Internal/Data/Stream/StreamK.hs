@@ -189,7 +189,7 @@ module Streamly.Internal.Data.Stream.StreamK
     )
 where
 
-import Control.Monad.Trans (MonadTrans(lift))
+import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad (void, join)
 import Control.Monad.Reader.Class  (MonadReader(..))
 import Data.Function (fix)

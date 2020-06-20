@@ -69,7 +69,7 @@ module Streamly.Internal.Data.Stream.Prelude
 where
 
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.Trans (MonadTrans(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Prelude hiding (foldr, minimum, maximum)
 import qualified Prelude
 

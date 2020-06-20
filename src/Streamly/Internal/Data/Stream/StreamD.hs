@@ -332,9 +332,9 @@ import Control.Exception
 import Control.Monad (void, when, forever)
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Reader (ReaderT)
-import Control.Monad.State.Strict (StateT)
-import Control.Monad.Trans (MonadTrans(lift))
+import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.Trans.State.Strict (StateT)
+import Control.Monad.Trans.Class (MonadTrans(lift))
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp_)
 import Data.Bits (shiftR, shiftL, (.|.), (.&.))
 import Data.Functor.Identity (Identity(..))
@@ -354,8 +354,8 @@ import Prelude
                reverse, iterate, splitAt)
 
 import qualified Control.Monad.Catch as MC
-import qualified Control.Monad.Reader as Reader
-import qualified Control.Monad.State.Strict as State
+import qualified Control.Monad.Trans.Reader as Reader
+import qualified Control.Monad.Trans.State.Strict as State
 import qualified Prelude
 
 import Fusion.Plugin.Types (Fuse(..))

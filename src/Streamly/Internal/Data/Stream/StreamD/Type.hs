@@ -69,7 +69,7 @@ where
 import Control.Applicative (liftA2)
 import Control.Monad (when)
 import Control.Monad.Catch (MonadThrow, throwM)
-import Control.Monad.Trans (lift, MonadTrans)
+import Control.Monad.Trans.Class (lift, MonadTrans)
 import Data.Functor.Identity (Identity(..))
 import GHC.Base (build)
 import GHC.Types (SPEC(..))
