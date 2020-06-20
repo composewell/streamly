@@ -374,11 +374,15 @@ breakOn ::
     => Word8
     -> Array Word8
     -> m (Array Word8, Maybe (Array Word8))
-breakOn sep arr = do
-    let loc = foldl' chk (Left 0) arr
+breakOn sep arr =
     case loc of
         Left _ -> return (arr, Nothing)
-        Right i -> do
+        Right (Left _) -> do
+            mArr <- unsafeThaw arr
+            MA.shrinkArray mArr (len - 1)
+            arr' <- unsafeFreeze mArr
+            return (arr', Just empty)
+        Right (Right i) -> do
             let nLen = len - i - 1
             nArr <- MA.newArray nLen
             mArr <- unsafeThaw arr
@@ -388,13 +392,14 @@ breakOn sep arr = do
             arr2 <- unsafeFreeze nArr
             return (arr1, Just arr2)
   where
+    loc = foldl' chk (Left 0) arr
     len = length arr
     chk (Left i) a =
         if a == sep
-        then if i /= len - 1
-             then Right i
-             else Left i
-        else Left (i + 1)
+            then if i /= len - 1
+                     then Right (Right i)
+                     else Right (Left i)
+            else Left (i + 1)
     chk r _ = r
 
 data SplitState s arr
