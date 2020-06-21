@@ -82,7 +82,6 @@ where
 import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
 import Foreign.C.Types (CSize(..), CInt(..))
-import Control.Exception (assert)
 import Control.Monad (void)
 import GHC.IO (IO(..))
 
@@ -112,8 +111,7 @@ memcmp p1 p2 len = do
 -- Change name later.
 {-# INLINE toPtr #-}
 toPtr :: Array a -> Ptr a
-toPtr (Array arr#) =
-    assert (I# (isByteArrayPinned# arr#) == 1) (Ptr (byteArrayContents# arr#))
+toPtr (Array arr#) = Ptr (byteArrayContents# arr#)
 
 {-# INLINE touchArray #-}
 touchArray :: Array a -> IO ()

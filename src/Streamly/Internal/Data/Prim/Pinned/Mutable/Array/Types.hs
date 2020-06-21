@@ -67,7 +67,6 @@ where
 import Data.Word (Word8)
 import GHC.ForeignPtr
 import GHC.IO (IO(..))
-import Control.Exception (assert)
 
 #include "mutable-prim-array-types.hs"
 
@@ -136,7 +135,7 @@ resizeArray arr i =
 {-# INLINE toPtr #-}
 toPtr :: Array s a -> Ptr a
 toPtr (Array arr#) =
-    assert (I# (isMutableByteArrayPinned# arr#) == 1) (Ptr (byteArrayContents# (unsafeCoerce# arr#)))
+    Ptr (byteArrayContents# (unsafeCoerce# arr#))
 
 fPlainPtrToW8Array :: ForeignPtr a -> Array RealWorld Word8
 fPlainPtrToW8Array (ForeignPtr _ (PlainPtr mb)) = Array mb
