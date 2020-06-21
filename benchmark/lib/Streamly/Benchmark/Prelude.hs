@@ -23,6 +23,7 @@ import qualified Streamly as S
 import qualified Streamly.Prelude  as S
 import qualified Streamly.Internal.Prelude as Internal
 import qualified Streamly.Internal.Data.Pipe as Pipe
+import qualified Streamly.Internal.Data.Stream.Serial as Serial
 
 import Gauge
 import Streamly.Internal.Data.Time.Units
@@ -76,6 +77,15 @@ sourceUnfoldr count start = S.unfoldr step start
 {-# INLINE sourceUnfoldrM #-}
 sourceUnfoldrM :: (S.IsStream t, S.MonadAsync m) => Int -> Int -> t m Int
 sourceUnfoldrM count start = S.unfoldrM step start
+    where
+    step cnt =
+        if cnt > start + count
+        then return Nothing
+        else return (Just (cnt, cnt + 1))
+
+{-# INLINE sourceUnfoldrMSerial #-}
+sourceUnfoldrMSerial :: (S.IsStream t, Monad m) => Int -> Int -> t m Int
+sourceUnfoldrMSerial count start = Serial.unfoldrM step start
     where
     step cnt =
         if cnt > start + count

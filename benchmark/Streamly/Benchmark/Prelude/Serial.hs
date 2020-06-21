@@ -34,6 +34,7 @@ import Prelude hiding (concatMap, mapM_, init, last, elem, notElem, all, any,
     and, or, length, sum, product, maximum, minimum, reverse, fmap, map,
     sequence, mapM, tail)
 
+import qualified Control.Applicative as AP
 import qualified Prelude as P
 import qualified Data.Foldable as F
 import qualified GHC.Exts as GHC
@@ -1535,27 +1536,111 @@ o_1_space_concat value = sqrtVal `seq`
     sqrtVal = round $ sqrt (fromIntegral value :: Double)
 
 -------------------------------------------------------------------------------
--- Monad
+-- Applicative
 -------------------------------------------------------------------------------
 
-o_1_space_outerProduct :: Int -> [Benchmark]
-o_1_space_outerProduct value =
-    [ bgroup "monad-outer-product"
-        [ benchIO "toNullAp" $ toNullAp value serially
-        , benchIO "toNull" $ toNullM value serially
-        , benchIO "toNull3" $ toNullM3 value serially
-        , benchIO "filterAllOut" $ filterAllOutM value serially
-        , benchIO "filterAllIn" $ filterAllInM value serially
-        , benchIO "filterSome" $ filterSome value serially
-        , benchIO "breakAfterSome" $ breakAfterSome value serially
+o_1_space_applicative :: Int -> [Benchmark]
+o_1_space_applicative value =
+    [ bgroup "applicative"
+        [ benchIO "outer product (sqrt n x sqrt n)" $ toNullAp value serially
         ]
     ]
 
-o_n_space_outerProduct :: Int -> [Benchmark]
-o_n_space_outerProduct value =
-    [ bgroup "monad-outer-product"
-        [ benchIO "toList" $ toListM value serially
-        , benchIO "toListSome" $ toListSome value serially
+{-# INLINE ap_ #-}
+ap_ :: Int -> Int -> IO ()
+ap_ value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> pure x *> xs)
+        (return () :: SerialT IO ())
+    $ sourceUnfoldrMSerial value n
+
+{-# INLINE apRev_ #-}
+apRev_ :: Int -> Int -> IO ()
+apRev_ value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> xs <* pure x)
+        (return () :: SerialT IO ())
+    $ sourceUnfoldrMSerial value n
+
+{-# INLINE liftA2 #-}
+liftA2 :: Int -> Int -> IO ()
+liftA2 value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> AP.liftA2 (+) (pure x) xs)
+        (S.yield 0 :: SerialT IO Int)
+    $ sourceUnfoldrMSerial value n
+
+{-# INLINE ap #-}
+ap :: Int -> Int -> IO ()
+ap value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> (P.fmap (+) (pure x) <*> xs))
+        (S.yield 0 :: SerialT IO Int)
+    $ sourceUnfoldrMSerial value n
+
+o_n_space_applicative :: Int -> [Benchmark]
+o_n_space_applicative value =
+    [ bgroup "applicative"
+        [ benchIO "(*>)" (ap_ value)
+        , benchIO "(<*)" (apRev_ value)
+        , benchIO "(<*>)" (ap value)
+        , benchIO "liftA2" (liftA2 value)
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Monad
+-------------------------------------------------------------------------------
+
+o_1_space_monad :: Int -> [Benchmark]
+o_1_space_monad value =
+    [ bgroup "monad"
+        [ benchIO "outer product (sqrt n x sqrt n)" $ toNullM value serially
+        , benchIO "outer product (sqrt n x sqrt n) (filterAllOut)" $
+            filterAllOutM value serially
+        , benchIO "outer product (sqrt n x sqrt n) (filterAllIn)" $
+            filterAllInM value serially
+        , benchIO "outer product (sqrt n x sqrt n) (filterSome)" $
+            filterSome value serially
+        , benchIO "outer product (sqrt n x sqrt n) (breakAfterSome)" $
+            breakAfterSome value serially
+        , benchIO "outer product (cubert n x cubert n x cubert n)" $
+            toNullM3 value serially
+        ]
+    ]
+
+{-# INLINE bind_ #-}
+bind_ :: Int -> Int -> IO ()
+bind_ value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> pure x >> xs)
+        (return () :: SerialT IO ())
+    $ sourceUnfoldrMSerial value n
+
+
+{-# INLINE bind #-}
+bind :: Int -> Int -> IO ()
+bind value n =
+      S.drain
+    $ S.foldrM
+        (\x xs -> xs >>= \y -> return (x + y))
+        (S.yield 0 :: SerialT IO Int)
+    $ sourceUnfoldrMSerial value n
+
+o_n_space_monad :: Int -> [Benchmark]
+o_n_space_monad value =
+    [ bgroup "monad"
+        [ benchIO "(>>)" (bind_ value)
+        , benchIO "(>>=)" (bind value)
+        , benchIO "outer product (sqrt n x sqrt n) (toList)" $
+            toListM value serially
+        , benchIO "outer product (sqrt n x sqrt n) (toListSome)" $
+            toListSome value serially
         ]
     ]
 
@@ -1635,7 +1720,9 @@ main = do
             , o_1_space_joining size
             , o_1_space_concatFoldable size
             , o_1_space_concat size
-            , o_1_space_outerProduct size
+
+            , o_1_space_applicative size
+            , o_1_space_monad size
 
             -- Monad transformation
             , o_1_space_hoisting size
@@ -1660,6 +1747,7 @@ main = do
             , o_n_space_grouping size
 
             -- multi-stream
-            , o_n_space_outerProduct size
+            , o_n_space_applicative size
+            , o_n_space_monad size
             ]
         ]

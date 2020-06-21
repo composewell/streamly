@@ -32,11 +32,14 @@ bench_rts_opts_default () {
 bench_rts_opts_specific () {
   case "$1" in
     Prelude.Parallel/o-n-heap/mapping/mapM) echo -n "-M256M" ;;
-    #Prelude.Parallel/o-n-heap/monad-outer-product/toList) echo -n "-K-M256M" ;;
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
+
     Prelude.Serial/o-n-space/grouping/*) echo -n "" ;;
+    Prelude.Serial/o-n-space/applicative/*) echo -n "-K8M -M256M" ;;
+    Prelude.Serial/o-n-space/monad/*) echo -n "-K8M -M64M" ;;
     Prelude.Serial/o-n-space/*) echo -n "-K4M" ;;
+
     Prelude.WSerial/o-n-space/*) echo -n "-K4M" ;;
 
     Prelude.Async/o-n-space/monad-outer-product/*) echo -n "-K4M" ;;
