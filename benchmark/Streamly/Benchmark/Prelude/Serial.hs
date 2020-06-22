@@ -25,7 +25,8 @@
 import Control.DeepSeq (NFData(..))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.State.Strict (StateT, get, put)
+import Control.Monad.State.Strict (StateT, get, put, MonadState)
+import qualified Control.Monad.State.Strict as State
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
 import GHC.Generics (Generic)
@@ -824,7 +825,6 @@ o_1_space_mapping value =
 
         -- Mapping
         , benchIOSink value "map" (mapN serially 1)
-        , benchIOSink value "fmap" (fmapN serially 1)
         , bench "sequence" $ nfIO $ randomRIO (1, 1000) >>= \n ->
               sequence serially (sourceUnfoldrAction value n)
         , benchIOSink value "mapM" (mapM serially 1)
@@ -844,12 +844,93 @@ o_1_space_mappingX4 :: Int -> [Benchmark]
 o_1_space_mappingX4 value =
     [ bgroup "mappingX4"
         [ benchIOSink value "map" (mapN serially 4)
-        , benchIOSink value "fmap" (fmapN serially 4)
         , benchIOSink value "mapM" (mapM serially 4)
 
         , benchIOSink value "scan" (scan 4)
         , benchIOSink value "scanl1'" (scanl1' 4)
 
+        ]
+    ]
+
+-------------------------------------------------------------------------------
+-- Iteration/looping utilities
+-------------------------------------------------------------------------------
+
+{-# INLINE iterateN #-}
+iterateN :: (Int -> a -> a) -> a -> Int -> a
+iterateN g initial count = f count initial
+
+    where
+
+    f (0 :: Int) x = x
+    f i x = f (i - 1) (g i x)
+
+-- Iterate a transformation over a singleton stream
+{-# INLINE iterateSingleton #-}
+iterateSingleton :: S.MonadAsync m
+    => (Int -> SerialT m Int -> SerialT m Int)
+    -> Int
+    -> Int
+    -> SerialT m Int
+iterateSingleton g count n = iterateN g (return n) count
+
+-- XXX need to check why this is slower than the explicit recursion above, even
+-- if the above code is written in a foldr like head recursive way. We also
+-- need to try this with foldlM' once #150 is fixed.
+-- However, it is perhaps best to keep the iteration benchmarks independent of
+-- foldrM and any related fusion issues.
+{-# INLINE _iterateSingleton #-}
+_iterateSingleton ::
+       S.MonadAsync m
+    => (Int -> SerialT m Int -> SerialT m Int)
+    -> Int
+    -> Int
+    -> SerialT m Int
+_iterateSingleton g value n = S.foldrM g (return n) $ sourceIntFromTo value n
+
+-- Apply transformation g count times on a stream of length len
+{-# INLINE iterateSource #-}
+iterateSource ::
+       S.MonadAsync m
+    => (SerialT m Int -> SerialT m Int)
+    -> Int
+    -> Int
+    -> Int
+    -> SerialT m Int
+iterateSource g count len n = f count (sourceUnfoldrM len n)
+
+    where
+
+    f (0 :: Int) stream = stream
+    f i stream = f (i - 1) (g stream)
+
+-------------------------------------------------------------------------------
+-- Functor
+-------------------------------------------------------------------------------
+
+o_1_space_functor :: Int -> [Benchmark]
+o_1_space_functor value =
+    [ bgroup "Functor"
+        [ benchIOSink value "fmap" (fmapN serially 1)
+        , benchIOSink value "fmap x 4" (fmapN serially 4)
+        ]
+    ]
+
+o_n_space_functor :: Int -> [Benchmark]
+o_n_space_functor value =
+    [ bgroup "Functor"
+        [ benchIO "(+) (n times) (baseline)" $ \i0 ->
+            iterateN (\i acc -> acc >>= \n -> return $ i + n) (return i0) value
+        , benchIOSrc serially "(<$) (n times)" $
+            iterateSingleton (<$) value
+        , benchIOSrc serially "fmap (n times)" $
+            iterateSingleton (P.fmap . (+)) value
+        {-
+        , benchIOSrc serially "_(<$) (n times)" $
+            _iterateSingleton (<$) value
+        , benchIOSrc serially "_fmap (n times)" $
+            _iterateSingleton (P.fmap . (+)) value
+        -}
         ]
     ]
 
@@ -1202,61 +1283,41 @@ o_1_space_transformations_mixedX4 value =
 -- Iterating a transformation over and over again
 -------------------------------------------------------------------------------
 
-{-# INLINE iterStreamLen #-}
-iterStreamLen :: Int
-iterStreamLen = 10
-
-{-# INLINE maxIters #-}
-maxIters :: Int
-maxIters = 10000
-
-{-# INLINE iterateSource #-}
-iterateSource ::
-       S.MonadAsync m
-    => (SerialT m Int -> SerialT m Int)
-    -> Int
-    -> Int
-    -> SerialT m Int
-iterateSource g i n = f i (sourceUnfoldrM iterStreamLen n)
-  where
-    f (0 :: Int) m = g m
-    f x m = g (f (x P.- 1) m)
-
 -- this is quadratic
 {-# INLINE iterateScan #-}
-iterateScan :: S.MonadAsync m => Int -> SerialT m Int
-iterateScan = iterateSource (S.scanl' (+) 0) (maxIters `div` 10)
+iterateScan :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScan = iterateSource (S.scanl' (+) 0)
 
 -- this is quadratic
 {-# INLINE iterateScanl1 #-}
-iterateScanl1 :: S.MonadAsync m => Int -> SerialT m Int
-iterateScanl1 = iterateSource (S.scanl1' (+)) (maxIters `div` 10)
+iterateScanl1 :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateScanl1 = iterateSource (S.scanl1' (+))
 
 {-# INLINE iterateMapM #-}
-iterateMapM :: S.MonadAsync m => Int -> SerialT m Int
-iterateMapM = iterateSource (S.mapM return) maxIters
+iterateMapM :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateMapM = iterateSource (S.mapM return)
 
 {-# INLINE iterateFilterEven #-}
-iterateFilterEven :: S.MonadAsync m => Int -> SerialT m Int
-iterateFilterEven = iterateSource (S.filter even) maxIters
+iterateFilterEven :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateFilterEven = iterateSource (S.filter even)
 
 {-# INLINE iterateTakeAll #-}
-iterateTakeAll :: S.MonadAsync m => Int -> Int -> SerialT m Int
-iterateTakeAll value = iterateSource (S.take (value + 1)) maxIters
+iterateTakeAll :: S.MonadAsync m => Int -> Int -> Int -> Int -> SerialT m Int
+iterateTakeAll value = iterateSource (S.take (value + 1))
 
 {-# INLINE iterateDropOne #-}
-iterateDropOne :: S.MonadAsync m => Int -> SerialT m Int
-iterateDropOne = iterateSource (S.drop 1) maxIters
+iterateDropOne :: S.MonadAsync m => Int -> Int -> Int -> SerialT m Int
+iterateDropOne = iterateSource (S.drop 1)
 
 {-# INLINE iterateDropWhileFalse #-}
-iterateDropWhileFalse :: S.MonadAsync m => Int -> Int -> SerialT m Int
-iterateDropWhileFalse value =
-    iterateSource (S.dropWhile (> (value + 1))) maxIters
+iterateDropWhileFalse :: S.MonadAsync m
+    => Int -> Int -> Int -> Int -> SerialT m Int
+iterateDropWhileFalse value = iterateSource (S.dropWhile (> (value + 1)))
 
 {-# INLINE iterateDropWhileTrue #-}
-iterateDropWhileTrue :: S.MonadAsync m => Int -> Int -> SerialT m Int
-iterateDropWhileTrue value =
-    iterateSource (S.dropWhile (<= (value + 1))) maxIters
+iterateDropWhileTrue :: S.MonadAsync m
+    => Int -> Int -> Int -> Int -> SerialT m Int
+iterateDropWhileTrue value = iterateSource (S.dropWhile (<= (value + 1)))
 
 {-# INLINE tail #-}
 tail :: Monad m => SerialT m a -> m ()
@@ -1272,22 +1333,30 @@ nullHeadTail s = do
 
 -- Head recursive operations.
 o_n_stack_iterated :: Int -> [Benchmark]
-o_n_stack_iterated value =
+o_n_stack_iterated value = by10 `seq` by100 `seq`
     [ bgroup "iterated"
-        [ benchIOSrc serially "mapMx10K" iterateMapM
-        , benchIOSrc serially "scanx100" iterateScan
-        , benchIOSrc serially "scanl1x100" iterateScanl1
-        , benchIOSrc serially "filterEvenx10K" iterateFilterEven
-        , benchIOSrc serially "takeAllx10K" (iterateTakeAll value)
-        , benchIOSrc serially "dropOnex10K" iterateDropOne
-        , benchIOSrc serially "dropWhileFalsex10K"
-            (iterateDropWhileFalse value)
-        , benchIOSrc serially "dropWhileTruex10K"
-            (iterateDropWhileTrue value)
+        [ benchIOSrc serially "mapM (n/10 x 10)" $ iterateMapM by10 10
+        , benchIOSrc serially "scanl' (quadratic) (n/100 x 100)" $
+            iterateScan by100 100
+        , benchIOSrc serially "scanl1' (n/10 x 10)" $ iterateScanl1 by10 10
+        , benchIOSrc serially "filterEven (n/10 x 10)" $
+            iterateFilterEven by10 10
+        , benchIOSrc serially "takeAll (n/10 x 10)" $
+            iterateTakeAll value by10 10
+        , benchIOSrc serially "dropOne (n/10 x 10)" $ iterateDropOne by10 10
+        , benchIOSrc serially "dropWhileFalse (n/10 x 10)" $
+            iterateDropWhileFalse value by10 10
+        , benchIOSrc serially "dropWhileTrue (n/10 x 10)" $
+            iterateDropWhileTrue value by10 10
         , benchIOSink value "tail" tail
         , benchIOSink value "nullHeadTail" nullHeadTail
         ]
     ]
+
+    where
+
+    by10 = value `div` 10
+    by100 = value `div` 100
 
 -------------------------------------------------------------------------------
 -- Pipes
@@ -1546,49 +1615,17 @@ o_1_space_applicative value =
         ]
     ]
 
-{-# INLINE ap_ #-}
-ap_ :: Int -> Int -> IO ()
-ap_ value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> pure x *> xs)
-        (return () :: SerialT IO ())
-    $ sourceUnfoldrMSerial value n
-
-{-# INLINE apRev_ #-}
-apRev_ :: Int -> Int -> IO ()
-apRev_ value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> xs <* pure x)
-        (return () :: SerialT IO ())
-    $ sourceUnfoldrMSerial value n
-
-{-# INLINE liftA2 #-}
-liftA2 :: Int -> Int -> IO ()
-liftA2 value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> AP.liftA2 (+) (pure x) xs)
-        (S.yield 0 :: SerialT IO Int)
-    $ sourceUnfoldrMSerial value n
-
-{-# INLINE ap #-}
-ap :: Int -> Int -> IO ()
-ap value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> (P.fmap (+) (pure x) <*> xs))
-        (S.yield 0 :: SerialT IO Int)
-    $ sourceUnfoldrMSerial value n
-
 o_n_space_applicative :: Int -> [Benchmark]
 o_n_space_applicative value =
-    [ bgroup "applicative"
-        [ benchIO "(*>)" (ap_ value)
-        , benchIO "(<*)" (apRev_ value)
-        , benchIO "(<*>)" (ap value)
-        , benchIO "liftA2" (liftA2 value)
+    [ bgroup "Applicative"
+        [ benchIOSrc serially "(*>) (n times)" $
+            iterateSingleton ((*>) . pure) value
+        , benchIOSrc serially "(<*) (n times)" $
+            iterateSingleton (\x xs -> xs <* pure x) value
+        , benchIOSrc serially "(<*>) (n times)" $
+            iterateSingleton (\x xs -> (P.fmap (+) (pure x) <*> xs)) value
+        , benchIOSrc serially "liftA2 (n times)" $
+            iterateSingleton (\x xs -> AP.liftA2 (+) (pure x) xs) value
         ]
     ]
 
@@ -1598,7 +1635,7 @@ o_n_space_applicative value =
 
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
-    [ bgroup "monad"
+    [ bgroup "Monad"
         [ benchIO "outer product (sqrt n x sqrt n)" $ toNullM value serially
         , benchIO "outer product (sqrt n x sqrt n) (filterAllOut)" $
             filterAllOutM value serially
@@ -1613,30 +1650,13 @@ o_1_space_monad value =
         ]
     ]
 
-{-# INLINE bind_ #-}
-bind_ :: Int -> Int -> IO ()
-bind_ value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> pure x >> xs)
-        (return () :: SerialT IO ())
-    $ sourceUnfoldrMSerial value n
-
-
-{-# INLINE bind #-}
-bind :: Int -> Int -> IO ()
-bind value n =
-      S.drain
-    $ S.foldrM
-        (\x xs -> xs >>= \y -> return (x + y))
-        (S.yield 0 :: SerialT IO Int)
-    $ sourceUnfoldrMSerial value n
-
 o_n_space_monad :: Int -> [Benchmark]
 o_n_space_monad value =
-    [ bgroup "monad"
-        [ benchIO "(>>)" (bind_ value)
-        , benchIO "(>>=)" (bind value)
+    [ bgroup "Monad"
+        [ benchIOSrc serially "(>>) (n times)" $
+            iterateSingleton ((>>) . pure) value
+        , benchIOSrc serially "(>>=) (n times)" $
+            iterateSingleton (\x xs -> xs >>= \y -> return (x + y)) value
         , benchIO "outer product (sqrt n x sqrt n) (toList)" $
             toListM value serially
         , benchIO "outer product (sqrt n x sqrt n) (toListSome)" $
@@ -1678,6 +1698,54 @@ o_1_space_hoisting value =
         ]
     ]
 
+{-# INLINE iterateStateIO #-}
+iterateStateIO ::
+       (S.MonadAsync m)
+    => Int
+    -> StateT Int m Int
+iterateStateIO n = do
+    x <- get
+    if x > n
+    then do
+        put (x - 1)
+        iterateStateIO n
+    else return x
+
+{-# INLINE iterateStateT #-}
+iterateStateT :: Int -> SerialT (StateT Int IO) Int
+iterateStateT n = do
+    x <- get
+    if x > n
+    then do
+        put (x - 1)
+        iterateStateT n
+    else return x
+
+{-# INLINE iterateState #-}
+iterateState ::
+       (S.MonadAsync m, MonadState Int m)
+    => Int
+    -> SerialT m Int
+iterateState n = do
+    x <- get
+    if x > n
+    then do
+        put (x - 1)
+        iterateState n
+    else return x
+
+o_n_space_transformer :: Int -> [Benchmark]
+o_n_space_transformer value =
+    [ bgroup "transformer"
+        [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
+            State.evalStateT (iterateStateIO n) value
+        , benchIO "SerialT (StateT Int IO) (n times)" $ \n ->
+            State.evalStateT (S.drain (iterateStateT n)) value
+        , benchIO "MonadState Int m => SerialT m Int" $ \n ->
+            State.evalStateT (S.drain (iterateState n)) value
+        ]
+    ]
+
 -------------------------------------------------------------------------------
 -- Main
 -------------------------------------------------------------------------------
@@ -1703,6 +1771,7 @@ main = do
             , o_1_space_elimination_multi_stream size
 
             -- transformation
+            , o_1_space_functor size
             , o_1_space_mapping size
             , o_1_space_mappingX4 size
             , o_1_space_filtering size
@@ -1747,7 +1816,9 @@ main = do
             , o_n_space_grouping size
 
             -- multi-stream
+            , o_n_space_functor size
             , o_n_space_applicative size
             , o_n_space_monad size
+            , o_n_space_transformer size
             ]
         ]

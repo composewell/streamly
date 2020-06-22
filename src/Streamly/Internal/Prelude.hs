@@ -2119,6 +2119,10 @@ scanx :: (IsStream t, Monad m) => (x -> a -> x) -> x -> (x -> b) -> t m a -> t m
 scanx = P.scanlx'
 
 -- XXX this needs to be concurrent
+-- XXX because of the use of D.cons for appending, scanlM' has quadratic
+-- complexity when iterated over a stream. We should use StreamK style scanlM'
+-- for linear performance on iteration.
+--
 -- | Like 'scanl'' but with a monadic fold function.
 --
 -- @since 0.4.0
@@ -2142,6 +2146,10 @@ scanlMAfter' :: (IsStream t, Monad m)
     => (b -> a -> m b) -> m b -> (b -> m b) -> t m a -> t m b
 scanlMAfter' step initial done stream =
     fromStreamD $ D.scanlMAfter' step initial done $ toStreamD stream
+
+-- XXX because of the use of D.cons for appending, scanl' has quadratic
+-- complexity when iterated over a stream. We should use StreamK style scanlM'
+-- for linear performance on iteration.
 
 -- | Strict left scan. Like 'map', 'scanl'' too is a one to one transformation,
 -- however it adds an extra element.
