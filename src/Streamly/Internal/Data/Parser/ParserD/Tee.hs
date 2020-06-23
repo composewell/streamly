@@ -137,10 +137,10 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
+            Yield 0 s ->
+                let state = ([], StepState s, inp11, inp21)
+                 in return (state, Yld 0)
             Yield n s ->
-                let state = (Prelude.take n buf1, StepState s, inp11, inp21)
-                 in assert (n <= length buf1) (return (state, Yld n))
-            YieldB n s ->
                 let src0 = Prelude.take n buf1
                     src  = Prelude.reverse src0
                     state = ([], StepState s, src ++ inp11, inp21)
@@ -261,10 +261,10 @@ teeWithFst zf (Parser stepL initialL extractL)
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield n s ->
-                let state = (Prelude.take n buf1, StepState s, inp11, inp21)
-                 in assert (n <= length buf1) (return (state, Yld n))
-            YieldB _ _ -> undefined
+            Yield 0 s ->
+                let state = ([], StepState s, inp11, inp21)
+                 in return (state, Yld 0)
+            Yield n _ -> return (undefined, Yld n) -- Not implemented
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
@@ -383,10 +383,10 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield n s ->
-                let state = (Prelude.take n buf1, StepState s, inp11, inp21)
-                 in assert (n <= length buf1) (return (state, Yld n))
-            YieldB _ _ -> undefined
+            Yield 0 s ->
+                let state = ([], StepState s, inp11, inp21)
+                 in return (state, Yld 0)
+            Yield n _ -> return (undefined, Yld n) -- Not implemented
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
@@ -460,10 +460,10 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield n s ->
-                let state = (Prelude.take n buf1, StepState s, inp11, inp21)
-                 in assert (n <= length buf1) (return (state, Yld n))
-            YieldB _ _ -> undefined
+            Yield 0 s ->
+                let state = ([], StepState s, inp11, inp21)
+                 in return (state, Yld 0)
+            Yield n _ -> return (undefined, Yld n) -- Not implemented
             Stop n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))

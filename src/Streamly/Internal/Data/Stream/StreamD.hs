@@ -998,11 +998,8 @@ parselMx' pstep initial extract (Stream step state) = do
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    -- PR.Yield 0 pst1 -> go SPEC s [] pst1
+                    PR.Yield 0 pst1 -> go SPEC s [] pst1
                     PR.Yield n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        go SPEC s (Prelude.take n (x:buf)) pst1
-                    PR.YieldB n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
@@ -1022,11 +1019,9 @@ parselMx' pstep initial extract (Stream step state) = do
     gobuf !_ s buf (x:xs) !pst = do
         pRes <- pstep pst x
         case pRes of
-            -- PR.Yield 0 pst1 -> go SPEC s [] pst1
+            PR.Yield 0 pst1 ->
+                gobuf SPEC s [] xs pst1
             PR.Yield n pst1 -> do
-                assert (n <= length (x:buf)) (return ())
-                gobuf SPEC s (Prelude.take n (x:buf)) xs pst1
-            PR.YieldB n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
@@ -1082,12 +1077,9 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
             Yield x s -> do
                 pRes <- pstep pst x
                 case pRes of
-                    -- PR.Yield 0 pst1 -> go SPEC s [] pst1
+                    PR.Yield 0 pst1 ->
+                        return $ Skip $ ParseChunksStream s [] pst1
                     PR.Yield n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let buf1 = Prelude.take n (x:buf)
-                        return $ Skip $ ParseChunksStream s buf1 pst1
-                    PR.YieldB n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
@@ -1121,12 +1113,9 @@ parseMany (PRD.Parser pstep initial extract) (Stream step state) =
     stepOuter _ (ParseChunksBuf (x:xs) s buf pst) = do
         pRes <- pstep pst x
         case pRes of
-            -- PR.Yield 0 pst1 ->
-            PR.Yield n pst1 ->  do
-                assert (n <= length (x:buf)) (return ())
-                let buf1 = Prelude.take n (x:buf)
-                return $ Skip $ ParseChunksBuf xs s buf1 pst1
-            PR.YieldB n pst1 -> do
+            PR.Yield 0 pst1 ->
+                return $ Skip $ ParseChunksBuf xs s [] pst1
+            PR.Yield n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
@@ -1190,13 +1179,10 @@ parseIterate func seed (Stream step state) =
                 pst <- initial
                 pRes <- pstep pst x
                 case pRes of
-                    -- PR.Yield 0 pst1 -> go SPEC s [] pst1
-                    PR.Yield n pst1 -> do
-                        assert (n <= length (x:buf)) (return ())
-                        let buf1 = Prelude.take n (x:buf)
-                        return $ Skip $ ConcatParseStream s buf1
+                    PR.Yield 0 pst1 ->
+                        return $ Skip $ ConcatParseStream s []
                             (PRD.Parser pstep (return pst1) extract)
-                    PR.YieldB n pst1 -> do
+                    PR.Yield n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
@@ -1235,13 +1221,10 @@ parseIterate func seed (Stream step state) =
         pst <- initial
         pRes <- pstep pst x
         case pRes of
-            -- PR.Yield 0 pst1 ->
-            PR.Yield n pst1 ->  do
-                assert (n <= length (x:buf)) (return ())
-                let buf1 = Prelude.take n (x:buf)
-                return $ Skip $ ConcatParseBuf xs s buf1
+            PR.Yield 0 pst1 ->
+                return $ Skip $ ConcatParseBuf xs s []
                             (PRD.Parser pstep (return pst1) extract)
-            PR.YieldB n pst1 -> do
+            PR.Yield n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0 ++ xs

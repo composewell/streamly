@@ -64,8 +64,8 @@ bench_rts_opts_specific () {
     Prelude.WAsync/o-n-space/monad-outer-product/*) echo -n "-K4M" ;;
 
     # XXX need to investigate these, taking too much stack
-    Data.Parser.ParserD/o-1-space/some) echo -n "-K1M" ;;
-    Data.Parser/o-1-space/some) echo -n "-K1M" ;;
+    Data.Parser.ParserD/o-1-space/some) echo -n "-K8M" ;;
+    Data.Parser/o-1-space/some) echo -n "-K8M" ;;
     Data.Parser.ParserD/o-1-space/manyTill) echo -n "-K4M" ;;
     Data.Parser/o-1-space/manyTill) echo -n "-K4M" ;;
 
