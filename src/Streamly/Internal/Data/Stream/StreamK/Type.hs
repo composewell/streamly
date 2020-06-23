@@ -80,6 +80,10 @@ module Streamly.Internal.Data.Stream.StreamK.Type
     , concatMapBy
     , concatMap
     , bindWith
+    , apWith
+    , apSerial
+    , apSerialDiscardFst
+    , apSerialDiscardSnd
 
     , Streaming   -- deprecated
     )
@@ -886,6 +890,7 @@ instance Monad m => Functor (Stream m) where
 -------------------------------------------------------------------------------
 
 instance MonadTrans Stream where
+    {-# INLINE lift #-}
     lift = yieldM
 
 -------------------------------------------------------------------------------
@@ -897,6 +902,118 @@ instance MonadTrans Stream where
 unShare :: IsStream t => t m a -> t m a
 unShare x = mkStream $ \st yld sng stp ->
     foldStream st yld sng stp x
+
+-- XXX the function stream and value stream can run in parallel
+{-# INLINE apWith #-}
+apWith
+    :: IsStream t
+    => (t m b -> t m b -> t m b)
+    -> t m (a -> b)
+    -> t m a
+    -> t m b
+apWith par fstream stream = go1 fstream
+
+    where
+
+    go1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single f   = foldShared $ unShare (go2 f stream)
+                yieldk f r = foldShared $ unShare (go2 f stream) `par` go1 r
+            in foldStream (adaptState st) yieldk single stp m
+
+    go2 f m =
+        mkStream $ \st yld sng stp ->
+            let single a   = sng (f a)
+                yieldk a r = yld (f a) (go2 f r)
+            in foldStream (adaptState st) yieldk single stp m
+
+{-# INLINE apSerial #-}
+apSerial
+    :: IsStream t
+    => t m (a -> b)
+    -> t m a
+    -> t m b
+apSerial fstream stream = go1 fstream
+
+    where
+
+    go1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single f   = foldShared $ go3 f stream
+                yieldk f r = foldShared $ go2 f r stream
+            in foldStream (adaptState st) yieldk single stp m
+
+    go2 f r1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop = foldShared $ go1 r1
+                single a   = yld (f a) (go1 r1)
+                yieldk a r = yld (f a) (go2 f r1 r)
+            in foldStream (adaptState st) yieldk single stop m
+
+    go3 f m =
+        mkStream $ \st yld sng stp ->
+            let single a   = sng (f a)
+                yieldk a r = yld (f a) (go3 f r)
+            in foldStream (adaptState st) yieldk single stp m
+
+{-# INLINE apSerialDiscardFst #-}
+apSerialDiscardFst
+    :: IsStream t
+    => t m a
+    -> t m b
+    -> t m b
+apSerialDiscardFst fstream stream = go1 fstream
+
+    where
+
+    go1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single _   = foldShared $ stream
+                yieldk _ r = foldShared $ go2 r stream
+            in foldStream (adaptState st) yieldk single stp m
+
+    go2 r1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop = foldShared $ go1 r1
+                single a   = yld a (go1 r1)
+                yieldk a r = yld a (go2 r1 r)
+            in foldStream st yieldk single stop m
+
+{-# INLINE apSerialDiscardSnd #-}
+apSerialDiscardSnd
+    :: IsStream t
+    => t m a
+    -> t m b
+    -> t m a
+apSerialDiscardSnd fstream stream = go1 fstream
+
+    where
+
+    go1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                single f   = foldShared $ go3 f stream
+                yieldk f r = foldShared $ go2 f r stream
+            in foldStream st yieldk single stp m
+
+    go2 f r1 m =
+        mkStream $ \st yld sng stp ->
+            let foldShared = foldStreamShared st yld sng stp
+                stop = foldShared $ go1 r1
+                single _   = yld f (go1 r1)
+                yieldk _ r = yld f (go2 f r1 r)
+            in foldStream (adaptState st) yieldk single stop m
+
+    go3 f m =
+        mkStream $ \st yld sng stp ->
+            let single _   = sng f
+                yieldk _ r = yld f (go3 f r)
+            in foldStream (adaptState st) yieldk single stp m
 
 -- XXX This is just concatMapBy with arguments flipped. We need to keep this
 -- instead of using a concatMap style definition because the bind

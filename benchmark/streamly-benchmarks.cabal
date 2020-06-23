@@ -108,12 +108,10 @@ common bench-depends
     , streamly            >= 0.7.0
     , random              >= 1.0   && < 2.0
     , gauge               >= 0.2.4 && < 0.3
+    , transformers        >= 0.4   && < 0.6
   if flag(fusion-plugin) && !impl(ghcjs) && !impl(ghc < 8.6)
     build-depends:
         fusion-plugin     >= 0.2   && < 0.3
-  if impl(ghc < 8.0)
-    build-depends:
-        transformers  >= 0.4 && < 0.6
   if flag(inspection)
     build-depends:     template-haskell   >= 2.14  && < 2.17
                      , inspection-testing >= 0.4   && < 0.5

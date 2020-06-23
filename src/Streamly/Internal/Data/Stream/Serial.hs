@@ -146,6 +146,7 @@ import qualified Streamly.Internal.Data.Stream.StreamD as D
 --
 -- @since 0.2.0
 newtype SerialT m a = SerialT {getSerialT :: Stream m a}
+    -- XXX when deriving do we inherit an INLINE?
     deriving (Semigroup, Monoid, MonadTrans)
 
 -- | A serial IO stream of elements of type @a@. See 'SerialT' documentation
@@ -182,8 +183,10 @@ instance IsStream SerialT where
 
 instance Monad m => Monad (SerialT m) where
     return = pure
+
     {-# INLINE (>>=) #-}
     (>>=) = K.bindWith K.serial
+
     {-# INLINE (>>) #-}
     (>>)  = (*>)
 
@@ -218,19 +221,41 @@ map f = mapM (return . f)
 
 {-# INLINE apSerial #-}
 apSerial :: Monad m => SerialT m (a -> b) -> SerialT m a -> SerialT m b
-apSerial (SerialT m1) (SerialT m2) = D.fromStreamD $ D.toStreamD m1 <*> D.toStreamD m2
+apSerial (SerialT m1) (SerialT m2) =
+    D.fromStreamD $ D.toStreamD m1 <*> D.toStreamD m2
 
 {-# INLINE apSequence #-}
 apSequence :: Monad m => SerialT m a -> SerialT m b -> SerialT m b
-apSequence (SerialT m1) (SerialT m2) = D.fromStreamD $ D.toStreamD m1 *> D.toStreamD m2
+apSequence (SerialT m1) (SerialT m2) =
+    D.fromStreamD $ D.toStreamD m1 *> D.toStreamD m2
 
+{-# INLINE apDiscardSnd #-}
+apDiscardSnd :: Monad m => SerialT m a -> SerialT m b -> SerialT m a
+apDiscardSnd (SerialT m1) (SerialT m2) =
+    D.fromStreamD $ D.toStreamD m1 <* D.toStreamD m2
+
+-- Note: we need to define all the typeclass operations because we want to
+-- INLINE them.
 instance Monad m => Applicative (SerialT m) where
     {-# INLINE pure #-}
     pure = SerialT . K.yield
+
     {-# INLINE (<*>) #-}
     (<*>) = apSerial
+    -- (<*>) = K.apSerial
+
+#if MIN_VERSION_base(4,10,0)
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+#endif
+
     {-# INLINE (*>) #-}
     (*>)  = apSequence
+    -- (*>)  = K.apSerialDiscardFst
+
+    {-# INLINE (<*) #-}
+    (<*) = apDiscardSnd
+    -- (<*)  = K.apSerialDiscardSnd
 
 MONAD_COMMON_INSTANCES(SerialT,)
 LIST_INSTANCES(SerialT)

@@ -5,6 +5,19 @@
 # RTS_OPTIONS: additional RTS options
 # QUICK_MODE: whether we are in quick mode
 
+# $1: message
+die () {
+  >&2 echo -e "Error: $1"
+  exit 1
+}
+
+warn () {
+  >&2 echo -e "Warning: $1"
+}
+
+test -n "$BENCH_EXEC_PATH" || die "BENCH_EXEC_PATH env var must be set"
+test -n "$QUICK_MODE" || warn "QUICK_MODE env var not set (to 0 or 1)"
+
 #------------------------------------------------------------------------------
 # RTS Options
 #------------------------------------------------------------------------------
@@ -35,10 +48,10 @@ bench_rts_opts_specific () {
     Prelude.Parallel/o-n-heap/monad-outer-product/*) echo -n "-M256M" ;;
     Prelude.Parallel/o-n-space/monad-outer-product/*) echo -n "-K4M -M256M" ;;
 
-    Prelude.Serial/o-n-space/Functor/*) echo -n "-K4M -M256M" ;;
-    Prelude.Serial/o-n-space/Applicative/*) echo -n "-K8M -M256M" ;;
-    Prelude.Serial/o-n-space/Monad/*) echo -n "-K8M -M256M" ;;
-    Prelude.Serial/o-n-space/transformer/*) echo -n "-K8M -M256M" ;;
+    Prelude.Serial/o-n-space/Functor/*) echo -n "-K4M -M64M" ;;
+    Prelude.Serial/o-n-space/Applicative/*) echo -n "-K8M -M128M" ;;
+    Prelude.Serial/o-n-space/Monad/*) echo -n "-K8M -M64M" ;;
+    Prelude.Serial/o-n-heap/transformer/*) echo -n "-M64M" ;;
     Prelude.Serial/o-n-space/grouping/*) echo -n "" ;;
     Prelude.Serial/o-n-space/*) echo -n "-K4M" ;;
 
@@ -65,9 +78,12 @@ bench_rts_opts_specific () {
 # Speed options
 #------------------------------------------------------------------------------
 
-if test "$QUICK_MODE" -eq 0
+if test -n "$QUICK_MODE"
 then
-QUICK_OPTIONS="--min-samples 3"
+  if test "$QUICK_MODE" -eq 0
+  then
+    QUICK_OPTIONS="--min-samples 3"
+  fi
 fi
 SUPER_QUICK_OPTIONS="--min-samples 1 --include-first-iter"
 

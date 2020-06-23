@@ -12,6 +12,7 @@
 
 module Streamly.Benchmark.Prelude where
 
+import Control.Applicative (liftA2)
 import Control.DeepSeq (NFData(..))
 import Control.Exception (try)
 import Data.Functor.Identity (Identity)
@@ -345,6 +346,42 @@ concatStreamsWith op outer inner n =
 runToList :: Monad m => S.SerialT m a -> m [a]
 runToList = S.toList
 
+{-# INLINE apDiscardFst #-}
+apDiscardFst
+    :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+apDiscardFst linearCount t start = S.drain . t $
+    S.serially (sourceUnfoldrM nestedCount2 start)
+        *> S.serially (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE apDiscardSnd #-}
+apDiscardSnd
+    :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+apDiscardSnd linearCount t start = S.drain . t $
+    S.serially (sourceUnfoldrM nestedCount2 start)
+        <* S.serially (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE apLiftA2 #-}
+apLiftA2
+    :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+apLiftA2 linearCount t start = S.drain . t $
+    liftA2 (+) (S.serially (sourceUnfoldrM nestedCount2 start))
+        (S.serially (sourceUnfoldrM nestedCount2 start))
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
 {-# INLINE toNullAp #-}
 toNullAp
     :: (S.IsStream t, S.MonadAsync m, Applicative (t m))
@@ -352,6 +389,18 @@ toNullAp
 toNullAp linearCount t start = S.drain . t $
     (+) <$> S.serially (sourceUnfoldrM nestedCount2 start)
         <*> S.serially (sourceUnfoldrM nestedCount2 start)
+
+    where
+
+    nestedCount2 = round (fromIntegral linearCount**(1/2::Double))
+
+{-# INLINE monadThen #-}
+monadThen
+    :: (S.IsStream t, S.MonadAsync m, Monad (t m))
+    => Int -> (t m Int -> S.SerialT m Int) -> Int -> m ()
+monadThen linearCount t start = S.drain . t $ do
+    (S.serially $ sourceUnfoldrM nestedCount2 start) >>
+        (S.serially $ sourceUnfoldrM nestedCount2 start)
 
     where
 

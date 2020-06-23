@@ -27,6 +27,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.State.Strict (StateT, get, put, MonadState)
 import qualified Control.Monad.State.Strict as State
+import Control.Monad.Trans.Class (lift)
 import Data.Functor.Identity (Identity, runIdentity)
 import Data.IORef (newIORef, modifyIORef')
 import GHC.Generics (Generic)
@@ -1610,8 +1611,11 @@ o_1_space_concat value = sqrtVal `seq`
 
 o_1_space_applicative :: Int -> [Benchmark]
 o_1_space_applicative value =
-    [ bgroup "applicative"
-        [ benchIO "outer product (sqrt n x sqrt n)" $ toNullAp value serially
+    [ bgroup "Applicative"
+        [ benchIO "(*>) (sqrt n x sqrt n)" $ apDiscardFst value serially
+        , benchIO "(<*) (sqrt n x sqrt n)" $ apDiscardSnd value serially
+        , benchIO "(<*>) (sqrt n x sqrt n)" $ toNullAp value serially
+        , benchIO "liftA2 (sqrt n x sqrt n)" $ apLiftA2 value serially
         ]
     ]
 
@@ -1636,16 +1640,17 @@ o_n_space_applicative value =
 o_1_space_monad :: Int -> [Benchmark]
 o_1_space_monad value =
     [ bgroup "Monad"
-        [ benchIO "outer product (sqrt n x sqrt n)" $ toNullM value serially
-        , benchIO "outer product (sqrt n x sqrt n) (filterAllOut)" $
+        [ benchIO "(>>) (sqrt n x sqrt n)" $ monadThen value serially
+        , benchIO "(>>=) (sqrt n x sqrt n)" $ toNullM value serially
+        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllOut)" $
             filterAllOutM value serially
-        , benchIO "outer product (sqrt n x sqrt n) (filterAllIn)" $
+        , benchIO "(>>=) (sqrt n x sqrt n) (filterAllIn)" $
             filterAllInM value serially
-        , benchIO "outer product (sqrt n x sqrt n) (filterSome)" $
+        , benchIO "(>>=) (sqrt n x sqrt n) (filterSome)" $
             filterSome value serially
-        , benchIO "outer product (sqrt n x sqrt n) (breakAfterSome)" $
+        , benchIO "(>>=) (sqrt n x sqrt n) (breakAfterSome)" $
             breakAfterSome value serially
-        , benchIO "outer product (cubert n x cubert n x cubert n)" $
+        , benchIO "(>>=) (cubert n x cubert n x cubert n)" $
             toNullM3 value serially
         ]
     ]
@@ -1657,9 +1662,9 @@ o_n_space_monad value =
             iterateSingleton ((>>) . pure) value
         , benchIOSrc serially "(>>=) (n times)" $
             iterateSingleton (\x xs -> xs >>= \y -> return (x + y)) value
-        , benchIO "outer product (sqrt n x sqrt n) (toList)" $
+        , benchIO "(>>=) (sqrt n x sqrt n) (toList)" $
             toListM value serially
-        , benchIO "outer product (sqrt n x sqrt n) (toListSome)" $
+        , benchIO "(>>=) (sqrt n x sqrt n) (toListSome)" $
             toListSome value serially
         ]
     ]
@@ -1714,10 +1719,10 @@ iterateStateIO n = do
 {-# INLINE iterateStateT #-}
 iterateStateT :: Int -> SerialT (StateT Int IO) Int
 iterateStateT n = do
-    x <- get
+    x <- lift get
     if x > n
     then do
-        put (x - 1)
+        lift $ put (x - 1)
         iterateStateT n
     else return x
 
@@ -1734,8 +1739,8 @@ iterateState n = do
         iterateState n
     else return x
 
-o_n_space_transformer :: Int -> [Benchmark]
-o_n_space_transformer value =
+o_n_heap_transformer :: Int -> [Benchmark]
+o_n_heap_transformer value =
     [ bgroup "transformer"
         [ benchIO "StateT Int IO (n times) (baseline)" $ \n ->
             State.evalStateT (iterateStateIO n) value
@@ -1805,6 +1810,7 @@ main = do
 
             -- transformation
             , o_n_heap_reordering size
+            , o_n_heap_transformer size
             ]
         , bgroup (o_n_space_prefix moduleName) $ Prelude.concat
             [ o_n_space_elimination_foldable size
@@ -1819,6 +1825,5 @@ main = do
             , o_n_space_functor size
             , o_n_space_applicative size
             , o_n_space_monad size
-            , o_n_space_transformer size
             ]
         ]

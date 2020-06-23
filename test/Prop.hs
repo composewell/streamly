@@ -4,7 +4,7 @@
 
 module Main (main) where
 
-import Control.Applicative (ZipList(..))
+import Control.Applicative (ZipList(..), liftA2)
 import Control.Concurrent (MVar, takeMVar, putMVar, newEmptyMVar)
 import Control.Exception
        (BlockedIndefinitelyOnMVar(..), catches,
@@ -880,6 +880,28 @@ applicativeOps constr eq t (a, b) = withMaxSuccess maxTestCount $
         let list = (,) <$> a <*> b
         listEquals eq stream list
 
+        stream1 <- run ((S.toList . t) (liftA2 (,) (constr a) (constr b)))
+        listEquals eq stream1 list
+
+-- XXX we can combine this with applicativeOps by making the type sufficiently
+-- polymorphic.
+applicativeOps1
+    :: Applicative (t IO)
+    => ([Int] -> t IO Int)
+    -> ([Int] -> [Int] -> Bool)
+    -> (t IO Int -> SerialT IO Int)
+    -> ([Int], [Int])
+    -> Property
+applicativeOps1 constr eq t (a, b) = withMaxSuccess maxTestCount $
+    monadicIO $ do
+        stream <- run ((S.toList . t) (constr a *> constr b))
+        let list = a *> b
+        listEquals eq stream list
+
+        stream1 <- run ((S.toList . t) (constr a <* constr b))
+        let list1 = a <* b
+        listEquals eq stream1 list1
+
 -------------------------------------------------------------------------------
 -- Zip operations
 -------------------------------------------------------------------------------
@@ -1139,6 +1161,7 @@ main = hspec
         -- XXX applicative with three arguments
         serialOps   $ prop "serially applicative" . applicativeOps S.fromFoldable (==)
         serialOps   $ prop "serially applicative folded" . applicativeOps folded (==)
+        serialOps   $ prop "serially applicative discard" . applicativeOps1 S.fromFoldable (==)
         wSerialOps  $ prop "wSerially applicative" . applicativeOps S.fromFoldable sortEq
         wSerialOps  $ prop "wSerially applicative folded" . applicativeOps folded sortEq
         aheadOps    $ prop "aheadly applicative" . applicativeOps S.fromFoldable (==)

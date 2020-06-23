@@ -171,6 +171,10 @@ module Streamly.Internal.Data.Stream.StreamK
     , concatMapBy
     , concatMap
     , bindWith
+    , apWith
+    , apSerial
+    , apSerialDiscardFst
+    , apSerialDiscardSnd
 
     -- ** Transformation comprehensions
     , the

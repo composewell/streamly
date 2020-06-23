@@ -182,6 +182,9 @@ instance Functor m => Functor (Stream m) where
         {-# INLINE_LATE step' #-}
         step' gst st = fmap (fmap f) (step (adaptState gst) st)
 
+    {-# INLINE (<$) #-}
+    (<$) = fmap . const
+
 ------------------------------------------------------------------------------
 -- concatMap
 ------------------------------------------------------------------------------
@@ -260,8 +263,11 @@ concatAp (Stream stepa statea) (Stream stepb stateb) = Stream step' (Left statea
 
 {-# INLINE_NORMAL apSequence #-}
 apSequence :: Functor f => Stream f a -> Stream f b -> Stream f b
-apSequence (Stream stepa statea) (Stream stepb stateb) = Stream step (Left statea)
-  where
+apSequence (Stream stepa statea) (Stream stepb stateb) =
+    Stream step (Left statea)
+
+    where
+
     {-# INLINE_LATE step #-}
     step gst (Left st) =
         fmap
@@ -280,26 +286,63 @@ apSequence (Stream stepa statea) (Stream stepb stateb) = Stream step (Left state
                      Stop -> Skip (Left ostate))
             (stepb gst st)
 
+{-# INLINE_NORMAL apDiscardSnd #-}
+apDiscardSnd :: Functor f => Stream f a -> Stream f b -> Stream f a
+apDiscardSnd (Stream stepa statea) (Stream stepb stateb) =
+    Stream step (Left statea)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step gst (Left st) =
+        fmap
+            (\r ->
+                 case r of
+                     Yield b s -> Skip (Right (s, stateb, b))
+                     Skip s -> Skip (Left s)
+                     Stop -> Stop)
+            (stepa gst st)
+    step gst (Right (ostate, st, b)) =
+        fmap
+            (\r ->
+                 case r of
+                     Yield _ s -> Yield b (Right (ostate, s, b))
+                     Skip s -> Skip (Right (ostate, s, b))
+                     Stop -> Skip (Left ostate))
+            (stepb (adaptState gst) st)
+
 instance Applicative f => Applicative (Stream f) where
     {-# INLINE pure #-}
     pure = yield
+
     {-# INLINE (<*>) #-}
     (<*>) = concatAp
+
+#if MIN_VERSION_base(4,10,0)
+    {-# INLINE liftA2 #-}
+    liftA2 f x = (<*>) (fmap f x)
+#endif
+
     {-# INLINE (*>) #-}
     (*>) = apSequence
 
+    {-# INLINE (<*) #-}
+    (<*) = apDiscardSnd
 
 -- NOTE: even though concatMap for StreamD is 4x faster compared to StreamK,
 -- the monad instance does not seem to be significantly faster.
 instance Monad m => Monad (Stream m) where
     {-# INLINE return #-}
     return = pure
+
     {-# INLINE (>>=) #-}
     (>>=) = flip concatMap
+
     {-# INLINE (>>) #-}
     (>>) = (*>)
 
 instance MonadTrans Stream where
+    {-# INLINE lift #-}
     lift = yieldM
 
 instance (MonadThrow m) => MonadThrow (Stream m) where

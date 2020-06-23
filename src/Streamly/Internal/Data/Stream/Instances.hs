@@ -7,10 +7,12 @@
 
 #define MONADPARALLEL , MonadAsync m
 
-#define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                            \
-instance Monad m => Functor (STREAM m) where { \
-    {-# INLINE fmap #-}; \
-    fmap f (STREAM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m }; \
+#define MONAD_COMMON_INSTANCES(STREAM,CONSTRAINT)                             \
+instance Monad m => Functor (STREAM m) where {                                \
+    {-# INLINE fmap #-};                                                      \
+    fmap f (STREAM m) = D.fromStreamD $ D.mapM (return . f) $ D.toStreamD m;  \
+    {-# INLINE (<$) #-};                                                      \
+    (<$) =  fmap . const };                                                   \
                                                                               \
 instance (MonadBase b m, Monad m CONSTRAINT) => MonadBase b (STREAM m) where {\
     liftBase = liftBaseDefault };                                             \
@@ -33,8 +35,11 @@ instance (MonadReader r m CONSTRAINT) => MonadReader r (STREAM m) where {     \
     local f m = fromStream $ K.withLocal f (toStream m) };                    \
                                                                               \
 instance (MonadState s m CONSTRAINT) => MonadState s (STREAM m) where {       \
+    {-# INLINE get #-}; \
     get     = lift get;                                                       \
+    {-# INLINE put #-}; \
     put x   = lift (put x);                                                   \
+    {-# INLINE state #-}; \
     state k = lift (state k) }
 
 ------------------------------------------------------------------------------
