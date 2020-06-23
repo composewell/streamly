@@ -221,19 +221,19 @@ parse pstep initial extract (Zipper [] ls rs stream) =
             yieldk x r = do
                 acc1 <- acc >>= \b -> pstep b x
                 case acc1 of
-                    PR.Yield 0 pst1 -> go r [] (return pst1)
-                    PR.Yield n pst1 -> do
+                    PR.Partial 0 pst1 -> go r [] (return pst1)
+                    PR.Partial n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         gobuf r [] src (return pst1)
-                    PR.Skip 0 pst1 -> go r (x:buf) (return pst1)
-                    PR.Skip n pst1 -> do
+                    PR.Continue 0 pst1 -> go r (x:buf) (return pst1)
+                    PR.Continue n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         gobuf r buf1 src (return pst1)
-                    PR.Stop n b -> do
+                    PR.Done n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
@@ -247,20 +247,20 @@ parse pstep initial extract (Zipper [] ls rs stream) =
         r <- pst
         pRes <- pstep r x
         case pRes of
-            PR.Yield 0 pst1 ->
+            PR.Partial 0 pst1 ->
                 gobuf s [] xs (return pst1)
-            PR.Yield n pst1 -> do
+            PR.Partial n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
                 gobuf s [] (src ++ xs) (return pst1)
-            PR.Skip 0 pst1 -> gobuf s (x:buf) xs (return pst1)
-            PR.Skip n pst1 -> do
+            PR.Continue 0 pst1 -> gobuf s (x:buf) xs (return pst1)
+            PR.Continue n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 gobuf s buf1 src (return pst1)
-            PR.Stop n b -> do
+            PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
@@ -291,21 +291,21 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
                 acc1 <- acc >>= \b -> pstep b x
                 let cnt1 = cnt + 1
                 case acc1 of
-                    PR.Yield 0 pst1 ->
+                    PR.Partial 0 pst1 ->
                         go cnt1 r [] (return pst1)
-                    PR.Yield n pst1 -> do
+                    PR.Partial n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let src0 = Prelude.take n (x:buf)
                             src  = Prelude.reverse src0
                         gobuf (cnt1 - n) r [] src (return pst1)
-                    PR.Skip 0 pst1 -> go cnt1 r (x:buf) (return pst1)
-                    PR.Skip n pst1 -> do
+                    PR.Continue 0 pst1 -> go cnt1 r (x:buf) (return pst1)
+                    PR.Continue n pst1 -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
                         assert (cnt1 - n >= 0) (return ())
                         gobuf (cnt1 - n) r buf1 src (return pst1)
-                    PR.Stop n b -> do
+                    PR.Done n b -> do
                         assert (n <= length (x:buf)) (return ())
                         let (src0, buf1) = splitAt n (x:buf)
                             src  = Prelude.reverse src0
@@ -325,21 +325,21 @@ parse pstep initial extract (Zipper (cp:cps) ls rs stream) =
         pRes <- pstep r x
         let cnt1 = cnt + 1
         case pRes of
-            PR.Yield 0 pst1 ->
+            PR.Partial 0 pst1 ->
                 gobuf cnt1 s [] xs (return pst1)
-            PR.Yield n pst1 -> do
+            PR.Partial n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let src0 = Prelude.take n (x:buf)
                     src  = Prelude.reverse src0
                 gobuf (cnt1 - n) s [] (src ++ xs) (return pst1)
-            PR.Skip 0 pst1 -> gobuf cnt1 s (x:buf) xs (return pst1)
-            PR.Skip n pst1 -> do
+            PR.Continue 0 pst1 -> gobuf cnt1 s (x:buf) xs (return pst1)
+            PR.Continue n pst1 -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs
                 assert (cnt1 - n >= 0) (return ())
                 gobuf (cnt1 - n) s buf1 src (return pst1)
-            PR.Stop n b -> do
+            PR.Done n b -> do
                 assert (n <= length (x:buf)) (return ())
                 let (src0, buf1) = splitAt n (x:buf)
                     src  = Prelude.reverse src0 ++ xs

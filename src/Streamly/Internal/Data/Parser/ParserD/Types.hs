@@ -40,11 +40,11 @@
 -- 'Step' functor provides the following commands to the fold driver
 -- corresponding to the use cases outlined in the previous para:
 --
--- 1. 'Skip': buffer the current input and go back to a previous
+-- 1. 'Continue': buffer the current input and go back to a previous
 --    position in the stream
--- 2. 'Yield': buffer the current input and go back to a previous
+-- 2. 'Partial': buffer the current input and go back to a previous
 --    position in the stream, drop the buffer before that position.
--- 3. 'Stop': parser succeeded, returns how much input was leftover
+-- 3. 'Done': parser succeeded, returns how much input was leftover
 -- 4. 'Error': indicates that the parser has failed without a result
 --
 -- = How a Parser Works?
@@ -55,19 +55,19 @@
 --
 -- The parser may build a new output value from multiple input items. When it
 -- consumes an input item but needs more input to build a complete output item
--- it uses @Skip 0 s@, yielding the intermediate state @s@ and asking the
+-- it uses @Continue 0 s@, yielding the intermediate state @s@ and asking the
 -- driver to provide more input.  When the parser determines that a new output
--- value is complete it can use a @Stop n b@ to terminate the parser with @n@
+-- value is complete it can use a @Done n b@ to terminate the parser with @n@
 -- items of input unused and the final value of the accumulator returned as
 -- @b@. If at any time the parser determines that the parse has failed it can
 -- return @Error err@.
 --
--- A parser building a collection of values (e.g. a list) can use the @Yield@
+-- A parser building a collection of values (e.g. a list) can use the @Partial@
 -- constructor whenever a new item in the output collection is generated. If a
 -- parser building a collection of values has yielded at least one value then
 -- it considered successful and cannot fail after that. In the current
 -- implementation, this is not automatically enforced, there is a rule that the
--- parser MUST use only @Stop@ for termination after the first @Yield@, it
+-- parser MUST use only @Done@ for termination after the first @Partial@, it
 -- cannot use @Error@. It may be possible to change the implementation so that
 -- this rule is not required, but there may be some performance cost to it.
 --
@@ -82,7 +82,7 @@
 -- = Error Handling
 --
 -- When a parser's @step@ function is invoked it may terminate by either a
--- 'Stop' or an 'Error' return value. In an 'Alternative' composition an error
+-- 'Done' or an 'Error' return value. In an 'Alternative' composition an error
 -- return can make the composed parser backtrack and try another parser.
 --
 -- If the stream stops before a parser could terminate then we use the
@@ -145,58 +145,70 @@ import Streamly.Internal.Data.Strict (Tuple3'(..))
 
 -- | The return type of a 'Parser' step.
 --
--- A parser is driven by a parse driver one step at a time, at any time the
--- driver may @extract@ the result of the parser. The parser may ask the driver
--- to backtrack at any point, therefore, the driver holds the input up to a
--- point of no return in a backtracking buffer.  The buffer grows or shrinks
--- based on the return values of the parser step execution.
+-- The parse operation feeds the input stream to the parser one element at a
+-- time, representing a parse 'Step'. The parser may or may not consume the
+-- item and returns a result. If the result is 'Partial' we can either extract
+-- the result or feed more input to the parser. If the result is 'Continue', we
+-- must feed more input in order to get a result. If the parser returns 'Done'
+-- then the parser can no longer take any more input.
 --
--- When a parser step is executed it generates a new intermediate state of the
--- parse result along with a command to the driver. The command tells the
--- driver whether to keep the input stream for a potential backtracking later
--- on or drop it, and how much to keep. The constructors of 'Step' represent
--- the commands to the driver.
+-- If the result is 'Continue', the parse operation retains the input in a
+-- backtracking buffer, in case the parser may ask to backtrack in future.
+-- Whenever a 'Partial n' result is returned we first backtrack by @n@ elements
+-- in the input and then release any remaining backtracking buffer. Similarly,
+-- 'Continue n' backtracks to @n@ elements before the current position and
+-- starts feeding the input from that point for future invocations of the
+-- parser.
+--
+-- If parser is not yet done, we can use the @extract@ operation on the @state@
+-- of the parser to extract a result. If the parser has not yet yielded a
+-- result, the operation fails with a 'ParseError' exception. If the parser
+-- yielded a 'Partial' result in the past the last partial result is returned.
+-- Therefore, if a parser yields a partial result once it cannot fail later on.
+--
+-- The parser can never backtrack beyond the position where the last partial
+-- result left it at. The parser must ensure that the backtrack position is
+-- always after that.
 --
 -- /Internal/
 --
 {-# ANN type Step Fuse #-}
 data Step s b =
-        Yield Int s
-      -- ^ Go back by @n@ items in the input buffer and drop the rest.
-      -- @Yield n state@ indicates that the parser has yielded a new result
-      -- which is a point of no return. The result can be extracted using
-      -- @extract@. The driver moves back the current position of the cursor by
-      -- @n@ elements and drops any buffer before that.  The rule is that if a
-      -- parser has yielded at least once it cannot return a failure result.
+        Partial Int s
+    -- ^ Partial result with an optional backtrack.
+    --
+    -- @Partial count state@ means a partial result is available which
+    -- can be extracted successfully, @state@ is the opaque state of the
+    -- parser to be supplied to the next invocation of the step operation.
+    -- The current input position is reset to @count@ elements back and any
+    -- input before that is dropped from the backtrack buffer.
 
-     -- only rewind
-    | Skip Int s
-    -- ^ Go back by @n@ items in the input buffer.
-    -- @Skip n state@ indicates that the parser has consumed the current input
-    -- but no new result has been generated. A new @state@ is generated.
-    -- However, if we use @extract@ on @state@ it will generate a result from
-    -- the previous @Yield@.  When @n@ is non-zero it is a backward offset from
-    -- the current position in the stream from which the driver will replay the
-    -- input to the parser. The offset cannot be beyond the latest point of no
-    -- return created by @Yield@.
+    | Continue Int s
+    -- ^ Need more input with an optional backtrack.
+    --
+    -- @Continue count state@ means the parser has consumed the current input
+    -- but no new result is generated, @state@ is the next state of the parser.
+    -- The current input is retained in the backtrack buffer and the input
+    -- position is reset to @count@ elements back.
 
-    | Stop Int b
-    -- ^ Trim the backtracking buffer keeping only most recent @n@ items.
-    -- @Stop n result@ asks the driver to stop driving the parser because it
-    -- has reached a fixed point and further input will not change the result.
-    -- @n@ is the count of unused input elements which includes the element on
-    -- which 'Stop' occurred.
+    | Done Int b
+    -- ^ Done with leftover input count and result.
+    --
+    -- @Done count result@ means the parser has finished, it will accept no
+    -- more input, last @count@ elements from the input are unused and the
+    -- result of the parser is in @result@.
 
     | Error String
-    -- ^ Go back to the start of the backtracking buffer.
-    -- An error makes the parser backtrack to the last checkpoint and try
-    -- another alternative.
+    -- ^ Parser failed without generating any output.
+    --
+    -- The parsing operation may backtrack to the beginning and try another
+    -- alternative.
 
 instance Functor (Step s) where
     {-# INLINE fmap #-}
-    fmap _ (Yield n s) = Yield n s
-    fmap _ (Skip n s) = Skip n s
-    fmap f (Stop n b) = Stop n (f b)
+    fmap _ (Partial n s) = Partial n s
+    fmap _ (Continue n s) = Continue n s
+    fmap f (Done n b) = Done n (f b)
     fmap _ (Error err) = Error err
 
 -- | A parser is a fold that can fail and is represented as @Parser step
@@ -243,7 +255,7 @@ instance Functor m => Functor (Parser m a) where
 --
 {-# INLINE_NORMAL yield #-}
 yield :: Monad m => b -> Parser m a b
-yield b = Parser (\_ _ -> pure $ Stop 1 b)  -- step
+yield b = Parser (\_ _ -> pure $ Done 1 b)  -- step
                  (pure ())                  -- initial
                  (\_ -> pure b)             -- extract
 
@@ -253,7 +265,7 @@ yield b = Parser (\_ _ -> pure $ Stop 1 b)  -- step
 --
 {-# INLINE yieldM #-}
 yieldM :: Monad m => m b -> Parser m a b
-yieldM b = Parser (\_ _ -> Stop 1 <$> b) -- step
+yieldM b = Parser (\_ _ -> Done 1 <$> b) -- step
                   (pure ())              -- initial
                   (\_ -> b)              -- extract
 
@@ -287,7 +299,7 @@ splitWith func (Parser stepL initialL extractL)
     initial = SeqParseL <$> initialL
 
     -- Note: For the composed parse to terminate, the left parser has to be
-    -- a terminating parser returning a Stop at some point.
+    -- a terminating parser returning a Done at some point.
     step (SeqParseL st) a = do
         r <- stepL st a
         case r of
@@ -295,17 +307,17 @@ splitWith func (Parser stepL initialL extractL)
             -- e.g. in ((,) <$> p1 <*> p2) <|> p3, if p2 fails we have to
             -- backtrack and start running p3. So we need to keep the input
             -- buffered until we know that the applicative cannot fail.
-            Yield n s -> return $ Skip n (SeqParseL s)
-            Skip n s -> return $ Skip n (SeqParseL s)
-            Stop n b -> Skip n <$> (SeqParseR (func b) <$> initialR)
+            Partial n s -> return $ Continue n (SeqParseL s)
+            Continue n s -> return $ Continue n (SeqParseL s)
+            Done n b -> Continue n <$> (SeqParseR (func b) <$> initialR)
             Error err -> return $ Error err
 
     step (SeqParseR f st) a = do
         r <- stepR st a
         return $ case r of
-            Yield n s -> Yield n (SeqParseR f s)
-            Skip n s -> Skip n (SeqParseR f s)
-            Stop n b -> Stop n (f b)
+            Partial n s -> Partial n (SeqParseR f s)
+            Continue n s -> Continue n (SeqParseR f s)
+            Done n b -> Done n (f b)
             Error err -> Error err
 
     extract (SeqParseR f sR) = fmap f (extractR sR)
@@ -333,22 +345,22 @@ split_ (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     initial = SeqAL <$> initialL
 
     -- Note: For the composed parse to terminate, the left parser has to be
-    -- a terminating parser returning a Stop at some point.
+    -- a terminating parser returning a Done at some point.
     step (SeqAL st) a = do
         (\r i -> case r of
             -- Note: this leads to buffering even if we are not in an
             -- Alternative composition.
-            Yield n s -> Skip n (SeqAL s)
-            Skip n s -> Skip n (SeqAL s)
-            Stop n _ -> Skip n (SeqAR i)
+            Partial n s -> Continue n (SeqAL s)
+            Continue n s -> Continue n (SeqAL s)
+            Done n _ -> Continue n (SeqAR i)
             -- XXX should we sequence initialR monadically?
             Error err -> Error err) <$> stepL st a <*> initialR
 
     step (SeqAR st) a = do
         (\r -> case r of
-            Yield n s -> Yield n (SeqAR s)
-            Skip n s -> Skip n (SeqAR s)
-            Stop n b -> Stop n b
+            Partial n s -> Partial n (SeqAR s)
+            Continue n s -> Continue n (SeqAR s)
+            Done n b -> Done n b
             Error err -> Error err) <$> stepR st a
 
     extract (SeqAR sR) = extractR sR
@@ -400,21 +412,21 @@ alt (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     step (AltParseL cnt st) a = do
         r <- stepL st a
         case r of
-            Yield n s -> return $ Yield n (AltParseL 0 s)
-            Skip n s -> do
+            Partial n s -> return $ Partial n (AltParseL 0 s)
+            Continue n s -> do
                 assert (cnt + 1 - n >= 0) (return ())
-                return $ Skip n (AltParseL (cnt + 1 - n) s)
-            Stop n b -> return $ Stop n b
+                return $ Continue n (AltParseL (cnt + 1 - n) s)
+            Done n b -> return $ Done n b
             Error _ -> do
                 rR <- initialR
-                return $ Skip (cnt + 1) (AltParseR rR)
+                return $ Continue (cnt + 1) (AltParseR rR)
 
     step (AltParseR st) a = do
         r <- stepR st a
         return $ case r of
-            Yield n s -> Yield n (AltParseR s)
-            Skip n s -> Skip n (AltParseR s)
-            Stop n b -> Stop n b
+            Partial n s -> Partial n (AltParseR s)
+            Continue n s -> Continue n (AltParseR s)
+            Done n b -> Done n b
             Error err -> Error err
 
     extract (AltParseR sR) = extractR sR
@@ -441,19 +453,19 @@ splitMany (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
-            Yield n s -> do
+            Partial n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Skip n (Tuple3' s (cnt1 - n) fs)
-            Skip n s -> do
+                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+            Continue n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Skip n (Tuple3' s (cnt1 - n) fs)
-            Stop n b -> do
+                return $ Continue n (Tuple3' s (cnt1 - n) fs)
+            Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
-                return $ Yield n (Tuple3' s 0 fs1)
+                return $ Partial n (Tuple3' s 0 fs1)
             Error _ -> do
                 xs <- fextract fs
-                return $ Stop cnt1 xs
+                return $ Done cnt1 xs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ fs) = do
@@ -482,28 +494,28 @@ splitSome (Fold fstep finitial fextract) (Parser step1 initial1 extract1) =
     step (Tuple3' st _ (Left fs)) a = do
         r <- step1 st a
         case r of
-            Yield n s -> return $ Skip n (Tuple3' s undefined (Left fs))
-            Skip  n s -> return $ Skip n (Tuple3' s undefined (Left fs))
-            Stop n b -> do
+            Partial n s -> return $ Continue n (Tuple3' s undefined (Left fs))
+            Continue  n s -> return $ Continue n (Tuple3' s undefined (Left fs))
+            Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
-                return $ Yield n (Tuple3' s 0 (Right fs1))
+                return $ Partial n (Tuple3' s 0 (Right fs1))
             Error err -> return $ Error err
     step (Tuple3' st cnt (Right fs)) a = do
         r <- step1 st a
         let cnt1 = cnt + 1
         case r of
-            Yield n s -> do
+            Partial n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Yield n (Tuple3' s (cnt1 - n) (Right fs))
-            Skip n s -> do
+                return $ Partial n (Tuple3' s (cnt1 - n) (Right fs))
+            Continue n s -> do
                 assert (cnt1 - n >= 0) (return ())
-                return $ Skip n (Tuple3' s (cnt1 - n) (Right fs))
-            Stop n b -> do
+                return $ Continue n (Tuple3' s (cnt1 - n) (Right fs))
+            Done n b -> do
                 s <- initial1
                 fs1 <- fstep fs b
-                return $ Yield n (Tuple3' s 0 (Right fs1))
-            Error _ -> Stop cnt1 <$> fextract fs
+                return $ Partial n (Tuple3' s 0 (Right fs1))
+            Error _ -> Done cnt1 <$> fextract fs
 
     -- XXX The "try" may impact performance if this parser is used as a scan
     extract (Tuple3' s _ (Left fs)) = extract1 s >>= fstep fs >>= fextract
@@ -581,20 +593,20 @@ concatMap func (Parser stepL initialL extractL) = Parser step initial extract
     step (ConcatParseL st) a = do
         r <- stepL st a
         return $ case r of
-            Yield n s -> Skip n (ConcatParseL s)
-            Skip n s -> Skip n (ConcatParseL s)
-            Stop n b -> Skip n (ConcatParseR (func b))
+            Partial n s -> Continue n (ConcatParseL s)
+            Continue n s -> Continue n (ConcatParseL s)
+            Done n b -> Continue n (ConcatParseR (func b))
             Error err -> Error err
 
     step (ConcatParseR (Parser stepR initialR extractR)) a = do
         st <- initialR
         r <- stepR st a
         return $ case r of
-            Yield n s ->
-                Yield n (ConcatParseR (Parser stepR (return s) extractR))
-            Skip n s ->
-                Skip n (ConcatParseR (Parser stepR (return s) extractR))
-            Stop n b -> Stop n b
+            Partial n s ->
+                Partial n (ConcatParseR (Parser stepR (return s) extractR))
+            Continue n s ->
+                Continue n (ConcatParseR (Parser stepR (return s) extractR))
+            Done n b -> Done n b
             Error err -> Error err
 
     extract (ConcatParseR (Parser _ initialR extractR)) =

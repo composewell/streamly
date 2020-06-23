@@ -73,7 +73,7 @@ import Streamly.Internal.Data.Parser.ParserD.Types
 -- source for individual parser backtracking. Problem arises when both the
 -- parsers backtrack and they do not need any input from the driver rather they
 -- must consume from their buffers. For such situation we may need a
--- "Skip/Continue" style driver command from the tee so that the driver runs
+-- "Continue" style driver command from the tee so that the driver runs
 -- the tee without providing it any input. Or we may need a local driver loop
 -- until new input is to be demanded from the input stream.
 --
@@ -137,19 +137,19 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield 0 s ->
+            Partial 0 s ->
                 let state = ([], StepState s, inp11, inp21)
                  in return (state, Yld 0)
-            Yield n s ->
+            Partial n s ->
                 let src0 = Prelude.take n buf1
                     src  = Prelude.reverse src0
                     state = ([], StepState s, src ++ inp11, inp21)
                  in assert (n <= length buf1) (return (state, Yld n))
-            Stop n b ->
+            Done n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
-            -- Skip 0 s -> (buf1, Right s, inp11, inp21)
-            Skip n s ->
+            -- Continue 0 s -> (buf1, Right s, inp11, inp21)
+            Continue n s ->
                 let (src0, buf2) = splitAt n buf1
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
@@ -163,18 +163,18 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         (r,stR) <- useStream bufR inpR1 inpR2 stepR sR x
         let next = TeePair l r
         return $ case (stL,stR) of
-            (Yld n1, Yld n2) -> Yield (min n1 n2) next
-            (Yld n1, Stp n2) -> Yield (min n1 n2) next
-            (Stp n1, Yld n2) -> Yield (min n1 n2) next
+            (Yld n1, Yld n2) -> Partial (min n1 n2) next
+            (Yld n1, Stp n2) -> Partial (min n1 n2) next
+            (Stp n1, Yld n2) -> Partial (min n1 n2) next
             (Stp n1, Stp n2) ->
                 -- Uni-pattern match results in better optimized code compared
                 -- to a case match.
                 let (_, StepResult rL, _, _) = l
                     (_, StepResult rR, _, _) = r
-                 in Stop (min n1 n2) (zf rL rR)
+                 in Done (min n1 n2) (zf rL rR)
             (Err err, _) -> Error err
             (_, Err err) -> Error err
-            _ -> Skip 0 next
+            _ -> Continue 0 next
 
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
                 r@(_, StepResult rR, _, _)) x = do
@@ -185,11 +185,11 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         -- to fix the other case. We need to keep incrementing the unused count
         -- of the stopped stream and take the min of the two.
         return $ case stL of
-            Yld n -> Yield n next
+            Yld n -> Partial n next
             Stp n ->
                 let (_, StepResult rL, _, _) = l
-                 in Stop n (zf rL rR)
-            Skp -> Skip 0 next
+                 in Done n (zf rL rR)
+            Skp -> Continue 0 next
             Err err -> Error err
 
     step (TeePair l@(_, StepResult rL, _, _)
@@ -201,11 +201,11 @@ teeWith zf (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         -- to fix the other case. We need to keep incrementing the unused count
         -- of the stopped stream and take the min of the two.
         return $ case stR of
-            Yld n -> Yield n next
+            Yld n -> Partial n next
             Stp n ->
                 let (_, StepResult rR, _, _) = r
-                 in Stop n (zf rL rR)
-            Skp -> Skip 0 next
+                 in Done n (zf rL rR)
+            Skp -> Continue 0 next
             Err err -> Error err
 
     step _ _ = undefined
@@ -261,15 +261,15 @@ teeWithFst zf (Parser stepL initialL extractL)
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield 0 s ->
+            Partial 0 s ->
                 let state = ([], StepState s, inp11, inp21)
                  in return (state, Yld 0)
-            Yield n _ -> return (undefined, Yld n) -- Not implemented
-            Stop n b ->
+            Partial n _ -> return (undefined, Yld n) -- Not implemented
+            Done n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
-            -- Skip 0 s -> (buf1, Right s, inp11, inp21)
-            Skip n s ->
+            -- Continue 0 s -> (buf1, Right s, inp11, inp21)
+            Continue n s ->
                 let (src0, buf2) = splitAt n buf1
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
@@ -293,18 +293,18 @@ teeWithFst zf (Parser stepL initialL extractL)
                 -- to a case match.
                 let (_, StepResult rL, _, _) = l
                     (_, StepResult rR, _, _) = r
-                 in return $ Stop n1 (zf rL rR)
+                 in return $ Done n1 (zf rL rR)
             (Stp n1, Yld _) ->
                 let (_, StepResult rL, _, _) = l
                     (_, StepState  ssR, _, _) = r
                  in do
                     rR <- extractR ssR
-                    return $ Stop n1 (zf rL rR)
-            (Yld n1, Yld n2) -> return $ Yield (min n1 n2) next
-            (Yld n1, Stp n2) -> return $ Yield (min n1 n2) next
+                    return $ Done n1 (zf rL rR)
+            (Yld n1, Yld n2) -> return $ Partial (min n1 n2) next
+            (Yld n1, Stp n2) -> return $ Partial (min n1 n2) next
             (Err err, _) -> return $ Error err
             (_, Err err) -> return $ Error err
-            _ -> return $ Skip 0 next
+            _ -> return $ Continue 0 next
 
     step (TeePair (bufL, StepState sL, inpL1, inpL2)
                 r@(_, StepResult rR, _, _)) x = do
@@ -315,11 +315,11 @@ teeWithFst zf (Parser stepL initialL extractL)
         -- to fix the other case. We need to keep incrementing the unused count
         -- of the stopped stream and take the min of the two.
         return $ case stL of
-            Yld n -> Yield n next
+            Yld n -> Partial n next
             Stp n ->
                 let (_, StepResult rL, _, _) = l
-                 in Stop n (zf rL rR)
-            Skp -> Skip 0 next
+                 in Done n (zf rL rR)
+            Skp -> Continue 0 next
             Err err -> Error err
 
     step _ _ = undefined
@@ -383,15 +383,15 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield 0 s ->
+            Partial 0 s ->
                 let state = ([], StepState s, inp11, inp21)
                  in return (state, Yld 0)
-            Yield n _ -> return (undefined, Yld n) -- Not implemented
-            Stop n b ->
+            Partial n _ -> return (undefined, Yld n) -- Not implemented
+            Done n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
-            -- Skip 0 s -> (buf1, Right s, inp11, inp21)
-            Skip n s ->
+            -- Continue 0 s -> (buf1, Right s, inp11, inp21)
+            Continue n s ->
                 let (src0, buf2) = splitAt n buf1
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
@@ -410,14 +410,14 @@ shortest (Parser stepL initialL extractL) (Parser stepR initialR _) =
         return $ case (stL,stR) of
             (Stp n1, _) ->
                 let (_, StepResult rL, _, _) = l
-                 in Stop n1 rL
+                 in Done n1 rL
             (_, Stp n2) ->
                 let (_, StepResult rR, _, _) = r
-                 in Stop n2 rR
-            (Yld n1, Yld n2) -> Yield (min n1 n2) next
+                 in Done n2 rR
+            (Yld n1, Yld n2) -> Partial (min n1 n2) next
             (Err err, _) -> Error err
             (_, Err err) -> Error err
-            _ -> Skip 0 next
+            _ -> Continue 0 next
 
     step _ _ = undefined
 
@@ -460,15 +460,15 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
     useStream buf inp1 inp2 stp st y = do
         (buf1, r, inp11, inp21) <- consume buf inp1 inp2 stp st y
         case r of
-            Yield 0 s ->
+            Partial 0 s ->
                 let state = ([], StepState s, inp11, inp21)
                  in return (state, Yld 0)
-            Yield n _ -> return (undefined, Yld n) -- Not implemented
-            Stop n b ->
+            Partial n _ -> return (undefined, Yld n) -- Not implemented
+            Done n b ->
                 let state = (Prelude.take n buf1, StepResult b, inp11, inp21)
                  in assert (n <= length buf1) (return (state, Stp n))
-            -- Skip 0 s -> (buf1, Right s, inp11, inp21)
-            Skip n s ->
+            -- Continue 0 s -> (buf1, Right s, inp11, inp21)
+            Continue n s ->
                 let (src0, buf2) = splitAt n buf1
                     src  = Prelude.reverse src0
                     state = (buf2, StepState s, src ++ inp11, inp21)
@@ -482,16 +482,16 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         (r,stR) <- useStream bufR inpR1 inpR2 stepR sR x
         let next = TeePair l r
         return $ case (stL,stR) of
-            (Yld n1, Yld n2) -> Yield (min n1 n2) next
-            (Yld n1, Stp n2) -> Yield (min n1 n2) next
-            (Stp n1, Yld n2) -> Yield (min n1 n2) next
+            (Yld n1, Yld n2) -> Partial (min n1 n2) next
+            (Yld n1, Stp n2) -> Partial (min n1 n2) next
+            (Stp n1, Yld n2) -> Partial (min n1 n2) next
             (Stp n1, Stp n2) ->
                 let (_, StepResult rL, _, _) = l
                     (_, StepResult rR, _, _) = r
-                 in Stop (max n1 n2) (if n1 >= n2 then rL else rR)
+                 in Done (max n1 n2) (if n1 >= n2 then rL else rR)
             (Err err, _) -> Error err
             (_, Err err) -> Error err
-            _ -> Skip 0 next
+            _ -> Continue 0 next
 
     -- XXX the parser that finishes last may not be the longest because it may
     -- return a lot of unused input which makes it shorter. Our current
@@ -506,11 +506,11 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         (l,stL) <- useStream bufL inpL1 inpL2 stepL sL x
         let next = TeePair l r
         return $ case stL of
-            Yld n -> Yield n next
+            Yld n -> Partial n next
             Stp n ->
                 let (_, StepResult rL, _, _) = l
-                 in Stop n rL
-            Skp -> Skip 0 next
+                 in Done n rL
+            Skp -> Continue 0 next
             Err err -> Error err
 
     step (TeePair l@(_, StepResult _, _, _)
@@ -518,11 +518,11 @@ longest (Parser stepL initialL extractL) (Parser stepR initialR extractR) =
         (r, stR) <- useStream bufR inpR1 inpR2 stepR sR x
         let next = TeePair l r
         return $ case stR of
-            Yld n -> Yield n next
+            Yld n -> Partial n next
             Stp n ->
                 let (_, StepResult rR, _, _) = r
-                 in Stop n rR
-            Skp -> Skip 0 next
+                 in Done n rR
+            Skp -> Continue 0 next
             Err err -> Error err
 
     step _ _ = undefined

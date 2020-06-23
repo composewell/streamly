@@ -190,7 +190,7 @@ fromFold (Fold fstep finitial fextract) = Parser step finitial fextract
 
     where
 
-    step s a = Yield 0 <$> fstep s a
+    step s a = Partial 0 <$> fstep s a
 
 -------------------------------------------------------------------------------
 -- Convert to and from CPS style parser representation
@@ -241,11 +241,11 @@ any predicate = Parser step initial return
 
     step s a = return $
         if s
-        then Stop 0 True
+        then Done 0 True
         else
             if predicate a
-            then Stop 0 True
-            else Yield 0 False
+            then Done 0 True
+            else Partial 0 False
 
 {-# INLINABLE all #-}
 all :: Monad m => (a -> Bool) -> Parser m a Bool
@@ -259,9 +259,9 @@ all predicate = Parser step initial return
         if s
         then
             if predicate a
-            then Yield 0 True
-            else Stop 0 False
-        else Stop 0 False
+            then Partial 0 True
+            else Done 0 False
+        else Done 0 False
 
 -------------------------------------------------------------------------------
 -- Failing Parsers
@@ -279,7 +279,7 @@ peek = Parser step initial extract
 
     initial = return ()
 
-    step () a = return $ Stop 1 a
+    step () a = return $ Done 1 a
 
     extract () = throwM $ ParseError "peek: end of input"
 
@@ -311,7 +311,7 @@ satisfy predicate = Parser step initial extract
 
     step () a = return $
         if predicate a
-        then Stop 0 a
+        then Done 0 a
         else Error "satisfy: predicate failed"
 
     extract _ = throwM $ ParseError "satisfy: end of input"
@@ -337,8 +337,8 @@ take n (Fold fstep finitial fextract) = Parser step initial extract
         let i1 = i + 1
             s1 = Tuple' i1 res
         if i1 < n
-        then return $ Yield 0 s1
-        else Stop 0 <$> fextract res
+        then return $ Partial 0 s1
+        else Done 0 <$> fextract res
 
     extract (Tuple' _ r) = fextract r
 
@@ -358,7 +358,7 @@ takeEQ n (Fold fstep finitial fextract) = Parser step initial extract
         res <- fstep r a
         let i1 = i + 1
             s1 = Tuple' i1 res
-        if i1 < n then return (Skip 0 s1) else Stop 0 <$> fextract res
+        if i1 < n then return (Continue 0 s1) else Done 0 <$> fextract res
 
     extract (Tuple' i r) =
         if n == i
@@ -389,8 +389,8 @@ takeGE n (Fold fstep finitial fextract) = Parser step initial extract
             s1 = Tuple' i1 res
         return $
             if i1 < n
-            then Skip 0 s1
-            else Yield 0 s1
+            then Continue 0 s1
+            else Partial 0 s1
 
     extract (Tuple' i r) = fextract r >>= f
 
@@ -420,8 +420,8 @@ takeWhile predicate (Fold fstep finitial fextract) =
 
     step s a =
         if predicate a
-        then Yield 0 <$> fstep s a
-        else Stop 1 <$> fextract s
+        then Partial 0 <$> fstep s a
+        else Done 1 <$> fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.takeWhile1'.
 --
@@ -441,16 +441,16 @@ takeWhile1 predicate (Fold fstep finitial fextract) =
         then do
             s <- finitial
             r <- fstep s a
-            return $ Yield 0 (Just r)
+            return $ Partial 0 (Just r)
         else return $ Error "takeWhile1: empty"
     step (Just s) a =
         if predicate a
         then do
             r <- fstep s a
-            return $ Yield 0 (Just r)
+            return $ Partial 0 (Just r)
         else do
             b <- fextract s
-            return $ Stop 1 b
+            return $ Done 1 b
 
     extract Nothing = throwM $ ParseError "takeWhile1: end of input"
     extract (Just s) = fextract s
@@ -469,8 +469,8 @@ sliceSepBy predicate (Fold fstep finitial fextract) =
     initial = finitial
     step s a =
         if not (predicate a)
-        then Yield 0 <$> fstep s a
-        else Stop 0 <$> fextract s
+        then Partial 0 <$> fstep s a
+        else Done 0 <$> fextract s
 
 -- | See 'Streamly.Internal.Data.Parser.sliceEndWith'.
 --
@@ -511,11 +511,11 @@ sliceSepByMax predicate cnt (Fold fstep finitial fextract) =
             let i1 = i + 1
                 s1 = Tuple' i1 res
             if i1 < cnt
-            then return $ Yield 0 s1
+            then return $ Partial 0 s1
             else do
                 b <- fextract res
-                return $ Stop 0 b
-        | otherwise = Stop 0 <$> fextract r
+                return $ Done 0 b
+        | otherwise = Done 0 <$> fextract r
     extract (Tuple' _ r) = fextract r
 
 -- | See 'Streamly.Internal.Data.Parser.wordBy'.
@@ -553,14 +553,14 @@ eqBy cmp str = Parser step initial extract
 
     initial = return str
 
-    step [] _ = return $ Stop 0 ()
+    step [] _ = return $ Done 0 ()
     step [x] a = return $
         if x `cmp` a
-        then Stop 0 ()
+        then Done 0 ()
         else Error "eqBy: failed, yet to match the last element"
     step (x:xs) a = return $
         if x `cmp` a
-        then Skip 0 xs
+        then Continue 0 xs
         else Error $
             "eqBy: failed, yet to match " ++ show (length xs + 1) ++ " elements"
 
@@ -588,9 +588,9 @@ lookAhead (Parser step1 initial1 _) =
         r <- step1 st a
         let cnt1 = cnt + 1
         return $ case r of
-            Yield n s -> Skip n (Tuple' (cnt1 - n) s)
-            Skip n s -> Skip n (Tuple' (cnt1 - n) s)
-            Stop _ b -> Stop cnt1 b
+            Partial n s -> Continue n (Tuple' (cnt1 - n) s)
+            Continue n s -> Continue n (Tuple' (cnt1 - n) s)
+            Done _ b -> Done cnt1 b
             Error err -> Error err
 
     -- XXX returning an error let's us backtrack.  To implement it in a way so
@@ -711,26 +711,26 @@ manyTill (Fold fstep finitial fextract)
     step (ManyTillR cnt fs st) a = do
         r <- stepR st a
         case r of
-            Yield n s -> return $ Yield n (ManyTillR 0 fs s)
-            Skip n s -> do
+            Partial n s -> return $ Partial n (ManyTillR 0 fs s)
+            Continue n s -> do
                 assert (cnt + 1 - n >= 0) (return ())
-                return $ Skip n (ManyTillR (cnt + 1 - n) fs s)
-            Stop n _ -> do
+                return $ Continue n (ManyTillR (cnt + 1 - n) fs s)
+            Done n _ -> do
                 b <- fextract fs
-                return $ Stop n b
+                return $ Done n b
             Error _ -> do
                 rR <- initialL
-                return $ Skip (cnt + 1) (ManyTillL fs rR)
+                return $ Continue (cnt + 1) (ManyTillL fs rR)
 
     step (ManyTillL fs st) a = do
         r <- stepL st a
         case r of
-            Yield n s -> return $ Yield n (ManyTillL fs s)
-            Skip n s -> return $ Skip n (ManyTillL fs s)
-            Stop n b -> do
+            Partial n s -> return $ Partial n (ManyTillL fs s)
+            Continue n s -> return $ Continue n (ManyTillL fs s)
+            Done n b -> do
                 fs1 <- fstep fs b
                 l <- initialR
-                return $ Yield n (ManyTillR 0 fs1 l)
+                return $ Partial n (ManyTillR 0 fs1 l)
             Error err -> return $ Error err
 
     extract (ManyTillL fs sR) = extractL sR >>= fstep fs >>= fextract
