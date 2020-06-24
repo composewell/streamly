@@ -119,30 +119,9 @@ unsafeRead = Unfold step inject
 null :: Prim a => Array a -> Bool
 null arr = length arr == 0
 
--- | > last arr = readIndex arr (length arr - 1)
---
--- /Internal/
-{-# INLINE last #-}
-last :: Prim a => Array a -> Maybe a
-last arr = readIndex arr (length arr - 1)
-
 -------------------------------------------------------------------------------
--- Random Access
+-- Folds
 -------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------
--- Random reads and writes
--------------------------------------------------------------------------------
-
--- | /O(1)/ Lookup the element at the given index, starting from 0.
---
--- /Internal/
-{-# INLINE readIndex #-}
-readIndex :: Prim a => Array a -> Int -> Maybe a
-readIndex arr i =
-    if i < 0 || i > length arr - 1
-        then Nothing
-        else Just $ A.unsafeIndex arr i
 
 -- | Fold an array using a 'Fold'.
 --
@@ -157,3 +136,24 @@ fold f arr = P.runFold f (toStream arr :: Serial.SerialT m a)
 {-# INLINE streamFold #-}
 streamFold :: (PrimMonad m, Prim a) => (SerialT m a -> m b) -> Array a -> m b
 streamFold f arr = f (toStream arr)
+
+-------------------------------------------------------------------------------
+-- Random reads
+-------------------------------------------------------------------------------
+
+-- | /O(1)/ Lookup the element at the given index, starting from 0.
+--
+-- /Internal/
+{-# INLINE readIndex #-}
+readIndex :: Prim a => Array a -> Int -> Maybe a
+readIndex arr i =
+    if i < 0 || i > length arr - 1
+        then Nothing
+        else Just $ A.unsafeIndex arr i
+
+-- | > last arr = readIndex arr (length arr - 1)
+--
+-- /Internal/
+{-# INLINE last #-}
+last :: Prim a => Array a -> Maybe a
+last arr = readIndex arr (length arr - 1)

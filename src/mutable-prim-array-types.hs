@@ -1,27 +1,31 @@
 -- MOVE THIS TO A DIFFERENT LOCATION
 
-import GHC.Exts
-
+import Control.Monad (when, void)
 import Control.Monad.Primitive
 import Data.Primitive.Types
-
-import Prelude hiding (length, unlines)
-
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
-import Control.Monad (when)
 import Streamly.Internal.Data.Strict (Tuple'(..))
 
-
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
+
+import GHC.Exts
+import Prelude hiding (length, unlines)
 
 -------------------------------------------------------------------------------
 -- Array Data Type
 -------------------------------------------------------------------------------
 
+-- XXX why is this not supposed to be used?
 -- This is not supposed to be used
 data Array s a = Array (MutableByteArray# s)
 
+-------------------------------------------------------------------------------
+-- Utilities
+-------------------------------------------------------------------------------
+
+-- XXX Document important details about semantics e.g. is overlapped copy
+-- allowed?
 {-# INLINE unsafeCopy #-}
 unsafeCopy ::
        forall m a. (PrimMonad m, Prim a)
@@ -31,37 +35,51 @@ unsafeCopy ::
     -> Int -- ^ offset into source array
     -> Int -- ^ number of elements to copy
     -> m ()
-unsafeCopy (Array dst#) (I# doff#) (Array src#) (I# soff#) (I# n#)
-  = primitive_ (copyMutableByteArray#
-      src#
-      (soff# *# (sizeOf# (undefined :: a)))
-      dst#
-      (doff# *# (sizeOf# (undefined :: a)))
-      (n# *# (sizeOf# (undefined :: a)))
-    )
+unsafeCopy (Array dst#) (I# doff#) (Array src#) (I# soff#) (I# n#) =
+    let toBytes cnt# = cnt# *# (sizeOf# (undefined :: a))
+     in primitive_ $
+            copyMutableByteArray#
+                src# (toBytes soff#) dst# (toBytes doff#) (toBytes n#)
 
+-------------------------------------------------------------------------------
+-- Length
+-------------------------------------------------------------------------------
+
+-- XXX rename to byteCount?
+{-# INLINE byteLength #-}
+byteLength :: Array s a -> Int
+byteLength (Array arr#) = I# (sizeofMutableByteArray# arr#)
+
+-- XXX Rename length to elemCount so that there is no confusion bout what it
+-- means.
+--
+-- XXX Since size of 'a' is statically known, we can replace `quot` with shift
+-- when it is power of 2. Though it may not matter unless length is used too
+-- often.
+--
 {-# INLINE length #-}
-length ::
-       forall s a. Prim a
-    => Array s a
-    -> Int
-length (Array arr#) =
-    I# (quotInt# (sizeofMutableByteArray# arr#) (sizeOf# (undefined :: a)))
+length :: forall s a. Prim a => Array s a -> Int
+length arr = byteLength arr `quot` (sizeOf (undefined :: a))
 
-{-# INLINE spliceTwo #-}
-spliceTwo ::
+-------------------------------------------------------------------------------
+-- Random Access
+-------------------------------------------------------------------------------
+
+-- XXX Rename to unsafeReadIndex
+-- Check correctness
+{-# INLINE unsafeIndexM #-}
+unsafeIndexM ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a
-    -> Array (PrimState m) a
-    -> m (Array (PrimState m) a)
-spliceTwo a1 a2 = do
-    a3 <- resizeArray a1 (l1 + l2)
-    unsafeCopy a2 0 a3 l1 l2
-    return a3
-  where
-    l1 = length a1
-    l2 = length a2
+    -> Int
+    -> m a
+unsafeIndexM (Array arr#) (I# i#) =
+    -- XXX XXX why not use readByteArray#
+    primitive $ \s# ->
+        case indexByteArray# (unsafeCoerce# arr#) i# of
+            a -> (# s#, a #)
 
+-- XXX rename to unsafeWriteIndex?
 {-# INLINE writeArray #-}
 writeArray ::
        forall m a. (PrimMonad m, Prim a)
@@ -69,36 +87,54 @@ writeArray ::
     -> Int -- ^ index
     -> a -- ^ element
     -> m ()
-writeArray (Array arr#) (I# i#) x
-  = primitive_ (writeByteArray# arr# i# x)
+writeArray (Array arr#) (I# i#) x = primitive_ (writeByteArray# arr# i# x)
 
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
+
+-- Note: We do not store the actual length of the array in the Array
+-- constructor. Therefore, for "length" API to work correctly we need to match
+-- the ByteArray length with the used length by shrinking it.
+--
+-- However, it may be expensive to always shrink the array. We may want to
+-- shrink only if significant space is being wasted. If we want to do that then
+-- we will have to store the used length separately. Or does GHC take care of
+-- that?
+--
 {-# INLINE shrinkArray #-}
 shrinkArray ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a
     -> Int -- ^ new size
     -> m ()
-shrinkArray (Array arr#) (I# n#)
-  = primitive_ (shrinkMutableByteArray# arr# (n# *# sizeOf# (undefined :: a)))
+shrinkArray (Array arr#) (I# n#) =
+    let bytes = n# *# (sizeOf# (undefined :: a))
+     in primitive_ (shrinkMutableByteArray# arr# bytes)
 
 {-# INLINE_NORMAL write #-}
 write ::
        forall m a. (PrimMonad m, Prim a)
     => Fold m a (Array (PrimState m) a)
 write = Fold step initial extract
-  where
+
+    where
+
     initial = do
         marr <- newArray 0
         return (marr, 0, 0)
+
+    -- XXX use Tuple3'?
     step (marr, i, capacity) x
-        | i == capacity =
+        | i == capacity = do
             let newCapacity = max (capacity * 2) 1
-             in do newMarr <- resizeArray marr newCapacity
-                   writeArray newMarr i x
-                   return (newMarr, i + 1, newCapacity)
+            newMarr <- resizeArray marr newCapacity
+            writeArray newMarr i x
+            return (newMarr, i + 1, newCapacity)
         | otherwise = do
             writeArray marr i x
             return (marr, i + 1, capacity)
+
     extract (marr, len, _) = shrinkArray marr len >> return marr
 
 {-# INLINE_NORMAL writeN #-}
@@ -107,18 +143,21 @@ writeN ::
     => Int
     -> Fold m a (Array (PrimState m) a)
 writeN limit = Fold step initial extract
-  where
+
+    where
+
     initial = do
         marr <- newArray limit
         return (marr, 0)
+
+    -- XXX use Tuple'?
     step (marr, i) x
         | i == limit = return (marr, i)
         | otherwise = do
             writeArray marr i x
             return (marr, i + 1)
+
     extract (marr, len) = shrinkArray marr len >> return marr
-
-
 
 {-# INLINE_NORMAL fromStreamDN #-}
 fromStreamDN ::
@@ -128,11 +167,9 @@ fromStreamDN ::
     -> m (Array (PrimState m) a)
 fromStreamDN limit str = do
     marr <- newArray (max limit 0)
-    _ <-
-        D.foldlM'
-            (\i x -> i `seq` (writeArray marr i x) >> return (i + 1))
-            0 $
-        D.take limit str
+    let step i x = i `seq` (writeArray marr i x) >> return (i + 1)
+    void $ D.foldlM' step 0 $ D.take limit str
+    -- XXX XXX we need to shrink the array in case the stream terminated early.
     return marr
 
 {-# INLINE runFold #-}
@@ -161,6 +198,30 @@ fromListM ::
     -> m (Array (PrimState m) a)
 fromListM xs = fromStreamD $ D.fromList xs
 
+-------------------------------------------------------------------------------
+-- Combining
+-------------------------------------------------------------------------------
+
+{-# INLINE spliceTwo #-}
+spliceTwo ::
+       forall m a. (PrimMonad m, Prim a)
+    => Array (PrimState m) a
+    -> Array (PrimState m) a
+    -> m (Array (PrimState m) a)
+spliceTwo a1 a2 = do
+    a3 <- resizeArray a1 (l1 + l2)
+    unsafeCopy a2 0 a3 l1 l2
+    return a3
+
+    where
+
+    l1 = length a1
+    l2 = length a2
+
+-------------------------------------------------------------------------------
+-- Stream of Arrays
+-------------------------------------------------------------------------------
+
 data GroupState s t a
     = GroupStart s
     | GroupBuffer s (Array t a) Int
@@ -176,7 +237,9 @@ fromStreamDArraysOf ::
     -> D.Stream m (Array (PrimState m) a)
 -- fromStreamDArraysOf n str = D.groupsOf n (writeN n) str
 fromStreamDArraysOf n (D.Stream step state) = D.Stream step' (GroupStart state)
-  where
+
+    where
+
     {-# INLINE_LATE step' #-}
     step' _ (GroupStart st) = do
         when (n <= 0) $
@@ -205,22 +268,6 @@ fromStreamDArraysOf n (D.Stream step state) = D.Stream step' (GroupStart state)
             shrinkArray arr i
             return $ D.Yield arr GroupFinish
     step' _ GroupFinish = return D.Stop
-
--- Check correctness
-{-# INLINE unsafeIndexM #-}
-unsafeIndexM ::
-       forall m a. (PrimMonad m, Prim a)
-    => Array (PrimState m) a
-    -> Int
-    -> m a
-unsafeIndexM (Array arr#) (I# i#) =
-    primitive (\s# -> case indexByteArray# (unsafeCoerce# arr#) i# of
-                        a -> (# s#, a #))
-
-{-# INLINE byteLength #-}
-byteLength :: Array s a -> Int
-byteLength (Array arr#) =
-    I# (sizeofMutableByteArray# arr#)
 
 data SpliceState s arr
     = SpliceInitial s

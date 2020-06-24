@@ -1,29 +1,25 @@
-import GHC.Exts hiding (fromListN, fromList, toList)
-import qualified GHC.Exts as Exts
-
+import Control.DeepSeq (NFData(..))
 import Control.Monad.Primitive
-import Control.Monad.ST
-import Data.Primitive.Types
-
+   (PrimMonad(primitive), PrimState, unsafeInlineIO)
+import Control.Monad.ST (ST, runST)
 #if __GLASGOW_HASKELL__ < 808
 import Data.Semigroup (Semigroup(..))
 #endif
-
-
-import Prelude hiding (length, unlines, foldr)
-
 import Data.Word (Word8)
 import Streamly.Internal.Data.Fold.Types (Fold(..))
 import Streamly.Internal.Data.SVar (adaptState)
 import Text.Read (readPrec, readListPrec, readListPrecDefault)
 
-import Control.DeepSeq (NFData(..))
-
+import qualified Data.Primitive.ByteArray as PB
+import qualified GHC.Exts as Exts
 import qualified Prelude as P
 import qualified Streamly.Internal.Data.Fold as FL
 import qualified Streamly.Internal.Data.Stream.StreamD.Type as D
 import qualified Streamly.Internal.Data.Stream.StreamK as K
-import qualified Data.Primitive.ByteArray as PB
+
+import Data.Primitive.Types
+import GHC.Exts hiding (fromListN, fromList, toList)
+import Prelude hiding (length, unlines, foldr)
 
 -------------------------------------------------------------------------------
 -- Array Data Type
@@ -31,17 +27,43 @@ import qualified Data.Primitive.ByteArray as PB
 
 data Array a = Array ByteArray#
 
-empty :: forall a. Prim a => Array a
-empty = runST run where
-  run :: forall s. ST s (Array a)
-  run = do
-    arr <- MA.newArray 0
-    unsafeFreeze arr
+-------------------------------------------------------------------------------
+-- Basic Byte Array Operations
+-------------------------------------------------------------------------------
 
+{-# INLINE unsafeFreeze #-}
+unsafeFreeze :: PrimMonad m => MA.Array (PrimState m) a -> m (Array a)
+unsafeFreeze (MA.Array arr#) =
+    primitive $ \s# ->
+        case unsafeFreezeByteArray# arr# s# of
+            (# s1#, arr1# #) -> (# s1#, Array arr1# #)
+
+{-# INLINE unsafeThaw #-}
+unsafeThaw :: PrimMonad m => Array a -> m (MA.Array (PrimState m) a)
+unsafeThaw (Array arr#) =
+    primitive $ \s# -> (# s#, MA.Array (unsafeCoerce# arr#) #)
+
+-- Unsafe because the index bounds are not checked
+{-# INLINE unsafeIndex #-}
+unsafeIndex :: Prim a => Array a -> Int -> a
+unsafeIndex (Array arr#) (I# i#) = indexByteArray# arr# i#
+
+-- unsafe
+sameByteArray :: ByteArray# -> ByteArray# -> Bool
+sameByteArray ba1 ba2 =
+    case reallyUnsafePtrEquality#
+            (unsafeCoerce# ba1 :: ()) (unsafeCoerce# ba2 :: ()) of
+      r -> isTrue# r
+
+-------------------------------------------------------------------------------
+-- Chunk Size
+-------------------------------------------------------------------------------
+
+-- XXX move this section to mutable array module?
 
 mkChunkSizeKB :: Int -> Int
 mkChunkSizeKB n = n * k
-   where k = 1024
+    where k = 1024
 
 -- | Default maximum buffer size in bytes, for reading from and writing to IO
 -- devices, the value is 32KB minus GHC allocation overhead, which is a few
@@ -49,107 +71,35 @@ mkChunkSizeKB n = n * k
 defaultChunkSize :: Int
 defaultChunkSize = mkChunkSizeKB 32
 
-sameByteArray :: ByteArray# -> ByteArray# -> Bool
-sameByteArray ba1 ba2 =
-    case reallyUnsafePtrEquality# (unsafeCoerce# ba1 :: ()) (unsafeCoerce# ba2 :: ()) of
-#if __GLASGOW_HASKELL__ >= 708
-      r -> isTrue# r
-#else
-      1# -> True
-      _ -> False
-#endif
+-------------------------------------------------------------------------------
+-- Length
+-------------------------------------------------------------------------------
 
--- | @since 0.6.4.0
-instance (Eq a, Prim a) => Eq (Array a) where
-  a1@(Array ba1#) == a2@(Array ba2#)
-    | sameByteArray ba1# ba2# = True
-    | sz1 /= sz2 = False
-    | otherwise = loop (quot sz1 (sizeOf (undefined :: a)) - 1)
-    where
-    -- Here, we take the size in bytes, not in elements. We do this
-    -- since it allows us to defer performing the division to
-    -- calculate the size in elements.
-    sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
-    sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
-    loop !i
-      | i < 0 = True
-      | otherwise = unsafeIndex a1 i == unsafeIndex a2 i && loop (i-1)
-  {-# INLINE (==) #-}
+-- XXX rename to byteCount?
+{-# INLINE byteLength #-}
+byteLength :: Array a -> Int
+byteLength (Array arr#) = I# (sizeofByteArray# arr#)
 
--- | Lexicographic ordering. Subject to change between major versions.
---
---   @since 0.6.4.0
-instance (Ord a, Prim a) => Ord (Array a) where
-  compare a1@(Array ba1#) a2@(Array ba2#)
-    | sameByteArray ba1# ba2# = EQ
-    | otherwise = loop 0
-    where
-    sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
-    sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
-    sz = quot (min sz1 sz2) (sizeOf (undefined :: a))
-    loop !i
-      | i < sz = compare (unsafeIndex a1 i) (unsafeIndex a2 i) <> loop (i+1)
-      | otherwise = compare sz1 sz2
-  {-# INLINE compare #-}
-
-instance Prim a => Semigroup (Array a) where
-  a <> b = unsafeInlineIO (spliceTwo a b :: IO (Array a))
-
-instance Prim a => Monoid (Array a) where
-  mempty = empty
-  mappend = (<>)
-
-instance Prim a => NFData (Array a) where
-    {-# INLINE rnf #-}
-    rnf = foldl' (\_ _ -> ()) ()
-
--- | @since 0.6.4.0
-instance (Show a, Prim a) => Show (Array a) where
-  showsPrec p a = showParen (p > 10) $
-    showString "fromListN " . shows (length a) . showString " "
-      . shows (toList a)
-
-instance (a ~ Char) => IsString (Array a) where
-    {-# INLINE fromString #-}
-    fromString = fromList
-
--- GHC versions 8.0 and below cannot derive IsList
-instance Prim a => IsList (Array a) where
-    type (Item (Array a)) = a
-    {-# INLINE fromList #-}
-    fromList = fromList
-    {-# INLINE fromListN #-}
-    fromListN = fromListN
-    {-# INLINE toList #-}
-    toList = toList
-
-instance (Prim a, Read a, Show a) => Read (Array a) where
-    {-# INLINE readPrec #-}
-    readPrec = fromList <$> readPrec
-    readListPrec = readListPrecDefault
-
-{-# INLINE unsafeFreeze #-}
-unsafeFreeze :: PrimMonad m => MA.Array (PrimState m) a -> m (Array a)
-unsafeFreeze (MA.Array arr#)
-  = primitive (\s# -> case unsafeFreezeByteArray# arr# s# of
-                        (# s'#, arr'# #) -> (# s'#, Array arr'# #))
-
-{-# INLINE unsafeThaw #-}
-unsafeThaw :: PrimMonad m => Array a -> m (MA.Array (PrimState m) a)
-unsafeThaw (Array arr#)
-  = primitive (\s# -> (# s#, MA.Array (unsafeCoerce# arr#) #))
-
+-- XXX we can use shift when the size is power of 2
+-- XXX Also, rename to elemCount
+-- XXX Also, re-export sizeOf from Primitive
 {-# INLINE length #-}
 length :: forall a. Prim a => Array a -> Int
 length (Array arr#) =
     I# (quotInt# (sizeofByteArray# arr#) (sizeOf# (undefined :: a)))
 
-{-# INLINE spliceTwo #-}
-spliceTwo :: (PrimMonad m, Prim a) => Array a -> Array a -> m (Array a)
-spliceTwo a1 a2 = do
-    a1' <- unsafeThaw a1
-    a2' <- unsafeThaw a2
-    MA.spliceTwo a1' a2' >>= unsafeFreeze
+-------------------------------------------------------------------------------
+-- Construction
+-------------------------------------------------------------------------------
+
+-- XXX the name "empty" is used by alternative, should we use nil instead? It
+-- will also be consistent with streams.
+empty :: forall a. Prim a => Array a
+empty = runST run where
+    run :: forall s. ST s (Array a)
+    run = do
+        arr <- MA.newArray 0
+        unsafeFreeze arr
 
 {-# INLINE_NORMAL write #-}
 write :: (PrimMonad m, Prim a) => Fold m a (Array a)
@@ -172,28 +122,6 @@ fromStreamD ::
        (PrimMonad m, Prim a) => D.Stream m a -> m (Array a)
 fromStreamD str = MA.fromStreamD str >>= unsafeFreeze
 
-{-# INLINE fromList #-}
-fromList :: Prim a => [a] -> Array a
-fromList vs = fromListN (P.length vs) vs
-
-{-# INLINE fromListN #-}
-fromListN :: forall a. Prim a => Int -> [a] -> Array a
-fromListN len vs = runST run where
-  run :: forall s. ST s (Array a)
-  run = do
-    arr <- MA.newArray len
-    let go :: [a] -> Int -> ST s ()
-        go [] !ix = if ix == len
-          then return ()
-          else error "fromListN" "list length less than specified size"
-        go (a : as) !ix = if ix < len
-          then do
-            MA.writeArray arr ix a
-            go as (ix + 1)
-          else error "fromListN" "list length greater than specified size"
-    go vs 0
-    unsafeFreeze arr
-
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf ::
        forall m a. (PrimMonad m, Prim a)
@@ -202,10 +130,290 @@ fromStreamDArraysOf ::
     -> D.Stream m (Array a)
 fromStreamDArraysOf n str = D.mapM unsafeFreeze (MA.fromStreamDArraysOf n str)
 
--- Check correctness
-{-# INLINE unsafeIndex #-}
-unsafeIndex :: Prim a => Array a -> Int -> a
-unsafeIndex (Array arr#) (I# i#) = indexByteArray# arr# i#
+-- XXX derive from MA.fromListN?
+{-# INLINE fromListN #-}
+fromListN :: forall a. Prim a => Int -> [a] -> Array a
+fromListN len xs = runST run
+
+    where
+
+    run :: forall s. ST s (Array a)
+    run = do
+        arr <- MA.newArray len
+        let go :: [a] -> Int -> ST s ()
+            go [] !ix =
+                if ix == len
+                then return ()
+                else error "fromListN" "list length less than specified size"
+            go (a : as) !ix =
+                if ix < len
+                then do
+                    MA.writeArray arr ix a
+                    go as (ix + 1)
+                else error "fromListN" "list length greater than specified size"
+         in go xs 0
+        unsafeFreeze arr
+
+-- XXX derive from MA.fromList?
+{-# INLINE fromList #-}
+fromList :: Prim a => [a] -> Array a
+fromList xs = fromListN (P.length xs) xs
+
+-------------------------------------------------------------------------------
+-- Combining
+-------------------------------------------------------------------------------
+
+-- XXX XXX it can mutate the first array which is not correct
+--
+-- XXX we should not be thawing the original arrays here. We should just copy
+-- to a new array.
+{-# INLINE spliceTwo #-}
+spliceTwo :: (PrimMonad m, Prim a) => Array a -> Array a -> m (Array a)
+spliceTwo a1 a2 = do
+    a1' <- unsafeThaw a1
+    a2' <- unsafeThaw a2
+    MA.spliceTwo a1' a2' >>= unsafeFreeze
+
+-------------------------------------------------------------------------------
+-- Elimination
+-------------------------------------------------------------------------------
+
+{-# INLINE_LATE toListFB #-}
+toListFB :: forall a b. Prim a => (a -> b -> b) -> b -> Array a -> b
+toListFB c n arr = go 0
+    where
+    len = length arr
+    go p | p == len = n
+    go p =
+        let !x = unsafeIndex arr p
+        in c x (go (p + 1))
+
+-- | Convert an 'Array' into a list.
+--
+-- @since 0.7.0
+{-# INLINE toList #-}
+toList :: Prim a => Array a -> [a]
+toList s = build (\c n -> toListFB c n s)
+
+-------------------------------------------------------------------------------
+-- Instances
+-------------------------------------------------------------------------------
+
+instance (Eq a, Prim a) => Eq (Array a) where
+    {-# INLINE (==) #-}
+    a1@(Array ba1#) == a2@(Array ba2#)
+        | sameByteArray ba1# ba2# = True
+        | sz1 /= sz2 = False
+        -- XXX shift can be used when elem size is power of 2
+        | otherwise = loop (quot sz1 (sizeOf (undefined :: a)) - 1)
+
+        where
+
+        -- Here, we take the size in bytes, not in elements. We do this
+        -- since it allows us to defer performing the division to
+        -- calculate the size in elements.
+        sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
+        sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
+        loop !i
+            | i < 0 = True
+            | otherwise = unsafeIndex a1 i == unsafeIndex a2 i && loop (i - 1)
+
+-- | Lexicographic ordering. Subject to change between major versions.
+instance (Ord a, Prim a) => Ord (Array a) where
+    {-# INLINE compare #-}
+    compare a1@(Array ba1#) a2@(Array ba2#)
+        | sameByteArray ba1# ba2# = EQ
+        | otherwise = loop 0
+
+        where
+
+        sz1 = PB.sizeofByteArray (PB.ByteArray ba1#)
+        sz2 = PB.sizeofByteArray (PB.ByteArray ba2#)
+        sz = quot (min sz1 sz2) (sizeOf (undefined :: a))
+
+        loop !i
+            | i < sz =
+                compare (unsafeIndex a1 i) (unsafeIndex a2 i) <> loop (i + 1)
+            | otherwise = compare sz1 sz2
+
+instance Prim a => Semigroup (Array a) where
+    -- XXX can't we use runST instead of inlineIO?
+    a <> b = unsafeInlineIO (spliceTwo a b :: IO (Array a))
+
+instance Prim a => Monoid (Array a) where
+    mempty = empty
+    mappend = (<>)
+
+instance Prim a => NFData (Array a) where
+    {-# INLINE rnf #-}
+    -- XXX bytearray is guaranteed to be in normal form
+    -- rnf _ = ()
+    rnf = foldl' (\_ _ -> ()) ()
+
+-- XXX check if this is compatible with Memory.Array?
+instance (Show a, Prim a) => Show (Array a) where
+    showsPrec p a =
+        showParen (p > 10) $
+              showString "fromListN "
+            . shows (length a)
+            . showString " "
+            . shows (toList a)
+
+instance (a ~ Char) => IsString (Array a) where
+    {-# INLINE fromString #-}
+    fromString = fromList
+
+-- GHC versions 8.0 and below cannot derive IsList
+instance Prim a => IsList (Array a) where
+    type (Item (Array a)) = a
+
+    {-# INLINE fromList #-}
+    fromList = fromList
+
+    {-# INLINE fromListN #-}
+    fromListN = fromListN
+
+    {-# INLINE toList #-}
+    toList = toList
+
+instance (Prim a, Read a, Show a) => Read (Array a) where
+    {-# INLINE readPrec #-}
+    readPrec = fromList <$> readPrec
+    readListPrec = readListPrecDefault
+
+-- XXX these folds can be made common with mutable arrays by defining a
+-- unsafeIndex in the specific module?
+
+-------------------------------------------------------------------------------
+-- Folds
+-------------------------------------------------------------------------------
+
+{-# INLINE foldr #-}
+foldr ::
+       forall a b. Prim a
+    => (a -> b -> b)
+    -> b
+    -> Array a
+    -> b
+foldr f z arr = go 0
+
+    where
+
+    !len = length arr
+
+    go !i
+        | len > i = f (unsafeIndex arr i) (go (i + 1))
+        | otherwise = z
+
+-- | Strict right-associated fold over the elements of an 'Array'.
+{-# INLINE foldr' #-}
+foldr' ::
+       forall a b. Prim a
+    => (a -> b -> b)
+    -> b
+    -> Array a
+    -> b
+foldr' f z0 arr = go (length arr - 1) z0
+
+    where
+
+    go !i !acc
+        | i < 0 = acc
+        | otherwise = go (i - 1) (f (unsafeIndex arr i) acc)
+
+-- | Strict left-associated fold over the elements of an 'Array'.
+{-# INLINE foldl' #-}
+foldl' ::
+       forall a b. Prim a
+    => (b -> a -> b)
+    -> b
+    -> Array a
+    -> b
+foldl' f z0 arr = go 0 z0
+
+    where
+
+    !len = length arr
+
+    go !i !acc
+        | i < len = go (i + 1) (f acc (unsafeIndex arr i))
+        | otherwise = acc
+
+-- | Strict left-associated fold over the elements of an 'Array'.
+{-# INLINE foldlM' #-}
+foldlM' :: (Prim a, Monad m) => (b -> a -> m b) -> b -> Array a -> m b
+foldlM' f z0 arr = go 0 z0
+
+    where
+
+    !len = length arr
+
+    go !i !acc1
+        | i < len = do
+            acc2 <- f acc1 (unsafeIndex arr i)
+            go (i + 1) acc2
+        | otherwise = return acc1
+
+-------------------------------------------------------------------------------
+-- Converting to streams
+-------------------------------------------------------------------------------
+
+{-# INLINE_NORMAL toStreamD #-}
+toStreamD :: (Prim a, Monad m) => Array a -> D.Stream m a
+toStreamD arr = D.Stream step 0
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i == length arr = return D.Stop
+    step _ i = return $ D.Yield (unsafeIndex arr i) (i + 1)
+
+{-# INLINE toStreamK #-}
+toStreamK ::
+       forall t m a. (K.IsStream t, Prim a)
+    => Array a
+    -> t m a
+toStreamK arr = go 0
+
+    where
+
+    len = length arr
+
+    go p
+        | p == len = K.nil
+        | otherwise =
+            let !x = unsafeIndex arr p
+            in x `K.cons` go (p + 1)
+
+{-# INLINE_NORMAL toStreamDRev #-}
+toStreamDRev :: (Prim a, Monad m) => Array a -> D.Stream m a
+toStreamDRev arr = D.Stream step (length arr - 1)
+
+    where
+
+    {-# INLINE_LATE step #-}
+    step _ i
+        | i < 0 = return D.Stop
+    step _ i = return $ D.Yield (unsafeIndex arr i) (i - 1)
+
+{-# INLINE toStreamKRev #-}
+toStreamKRev ::
+       forall t m a. (K.IsStream t, Prim a)
+    => Array a
+    -> t m a
+toStreamKRev arr = go (length arr - 1)
+
+    where
+
+    go p | p == -1 = K.nil
+         | otherwise =
+        let !x = unsafeIndex arr p
+        in x `K.cons` go (p - 1)
+
+-------------------------------------------------------------------------------
+-- Stream of Arrays (immutable)
+-------------------------------------------------------------------------------
 
 data FlattenState s a =
       OuterLoop s
@@ -264,9 +472,39 @@ flattenArraysRev (D.Stream step state) = D.Stream step' (OuterLoop state)
         let x = unsafeIndex arr i
         return $ D.Yield x (InnerLoop st arr len (i - 1))
 
-{-# INLINE byteLength #-}
-byteLength :: Array a -> Int
-byteLength (Array arr#) = I# (sizeofByteArray# arr#)
+{-# INLINE_NORMAL unlines #-}
+unlines ::
+       (PrimMonad m, Prim a)
+    => a
+    -> D.Stream m (Array a)
+    -> D.Stream m a
+unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
+
+    where
+
+    {-# INLINE_LATE step' #-}
+    step' gst (OuterLoop st) = do
+        r <- step (adaptState gst) st
+        return $ case r of
+            D.Yield arr s ->
+                let len = length arr
+                in D.Skip (InnerLoop s arr len 0)
+            D.Skip s -> D.Skip (OuterLoop s)
+            D.Stop -> D.Stop
+
+    step' _ (InnerLoop st _ len i) | i == len =
+        return $ D.Yield sep $ OuterLoop st
+
+    step' _ (InnerLoop st arr len i) = do
+        let x = unsafeIndex arr i
+        return $ D.Yield x (InnerLoop st arr len (i + 1))
+
+-- XXX XXX these are all mutable routines, we should not have these in this
+-- module. These can mutate the immutable array.
+--
+-------------------------------------------------------------------------------
+-- Stream of Arrays (mutable)
+-------------------------------------------------------------------------------
 
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
@@ -286,88 +524,8 @@ lpackArraysChunksOf ::
 lpackArraysChunksOf n fld =
     FL.lmapM unsafeThaw $ MA.lpackArraysChunksOf n (FL.lmapM unsafeFreeze fld)
 
-{-# INLINE_NORMAL unlines #-}
-unlines ::
-       (PrimMonad m, Prim a)
-    => a
-    -> D.Stream m (Array a)
-    -> D.Stream m a
-unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
-    where
-    {-# INLINE_LATE step' #-}
-    step' gst (OuterLoop st) = do
-        r <- step (adaptState gst) st
-        return $ case r of
-            D.Yield arr s ->
-                let len = length arr
-                in D.Skip (InnerLoop s arr len 0)
-            D.Skip s -> D.Skip (OuterLoop s)
-            D.Stop -> D.Stop
-
-    step' _ (InnerLoop st _ len i) | i == len =
-        return $ D.Yield sep $ OuterLoop st
-
-    step' _ (InnerLoop st arr len i) = do
-        let x = unsafeIndex arr i
-        return $ D.Yield x (InnerLoop st arr len (i + 1))
-
-{-# INLINE foldr #-}
-foldr ::
-       forall a b. Prim a
-    => (a -> b -> b)
-    -> b
-    -> Array a
-    -> b
-foldr f z arr = go 0
-  where
-    !sz = length arr
-    go !i
-      | sz > i = f (unsafeIndex arr i) (go (i+1))
-      | otherwise = z
-
--- | Strict right-associated fold over the elements of a 'PrimArray'.
-{-# INLINE foldr' #-}
-foldr' ::
-       forall a b. Prim a
-    => (a -> b -> b)
-    -> b
-    -> Array a
-    -> b
-foldr' f z0 arr = go (length arr - 1) z0
-  where
-    go !i !acc
-      | i < 0 = acc
-      | otherwise = go (i - 1) (f (unsafeIndex arr i) acc)
-
--- | Strict left-associated fold over the elements of a 'PrimArray'.
-{-# INLINE foldl' #-}
-foldl' ::
-       forall a b. Prim a
-    => (b -> a -> b)
-    -> b
-    -> Array a
-    -> b
-foldl' f z0 arr = go 0 z0
-  where
-    !sz = length arr
-    go !i !acc
-      | i < sz = go (i + 1) (f acc (unsafeIndex arr i))
-      | otherwise = acc
-
--- | Strict left-associated fold over the elements of a 'PrimArray'.
-{-# INLINE foldlM' #-}
-foldlM' :: (Prim a, Monad m) => (b -> a -> m b) -> b -> Array a -> m b
-foldlM' f z0 arr = go 0 z0
-  where
-    !sz = length arr
-    go !i !acc1
-      | i < sz = do
-          acc2 <- f acc1 (unsafeIndex arr i)
-          go (i + 1) acc2
-      | otherwise = return acc1
-
 -- Drops the separator byte
--- Inefficcient compared to Memory Array
+-- Inefficient compared to Memory Array
 {-# INLINE breakOn #-}
 breakOn ::
        PrimMonad m
@@ -391,7 +549,9 @@ breakOn sep arr =
             arr1 <- unsafeFreeze mArr
             arr2 <- unsafeFreeze nArr
             return (arr1, Just arr2)
-  where
+
+    where
+
     loc = foldl' chk (Left 0) arr
     len = length arr
     chk (Left i) a =
@@ -458,67 +618,3 @@ splitOn byte (D.Stream step state) = D.Stream step' (Initial state)
 
     step' _ (Yielding arr next) = return $ D.Yield arr next
     step' _ Finishing = return $ D.Stop
-
-{-# INLINE_NORMAL toStreamD #-}
-toStreamD :: (Prim a, Monad m) => Array a -> D.Stream m a
-toStreamD arr = D.Stream step 0
-  where
-    {-# INLINE_LATE step #-}
-    step _ i
-        | i == length arr = return D.Stop
-    step _ i = return $ D.Yield (unsafeIndex arr i) (i + 1)
-
-{-# INLINE toStreamK #-}
-toStreamK ::
-       forall t m a. (K.IsStream t, Prim a)
-    => Array a
-    -> t m a
-toStreamK arr = go 0
-
-    where
-    len = length arr
-    go p | p == len = K.nil
-         | otherwise =
-        -- See Note in toStreamD.
-        let !x = unsafeIndex arr p
-        in x `K.cons` go (p + 1)
-
-
-{-# INLINE_NORMAL toStreamDRev #-}
-toStreamDRev :: (Prim a, Monad m) => Array a -> D.Stream m a
-toStreamDRev arr = D.Stream step (length arr - 1)
-  where
-    {-# INLINE_LATE step #-}
-    step _ i
-        | i < 0 = return D.Stop
-    step _ i = return $ D.Yield (unsafeIndex arr i) (i - 1)
-
-{-# INLINE toStreamKRev #-}
-toStreamKRev ::
-       forall t m a. (K.IsStream t, Prim a)
-    => Array a
-    -> t m a
-toStreamKRev arr = go (length arr - 1)
-
-    where
-    go p | p == -1 = K.nil
-         | otherwise =
-        let !x = unsafeIndex arr p
-        in x `K.cons` go (p - 1)
-
-{-# INLINE_LATE toListFB #-}
-toListFB :: forall a b. Prim a => (a -> b -> b) -> b -> Array a -> b
-toListFB c n arr = go 0
-    where
-    len = length arr
-    go p | p == len = n
-    go p =
-        let !x = unsafeIndex arr p
-        in c x (go (p + 1))
-
--- | Convert an 'Array' into a list.
---
--- @since 0.7.0
-{-# INLINE toList #-}
-toList :: Prim a => Array a -> [a]
-toList s = build (\c n -> toListFB c n s)

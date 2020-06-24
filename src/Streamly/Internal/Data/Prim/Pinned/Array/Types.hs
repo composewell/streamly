@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE FlexibleContexts          #-}
+
 #include "inline.hs"
 
 -- |
@@ -79,17 +80,20 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     )
 where
 
-import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
-
 import Foreign.C.Types (CSize(..), CInt(..))
 import Control.Monad (void)
 import GHC.IO (IO(..))
+
+import qualified Streamly.Internal.Data.Prim.Pinned.Mutable.Array.Types as MA
 
 #include "prim-array-types.hs"
 
 -------------------------------------------------------------------------------
 -- Utility functions
 -------------------------------------------------------------------------------
+
+-- XXX It seems these are not being used anymore, should be removed, or moved
+-- to the module where they are being used.
 
 foreign import ccall unsafe "string.h memcpy" c_memcpy
     :: Ptr Word8 -> Ptr Word8 -> CSize -> IO (Ptr Word8)
@@ -108,6 +112,10 @@ memcmp p1 p2 len = do
     r <- c_memcmp p1 p2 (fromIntegral len)
     return $ r == 0
 
+-------------------------------------------------------------------------------
+-- Using as a Pointer
+-------------------------------------------------------------------------------
+
 -- Change name later.
 {-# INLINE toPtr #-}
 toPtr :: Array a -> Ptr a
@@ -115,7 +123,7 @@ toPtr (Array arr#) = Ptr (byteArrayContents# arr#)
 
 {-# INLINE touchArray #-}
 touchArray :: Array a -> IO ()
-touchArray arr = IO $ \s -> case touch# arr s of s' -> (# s', () #)
+touchArray arr = IO $ \s -> case touch# arr s of s1 -> (# s1, () #)
 
 {-# INLINE withArrayAsPtr #-}
 withArrayAsPtr :: Array a -> (Ptr a -> IO b) -> IO b

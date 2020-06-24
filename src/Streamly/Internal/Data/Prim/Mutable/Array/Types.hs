@@ -60,23 +60,29 @@ where
 
 #include "mutable-prim-array-types.hs"
 
+-------------------------------------------------------------------------------
+-- Allocation (Unpinned)
+-------------------------------------------------------------------------------
+
 {-# INLINE newArray #-}
 newArray ::
        forall m a. (PrimMonad m, Prim a)
     => Int
     -> m (Array (PrimState m) a)
-newArray (I# n#)
-  = primitive (\s# ->
-      case newByteArray# (n# *# sizeOf# (undefined :: a)) s# of
-        (# s'#, arr# #) -> (# s'#, Array arr# #)
-    )
+newArray (I# n#) =
+    primitive $ \s# ->
+        let bytes = n# *# sizeOf# (undefined :: a)
+        in case newByteArray# bytes s# of
+            (# s1#, arr# #) -> (# s1#, Array arr# #)
 
 {-# INLINE resizeArray #-}
 resizeArray ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a
-    -> Int -- ^ new size
+    -> Int -- ^ new size in elem count
     -> m (Array (PrimState m) a)
-resizeArray (Array arr#) (I# n#)
-  = primitive (\s# -> case resizeMutableByteArray# arr# (n# *# sizeOf# (undefined :: a)) s# of
-                        (# s'#, arr'# #) -> (# s'#, Array arr'# #))
+resizeArray (Array arr#) (I# n#) =
+    primitive $ \s# ->
+        let bytes = n# *# sizeOf# (undefined :: a)
+        in case resizeMutableByteArray# arr# bytes s# of
+            (# s1#, arr1# #) -> (# s1#, Array arr1# #)

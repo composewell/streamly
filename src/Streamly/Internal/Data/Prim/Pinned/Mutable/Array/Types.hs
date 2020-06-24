@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE UnboxedTuples             #-}
 {-# LANGUAGE FlexibleContexts          #-}
+
 #include "inline.hs"
 
 -- |
@@ -70,48 +71,37 @@ import GHC.IO (IO(..))
 
 #include "mutable-prim-array-types.hs"
 
+-------------------------------------------------------------------------------
+-- Allocation (Pinned)
+-------------------------------------------------------------------------------
+
+-- XXX we can use a single newArray routine which accepts an allocation
+-- function which could be newByteArray#, newPinnedByteArray# or
+-- newAlignedPinnedByteArray#. That function can go in the common include file.
+--
 {-# INLINE newArray #-}
 newArray ::
        forall m a. (PrimMonad m, Prim a)
     => Int
     -> m (Array (PrimState m) a)
-newArray (I# n#)
-  = primitive (\s# ->
-      case newPinnedByteArray# (n# *# sizeOf# (undefined :: a)) s# of
-        (# s'#, arr# #) -> (# s'#, Array arr# #)
-    )
+newArray (I# n#) =
+    primitive $ \s# ->
+        let bytes = n# *# sizeOf# (undefined :: a)
+         in case newPinnedByteArray# bytes s# of
+            (# s1#, arr# #) -> (# s1#, Array arr# #)
 
 -- Change order of args?
 {-# INLINE newAlignedArray #-}
 newAlignedArray ::
        forall m a. (PrimMonad m, Prim a)
-    => Int
-    -> Int
+    => Int -- size
+    -> Int -- Alignment
     -> m (Array (PrimState m) a)
-newAlignedArray (I# n#) (I# a#)
-  = primitive (\s# ->
-      case newAlignedPinnedByteArray# (n# *# sizeOf# (undefined :: a)) a# s# of
-        (# s'#, arr# #) -> (# s'#, Array arr# #)
-    )
-
-{-# INLINE_NORMAL writeNAligned #-}
-writeNAligned ::
-       forall m a. (PrimMonad m, Prim a)
-    => Int
-    -> Int
-    -> Fold m a (Array (PrimState m) a)
-writeNAligned align limit = Fold step initial extract
-  where
-    initial = do
-        marr <- newAlignedArray limit align
-        return (marr, 0)
-    step (marr, i) x
-        | i == limit = return (marr, i)
-        | otherwise = do
-            writeArray marr i x
-            return (marr, i + 1)
-    extract (marr, _) = return marr
-
+newAlignedArray (I# n#) (I# a#) =
+    primitive $ \s# ->
+        let bytes = n# *# sizeOf# (undefined :: a)
+         in case newAlignedPinnedByteArray# bytes a# s# of
+            (# s1#, arr# #) -> (# s1#, Array arr# #)
 
 {-# INLINE resizeArray #-}
 resizeArray ::
@@ -128,18 +118,56 @@ resizeArray arr i =
              nArr <- newArray i
              unsafeCopy nArr 0 arr 0 len
              return nArr
-  where
+
+    where
+
     len = length arr
+
+-------------------------------------------------------------------------------
+-- Aligned Construction
+-------------------------------------------------------------------------------
+
+-- XXX we can also factor out common code in writeN and writeNAligned in the
+-- same way as suggested above.
+--
+{-# INLINE_NORMAL writeNAligned #-}
+writeNAligned ::
+       forall m a. (PrimMonad m, Prim a)
+    => Int
+    -> Int
+    -> Fold m a (Array (PrimState m) a)
+writeNAligned align limit = Fold step initial extract
+
+    where
+
+    initial = do
+        marr <- newAlignedArray limit align
+        return (marr, 0)
+
+    step (marr, i) x
+        | i == limit = return (marr, i)
+        | otherwise = do
+            writeArray marr i x
+            return (marr, i + 1)
+
+    extract (marr, _) = return marr
+
+-------------------------------------------------------------------------------
+-- Mutation with pointers
+-------------------------------------------------------------------------------
+
+-- XXX This section can probably go in a common include file for pinned arrays.
 
 -- Change name later.
 {-# INLINE toPtr #-}
 toPtr :: Array s a -> Ptr a
-toPtr (Array arr#) =
-    Ptr (byteArrayContents# (unsafeCoerce# arr#))
+toPtr (Array arr#) = Ptr (byteArrayContents# (unsafeCoerce# arr#))
 
+-- XXX remove this?
 fPlainPtrToW8Array :: ForeignPtr a -> Array RealWorld Word8
 fPlainPtrToW8Array (ForeignPtr _ (PlainPtr mb)) = Array mb
-fPlainPtrToW8Array _ = error "fPlainPtrToW8Array can only be used when the ForeignPtr does not have finalizers."
+fPlainPtrToW8Array _ =
+    error "fPlainPtrToW8Array can only be used when the ForeignPtr does not have finalizers."
 
 {-# INLINE touchArray #-}
 touchArray :: Array s a -> IO ()
