@@ -245,11 +245,11 @@ instance Prim a => Monoid (Array a) where
     mempty = nil
     mappend = (<>)
 
-instance Prim a => NFData (Array a) where
+instance NFData (Array a) where
     {-# INLINE rnf #-}
     -- XXX bytearray is guaranteed to be in normal form
-    -- rnf _ = ()
-    rnf = foldl' (\_ _ -> ()) ()
+    rnf _ = ()
+
 
 -- XXX check if this is compatible with Memory.Array?
 instance (Show a, Prim a) => Show (Array a) where
