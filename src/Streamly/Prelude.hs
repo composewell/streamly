@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE FlexibleContexts          #-}
-
 #include "inline.hs"
 
 -- |

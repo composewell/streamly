@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ExistentialQuantification          #-}
-{-# LANGUAGE FlexibleContexts                   #-}
-
 -- |
 -- Module      : Streamly.StreamDK.Type
 -- Copyright   : (c) 2019 Composewell Technologies

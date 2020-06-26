@@ -1,12 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving#-}
-{-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE UndecidableInstances      #-} -- XXX
-
 #include "inline.hs"
 
 -- |

@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 #include "inline.hs"
 
 -- |

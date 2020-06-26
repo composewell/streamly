@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ExistentialQuantification #-}
-
 #include "inline.hs"
 
 -- |

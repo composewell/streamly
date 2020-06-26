@@ -1,8 +1,3 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE ExistentialQuantification #-}
-
 -- |
 -- Module      : Streamly.Memory.Ring
 -- Copyright   : (c) 2019 Composewell Technologies

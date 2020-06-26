@@ -1,12 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE BangPatterns              #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE MagicHash                 #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeFamilies              #-}
-{-# LANGUAGE UnboxedTuples             #-}
-{-# LANGUAGE FlexibleContexts          #-}
 #include "inline.hs"
 
 -- |

@@ -1,6 +1,3 @@
-{-# LANGUAGE CPP              #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 #include "inline.hs"
 
 -- |

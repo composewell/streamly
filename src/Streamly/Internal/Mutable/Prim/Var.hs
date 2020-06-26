@@ -1,10 +1,3 @@
-{-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE CPP                 #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE MagicHash           #-}
-{-# LANGUAGE UnboxedTuples       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 #include "inline.hs"
 
 -- |

@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Stream.Enumeration
 -- Copyright   : (c) 2018 Harendra Kumar

@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP         #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Atomics
 -- Copyright   : (c) 2018-2019 Composewell Technologies

@@ -51,10 +51,6 @@
 -- please see the "Streamly.Tutorial" module and the examples directory in this
 -- package.
 
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-
 #include "inline.hs"
 
 module Streamly

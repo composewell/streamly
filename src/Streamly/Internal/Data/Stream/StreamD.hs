@@ -1,21 +1,3 @@
-{-# LANGUAGE BangPatterns              #-}
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE PatternSynonyms           #-}
-{-# LANGUAGE RecordWildCards           #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE ViewPatterns              #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE MagicHash                 #-}
-
-#if __GLASGOW_HASKELL__ >= 801
-{-# LANGUAGE TypeApplications          #-}
-#endif
-
 #include "inline.hs"
 
 -- |

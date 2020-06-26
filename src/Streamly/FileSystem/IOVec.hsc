@@ -1,8 +1,3 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CApiFFI #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-
 -- |
 -- Module      : Streamly.FileSystem.IOVec
 -- Copyright   : (c) 2019 Composewell Technologies
