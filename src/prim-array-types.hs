@@ -94,8 +94,9 @@ length (Array arr#) =
 
 -- XXX the name "empty" is used by alternative, should we use nil instead? It
 -- will also be consistent with streams.
-empty :: forall a. Prim a => Array a
-empty = runST run where
+nil :: forall a. Prim a => Array a
+nil = runST run
+  where
     run :: forall s. ST s (Array a)
     run = do
         arr <- MA.newArray 0
@@ -241,7 +242,7 @@ instance Prim a => Semigroup (Array a) where
     a <> b = unsafeInlineIO (spliceTwo a b :: IO (Array a))
 
 instance Prim a => Monoid (Array a) where
-    mempty = empty
+    mempty = nil
     mappend = (<>)
 
 instance Prim a => NFData (Array a) where
@@ -539,7 +540,7 @@ breakOn sep arr =
             mArr <- unsafeThaw arr
             MA.shrinkArray mArr (len - 1)
             arr' <- unsafeFreeze mArr
-            return (arr', Just empty)
+            return (arr', Just nil)
         Right (Right i) -> do
             let nLen = len - i - 1
             nArr <- MA.newArray nLen

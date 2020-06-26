@@ -25,7 +25,7 @@ module Streamly.Internal.Data.Prim.Pinned.Array.Types
     , unsafeFreeze
     , unsafeThaw
     , defaultChunkSize
-    , empty
+    , nil
 
     -- * Construction
     , spliceTwo

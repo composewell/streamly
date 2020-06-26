@@ -109,7 +109,7 @@ arraysOf n str =
 {-# INLINE spliceArraysRealloced #-}
 spliceArraysRealloced :: forall m a. (PrimMonad m, Prim a)
     => SerialT m (Array a) -> m (Array a)
-spliceArraysRealloced s = S.foldlM' A.spliceTwo A.empty s
+spliceArraysRealloced s = S.foldlM' A.spliceTwo A.nil s
 
 -- | Given a stream of arrays, splice them all together to generate a single
 -- array. The stream must be /finite/.
