@@ -102,10 +102,19 @@ nil = runST run
         arr <- MA.newArray 0
         unsafeFreeze arr
 
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since VERSION
 {-# INLINE_NORMAL write #-}
 write :: (PrimMonad m, Prim a) => Fold m a (Array a)
 write = FL.mapM unsafeFreeze MA.write
 
+-- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- 'Array'.
+--
+-- @since VERSION
 {-# INLINE_NORMAL writeN #-}
 writeN :: (PrimMonad m, Prim a) => Int -> Fold m a (Array a)
 writeN limit = FL.mapM unsafeFreeze (MA.writeN limit)
@@ -123,6 +132,8 @@ fromStreamD ::
        (PrimMonad m, Prim a) => D.Stream m a -> m (Array a)
 fromStreamD str = MA.fromStreamD str >>= unsafeFreeze
 
+-- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf ::
        forall m a. (PrimMonad m, Prim a)
@@ -168,6 +179,7 @@ fromList xs = fromListN (P.length xs) xs
 --
 -- XXX we should not be thawing the original arrays here. We should just copy
 -- to a new array.
+-- | Splice two immutable arrays creating a new immutable array.
 {-# INLINE spliceTwo #-}
 spliceTwo :: (PrimMonad m, Prim a) => Array a -> Array a -> m (Array a)
 spliceTwo a1 a2 = do
@@ -191,7 +203,7 @@ toListFB c n arr = go 0
 
 -- | Convert an 'Array' into a list.
 --
--- @since 0.7.0
+-- @since VERSION
 {-# INLINE toList #-}
 toList :: Prim a => Array a -> [a]
 toList s = build (\c n -> toListFB c n s)
@@ -507,6 +519,13 @@ unlines sep (D.Stream step state) = D.Stream step' (OuterLoop state)
 -- Stream of Arrays (mutable)
 -------------------------------------------------------------------------------
 
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size in bytes. Note that if a single array is bigger than
+-- the specified size we do not split it to fit. When we coalesce multiple
+-- arrays if the size would exceed the specified size we do not coalesce
+-- therefore the actual array size may be less than the specified chunk size.
+--
+-- @since VERSION
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
        (PrimMonad m, Prim a)
@@ -573,7 +592,7 @@ data SplitState s arr
 -- | Split a stream of arrays on a given separator byte, dropping the separator
 -- and coalescing all the arrays between two separators into a single array.
 --
--- @since 0.7.0
+-- @since VERSION
 {-# INLINE_NORMAL splitOn #-}
 splitOn
     :: PrimMonad m

@@ -79,6 +79,11 @@ import GHC.IO (IO(..))
 -- function which could be newByteArray#, newPinnedByteArray# or
 -- newAlignedPinnedByteArray#. That function can go in the common include file.
 --
+-- | Allocate an array that is pinned and can hold 'count' items.  The memory of
+-- the array is uninitialized.
+--
+-- Note that this is internal routine, the reference to this array cannot be
+-- given out until the array has been written to and frozen.
 {-# INLINE newArray #-}
 newArray ::
        forall m a. (PrimMonad m, Prim a)
@@ -91,6 +96,8 @@ newArray (I# n#) =
             (# s1#, arr# #) -> (# s1#, Array arr# #)
 
 -- Change order of args?
+-- | Allocate a new array aligned to the specified alignment and using pinned
+-- memory.
 {-# INLINE newAlignedArray #-}
 newAlignedArray ::
        forall m a. (PrimMonad m, Prim a)
@@ -103,6 +110,10 @@ newAlignedArray (I# n#) (I# a#) =
          in case newAlignedPinnedByteArray# bytes a# s# of
             (# s1#, arr# #) -> (# s1#, Array arr# #)
 
+-- | Resize (pinned) mutable byte array to new specified size (in elem
+-- count). The returned array is either the original array resized in-place or,
+-- if not possible, a newly allocated (pinned) array (with the original content
+-- copied over).
 {-# INLINE resizeArray #-}
 resizeArray ::
        forall m a. (PrimMonad m, Prim a)

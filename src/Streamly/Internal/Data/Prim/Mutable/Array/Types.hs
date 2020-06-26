@@ -64,6 +64,11 @@ where
 -- Allocation (Unpinned)
 -------------------------------------------------------------------------------
 
+-- | Allocate an array that is unpinned and can hold 'count' items.  The memory
+-- of the array is uninitialized.
+--
+-- Note that this is internal routine, the reference to this array cannot be
+-- given out until the array has been written to and frozen.
 {-# INLINE newArray #-}
 newArray ::
        forall m a. (PrimMonad m, Prim a)
@@ -75,6 +80,10 @@ newArray (I# n#) =
         in case newByteArray# bytes s# of
             (# s1#, arr# #) -> (# s1#, Array arr# #)
 
+-- | Resize (unpinned) mutable byte array to new specified size (in elem
+-- count). The returned array is either the original array resized in-place or,
+-- if not possible, a newly allocated (unpinned) array (with the original
+-- content copied over).
 {-# INLINE resizeArray #-}
 resizeArray ::
        forall m a. (PrimMonad m, Prim a)

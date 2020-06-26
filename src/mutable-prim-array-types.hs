@@ -16,16 +16,16 @@ import Prelude hiding (length, unlines)
 -- Array Data Type
 -------------------------------------------------------------------------------
 
--- XXX why is this not supposed to be used?
--- This is not supposed to be used
 data Array s a = Array (MutableByteArray# s)
 
 -------------------------------------------------------------------------------
 -- Utilities
 -------------------------------------------------------------------------------
 
--- XXX Document important details about semantics e.g. is overlapped copy
--- allowed?
+-- | Copy a range of the first array to the specified region in the second
+-- array. Both arrays must fully contain the specified ranges, but this is not
+-- checked. The regions are allowed to overlap, although this is only possible
+-- when the same array is provided as both the source and the destination.
 {-# INLINE unsafeCopy #-}
 unsafeCopy ::
        forall m a. (PrimMonad m, Prim a)
@@ -96,7 +96,9 @@ writeArray (Array arr#) (I# i#) x = primitive_ (writeByteArray# arr# i# x)
 -- shrink only if significant space is being wasted. If we want to do that then
 -- we will have to store the used length separately. Or does GHC take care of
 -- that?
---
+-- Although the docs are not explicit about it, given how the signature is,
+-- the shrinking must me inplace. "resizeMutableByteArray#" shrinks the
+-- array inplace.
 {-# INLINE shrinkArray #-}
 shrinkArray ::
        forall m a. (PrimMonad m, Prim a)
@@ -107,6 +109,11 @@ shrinkArray (Array arr#) (I# n#) =
     let bytes = n# *# (sizeOf# (undefined :: a))
      in primitive_ (shrinkMutableByteArray# arr# bytes)
 
+-- | Fold the whole input to a single array.
+--
+-- /Caution! Do not use this on infinite streams./
+--
+-- @since VERSION
 {-# INLINE_NORMAL write #-}
 write ::
        forall m a. (PrimMonad m, Prim a)
@@ -132,6 +139,10 @@ write = Fold step initial extract
 
     extract (marr, len, _) = shrinkArray marr len >> return marr
 
+-- | @writeN n@ folds a maximum of @n@ elements from the input stream to an
+-- 'Array'.
+--
+-- @since VERSION
 {-# INLINE_NORMAL writeN #-}
 writeN ::
        forall m a. (PrimMonad m, Prim a)
@@ -197,6 +208,7 @@ fromListM xs = fromStreamD $ D.fromList xs
 -- Combining
 -------------------------------------------------------------------------------
 
+-- Splice two mutable arrays creating a new array.
 {-# INLINE spliceTwo #-}
 spliceTwo ::
        forall m a. (PrimMonad m, Prim a)
@@ -224,6 +236,8 @@ data GroupState s t a
     | GroupLastYield (Array t a) Int
     | GroupFinish
 
+-- | @fromStreamArraysOf n stream@ groups the input stream into a stream of
+-- arrays of size n.
 {-# INLINE_NORMAL fromStreamDArraysOf #-}
 fromStreamDArraysOf ::
        forall m a. (PrimMonad m, Prim a)
@@ -270,7 +284,14 @@ data SpliceState s arr
     | SpliceYielding arr (SpliceState s arr)
     | SpliceFinish
 
--- Int in bytes?
+-- XXX can use general grouping combinators to achieve this?
+-- | Coalesce adjacent arrays in incoming stream to form bigger arrays of a
+-- maximum specified size in bytes. Note that if a single array is bigger than
+-- the specified size we do not split it to fit. When we coalesce multiple
+-- arrays if the size would exceed the specified size we do not coalesce
+-- therefore the actual array size may be less than the specified chunk size.
+--
+-- @since VERSION
 {-# INLINE_NORMAL packArraysChunksOf #-}
 packArraysChunksOf ::
        forall m a. (PrimMonad m, Prim a)
