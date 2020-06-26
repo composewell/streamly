@@ -3,8 +3,6 @@
 # variables here.  See https://github.com/harendra-kumar/packcheck for all
 # options and their explanation.
 
-if: branch = master
-
 # dist: trusty
 dist: xenial
 env:
