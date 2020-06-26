@@ -1,5 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-
 #include "inline.hs"
 
 -- |

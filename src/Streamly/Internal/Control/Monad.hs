@@ -9,8 +9,6 @@
 --
 -- Additional "Control.Monad" utilities.
 
-{-# LANGUAGE ScopedTypeVariables #-}
-
 module Streamly.Internal.Control.Monad
     ( discard
     )

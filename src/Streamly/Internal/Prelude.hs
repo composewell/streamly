@@ -1,10 +1,3 @@
-{-# LANGUAGE BangPatterns     #-}
-{-# LANGUAGE CPP              #-}
-{-# LANGUAGE RankNTypes       #-}
-{-# LANGUAGE RecordWildCards  #-}
-{-# LANGUAGE KindSignatures   #-}
-{-# LANGUAGE FlexibleContexts #-}
-
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-orphans  #-}
 #endif

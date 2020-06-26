@@ -1,9 +1,3 @@
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-
 -- |
 -- Module      : Streamly.Internal.Data.Pipe
 -- Copyright   : (c) 2019 Composewell Technologies

@@ -1,7 +1,3 @@
-{-# LANGUAGE CPP             #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
-
 #include "inline.hs"
 
 -- |

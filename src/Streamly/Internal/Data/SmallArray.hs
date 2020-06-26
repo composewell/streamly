@@ -9,10 +9,6 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-# LANGUAGE CPP           #-}
-{-# LANGUAGE MagicHash     #-}
-{-# LANGUAGE UnboxedTuples #-}
-
 #include "inline.hs"
 
 module Streamly.Internal.Data.SmallArray

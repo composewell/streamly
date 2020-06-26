@@ -1,19 +1,3 @@
-{-# LANGUAGE BangPatterns              #-}
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE ConstraintKinds           #-}
-{-# LANGUAGE FlexibleContexts          #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE InstanceSigs              #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE PatternSynonyms           #-}
-{-# LANGUAGE KindSignatures            #-}
-{-# LANGUAGE ViewPatterns              #-}
-#if __GLASGOW_HASKELL__ >= 806
-{-# LANGUAGE QuantifiedConstraints     #-}
-#endif
-{-# LANGUAGE RankNTypes                #-}
-{-# LANGUAGE UndecidableInstances      #-} -- XXX
-
 #include "inline.hs"
 
 -- |

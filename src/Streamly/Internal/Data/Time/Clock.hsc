@@ -1,8 +1,3 @@
-{-# LANGUAGE CPP                         #-}
-{-# LANGUAGE DeriveGeneric               #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving  #-}
-{-# LANGUAGE ScopedTypeVariables         #-}
-
 #if __GLASGOW_HASKELL__ >= 800
 {-# OPTIONS_GHC -Wno-identities          #-}
 {-# OPTIONS_GHC -fno-warn-unused-imports #-}

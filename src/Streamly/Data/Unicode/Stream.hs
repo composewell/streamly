@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 -- |
 -- Module      : Streamly.Data.Unicode.Stream
 -- Copyright   : (c) 2018 Composewell Technologies
