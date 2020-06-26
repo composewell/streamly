@@ -66,18 +66,13 @@ length arr = byteLength arr `quot` (sizeOf (undefined :: a))
 -------------------------------------------------------------------------------
 
 -- XXX Rename to unsafeReadIndex
--- Check correctness
 {-# INLINE unsafeIndexM #-}
 unsafeIndexM ::
        forall m a. (PrimMonad m, Prim a)
     => Array (PrimState m) a
     -> Int
     -> m a
-unsafeIndexM (Array arr#) (I# i#) =
-    -- XXX XXX why not use readByteArray#
-    primitive $ \s# ->
-        case indexByteArray# (unsafeCoerce# arr#) i# of
-            a -> (# s#, a #)
+unsafeIndexM (Array arr#) (I# i#) = primitive (readByteArray# arr# i#)
 
 -- XXX rename to unsafeWriteIndex?
 {-# INLINE writeArray #-}
