@@ -1,6 +1,6 @@
 -- MOVE THIS TO A DIFFERENT LOCATION
 
-import Control.Monad (when, void)
+import Control.Monad (when)
 import Control.Monad.Primitive
 import Data.Primitive.Types
 import Streamly.Internal.Data.Fold.Types (Fold(..))
@@ -168,8 +168,8 @@ fromStreamDN ::
 fromStreamDN limit str = do
     marr <- newArray (max limit 0)
     let step i x = i `seq` (writeArray marr i x) >> return (i + 1)
-    void $ D.foldlM' step 0 $ D.take limit str
-    -- XXX XXX we need to shrink the array in case the stream terminated early.
+    n <- D.foldlM' step (return 0) $ D.take limit str
+    shrinkArray marr n
     return marr
 
 {-# INLINE runFold #-}
